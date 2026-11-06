@@ -77,6 +77,7 @@ public class AgentConfirmationApiController {
 
     private final AgentConfirmationService confirmations;
     private AgentCallGuard callGuard;
+    private String linkBaseUrl;
 
     public AgentConfirmationApiController(AgentConfirmationService confirmations) {
         this.confirmations = confirmations;
@@ -88,6 +89,14 @@ public class AgentConfirmationApiController {
      */
     public void setCallGuard(@Nullable AgentCallGuard callGuard) {
         this.callGuard = callGuard;
+    }
+
+    /**
+     * docs/agent A5-2: the address a confirmation link starts with ({@code confirmation-link-base-url}), the one the
+     * gate's links start with, so the mail of an agent's own ask opens the same page as any other.
+     */
+    public void setLinkBaseUrl(@Nullable String linkBaseUrl) {
+        this.linkBaseUrl = linkBaseUrl;
     }
 
     @GetMapping("/{id}")
@@ -127,7 +136,7 @@ public class AgentConfirmationApiController {
         return confirmations.request(new AgentConfirmationService.ConfirmationRequest(subject, hash,
                         ask.method().trim().toUpperCase(Locale.ROOT), target, AgentConfirmation.REQUESTED,
                         StringUtils.hasText(ask.reason()) ? truncate(ask.reason().trim(), 1000) : null,
-                        null, null))
+                        null, AgentConfirmationService.linkBase(linkBaseUrl, request.getContextPath())))
                 .<ResponseEntity<?>>map(confirmation -> ResponseEntity.status(HttpStatus.ACCEPTED)
                         .body(ConfirmationStatus.of(confirmation)))
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.CONFLICT).build());

@@ -82,6 +82,18 @@ public class AgentConfirmationService {
         this.containment = containment;
     }
 
+    /**
+     * Where a confirmation link starts: the configured address, else the application's path only. The address of the
+     * agent's own request is never used, since the agent chooses its host header and the link goes to a person.
+     *
+     * @param configured  the configured address ({@code confirmation-link-base-url}), or null
+     * @param contextPath the application's context path
+     */
+    public static String linkBase(@Nullable String configured, @Nullable String contextPath) {
+        String base = StringUtils.hasText(configured) ? configured.trim().replaceAll("/+$", "") : "";
+        return base + (contextPath != null ? contextPath : "");
+    }
+
     /** How long a confirmation waits, and how long an approval may be used. */
     public Duration timeout() {
         return timeout;

@@ -411,6 +411,42 @@ class AgentConfirmationGateTest {
         assertThat(store.list(null, 10)).isEmpty();
     }
 
+    /** The link starts at the configured address and the application's path; a host the agent sent reaches no one. */
+    @Test
+    void theConfirmationLinkStartsAtTheConfiguredAddressNeverAtTheHostTheAgentSent() throws Exception {
+        List<AgentNotice> mailed = new ArrayList<>();
+        AgentConfirmationService mailing = new AgentConfirmationService(store,
+                new SignedAgentConfirmationAuthorizer(HmacEvidenceSigner.of(Map.of("k1", Base64.getEncoder()
+                        .encodeToString("0123456789abcdef0123456789abcdef".getBytes())), "k1")),
+                new AgentNotices(new InMemoryAgentNoticeStore(), notice -> {
+                    mailed.add(notice);
+                    return "MAIL";
+                }), null, null, Duration.ofMinutes(15), clock);
+        AgentConfirmationGate configured = new AgentConfirmationGate(mailing, new InMemoryZeroTrustActionRepository(),
+                writer, 1024, " https://app.test/ ", clock);
+        AgentConfirmationGate unset = new AgentConfirmationGate(mailing, new InMemoryZeroTrustActionRepository(),
+                writer, 1024, null, clock);
+
+        configured.filter(fromAnotherHost("{\"n\":1}"), new MockHttpServletResponse(), new Recording(), subject,
+                ZeroTrustAction.CHALLENGE);
+        unset.filter(fromAnotherHost("{\"n\":2}"), new MockHttpServletResponse(), new Recording(), subject,
+                ZeroTrustAction.CHALLENGE);
+
+        assertThat(mailed).extracting(AgentNotice::link).satisfiesExactly(
+                link -> assertThat(link).startsWith("https://app.test/ctx/contexa/agent-confirmations/"),
+                link -> assertThat(link).startsWith("/ctx/contexa/agent-confirmations/"));
+    }
+
+    private static MockHttpServletRequest fromAnotherHost(String body) {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/ctx/api/exports");
+        request.setContextPath("/ctx");
+        request.setServerName("attacker.test");
+        request.addHeader("Host", "attacker.test");
+        request.setContent(body.getBytes(StandardCharsets.UTF_8));
+        request.setContentType("application/json");
+        return request;
+    }
+
     @Test
     void aRequestTooLargeToBindIsRefusedWhenItNeedsAConfirmation() throws Exception {
         Recording refused = send(request("x".repeat(2048)), ZeroTrustAction.CHALLENGE);

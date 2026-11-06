@@ -279,6 +279,29 @@ class AgentConfirmationPagesTest {
                 .isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
+    /**
+     * The mail of an agent's own ask links as the mail of a request the gate stopped does: the configured address and
+     * the application's path, whatever host the agent sent.
+     */
+    @Test
+    void theMailOfAnAgentsAskLinksToTheConfiguredAddressWhateverHostTheAgentSent() {
+        List<AgentNotice> mailed = new ArrayList<>();
+        AgentConfirmationApiController api = new AgentConfirmationApiController(mailing(mailed));
+        api.setLinkBaseUrl(" https://app.test/ ");
+
+        String id = askFromAnotherHost(api);
+
+        assertThat(mailed).singleElement().satisfies(notice -> assertThat(notice.link())
+                .isEqualTo("https://app.test/ctx/contexa/agent-confirmations/" + id));
+    }
+
+    /** With no address configured the link stays a path: the agent chooses its host header, and a person gets it. */
+    @Test
+    void withoutAConfiguredAddressTheMailNeverTakesTheHostTheAgentSent() {
+        List<AgentNotice> mailed = new ArrayList<>();
+
+        String id = askFromAnotherHost(new AgentConfirmationApiController(mailing(mailed)));
+
     /** docs/agent F-2: the agent's own ask is bound in the request's tenant, as the gate binds the request. */
     @Test
     void anAgentsAskIsBoundInTheRequestsTenant() {
@@ -363,6 +386,26 @@ class AgentConfirmationPagesTest {
             assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/export/" + target,
                     null, null), token, fromAgent).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         }
+    }
+
+    private AgentConfirmationService mailing(List<AgentNotice> mailed) {
+        return new AgentConfirmationService(store, new SignedAgentConfirmationAuthorizer(HmacEvidenceSigner.of(
+                Map.of("k1", Base64.getEncoder().encodeToString("0123456789abcdef0123456789abcdef".getBytes())), "k1")),
+                new AgentNotices(new InMemoryAgentNoticeStore(), notice -> {
+                    mailed.add(notice);
+                    return "MAIL";
+                }), null, null, Duration.ofMinutes(15), null);
+    }
+
+    /** An ask that came to the application under a context path, from an agent that sent a host of its own. */
+    private static String askFromAnotherHost(AgentConfirmationApiController api) {
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+        fromAgent.setContextPath("/ctx");
+        fromAgent.setServerName("attacker.test");
+        fromAgent.addHeader("Host", "attacker.test");
+        return ((AgentConfirmationApiController.ConfirmationStatus) api.ask(
+                new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports", null, null),
+                new TestingAuthenticationToken("alice", null), fromAgent).getBody()).confirmationId();
     }
 
     private AgentConfirmation ask() {

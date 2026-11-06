@@ -401,12 +401,9 @@ public class AgentConfirmationGate {
         responseWriter.writeErrorResponse(response, status, error, message, request.getRequestURI(), body);
     }
 
-    /**
-     * Where the confirmation link starts: the configured address, else the application's path only. The address of
-     * the agent's own request is not used, since the agent chooses its host header and the link goes to a person.
-     */
+    /** Where the confirmation link starts ({@link AgentConfirmationService#linkBase}). */
     private String linkBase(HttpServletRequest request) {
-        return (linkBaseUrl != null ? linkBaseUrl.replaceAll("/+$", "") : "") + request.getContextPath();
+        return AgentConfirmationService.linkBase(linkBaseUrl, request.getContextPath());
     }
 
     @Nullable

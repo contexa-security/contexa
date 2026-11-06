@@ -152,6 +152,7 @@ class AgentRegistryWiringTest {
         ObjectProvider<SecurityZeroTrustProperties> properties = mock(ObjectProvider.class);
         SecurityZeroTrustProperties settings = new SecurityZeroTrustProperties();
         settings.getAgent().setConfirmationTimeout(Duration.ofMinutes(5));
+        settings.getAgent().setConfirmationLinkBaseUrl("https://app.test");
         when(properties.getIfAvailable(any())).thenReturn(settings);
         ObjectProvider<AgentConfirmationAuthorizer> noAuthorizer = mock(ObjectProvider.class);
         when(noAuthorizer.getIfAvailable(any())).thenAnswer(invocation ->
@@ -173,8 +174,11 @@ class AgentRegistryWiringTest {
         AgentCallGuard callGuard = new AgentCallGuard(null, null, null, null, null, null);
         when(callGuards.getIfAvailable()).thenReturn(callGuard);
         // An agent's asks count against its call limits, which is why the API holds the guard of the gate.
-        assertThat(ReflectionTestUtils.getField(configuration.agentConfirmationApiController(service, callGuards),
-                "callGuard")).isSameAs(callGuard);
+        AgentConfirmationApiController api = configuration.agentConfirmationApiController(service, callGuards,
+                properties);
+        assertThat(ReflectionTestUtils.getField(api, "callGuard")).isSameAs(callGuard);
+        // An agent's own ask is mailed with the address the gate's links start at.
+        assertThat(ReflectionTestUtils.getField(api, "linkBaseUrl")).isEqualTo("https://app.test");
     }
 
     @Test
