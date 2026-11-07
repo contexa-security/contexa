@@ -251,6 +251,7 @@ public class IdentityStateMachineAutoConfiguration {
         executor.setMaxPoolSize(50);
         executor.setQueueCapacity(1000);
         executor.setThreadNamePrefix("mfa-event-");
+        executor.setAllowCoreThreadTimeOut(true);
 
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
 
@@ -271,6 +272,7 @@ public class IdentityStateMachineAutoConfiguration {
         executor.setMaxPoolSize(5);
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("monitoring-");
+        executor.setAllowCoreThreadTimeOut(true);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
         executor.initialize();
 

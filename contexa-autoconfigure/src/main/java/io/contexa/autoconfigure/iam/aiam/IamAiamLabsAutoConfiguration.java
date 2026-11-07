@@ -70,6 +70,7 @@ public class IamAiamLabsAutoConfiguration {
         executor.setMaxPoolSize(6);
         executor.setQueueCapacity(300);
         executor.setThreadNamePrefix("Policy-Collection-");
+        executor.setAllowCoreThreadTimeOut(true);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);

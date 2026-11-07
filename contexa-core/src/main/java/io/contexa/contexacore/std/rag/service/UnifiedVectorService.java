@@ -99,7 +99,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
     }
 
     private static ExecutorService createDefaultExecutor() {
-        return new ThreadPoolExecutor(
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
                 32, 32, 60L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(500),
                 new ThreadFactory() {
@@ -113,6 +113,9 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
                 },
                 new ThreadPoolExecutor.CallerRunsPolicy()
         );
+        // threads that have nothing to do are given back: the pool grows with the work and shrinks without it
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
     }
 
     public UnifiedVectorService(

@@ -195,7 +195,7 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnMissingBean(name = "contexaVectorOperationExecutor")
     public ExecutorService vectorOperationExecutor(PgVectorStoreProperties pgVectorStoreProperties) {
         int threads = Math.max(1, pgVectorStoreProperties.getParallelThreads());
-        return new ThreadPoolExecutor(
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
                 threads,
                 threads,
                 60L,
@@ -203,6 +203,9 @@ public class CoreRAGAutoConfiguration {
                 new LinkedBlockingQueue<>(1000),
                 namedThreadFactory("Vector-Operation-"),
                 new ThreadPoolExecutor.AbortPolicy());
+        // threads that have nothing to do are given back: the pool grows with the work and shrinks without it
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
     }
 
     /**
