@@ -612,4 +612,31 @@ class DefaultBridgeUserMirrorSyncServiceTest {
             throw new IllegalStateException(ex);
         }
     }
+
+    @Test
+    void theCopiesOfManyNewUsersCarryAPasswordNoOneKnowsAndCostNoHashEach() {
+        UserRepository userRepository = mock(UserRepository.class);
+        BridgeUserProfileRepository bridgeUserProfileRepository = mock(BridgeUserProfileRepository.class);
+        DefaultBridgeUserMirrorSyncService service = new DefaultBridgeUserMirrorSyncService(
+                userRepository, bridgeUserProfileRepository, new BridgeProperties(), new ObjectMapper(), null);
+        when(userRepository.findByBridgeSubjectKey(anyString())).thenReturn(Optional.empty());
+        when(userRepository.findByExternalSubjectIdAndAuthenticationSourceAndOrganizationId(anyString(), anyString(), anyString())).thenReturn(Optional.empty());
+        when(bridgeUserProfileRepository.findById(anyLong())).thenReturn(Optional.empty());
+        when(userRepository.save(any(Users.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(bridgeUserProfileRepository.save(any(BridgeUserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.sync(authenticationStamp(), authorizationStamp(), requestContext());
+        long began = System.nanoTime();
+        for (int i = 0; i < 40; i++) {
+            service.sync(authenticationStamp(), authorizationStamp(), requestContext());
+        }
+        long millis = (System.nanoTime() - began) / 1_000_000;
+
+        ArgumentCaptor<Users> saved = ArgumentCaptor.forClass(Users.class);
+        verify(userRepository, atLeast(2)).save(saved.capture());
+        assertThat(saved.getAllValues()).allSatisfy(user -> assertThat(user.getPassword()).startsWith("{bcrypt}$2"));
+        assertThat(saved.getAllValues().stream().map(Users::getPassword).distinct().count()).isEqualTo(1);
+        // 40 new copies; a hash each would take seconds
+        assertThat(millis).isLessThan(2000);
+    }
 }
