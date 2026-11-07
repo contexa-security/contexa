@@ -83,6 +83,7 @@ public class PqaSealedEvidenceAutoConfiguration {
             executor.setMaxPoolSize(4);
             executor.setQueueCapacity(512);
             executor.setThreadNamePrefix("oss-sealed-evidence-capture-");
+            executor.setAllowCoreThreadTimeOut(true);
             // Rejected captures are dropped by the handler; they must never run on the decision thread.
             executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
             executor.setWaitForTasksToCompleteOnShutdown(true);

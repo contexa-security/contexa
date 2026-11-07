@@ -800,12 +800,16 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         return text.isEmpty() ? null : text;
     }
 
+    /** How long an actor thread with nothing to run is kept before it is given back. */
+    private static final long ACTOR_IDLE_SECONDS = 60L;
+
     private void initializeStripedExecutors() {
         int workerCount = Math.max(1, securityPlaneProperties.getAgent().getAnalysisStripes());
-        actorSerialExecutor = new KeyedSerialExecutor(
-                new ThreadPoolExecutor(workerCount, workerCount, 0L, TimeUnit.MILLISECONDS,
-                        new PriorityBlockingQueue<>(INITIAL_LINE_SIZE, AnalysisTurn.ORDER), new ActorSerialThreadFactory()),
-                workerCount);
+        ThreadPoolExecutor actors = new ThreadPoolExecutor(workerCount, workerCount, ACTOR_IDLE_SECONDS, TimeUnit.SECONDS,
+                new PriorityBlockingQueue<>(INITIAL_LINE_SIZE, AnalysisTurn.ORDER), new ActorSerialThreadFactory());
+        // an actor with no analysis to run is given back: the pool is as large as the analyses in flight
+        actors.allowCoreThreadTimeOut(true);
+        actorSerialExecutor = new KeyedSerialExecutor(actors, workerCount);
     }
 
     private String resolveAnalysisKey(SecurityEvent event) {

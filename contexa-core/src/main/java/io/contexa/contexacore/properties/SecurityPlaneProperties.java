@@ -64,7 +64,13 @@ public class SecurityPlaneProperties {
         private boolean autoApproveLowRisk = false;
         private long eventTimeoutMs = 180000L;
         private int maxDeferredRetries = 3;
-        private int analysisStripes = 256;
+        /**
+         * How many analyses run at once, one thread each, which waits for the model. The analysis threads
+         * ({@code llm-executor.max-pool-size}, 64) and the model server's gate (16 calls at once on a remote provider) are
+         * what the analyses can use, so threads past the analysis threads only wait in front of them. A thread with nothing
+         * to analyse is given back after a minute.
+         */
+        private int analysisStripes = 64;
         /**
          * How long past the analysis budget of a request (every attempt of {@code eventTimeoutMs}) the late writes of a
          * deleted account are still told apart from those of a later account of the same name (Q-15).

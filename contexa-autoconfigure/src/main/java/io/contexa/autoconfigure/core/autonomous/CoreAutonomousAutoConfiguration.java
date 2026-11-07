@@ -547,7 +547,7 @@ public class CoreAutonomousAutoConfiguration {
     @Bean(name = "contexaSecurityLearningPostProcessExecutor", destroyMethod = "shutdown", defaultCandidate = false)
     @ConditionalOnMissingBean(name = "contexaSecurityLearningPostProcessExecutor")
     public ExecutorService securityLearningPostProcessExecutor() {
-        return new ThreadPoolExecutor(
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
                 2,
                 4,
                 60L,
@@ -555,6 +555,9 @@ public class CoreAutonomousAutoConfiguration {
                 new LinkedBlockingQueue<>(1000),
                 namedThreadFactory("Security-Learning-"),
                 new LearningStoreRejectionPolicy());
+        // threads that have nothing to do are given back: the pool grows with the work and shrinks without it
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
     }
 
     @Bean(name = "contexaSecurityLearningService")
@@ -657,7 +660,7 @@ public class CoreAutonomousAutoConfiguration {
     @Bean(name = "contexaLayer1RagRetrievalExecutor", destroyMethod = "shutdown", defaultCandidate = false)
     @ConditionalOnMissingBean(name = "contexaLayer1RagRetrievalExecutor")
     public ExecutorService layer1RagRetrievalExecutor() {
-        return new ThreadPoolExecutor(
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
                 2,
                 8,
                 60L,
@@ -665,6 +668,9 @@ public class CoreAutonomousAutoConfiguration {
                 new LinkedBlockingQueue<>(500),
                 namedThreadFactory("Layer1-RAG-"),
                 new ThreadPoolExecutor.AbortPolicy());
+        // threads that have nothing to do are given back: the pool grows with the work and shrinks without it
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
     }
 
     @Bean(name = "contexaContextualStrategy")

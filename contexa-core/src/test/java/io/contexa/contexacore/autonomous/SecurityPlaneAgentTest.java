@@ -38,6 +38,9 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.springframework.test.util.ReflectionTestUtils;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -97,6 +100,17 @@ class SecurityPlaneAgentTest {
                 securityMonitor, dataStore, centralAuditFacade,
                 securityEventProcessor, securityPlaneProperties, llmAnalysisExecutor);
         agent.initialize();
+    }
+
+    @Test
+    @DisplayName("the analysis actors are given back when they have nothing to run, and there are as many as the analysis threads by default")
+    void theActorsAreGivenBackWhenIdle() {
+        Object serial = ReflectionTestUtils.getField(agent, "actorSerialExecutor");
+        ThreadPoolExecutor pool = (ThreadPoolExecutor) ReflectionTestUtils.getField(serial, "workerPool");
+
+        assertThat(pool.allowsCoreThreadTimeOut()).isTrue();
+        assertThat(pool.getKeepAliveTime(TimeUnit.SECONDS)).isPositive();
+        assertThat(pool.getCorePoolSize()).isEqualTo(64);
     }
 
     @Test

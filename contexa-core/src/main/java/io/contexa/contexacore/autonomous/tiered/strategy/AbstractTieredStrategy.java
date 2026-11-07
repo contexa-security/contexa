@@ -132,7 +132,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     + "and no concrete risk or verification requirement is present.";
 
     private static ExecutorService createRagExecutor() {
-        return new ThreadPoolExecutor(
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
                 32, 32, 60L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(500),
                 r -> {
@@ -142,6 +142,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 },
                 new ThreadPoolExecutor.CallerRunsPolicy()
         );
+        // threads that have nothing to do are given back: the pool grows with the work and shrinks without it
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
     }
 
     protected static final PipelineConfiguration SECURITY_DECISION_PIPELINE_CONFIGURATION =
