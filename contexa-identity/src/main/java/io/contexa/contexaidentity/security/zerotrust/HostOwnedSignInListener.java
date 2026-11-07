@@ -30,9 +30,11 @@ import java.util.Map;
 /**
  * The application's own sign-in (HOST_OWNED, ownership design S-8, D-4). Contexa does not take part in it; it only
  * listens to the event Spring Security publishes when a person signs in interactively (form login, OAuth2 login) and
- * sends the sign-in to the engine, with what a protected call of the same request would carry, so a sign-in that looks
- * wrong is decided right away and the next request meets the decision. A request authenticated on its own (Basic, a
- * bearer token) is no sign-in and publishes no such event. The application's authentication and session are only read.
+ * sends the sign-in on, with what a protected call of the same request would carry: the bridge meets the person at the
+ * sign-in, and the agent registry sees an agent that signs in. The model is not asked about a sign-in: the person has
+ * asked for no resource yet, and the first call to a protected resource is decided with that resource in front of it. A
+ * request authenticated on its own (Basic, a bearer token) is no sign-in and publishes no such event. The application's
+ * authentication and session are only read.
  */
 @Slf4j
 public class HostOwnedSignInListener implements ApplicationListener<InteractiveAuthenticationSuccessEvent> {

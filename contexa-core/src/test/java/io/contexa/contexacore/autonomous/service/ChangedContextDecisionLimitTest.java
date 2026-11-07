@@ -222,17 +222,6 @@ class ChangedContextDecisionLimitTest {
     }
 
     @Test
-    @DisplayName("the person's sign-ins take from the same window")
-    void signInsTakeFromTheSameWindow() {
-        for (int i = 0; i < 6; i++) {
-            limit.take(USER, NewContextDecisionLimit.Kind.SIGN_IN);
-        }
-
-        assertThat(gate("context-elsewhere", false).restriction()).isEqualTo(ZeroTrustAction.CHALLENGE);
-        assertThat(asked).hasValue(0);
-    }
-
-    @Test
     @DisplayName("the calls of one context at once take one decision of the window")
     void callsAtOnceTakeOneDecision() throws Exception {
         modelMillis = 200;

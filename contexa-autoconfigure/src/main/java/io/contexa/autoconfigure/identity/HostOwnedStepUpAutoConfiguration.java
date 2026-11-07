@@ -134,7 +134,7 @@ public class HostOwnedStepUpAutoConfiguration {
         return new HostOwnedStepUpController(contexaHostOwnedStepUpService);
     }
 
-    /** The application's interactive sign-in goes to the engine as Contexa's own does (ownership design S-8). */
+    /** The application's interactive sign-in is sent on as Contexa's own is; the model is not asked about it. */
     @Bean(name = "contexaHostOwnedSignInListener")
     @ConditionalOnMissingBean
     @ConditionalOnBean(ZeroTrustEventPublisher.class)

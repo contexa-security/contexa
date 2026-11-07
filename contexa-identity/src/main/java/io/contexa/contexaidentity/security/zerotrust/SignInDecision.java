@@ -26,11 +26,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Sends a person's completed sign-in to the engine where Contexa owns the sign-in, as {@link HostOwnedSignInListener}
- * sends the application's own where the application owns it: a sign-in that looks wrong is decided, and the next request
- * meets the decision. It is sent before the response leaves, so what the sign-in brings (a decision, or the verification
- * asked of a person past the decisions allowed in a short window) is in force for the next request; the analysis itself
- * runs after the response. A request's sign-in goes to the engine once, and a failure to send it never stops it.
+ * Sends a person's completed sign-in on where Contexa owns the sign-in, as {@link HostOwnedSignInListener} sends the
+ * application's own where the application owns it: the bridge meets the person, and the agent registry sees an agent that
+ * signs in. The model is not asked about a sign-in; the first call to a protected resource is decided. A request's sign-in
+ * is sent once, and a failure to send it never stops it.
  */
 @Slf4j
 public final class SignInDecision {

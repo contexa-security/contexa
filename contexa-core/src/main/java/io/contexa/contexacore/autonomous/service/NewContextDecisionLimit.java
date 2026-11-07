@@ -30,13 +30,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * How many decisions of a new context one person may ask the model for in a short window: a sign-in, and a call from
- * another session, address or browser than the person's decision was reached for. Each of them asks the model before
- * its answer counts (a call from a changed context waits for its verdict), so without a limit whoever holds a password
- * or a session buys a model call with every sign-in or every new browser string. A person changes context a few times
- * an hour; one whose context keeps changing within a minute is the signal itself. Past the limit the model is not asked:
- * the callers answer a call with a CHALLENGE for itself alone and let a sign-in go on undecided, the person's next
- * request asked to verify. Nothing past the limit is let through for want of a decision.
+ * How many decisions of a new context one person may ask the model for in a short window: a call from another session,
+ * address or browser than the person's decision was reached for. It asks the model before its answer counts (a call from
+ * a changed context waits for its verdict), so without a limit whoever holds a password or a session buys a model call
+ * with every new browser string. A person changes context a few times an hour; one whose context keeps changing within
+ * a minute is the signal itself. Past the limit the model is not asked: the caller answers the call with a CHALLENGE for
+ * itself alone. Nothing past the limit is let through for want of a decision.
  * <p>
  * The window slides and counts only the decisions it gave; a refusal takes no place in it. The count is this server's
  * and lives in memory, whichever store the decisions use: on several servers each counts for itself, so what a person
@@ -48,8 +47,6 @@ public class NewContextDecisionLimit {
 
     /** What asks for the decision. */
     public enum Kind {
-        /** A person's sign-in. */
-        SIGN_IN,
         /** A person's call from another session, address or browser than the decision on record. */
         CHANGED_CONTEXT
     }
@@ -131,8 +128,7 @@ public class NewContextDecisionLimit {
         if (!reported.putIfAbsent(key, Boolean.TRUE)) {
             return;
         }
-        String what = kind == Kind.SIGN_IN ? "a sign-in goes on undecided and the next request is asked to verify"
-                : "a call from a changed context is refused with a CHALLENGE of its own";
+        String what = "a call from a changed context is refused with a CHALLENGE of its own";
         log.warn("[ZeroTrust] {} passed {} decisions of a new context in {}s: {}; the model is not asked until the "
                 + "window has room (reported once a minute)", key, decisions, window.toSeconds(), what);
         if (audit == null) {

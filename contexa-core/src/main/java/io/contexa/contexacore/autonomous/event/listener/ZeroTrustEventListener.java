@@ -20,39 +20,20 @@ import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
-import io.contexa.contexacore.autonomous.service.NewContextDecisionLimit;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
-import io.contexa.contexacore.autonomous.store.ExpiringKeySpace;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 
-import java.time.Clock;
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
 
 @Slf4j
 public class ZeroTrustEventListener {
-
-    /**
-     * How long a sign-in counts as a decision still on its way. A sign-in's decision is a matter of seconds; a call of
-     * the same context that comes later is not waiting for it.
-     */
-    private static final Duration SIGN_IN_DECISION_ON_ITS_WAY = Duration.ofSeconds(30);
-    /** The sign-ins kept at once; past it those whose time ends first are forgotten first, and their calls are decided. */
-    private static final int SIGN_INS_KEPT = 10_000;
 
     private final SecurityEventPublisher securityEventPublisher;
     private final ZeroTrustActionRepository actionRepository;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
-    private NewContextDecisionLimit newContextDecisionLimit;
-    /** The sign-ins this server handed to the analysis, one for each person and context. */
-    private final ExpiringKeySpace<Boolean> signInsAsked = ExpiringKeySpace.<Boolean>builder(Clock.systemUTC())
-            .ttl(SIGN_IN_DECISION_ON_ITS_WAY).bound(SIGN_INS_KEPT).build();
-
     public ZeroTrustEventListener(
             SecurityEventPublisher securityEventPublisher,
             ZeroTrustActionRepository actionRepository,
@@ -64,14 +45,6 @@ public class ZeroTrustEventListener {
 
     public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
         this.unanalysedRequestRecorder = unanalysedRequestRecorder;
-    }
-
-    /**
-     * The decisions of a new context a person may ask for in a short window, which a person's sign-ins take from with
-     * the calls of a changed context; without it every sign-in is analysed.
-     */
-    public void setNewContextDecisionLimit(NewContextDecisionLimit newContextDecisionLimit) {
-        this.newContextDecisionLimit = newContextDecisionLimit;
     }
 
     @EventListener
@@ -139,28 +112,6 @@ public class ZeroTrustEventListener {
         return true;
     }
 
-    /**
-     * Whether a sign-in of the call's person from this context was handed to the analysis a moment ago on this server.
-     * Its decision may not be stored yet, and a call of the same context that comes before it is the question the
-     * sign-in asked: the caller may wait for that decision instead of asking the model again. A sign-in the person's
-     * decisions of a new context did not allow was not handed on, so it is not on its way. The answer is this server's;
-     * on several servers a call that reaches another one is decided as it was.
-     *
-     * @param call              the call's event
-     * @param contextBindingHash the context of the call
-     */
-    public boolean signInDecisionOnItsWay(ZeroTrustSpringEvent call, String contextBindingHash) {
-        if (call == null || contextBindingHash == null || contextBindingHash.isBlank()) {
-            return false;
-        }
-        String key = decisionKey(call);
-        return key != null && !key.isBlank() && signInsAsked.containsKey(signInKey(key, contextBindingHash));
-    }
-
-    private static String signInKey(String decisionKey, String contextBindingHash) {
-        return decisionKey + '\u0000' + contextBindingHash;
-    }
-
     public String generateAuthorizationContextBindingHash(ZeroTrustSpringEvent event) {
         if (event == null) {
             return null;
@@ -176,81 +127,18 @@ public class ZeroTrustEventListener {
         );
     }
 
-    private void processAuthenticationEvent(ZeroTrustSpringEvent event) {
-        if (signInPastTheLimit(event)) {
-            return;
-        }
-        rememberSignIn(event);
-        securityEventPublisher.publishGenericSecurityEvent(event);
-    }
-
-    /** Notes a sign-in before it is handed on, so that a call that follows at once finds it. */
-    private void rememberSignIn(ZeroTrustSpringEvent event) {
-        if (!ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS.equals(event.getEventType())) {
-            return;
-        }
-        String key = decisionKey(event);
-        String context = generateAuthorizationContextBindingHash(event);
-        if (key != null && !key.isBlank() && context != null && !context.isBlank()) {
-            signInsAsked.put(signInKey(key, context), Boolean.TRUE);
-        }
-    }
-
     /**
-     * A sign-in past the person's decisions of a new context in the window is not analysed: whoever signs in again and
-     * again would buy a model decision with each. It goes on, as the sign-in itself is never refused; it is kept as a
-     * fact of its session, and where decisions are enforced the person is asked to verify, the session the client
-     * presents next among them, as a CHALLENGE asks every session. A stricter decision in force stays as it is.
-     *
-     * @return whether the sign-in was answered here instead of by an analysis
+     * A person's sign-in is not sent to the analysis. It is no resource the person asked for: the first call to a protected
+     * resource is decided by the model with that resource, its authorization and the person's context in front of it, and
+     * a sign-in only added a model call for every person who signed in, the person who then asked for nothing among them.
+     * The event itself still reaches the other listeners of the Spring event (the agent registry's sightings). The other
+     * events of an authentication (a second factor, a failure) go on as they did.
      */
-    private boolean signInPastTheLimit(ZeroTrustSpringEvent event) {
-        if (newContextDecisionLimit == null
-                || !ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS.equals(event.getEventType())) {
-            return false;
+    private void processAuthenticationEvent(ZeroTrustSpringEvent event) {
+        if (ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS.equals(event.getEventType())) {
+            return;
         }
-        String key = decisionKey(event);
-        if (key == null || key.isBlank()
-                || newContextDecisionLimit.take(key, NewContextDecisionLimit.Kind.SIGN_IN)) {
-            return false;
-        }
-        if (enforced(event)) {
-            askToVerify(key, event);
-        }
-        if (unanalysedRequestRecorder != null) {
-            unanalysedRequestRecorder.record(event, ZeroTrustAction.CHALLENGE);
-        }
-        return true;
-    }
-
-    private void askToVerify(String key, ZeroTrustSpringEvent event) {
-        Map<String, Object> fields = new HashMap<>();
-        Object context = event.getPayloadValue("contextBindingHash");
-        if (context != null && !context.toString().isBlank()) {
-            fields.put("contextBindingHash", context.toString());
-        }
-        fields.put("reasoning", "The person's sign-ins passed the decisions of a new context allowed in a short "
-                + "window; this sign-in went on undecided and the person is asked to verify.");
-        fields.put(ZeroTrustActionRepository.LLM_DECISION_PRESENT, false);
-        try {
-            ZeroTrustActionRepository.FinalActionWrite written = actionRepository.writeUndecidedChallenge(key, fields);
-            if (written == ZeroTrustActionRepository.FinalActionWrite.FAILED) {
-                log.error("[ZeroTrustEventListener] The verification asked of a sign-in past the decision limit could "
-                        + "not be stored: userId={}", key);
-            }
-        } catch (RuntimeException e) {
-            log.error("[ZeroTrustEventListener] The verification asked of a sign-in past the decision limit could not "
-                    + "be stored: userId={}", key, e);
-        }
-    }
-
-    /** Whether decisions are enforced on the event, as the enforcement of an analysed decision would be. */
-    private boolean enforced(ZeroTrustSpringEvent event) {
-        if (!securityZeroTrustProperties.isEnforcementEnabled()) {
-            return false;
-        }
-        Object boundary = event.getPayloadValue("decisionBoundaryMode");
-        return boundary == null || !"SHADOW".equalsIgnoreCase(boundary.toString().trim());
+        securityEventPublisher.publishGenericSecurityEvent(event);
     }
 
     private void processAuthorizationEvent(ZeroTrustSpringEvent event) {

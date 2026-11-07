@@ -67,12 +67,12 @@ class ZeroTrustEventListenerTest {
     }
 
     @Test
-    @DisplayName("AUTHENTICATION event should invoke publishGenericSecurityEvent")
+    @DisplayName("a second-factor AUTHENTICATION event should invoke publishGenericSecurityEvent")
     void authenticationEvent_shouldPublish() {
         // given
         ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
                 .category(ZeroTrustEventCategory.AUTHENTICATION)
-                .eventType("SUCCESS")
+                .eventType(ZeroTrustSpringEvent.TYPE_AUTHENTICATION_MFA)
                 .userId("user-1")
                 .sessionId("session-1")
                 .clientIp("10.0.0.1")
@@ -83,6 +83,22 @@ class ZeroTrustEventListenerTest {
 
         // then
         verify(securityEventPublisher).publishGenericSecurityEvent(event);
+    }
+
+    @Test
+    @DisplayName("a person's sign-in is not sent to the analysis: the first call to a protected resource is decided")
+    void aSignInIsNotSentToTheAnalysis() {
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
+                .category(ZeroTrustEventCategory.AUTHENTICATION)
+                .eventType(ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS)
+                .userId("user-1")
+                .sessionId("session-1")
+                .clientIp("10.0.0.1")
+                .build();
+
+        listener.handleZeroTrustEvent(event);
+
+        verify(securityEventPublisher, never()).publishGenericSecurityEvent(any());
     }
 
     @Test
@@ -345,17 +361,23 @@ class ZeroTrustEventListenerTest {
 
     @ParameterizedTest
     @EnumSource(value = SecurityZeroTrustProperties.EnforcementMode.class, names = {"SHADOW", "ENFORCE"})
-    void aModeWithAnalysisStillSendsTheSignInToIt(SecurityZeroTrustProperties.EnforcementMode mode) {
+    void aModeWithAnalysisSendsASecondFactorButNotASignInToIt(SecurityZeroTrustProperties.EnforcementMode mode) {
         SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
         properties.setMode(mode);
         ZeroTrustEventListener withAnalysis = new ZeroTrustEventListener(securityEventPublisher, actionRepository, properties);
 
         withAnalysis.handleZeroTrustEvent(ZeroTrustSpringEvent.builder("test")
                 .category(ZeroTrustEventCategory.AUTHENTICATION)
-                .eventType("SUCCESS")
+                .eventType(ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS)
                 .userId("user-7")
                 .build());
+        verify(securityEventPublisher, never()).publishGenericSecurityEvent(any());
 
+        withAnalysis.handleZeroTrustEvent(ZeroTrustSpringEvent.builder("test")
+                .category(ZeroTrustEventCategory.AUTHENTICATION)
+                .eventType(ZeroTrustSpringEvent.TYPE_AUTHENTICATION_MFA)
+                .userId("user-7")
+                .build());
         verify(securityEventPublisher).publishGenericSecurityEvent(any());
     }
 
