@@ -194,6 +194,21 @@ Three independent settings decide how Contexa runs:
 
 **Start with `SHADOW`.** Watch the decisions for your own scenarios, then switch to `ENFORCE`. See [Start Safely with Enforcement Modes](https://docs.ctxa.ai/en/docs/install/shadow-mode.html).
 
+## What Contexa adds to your JVM
+
+Contexa runs in your application's JVM, so what it holds is yours to size. These figures were measured on one machine (20 cores, `-Xmx1g`, a small Spring Boot application, PostgreSQL, Redis and Kafka), with the same application with and without Contexa:
+
+| | Without Contexa | With Contexa |
+|---|---|---|
+| One signed-in user, a few calls (heap in use after a full collection) | 65 MB | 154 MB |
+| Process memory (RSS) in that state | 795 MB | 1,123 MB |
+| 1,000 people at once for two rounds, the model deciding: heap in use after a full collection | 97 MB | about 530 MB |
+| Threads, after that load has ended and a minute has passed | 197 | about 380 |
+
+- **What the heap holds under load:** a heap dump of that state held about 340 MB of live objects (the 530 MB above is the JVM's own count, which rounds up by region and includes the buffers below). Contexa's own part is the decisions waiting for the model (about 10 KB for each event), the prompt and context caches, and the records Contexa keeps for its decisions, about 80 to 100 MB in all. Each of these stores has a limit in bytes that follows the maximum heap (`-Xmx`), so none grows without bound; the limits are the share Contexa may use, and a store that is full drops its oldest entries.
+- **Netty buffers:** the clients Contexa brings (WebClient, Lettuce, Redisson) allocate from Netty's default pool, which holds a 4 MB chunk for each arena in use and has twice as many arenas as cores. On the 20-core machine above that was 64 MB of heap and, estimated, 96 MB of direct memory; it is smaller on a smaller machine. It is shared by every Netty client in the JVM, so Contexa does not change it. On a server with many cores you can lower it with `-Dio.netty.allocator.numHeapArenas=4 -Dio.netty.allocator.numDirectArenas=4`: with 4 arenas on the machine above, process memory fell by 183 MB and the heap by 107 MB, and response times, errors and decisions did not change (one run of each).
+- **Threads:** Contexa's pools start threads when they have work and give them back after a minute without any. The analysis pool is 64 threads by default (`contexa.security.plane.agent.analysis-stripes`), as many as the analysis threads can use.
+
 ## Documentation and examples
 
 - **Documentation:** [docs.ctxa.ai](https://docs.ctxa.ai): [Getting started](https://docs.ctxa.ai/en/get-started.html), [How Contexa Works](https://docs.ctxa.ai/en/docs/reference/architecture/overview.html), [Configuration](https://docs.ctxa.ai/en/docs/install/configuration.html), [`@Protectable` reference](https://docs.ctxa.ai/en/docs/reference/iam/protectable.html).

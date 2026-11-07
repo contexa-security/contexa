@@ -805,6 +805,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Changed
 
+- **Contexa's thread pools give back the threads they have no work for, and the analysis actors are 64 instead of 256.** The core
+  threads of a `ThreadPoolTaskExecutor`, and of a fixed pool, stay for ever: after a load of 1,000 people Contexa still held 576
+  threads against the 197 of the application alone, and the analysis actors (a fixed pool of 256 with no keep-alive) were never
+  ended. Every pool of Contexa now ends a thread that has had nothing to run for a minute (threads at rest after that load:
+  382). The analysis actors only wait for the model, and what an analysis can use is the 64 analysis threads and the model
+  server's gate, so `contexa.security.plane.agent.analysis-stripes` is 64 by default; a value you set stays as you set it.
+- **The README says what Contexa adds to the JVM of the application.** Heap, process memory and threads with and without
+  Contexa, the limits that bound what Contexa holds, and the Netty pool setting for servers with many cores.
+
 - **An ALLOW now lasts 15 minutes instead of 15 seconds.** The 15 seconds were a value for fast tests. Set
   `contexa.security.zerotrust.allow-validity` to change it; production belongs between 10 and 20 minutes, and a time
   outside that range is kept and said once at the start. A time that is not positive reads as the default, because a
