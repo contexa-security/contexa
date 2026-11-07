@@ -81,16 +81,6 @@ class NewContextDecisionLimitTest {
     }
 
     @Test
-    @DisplayName("past the limit the window refuses, and sign-ins and changed contexts share it")
-    void signInsAndChangedContextsShareTheWindow() {
-        NewContextDecisionLimit limit = limit(6, Duration.ofMinutes(1));
-
-        assertThat(taken(limit, "alice", Kind.SIGN_IN, 4)).isEqualTo(4);
-        assertThat(taken(limit, "alice", Kind.CHANGED_CONTEXT, 4)).isEqualTo(2);
-        assertThat(limit.take("alice", Kind.SIGN_IN)).isFalse();
-    }
-
-    @Test
     @DisplayName("each person counts for themselves")
     void eachPersonCountsForThemselves() {
         NewContextDecisionLimit limit = limit(2, Duration.ofMinutes(1));
@@ -121,7 +111,7 @@ class NewContextDecisionLimitTest {
     @Test
     @DisplayName("decisions of 0 or less set no limit")
     void noLimit() {
-        assertThat(taken(limit(0, Duration.ofMinutes(1)), "alice", Kind.SIGN_IN, 50)).isEqualTo(50);
+        assertThat(taken(limit(0, Duration.ofMinutes(1)), "alice", Kind.CHANGED_CONTEXT, 50)).isEqualTo(50);
         assertThat(taken(limit(-1, Duration.ofMinutes(1)), "alice", Kind.CHANGED_CONTEXT, 50)).isEqualTo(50);
         verify(audit, never()).recordAsync(any());
         verify(audit, never()).recordSync(any());
@@ -131,11 +121,11 @@ class NewContextDecisionLimitTest {
     @DisplayName("a window that is not positive reads as one minute")
     void aWindowThatIsNotPositiveIsAMinute() {
         NewContextDecisionLimit limit = limit(1, Duration.ZERO);
-        assertThat(limit.take("alice", Kind.SIGN_IN)).isTrue();
+        assertThat(limit.take("alice", Kind.CHANGED_CONTEXT)).isTrue();
         clock.advance(Duration.ofSeconds(59));
-        assertThat(limit.take("alice", Kind.SIGN_IN)).isFalse();
+        assertThat(limit.take("alice", Kind.CHANGED_CONTEXT)).isFalse();
         clock.advance(Duration.ofSeconds(2));
-        assertThat(limit.take("alice", Kind.SIGN_IN)).isTrue();
+        assertThat(limit.take("alice", Kind.CHANGED_CONTEXT)).isTrue();
     }
 
     @Test
@@ -145,7 +135,7 @@ class NewContextDecisionLimitTest {
         limit.take("alice", Kind.CHANGED_CONTEXT);
 
         taken(limit, "alice", Kind.CHANGED_CONTEXT, 30);
-        taken(limit, "alice", Kind.SIGN_IN, 30);
+        taken(limit, "alice", Kind.CHANGED_CONTEXT, 30);
 
         ArgumentCaptor<AuditRecord> record = ArgumentCaptor.forClass(AuditRecord.class);
         verify(audit).recordAsync(record.capture());
@@ -155,12 +145,12 @@ class NewContextDecisionLimitTest {
                 .containsEntry("decisions", 1).containsEntry("windowSeconds", 60L);
 
         clock.advance(Duration.ofSeconds(61));
-        limit.take("alice", Kind.SIGN_IN);
-        taken(limit, "alice", Kind.SIGN_IN, 5);
+        limit.take("alice", Kind.CHANGED_CONTEXT);
+        taken(limit, "alice", Kind.CHANGED_CONTEXT, 5);
         verify(audit, times(2)).recordAsync(any());
 
-        limit.take("bob", Kind.SIGN_IN);
-        limit.take("bob", Kind.SIGN_IN);
+        limit.take("bob", Kind.CHANGED_CONTEXT);
+        limit.take("bob", Kind.CHANGED_CONTEXT);
         verify(audit, times(3)).recordAsync(any());
     }
 

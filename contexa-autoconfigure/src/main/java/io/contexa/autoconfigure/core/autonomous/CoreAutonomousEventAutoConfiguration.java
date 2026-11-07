@@ -207,13 +207,10 @@ public class CoreAutonomousEventAutoConfiguration {
             SecurityEventPublisher securityEventPublisher,
             ZeroTrustActionRepository actionRepository,
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
-            ObjectProvider<NewContextDecisionLimit> newContextDecisionLimit) {
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
         ZeroTrustEventListener listener =
                 new ZeroTrustEventListener(securityEventPublisher, actionRepository, securityZeroTrustProperties);
         listener.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
-        // A sign-in past the person's decisions of a new context goes on undecided; the next request is asked to verify.
-        listener.setNewContextDecisionLimit(newContextDecisionLimit.getIfAvailable());
         return listener;
     }
 

@@ -67,25 +67,21 @@ class DecisionFlowWiringTest {
                 mock(ZeroTrustActionRepository.class), none(), properties, none(), none(), none());
     }
 
-    /** Sign-ins and calls from a changed context take from one window of the person's decisions. */
+    /** Calls from a changed context take from one window of the person's decisions, whose size is the setting's. */
     @Test
-    void signInsAndChangedContextsShareOneLimit() {
+    void callsFromAChangedContextTakeFromTheConfiguredLimit() {
         SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
         properties.getAnalysis().getNewContextLimit().setDecisions(4);
         NewContextDecisionLimit limit = new CoreAutonomousEventAutoConfiguration().newContextDecisionLimit(properties,
                 none());
-        ZeroTrustEventListener listener = new CoreAutonomousEventAutoConfiguration().zeroTrustEventListener(
-                mock(SecurityEventPublisher.class), mock(ZeroTrustActionRepository.class), properties, none(),
-                one(NewContextDecisionLimit.class, limit));
         SynchronousProtectableDecisionService service = new CoreAutonomousAutoConfiguration()
-                .synchronousProtectableDecisionService(mock(ZeroTrustEventPublisher.class), listener,
+                .synchronousProtectableDecisionService(mock(ZeroTrustEventPublisher.class), mock(ZeroTrustEventListener.class),
                         mock(SecurityPlaneAgent.class), mock(ZeroTrustActionRepository.class), none(), properties, none(),
                         none(), one(NewContextDecisionLimit.class, limit));
 
-        assertThat(ReflectionTestUtils.getField(listener, "newContextDecisionLimit")).isSameAs(limit);
         assertThat(ReflectionTestUtils.getField(service, "newContextDecisionLimit")).isSameAs(limit);
         for (int i = 0; i < 4; i++) {
-            assertThat(limit.take("alice", NewContextDecisionLimit.Kind.SIGN_IN)).isTrue();
+            assertThat(limit.take("alice", NewContextDecisionLimit.Kind.CHANGED_CONTEXT)).isTrue();
         }
         assertThat(limit.take("alice", NewContextDecisionLimit.Kind.CHANGED_CONTEXT)).as("the setting is read").isFalse();
     }
