@@ -55,7 +55,16 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncService {
 
-    private static final BCryptPasswordEncoder SHADOW_PASSWORD_ENCODER = new BCryptPasswordEncoder();
+    /**
+     * The password a copy of the application's user carries so that the record is complete. Nobody knows what it was made
+     * from (a random value, never kept), so no one signs in with it, and one such hash does for every copy: hashing a
+     * value of its own for each new user cost 60 to 100 ms of processor each, and with a thousand people signing in at once
+     * that was most of what the server did (a flight recording of the load test: 86 % of the samples). It is made when the
+     * first copy needs it.
+     */
+    private static final class ShadowPassword {
+        private static final String VALUE = "{bcrypt}" + new BCryptPasswordEncoder().encode(UUID.randomUUID().toString());
+    }
 
     private static final String USERS_WITH_AUTHORITIES_CACHE = "usersWithAuthorities";
     private static final ZoneId DEFAULT_ZONE = ZoneId.systemDefault();
@@ -306,7 +315,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             changed = true;
         }
         if (user.getPassword() == null || user.getPassword().isBlank()) {
-            user.setPassword("{bcrypt}" + SHADOW_PASSWORD_ENCODER.encode(UUID.randomUUID().toString()));
+            user.setPassword(ShadowPassword.VALUE);
             changed = true;
         }
 
