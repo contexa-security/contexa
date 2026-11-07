@@ -66,17 +66,6 @@ The format is based on Keep a Changelog and the project follows semantic version
   `AgentClientDirectory` of your own throws `AgentClientStatusUnavailableException` from `suspendedAgentClient` when it
   cannot answer, instead of returning `false`; tokens of other registered clients are refused with the same answers until
   the registry answers again.
-- **A sign-in on the token state is decided for the context its bearer calls are bound to.** The context of a request
-  names the session, the address and the browser. A person's bearer call was bound to the session cookie it carried,
-  which a client without cookies never sends, while the sign-in that came before it was bound to the servlet session
-  of the login request, which a step of an MFA flow creates; the first call after such a sign-in read as a change of
-  context and was decided again. A person's bearer call is now bound to the login its token carries (`sid`), which is
-  already the session the engine names for such a request, and the sign-in, the release of a passed step-up and the
-  verification of a BLOCK are bound to the same login, so the context is the same whether or not the client keeps
-  cookies. Two logins of one person from the same address and browser are two contexts. The session state is
-  unchanged. **Check:** on the token state the contexts of the calls change once at the upgrade, so a person who signed
-  in before it is decided once more at the next call.
-
 - **An MFA sign-in or request that fails inside no longer tells the client what failed.** When the processing after a
   successful MFA sign-in failed, the API answer carried the person's name, the failing step, the exception's class and
   message and the MFA session's identifier, and a request of the MFA flow that failed while it was processed carried
@@ -225,23 +214,6 @@ The format is based on Keep a Changelog and the project follows semantic version
   Contexa schema is managed by its own migrations adds
   `alter table ctxa_agent_confirmation add column if not exists body_bytes bigint;`. A confirmation kept before shows its
   size as not recorded.
-- **Contexa's own sign-in is decided, as the application's own sign-in is.** Where Contexa owns the sign-in, a
-  completed sign-in (after its MFA, without a second step, on the token state, or a single-factor login) only reached
-  the audit, so a password used by someone else was first judged at a later call. It now goes to the engine before the
-  response leaves, and the analysis runs after the response: the sign-in is never held for it, and the next request
-  meets the decision. A step-up that answers a CHALLENGE or releases a BLOCK is no sign-in. A sign-in two parts of a
-  login report in one request (Spring Security's filter event and Contexa's own success) is decided once. Each sign-in
-  costs one model call.
-- **Signing in again and again, or changing the browser string at each call, no longer buys a model call each time.**
-  A person's sign-ins and calls from another session, address or browser than their decision on record now share a
-  limit, `contexa.security.zerotrust.analysis.new-context-limit.decisions` (default 6) in
-  `contexa.security.zerotrust.analysis.new-context-limit.window` (default 1m, sliding), counted on each server. Past it
-  the model is not asked: such a call is refused with a CHALLENGE for itself alone (nothing is stored, the calls of the
-  context on record go on as they did, and a call waiting for the same context is refused with it), and a sign-in goes
-  on undecided while the person's next request is asked to verify, as a decided CHALLENGE asks; a BLOCK, an ESCALATE or
-  a CHALLENGE a model decided stays as it is. Reaching the limit is logged and audited (`DECISION_LIMIT_REACHED`) once a
-  minute for the person. **Check:** an integration that posts a login for each call meets the verification from its
-  seventh sign-in in a minute; raise `decisions`, or set it to 0 to count nothing.
 - **A blocked sign-in no longer says how close it came.** The `403 AUTHENTICATION_BLOCKED` answer carried the risk
   score, the reason, the user name and a contact address of no one (`security@example.com`); it now carries the status
   and a general sentence. The log line keeps the three, and the audit now records them (`AUTHENTICATION_FAILURE`,
@@ -417,21 +389,6 @@ The format is based on Keep a Changelog and the project follows semantic version
   whoever held one account of their own could try any number of others from that address. The address now keeps its count
   until its window ends; the count of each account is reset as before. Behind a shared address a public NAT counts everyone's
   mistakes together: raise the address limit or shorten its window in the password policy if yours needs it.
-- **A stopped model no longer holds every call of a changed context.** Its verdict not coming in time now spares that context
-  the wait for a minute: a general resource goes on at once, a sensitive one is refused at once.
-- **A stolen session no longer gets its first answers before the decision.** A session cookie used from another address
-  went on while the model was deciding, so the first two or three calls answered, on a resource declared sensitive too. A
-  person's call to a `@Protectable` method whose session, address or browser differs from the user's last decision, the one
-  in force or one of the last 24 hours, now answers after its verdict: an ALLOW runs the method, a CHALLENGE, an ESCALATE or
-  a BLOCK stops it first. **Such a call waits for the model**, up to `contexa.security.zerotrust.agent.flight.wait` (40
-  seconds): after a change of network, on a user's second device each time the user changes device, and on the first call of
-  a new sign-in while the last decision still names the session before it. A user's calls at once ask the model once and
-  wait for its verdict, up to `contexa.security.zerotrust.agent.flight.queue-capacity` (20) on each server; past that a call
-  gets a 429 with `Retry-After`. Past the wait, or with a model or a store that fails, a general resource goes on and a
-  sensitive one is refused for that call alone: with a CHALLENGE, or with a 429 and `Retry-After` while a store is down.
-  Calls of the same session, address and browser go on as before, with the decision after the response. A user with no
-  decision on record is not compared, nothing is held in SHADOW, and service clients go on as before. A
-  `ZeroTrustActionRepository` of your own compares nothing until it implements `decidedContext`.
 - **A right taken away ends on the next request, for a token too.** A token's `roles` and `authorities` claims were added to
   what the account holds, so an administrator stripped of a group stayed one until the token expired, and a refresh kept
   it going for as long as the refresh token lasted. A token now carries what the account holds at each request and the
@@ -804,7 +761,7 @@ The format is based on Keep a Changelog and the project follows semantic version
   got no decision for as long as the load lasted. A session without a decision of the model now goes first at every
   line of the analysis (the session's turn, the analysis threads, a model server's gate), one user holds at most eight
   analyses however many sessions it opens, and a person's queued call that a decision in force answers is not analysed
-  again: calls that waited behind a decision cost that decision and not one each. A sign-in is always analysed.
+  again: calls that waited behind a decision cost that decision and not one each.
 - **While the analysis is behind, a sensitive resource does not go without a decision.** Behind means as many analyses
   in progress as `security.plane.llm-executor.backpressure-queue-threshold` (96). A call to a resource declared
   `importance = SENSITIVE`, or whose sensitivity is `HIGH`, `CONFIDENTIAL`, `RESTRICTED` or the like, with no decision in
@@ -847,19 +804,6 @@ The format is based on Keep a Changelog and the project follows semantic version
   list say how many users could not answer a CHALLENGE.
 
 ### Changed
-
-- **The first protected call after a sign-in waits for the sign-in's decision instead of asking the model again.** A
-  call from the context a person has just signed in from can come before the sign-in's decision is stored. The context
-  on record was still the old one, so the call read as a changed context and asked the model the question the sign-in
-  had already asked: one more model call, and its wait, after each sign-in from a new context. The call now waits for
-  that decision, for the time a request waits while the analysis is behind (3 seconds) and no longer, and is answered
-  by it: a BLOCK or CHALLENGE of the sign-in is the call's answer too, and the call takes no place in the person's
-  decisions of a new context, as the sign-in took its own. A decision that does not come in that time leaves the call
-  to be decided as it was, and nothing is waited for while a store is down. The wait is for a sign-in this server
-  handed to the analysis; on several servers a call that reaches another server is decided as before. There is no
-  setting. **Check:** a sign-in from a new context now costs one model call instead of two where the first call used
-  to come first; a first call that comes while a slow sign-in decision is still being reached waits for it, up to 3
-  seconds, before it is decided itself.
 
 - **An ALLOW now lasts 15 minutes instead of 15 seconds.** The 15 seconds were a value for fast tests. Set
   `contexa.security.zerotrust.allow-validity` to change it; production belongs between 10 and 20 minutes, and a time

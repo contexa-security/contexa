@@ -453,8 +453,7 @@ public class SynchronousProtectableDecisionService {
     /**
      * What an asynchronous {@code @Protectable} does before it runs: the restriction in force ({@link
      * #storedRestriction}), or, A1-5, a decision in place for an agent request with no decision on record. An agent
-     * is not let through without a decision (OWASP ASI02, ASI05); a person's request proceeds while it is analysed,
-     * unless its session, address or browser changed since the user's last decision: it then waits for its verdict.
+     * is not let through without a decision (OWASP ASI02, ASI05); a person's request proceeds while it is analysed.
      * {@code contexa.security.zerotrust.protectable.unrecorded-agent-request=proceed} lets an agent's request proceed
      * while it is analysed as well.
      */
@@ -512,9 +511,6 @@ public class SynchronousProtectableDecisionService {
             return AsyncProtectableGate.DECIDE_IN_PLACE;
         }
         if (action == ZeroTrustAction.PENDING_ANALYSIS && !agentRequest(event) && enforcing.getAsBoolean()) {
-            if (personRequest(event) && contextChanged(event, gateContext)) {
-                return answerToAChangedContext(event, gateContext);
-            }
             if (AgentAllowReuse.sensitive(event.getPayload()) && securityPlaneAgent.isBehind()) {
                 return heldForItsVerdict(methodInvocation, authentication, event, gateContext);
             }

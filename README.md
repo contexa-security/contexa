@@ -21,7 +21,7 @@ Contexa is an open-source Spring Boot library that closes this gap. For each req
 
 - **Added to an application you already have.** Your login and your roles stay as they are. Contexa adds one dependency, one annotation and `@Protectable` on the methods to protect.
 - **No policy rules to write for the decision.** The AI model chooses the action from the facts of the request; your authorization policies still apply.
-- **Out of the request path while nothing changes.** By default the model runs after the response has been sent, so the user does not wait for it; the decision applies from the user's next request. A person's request whose session, address or browser differs from the user's last decision waits for its verdict, as a method that asks for the decision inside the call does (`@Protectable(sync = true)`).
+- **Out of the request path while nothing changes.** By default the model runs after the response has been sent, so the user does not wait for it; the decision applies from the user's next request. Only a method that asks for the decision inside the call (`@Protectable(sync = true)`) waits for it.
 - **Explainable.** Every decision is written to a hash-chained, signed audit record, and for a sample of the model's decisions the exact prompt it received is sealed as evidence for later review.
 - **Covers AI agents.** Requests from agents are told apart from people's requests and decided separately.
 
