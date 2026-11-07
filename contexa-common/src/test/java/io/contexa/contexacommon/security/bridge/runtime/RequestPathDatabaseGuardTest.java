@@ -20,8 +20,15 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -158,5 +165,73 @@ class RequestPathDatabaseGuardTest {
         guard.destroy();
 
         assertThat(guard.call(() -> "answer", "unavailable")).isEqualTo("unavailable");
+    }
+
+    @Test
+    void aCrowdOfRequestsAtOnceOnADatabaseThatAnswersIsNotAnOutage() throws Exception {
+        // 60 requests at the same moment, 4 workers (a line of 64 places), each answer takes a moment: every request gets its answer, none is told "unavailable"
+        RequestPathDatabaseGuard crowded = new RequestPathDatabaseGuard(Duration.ofSeconds(5), 4);
+        try {
+            ExecutorService requests = Executors.newFixedThreadPool(60);
+            CountDownLatch start = new CountDownLatch(1);
+            List<Future<String>> answers = new ArrayList<>();
+            for (int i = 0; i < 60; i++) {
+                answers.add(requests.submit(() -> {
+                    start.await();
+                    return crowded.call(() -> {
+                        try {
+                            Thread.sleep(5);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                        return "answered";
+                    }, "unavailable");
+                }));
+            }
+            start.countDown();
+            List<String> got = new ArrayList<>();
+            for (Future<String> answer : answers) {
+                got.add(answer.get(30, TimeUnit.SECONDS));
+            }
+            requests.shutdownNow();
+            assertThat(got).containsOnly("answered");
+        }
+        finally {
+            crowded.destroy();
+        }
+    }
+
+    @Test
+    void workThatWaitedForAWorkerAndWhoseRequestGaveUpNeverRunsLater() throws Exception {
+        RequestPathDatabaseGuard single = new RequestPathDatabaseGuard(WAIT, 1);
+        AtomicInteger ran = new AtomicInteger();
+        try {
+            Thread holder = new Thread(() -> single.call(this::hanging, "unavailable"));
+            holder.start();
+            Thread.sleep(40);
+            // this request's work waits behind the held worker and its wait ends first
+            String answer = single.call(() -> {
+                ran.incrementAndGet();
+                return "late";
+            }, "unavailable");
+            holder.join();
+            databaseBack.countDown();
+            Thread.sleep(100);
+            assertThat(answer).isEqualTo("unavailable");
+            assertThat(ran.get()).isZero();
+        }
+        finally {
+            single.destroy();
+        }
+    }
+
+    @Test
+    void afterTheHeldWorkEndsTheWorkersAreFreeAgainAndAnswerAtOnce() throws Exception {
+        guard.call(this::hanging, "unavailable");
+        guard.call(this::hanging, "unavailable");
+        assertThat(guard.call(() -> "x", "unavailable")).isEqualTo("unavailable");
+        databaseBack.countDown();
+        Thread.sleep(150);
+        assertThat(guard.call(() -> "x", "unavailable")).isEqualTo("x");
     }
 }
