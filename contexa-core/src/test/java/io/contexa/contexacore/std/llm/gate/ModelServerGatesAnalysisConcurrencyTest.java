@@ -3,6 +3,7 @@ package io.contexa.contexacore.std.llm.gate;
 import io.contexa.contexacore.properties.ModelServerGateProperties;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,56 +15,100 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ModelServerGatesAnalysisConcurrencyTest {
 
-    private static final int PER_SLOT = 4;
+    private static final int CHAT_CALLS = 3;
+    private static final double SAFETY = 1.5;
+    private static final long BUDGET_MS = 180_000L;
     private static final ModelServer LOCAL = ModelServer.of("ollama", "http://localhost:11434");
     private static final ModelServer REMOTE = ModelServer.of("anthropic", "https://api.anthropic.com");
 
     private final ModelServerGateProperties properties = new ModelServerGateProperties();
     private final AtomicReference<ModelServer> resolved = new AtomicReference<>(LOCAL);
-    private final ModelServerGates gates = new ModelServerGates((model, kind) -> resolved.get(), properties, 180_000L);
+    private final ModelServerGates gates = new ModelServerGates((model, kind) -> resolved.get(), properties, BUDGET_MS);
+
+    private int limit() {
+        return gates.analysisConcurrency(CHAT_CALLS, SAFETY);
+    }
 
     @Test
     void gatesThatAreOffLimitNothing() {
         properties.setEnabled(false);
 
-        assertThat(gates.analysisConcurrency(PER_SLOT)).isEqualTo(Integer.MAX_VALUE);
+        assertThat(limit()).isEqualTo(Integer.MAX_VALUE);
     }
 
     @Test
-    void beforeAnyServerIsKnownTheNarrowestConfiguredLimitDecides() {
+    void beforeAnyServerIsKnownTheNarrowestConfiguredLimitDecidesAndTheFirstWaveIsTwoForEachSlot() {
         // 2 calls at once on a self-hosted server, 16 on a remote one: the first wave is the narrow one
-        assertThat(gates.analysisConcurrency(PER_SLOT)).isEqualTo(2 * PER_SLOT);
+        assertThat(limit()).isEqualTo(2 * 2);
 
         properties.setSelfHostedMaxConcurrent(0);
-        assertThat(gates.analysisConcurrency(PER_SLOT)).isEqualTo(16 * PER_SLOT);
+        assertThat(limit()).isEqualTo(16 * 2);
 
         properties.setRemoteMaxConcurrent(0);
-        assertThat(gates.analysisConcurrency(PER_SLOT)).isEqualTo(Integer.MAX_VALUE);
+        assertThat(limit()).isEqualTo(Integer.MAX_VALUE);
     }
 
     @Test
-    void onceARemoteServerIsTheOnlyOneKnownItsOwnLimitDecides() {
+    void beforeAnyCallIsMeasuredAKnownServerKeepsTheFirstWave() {
+        ModelServerGate gate = gates.gateFor(new Object(), CallKind.CHAT);
+
+        assertThat(gate.chatCallMillis()).isZero();
+        assertThat(limit()).isEqualTo(2 * 2);
+
         resolved.set(REMOTE);
         gates.gateFor(new Object(), CallKind.CHAT);
+        assertThat(limit()).isEqualTo(2 * 2);
+    }
 
-        assertThat(gates.analysisConcurrency(PER_SLOT)).isEqualTo(16 * PER_SLOT);
+    /** slots x budget / (chat calls x call time x safety): a call of 6.5 s on 2 slots, 180 s: 2 x 180 / (3 x 6.5 x 1.5) = 12. */
+    @Test
+    void theMeasuredTimeOfAChatCallSetsTheLimit() {
+        ModelServerGate gate = gates.gateFor(new Object(), CallKind.CHAT);
+
+        gate.recordChatCall(TimeUnit.MILLISECONDS.toNanos(6_500));
+        assertThat(limit()).isEqualTo(12);
     }
 
     @Test
-    void onceASelfHostedServerIsKnownItsLimitDecides() {
-        gates.gateFor(new Object(), CallKind.CHAT);
+    void aSlowerModelAllowsFewerAnalyses() {
+        ModelServerGate gate = gates.gateFor(new Object(), CallKind.CHAT);
 
-        assertThat(gates.analysisConcurrency(PER_SLOT)).isEqualTo(2 * PER_SLOT);
+        // a call of 13 s: 2 x 180 / (3 x 13 x 1.5) = 6
+        gate.recordChatCall(TimeUnit.SECONDS.toNanos(13));
+
+        assertThat(limit()).isEqualTo(6);
+    }
+
+    @Test
+    void aFastRemoteServerAllowsFarMoreThanTheStripes() {
+        resolved.set(REMOTE);
+        ModelServerGate gate = gates.gateFor(new Object(), CallKind.CHAT);
+
+        gate.recordChatCall(TimeUnit.SECONDS.toNanos(4));
+
+        // 16 x 180 / (3 x 4 x 1.5) = 160
+        assertThat(limit()).isEqualTo(160);
+    }
+
+    @Test
+    void theLimitNeverFallsBelowTheSlotsOfTheGate() {
+        ModelServerGate gate = gates.gateFor(new Object(), CallKind.CHAT);
+
+        gate.recordChatCall(TimeUnit.SECONDS.toNanos(120));
+
+        assertThat(limit()).isEqualTo(2);
     }
 
     @Test
     void theNarrowestKnownServerDecides() {
         resolved.set(REMOTE);
-        gates.gateFor(new Object(), CallKind.CHAT);
+        ModelServerGate remote = gates.gateFor(new Object(), CallKind.CHAT);
+        remote.recordChatCall(TimeUnit.SECONDS.toNanos(4));
         resolved.set(LOCAL);
-        gates.gateFor(new Object(), CallKind.EMBEDDING);
+        ModelServerGate local = gates.gateFor(new Object(), CallKind.EMBEDDING);
+        local.recordChatCall(TimeUnit.MILLISECONDS.toNanos(6_500));
 
-        assertThat(gates.analysisConcurrency(PER_SLOT)).isEqualTo(2 * PER_SLOT);
+        assertThat(limit()).isEqualTo(12);
     }
 
     @Test
@@ -71,7 +116,7 @@ class ModelServerGatesAnalysisConcurrencyTest {
         properties.setSelfHostedMaxConcurrent(0);
         gates.gateFor(new Object(), CallKind.CHAT);
 
-        assertThat(gates.analysisConcurrency(PER_SLOT)).isEqualTo(Integer.MAX_VALUE);
+        assertThat(limit()).isEqualTo(Integer.MAX_VALUE);
     }
 
     @Test
@@ -79,14 +124,6 @@ class ModelServerGatesAnalysisConcurrencyTest {
         resolved.set(null);
         gates.gateFor(new Object(), CallKind.CHAT);
 
-        assertThat(gates.analysisConcurrency(PER_SLOT)).isEqualTo(Integer.MAX_VALUE);
-    }
-
-    @Test
-    void theLimitIsAtLeastOneAnalysis() {
-        properties.setSelfHostedMaxConcurrent(1);
-        gates.gateFor(new Object(), CallKind.CHAT);
-
-        assertThat(gates.analysisConcurrency(0)).isEqualTo(1);
+        assertThat(limit()).isEqualTo(Integer.MAX_VALUE);
     }
 }

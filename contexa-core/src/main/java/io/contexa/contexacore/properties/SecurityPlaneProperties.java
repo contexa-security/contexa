@@ -69,8 +69,9 @@ public class SecurityPlaneProperties {
          * ({@code llm-executor.max-pool-size}, 64) and the model server's gate (16 calls at once on a remote provider) are
          * what the analyses can use, so threads past the analysis threads only wait in front of them. The model servers
          * lower it where they serve less: a call waits at a gate at most until the event's budget, so no more analyses run
-         * than four for each slot of the narrowest gate (8 on a self-hosted server taking 2 calls); what does not run waits
-         * in the line, with its budget not started. A thread with nothing to analyse is given back after a minute.
+         * than the narrowest gate serves within it, from the measured time of a chat call (about a dozen on a self-hosted
+         * server taking 2 calls of 6 s); what does not run waits in the line, with its budget not started. A thread with
+         * nothing to analyse is given back after a minute.
          */
         private int analysisStripes = 64;
         /**

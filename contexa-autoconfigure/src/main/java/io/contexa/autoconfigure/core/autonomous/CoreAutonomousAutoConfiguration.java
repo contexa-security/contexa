@@ -840,8 +840,8 @@ public class CoreAutonomousAutoConfiguration {
                 gates = modelServerGatesProvider.getIfAvailable();
                 modelServerGates.set(gates);
             }
-            return gates != null ? gates.analysisConcurrency(SecurityPlaneAgent.ANALYSES_PER_MODEL_SLOT)
-                    : Integer.MAX_VALUE;
+            return gates != null ? gates.analysisConcurrency(SecurityPlaneAgent.CHAT_CALLS_PER_ANALYSIS,
+                    SecurityPlaneAgent.BUDGET_SAFETY) : Integer.MAX_VALUE;
         });
         return agent;
     }

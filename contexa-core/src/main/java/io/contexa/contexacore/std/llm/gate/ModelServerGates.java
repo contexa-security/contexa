@@ -91,36 +91,51 @@ public final class ModelServerGates {
         }
     }
 
+    /** Analyses per slot of a gate before the time of a chat call is known: the first wave of a burst. */
+    private static final int FIRST_WAVE_PER_SLOT = 2;
+
     /**
-     * How many analyses may run at once: a call waits at its server's gate at most until the event's deadline, so the
-     * analyses in flight must not outnumber what the narrowest gate serves within it. That is {@code perSlot} times its
-     * slots: of the analyses that wait, the last waits for the others' calls ahead of it, a few each, and the budget
-     * holds when a call takes a fraction of it. Where no gate limits (the gates are off, a server set to no limit, a call
-     * to a server with no gate) nothing is limited. Before a server is known the narrowest configured limit holds, so that
-     * the first wave of a burst does not fill a gate that turns out to be a narrow one.
+     * How many analyses may run at once. A call waits at its server's gate at most until the event's budget, so the
+     * analyses in flight must not outnumber what the narrowest gate serves within it. The analyses in line at a gate take
+     * turns: each passes its chat calls (up to {@code chatCalls}) behind the calls of the others, so the last of {@code n}
+     * analyses on {@code slots} slots is done after about {@code n / slots x chatCalls x callTime}, and that must stay
+     * within the budget with {@code safety} to spare: {@code n = slots x budget / (chatCalls x callTime x safety)}. The
+     * call time is the gate's own measure of a chat call. Never fewer than the slots of the gate, so that they can all be
+     * used. Before a call is measured (the first wave of a burst) each slot has {@value #FIRST_WAVE_PER_SLOT} analyses,
+     * and before a server is known the narrowest configured limit holds, so that the first wave does not fill a gate that
+     * turns out to be a narrow one. Where no gate limits (the gates are off, a server set to no limit, a call to a server
+     * with no gate) nothing is limited.
      */
-    public int analysisConcurrency(int perSlot) {
+    public int analysisConcurrency(int chatCalls, double safety) {
         if (!properties.isEnabled() || resolver == null || ungatedCallSeen) {
             return Integer.MAX_VALUE;
         }
-        int narrowest = Integer.MAX_VALUE;
+        long limit = Long.MAX_VALUE;
         for (ModelServerGate gate : gates.values()) {
-            narrowest = narrowestOf(narrowest, gate.maxConcurrent());
+            int slots = gate.maxConcurrent();
+            if (slots <= 0) {
+                continue;
+            }
+            long callMillis = gate.chatCallMillis();
+            long forGate = callMillis <= 0L
+                    ? (long) slots * FIRST_WAVE_PER_SLOT
+                    : Math.max(slots, (long) (slots * (double) defaultMaxWaitMs
+                    / (Math.max(1, chatCalls) * (double) callMillis * Math.max(1.0, safety))));
+            limit = Math.min(limit, forGate);
         }
         if (gates.isEmpty()) {
-            narrowest = narrowestOf(narrowest, properties.getSelfHostedMaxConcurrent());
+            int narrowest = narrowestOf(Integer.MAX_VALUE, properties.getSelfHostedMaxConcurrent());
             narrowest = narrowestOf(narrowest, properties.getRemoteMaxConcurrent());
             for (ModelServerGateProperties.Server server : properties.getServers().values()) {
                 if (server != null && server.getMaxConcurrent() != null) {
                     narrowest = narrowestOf(narrowest, server.getMaxConcurrent());
                 }
             }
+            if (narrowest != Integer.MAX_VALUE) {
+                limit = (long) narrowest * FIRST_WAVE_PER_SLOT;
+            }
         }
-        if (narrowest == Integer.MAX_VALUE) {
-            return Integer.MAX_VALUE;
-        }
-        long limit = (long) narrowest * Math.max(1, perSlot);
-        return (int) Math.min(Integer.MAX_VALUE, limit);
+        return limit == Long.MAX_VALUE ? Integer.MAX_VALUE : (int) Math.min(Integer.MAX_VALUE, limit);
     }
 
     /** The narrower of two limits, where 0 is no limit. */

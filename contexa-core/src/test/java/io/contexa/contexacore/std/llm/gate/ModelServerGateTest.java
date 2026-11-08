@@ -273,6 +273,56 @@ class ModelServerGateTest {
         assertThat(order).containsExactly("first", "last");
     }
 
+    /** How long a chat call holds its slot is measured, so that the analyses can be sized to what the server serves. */
+    @Test
+    void theTimeAChatCallHoldsItsSlotIsKeptAsAMovingAverage() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ZERO);
+        assertThat(gate.chatCallMillis()).isZero();
+
+        gate.recordChatCall(TimeUnit.SECONDS.toNanos(10));
+        assertThat(gate.chatCallMillis()).isEqualTo(10_000L);
+
+        gate.recordChatCall(TimeUnit.SECONDS.toNanos(5));
+        assertThat(gate.chatCallMillis()).isBetween(8_000L, 9_999L);
+    }
+
+    @Test
+    void aChatCallThatEndsSetsTheTimeItHeldItsSlot() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ZERO);
+
+        try (ModelServerGate.Permit ignored = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L)) {
+            Thread.sleep(60);
+        }
+
+        assertThat(gate.chatCallMillis()).isBetween(50L, 5_000L);
+    }
+
+    @Test
+    void anEmbeddingAnOverloadedCallAndACallInsideACallDoNotCount() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ZERO);
+
+        try (ModelServerGate.Permit ignored = gate.enter(CallKind.EMBEDDING, "mxbai", 1_000L)) {
+            Thread.sleep(30);
+        }
+        try (ModelServerGate.Permit rateLimited = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L)) {
+            Thread.sleep(30);
+            rateLimited.overloaded();
+        }
+        assertThat(gate.chatCallMillis()).isZero();
+
+        try (ModelServerGate.Permit outer = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L)) {
+            outer.scope(() -> {
+                try (ModelServerGate.Permit inner = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L)) {
+                    Thread.sleep(200);
+                }
+                return null;
+            }).call();
+        }
+
+        // the call inside the call is the outer call's own time, counted once, not twice
+        assertThat(gate.chatCallMillis()).isBetween(150L, 2_000L);
+    }
+
     @Test
     void anOverloadSignalKeepsTheServerClosedForAWhile() throws Exception {
         ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ofMillis(300));

@@ -120,13 +120,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
      * so more of them buy the user nothing and take a turn from another user.
      */
     static final int USER_SHARE = 8;
-    /**
-     * How many analyses run at once for each slot of the narrowest model server gate. An analysis passes a gate up to four
-     * times (the embedding of its retrieval and up to three chat calls), and one that waits for a slot waits for the
-     * calls of the others ahead of it; with this many a slot, the wait of the last stays within the event's budget as long
-     * as a call takes a small part of it.
-     */
-    public static final int ANALYSES_PER_MODEL_SLOT = 4;
+    /** The chat calls one analysis makes at most: the first, a correction of an answer outside the contract, and a longer retry. */
+    public static final int CHAT_CALLS_PER_ANALYSIS = 3;
+    /** How much of the event's budget the analyses in line at a gate may use: the rest covers a call slower than the average. */
+    public static final double BUDGET_SAFETY = 1.5;
     /** Q-23: how many sessions are remembered as decided, and for how long; a forgotten one is first in line again. */
     private static final int MAX_DECIDED_SESSIONS = 100_000;
     private static final Duration DECIDED_SESSION_TTL = Duration.ofHours(1);
