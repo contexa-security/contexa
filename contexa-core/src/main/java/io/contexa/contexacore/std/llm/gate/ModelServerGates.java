@@ -34,6 +34,8 @@ public final class ModelServerGates {
     private final ModelServerGateProperties properties;
     private final long defaultMaxWaitMs;
     private final Map<String, ModelServerGate> gates = new ConcurrentHashMap<>();
+    /** A call went to a server that passes no gate: what such a server serves is not known, so nothing is limited. */
+    private volatile boolean ungatedCallSeen;
 
     /**
      * @param defaultMaxWaitMs the longest a call waits when no deadline bounds it: the event budget
@@ -52,6 +54,7 @@ public final class ModelServerGates {
         }
         ModelServer server = resolver.resolve(model, kind);
         if (server == null) {
+            ungatedCallSeen = true;
             return null;
         }
         return gates.computeIfAbsent(server.key(), key -> create(server));
@@ -86,6 +89,43 @@ public final class ModelServerGates {
         try (ModelServerGate.Permit permit = gate.enter(kind, modelName, maxWaitMs(timer), timer)) {
             return permit.scope(call).call();
         }
+    }
+
+    /**
+     * How many analyses may run at once: a call waits at its server's gate at most until the event's deadline, so the
+     * analyses in flight must not outnumber what the narrowest gate serves within it. That is {@code perSlot} times its
+     * slots: of the analyses that wait, the last waits for the others' calls ahead of it, a few each, and the budget
+     * holds when a call takes a fraction of it. Where no gate limits (the gates are off, a server set to no limit, a call
+     * to a server with no gate) nothing is limited. Before a server is known the narrowest configured limit holds, so that
+     * the first wave of a burst does not fill a gate that turns out to be a narrow one.
+     */
+    public int analysisConcurrency(int perSlot) {
+        if (!properties.isEnabled() || resolver == null || ungatedCallSeen) {
+            return Integer.MAX_VALUE;
+        }
+        int narrowest = Integer.MAX_VALUE;
+        for (ModelServerGate gate : gates.values()) {
+            narrowest = narrowestOf(narrowest, gate.maxConcurrent());
+        }
+        if (gates.isEmpty()) {
+            narrowest = narrowestOf(narrowest, properties.getSelfHostedMaxConcurrent());
+            narrowest = narrowestOf(narrowest, properties.getRemoteMaxConcurrent());
+            for (ModelServerGateProperties.Server server : properties.getServers().values()) {
+                if (server != null && server.getMaxConcurrent() != null) {
+                    narrowest = narrowestOf(narrowest, server.getMaxConcurrent());
+                }
+            }
+        }
+        if (narrowest == Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        long limit = (long) narrowest * Math.max(1, perSlot);
+        return (int) Math.min(Integer.MAX_VALUE, limit);
+    }
+
+    /** The narrower of two limits, where 0 is no limit. */
+    private static int narrowestOf(int current, int slots) {
+        return slots > 0 ? Math.min(current, slots) : current;
     }
 
     private ModelServerGate create(ModelServer server) {

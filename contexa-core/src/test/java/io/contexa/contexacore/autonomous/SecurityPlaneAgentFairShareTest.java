@@ -196,6 +196,60 @@ class SecurityPlaneAgentFairShareTest {
                 .hasCauseInstanceOf(RejectedExecutionException.class);
     }
 
+    // ----- a session already in line -----
+
+    /**
+     * What waits behind a decision costs that decision and no turn of its own (PR-82): a request of a session that has an
+     * analysis in line or running is kept in its session at once, without a place in the line, so that the line holds
+     * a place for each session and the first decision of the next session is not turned away by the requests behind
+     * the first one.
+     */
+    @Test
+    void aRequestOfASessionThatIsAlreadyInLineTakesNoPlaceInTheLine() {
+        SecurityPlaneAgent.QueuedEventRecheck recheck = mock(SecurityPlaneAgent.QueuedEventRecheck.class);
+        agent.setQueuedEventRecheck(recheck);
+
+        batches.processBatch(List.of(request("alice", "session-1"), request("alice", "session-1"),
+                request("alice", "session-1")));
+
+        Awaitility.await().untilAsserted(() -> verify(recheck, times(2)).leftOut(any()));
+        assertThat(agent.analysesInProgress()).isEqualTo(1);
+        Awaitility.await().untilAsserted(() -> assertThat(analysed).hasSize(1));
+    }
+
+    @Test
+    void aRequestOfAnotherSessionOfTheUserStillTakesItsPlace() {
+        batches.processBatch(List.of(request("alice", "session-1"), request("alice", "session-2"),
+                request("alice", "session-3")));
+
+        Awaitility.await().untilAsserted(() -> assertThat(analysed).hasSize(3));
+        assertThat(agent.analysesInProgress()).isEqualTo(3);
+    }
+
+    @Test
+    void theSessionTakesAPlaceAgainWhenItsAnalysisIsOver() {
+        batches.processBatch(List.of(request("alice", "session-1")));
+        Awaitility.await().untilAsserted(() -> assertThat(analysed).hasSize(1));
+
+        release.countDown();
+        Awaitility.await().untilAsserted(() -> assertThat(agent.analysesInProgress()).isZero());
+        batches.processBatch(List.of(request("alice", "session-1")));
+
+        Awaitility.await().untilAsserted(() -> assertThat(analysed).hasSize(2));
+    }
+
+    @Test
+    void aSignInAndAnAgentsEventOfASessionInLineAreAnalysedAsBefore() {
+        batches.processBatch(List.of(request("alice", "session-1")));
+        Awaitility.await().untilAsserted(() -> assertThat(analysed).hasSize(1));
+
+        SecurityEvent agentEvent = request("alice", "session-1");
+        agentEvent.addMetadata("executionSubjectKind", "AUTONOMOUS_AGENT");
+        batches.processBatch(List.of(event("alice", "session-1", "AUTHENTICATION"), agentEvent));
+
+        Awaitility.await().untilAsserted(() -> assertThat(agent.analysesInProgress()).isEqualTo(3));
+    }
+
     // ----- what comes first -----
 
     @Test

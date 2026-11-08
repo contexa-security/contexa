@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
@@ -119,6 +120,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
      * so more of them buy the user nothing and take a turn from another user.
      */
     static final int USER_SHARE = 8;
+    /**
+     * How many analyses run at once for each slot of the narrowest model server gate. An analysis passes a gate up to four
+     * times (the embedding of its retrieval and up to three chat calls), and one that waits for a slot waits for the
+     * calls of the others ahead of it; with this many a slot, the wait of the last stays within the event's budget as long
+     * as a call takes a small part of it.
+     */
+    public static final int ANALYSES_PER_MODEL_SLOT = 4;
     /** Q-23: how many sessions are remembered as decided, and for how long; a forgotten one is first in line again. */
     private static final int MAX_DECIDED_SESSIONS = 100_000;
     private static final Duration DECIDED_SESSION_TTL = Duration.ofHours(1);
@@ -188,6 +196,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final ConcurrentMap<String, Integer> analysesOfUsers = new ConcurrentHashMap<>();
     private final AtomicInteger analysesInProgress = new AtomicInteger();
     private volatile int analysisLineBound = Integer.MAX_VALUE;
+    /** How many analyses the model servers serve at once, or null where nothing says (the analysis stripes then are the limit). */
+    private volatile IntSupplier analysisCapacity;
     private final AtomicLong analysesLeftOut = new AtomicLong();
     private final AtomicLong lineFullReportedAt = new AtomicLong();
     private volatile Duration judgeAgainInterval = DEFAULT_JUDGE_AGAIN_INTERVAL;
@@ -297,10 +307,31 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         startOnItsOwn();
     }
 
+    /**
+     * The analyses run at once follow the model servers: a call waits at a server's gate at most until the event's
+     * budget, so no more analyses may run than the narrowest gate serves within it ({@code ModelServerGates}). What does
+     * not run waits in the line, in its order and with its budget not started; the stripes stay the upper limit.
+     */
+    public void setAnalysisCapacity(IntSupplier analysisCapacity) {
+        this.analysisCapacity = analysisCapacity;
+        fitTheActorsToTheModelServers();
+    }
+
+    private void fitTheActorsToTheModelServers() {
+        KeyedSerialExecutor executor = actorSerialExecutor;
+        IntSupplier capacity = analysisCapacity;
+        if (executor == null || capacity == null) {
+            return;
+        }
+        int stripes = Math.max(1, securityPlaneProperties.getAgent().getAnalysisStripes());
+        executor.resize(Math.max(1, Math.min(stripes, capacity.getAsInt())));
+    }
+
     private void processBatch(List<SecurityEvent> events) {
         if (events == null || events.isEmpty()) {
             return;
         }
+        fitTheActorsToTheModelServers();
 
         if (!running.get()) {
             throw new IllegalStateException("SecurityPlaneAgent is not running");
@@ -314,6 +345,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             event.addMetadata("analysisQueuedAt", System.currentTimeMillis());
             boolean firstDecision = markFirstDecision(event, analysisKey);
             String share = shareOf(event);
+            if (share != null && actorSerialExecutor.hasWork(analysisKey)) {
+                // What waits behind a decision costs that decision and no turn of its own (PR-82): the session has an
+                // analysis in line or running, so this request is kept in its session without a place in the line, and
+                // the places go to the first decisions of other sessions. If that analysis decides nothing, the
+                // session stays without a decision and its next request is published and analysed again.
+                event.addMetadata("analysisSkipped", "SESSION_ALREADY_IN_LINE");
+                leftOut(event);
+                continue;
+            }
             if (!takeAPlace(share)) {
                 event.addMetadata("analysisSkipped", "PAST_THE_USERS_SHARE");
                 leftOut(event);
@@ -810,6 +850,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         // an actor with no analysis to run is given back: the pool is as large as the analyses in flight
         actors.allowCoreThreadTimeOut(true);
         actorSerialExecutor = new KeyedSerialExecutor(actors, workerCount);
+        fitTheActorsToTheModelServers();
+    }
+
+    /** How many actors the analyses run on now. */
+    public int analysisActors() {
+        KeyedSerialExecutor executor = actorSerialExecutor;
+        return executor != null ? executor.actors() : 0;
     }
 
     private String resolveAnalysisKey(SecurityEvent event) {
@@ -1251,6 +1298,29 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 Thread.currentThread().interrupt();
                 workerPool.shutdownNow();
             }
+        }
+
+        private int actors() {
+            return workerPool instanceof ThreadPoolExecutor pool ? pool.getCorePoolSize() : parallelism;
+        }
+
+        /** The actors the analyses run on: no more than this, the queue keeps the rest in its order. */
+        private void resize(int actors) {
+            if (!(workerPool instanceof ThreadPoolExecutor pool) || pool.getCorePoolSize() == actors) {
+                return;
+            }
+            if (actors > pool.getMaximumPoolSize()) {
+                pool.setMaximumPoolSize(actors);
+                pool.setCorePoolSize(actors);
+            } else {
+                pool.setCorePoolSize(actors);
+                pool.setMaximumPoolSize(actors);
+            }
+        }
+
+        /** Whether work of the key is in line or running. */
+        private boolean hasWork(String key) {
+            return queues.containsKey(key);
         }
 
         private final class SerialTaskQueue implements Runnable {

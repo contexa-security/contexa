@@ -65,10 +65,12 @@ public class SecurityPlaneProperties {
         private long eventTimeoutMs = 180000L;
         private int maxDeferredRetries = 3;
         /**
-         * How many analyses run at once, one thread each, which waits for the model. The analysis threads
+         * The most analyses that run at once, one thread each, which waits for the model. The analysis threads
          * ({@code llm-executor.max-pool-size}, 64) and the model server's gate (16 calls at once on a remote provider) are
-         * what the analyses can use, so threads past the analysis threads only wait in front of them. A thread with nothing
-         * to analyse is given back after a minute.
+         * what the analyses can use, so threads past the analysis threads only wait in front of them. The model servers
+         * lower it where they serve less: a call waits at a gate at most until the event's budget, so no more analyses run
+         * than four for each slot of the narrowest gate (8 on a self-hosted server taking 2 calls); what does not run waits
+         * in the line, with its budget not started. A thread with nothing to analyse is given back after a minute.
          */
         private int analysisStripes = 64;
         /**
