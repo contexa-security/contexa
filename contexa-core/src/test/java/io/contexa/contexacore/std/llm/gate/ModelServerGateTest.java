@@ -287,6 +287,16 @@ class ModelServerGateTest {
     }
 
     @Test
+    void aCallUnderAMillisecondCountsAsOneSoThatZeroSaysNoneHasEnded() {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ZERO);
+
+        gate.recordChatCall(TimeUnit.MICROSECONDS.toNanos(200));
+
+        assertThat(gate.chatCallsSeen()).isTrue();
+        assertThat(gate.chatCallMillis()).isEqualTo(1L);
+    }
+
+    @Test
     void aChatCallThatEndsSetsTheTimeItHeldItsSlot() throws Exception {
         ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ZERO);
 

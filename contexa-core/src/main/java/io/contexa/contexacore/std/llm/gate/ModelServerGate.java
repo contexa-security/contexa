@@ -177,12 +177,13 @@ public final class ModelServerGate {
     /**
      * How long a chat call holds its slot, as a moving average of the calls that ended; 0 until one has. A call that met
      * a rate limit or an overload, an embedding, and a call made inside another call are not counted: the first ends at
-     * once, the second is short, and the third is part of the call it runs in.
+     * once, the second is short, and the third is part of the call it runs in. A call that took less than a millisecond
+     * counts as one, so that 0 says only that none has ended.
      */
     public long chatCallMillis() {
         lock.lock();
         try {
-            return TimeUnit.NANOSECONDS.toMillis(chatCallNanos);
+            return chatCallNanos == 0L ? 0L : Math.max(1L, TimeUnit.NANOSECONDS.toMillis(chatCallNanos));
         } finally {
             lock.unlock();
         }

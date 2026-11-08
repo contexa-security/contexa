@@ -250,6 +250,70 @@ class SecurityPlaneAgentFairShareTest {
         Awaitility.await().untilAsserted(() -> assertThat(agent.analysesInProgress()).isEqualTo(3));
     }
 
+    private static SecurityEvent inContext(SecurityEvent event, String contextBindingHash) {
+        event.addMetadata("contextBindingHash", contextBindingHash);
+        return event;
+    }
+
+    /**
+     * A decision is bound to the context it was made in, so what waits ahead of a request answers it only when it came from
+     * the same context: the request of a session that changed its place or its browser is no repeat of it and is analysed.
+     */
+    @Test
+    void aRequestOfASessionInLineFromAnotherContextIsAnalysed() {
+        SecurityPlaneAgent.QueuedEventRecheck recheck = mock(SecurityPlaneAgent.QueuedEventRecheck.class);
+        agent.setQueuedEventRecheck(recheck);
+
+        batches.processBatch(List.of(inContext(request("alice", "session-1"), "home"),
+                inContext(request("alice", "session-1"), "home"),
+                inContext(request("alice", "session-1"), "elsewhere")));
+
+        Awaitility.await().untilAsserted(() -> verify(recheck, times(1)).leftOut(any()));
+        assertThat(agent.analysesInProgress()).isEqualTo(2);
+    }
+
+    @Test
+    void theContextTakesItsPlaceAgainWhenItsAnalysisIsOver() {
+        batches.processBatch(List.of(inContext(request("alice", "session-1"), "home")));
+        Awaitility.await().untilAsserted(() -> assertThat(analysed).hasSize(1));
+
+        release.countDown();
+        Awaitility.await().untilAsserted(() -> assertThat(agent.analysesInProgress()).isZero());
+        batches.processBatch(List.of(inContext(request("alice", "session-1"), "home")));
+
+        Awaitility.await().untilAsserted(() -> assertThat(analysed).hasSize(2));
+    }
+
+    /**
+     * An event that comes back to be tried again is the analysis itself and no repeat of another: it is not left out
+     * because the session still holds the place its first try had, which it does for a moment after that try gave it up.
+     */
+    @Test
+    void anEventDeferredToBeTriedAgainIsNotLeftOutByTheSessionThatStillHoldsItsPlace() {
+        SecurityPlaneAgent.QueuedEventRecheck recheck = mock(SecurityPlaneAgent.QueuedEventRecheck.class);
+        agent.setQueuedEventRecheck(recheck);
+        SecurityEvent retry = request("alice", "session-1");
+        retry.addMetadata("deferredCount", 1);
+
+        batches.processBatch(List.of(request("alice", "session-1"), retry));
+
+        Awaitility.await().untilAsserted(() -> assertThat(agent.analysesInProgress()).isEqualTo(2));
+        verify(recheck, never()).leftOut(any());
+    }
+
+    @Test
+    void anEventAskedAboutAgainIsNotLeftOutByTheSessionInLine() {
+        SecurityPlaneAgent.QueuedEventRecheck recheck = mock(SecurityPlaneAgent.QueuedEventRecheck.class);
+        agent.setQueuedEventRecheck(recheck);
+        SecurityEvent again = request("alice", "session-1");
+        again.addMetadata("judgedAgainEvent", "first-event");
+
+        batches.processBatch(List.of(request("alice", "session-1"), again));
+
+        Awaitility.await().untilAsserted(() -> assertThat(agent.analysesInProgress()).isEqualTo(2));
+        verify(recheck, never()).leftOut(any());
+    }
+
     // ----- what comes first -----
 
     @Test

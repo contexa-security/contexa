@@ -185,6 +185,25 @@ class SecurityPlaneAgentModelCapacityTest {
         assertThat(analysed).hasSize(2);
     }
 
+    /** The capacity only tunes how many run at once: a reading that fails keeps the last one and fails no batch. */
+    @Test
+    void aCapacityThatCannotBeReadKeepsTheLastOneAndFailsNoBatch() {
+        AtomicInteger reads = new AtomicInteger();
+        agent.setAnalysisCapacity(() -> {
+            if (reads.incrementAndGet() > 1) {
+                throw new IllegalStateException("the gates are not readable");
+            }
+            return 2;
+        });
+
+        users("gus-", 5);
+
+        Awaitility.await().untilAsserted(() -> assertThat(analysed).hasSize(2));
+        assertThat(reads.get()).isGreaterThan(1);
+        assertThat(agent.analysisActors()).isEqualTo(2);
+        assertThat(agent.analysesInProgress()).isEqualTo(5);
+    }
+
     @Test
     void withoutALimitTheAnalysisStripesAreTheLimit() throws Exception {
         agent.shutdown();

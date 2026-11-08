@@ -65,6 +65,7 @@ import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.IntSupplier;
@@ -194,10 +195,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             .expireAfterWrite(DECIDED_SESSION_TTL)
             .build();
     private final ConcurrentMap<String, Integer> analysesOfUsers = new ConcurrentHashMap<>();
+    /** The analyses in line or running for each session and context of a person's calls, which a repeat is not queued behind. */
+    private final ConcurrentMap<String, Integer> analysesInContext = new ConcurrentHashMap<>();
     private final AtomicInteger analysesInProgress = new AtomicInteger();
     private volatile int analysisLineBound = Integer.MAX_VALUE;
     /** How many analyses the model servers serve at once, or null where nothing says (the analysis stripes then are the limit). */
     private volatile IntSupplier analysisCapacity;
+    private final AtomicBoolean analysisCapacityFailureReported = new AtomicBoolean();
     private final AtomicLong analysesLeftOut = new AtomicLong();
     private final AtomicLong lineFullReportedAt = new AtomicLong();
     private volatile Duration judgeAgainInterval = DEFAULT_JUDGE_AGAIN_INTERVAL;
@@ -323,8 +327,17 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         if (executor == null || capacity == null) {
             return;
         }
-        int stripes = Math.max(1, securityPlaneProperties.getAgent().getAnalysisStripes());
-        executor.resize(Math.max(1, Math.min(stripes, capacity.getAsInt())));
+        try {
+            int stripes = Math.max(1, securityPlaneProperties.getAgent().getAnalysisStripes());
+            executor.resize(Math.max(1, Math.min(stripes, capacity.getAsInt())));
+            analysisCapacityFailureReported.set(false);
+        } catch (RuntimeException unreadable) {
+            // The capacity only tunes how many analyses run at once: what cannot be read keeps the last one, and no
+            // batch fails because of it. It is told once, not for every batch.
+            if (analysisCapacityFailureReported.compareAndSet(false, true)) {
+                log.error("[SecurityPlaneAgent] The analysis capacity could not be read; the last one stays", unreadable);
+            }
+        }
     }
 
     private void processBatch(List<SecurityEvent> events) {
@@ -345,11 +358,14 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             event.addMetadata("analysisQueuedAt", System.currentTimeMillis());
             boolean firstDecision = markFirstDecision(event, analysisKey);
             String share = shareOf(event);
-            if (share != null && actorSerialExecutor.hasWork(analysisKey)) {
+            String inLine = share != null ? lineKeyOf(analysisKey, event) : null;
+            if (inLine != null && !comesBack(event) && analysesInContext.containsKey(inLine)) {
                 // What waits behind a decision costs that decision and no turn of its own (PR-82): the session has an
-                // analysis in line or running, so this request is kept in its session without a place in the line, and
-                // the places go to the first decisions of other sessions. If that analysis decides nothing, the
-                // session stays without a decision and its next request is published and analysed again.
+                // analysis of this context in line or running, so this request is kept in its session without a place
+                // in the line, and the places go to the first decisions of other sessions. A decision is bound to its
+                // context, so a request of another context is no repeat of it and is analysed, and so is an event that
+                // comes back to be tried again. If that analysis decides nothing, the session stays without a decision
+                // and its next request is published and analysed again.
                 event.addMetadata("analysisSkipped", "SESSION_ALREADY_IN_LINE");
                 leftOut(event);
                 continue;
@@ -365,6 +381,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 continue;
             }
 
+            if (inLine != null) {
+                analysesInContext.merge(inLine, 1, Integer::sum);
+            }
             Runnable analysis = AnalysisTurn.of(() -> {
                 boolean over = false;
                 try {
@@ -403,6 +422,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     }
                 } finally {
                     leaveThePlace(share);
+                    leaveTheContext(inLine);
                     if (over) {
                         analysisIsOver(event);
                     }
@@ -412,6 +432,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 actorSerialExecutor.execute(analysisKey, analysis);
             } catch (RuntimeException notTaken) {
                 leaveThePlace(share);
+                leaveTheContext(inLine);
                 throw notTaken;
             }
         }
@@ -460,6 +481,23 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             analysesInProgress.incrementAndGet();
         }
         return taken[0];
+    }
+
+    /** The session and the context the event came from: what in line answers a request is what was asked in the same one. */
+    private String lineKeyOf(String analysisKey, SecurityEvent event) {
+        return analysisKey + "|context:" + Objects.toString(metadataText(event.getMetadata(), "contextBindingHash"), "");
+    }
+
+    /** An event deferred to be tried again, or asked about again, is the analysis itself and no repeat of another. */
+    private boolean comesBack(SecurityEvent event) {
+        return getIntegerMetadata(event, "deferredCount") > 0
+                || (event.getMetadata() != null && event.getMetadata().containsKey(JUDGED_AGAIN_EVENT));
+    }
+
+    private void leaveTheContext(String inLine) {
+        if (inLine != null) {
+            analysesInContext.computeIfPresent(inLine, (key, held) -> held > 1 ? held - 1 : null);
+        }
     }
 
     private void leaveThePlace(String share) {
@@ -1305,7 +1343,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
 
         /** The actors the analyses run on: no more than this, the queue keeps the rest in its order. */
-        private void resize(int actors) {
+        private synchronized void resize(int actors) {
             if (!(workerPool instanceof ThreadPoolExecutor pool) || pool.getCorePoolSize() == actors) {
                 return;
             }
@@ -1316,11 +1354,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 pool.setCorePoolSize(actors);
                 pool.setMaximumPoolSize(actors);
             }
-        }
-
-        /** Whether work of the key is in line or running. */
-        private boolean hasWork(String key) {
-            return queues.containsKey(key);
         }
 
         private final class SerialTaskQueue implements Runnable {
