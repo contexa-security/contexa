@@ -21,6 +21,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.repository.ShadowAwareActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.audit.AgentDecisionRecord;
@@ -90,6 +91,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private LearningPromotionService learningPromotionService;
     private DeletedAccountWriteFence deletedAccountWriteFence;
     private ZeroTrustAction escalateTerminalAction;
+    private ZeroTrustActionRepository shadowMemory;
 
     public SecurityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRedisRepository,
@@ -190,6 +192,14 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         this.deletedAccountWriteFence = deletedAccountWriteFence;
     }
 
+    /**
+     * Where SHADOW remembers what it decided (see {@link ShadowAwareActionRepository}). Without it a shadow decision is
+     * only observed, and every request of a user is analysed again.
+     */
+    public void setShadowMemory(ZeroTrustActionRepository shadowMemory) {
+        this.shadowMemory = shadowMemory;
+    }
+
     /** What a final ESCALATE ends as (Layer2 terminal policy), null while allow-escalate-final-action keeps it. */
     public void setEscalateTerminalAction(ZeroTrustAction escalateTerminalAction) {
         this.escalateTerminalAction = escalateTerminalAction;
@@ -235,7 +245,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             event.addMetadata(AgentDecisionRecord.ENFORCEMENT_OUTCOME, switch (enforcement) {
                 case APPLIED -> AgentDecisionRecord.APPLIED;
                 case KEPT_STRICTER -> AgentDecisionRecord.KEPT_STRICTER;
-                case SHADOW -> AgentDecisionRecord.OBSERVED_ONLY;
+                case SHADOW, SHADOW_APPLIED, SHADOW_KEPT_STRICTER -> AgentDecisionRecord.OBSERVED_ONLY;
                 case NOT_OWNER -> AgentDecisionRecord.DISCARDED;
             });
             // docs/agent A5-4: a decision on an agent's request may narrow its later requests; the step reaches the
@@ -248,10 +258,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                 emitRiskSignal(event, decisionKey(event, userId), result);
             }
             if (enforcement != Enforcement.NOT_OWNER && isCurrentProcessingOwner(event)) {
-                // Only an applied decision is learnable: a shadow one, and an ALLOW kept out by a stricter action in
-                // effect, are committed as decided but not enforced (W5-3).
-                commitContextObservations(event, result.getAction(), enforcement == Enforcement.APPLIED);
-                if (enforcement != Enforcement.SHADOW) {
+                // Only a decision that stands is learnable, the decision of SHADOW that stands in its memory as much as an
+                // applied one: SHADOW decides as ENFORCE does, so that its statistics are those of ENFORCE. An ALLOW kept
+                // out by a stricter action in effect is committed as decided but not learned (W5-3).
+                commitContextObservations(event, result.getAction(), standing(enforcement));
+                if (!shadowed(enforcement)) {
                     holdForVerification(event, result.getAction());
                 }
             }
@@ -265,7 +276,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             return false;
         }
 
-        if (enforcement == Enforcement.APPLIED
+        if (standing(enforcement)
                 && ZeroTrustAction.fromString(result.getAction()) == ZeroTrustAction.ALLOW) {
             // QF-55: the learning runs on another thread while this request goes on through the next handlers, so it
             // is handed a copy of the event taken here; what either side writes never reaches the other's map.
@@ -308,10 +319,24 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         APPLIED,
         /** The processing ownership lapsed and the result was discarded. */
         NOT_OWNER,
-        /** The decision was observed in a shadow boundary without runtime effect. */
+        /** The decision was observed in a shadow boundary without runtime effect and without a memory of it. */
         SHADOW,
+        /** SHADOW: the decision stands in the memory of SHADOW, as an applied one stands in the store, and nothing was applied. */
+        SHADOW_APPLIED,
+        /** SHADOW: a stricter decision stays in the memory of SHADOW. */
+        SHADOW_KEPT_STRICTER,
         /** A stricter user-level action stays in effect, so the less strict decision was not written. */
         KEPT_STRICTER
+    }
+
+    /** Whether the decision stands (is the one in force, or in the memory of SHADOW): what is learned from an ALLOW. */
+    private static boolean standing(Enforcement enforcement) {
+        return enforcement == Enforcement.APPLIED || enforcement == Enforcement.SHADOW_APPLIED;
+    }
+
+    private static boolean shadowed(Enforcement enforcement) {
+        return enforcement == Enforcement.SHADOW || enforcement == Enforcement.SHADOW_APPLIED
+                || enforcement == Enforcement.SHADOW_KEPT_STRICTER;
     }
 
     private Enforcement enforceDecision(String userId, SecurityEvent event, ProcessingResult result,
@@ -379,9 +404,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         if (!sideEffectsEnabled) {
             additionalFields.put("shadowMode", true);
             additionalFields.put("shadowReason", resolveSuppressionReason(event));
-            log.info("[SecurityDecisionEnforcementHandler][SHADOW] Observation-only: decision not persisted and no runtime side-effects applied. userId={}, ztAction={}, proposedAction={}",
+            log.info("[SecurityDecisionEnforcementHandler][SHADOW] Observation-only: decision remembered for SHADOW only, nothing applied. userId={}, ztAction={}, proposedAction={}",
                     userId, ztAction, result.getProposedAction());
-            return Enforcement.SHADOW;
+            return rememberInShadow(userId, event, ztAction, additionalFields, technicalChallenge, observationId);
         }
 
         // The persisted observation is both the audit record of the decision and the idempotency
@@ -418,12 +443,51 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         return Enforcement.APPLIED;
     }
 
+    /**
+     * SHADOW decides as ENFORCE does and applies nothing: it keeps the decision in its memory, under the rules of the
+     * store (a stricter decision stays), so that the next requests of the user are answered by it and not analysed again.
+     * No block, no narrowing of an agent's scope, no risk signal, no held request: what restricts the user is not done.
+     * A failing memory does not fail a decision that applies nothing.
+     */
+    private Enforcement rememberInShadow(String userId, SecurityEvent event, ZeroTrustAction ztAction,
+                                         Map<String, Object> fields, boolean technicalChallenge, String observationId) {
+        if (shadowMemory == null || securityZeroTrustProperties == null || !securityZeroTrustProperties.allowsLlmAnalysis()
+                || discardsAsOfADeletedAccount(event) || observationId == null || observationId.isBlank()) {
+            return Enforcement.SHADOW;
+        }
+        // The store takes a final decision bound to the observation that records it, the memory of SHADOW as the store of ENFORCE.
+        fields.put("observationId", observationId);
+        putIfPresent(fields, "processingGeneration", metadataText(event, SecurityPlaneAgent.EVENT_PROCESSING_OWNER_TOKEN));
+        if (!isCurrentProcessingOwner(event)) {
+            markStaleResultDiscarded(event);
+            return Enforcement.NOT_OWNER;
+        }
+        try {
+            ZeroTrustActionRepository.FinalActionWrite written = shadowMemory.writeFinalAction(userId, ztAction, fields);
+            if (written == null || written == ZeroTrustActionRepository.FinalActionWrite.FAILED) {
+                log.warn("[SecurityDecisionEnforcementHandler][SHADOW] The memory of SHADOW did not take the decision: userId={}", userId);
+                return Enforcement.SHADOW;
+            }
+            if (written == ZeroTrustActionRepository.FinalActionWrite.KEPT_STRICTER) {
+                return Enforcement.SHADOW_KEPT_STRICTER;
+            }
+            if (technicalChallenge) {
+                event.addMetadata(JUDGE_AGAIN, true);
+            }
+            return Enforcement.SHADOW_APPLIED;
+        } catch (RuntimeException e) {
+            log.warn("[SecurityDecisionEnforcementHandler][SHADOW] The memory of SHADOW failed: userId={}", userId, e);
+            return Enforcement.SHADOW;
+        }
+    }
+
     public void restoreFinalDecision(
             SecurityEvent event, AiSecurityDecisionObservationWriter.PersistedFinalDecision persisted) {
         requireCurrentProcessingOwner(event);
-        if (isEnforcementSuppressed(event)
+        boolean shadowed = isEnforcementSuppressed(event)
                 || "SHADOW".equalsIgnoreCase(persisted.decisionBoundaryMode())
-                || "SHADOW".equalsIgnoreCase(persisted.runtimeEnforcementMode())) {
+                || "SHADOW".equalsIgnoreCase(persisted.runtimeEnforcementMode());
+        if (shadowed && (shadowMemory == null || discardsAsOfADeletedAccount(event))) {
             return;
         }
 
@@ -452,6 +516,19 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             fields.put(ZeroTrustActionRepository.TECHNICAL_CHALLENGE, true);
         }
         requireCurrentProcessingOwner(event);
+        if (shadowed) {
+            // The decision was made in SHADOW: it stands in the memory of SHADOW, as the restored decision of ENFORCE stands in
+            // the store, and nothing that restricts the user is done.
+            ZeroTrustActionRepository.FinalActionWrite remembered = shadowMemory.writeFinalAction(userId, action, fields);
+            if (remembered == null || remembered == ZeroTrustActionRepository.FinalActionWrite.FAILED) {
+                throw new IllegalStateException("Persisted final decision did not converge to the memory of SHADOW");
+            }
+            if (technicalChallenge && remembered == ZeroTrustActionRepository.FinalActionWrite.APPLIED) {
+                event.addMetadata(JUDGE_AGAIN, true);
+            }
+            commitContextObservations(event, action.name(), remembered == ZeroTrustActionRepository.FinalActionWrite.APPLIED);
+            return;
+        }
         ZeroTrustActionRepository.FinalActionWrite written = actionRedisRepository.writeFinalAction(userId, action, fields);
         if (written == null || written == ZeroTrustActionRepository.FinalActionWrite.FAILED) {
             throw new IllegalStateException("Persisted final decision did not converge to runtime action");

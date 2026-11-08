@@ -812,7 +812,8 @@ public class CoreAutonomousAutoConfiguration {
             ZeroTrustActionRepository zeroTrustActionRepository,
             ObjectProvider<SecurityDecisionEnforcementHandler> decisionEnforcementHandlerProvider,
             ObjectProvider<QueuedAgentEventRecheck> queuedAgentEventRecheckProvider,
-            ObjectProvider<ModelServerGates> modelServerGatesProvider
+            ObjectProvider<ModelServerGates> modelServerGatesProvider,
+            ObjectProvider<ShadowDecisionMemory> shadowMemory
     ) {
         SecurityPlaneAgent agent = new SecurityPlaneAgent(
                 securityMonitor, dataStore, contexaCentralAuditFacade,
@@ -831,7 +832,7 @@ public class CoreAutonomousAutoConfiguration {
             }
         });
         agent.setAiSecurityDecisionObservationWriterSupplier(aiSecurityDecisionObservationWriterProvider::getIfAvailable);
-        agent.setZeroTrustActionRepository(zeroTrustActionRepository);
+        agent.setZeroTrustActionRepository(ShadowDecisionMemory.answersOf(shadowMemory.getIfAvailable(), zeroTrustActionRepository));
         agent.setDecisionEnforcementHandlerSupplier(decisionEnforcementHandlerProvider::getIfAvailable);
         // The analyses run at once follow the model servers' gates: a call waits at a gate at most until the event's budget.
         AtomicReference<ModelServerGates> modelServerGates = new AtomicReference<>();
@@ -847,14 +848,27 @@ public class CoreAutonomousAutoConfiguration {
         return agent;
     }
 
+    /**
+     * What SHADOW remembers of its decisions, so that a trial in SHADOW asks the model as many questions as ENFORCE does.
+     * Nothing that enforces a decision reads it.
+     */
+    @Bean(name = "contexaShadowDecisionMemory")
+    @ConditionalOnMissingBean
+    public ShadowDecisionMemory shadowDecisionMemory(ZeroTrustActionRepository actionRepository,
+                                                     SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new ShadowDecisionMemory(actionRepository, securityZeroTrustProperties::isEnforcementEnabled);
+    }
+
     /** docs/agent RL-12 (QD): what answers a queued agent event without a new analysis when its turn comes. */
     @Bean(name = "contexaQueuedAgentEventRecheck")
     @ConditionalOnMissingBean
     public QueuedAgentEventRecheck queuedAgentEventRecheck(
             ZeroTrustActionRepository zeroTrustActionRepository,
             ObjectProvider<AgentAllowReuse> agentAllowReuse,
-            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
-        return new QueuedAgentEventRecheck(zeroTrustActionRepository, agentAllowReuse.getIfAvailable(),
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
+            ObjectProvider<ShadowDecisionMemory> shadowMemory) {
+        return new QueuedAgentEventRecheck(ShadowDecisionMemory.answersOf(shadowMemory.getIfAvailable(), zeroTrustActionRepository),
+                agentAllowReuse.getIfAvailable(),
                 unanalysedRequestRecorder.getIfAvailable());
     }
 
@@ -966,12 +980,13 @@ public class CoreAutonomousAutoConfiguration {
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ObjectProvider<AgentAllowReuse> agentAllowReuse,
             ObjectProvider<AgentDecisionFlights> agentDecisionFlights,
-            ObjectProvider<NewContextDecisionLimit> newContextDecisionLimit) {
+            ObjectProvider<NewContextDecisionLimit> newContextDecisionLimit,
+            ObjectProvider<ShadowDecisionMemory> shadowMemory) {
         SynchronousProtectableDecisionService service = new SynchronousProtectableDecisionService(
                 contexaZeroTrustEventPublisher,
                 contexaZeroTrustEventListener,
                 contexaSecurityPlaneAgent,
-                actionRepository);
+                ShadowDecisionMemory.answersOf(shadowMemory.getIfAvailable(), actionRepository));
         service.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
         // A1-5: contexa.security.zerotrust.protectable.unrecorded-agent-request
         service.setUnrecordedAgentRequest(securityZeroTrustProperties.getProtectable().getUnrecordedAgentRequest());
@@ -1243,7 +1258,8 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<IForceLogoutService> forceLogoutService,
             ObjectProvider<UserStatePurgeContributor> contributors,
             ObjectProvider<VectorStoreCacheLayer> vectorStoreCacheLayer,
-            ObjectProvider<DeletedAccountWriteFence> deletedAccountWriteFence) {
+            ObjectProvider<DeletedAccountWriteFence> deletedAccountWriteFence,
+            ObjectProvider<ShadowDecisionMemory> shadowMemory) {
         UserEngineStatePurger purger = new UserEngineStatePurger(
                 zeroTrustActionRepository,
                 blockingSignalBroadcaster.getIfAvailable(),
@@ -1255,6 +1271,7 @@ public class CoreAutonomousAutoConfiguration {
                 forceLogoutService.getIfAvailable(),
                 contributors.orderedStream().toList());
         purger.setVectorStoreCacheLayer(vectorStoreCacheLayer.getIfAvailable());
+        shadowMemory.ifAvailable(memory -> purger.setShadowMemory(memory.remembers()));
         purger.setDeletedAccountWriteFence(deletedAccountWriteFence.getIfAvailable());
         return purger;
     }

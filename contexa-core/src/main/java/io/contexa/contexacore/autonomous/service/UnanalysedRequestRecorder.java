@@ -115,12 +115,13 @@ public class UnanalysedRequestRecorder {
         }
         SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
         boolean enforced = enforced(event);
+        boolean counted = counted();
         if (recordingLine == null) {
-            record(securityEvent, action, enforced);
+            record(securityEvent, action, counted, enforced);
             return;
         }
         String session = securityEvent.getSessionId() != null ? securityEvent.getSessionId() : securityEvent.getUserId();
-        recordingLine.run(session, () -> record(securityEvent, action, enforced));
+        recordingLine.run(session, () -> record(securityEvent, action, counted, enforced));
     }
 
     /**
@@ -134,15 +135,24 @@ public class UnanalysedRequestRecorder {
         Object boundary = securityEvent.getMetadata() != null ? securityEvent.getMetadata().get("decisionBoundaryMode") : null;
         boolean enforced = (securityZeroTrustProperties == null || securityZeroTrustProperties.isEnforcementEnabled())
                 && (boundary == null || !"SHADOW".equalsIgnoreCase(boundary.toString().trim()));
-        record(securityEvent, action, enforced);
+        record(securityEvent, action, counted(), enforced);
     }
 
-    private void record(SecurityEvent securityEvent, ZeroTrustAction action, boolean enforced) {
+    /**
+     * Whether the answer counts as ENFORCE's does: an ALLOW answered by the decision in force is part of the user's usual
+     * behaviour in SHADOW as much as in ENFORCE, or the statistics of a trial in SHADOW would not be those of ENFORCE.
+     * What only a restriction that was enforced has to say (the request sent again after a passed step-up) is {@code enforced}.
+     */
+    private boolean counted() {
+        return securityZeroTrustProperties == null || securityZeroTrustProperties.allowsLlmAnalysis();
+    }
+
+    private void record(SecurityEvent securityEvent, ZeroTrustAction action, boolean counted, boolean enforced) {
         try {
             if (recorder.committed(securityEvent)) {
                 return;
             }
-            commit(securityEvent, action, enforced);
+            commit(securityEvent, action, counted);
             if (action == ZeroTrustAction.ALLOW && enforced && verificationLearningService != null) {
                 // N-LRN-3: the first request sent again, after the passed step-up, of those a filter stopped under the
                 // challenge is learned; any other request answered by the ALLOW in force is not.

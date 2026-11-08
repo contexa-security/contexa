@@ -61,6 +61,7 @@ public class UserEngineStatePurger {
     private final List<UserStatePurgeContributor> contributors;
     private VectorStoreCacheLayer vectorStoreCacheLayer;
     private DeletedAccountWriteFence deletedAccountWriteFence;
+    private ZeroTrustActionRepository shadowMemory;
 
     public UserEngineStatePurger(
             ZeroTrustActionRepository actionRepository,
@@ -81,6 +82,11 @@ public class UserEngineStatePurger {
         this.vectorStore = vectorStore;
         this.forceLogoutService = forceLogoutService;
         this.contributors = contributors == null ? List.of() : List.copyOf(contributors);
+    }
+
+    /** The memory of SHADOW, emptied of the user's decisions with the user's other decisions. */
+    public void setShadowMemory(ZeroTrustActionRepository shadowMemory) {
+        this.shadowMemory = shadowMemory;
     }
 
     /** The vector search cache, cleared of the user's searches when the user's records go (W2-15). */
@@ -114,6 +120,10 @@ public class UserEngineStatePurger {
         // docs/agent A5-1: the decisions of the agents that acted for the user, kept under their own keys.
         step("agent-decision-state", actionRepository != null,
                 () -> actionRepository.removeAllAgentData(decisionKey), purged, failed);
+        step("shadow-decision-state", shadowMemory != null,
+                () -> shadowMemory.removeAllUserData(decisionKey), purged, failed);
+        step("shadow-agent-decision-state", shadowMemory != null,
+                () -> shadowMemory.removeAllAgentData(decisionKey), purged, failed);
         step("blocking-signal", blockingSignalBroadcaster != null,
                 () -> blockingSignalBroadcaster.registerUnblock(decisionKey), purged, failed);
         step("block-mfa-state", blockMfaStateStore != null,
