@@ -31,7 +31,10 @@ import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionS
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
+import io.contexa.contexacore.properties.ModelServerGateProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
+import io.contexa.contexacore.std.llm.gate.ModelServer;
+import io.contexa.contexacore.std.llm.gate.ModelServerGates;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -129,12 +132,39 @@ class DecisionFlowWiringTest {
         SecurityPlaneAgent agent = new CoreAutonomousAutoConfiguration().securityPlaneAgent(
                 mock(SecurityMonitoringService.class), mock(SecurityContextDataStore.class), mock(CentralAuditFacade.class),
                 mock(SecurityEventProcessor.class), new SecurityPlaneProperties(), Runnable::run, none(),
-                mock(ZeroTrustActionRepository.class), none(), one(QueuedAgentEventRecheck.class, recheck));
+                mock(ZeroTrustActionRepository.class), none(), one(QueuedAgentEventRecheck.class, recheck), none());
 
         SecurityPlaneAgent.QueuedEventRecheck wired = (SecurityPlaneAgent.QueuedEventRecheck)
                 ReflectionTestUtils.getField(agent, "queuedEventRecheck");
         wired.leftOut(event);
 
         verify(recheck).leftOut(event);
+    }
+
+    private static SecurityPlaneAgent agentWith(ObjectProvider<ModelServerGates> gates) {
+        SecurityPlaneAgent agent = new CoreAutonomousAutoConfiguration().securityPlaneAgent(
+                mock(SecurityMonitoringService.class), mock(SecurityContextDataStore.class), mock(CentralAuditFacade.class),
+                mock(SecurityEventProcessor.class), new SecurityPlaneProperties(), Runnable::run, none(),
+                mock(ZeroTrustActionRepository.class), none(), none(), gates);
+        agent.initialize();
+        return agent;
+    }
+
+    /** The analyses that run at once follow the gates of the model servers: two for each slot until a chat call is measured. */
+    @Test
+    void theAnalysesFollowTheGatesOfTheModelServers() {
+        ModelServerGates gates = new ModelServerGates((model, kind) -> ModelServer.of("ollama", "http://localhost:11434"),
+                new ModelServerGateProperties(), 180_000L);
+
+        SecurityPlaneAgent agent = agentWith(one(ModelServerGates.class, gates));
+
+        assertThat(agent.analysisActors()).isEqualTo(2 * 2);
+    }
+
+    @Test
+    void withoutGatesTheAnalysisStripesAreTheLimit() {
+        SecurityPlaneAgent agent = agentWith(none());
+
+        assertThat(agent.analysisActors()).isEqualTo(new SecurityPlaneProperties().getAgent().getAnalysisStripes());
     }
 }
