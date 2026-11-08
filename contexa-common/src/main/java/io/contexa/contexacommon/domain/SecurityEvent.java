@@ -26,6 +26,7 @@ import io.contexa.contexacommon.store.ApplicationNamespace;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -35,6 +36,9 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SecurityEvent {
+
+    /** The class of the wrapper {@link Collections#synchronizedMap} makes, which is how a guarded map is known. */
+    private static final Class<?> GUARDED_METADATA = Collections.synchronizedMap(new HashMap<>()).getClass();
 
     @Builder.Default
     private String eventId = UUID.randomUUID().toString();
@@ -117,6 +121,16 @@ public class SecurityEvent {
         public int getScore() {
             return score;
         }
+    }
+
+    /**
+     * Whether the map is a synchronized wrapper (QF-55). The analysis of an attempt writes to the metadata of its event
+     * on one thread while another thread reads it when the budget ends, so the map of an attempt is guarded. A step that
+     * makes the metadata writable must keep a guarded map: a copy in a plain map has no lock, and the two threads then
+     * meet in it ({@link java.util.ConcurrentModificationException}).
+     */
+    public static boolean isGuardedMetadata(Map<?, ?> metadata) {
+        return metadata != null && metadata.getClass() == GUARDED_METADATA;
     }
 
     public void addMetadata(String key, Object value) {

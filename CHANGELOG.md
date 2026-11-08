@@ -470,6 +470,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A call that timed out in the middle of the line at a model server stopped every call behind it.** `ModelServerGate` kept its
+  waiters in a line and took a leaver out by equality; waiters of the same kind, model and line are equal, so a waiter in the
+  middle that timed out or was interrupted took out the first one instead and left its own entry at the head with no thread
+  behind it. Admission compares the head by reference, so no call went in until the next timeout (about 175 s with the server
+  idle, measured on a slow model). A waiter now takes out itself.
+- **Recording a timeout failed with `ConcurrentModificationException` on a slow model.** The metadata of an analysis attempt is a
+  synchronized map, so that the analysis can write while the budget thread reads it; five steps replaced it, when they made it
+  writable, by a plain map, and the two threads met in it (34 of 128 timeouts on a slow model). They keep the guarded map now.
+
 - **A console form that fails with a message now shows the message.** A role a hierarchy still names, a group role that
   does not exist, a hierarchy that exists already, a user name taken and a password the policy refuses each answered an
   error page (`UnexpectedRollbackException: Transaction silently rolled back because it has been marked as
@@ -804,6 +813,32 @@ The format is based on Keep a Changelog and the project follows semantic version
   list say how many users could not answer a CHALLENGE.
 
 ### Changed
+
+- **The action in force of a user is read in one script instead of three round trips.** A protected request asks for it seven times,
+  and each ask read the BLOCK flag, the analysis and the held CHALLENGE one after the other, about twenty of the thirty or so
+  commands a request waits for on its own thread. One script on the shared connection reads the three; what is decided from them
+  is unchanged, an analysis in an earlier form and a store that refuses scripts are read the old way, and a store that does not answer
+  keeps the restriction read last in force. A quiet server answers a protected call in 26-29 ms instead of 34 ms.
+- **The prompt token estimate weighs each character once, and an ASCII character without a script lookup.** A flight recording of
+  1,000 users signing in at once put 27% of all CPU samples of the server in the weight of a character: each looked its script up four
+  times, and the system and user prompt were counted again as one text. The numbers are the same (a test keeps the plain count and
+  compares); the estimate is observation only.
+- **A request that repeats an analysis already in line takes no second place in the line.** A request answered by the
+  decision that waits ahead of it costs that decision and no turn of its own (PR-82), yet each took a place, up to eight for a
+  user, and a burst of new users filled the line (3,276 places at 1 GB) with requests that were then skipped, so that the first
+  decisions of other sessions were turned away: 3,575 events were left unanalysed with a remote model and 8,734 with a local one. A
+  request of a session in line is now kept in its session at once, and the places go to the first decisions of other sessions.
+  Only a repeat from the same context is kept: a decision is bound to its context, so a request that comes from another
+  address or browser is analysed, and so is an event that returns to be tried again after a failed analysis.
+- **The analyses that run at once follow what the model servers can serve.** A call waits at a gate at most until the event's
+  budget, so more analyses than a gate serves within it only fail at the budget. A gate now measures how long a chat call holds
+  its slot, and the analyses that run at once are slots x budget / (six chat calls x call time x 1.5), never fewer than two for
+  each slot and never above `analysis-stripes`; a server that takes no chat call (an embedding server) does not count. What
+  does not run waits in the line in its order, with its budget not started.
+- **The session record of a request answered by the decision in force is made off the thread of the request.** About 36 of the
+  70 Redis commands of a protected call were this record, which only feeds the decisions that come later. It is made by eight
+  threads, one session always on the same one so that its records keep their order; a line that is full is no lost record, the
+  thread that asks makes it.
 
 - **Contexa's thread pools give back the threads they have no work for, and the analysis actors are 64 instead of 256.** The core
   threads of a `ThreadPoolTaskExecutor`, and of a fixed pool, stay for ever: after a load of 1,000 people Contexa still held 576

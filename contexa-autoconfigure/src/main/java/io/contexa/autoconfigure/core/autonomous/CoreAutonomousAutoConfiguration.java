@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.company.CompanyRecordStore;
 import io.contexa.contexacore.autonomous.company.CompanyRecordsContextProvider;
 import io.contexa.contexacore.autonomous.company.CompanyRecordsPurgeContributor;
 import io.contexa.contexacore.autonomous.company.InMemoryCompanyRecordStore;
+import io.contexa.contexacore.std.llm.gate.ModelServerGates;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
 import io.contexa.contexacore.autonomous.store.SessionRecordsIdChangeListener;
@@ -154,6 +155,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import io.contexa.contexacore.autonomous.context.collector.DefaultProtectableWorkProfileCollector;
 import io.contexa.contexacore.autonomous.context.collector.DefaultRoleScopeCollector;
 import io.contexa.contexacore.autonomous.context.collector.DefaultSessionNarrativeCollector;
@@ -189,6 +191,7 @@ import io.contexa.contexacore.verification.evidence.HmacEvidenceSigner;
 import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 import io.contexa.contexacore.autonomous.agent.AgentDecisionFlights;
 import io.contexa.contexacore.autonomous.service.QueuedAgentEventRecheck;
+import io.contexa.contexacore.autonomous.service.SessionRecordingLine;
 
 @AutoConfiguration
 @AutoConfigureAfter(name = {
@@ -808,7 +811,8 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider,
             ZeroTrustActionRepository zeroTrustActionRepository,
             ObjectProvider<SecurityDecisionEnforcementHandler> decisionEnforcementHandlerProvider,
-            ObjectProvider<QueuedAgentEventRecheck> queuedAgentEventRecheckProvider
+            ObjectProvider<QueuedAgentEventRecheck> queuedAgentEventRecheckProvider,
+            ObjectProvider<ModelServerGates> modelServerGatesProvider
     ) {
         SecurityPlaneAgent agent = new SecurityPlaneAgent(
                 securityMonitor, dataStore, contexaCentralAuditFacade,
@@ -829,6 +833,17 @@ public class CoreAutonomousAutoConfiguration {
         agent.setAiSecurityDecisionObservationWriterSupplier(aiSecurityDecisionObservationWriterProvider::getIfAvailable);
         agent.setZeroTrustActionRepository(zeroTrustActionRepository);
         agent.setDecisionEnforcementHandlerSupplier(decisionEnforcementHandlerProvider::getIfAvailable);
+        // The analyses run at once follow the model servers' gates: a call waits at a gate at most until the event's budget.
+        AtomicReference<ModelServerGates> modelServerGates = new AtomicReference<>();
+        agent.setAnalysisCapacity(() -> {
+            ModelServerGates gates = modelServerGates.get();
+            if (gates == null) {
+                gates = modelServerGatesProvider.getIfAvailable();
+                modelServerGates.set(gates);
+            }
+            return gates != null ? gates.analysisConcurrency(SecurityPlaneAgent.CHAT_CALLS_PER_ANALYSIS,
+                    SecurityPlaneAgent.BUDGET_SAFETY) : Integer.MAX_VALUE;
+        });
         return agent;
     }
 
@@ -912,11 +927,25 @@ public class CoreAutonomousAutoConfiguration {
             ContextObservationRecorder contexaContextObservationRecorder,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ZeroTrustEventPublisher contexaZeroTrustEventPublisher,
-            ObjectProvider<VerificationLearningService> verificationLearningService) {
+            ObjectProvider<VerificationLearningService> verificationLearningService,
+            SessionRecordingLine contexaSessionRecordingLine) {
         UnanalysedRequestRecorder recorder = new UnanalysedRequestRecorder(contexaSessionNarrativeCollector,
-                contexaContextObservationRecorder, securityZeroTrustProperties, contexaZeroTrustEventPublisher);
+                contexaContextObservationRecorder, securityZeroTrustProperties, contexaZeroTrustEventPublisher,
+                contexaSessionRecordingLine);
         recorder.setVerificationLearningService(verificationLearningService.getIfAvailable());
         return recorder;
+    }
+
+    /**
+     * Where the session records of the requests answered by the decision in force are made, off the thread of the
+     * request: a request has been answered, and the record only feeds the decisions that come later. Eight threads, one
+     * session always on the same one, given back after a minute without a record; a line that is full is no lost record,
+     * the thread that asks makes it.
+     */
+    @Bean(name = "contexaSessionRecordingLine")
+    @ConditionalOnMissingBean
+    public SessionRecordingLine sessionRecordingLine() {
+        return new SessionRecordingLine(8, 1_000);
     }
 
     @Bean(name = "contexaSessionRecordsIdChangeListener")

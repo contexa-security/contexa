@@ -2676,14 +2676,14 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return text.isBlank() ? null : text;
     }
 
-    private Map<String, Object> ensureMutableEventMetadata(SecurityEvent event) {
+    static Map<String, Object> ensureMutableEventMetadata(SecurityEvent event) {
         Map<String, Object> current = event.getMetadata();
         if (current == null) {
             Map<String, Object> fresh = new LinkedHashMap<>();
             event.setMetadata(fresh);
             return fresh;
         }
-        if (current instanceof HashMap) {
+        if (current instanceof HashMap || SecurityEvent.isGuardedMetadata(current)) {
             return current;
         }
         Map<String, Object> copied = new LinkedHashMap<>(current);

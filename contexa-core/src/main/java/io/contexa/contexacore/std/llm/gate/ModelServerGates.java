@@ -34,6 +34,8 @@ public final class ModelServerGates {
     private final ModelServerGateProperties properties;
     private final long defaultMaxWaitMs;
     private final Map<String, ModelServerGate> gates = new ConcurrentHashMap<>();
+    /** A call went to a server that passes no gate: what such a server serves is not known, so nothing is limited. */
+    private volatile boolean ungatedCallSeen;
 
     /**
      * @param defaultMaxWaitMs the longest a call waits when no deadline bounds it: the event budget
@@ -52,6 +54,7 @@ public final class ModelServerGates {
         }
         ModelServer server = resolver.resolve(model, kind);
         if (server == null) {
+            ungatedCallSeen = true;
             return null;
         }
         return gates.computeIfAbsent(server.key(), key -> create(server));
@@ -86,6 +89,66 @@ public final class ModelServerGates {
         try (ModelServerGate.Permit permit = gate.enter(kind, modelName, maxWaitMs(timer), timer)) {
             return permit.scope(call).call();
         }
+    }
+
+    /** Analyses per slot of a gate before the time of a chat call is known: the first wave of a burst. */
+    private static final int FIRST_WAVE_PER_SLOT = 2;
+
+    /**
+     * How many analyses may run at once. A call waits at its server's gate at most until the event's budget, so the
+     * analyses in flight must not outnumber what the narrowest chat gate serves within it. The analyses in line at a gate
+     * take turns: each passes its chat calls (up to {@code chatCalls}) behind the calls of the others, so the last of
+     * {@code n} analyses on {@code slots} slots is done after about {@code n / slots x chatCalls x callTime}, and that
+     * must stay within the budget with {@code safety} to spare: {@code n = slots x budget / (chatCalls x callTime x
+     * safety)}. The call time is the gate's own measure of a chat call. Never fewer than {@value #FIRST_WAVE_PER_SLOT}
+     * analyses for each slot of the gate, so that the slots are not left idle while an analysis prepares its next call.
+     * A gate that has taken no chat call, an embedding server, does not count: it says nothing about the analyses.
+     * Before a chat call is measured (the first wave of a burst) each slot has {@value #FIRST_WAVE_PER_SLOT} analyses,
+     * and before a chat server is known the narrowest configured limit holds, so that the first wave does not fill a gate
+     * that turns out to be a narrow one. Where no gate limits (the gates are off, a server set to no limit, a call to a
+     * server with no gate) nothing is limited.
+     */
+    public int analysisConcurrency(int chatCalls, double safety) {
+        if (!properties.isEnabled() || resolver == null || ungatedCallSeen) {
+            return Integer.MAX_VALUE;
+        }
+        long limit = Long.MAX_VALUE;
+        boolean chatGateKnown = false;
+        for (ModelServerGate gate : gates.values()) {
+            if (!gate.chatCallsSeen()) {
+                // an embedding server takes no chat call: it does not bound the analyses
+                continue;
+            }
+            chatGateKnown = true;
+            int slots = gate.maxConcurrent();
+            if (slots <= 0) {
+                continue;
+            }
+            long callMillis = gate.chatCallMillis();
+            long forGate = callMillis <= 0L
+                    ? (long) slots * FIRST_WAVE_PER_SLOT
+                    : Math.max((long) slots * FIRST_WAVE_PER_SLOT, (long) (slots * (double) defaultMaxWaitMs
+                    / (Math.max(1, chatCalls) * (double) callMillis * Math.max(1.0, safety))));
+            limit = Math.min(limit, forGate);
+        }
+        if (!chatGateKnown) {
+            int narrowest = narrowestOf(Integer.MAX_VALUE, properties.getSelfHostedMaxConcurrent());
+            narrowest = narrowestOf(narrowest, properties.getRemoteMaxConcurrent());
+            for (ModelServerGateProperties.Server server : properties.getServers().values()) {
+                if (server != null && server.getMaxConcurrent() != null) {
+                    narrowest = narrowestOf(narrowest, server.getMaxConcurrent());
+                }
+            }
+            if (narrowest != Integer.MAX_VALUE) {
+                limit = (long) narrowest * FIRST_WAVE_PER_SLOT;
+            }
+        }
+        return limit == Long.MAX_VALUE ? Integer.MAX_VALUE : (int) Math.min(Integer.MAX_VALUE, limit);
+    }
+
+    /** The narrower of two limits, where 0 is no limit. */
+    private static int narrowestOf(int current, int slots) {
+        return slots > 0 ? Math.min(current, slots) : current;
     }
 
     private ModelServerGate create(ModelServer server) {

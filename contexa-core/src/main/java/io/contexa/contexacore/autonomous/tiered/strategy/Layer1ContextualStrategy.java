@@ -699,7 +699,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
-    private Map<String, Object> mutableMetadata(SecurityEvent event) {
+    static Map<String, Object> mutableMetadata(SecurityEvent event) {
         if (event == null) {
             return null;
         }
@@ -707,7 +707,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         if (metadata == null) {
             metadata = new LinkedHashMap<>();
             event.setMetadata(metadata);
-        } else if (!(metadata instanceof LinkedHashMap) && !(metadata instanceof HashMap)) {
+        } else if (!(metadata instanceof LinkedHashMap) && !(metadata instanceof HashMap)
+                && !SecurityEvent.isGuardedMetadata(metadata)) {
             metadata = new LinkedHashMap<>(metadata);
             event.setMetadata(metadata);
         }
@@ -758,14 +759,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         if (event == null) {
             return;
         }
-        Map<String, Object> metadata = event.getMetadata();
-        if (metadata == null) {
-            metadata = new LinkedHashMap<>();
-            event.setMetadata(metadata);
-        } else if (!(metadata instanceof HashMap)) {
-            metadata = new LinkedHashMap<>(metadata);
-            event.setMetadata(metadata);
-        }
+        Map<String, Object> metadata = mutableMetadata(event);
 
         if (ragUnavailable && !ragTimedOut && isRagBudgetFailure(ragFailure)) {
             long ragTimeoutMs = Math.max(1L, tieredStrategyProperties.getLayer1().getTimeout().getRagMs());

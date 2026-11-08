@@ -338,14 +338,24 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
     }
 
     private Map<String, Object> prepareMetadata(SecurityEvent event) {
+        Map<String, Object> metadata = metadataForEnrichment(event);
+        enrichSessionNarrativeMetadata(event, metadata);
+        enrichProtectableWorkProfileMetadata(event, metadata);
+        enrichRoleScopeMetadata(event, metadata);
+        return metadata;
+    }
+
+    /** The event's metadata in a map of its own to enrich, set on the event. */
+    static Map<String, Object> metadataForEnrichment(SecurityEvent event) {
+        if (SecurityEvent.isGuardedMetadata(event.getMetadata())) {
+            // QF-55: an attempt's guarded map is enriched in place, with its lock, and not copied to a map without one.
+            return event.getMetadata();
+        }
         Map<String, Object> metadata = new LinkedHashMap<>();
         if (event.getMetadata() != null) {
             metadata.putAll(event.getMetadata());
         }
         event.setMetadata(metadata);
-        enrichSessionNarrativeMetadata(event, metadata);
-        enrichProtectableWorkProfileMetadata(event, metadata);
-        enrichRoleScopeMetadata(event, metadata);
         return metadata;
     }
 

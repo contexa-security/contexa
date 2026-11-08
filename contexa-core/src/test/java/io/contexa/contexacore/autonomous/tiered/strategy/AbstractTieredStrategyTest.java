@@ -2445,4 +2445,29 @@ class AbstractTieredStrategyTest {
         when(eventEnricher.getTargetResource(event)).thenReturn(Optional.of("/api/documents/resource-001"));
         return event;
     }
+
+    /** QF-55: the metadata of an attempt is a guarded map; a step that makes it writable keeps it, with its lock. */
+    @Test
+    void aGuardedMetadataIsKeptAndNotReplacedByAMapWithoutALock() {
+        Map<String, Object> guarded = Collections.synchronizedMap(new LinkedHashMap<>());
+        guarded.put("kept", "yes");
+        SecurityEvent event = SecurityEvent.builder().metadata(guarded).build();
+
+        Map<String, Object> writable = AbstractTieredStrategy.ensureMutableEventMetadata(event);
+
+        assertThat(writable).isSameAs(guarded);
+        assertThat(event.getMetadata()).isSameAs(guarded);
+        assertThat(SecurityEvent.isGuardedMetadata(event.getMetadata())).isTrue();
+    }
+
+    /** The rule stays as it was for a map that is not writable: a writable copy is set on the event. */
+    @Test
+    void aMapThatCannotBeWrittenToIsStillReplacedByAWritableCopy() {
+        SecurityEvent event = SecurityEvent.builder().metadata(Map.of("kept", "yes")).build();
+
+        Map<String, Object> writable = AbstractTieredStrategy.ensureMutableEventMetadata(event);
+        writable.put("added", "too");
+
+        assertThat(event.getMetadata()).isSameAs(writable).containsEntry("kept", "yes").containsEntry("added", "too");
+    }
 }

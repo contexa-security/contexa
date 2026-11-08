@@ -196,6 +196,156 @@ class ModelServerGateTest {
         assertThat(gate.running()).isZero();
     }
 
+    /**
+     * A waiter that leaves the line removes itself and no other: with three equal waiters in line, the one in the middle
+     * timing out must leave the first and the last in place, so that the first goes in when the slot is free. A line that
+     * dropped the first instead left the middle one's entry at its head, and nobody went in until the next timeout.
+     */
+    @Test
+    void aWaiterThatTimesOutInTheMiddleOfTheLineLeavesTheOnesAroundItInPlace() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 1, false, Duration.ZERO);
+        ModelServerGate.Permit held = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L);
+        List<String> order = new CopyOnWriteArrayList<>();
+        ExecutorService callers = Executors.newFixedThreadPool(3);
+        try {
+            Future<?> first = callers.submit(() -> enterAndRecord(gate, CallKind.CHAT, "qwen3:8b", order, "first"));
+            awaitWaiters(gate, 1);
+            Future<?> middle = callers.submit(() -> {
+                try (ModelServerGate.Permit ignored = gate.enter(CallKind.CHAT, "qwen3:8b", 150L)) {
+                    order.add("middle");
+                }
+                return null;
+            });
+            awaitWaiters(gate, 2);
+            Future<?> last = callers.submit(() -> enterAndRecord(gate, CallKind.CHAT, "qwen3:8b", order, "last"));
+            awaitWaiters(gate, 3);
+
+            assertThatThrownBy(() -> middle.get(5, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(ModelServerBusyException.class);
+            assertThat(gate.waiting()).isEqualTo(2);
+
+            held.close();
+            first.get(1, TimeUnit.SECONDS);
+            last.get(1, TimeUnit.SECONDS);
+        } finally {
+            callers.shutdownNow();
+        }
+
+        assertThat(order).containsExactly("first", "last");
+        assertThat(gate.running()).isZero();
+        assertThat(gate.waiting()).isZero();
+    }
+
+    /** The same for a waiter interrupted in the middle of the line. */
+    @Test
+    void aWaiterInterruptedInTheMiddleOfTheLineLeavesTheOnesAroundItInPlace() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 1, false, Duration.ZERO);
+        ModelServerGate.Permit held = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L);
+        List<String> order = new CopyOnWriteArrayList<>();
+        ExecutorService callers = Executors.newFixedThreadPool(2);
+        CountDownLatch interrupted = new CountDownLatch(1);
+        try {
+            Future<?> first = callers.submit(() -> enterAndRecord(gate, CallKind.CHAT, "qwen3:8b", order, "first"));
+            awaitWaiters(gate, 1);
+            Thread middle = new Thread(() -> {
+                try {
+                    gate.enter(CallKind.CHAT, "qwen3:8b", 10_000L).close();
+                } catch (InterruptedException expected) {
+                    interrupted.countDown();
+                }
+            });
+            middle.start();
+            awaitWaiters(gate, 2);
+            Future<?> last = callers.submit(() -> enterAndRecord(gate, CallKind.CHAT, "qwen3:8b", order, "last"));
+            awaitWaiters(gate, 3);
+
+            middle.interrupt();
+            assertThat(interrupted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(gate.waiting()).isEqualTo(2);
+
+            held.close();
+            first.get(1, TimeUnit.SECONDS);
+            last.get(1, TimeUnit.SECONDS);
+        } finally {
+            callers.shutdownNow();
+        }
+
+        assertThat(order).containsExactly("first", "last");
+    }
+
+    /** How long a chat call holds its slot is measured, so that the analyses can be sized to what the server serves. */
+    @Test
+    void theTimeAChatCallHoldsItsSlotIsKeptAsAMovingAverage() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ZERO);
+        assertThat(gate.chatCallMillis()).isZero();
+
+        gate.recordChatCall(TimeUnit.SECONDS.toNanos(10));
+        assertThat(gate.chatCallMillis()).isEqualTo(10_000L);
+
+        gate.recordChatCall(TimeUnit.SECONDS.toNanos(5));
+        assertThat(gate.chatCallMillis()).isBetween(8_000L, 9_999L);
+    }
+
+    @Test
+    void aCallUnderAMillisecondCountsAsOneSoThatZeroSaysNoneHasEnded() {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ZERO);
+
+        gate.recordChatCall(TimeUnit.MICROSECONDS.toNanos(200));
+
+        assertThat(gate.chatCallsSeen()).isTrue();
+        assertThat(gate.chatCallMillis()).isEqualTo(1L);
+    }
+
+    @Test
+    void aChatCallThatEndsSetsTheTimeItHeldItsSlot() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ZERO);
+
+        try (ModelServerGate.Permit ignored = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L)) {
+            Thread.sleep(60);
+        }
+
+        assertThat(gate.chatCallMillis()).isBetween(50L, 5_000L);
+    }
+
+    @Test
+    void anEmbeddingAnOverloadedCallAndACallInsideACallDoNotCount() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ZERO);
+
+        try (ModelServerGate.Permit ignored = gate.enter(CallKind.EMBEDDING, "mxbai", 1_000L)) {
+            Thread.sleep(30);
+        }
+        try (ModelServerGate.Permit rateLimited = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L)) {
+            Thread.sleep(30);
+            rateLimited.overloaded();
+        }
+        assertThat(gate.chatCallMillis()).isZero();
+
+        try (ModelServerGate.Permit outer = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L)) {
+            outer.scope(() -> {
+                try (ModelServerGate.Permit inner = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L)) {
+                    Thread.sleep(200);
+                }
+                return null;
+            }).call();
+        }
+
+        // the call inside the call is the outer call's own time, counted once, not twice
+        assertThat(gate.chatCallMillis()).isBetween(150L, 2_000L);
+    }
+
+    /** A server that has taken no chat call, an embedding server, is told from one that has: it does not bound the analyses. */
+    @Test
+    void aGateKnowsWhetherItHasTakenAChatCall() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ZERO);
+        assertThat(gate.chatCallsSeen()).isFalse();
+
+        gate.enter(CallKind.EMBEDDING, "mxbai", 1_000L).close();
+        assertThat(gate.chatCallsSeen()).isFalse();
+
+        gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L).close();
+        assertThat(gate.chatCallsSeen()).isTrue();
+    }
+
     @Test
     void anOverloadSignalKeepsTheServerClosedForAWhile() throws Exception {
         ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ofMillis(300));

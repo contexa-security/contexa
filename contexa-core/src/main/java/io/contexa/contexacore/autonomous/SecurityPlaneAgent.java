@@ -65,8 +65,10 @@ import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
@@ -119,6 +121,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
      * so more of them buy the user nothing and take a turn from another user.
      */
     static final int USER_SHARE = 8;
+    /**
+     * The chat calls one analysis makes at most: the first layer's first call, a correction of an answer outside the
+     * contract and a longer retry, and the same again when the first layer hands the request to the second (three each).
+     */
+    public static final int CHAT_CALLS_PER_ANALYSIS = 6;
+    /** How much of the event's budget the analyses in line at a gate may use: the rest covers a call slower than the average. */
+    public static final double BUDGET_SAFETY = 1.5;
     /** Q-23: how many sessions are remembered as decided, and for how long; a forgotten one is first in line again. */
     private static final int MAX_DECIDED_SESSIONS = 100_000;
     private static final Duration DECIDED_SESSION_TTL = Duration.ofHours(1);
@@ -186,8 +195,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             .expireAfterWrite(DECIDED_SESSION_TTL)
             .build();
     private final ConcurrentMap<String, Integer> analysesOfUsers = new ConcurrentHashMap<>();
+    /** The analyses in line or running for each session and context of a person's calls, which a repeat is not queued behind. */
+    private final ConcurrentMap<String, Integer> analysesInContext = new ConcurrentHashMap<>();
     private final AtomicInteger analysesInProgress = new AtomicInteger();
     private volatile int analysisLineBound = Integer.MAX_VALUE;
+    /** How many analyses the model servers serve at once, or null where nothing says (the analysis stripes then are the limit). */
+    private volatile IntSupplier analysisCapacity;
+    private final AtomicBoolean analysisCapacityFailureReported = new AtomicBoolean();
     private final AtomicLong analysesLeftOut = new AtomicLong();
     private final AtomicLong lineFullReportedAt = new AtomicLong();
     private volatile Duration judgeAgainInterval = DEFAULT_JUDGE_AGAIN_INTERVAL;
@@ -297,10 +311,40 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         startOnItsOwn();
     }
 
+    /**
+     * The analyses run at once follow the model servers: a call waits at a server's gate at most until the event's
+     * budget, so no more analyses may run than the narrowest gate serves within it ({@code ModelServerGates}). What does
+     * not run waits in the line, in its order and with its budget not started; the stripes stay the upper limit.
+     */
+    public void setAnalysisCapacity(IntSupplier analysisCapacity) {
+        this.analysisCapacity = analysisCapacity;
+        fitTheActorsToTheModelServers();
+    }
+
+    private void fitTheActorsToTheModelServers() {
+        KeyedSerialExecutor executor = actorSerialExecutor;
+        IntSupplier capacity = analysisCapacity;
+        if (executor == null || capacity == null) {
+            return;
+        }
+        try {
+            int stripes = Math.max(1, securityPlaneProperties.getAgent().getAnalysisStripes());
+            executor.resize(Math.max(1, Math.min(stripes, capacity.getAsInt())));
+            analysisCapacityFailureReported.set(false);
+        } catch (RuntimeException unreadable) {
+            // The capacity only tunes how many analyses run at once: what cannot be read keeps the last one, and no
+            // batch fails because of it. It is told once, not for every batch.
+            if (analysisCapacityFailureReported.compareAndSet(false, true)) {
+                log.error("[SecurityPlaneAgent] The analysis capacity could not be read; the last one stays", unreadable);
+            }
+        }
+    }
+
     private void processBatch(List<SecurityEvent> events) {
         if (events == null || events.isEmpty()) {
             return;
         }
+        fitTheActorsToTheModelServers();
 
         if (!running.get()) {
             throw new IllegalStateException("SecurityPlaneAgent is not running");
@@ -314,6 +358,18 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             event.addMetadata("analysisQueuedAt", System.currentTimeMillis());
             boolean firstDecision = markFirstDecision(event, analysisKey);
             String share = shareOf(event);
+            String inLine = share != null ? lineKeyOf(analysisKey, event) : null;
+            if (inLine != null && !comesBack(event) && analysesInContext.containsKey(inLine)) {
+                // What waits behind a decision costs that decision and no turn of its own (PR-82): the session has an
+                // analysis of this context in line or running, so this request is kept in its session without a place
+                // in the line, and the places go to the first decisions of other sessions. A decision is bound to its
+                // context, so a request of another context is no repeat of it and is analysed, and so is an event that
+                // comes back to be tried again. If that analysis decides nothing, the session stays without a decision
+                // and its next request is published and analysed again.
+                event.addMetadata("analysisSkipped", "SESSION_ALREADY_IN_LINE");
+                leftOut(event);
+                continue;
+            }
             if (!takeAPlace(share)) {
                 event.addMetadata("analysisSkipped", "PAST_THE_USERS_SHARE");
                 leftOut(event);
@@ -325,6 +381,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 continue;
             }
 
+            if (inLine != null) {
+                analysesInContext.merge(inLine, 1, Integer::sum);
+            }
             Runnable analysis = AnalysisTurn.of(() -> {
                 boolean over = false;
                 try {
@@ -363,6 +422,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     }
                 } finally {
                     leaveThePlace(share);
+                    leaveTheContext(inLine);
                     if (over) {
                         analysisIsOver(event);
                     }
@@ -372,6 +432,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 actorSerialExecutor.execute(analysisKey, analysis);
             } catch (RuntimeException notTaken) {
                 leaveThePlace(share);
+                leaveTheContext(inLine);
                 throw notTaken;
             }
         }
@@ -420,6 +481,23 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             analysesInProgress.incrementAndGet();
         }
         return taken[0];
+    }
+
+    /** The session and the context the event came from: what in line answers a request is what was asked in the same one. */
+    private String lineKeyOf(String analysisKey, SecurityEvent event) {
+        return analysisKey + "|context:" + Objects.toString(metadataText(event.getMetadata(), "contextBindingHash"), "");
+    }
+
+    /** An event deferred to be tried again, or asked about again, is the analysis itself and no repeat of another. */
+    private boolean comesBack(SecurityEvent event) {
+        return getIntegerMetadata(event, "deferredCount") > 0
+                || (event.getMetadata() != null && event.getMetadata().containsKey(JUDGED_AGAIN_EVENT));
+    }
+
+    private void leaveTheContext(String inLine) {
+        if (inLine != null) {
+            analysesInContext.computeIfPresent(inLine, (key, held) -> held > 1 ? held - 1 : null);
+        }
     }
 
     private void leaveThePlace(String share) {
@@ -810,6 +888,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         // an actor with no analysis to run is given back: the pool is as large as the analyses in flight
         actors.allowCoreThreadTimeOut(true);
         actorSerialExecutor = new KeyedSerialExecutor(actors, workerCount);
+        fitTheActorsToTheModelServers();
+    }
+
+    /** How many actors the analyses run on now. */
+    public int analysisActors() {
+        KeyedSerialExecutor executor = actorSerialExecutor;
+        return executor != null ? executor.actors() : 0;
     }
 
     private String resolveAnalysisKey(SecurityEvent event) {
@@ -1250,6 +1335,24 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             } catch (InterruptedException interruptedException) {
                 Thread.currentThread().interrupt();
                 workerPool.shutdownNow();
+            }
+        }
+
+        private int actors() {
+            return workerPool instanceof ThreadPoolExecutor pool ? pool.getCorePoolSize() : parallelism;
+        }
+
+        /** The actors the analyses run on: no more than this, the queue keeps the rest in its order. */
+        private synchronized void resize(int actors) {
+            if (!(workerPool instanceof ThreadPoolExecutor pool) || pool.getCorePoolSize() == actors) {
+                return;
+            }
+            if (actors > pool.getMaximumPoolSize()) {
+                pool.setMaximumPoolSize(actors);
+                pool.setCorePoolSize(actors);
+            } else {
+                pool.setCorePoolSize(actors);
+                pool.setMaximumPoolSize(actors);
             }
         }
 

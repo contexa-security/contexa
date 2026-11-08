@@ -49,6 +49,8 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public final class ModelServerGate {
 
+    /** The weight of the latest chat call in the moving average of how long a chat call holds its slot. */
+    private static final double CHAT_CALL_WEIGHT = 0.2;
     /** The back-off grows to at most this many times the first one (2 s, 4 s, 8 s, 12 s by default). */
     private static final int MAX_BACK_OFF_FACTOR = 6;
     /** The gates whose slot the work running on this thread holds, with how deep the scopes are. */
@@ -68,6 +70,10 @@ public final class ModelServerGate {
     private final Map<String, Integer> runningByModel = new HashMap<>();
     private int running;
     private int overloadsInARow;
+    /** How long a chat call holds its slot, as a moving average (nanoseconds); 0 until one has been measured. */
+    private long chatCallNanos;
+    /** Whether a chat call has been in at this server: an embedding server has none, and says nothing about the analyses. */
+    private boolean chatSeen;
     private long closedUntilNanos;
     private boolean closed;
 
@@ -109,7 +115,7 @@ public final class ModelServerGate {
         Waiter waiter = new Waiter(callKind, model != null && !model.isBlank() ? model.trim() : callKind.name(),
                 timer != null && timer.firstInLine());
         if (SCOPES.get().containsKey(this)) {
-            return new Permit(waiter.model, 0L, true);
+            return new Permit(waiter.model, waiter.kind, 0L, true);
         }
         long started = System.nanoTime();
         long waitUntil = started + TimeUnit.MILLISECONDS.toNanos(Math.max(0L, maxWaitMs));
@@ -168,6 +174,47 @@ public final class ModelServerGate {
         }
     }
 
+    /**
+     * How long a chat call holds its slot, as a moving average of the calls that ended; 0 until one has. A call that met
+     * a rate limit or an overload, an embedding, and a call made inside another call are not counted: the first ends at
+     * once, the second is short, and the third is part of the call it runs in. A call that took less than a millisecond
+     * counts as one, so that 0 says only that none has ended.
+     */
+    public long chatCallMillis() {
+        lock.lock();
+        try {
+            return chatCallNanos == 0L ? 0L : Math.max(1L, TimeUnit.NANOSECONDS.toMillis(chatCallNanos));
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** Whether a chat call has been in at this server. */
+    public boolean chatCallsSeen() {
+        lock.lock();
+        try {
+            return chatSeen;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** Takes a chat call that held its slot this long into the moving average. */
+    void recordChatCall(long heldNanos) {
+        lock.lock();
+        try {
+            recordChatCallLocked(heldNanos);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void recordChatCallLocked(long heldNanos) {
+        chatSeen = true;
+        long held = Math.max(1L, heldNanos);
+        chatCallNanos = chatCallNanos == 0L ? held : chatCallNanos + (long) ((held - chatCallNanos) * CHAT_CALL_WEIGHT);
+    }
+
     /** The calls waiting now. */
     public int waiting() {
         lock.lock();
@@ -213,8 +260,11 @@ public final class ModelServerGate {
 
     private Permit admit(Waiter waiter, long waitedNanos) {
         running++;
+        if (waiter.kind == CallKind.CHAT) {
+            chatSeen = true;
+        }
         runningByModel.merge(waiter.model, 1, Integer::sum);
-        return new Permit(waiter.model, TimeUnit.NANOSECONDS.toMillis(waitedNanos), false);
+        return new Permit(waiter.model, waiter.kind, TimeUnit.NANOSECONDS.toMillis(waitedNanos), false);
     }
 
     private void leave(Permit permit) {
@@ -224,6 +274,9 @@ public final class ModelServerGate {
             runningByModel.computeIfPresent(permit.model, (model, count) -> count > 1 ? count - 1 : null);
             if (!permit.overloaded) {
                 overloadsInARow = 0;
+                if (permit.kind == CallKind.CHAT) {
+                    recordChatCallLocked(System.nanoTime() - permit.admittedNanos);
+                }
             }
             changed.signalAll();
         } finally {
@@ -263,20 +316,38 @@ public final class ModelServerGate {
                 waitedMs);
     }
 
-    private record Waiter(CallKind kind, String model, boolean firstInLine) {
+    /**
+     * A call in line. Two waiters with the same kind, model and line are two calls: a class without an {@code equals},
+     * so that a waiter leaving the line ({@code remove}) takes out itself and never an equal one ahead of it, which left
+     * its own entry at the head with no thread behind it and kept every call behind it from going in.
+     */
+    private static final class Waiter {
+
+        private final CallKind kind;
+        private final String model;
+        private final boolean firstInLine;
+
+        private Waiter(CallKind kind, String model, boolean firstInLine) {
+            this.kind = kind;
+            this.model = model;
+            this.firstInLine = firstInLine;
+        }
     }
 
     /** A call that is in; closing it frees its slot. */
     public final class Permit implements AutoCloseable {
 
         private final String model;
+        private final CallKind kind;
         private final long waitedMillis;
         private final boolean nested;
+        private final long admittedNanos = System.nanoTime();
         private final AtomicBoolean left = new AtomicBoolean();
         private volatile boolean overloaded;
 
-        private Permit(String model, long waitedMillis, boolean nested) {
+        private Permit(String model, CallKind kind, long waitedMillis, boolean nested) {
             this.model = model;
+            this.kind = kind;
             this.waitedMillis = waitedMillis;
             this.nested = nested;
         }
