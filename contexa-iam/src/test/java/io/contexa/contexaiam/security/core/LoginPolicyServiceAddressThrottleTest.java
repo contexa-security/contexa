@@ -201,7 +201,8 @@ class LoginPolicyServiceAddressThrottleTest {
         when(addresses.incrementFailedAttempts(eq(ADDRESS), any(), anyString())).thenReturn(0, 1);
         doThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint ctxa_idx_login_attempt_ip_address"))
                 .when(upserter).insertIfAbsent(eq(ADDRESS), any(), anyString());
-        when(addresses.findByIpAddress(ADDRESS)).thenReturn(Optional.of(row(1, null)));
+        // the row is missing when the failure looks, and there once the other server's insert has won
+        when(addresses.findByIpAddress(ADDRESS)).thenReturn(Optional.empty(), Optional.of(row(1, null)));
         when(users.incrementFailedAttempts("nobody")).thenReturn(0);
 
         assertThatCode(() -> service.onLoginFailure("nobody", ADDRESS, "BadCredentialsException", "EVENT")).doesNotThrowAnyException();
@@ -209,6 +210,20 @@ class LoginPolicyServiceAddressThrottleTest {
 
         verify(addresses, times(2)).incrementFailedAttempts(eq(ADDRESS), any(), anyString());
         verify(addresses, never()).blockIp(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("a row that is there already is not inserted again")
+    void aRowThatIsThereIsNotInsertedAgain() {
+        when(addresses.incrementFailedAttempts(eq(ADDRESS), any(), anyString())).thenReturn(0, 1);
+        when(addresses.findByIpAddress(ADDRESS)).thenReturn(Optional.of(row(1, null)));
+        when(users.incrementFailedAttempts("nobody")).thenReturn(0);
+
+        service.onLoginFailure("nobody", ADDRESS, "BadCredentialsException", "EVENT");
+        LoginPolicyService.clearRequestState();
+
+        verify(upserter, never()).insertIfAbsent(anyString(), any(), anyString());
+        verify(addresses, times(2)).incrementFailedAttempts(eq(ADDRESS), any(), anyString());
     }
 
     @Test
