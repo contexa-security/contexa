@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ModelServerGatesAnalysisConcurrencyTest {
 
-    private static final int CHAT_CALLS = 3;
+    private static final int CHAT_CALLS = 6;
     private static final double SAFETY = 1.5;
     private static final long BUDGET_MS = 180_000L;
     private static final ModelServer LOCAL = ModelServer.of("ollama", "http://localhost:11434");
@@ -60,21 +60,21 @@ class ModelServerGatesAnalysisConcurrencyTest {
         assertThat(limit()).isEqualTo(2 * 2);
     }
 
-    /** slots x budget / (chat calls x call time x safety): a call of 6.5 s on 2 slots, 180 s: 2 x 180 / (3 x 6.5 x 1.5) = 12. */
+    /** slots x budget / (chat calls x call time x safety): a call of 4 s on 2 slots, 180 s: 2 x 180 / (6 x 4 x 1.5) = 10. */
     @Test
     void theMeasuredTimeOfAChatCallSetsTheLimit() {
         ModelServerGate gate = gates.gateFor(new Object(), CallKind.CHAT);
 
-        gate.recordChatCall(TimeUnit.MILLISECONDS.toNanos(6_500));
-        assertThat(limit()).isEqualTo(12);
+        gate.recordChatCall(TimeUnit.SECONDS.toNanos(4));
+        assertThat(limit()).isEqualTo(10);
     }
 
     @Test
     void aSlowerModelAllowsFewerAnalyses() {
         ModelServerGate gate = gates.gateFor(new Object(), CallKind.CHAT);
 
-        // a call of 13 s: 2 x 180 / (3 x 13 x 1.5) = 6
-        gate.recordChatCall(TimeUnit.SECONDS.toNanos(13));
+        // a call of 6.5 s: 2 x 180 / (6 x 6.5 x 1.5) = 6
+        gate.recordChatCall(TimeUnit.MILLISECONDS.toNanos(6_500));
 
         assertThat(limit()).isEqualTo(6);
     }
@@ -86,17 +86,18 @@ class ModelServerGatesAnalysisConcurrencyTest {
 
         gate.recordChatCall(TimeUnit.SECONDS.toNanos(4));
 
-        // 16 x 180 / (3 x 4 x 1.5) = 160
-        assertThat(limit()).isEqualTo(160);
+        // 16 x 180 / (6 x 4 x 1.5) = 80
+        assertThat(limit()).isEqualTo(80);
     }
 
+    /** The slots are never left idle while an analysis prepares its next call, so at least two analyses for each slot. */
     @Test
-    void theLimitNeverFallsBelowTheSlotsOfTheGate() {
+    void theLimitNeverFallsBelowTwiceTheSlotsOfTheGate() {
         ModelServerGate gate = gates.gateFor(new Object(), CallKind.CHAT);
 
         gate.recordChatCall(TimeUnit.SECONDS.toNanos(120));
 
-        assertThat(limit()).isEqualTo(2);
+        assertThat(limit()).isEqualTo(2 * 2);
     }
 
     @Test
@@ -108,7 +109,7 @@ class ModelServerGatesAnalysisConcurrencyTest {
         ModelServerGate local = gates.gateFor(new Object(), CallKind.EMBEDDING);
         local.recordChatCall(TimeUnit.MILLISECONDS.toNanos(6_500));
 
-        assertThat(limit()).isEqualTo(12);
+        assertThat(limit()).isEqualTo(6);
     }
 
     @Test

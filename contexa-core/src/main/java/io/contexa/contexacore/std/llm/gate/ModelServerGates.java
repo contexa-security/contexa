@@ -100,8 +100,8 @@ public final class ModelServerGates {
      * turns: each passes its chat calls (up to {@code chatCalls}) behind the calls of the others, so the last of {@code n}
      * analyses on {@code slots} slots is done after about {@code n / slots x chatCalls x callTime}, and that must stay
      * within the budget with {@code safety} to spare: {@code n = slots x budget / (chatCalls x callTime x safety)}. The
-     * call time is the gate's own measure of a chat call. Never fewer than the slots of the gate, so that they can all be
-     * used. Before a call is measured (the first wave of a burst) each slot has {@value #FIRST_WAVE_PER_SLOT} analyses,
+     * call time is the gate's own measure of a chat call. Never fewer than {@value #FIRST_WAVE_PER_SLOT} analyses for
+     * each slot of the gate, so that the slots are not left idle while an analysis prepares its next call. Before a call is measured (the first wave of a burst) each slot has {@value #FIRST_WAVE_PER_SLOT} analyses,
      * and before a server is known the narrowest configured limit holds, so that the first wave does not fill a gate that
      * turns out to be a narrow one. Where no gate limits (the gates are off, a server set to no limit, a call to a server
      * with no gate) nothing is limited.
@@ -119,7 +119,7 @@ public final class ModelServerGates {
             long callMillis = gate.chatCallMillis();
             long forGate = callMillis <= 0L
                     ? (long) slots * FIRST_WAVE_PER_SLOT
-                    : Math.max(slots, (long) (slots * (double) defaultMaxWaitMs
+                    : Math.max((long) slots * FIRST_WAVE_PER_SLOT, (long) (slots * (double) defaultMaxWaitMs
                     / (Math.max(1, chatCalls) * (double) callMillis * Math.max(1.0, safety))));
             limit = Math.min(limit, forGate);
         }

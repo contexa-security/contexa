@@ -120,8 +120,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
      * so more of them buy the user nothing and take a turn from another user.
      */
     static final int USER_SHARE = 8;
-    /** The chat calls one analysis makes at most: the first, a correction of an answer outside the contract, and a longer retry. */
-    public static final int CHAT_CALLS_PER_ANALYSIS = 3;
+    /**
+     * The chat calls one analysis makes at most: the first layer's first call, a correction of an answer outside the
+     * contract and a longer retry, and the same again when the first layer hands the request to the second (three each).
+     */
+    public static final int CHAT_CALLS_PER_ANALYSIS = 6;
     /** How much of the event's budget the analyses in line at a gate may use: the rest covers a call slower than the average. */
     public static final double BUDGET_SAFETY = 1.5;
     /** Q-23: how many sessions are remembered as decided, and for how long; a forgotten one is first in line again. */
