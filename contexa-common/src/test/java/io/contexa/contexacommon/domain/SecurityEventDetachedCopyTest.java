@@ -1,5 +1,6 @@
 package io.contexa.contexacommon.domain;
 
+import java.util.HashMap;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
@@ -46,5 +47,15 @@ class SecurityEventDetachedCopyTest {
         SecurityEvent event = SecurityEvent.builder().eventId("evt-2").metadata(null).build();
 
         assertThat(event.detachedCopy().getMetadata()).isNull();
+    }
+
+    @Test
+    void onlyASynchronizedWrapperIsAGuardedMetadata() {
+        assertThat(SecurityEvent.isGuardedMetadata(Collections.synchronizedMap(new HashMap<>()))).isTrue();
+        assertThat(SecurityEvent.isGuardedMetadata(Collections.synchronizedMap(new LinkedHashMap<>()))).isTrue();
+        assertThat(SecurityEvent.isGuardedMetadata(new HashMap<>())).isFalse();
+        assertThat(SecurityEvent.isGuardedMetadata(new LinkedHashMap<>())).isFalse();
+        assertThat(SecurityEvent.isGuardedMetadata(Map.of())).isFalse();
+        assertThat(SecurityEvent.isGuardedMetadata(null)).isFalse();
     }
 }

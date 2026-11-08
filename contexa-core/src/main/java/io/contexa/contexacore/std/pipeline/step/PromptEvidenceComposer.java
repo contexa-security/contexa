@@ -171,14 +171,14 @@ public class PromptEvidenceComposer {
         }
     }
 
-    private Map<String, Object> ensureMutableMetadata(SecurityEvent securityEvent) {
+    static Map<String, Object> ensureMutableMetadata(SecurityEvent securityEvent) {
         Map<String, Object> current = securityEvent.getMetadata();
         if (current == null) {
             Map<String, Object> fresh = new LinkedHashMap<>();
             securityEvent.setMetadata(fresh);
             return fresh;
         }
-        if (current instanceof LinkedHashMap<?, ?>) {
+        if (current instanceof LinkedHashMap<?, ?> || SecurityEvent.isGuardedMetadata(current)) {
             return current;
         }
         Map<String, Object> copied = new LinkedHashMap<>(current);
