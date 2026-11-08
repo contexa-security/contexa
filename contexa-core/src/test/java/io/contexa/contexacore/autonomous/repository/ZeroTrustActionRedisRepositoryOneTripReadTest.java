@@ -33,9 +33,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.data.redis.serializer.RedisSerializer;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -185,13 +187,14 @@ class ZeroTrustActionRedisRepositoryOneTripReadTest {
     }
 
     @Test
-    @DisplayName("a script the store refuses switches the reads in one trip off, and the reads go one by one with the same answer")
+    @DisplayName("a script the store refuses holds the reads in one trip back, the reads go one by one with the same answer, and the script is tried again later")
     void aScriptTheStoreRefuses() {
+        AtomicInteger refusals = new AtomicInteger(1);
         StringRedisTemplate refusing = new StringRedisTemplate(connectionFactory) {
             @Override
             public <T> T execute(RedisScript<T> script, RedisSerializer<?> argsSerializer, RedisSerializer<T> resultSerializer,
                                  List<String> keys, Object... args) {
-                if (script.getScriptAsString().contains("HGETALL")) {
+                if (script.getScriptAsString().contains("HGETALL") && refusals.getAndDecrement() > 0) {
                     throw new RedisSystemException("ERR CROSSSLOT Keys in request do not hash to the same slot",
                             new IllegalStateException("CROSSSLOT"));
                 }
@@ -203,9 +206,40 @@ class ZeroTrustActionRedisRepositoryOneTripReadTest {
         repository.setBlockedFlag(user);
 
         assertThat(refused.getCurrentAction(user, "context-a")).isEqualTo(ZeroTrustAction.BLOCK);
-        assertThat(refused.getCurrentAction(user, "context-a")).isEqualTo(ZeroTrustAction.BLOCK);
-
+        assertThat(refused.getCurrentAction(user, "context-a")).as("held back: read one by one").isEqualTo(ZeroTrustAction.BLOCK);
         assertThat(refused.oneTripReads()).isZero();
+
+        refused.retryOneTripReadsAfter(Duration.ZERO);
+        refused.useOneTripReads(true);
+        assertThat(refused.getCurrentAction(user, "context-a")).as("tried again: the script answers").isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(refused.oneTripReads()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("the script is tried again once the time it was held back for has passed")
+    void theScriptIsTriedAgainAfterTheTimeHeldBack() throws Exception {
+        AtomicInteger refusals = new AtomicInteger(1);
+        StringRedisTemplate refusing = new StringRedisTemplate(connectionFactory) {
+            @Override
+            public <T> T execute(RedisScript<T> script, RedisSerializer<?> argsSerializer, RedisSerializer<T> resultSerializer,
+                                 List<String> keys, Object... args) {
+                if (script.getScriptAsString().contains("HGETALL") && refusals.getAndDecrement() > 0) {
+                    throw new RedisSystemException("LOADING Redis is loading the dataset in memory", new IllegalStateException("LOADING"));
+                }
+                return super.execute(script, argsSerializer, resultSerializer, keys, args);
+            }
+        };
+        refusing.afterPropertiesSet();
+        ZeroTrustActionRedisRepository refused = new ZeroTrustActionRedisRepository(redisTemplate, refusing);
+        refused.retryOneTripReadsAfter(Duration.ofMillis(200));
+        repository.setBlockedFlag(user);
+
+        assertThat(refused.getCurrentAction(user, "context-a")).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(refused.oneTripReads()).isZero();
+        Thread.sleep(300);
+
+        assertThat(refused.getCurrentAction(user, "context-a")).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(refused.oneTripReads()).as("after the time held back, the script answers").isEqualTo(1L);
     }
 
     @Test

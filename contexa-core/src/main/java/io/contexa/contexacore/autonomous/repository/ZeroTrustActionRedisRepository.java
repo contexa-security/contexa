@@ -1276,15 +1276,29 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
     /** Whether {@code getCurrentAction} reads in one trip; off only in a test that compares it with the reads one by one. */
     private volatile boolean readInOneTrip = true;
+    /** How long the reads in one trip are held back after the store refused the script, before they are tried again. */
+    private static final Duration ONE_TRIP_RETRY = Duration.ofMinutes(5);
+    private volatile Duration oneTripRetryAfter = ONE_TRIP_RETRY;
+    private volatile boolean oneTripHeldBack;
+    private volatile long oneTripRetryAtNanos;
     private final AtomicLong readsInOneTrip = new AtomicLong();
 
     void useOneTripReads(boolean on) {
         this.readInOneTrip = on;
+        this.oneTripHeldBack = false;
+    }
+
+    void retryOneTripReadsAfter(Duration wait) {
+        this.oneTripRetryAfter = wait;
     }
 
     long oneTripReads() {
         return readsInOneTrip.get();
     }
+
+    /** The reply of a script as the bytes the server sent, in lists as it sent them. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static final RedisSerializer<List> RAW_REPLY = (RedisSerializer<List>) (RedisSerializer) RedisSerializer.byteArray();
 
     /**
      * The three reads in one script, which runs on the connection the other reads use. KEYS: the BLOCK flag, the analysis
@@ -1292,10 +1306,6 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
      * CHALLENGE to read. Returns the flag, the flag as typed (or nothing), the analysis as a list of fields and values and
      * the held fields, each as the command answers.
      */
-    /** The reply of a script as the bytes the server sent, in lists as it sent them. */
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private static final RedisSerializer<List> RAW_REPLY = (RedisSerializer<List>) (RedisSerializer) RedisSerializer.byteArray();
-
     @SuppressWarnings("rawtypes")
     private static final DefaultRedisScript<List> CURRENT_STATE_SCRIPT = new DefaultRedisScript<>("""
             local blocked = redis.call('GET', KEYS[1])
@@ -1314,7 +1324,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
      */
     @SuppressWarnings("unchecked")
     private OneTrip oneTrip(String userId, String contextBindingHash) {
-        if (!readInOneTrip) {
+        if (!readInOneTrip || (oneTripHeldBack && System.nanoTime() - oneTripRetryAtNanos < 0L)) {
             return null;
         }
         RedisSerializer<Object> hashKeys = (RedisSerializer<Object>) redisTemplate.getHashKeySerializer();
@@ -1345,11 +1355,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             if (StoreFailures.isStoreFailure(failure)) {
                 throw failure;
             }
-            // A script the store refuses (keys that do not share a slot, a user not allowed to run scripts) is no reason to
-            // stop deciding: the reads go one by one from now on, which is how they were made before.
-            readInOneTrip = false;
-            log.error("[ZeroTrustActionRedisRepository] The store does not run the script that reads a user in one trip;"
-                    + " the reads are made one by one from now on", failure);
+            // A script the store refuses (keys that do not share a slot, a user not allowed to run scripts, a store that is
+            // still loading) is no reason to stop deciding: the reads go one by one, which is how they were made before,
+            // and the script is tried again after a while.
+            oneTripRetryAtNanos = System.nanoTime() + oneTripRetryAfter.toNanos();
+            oneTripHeldBack = true;
+            log.error("[ZeroTrustActionRedisRepository] The store did not run the script that reads a user in one trip;"
+                    + " the reads are made one by one for {}", oneTripRetryAfter, failure);
             return null;
         }
         if (result == null || result.size() != 4 || !(result.get(2) instanceof List<?> analysisFlat)
@@ -1366,6 +1378,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 held.add(raw != null ? holdValues.deserialize((byte[]) raw) : null);
             }
             readsInOneTrip.incrementAndGet();
+            oneTripHeldBack = false;
             return new OneTrip(result.get(0) != null ? (String) flags.deserialize((byte[]) result.get(0)) : null,
                     result.get(1) != null ? (String) flags.deserialize((byte[]) result.get(1)) : null, analysis, held);
         } catch (SerializationException | ClassCastException unreadableForm) {
