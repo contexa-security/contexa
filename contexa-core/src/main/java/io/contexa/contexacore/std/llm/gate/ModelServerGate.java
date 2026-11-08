@@ -72,6 +72,8 @@ public final class ModelServerGate {
     private int overloadsInARow;
     /** How long a chat call holds its slot, as a moving average (nanoseconds); 0 until one has been measured. */
     private long chatCallNanos;
+    /** Whether a chat call has been in at this server: an embedding server has none, and says nothing about the analyses. */
+    private boolean chatSeen;
     private long closedUntilNanos;
     private boolean closed;
 
@@ -186,6 +188,16 @@ public final class ModelServerGate {
         }
     }
 
+    /** Whether a chat call has been in at this server. */
+    public boolean chatCallsSeen() {
+        lock.lock();
+        try {
+            return chatSeen;
+        } finally {
+            lock.unlock();
+        }
+    }
+
     /** Takes a chat call that held its slot this long into the moving average. */
     void recordChatCall(long heldNanos) {
         lock.lock();
@@ -197,6 +209,7 @@ public final class ModelServerGate {
     }
 
     private void recordChatCallLocked(long heldNanos) {
+        chatSeen = true;
         long held = Math.max(1L, heldNanos);
         chatCallNanos = chatCallNanos == 0L ? held : chatCallNanos + (long) ((held - chatCallNanos) * CHAT_CALL_WEIGHT);
     }
@@ -246,6 +259,9 @@ public final class ModelServerGate {
 
     private Permit admit(Waiter waiter, long waitedNanos) {
         running++;
+        if (waiter.kind == CallKind.CHAT) {
+            chatSeen = true;
+        }
         runningByModel.merge(waiter.model, 1, Integer::sum);
         return new Permit(waiter.model, waiter.kind, TimeUnit.NANOSECONDS.toMillis(waitedNanos), false);
     }

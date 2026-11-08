@@ -113,11 +113,33 @@ class ModelServerGatesAnalysisConcurrencyTest {
     }
 
     @Test
-    void aServerSetToNoLimitIsNotCounted() {
+    void aServerSetToNoLimitIsNotCounted() throws Exception {
         properties.setSelfHostedMaxConcurrent(0);
-        gates.gateFor(new Object(), CallKind.CHAT);
+        gates.gateFor(new Object(), CallKind.CHAT).enter(CallKind.CHAT, "qwen3:8b", 1_000L).close();
 
         assertThat(limit()).isEqualTo(Integer.MAX_VALUE);
+    }
+
+    /**
+     * Chat on a remote provider and embeddings on a local server is a common layout: the embedding server takes no chat
+     * call, so it says nothing about how many analyses the chat server serves, and must not hold the limit to its first wave.
+     */
+    @Test
+    void anEmbeddingOnlyServerDoesNotLimitTheAnalyses() throws Exception {
+        resolved.set(REMOTE);
+        ModelServerGate chat = gates.gateFor(new Object(), CallKind.CHAT);
+        chat.recordChatCall(TimeUnit.SECONDS.toNanos(4));
+        resolved.set(LOCAL);
+        gates.gateFor(new Object(), CallKind.EMBEDDING).enter(CallKind.EMBEDDING, "mxbai", 1_000L).close();
+
+        assertThat(limit()).isEqualTo(80);
+    }
+
+    @Test
+    void anEmbeddingOnlyServerAloneKeepsTheFirstWave() throws Exception {
+        gates.gateFor(new Object(), CallKind.EMBEDDING).enter(CallKind.EMBEDDING, "mxbai", 1_000L).close();
+
+        assertThat(limit()).isEqualTo(2 * 2);
     }
 
     @Test

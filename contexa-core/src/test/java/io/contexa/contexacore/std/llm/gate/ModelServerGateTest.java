@@ -323,6 +323,19 @@ class ModelServerGateTest {
         assertThat(gate.chatCallMillis()).isBetween(150L, 2_000L);
     }
 
+    /** A server that has taken no chat call, an embedding server, is told from one that has: it does not bound the analyses. */
+    @Test
+    void aGateKnowsWhetherItHasTakenAChatCall() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ZERO);
+        assertThat(gate.chatCallsSeen()).isFalse();
+
+        gate.enter(CallKind.EMBEDDING, "mxbai", 1_000L).close();
+        assertThat(gate.chatCallsSeen()).isFalse();
+
+        gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L).close();
+        assertThat(gate.chatCallsSeen()).isTrue();
+    }
+
     @Test
     void anOverloadSignalKeepsTheServerClosedForAWhile() throws Exception {
         ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ofMillis(300));

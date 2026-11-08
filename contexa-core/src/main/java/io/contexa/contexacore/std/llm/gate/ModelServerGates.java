@@ -96,22 +96,30 @@ public final class ModelServerGates {
 
     /**
      * How many analyses may run at once. A call waits at its server's gate at most until the event's budget, so the
-     * analyses in flight must not outnumber what the narrowest gate serves within it. The analyses in line at a gate take
-     * turns: each passes its chat calls (up to {@code chatCalls}) behind the calls of the others, so the last of {@code n}
-     * analyses on {@code slots} slots is done after about {@code n / slots x chatCalls x callTime}, and that must stay
-     * within the budget with {@code safety} to spare: {@code n = slots x budget / (chatCalls x callTime x safety)}. The
-     * call time is the gate's own measure of a chat call. Never fewer than {@value #FIRST_WAVE_PER_SLOT} analyses for
-     * each slot of the gate, so that the slots are not left idle while an analysis prepares its next call. Before a call is measured (the first wave of a burst) each slot has {@value #FIRST_WAVE_PER_SLOT} analyses,
-     * and before a server is known the narrowest configured limit holds, so that the first wave does not fill a gate that
-     * turns out to be a narrow one. Where no gate limits (the gates are off, a server set to no limit, a call to a server
-     * with no gate) nothing is limited.
+     * analyses in flight must not outnumber what the narrowest chat gate serves within it. The analyses in line at a gate
+     * take turns: each passes its chat calls (up to {@code chatCalls}) behind the calls of the others, so the last of
+     * {@code n} analyses on {@code slots} slots is done after about {@code n / slots x chatCalls x callTime}, and that
+     * must stay within the budget with {@code safety} to spare: {@code n = slots x budget / (chatCalls x callTime x
+     * safety)}. The call time is the gate's own measure of a chat call. Never fewer than {@value #FIRST_WAVE_PER_SLOT}
+     * analyses for each slot of the gate, so that the slots are not left idle while an analysis prepares its next call.
+     * A gate that has taken no chat call, an embedding server, does not count: it says nothing about the analyses.
+     * Before a chat call is measured (the first wave of a burst) each slot has {@value #FIRST_WAVE_PER_SLOT} analyses,
+     * and before a chat server is known the narrowest configured limit holds, so that the first wave does not fill a gate
+     * that turns out to be a narrow one. Where no gate limits (the gates are off, a server set to no limit, a call to a
+     * server with no gate) nothing is limited.
      */
     public int analysisConcurrency(int chatCalls, double safety) {
         if (!properties.isEnabled() || resolver == null || ungatedCallSeen) {
             return Integer.MAX_VALUE;
         }
         long limit = Long.MAX_VALUE;
+        boolean chatGateKnown = false;
         for (ModelServerGate gate : gates.values()) {
+            if (!gate.chatCallsSeen()) {
+                // an embedding server takes no chat call: it does not bound the analyses
+                continue;
+            }
+            chatGateKnown = true;
             int slots = gate.maxConcurrent();
             if (slots <= 0) {
                 continue;
@@ -123,7 +131,7 @@ public final class ModelServerGates {
                     / (Math.max(1, chatCalls) * (double) callMillis * Math.max(1.0, safety))));
             limit = Math.min(limit, forGate);
         }
-        if (gates.isEmpty()) {
+        if (!chatGateKnown) {
             int narrowest = narrowestOf(Integer.MAX_VALUE, properties.getSelfHostedMaxConcurrent());
             narrowest = narrowestOf(narrowest, properties.getRemoteMaxConcurrent());
             for (ModelServerGateProperties.Server server : properties.getServers().values()) {
