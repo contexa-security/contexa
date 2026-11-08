@@ -80,7 +80,9 @@ public class ContextObservationRecorder {
      * @param outcome   the final Zero Trust action ({@code ALLOW}, {@code CHALLENGE}, ...), {@link
      *                  SessionDecisionRecord#AUTHORIZATION_DENIED} for a refused authorization, or null when no decision
      *                  was reached
-     * @param enforced  whether the decision is enforced (not a shadow decision)
+     * @param enforced  whether the decision counts: the one in force, or in SHADOW the one that stands in the memory of
+     *                  SHADOW. SHADOW decides as ENFORCE does, so what it learns is what ENFORCE learns. A decision that
+     *                  only stands aside (a stricter one is in force, or the memory failed) does not count.
      */
     public record Commit(SecurityContextDataStore dataStore, String outcome, boolean enforced) {
 

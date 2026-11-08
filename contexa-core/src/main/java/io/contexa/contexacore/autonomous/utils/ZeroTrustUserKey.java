@@ -47,6 +47,13 @@ public final class ZeroTrustUserKey {
     static final String MOVED_KEY = "ctxa-user::";
 
     /**
+     * What starts the key under which SHADOW mode remembers what it decided for another key. Only what counts decisions
+     * (the question whether a user was answered lately) reads it; what enforces a decision never does, so a shadow
+     * decision cannot stop anyone, and the decisions of ENFORCE are not mixed with those of an earlier SHADOW.
+     */
+    public static final String SHADOW_KEY = "shadow::";
+
+    /**
      * The part of an agent's key that marks a name, without the separator before it: a console session of a name that
      * starts so would otherwise spell the key of an agent of the person {@code console}.
      */
@@ -96,7 +103,14 @@ public final class ZeroTrustUserKey {
     }
 
     private static boolean internalForm(String name) {
-        return name.startsWith(ZeroTrustSubject.CONSOLE_KEY) || name.startsWith(MOVED_KEY) || name.contains(AGENT_MARK);
+        return name.startsWith(ZeroTrustSubject.CONSOLE_KEY) || name.startsWith(MOVED_KEY) || name.startsWith(SHADOW_KEY)
+                || name.contains(AGENT_MARK);
+    }
+
+    /** The key under which SHADOW mode remembers its decisions for the given key; null stays null. */
+    @Nullable
+    public static String shadow(@Nullable String key) {
+        return key == null ? null : SHADOW_KEY + key;
     }
 
     /**

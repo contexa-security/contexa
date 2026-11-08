@@ -133,9 +133,9 @@ public class SecurityLearningService {
     /**
      * The session context update of an analysis layer's result (Layer1, Layer2), and its decision document once the
      * decision is enforced (W5-3): the document is staged with the request's observations and stored when the
-     * enforcement commits the same outcome as applied. A shadow decision, a result without processing ownership, an
-     * ALLOW kept out by a stricter action in effect, or an earlier layer's result replaced by a later one stores no
-     * document. Without the recorder no outcome is known, so no document is stored.
+     * enforcement commits the same outcome as applied. A decision of SHADOW stores one as ENFORCE's does while it stands
+     * in the memory of SHADOW. A result without processing ownership, an ALLOW kept out by a stricter action in effect,
+     * or an earlier layer's result replaced by a later one stores no document. Without the recorder no outcome is known, so no document is stored.
      */
     public void postProcessDecision(SecurityEvent event, SecurityDecision decision) {
         // W6-9: a shadow run's copy leaves the session and the decision documents alone.

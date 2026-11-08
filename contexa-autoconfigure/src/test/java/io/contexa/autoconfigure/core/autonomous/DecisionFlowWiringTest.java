@@ -67,7 +67,7 @@ class DecisionFlowWiringTest {
     private static SynchronousProtectableDecisionService service(SecurityZeroTrustProperties properties) {
         return new CoreAutonomousAutoConfiguration().synchronousProtectableDecisionService(
                 mock(ZeroTrustEventPublisher.class), mock(ZeroTrustEventListener.class), mock(SecurityPlaneAgent.class),
-                mock(ZeroTrustActionRepository.class), none(), properties, none(), none(), none());
+                mock(ZeroTrustActionRepository.class), none(), properties, none(), none(), none(), none());
     }
 
     /** Calls from a changed context take from one window of the person's decisions, whose size is the setting's. */
@@ -80,7 +80,7 @@ class DecisionFlowWiringTest {
         SynchronousProtectableDecisionService service = new CoreAutonomousAutoConfiguration()
                 .synchronousProtectableDecisionService(mock(ZeroTrustEventPublisher.class), mock(ZeroTrustEventListener.class),
                         mock(SecurityPlaneAgent.class), mock(ZeroTrustActionRepository.class), none(), properties, none(),
-                        none(), one(NewContextDecisionLimit.class, limit));
+                        none(), one(NewContextDecisionLimit.class, limit), none());
 
         assertThat(ReflectionTestUtils.getField(service, "newContextDecisionLimit")).isSameAs(limit);
         for (int i = 0; i < 4; i++) {
@@ -132,7 +132,7 @@ class DecisionFlowWiringTest {
         SecurityPlaneAgent agent = new CoreAutonomousAutoConfiguration().securityPlaneAgent(
                 mock(SecurityMonitoringService.class), mock(SecurityContextDataStore.class), mock(CentralAuditFacade.class),
                 mock(SecurityEventProcessor.class), new SecurityPlaneProperties(), Runnable::run, none(),
-                mock(ZeroTrustActionRepository.class), none(), one(QueuedAgentEventRecheck.class, recheck), none());
+                mock(ZeroTrustActionRepository.class), none(), one(QueuedAgentEventRecheck.class, recheck), none(), none());
 
         SecurityPlaneAgent.QueuedEventRecheck wired = (SecurityPlaneAgent.QueuedEventRecheck)
                 ReflectionTestUtils.getField(agent, "queuedEventRecheck");
@@ -145,7 +145,7 @@ class DecisionFlowWiringTest {
         SecurityPlaneAgent agent = new CoreAutonomousAutoConfiguration().securityPlaneAgent(
                 mock(SecurityMonitoringService.class), mock(SecurityContextDataStore.class), mock(CentralAuditFacade.class),
                 mock(SecurityEventProcessor.class), new SecurityPlaneProperties(), Runnable::run, none(),
-                mock(ZeroTrustActionRepository.class), none(), none(), gates);
+                mock(ZeroTrustActionRepository.class), none(), none(), gates, none());
         agent.initialize();
         return agent;
     }

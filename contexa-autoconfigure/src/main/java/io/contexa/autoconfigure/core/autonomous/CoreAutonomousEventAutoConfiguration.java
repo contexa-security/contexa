@@ -39,6 +39,7 @@ import io.contexa.contexacore.autonomous.handler.strategy.ColdPathStrategy;
 import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
 import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.processor.PromptShadowRunner;
+import io.contexa.contexacore.autonomous.repository.ShadowDecisionMemory;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
@@ -207,9 +208,10 @@ public class CoreAutonomousEventAutoConfiguration {
             SecurityEventPublisher securityEventPublisher,
             ZeroTrustActionRepository actionRepository,
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
-        ZeroTrustEventListener listener =
-                new ZeroTrustEventListener(securityEventPublisher, actionRepository, securityZeroTrustProperties);
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
+            ObjectProvider<ShadowDecisionMemory> shadowMemory) {
+        ZeroTrustEventListener listener = new ZeroTrustEventListener(securityEventPublisher,
+                ShadowDecisionMemory.answersOf(shadowMemory.getIfAvailable(), actionRepository), securityZeroTrustProperties);
         listener.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
         return listener;
     }
@@ -249,12 +251,15 @@ public class CoreAutonomousEventAutoConfiguration {
             ApplicationEventPublisher applicationEventPublisher,
             TieredStrategyProperties tieredStrategyProperties,
             SecurityContextDataStore securityContextDataStore,
-            SecurityPlaneProperties securityPlaneProperties) {
-        return new ZeroTrustEventPublisher(
+            SecurityPlaneProperties securityPlaneProperties,
+            ObjectProvider<ShadowDecisionMemory> shadowMemory) {
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(
                 applicationEventPublisher,
                 tieredStrategyProperties,
                 securityContextDataStore,
                 securityPlaneProperties);
+        shadowMemory.ifAvailable(memory -> publisher.setDecisionMemory(memory.answers()));
+        return publisher;
     }
 
     @Bean(name = "contexaLlmAnalysisEventListener")
@@ -418,7 +423,8 @@ public class CoreAutonomousEventAutoConfiguration {
             ObjectProvider<AgentContainmentService> agentContainment,
             ObjectProvider<AgentScopeService> agentScopes,
             ObjectProvider<RiskSignalEmitter> riskSignalEmitters,
-            TieredStrategyProperties tieredStrategyProperties) {
+            TieredStrategyProperties tieredStrategyProperties,
+            ObjectProvider<ShadowDecisionMemory> shadowMemory) {
         SecurityDecisionEnforcementHandler handler = new SecurityDecisionEnforcementHandler(
                 actionRepository,
                 contexaSecurityLearningService,
@@ -429,6 +435,8 @@ public class CoreAutonomousEventAutoConfiguration {
                 aiSecurityDecisionObservationWriterProvider::getIfAvailable,
                 securityContextDataStore,
                 contextObservationRecorderProvider.getIfAvailable());
+        // SHADOW decides as ENFORCE does and applies nothing: what it decided is kept where only the counting reads it.
+        shadowMemory.ifAvailable(memory -> handler.setShadowMemory(memory.remembers()));
         handler.setVerificationLearningService(verificationLearningService.getIfAvailable());
         handler.setLearningPromotionService(learningPromotionService.getIfAvailable());
         handler.setDeletedAccountWriteFence(deletedAccountWriteFence.getIfAvailable());

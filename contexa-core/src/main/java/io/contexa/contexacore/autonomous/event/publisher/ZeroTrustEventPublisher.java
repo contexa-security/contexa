@@ -101,6 +101,13 @@ public class ZeroTrustEventPublisher {
     @Autowired(required = false)
     private ZeroTrustActionRepository actionRedisRepository;
 
+    /** The repository that tells which decision counts: the memory of SHADOW while decisions are not enforced. */
+    private ZeroTrustActionRepository decisionMemory;
+
+    public void setDecisionMemory(ZeroTrustActionRepository decisionMemory) {
+        this.decisionMemory = decisionMemory;
+    }
+
     @Autowired(required = false)
     private SecurityZeroTrustProperties securityZeroTrustProperties;
 
@@ -401,8 +408,9 @@ public class ZeroTrustEventPublisher {
             // docs/agent A5-1: the decision in force for the request's subject, classified as the event records it.
             ZeroTrustSubject subject = ZeroTrustSubject.ofFacts(effectiveUserId,
                     CanonicalExecutionEventMetadataSupport.enrich(consoleFact(payload)));
-            ZeroTrustAction currentAction = subject != null ? subject.currentAction(actionRedisRepository)
-                    : actionRedisRepository.getCurrentAction(effectiveUserId);
+            ZeroTrustActionRepository counting = decisionMemory != null ? decisionMemory : actionRedisRepository;
+            ZeroTrustAction currentAction = subject != null ? subject.currentAction(counting)
+                    : counting.getCurrentAction(effectiveUserId);
             if (currentAction != null) {
                 payload.put("action", currentAction.name());
             }
