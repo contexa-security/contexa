@@ -814,6 +814,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Changed
 
+- **The action in force of a user is read in one script instead of three round trips.** A protected request asks for it seven times,
+  and each ask read the BLOCK flag, the analysis and the held CHALLENGE one after the other, about twenty of the thirty or so
+  commands a request waits for on its own thread. One script on the shared connection reads the three; what is decided from them
+  is unchanged, an analysis in an earlier form and a store that refuses scripts are read the old way, and a store that does not answer
+  keeps the restriction read last in force. A quiet server answers a protected call in 26-29 ms instead of 34 ms.
+- **The prompt token estimate weighs each character once, and an ASCII character without a script lookup.** A flight recording of
+  1,000 users signing in at once put 27% of all CPU samples of the server in the weight of a character: each looked its script up four
+  times, and the system and user prompt were counted again as one text. The numbers are the same (a test keeps the plain count and
+  compares); the estimate is observation only.
 - **A request that repeats an analysis already in line takes no second place in the line.** A request answered by the
   decision that waits ahead of it costs that decision and no turn of its own (PR-82), yet each took a place, up to eight for a
   user, and a burst of new users filled the line (3,276 places at 1 GB) with requests that were then skipped, so that the first
