@@ -40,6 +40,7 @@ import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -57,6 +58,7 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -186,6 +188,42 @@ class LoginPolicyServiceAddressThrottleTest {
         when(addresses.findByIpAddress(ADDRESS)).thenThrow(new DataAccessResourceFailureException("database down"));
 
         assertThatCode(() -> service.checkSignInAddress("admin")).doesNotThrowAnyException();
+    }
+
+    /**
+     * Two failures from an address nobody has failed from yet, at the same moment: both miss the row, both insert, one loses
+     * on the unique key. That loss is no failure of the sign-in and must not reach it: the loser counts its failure with the
+     * increment that follows, as the one that won does.
+     */
+    @Test
+    @DisplayName("the insert that loses the race for a new address is counted again and fails nothing")
+    void theInsertThatLosesTheRaceIsCountedAgain() {
+        when(addresses.incrementFailedAttempts(eq(ADDRESS), any(), anyString())).thenReturn(0, 1);
+        doThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint ctxa_idx_login_attempt_ip_address"))
+                .when(upserter).insertIfAbsent(eq(ADDRESS), any(), anyString());
+        // the row is missing when the failure looks, and there once the other server's insert has won
+        when(addresses.findByIpAddress(ADDRESS)).thenReturn(Optional.empty(), Optional.of(row(1, null)));
+        when(users.incrementFailedAttempts("nobody")).thenReturn(0);
+
+        assertThatCode(() -> service.onLoginFailure("nobody", ADDRESS, "BadCredentialsException", "EVENT")).doesNotThrowAnyException();
+        LoginPolicyService.clearRequestState();
+
+        verify(addresses, times(2)).incrementFailedAttempts(eq(ADDRESS), any(), anyString());
+        verify(addresses, never()).blockIp(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("a row that is there already is not inserted again")
+    void aRowThatIsThereIsNotInsertedAgain() {
+        when(addresses.incrementFailedAttempts(eq(ADDRESS), any(), anyString())).thenReturn(0, 1);
+        when(addresses.findByIpAddress(ADDRESS)).thenReturn(Optional.of(row(1, null)));
+        when(users.incrementFailedAttempts("nobody")).thenReturn(0);
+
+        service.onLoginFailure("nobody", ADDRESS, "BadCredentialsException", "EVENT");
+        LoginPolicyService.clearRequestState();
+
+        verify(upserter, never()).insertIfAbsent(anyString(), any(), anyString());
+        verify(addresses, times(2)).incrementFailedAttempts(eq(ADDRESS), any(), anyString());
     }
 
     @Test

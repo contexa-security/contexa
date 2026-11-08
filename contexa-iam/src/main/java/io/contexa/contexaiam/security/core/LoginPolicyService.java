@@ -29,6 +29,7 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -267,6 +268,39 @@ public class LoginPolicyService implements LoginPolicyHandler {
     }
 
     /** IP-dimension throttling: rolling window + threshold lock. */
+    /** How many locks stand for the addresses: an address takes the one its hash names, so two addresses may share one. */
+    private static final int NEW_ADDRESS_LOCKS = 64;
+    private final Object[] newAddressLocks = newLocks();
+
+    private static Object[] newLocks() {
+        Object[] locks = new Object[NEW_ADDRESS_LOCKS];
+        for (int i = 0; i < locks.length; i++) {
+            locks[i] = new Object();
+        }
+        return locks;
+    }
+
+    /**
+     * The first failure of an address inserts its row. Failures of one new address that come at once (a company behind one
+     * address, a burst of sign-ins) took turns only on the unique key: all missed the row, all inserted, and the database
+     * logged a failed statement for every one that lost. Here they take turns before the insert and the later ones see the row
+     * the first made. The lock is held until that insert has committed (the upserter commits before it returns). Servers that
+     * meet a new address together still lose on the key, and that loss is taken as "the row exists".
+     */
+    private void insertNewAddress(String ip, LocalDateTime now, String tag) {
+        synchronized (newAddressLocks[Math.floorMod(ip.hashCode(), NEW_ADDRESS_LOCKS)]) {
+            if (loginAttemptIpRepository.findByIpAddress(ip).isPresent()) {
+                return;
+            }
+            try {
+                loginAttemptIpUpserter.insertIfAbsent(ip, now, tag);
+            } catch (DataIntegrityViolationException lostTheRace) {
+                // Another server inserted the row first: a row exists, which is what is wanted.
+                log.debug("[login-policy] the insert of a new address lost the race: ip={}", ip);
+            }
+        }
+    }
+
     private void applyIpThrottle(String ip, String username, String failureType) {
         if (ip == null || ip.isBlank()) return;
         PasswordPolicy policy = passwordPolicyService.getCurrentPolicy();
@@ -290,7 +324,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
             // First-seen IP — insert via a separate REQUIRES_NEW transaction so a
             // duplicate-key collision does not poison the outer transaction (which
             // already incremented the per-username counter).
-            loginAttemptIpUpserter.insertIfAbsent(ip, now, tag);
+            insertNewAddress(ip, now, tag);
             // Re-attempt the increment: regardless of who won the insert race, a row now exists.
             loginAttemptIpRepository.incrementFailedAttempts(ip, now, tag);
         }
