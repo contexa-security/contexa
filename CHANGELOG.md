@@ -470,6 +470,8 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **Failed sign-ins from one new address, at the same moment, no longer fail a database statement each.** The first failure of an address inserts its row in the table of login attempts per address; failures that came together all found the row missing and all inserted, and every one that lost the unique key left a failed statement in the database log and an `UnexpectedRollbackException` on the commit of the caller (seen with 1,150 sign-ins in seven seconds in the full mode). The failures of one address now take turns before the insert (a lock chosen by the address) and the later ones see the row the first made; the loss of a race between servers is still taken as "the row exists" and the failure is counted again. The upserter no longer swallows the key violation inside its own transaction, which had left that transaction rollback-only.
+
 - **A call that timed out in the middle of the line at a model server stopped every call behind it.** `ModelServerGate` kept its
   waiters in a line and took a leaver out by equality; waiters of the same kind, model and line are equal, so a waiter in the
   middle that timed out or was interrupted took out the first one instead and left its own entry at the head with no thread
