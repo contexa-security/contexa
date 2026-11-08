@@ -166,13 +166,24 @@ class SecurityDecisionEnforcementHandlerShadowMemoryTest {
     }
 
     @Test
-    @DisplayName("a decision whose observation could not be recorded is not remembered and does not fail")
-    void aDecisionWithoutItsObservationIsNotRemembered() {
+    @DisplayName("a decision whose observation could not be recorded is kept for the retry and suspends new analysis, in the memory of SHADOW")
+    void aDecisionWithoutItsObservationSuspendsAnalysisInTheMemory() {
         when(writer.recordDecision(any(), any(), any())).thenReturn(null);
 
-        assertThat(handler.handle(contextWith(event("request-unaudited"), ZeroTrustAction.ALLOW))).isTrue();
+        assertThat(handler.handle(contextWith(event("request-unaudited"), ZeroTrustAction.ALLOW))).isFalse();
 
         verify(shadowMemory, never()).writeFinalAction(anyString(), any(ZeroTrustAction.class), anyMap());
+        verify(shadowMemory).markDecisionAuditPending(eq(USER), any(), any());
+        verify(enforcedStore, never()).markDecisionAuditPending(anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("the decision that is recorded again clears the suspension in the memory of SHADOW")
+    void aRecordedDecisionClearsTheSuspension() {
+        handler.handle(contextWith(event("request-recorded"), ZeroTrustAction.ALLOW));
+
+        verify(shadowMemory).clearDecisionAuditPending(eq(USER), any());
+        verify(enforcedStore, never()).clearDecisionAuditPending(anyString(), any());
     }
 
     @Test

@@ -406,14 +406,14 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             additionalFields.put("shadowReason", resolveSuppressionReason(event));
             log.info("[SecurityDecisionEnforcementHandler][SHADOW] Observation-only: decision remembered for SHADOW only, nothing applied. userId={}, ztAction={}, proposedAction={}",
                     userId, ztAction, result.getProposedAction());
-            return rememberInShadow(userId, event, ztAction, additionalFields, technicalChallenge, observationId);
+            return rememberInShadow(userId, event, result, ztAction, additionalFields, technicalChallenge, observationId, contextBindingHash);
         }
 
         // The persisted observation is both the audit record of the decision and the idempotency
         // record that lets a retry restore it without another analysis, so no runtime action is
         // applied without it.
         if (observationId == null || observationId.isBlank()) {
-            retainUnauditedDecision(userId, event, result, ztAction, contextBindingHash);
+            retainUnauditedDecision(actionRedisRepository, userId, event, result, ztAction, contextBindingHash);
             throw new UnauditedFinalDecisionException();
         }
         additionalFields.put("observationId", observationId);
@@ -429,7 +429,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         if (written == null || written == ZeroTrustActionRepository.FinalActionWrite.FAILED) {
             throw new IllegalStateException("Runtime action did not converge with persisted final observation");
         }
-        releaseDecisionAuditPending(userId, contextBindingHash, event);
+        releaseDecisionAuditPending(actionRedisRepository, userId, contextBindingHash, event);
         if (written == ZeroTrustActionRepository.FinalActionWrite.KEPT_STRICTER) {
             return Enforcement.KEPT_STRICTER;
         }
@@ -449,11 +449,20 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
      * No block, no narrowing of an agent's scope, no risk signal, no held request: what restricts the user is not done.
      * A failing memory does not fail a decision that applies nothing.
      */
-    private Enforcement rememberInShadow(String userId, SecurityEvent event, ZeroTrustAction ztAction,
-                                         Map<String, Object> fields, boolean technicalChallenge, String observationId) {
+    private Enforcement rememberInShadow(String userId, SecurityEvent event, ProcessingResult result, ZeroTrustAction ztAction,
+                                         Map<String, Object> fields, boolean technicalChallenge, String observationId,
+                                         String contextBindingHash) {
         if (shadowMemory == null || securityZeroTrustProperties == null || !securityZeroTrustProperties.allowsLlmAnalysis()
-                || discardsAsOfADeletedAccount(event) || observationId == null || observationId.isBlank()) {
+                || discardsAsOfADeletedAccount(event)) {
             return Enforcement.SHADOW;
+        }
+        if (observationId == null || observationId.isBlank()) {
+            // The store that records decisions refuses them. ENFORCE keeps the decision for the retry of the event and
+            // suspends new analysis of the actor's context for a while, or each request would ask the model again while
+            // nothing can be recorded; SHADOW does the same in its own memory, or a trial would cost several times more
+            // than ENFORCE exactly when the store is down.
+            retainUnauditedDecision(shadowMemory, userId, event, result, ztAction, contextBindingHash);
+            throw new UnauditedFinalDecisionException();
         }
         // The store takes a final decision bound to the observation that records it, the memory of SHADOW as the store of ENFORCE.
         fields.put("observationId", observationId);
@@ -468,6 +477,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                 log.warn("[SecurityDecisionEnforcementHandler][SHADOW] The memory of SHADOW did not take the decision: userId={}", userId);
                 return Enforcement.SHADOW;
             }
+            releaseDecisionAuditPending(shadowMemory, userId, contextBindingHash, event);
             if (written == ZeroTrustActionRepository.FinalActionWrite.KEPT_STRICTER) {
                 return Enforcement.SHADOW_KEPT_STRICTER;
             }
@@ -523,6 +533,8 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             if (remembered == null || remembered == ZeroTrustActionRepository.FinalActionWrite.FAILED) {
                 throw new IllegalStateException("Persisted final decision did not converge to the memory of SHADOW");
             }
+            releaseDecisionAuditPending(shadowMemory, userId,
+                    persisted.contextBindingHash() != null ? persisted.contextBindingHash() : resolveContextBindingHash(event), event);
             if (technicalChallenge && remembered == ZeroTrustActionRepository.FinalActionWrite.APPLIED) {
                 event.addMetadata(JUDGE_AGAIN, true);
             }
@@ -536,7 +548,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         if (technicalChallenge && written == ZeroTrustActionRepository.FinalActionWrite.APPLIED) {
             event.addMetadata(JUDGE_AGAIN, true);
         }
-        releaseDecisionAuditPending(userId,
+        releaseDecisionAuditPending(actionRedisRepository, userId,
                 persisted.contextBindingHash() != null ? persisted.contextBindingHash() : resolveContextBindingHash(event),
                 event);
         if (action == ZeroTrustAction.BLOCK) {
@@ -937,6 +949,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     }
 
     private void retainUnauditedDecision(
+            ZeroTrustActionRepository pendingStore,
             String userId,
             SecurityEvent event,
             ProcessingResult result,
@@ -948,7 +961,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         event.addMetadata(DECISION_AUDIT_PENDING_AT, System.currentTimeMillis());
         event.addMetadata(SecurityPlaneAgent.PROCESSING_FAILURE_REPORTED, true);
         try {
-            actionRedisRepository.markDecisionAuditPending(userId, contextBindingHash, cooldown);
+            pendingStore.markDecisionAuditPending(userId, contextBindingHash, cooldown);
         } catch (Exception ex) {
             log.error("[SecurityDecisionEnforcementHandler] Failed to mark decision audit pending: userId={}", userId, ex);
         }
@@ -962,13 +975,14 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
     }
 
-    private void releaseDecisionAuditPending(String userId, String contextBindingHash, SecurityEvent event) {
+    private void releaseDecisionAuditPending(ZeroTrustActionRepository pendingStore, String userId, String contextBindingHash,
+                                             SecurityEvent event) {
         if (event != null && event.getMetadata() != null && event.getMetadata().containsKey(AUDIT_PENDING_PROCESSING_RESULT)) {
             event.getMetadata().remove(AUDIT_PENDING_PROCESSING_RESULT);
             event.addMetadata(DECISION_AUDIT_PENDING, false);
         }
         try {
-            actionRedisRepository.clearDecisionAuditPending(userId, contextBindingHash);
+            pendingStore.clearDecisionAuditPending(userId, contextBindingHash);
         } catch (Exception ex) {
             log.error("[SecurityDecisionEnforcementHandler] Failed to clear decision audit pending marker: userId={}", userId, ex);
         }
