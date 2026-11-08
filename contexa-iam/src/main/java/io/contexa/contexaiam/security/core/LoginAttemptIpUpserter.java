@@ -19,7 +19,6 @@ import io.contexa.contexacommon.entity.LoginAttemptIp;
 import io.contexa.contexacommon.repository.LoginAttemptIpRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,24 +49,24 @@ public class LoginAttemptIpUpserter {
     private final LoginAttemptIpRepository loginAttemptIpRepository;
 
     /**
-     * Inserts a first-seen per-IP row, swallowing duplicate-key collisions. Always returns
-     * normally; the caller is expected to follow up with an atomic increment, which will
-     * succeed regardless of whether this insert won the race or lost it. That increment counts
-     * the attempt, so the row starts at zero.
+     * Inserts a first-seen per-IP row. A duplicate-key collision is reported by the exception, and the
+     * caller, which stands outside this bean's transaction, takes it as "someone else inserted first" and
+     * follows up with an atomic increment either way. That increment counts the attempt, so the row starts
+     * at zero.
+     *
+     * <p>The collision is not swallowed here: the persistence exception has already marked this
+     * {@code REQUIRES_NEW} transaction rollback-only, so a method that returned normally would fail its own
+     * commit with an {@code UnexpectedRollbackException}, and that one reached the sign-in. Left to leave the
+     * method, the exception rolls this transaction back cleanly and touches nothing of the caller's.</p>
      */
     @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void insertIfAbsent(String ip, LocalDateTime now, String username) {
-        try {
-            loginAttemptIpRepository.save(LoginAttemptIp.builder()
-                    .ipAddress(ip)
-                    .failedAttempts(0)
-                    .windowStartAt(now)
-                    .lastFailureAt(now)
-                    .lastUsername(username == null ? "" : username)
-                    .build());
-        } catch (DataIntegrityViolationException dup) {
-            // A concurrent transaction inserted first; the caller's follow-up increment will succeed.
-            log.error("[login-policy] concurrent ip insert lost race ip={} username={}", ip, username);
-        }
+        loginAttemptIpRepository.save(LoginAttemptIp.builder()
+                .ipAddress(ip)
+                .failedAttempts(0)
+                .windowStartAt(now)
+                .lastFailureAt(now)
+                .lastUsername(username == null ? "" : username)
+                .build());
     }
 }

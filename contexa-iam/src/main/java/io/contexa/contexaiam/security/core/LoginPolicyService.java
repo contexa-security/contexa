@@ -29,6 +29,7 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -290,7 +291,12 @@ public class LoginPolicyService implements LoginPolicyHandler {
             // First-seen IP — insert via a separate REQUIRES_NEW transaction so a
             // duplicate-key collision does not poison the outer transaction (which
             // already incremented the per-username counter).
-            loginAttemptIpUpserter.insertIfAbsent(ip, now, tag);
+            try {
+                loginAttemptIpUpserter.insertIfAbsent(ip, now, tag);
+            } catch (DataIntegrityViolationException lostTheRace) {
+                // Another failure from the same new address inserted the row first: a row exists, which is what is wanted.
+                log.debug("[login-policy] the insert of a new address lost the race: ip={}", ip);
+            }
             // Re-attempt the increment: regardless of who won the insert race, a row now exists.
             loginAttemptIpRepository.incrementFailedAttempts(ip, now, tag);
         }
