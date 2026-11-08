@@ -34,12 +34,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
-import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SessionCallback;
@@ -369,18 +367,17 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            OneTrip oneTrip = oneTrip(userId, contextBindingHash);
-            if (blockedFlagStands(userId, oneTrip)) {
+            if (blockedFlagStands(userId)) {
                 return read(userId, StoredAction.of(ZeroTrustAction.BLOCK));
             }
-            return heldBack(userId, contextBindingHash, read(userId, storedAction(userId, contextBindingHash, oneTrip)), oneTrip);
+            return heldBack(userId, contextBindingHash, read(userId, storedAction(userId, contextBindingHash)));
         } catch (Exception e) {
             return inForceWhileUnreadable(userId, contextBindingHash, e);
         }
     }
 
-    private StoredAction storedAction(String userId, String contextBindingHash, OneTrip oneTrip) {
-        Map<Object, Object> analysis = settledAnalysis(userId, oneTrip);
+    private StoredAction storedAction(String userId, String contextBindingHash) {
+        Map<Object, Object> analysis = settledAnalysis(userId);
         if (analysis.isEmpty()) {
             return StoredAction.of(unresolvedEscalationOrPending(userId));
         }
@@ -421,15 +418,10 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
      * would be less strict is looked at, so what is stricter than the CHALLENGE costs nothing.
      */
     private ZeroTrustAction heldBack(String userId, String contextBindingHash, ZeroTrustAction action) {
-        return heldBack(userId, contextBindingHash, action, null);
-    }
-
-    private ZeroTrustAction heldBack(String userId, String contextBindingHash, ZeroTrustAction action, OneTrip oneTrip) {
         if (!ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.CHALLENGE, action)) {
             return action;
         }
-        List<Object> held = oneTrip != null ? oneTrip.held() : stringRedisTemplate.opsForHash().multiGet(
-                ZeroTrustRedisKeys.autonomousChallengeHold(userId),
+        List<Object> held = stringRedisTemplate.opsForHash().multiGet(ZeroTrustRedisKeys.autonomousChallengeHold(userId),
                 List.of(HOLD_SINCE_FIELD, contextBindingHash != null ? contextBindingHash : HOLD_SINCE_FIELD));
         if (held.get(0) == null) {
             return action;
@@ -482,13 +474,6 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     }
 
     /** The user's BLOCK flag, or the one an earlier version stored under the name as typed. */
-    private boolean blockedFlagStands(String userId, OneTrip oneTrip) {
-        if (oneTrip != null) {
-            return "true".equals(oneTrip.blocked()) || "true".equals(oneTrip.blockedAsTyped());
-        }
-        return blockedFlagStands(userId);
-    }
-
     private boolean blockedFlagStands(String userId) {
         String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
         if ("true".equals(stringRedisTemplate.opsForValue().get(blockKey))) {
@@ -527,11 +512,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
     /** The user's analysis for a reader: an ESCALATE in it ends first, when a replacement is set. */
     private Map<Object, Object> settledAnalysis(String userId) {
-        return settledAnalysis(userId, null);
-    }
-
-    private Map<Object, Object> settledAnalysis(String userId, OneTrip oneTrip) {
-        Map<Object, Object> analysis = oneTrip != null ? oneTrip.analysis() : readAnalysis(userId);
+        Map<Object, Object> analysis = readAnalysis(userId);
         ZeroTrustAction replacement = escalateReplacement;
         Object action = analysis.get("action");
         if (replacement == null || action == null
@@ -1262,76 +1243,6 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         } catch (NumberFormatException e) {
             return null;
         }
-    }
-
-    /**
-     * What a call of {@code getCurrentAction} reads first, in the order it reads it: the BLOCK flag (and the flag under the name
-     * as typed, when that is another key), the analysis hash and the CHALLENGE held for the other sessions. They were three
-     * round trips to Redis one after the other and a protected request makes the call seven times, and a round trip is most
-     * of what a request waits for, so they are asked for in one. What each answers is what its own read answers.
-     */
-    private record OneTrip(String blocked, String blockedAsTyped, Map<Object, Object> analysis, List<Object> held) {
-    }
-
-    /** Whether {@code getCurrentAction} reads in one trip; off only in a test that compares it with the reads one by one. */
-    private volatile boolean readInOneTrip = true;
-    private final AtomicLong readsInOneTrip = new AtomicLong();
-
-    void useOneTripReads(boolean on) {
-        this.readInOneTrip = on;
-    }
-
-    long oneTripReads() {
-        return readsInOneTrip.get();
-    }
-
-    /**
-     * The three reads in one pipeline, or null when they are to be made one by one: an analysis in a form the template cannot
-     * read (an earlier version wrote one) is read by the old way, which knows that form. A store that does not answer fails
-     * here as it would at the first of the reads, and the caller handles it the same.
-     */
-    @SuppressWarnings("unchecked")
-    private OneTrip oneTrip(String userId, String contextBindingHash) {
-        if (!readInOneTrip) {
-            return null;
-        }
-        String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
-        String typedKey = ZeroTrustRedisKeys.userBlockedAsTyped(userId);
-        boolean typedDiffers = !typedKey.equals(blockKey);
-        RedisSerializer<Object> keys = (RedisSerializer<Object>) redisTemplate.getKeySerializer();
-        RedisSerializer<Object> stringKeys = (RedisSerializer<Object>) stringRedisTemplate.getKeySerializer();
-        RedisSerializer<Object> holdFields = (RedisSerializer<Object>) stringRedisTemplate.getHashKeySerializer();
-        if (keys == null || stringKeys == null || holdFields == null) {
-            return null;
-        }
-        byte[] rawBlock = stringKeys.serialize(blockKey);
-        byte[] rawTyped = typedDiffers ? stringKeys.serialize(typedKey) : null;
-        byte[] rawAnalysis = keys.serialize(ZeroTrustRedisKeys.autonomousActionAnalysis(userId));
-        byte[] rawHold = stringKeys.serialize(ZeroTrustRedisKeys.autonomousChallengeHold(userId));
-        byte[] rawSince = holdFields.serialize(HOLD_SINCE_FIELD);
-        byte[] rawContext = holdFields.serialize(contextBindingHash != null ? contextBindingHash : HOLD_SINCE_FIELD);
-        List<Object> results;
-        try {
-            results = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-                connection.stringCommands().get(rawBlock);
-                if (rawTyped != null) {
-                    connection.stringCommands().get(rawTyped);
-                }
-                connection.hashCommands().hGetAll(rawAnalysis);
-                connection.hashCommands().hMGet(rawHold, rawSince, rawContext);
-                return null;
-            }, RedisSerializer.string());
-        } catch (SerializationException unreadableForm) {
-            return null;
-        }
-        int expected = typedDiffers ? 4 : 3;
-        if (results == null || results.size() != expected
-                || !(results.get(expected - 2) instanceof Map<?, ?>) || !(results.get(expected - 1) instanceof List<?>)) {
-            return null;
-        }
-        readsInOneTrip.incrementAndGet();
-        return new OneTrip((String) results.get(0), typedDiffers ? (String) results.get(1) : null,
-                (Map<Object, Object>) results.get(expected - 2), (List<Object>) results.get(expected - 1));
     }
 
     private Map<Object, Object> readAnalysis(String userId) {
