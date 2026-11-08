@@ -191,6 +191,7 @@ import io.contexa.contexacore.verification.evidence.HmacEvidenceSigner;
 import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 import io.contexa.contexacore.autonomous.agent.AgentDecisionFlights;
 import io.contexa.contexacore.autonomous.service.QueuedAgentEventRecheck;
+import io.contexa.contexacore.autonomous.service.SessionRecordingLine;
 
 @AutoConfiguration
 @AutoConfigureAfter(name = {
@@ -926,11 +927,25 @@ public class CoreAutonomousAutoConfiguration {
             ContextObservationRecorder contexaContextObservationRecorder,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ZeroTrustEventPublisher contexaZeroTrustEventPublisher,
-            ObjectProvider<VerificationLearningService> verificationLearningService) {
+            ObjectProvider<VerificationLearningService> verificationLearningService,
+            SessionRecordingLine contexaSessionRecordingLine) {
         UnanalysedRequestRecorder recorder = new UnanalysedRequestRecorder(contexaSessionNarrativeCollector,
-                contexaContextObservationRecorder, securityZeroTrustProperties, contexaZeroTrustEventPublisher);
+                contexaContextObservationRecorder, securityZeroTrustProperties, contexaZeroTrustEventPublisher,
+                contexaSessionRecordingLine);
         recorder.setVerificationLearningService(verificationLearningService.getIfAvailable());
         return recorder;
+    }
+
+    /**
+     * Where the session records of the requests answered by the decision in force are made, off the thread of the
+     * request: a request has been answered, and the record only feeds the decisions that come later. Eight threads, one
+     * session always on the same one, given back after a minute without a record; a line that is full is no lost record,
+     * the thread that asks makes it.
+     */
+    @Bean(name = "contexaSessionRecordingLine")
+    @ConditionalOnMissingBean
+    public SessionRecordingLine sessionRecordingLine() {
+        return new SessionRecordingLine(8, 1_000);
     }
 
     @Bean(name = "contexaSessionRecordsIdChangeListener")

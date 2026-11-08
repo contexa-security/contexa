@@ -46,16 +46,31 @@ public class UnanalysedRequestRecorder {
     private final ContextObservationRecorder recorder;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
+    private final SessionRecordingLine recordingLine;
     private VerificationLearningService verificationLearningService;
 
+    /** The records are made on the thread that asks for them. */
     public UnanalysedRequestRecorder(SessionNarrativeCollector sessionNarrativeCollector,
                                      ContextObservationRecorder recorder,
                                      @Nullable SecurityZeroTrustProperties securityZeroTrustProperties,
                                      @Nullable ZeroTrustEventPublisher zeroTrustEventPublisher) {
+        this(sessionNarrativeCollector, recorder, securityZeroTrustProperties, zeroTrustEventPublisher, null);
+    }
+
+    /**
+     * @param recordingLine where the records of the requests a thread of a request asks for are made, off that thread;
+     *                      null to make them on it
+     */
+    public UnanalysedRequestRecorder(SessionNarrativeCollector sessionNarrativeCollector,
+                                     ContextObservationRecorder recorder,
+                                     @Nullable SecurityZeroTrustProperties securityZeroTrustProperties,
+                                     @Nullable ZeroTrustEventPublisher zeroTrustEventPublisher,
+                                     @Nullable SessionRecordingLine recordingLine) {
         this.sessionNarrativeCollector = sessionNarrativeCollector;
         this.recorder = recorder;
         this.securityZeroTrustProperties = securityZeroTrustProperties;
         this.zeroTrustEventPublisher = zeroTrustEventPublisher;
+        this.recordingLine = recordingLine;
     }
 
     /**
@@ -90,13 +105,22 @@ public class UnanalysedRequestRecorder {
 
     /**
      * Records the event's request under the action applied to it. A pending action means no decision is in force: the
-     * request goes to analysis, which records it.
+     * request goes to analysis, which records it. The request has been answered by the decision in force and the record
+     * only feeds the decisions that come later, so with a recording line it is made off the thread of the request, after
+     * the records of its session that were asked for before it.
      */
     public void record(ZeroTrustSpringEvent event, ZeroTrustAction action) {
         if (event == null || action == null || action == ZeroTrustAction.PENDING_ANALYSIS) {
             return;
         }
-        record(ZeroTrustSecurityEventConverter.convert(event), action, enforced(event));
+        SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
+        boolean enforced = enforced(event);
+        if (recordingLine == null) {
+            record(securityEvent, action, enforced);
+            return;
+        }
+        String session = securityEvent.getSessionId() != null ? securityEvent.getSessionId() : securityEvent.getUserId();
+        recordingLine.run(session, () -> record(securityEvent, action, enforced));
     }
 
     /**
