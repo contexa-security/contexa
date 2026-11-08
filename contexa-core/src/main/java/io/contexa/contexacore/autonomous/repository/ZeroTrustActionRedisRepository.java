@@ -1335,10 +1335,23 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         if (typedDiffers) {
             keys.add(typedKey);
         }
-        List<Object> result = stringRedisTemplate.execute(CURRENT_STATE_SCRIPT, RedisSerializer.byteArray(),
-                RAW_REPLY, keys, (Object[]) new byte[][] {
-                        holdFields.serialize(HOLD_SINCE_FIELD),
-                        holdFields.serialize(contextBindingHash != null ? contextBindingHash : HOLD_SINCE_FIELD)});
+        List<Object> result;
+        try {
+            result = stringRedisTemplate.execute(CURRENT_STATE_SCRIPT, RedisSerializer.byteArray(),
+                    RAW_REPLY, keys, (Object[]) new byte[][] {
+                            holdFields.serialize(HOLD_SINCE_FIELD),
+                            holdFields.serialize(contextBindingHash != null ? contextBindingHash : HOLD_SINCE_FIELD)});
+        } catch (RuntimeException failure) {
+            if (StoreFailures.isStoreFailure(failure)) {
+                throw failure;
+            }
+            // A script the store refuses (keys that do not share a slot, a user not allowed to run scripts) is no reason to
+            // stop deciding: the reads go one by one from now on, which is how they were made before.
+            readInOneTrip = false;
+            log.error("[ZeroTrustActionRedisRepository] The store does not run the script that reads a user in one trip;"
+                    + " the reads are made one by one from now on", failure);
+            return null;
+        }
         if (result == null || result.size() != 4 || !(result.get(2) instanceof List<?> analysisFlat)
                 || !(result.get(3) instanceof List<?> heldRaw)) {
             return null;

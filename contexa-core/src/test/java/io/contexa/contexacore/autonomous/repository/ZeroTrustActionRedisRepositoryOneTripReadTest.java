@@ -25,10 +25,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.RedisSystemException;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.data.redis.serializer.RedisSerializer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -179,6 +182,30 @@ class ZeroTrustActionRedisRepositoryOneTripReadTest {
         assertThat(onItsOwn.getCurrentAction(user, "context-a")).as("one by one").isEqualTo(ZeroTrustAction.BLOCK);
         assertThat(onItsOwn.getCurrentAction("a-user-nothing-was-read-for", "context-a")).as("no restriction read: goes on undecided")
                 .isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+    }
+
+    @Test
+    @DisplayName("a script the store refuses switches the reads in one trip off, and the reads go one by one with the same answer")
+    void aScriptTheStoreRefuses() {
+        StringRedisTemplate refusing = new StringRedisTemplate(connectionFactory) {
+            @Override
+            public <T> T execute(RedisScript<T> script, RedisSerializer<?> argsSerializer, RedisSerializer<T> resultSerializer,
+                                 List<String> keys, Object... args) {
+                if (script.getScriptAsString().contains("HGETALL")) {
+                    throw new RedisSystemException("ERR CROSSSLOT Keys in request do not hash to the same slot",
+                            new IllegalStateException("CROSSSLOT"));
+                }
+                return super.execute(script, argsSerializer, resultSerializer, keys, args);
+            }
+        };
+        refusing.afterPropertiesSet();
+        ZeroTrustActionRedisRepository refused = new ZeroTrustActionRedisRepository(redisTemplate, refusing);
+        repository.setBlockedFlag(user);
+
+        assertThat(refused.getCurrentAction(user, "context-a")).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(refused.getCurrentAction(user, "context-a")).isEqualTo(ZeroTrustAction.BLOCK);
+
+        assertThat(refused.oneTripReads()).isZero();
     }
 
     @Test
