@@ -263,7 +263,22 @@ public final class ModelServerGate {
                 waitedMs);
     }
 
-    private record Waiter(CallKind kind, String model, boolean firstInLine) {
+    /**
+     * A call in line. Two waiters with the same kind, model and line are two calls: a class without an {@code equals},
+     * so that a waiter leaving the line ({@code remove}) takes out itself and never an equal one ahead of it, which left
+     * its own entry at the head with no thread behind it and kept every call behind it from going in.
+     */
+    private static final class Waiter {
+
+        private final CallKind kind;
+        private final String model;
+        private final boolean firstInLine;
+
+        private Waiter(CallKind kind, String model, boolean firstInLine) {
+            this.kind = kind;
+            this.model = model;
+            this.firstInLine = firstInLine;
+        }
     }
 
     /** A call that is in; closing it frees its slot. */

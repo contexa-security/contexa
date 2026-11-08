@@ -196,6 +196,83 @@ class ModelServerGateTest {
         assertThat(gate.running()).isZero();
     }
 
+    /**
+     * A waiter that leaves the line removes itself and no other: with three equal waiters in line, the one in the middle
+     * timing out must leave the first and the last in place, so that the first goes in when the slot is free. A line that
+     * dropped the first instead left the middle one's entry at its head, and nobody went in until the next timeout.
+     */
+    @Test
+    void aWaiterThatTimesOutInTheMiddleOfTheLineLeavesTheOnesAroundItInPlace() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 1, false, Duration.ZERO);
+        ModelServerGate.Permit held = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L);
+        List<String> order = new CopyOnWriteArrayList<>();
+        ExecutorService callers = Executors.newFixedThreadPool(3);
+        try {
+            Future<?> first = callers.submit(() -> enterAndRecord(gate, CallKind.CHAT, "qwen3:8b", order, "first"));
+            awaitWaiters(gate, 1);
+            Future<?> middle = callers.submit(() -> {
+                try (ModelServerGate.Permit ignored = gate.enter(CallKind.CHAT, "qwen3:8b", 150L)) {
+                    order.add("middle");
+                }
+                return null;
+            });
+            awaitWaiters(gate, 2);
+            Future<?> last = callers.submit(() -> enterAndRecord(gate, CallKind.CHAT, "qwen3:8b", order, "last"));
+            awaitWaiters(gate, 3);
+
+            assertThatThrownBy(() -> middle.get(5, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(ModelServerBusyException.class);
+            assertThat(gate.waiting()).isEqualTo(2);
+
+            held.close();
+            first.get(1, TimeUnit.SECONDS);
+            last.get(1, TimeUnit.SECONDS);
+        } finally {
+            callers.shutdownNow();
+        }
+
+        assertThat(order).containsExactly("first", "last");
+        assertThat(gate.running()).isZero();
+        assertThat(gate.waiting()).isZero();
+    }
+
+    /** The same for a waiter interrupted in the middle of the line. */
+    @Test
+    void aWaiterInterruptedInTheMiddleOfTheLineLeavesTheOnesAroundItInPlace() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 1, false, Duration.ZERO);
+        ModelServerGate.Permit held = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L);
+        List<String> order = new CopyOnWriteArrayList<>();
+        ExecutorService callers = Executors.newFixedThreadPool(2);
+        CountDownLatch interrupted = new CountDownLatch(1);
+        try {
+            Future<?> first = callers.submit(() -> enterAndRecord(gate, CallKind.CHAT, "qwen3:8b", order, "first"));
+            awaitWaiters(gate, 1);
+            Thread middle = new Thread(() -> {
+                try {
+                    gate.enter(CallKind.CHAT, "qwen3:8b", 10_000L).close();
+                } catch (InterruptedException expected) {
+                    interrupted.countDown();
+                }
+            });
+            middle.start();
+            awaitWaiters(gate, 2);
+            Future<?> last = callers.submit(() -> enterAndRecord(gate, CallKind.CHAT, "qwen3:8b", order, "last"));
+            awaitWaiters(gate, 3);
+
+            middle.interrupt();
+            assertThat(interrupted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(gate.waiting()).isEqualTo(2);
+
+            held.close();
+            first.get(1, TimeUnit.SECONDS);
+            last.get(1, TimeUnit.SECONDS);
+        } finally {
+            callers.shutdownNow();
+        }
+
+        assertThat(order).containsExactly("first", "last");
+    }
+
     @Test
     void anOverloadSignalKeepsTheServerClosedForAWhile() throws Exception {
         ModelServerGate gate = new ModelServerGate(LOCAL, 2, false, Duration.ofMillis(300));
