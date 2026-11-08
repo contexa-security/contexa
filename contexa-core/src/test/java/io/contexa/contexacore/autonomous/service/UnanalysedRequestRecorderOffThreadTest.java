@@ -38,6 +38,8 @@ class UnanalysedRequestRecorderOffThreadTest {
     private final List<String> recorded = new CopyOnWriteArrayList<>();
     private final List<String> threads = new CopyOnWriteArrayList<>();
     private final CountDownLatch release = new CountDownLatch(1);
+    private final CountDownLatch firstStarted = new CountDownLatch(1);
+    private final CountDownLatch askingStarted = new CountDownLatch(1);
     private SessionRecordingLine line;
 
     @AfterEach
@@ -51,6 +53,12 @@ class UnanalysedRequestRecorderOffThreadTest {
     private void collecting(boolean blocked) {
         doAnswer(call -> {
             SecurityEvent event = call.getArgument(0);
+            if ("r1".equals(event.getMetadata().get("requestId"))) {
+                firstStarted.countDown();
+            }
+            if ("asking".equals(Thread.currentThread().getName())) {
+                askingStarted.countDown();
+            }
             if (blocked) {
                 release.await();
             }
@@ -75,6 +83,15 @@ class UnanalysedRequestRecorderOffThreadTest {
                 .eventTimestamp(Instant.parse("2026-11-08T00:00:00Z"))
                 .payload(payload)
                 .build();
+    }
+
+    private static boolean awaited(CountDownLatch latch) {
+        try {
+            return latch.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     @Test
@@ -117,12 +134,14 @@ class UnanalysedRequestRecorderOffThreadTest {
         UnanalysedRequestRecorder unanalysed = new UnanalysedRequestRecorder(collector, recorder, null, null, line);
         // the first record holds the only thread of the line, the second fills its place
         unanalysed.record(event("session-1", "r1"), ZeroTrustAction.ALLOW);
-        Awaitility.await().until(() -> true);
+        assertThat(awaited(firstStarted)).isTrue();
         unanalysed.record(event("session-1", "r2"), ZeroTrustAction.ALLOW);
         Thread asking = new Thread(() -> unanalysed.record(event("session-1", "r3"), ZeroTrustAction.ALLOW), "asking");
         asking.start();
 
-        // r3 finds the line full and is made by the asking thread, which waits for the collector as the others do
+        // r3 finds the line full and is made by the asking thread, which waits for the collector as the others do;
+        // nothing is released before the asking thread is making it
+        assertThat(awaited(askingStarted)).isTrue();
         release.countDown();
         Awaitility.await().untilAsserted(() -> assertThat(recorded).containsExactlyInAnyOrder("r1", "r2", "r3"));
         assertThat(threads).contains("asking");

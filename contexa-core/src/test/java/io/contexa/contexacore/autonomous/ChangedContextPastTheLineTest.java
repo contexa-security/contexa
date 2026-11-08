@@ -64,10 +64,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * The line of analyses and the wait of a changed context, with the agent itself: a full line leaves events unanalysed, and
- * the request of a changed context, which is analysed before it is answered, keeps its own way to the model. With no room
- * there either it gets no verdict, and the rule of a request without one stands: a general resource goes on and a sensitive
- * one does not.
+ * The line of analyses and a request of a changed context, with the agent itself: a full line leaves events unanalysed,
+ * and the request of a changed context does not wait for a verdict (680d18171: a call is answered at once and the verdict
+ * applies from the next request), so a full line, or no room for its analysis, holds it back no more than any other. The
+ * rule of a request without a verdict stands: a general resource goes on, and a sensitive one waits a moment for an engine
+ * that is behind and is then refused.
  */
 @Timeout(value = 60, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
 class ChangedContextPastTheLineTest {
@@ -187,13 +188,13 @@ class ChangedContextPastTheLineTest {
     }
 
     @Test
-    @DisplayName("a full line leaves a changed context its way to the model, and the verdict answers it")
-    void aFullLineLeavesAChangedContextItsVerdict() {
+    @DisplayName("with the line full a changed context is not made to wait for a verdict")
+    void aFullLineDoesNotMakeAChangedContextWait() {
         theLineIsFull();
 
-        assertThat(gate(false).restriction()).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(gate(false)).isEqualTo(AsyncProtectableGate.PROCEED);
 
-        assertThat(asked).hasValue(1);
+        assertThat(asked).hasValue(0);
     }
 
     @Test
@@ -202,7 +203,7 @@ class ChangedContextPastTheLineTest {
         theLineIsFull();
         noRoom.set(true);
 
-        assertThat(gate(false)).isEqualTo(AsyncProtectableGate.PASS_AND_RECORD);
+        assertThat(gate(false)).isEqualTo(AsyncProtectableGate.PROCEED);
 
         assertThat(asked).hasValue(0);
     }
