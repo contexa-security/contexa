@@ -470,6 +470,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A repeated name or an empty element in the authorities of a header or a request attribute no longer loses the request's
+  bridge.** `HeaderAuthBridge` and `RequestAttributeAuthBridge` read the comma-separated authorities with
+  `Set.of(value.split(...))`, which throws on a repeated element: `ROLE_USER, ROLE_USER` and `ROLE_A,,,ROLE_B` raised an
+  `IllegalArgumentException`, and `BridgeResolutionFilter` then dropped every stamp of that request (the request itself went
+  on). A single empty element (`A,,B`) did not throw but became an authority named `""`. Each name is now read once, in the order
+  it came, with the spaces around it trimmed, and an empty element is skipped. These two readers are reached only when the
+  header or request-attribute bridge is turned on and the SecurityContext does not name the principal first, so a default
+  setup was not affected.
+
 - **An identical strategy request that is already running is refused, as the documentation says.** `AINativeProcessor` took the
   lock of a strategy under the node name as its owner, and the lock lets its own owner in again. The node name is
   `contexa.security.plane.agent.name`, `SecurityPlaneAgent-1` unless it is set, the same on every node, so the second identical

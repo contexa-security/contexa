@@ -18,7 +18,9 @@ package io.contexa.contexacommon.security.bridge;
 import io.contexa.contexacommon.domain.TruthValues;
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -83,11 +85,23 @@ public class HeaderAuthBridge implements AuthBridge {
         return value;
     }
 
+    /**
+     * The comma-separated names of a header, each once and in the order they came. A header the caller writes may repeat
+     * a name or leave an element empty ("A,,B"); neither may stop the request's bridge from being read, and an empty
+     * element is no authority.
+     */
     private Set<String> splitValues(String raw) {
         if (raw == null || raw.isBlank()) {
             return Set.of();
         }
-        return Set.of(raw.split("\\s*,\\s*"));
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (String value : raw.split(",")) {
+            String trimmed = value.trim();
+            if (!trimmed.isEmpty()) {
+                values.add(trimmed);
+            }
+        }
+        return Collections.unmodifiableSet(values);
     }
 
     private static BridgeProperties propertiesFor(BridgeProperties.Headers headers) {
