@@ -8,6 +8,23 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A call from a changed context waits for no verdict, and a sensitive resource is not let out to it before one.** A call
+  from another session, address or browser than the one the user's decision was reached for goes on while it is analysed,
+  as a protected call is meant to; the decision applies from the next request. What bounds the cost of this is the limit of
+  new contexts: a person may ask for six decisions of a new context in a minute (`contexa.security.zerotrust.analysis.new-context-limit.decisions`, 0 sets no limit),
+  and past them the call is refused with a CHALLENGE of its own and the model is not asked. A context takes one place for
+  one question, which is that context against the decision on record when it was asked: the calls of one context at once
+  take one place, and two contexts used turn about take a place at each switch, because a verdict that lands is another
+  decision. A call for a resource declared `SENSITIVE` from a changed context that has no decision yet is the case that
+  must not go on: a stolen session used from elsewhere is this call, and a verdict after the response comes after its
+  data. It is turned away at once with "analysing, come back in a few seconds" (503 and `Retry-After: 5`; a browser gets
+  the analysis page), no thread waits for the model, and the analysis of that context is started once however many calls
+  are turned away. The call after the verdict is answered by it: ALLOW lets it through, a BLOCK or a CHALLENGE stops it.
+  A general resource, a sensitive resource from the context on record, and a user with nothing on record are not held.
+  **Check:** a moved cookie asking for a sensitive resource gets 503 in well under a second with the model down or slow,
+  and 200 after an ALLOW for its context; the same cookie asking for a general resource is let through at once; a person
+  who switches between two browsers more than six times in a minute is challenged, and the model is asked no more.
+
 - **An OAuth2 token generator of your own no longer takes Contexa's token checks away.** The authorization server asks a
   token customizer only from the generator it builds itself, so an application that declared an `OAuth2TokenGenerator`
   bean issued its tokens without any of Contexa's checks, and without a word at the start: a suspended agent got its
