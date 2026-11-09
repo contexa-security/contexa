@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
@@ -56,6 +57,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -67,8 +69,8 @@ import static org.mockito.Mockito.when;
  * The line of analyses and a request of a changed context, with the agent itself: a full line leaves events unanalysed,
  * and the request of a changed context does not wait for a verdict (680d18171: a call is answered at once and the verdict
  * applies from the next request), so a full line, or no room for its analysis, holds it back no more than any other. The
- * rule of a request without a verdict stands: a general resource goes on, and a sensitive one waits a moment for an engine
- * that is behind and is then refused.
+ * rule of a request without a verdict stands: a general resource goes on, and a sensitive one is not let out before a
+ * verdict: from a changed context it is told to come back at once, and the analysis of its context is started.
  */
 @Timeout(value = 60, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
 class ChangedContextPastTheLineTest {
@@ -209,12 +211,13 @@ class ChangedContextPastTheLineTest {
     }
 
     @Test
-    @DisplayName("with the line full and no room for its analysis a sensitive resource does not go on")
+    @DisplayName("with the line full and no room for its analysis a sensitive resource does not go on: it is told to come back, and nothing waits")
     void noRoomEitherRefusesASensitiveResource() {
         theLineIsFull();
         noRoom.set(true);
 
-        assertThat(gate(true).restriction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThatThrownBy(() -> gate(true)).isInstanceOf(ZeroTrustAccessDeniedException.class)
+                .satisfies(refused -> assertThat(((ZeroTrustAccessDeniedException) refused).getBusyRetryAfterSeconds()).isPositive());
 
         assertThat(asked).hasValue(0);
     }

@@ -7,6 +7,7 @@ import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService.AsyncProtectableGate;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -23,9 +24,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -72,8 +77,15 @@ class ChangedContextLimitWithoutWaitTest {
     }
 
     private AsyncProtectableGate gate(String context) {
+        return gate(context, false);
+    }
+
+    private AsyncProtectableGate gate(String context, boolean sensitive) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("contextBindingHash", context);
+        if (sensitive) {
+            payload.put("resourceImportance", "SENSITIVE");
+        }
         request.set(payload);
         return service.asyncGate(invocation, alice);
     }
@@ -137,5 +149,53 @@ class ChangedContextLimitWithoutWaitTest {
         clock.advance(Duration.ofSeconds(70));
 
         assertThat(gate("context-later").restriction()).isNull();
+    }
+
+    @Test
+    @DisplayName("a sensitive resource from a changed context is not let out before a verdict: the answer is 'analysing, come back' and nothing waits")
+    void aSensitiveResourceFromAChangedContextWaitsForNoOneButIsNotLetOut() {
+        long began = System.nanoTime();
+
+        assertThatThrownBy(() -> gate("context-new-0", true))
+                .isInstanceOf(ZeroTrustAccessDeniedException.class)
+                .satisfies(refused -> assertThat(((ZeroTrustAccessDeniedException) refused).getBusyRetryAfterSeconds()).isPositive());
+
+        assertThat(Duration.ofNanos(System.nanoTime() - began)).as("no thread waits for the model").isLessThan(Duration.ofSeconds(2));
+        verify(publisher).publishMethodAuthorization(any(), any(), anyBoolean(), any(), eq(ZeroTrustEventPublisher.METHOD_NOT_RUN), any());
+    }
+
+    @Test
+    @DisplayName("the analysis of a changed context is started once, however many calls of it are turned away")
+    void theAnalysisIsStartedOncePerContext() {
+        for (int i = 0; i < 5; i++) {
+            assertThatThrownBy(() -> gate("context-new-0", true)).isInstanceOf(ZeroTrustAccessDeniedException.class);
+        }
+
+        verify(publisher, times(1)).publishMethodAuthorization(any(), any(), anyBoolean(), any(), eq(ZeroTrustEventPublisher.METHOD_NOT_RUN), any());
+    }
+
+    @Test
+    @DisplayName("once the context is decided ALLOW its calls to the sensitive resource go on, and a BLOCK stops them")
+    void aVerdictAnswersTheNextCall() {
+        assertThatThrownBy(() -> gate("context-new-0", true)).isInstanceOf(ZeroTrustAccessDeniedException.class);
+        repository.writeFinalAction(USER, ZeroTrustAction.ALLOW, Map.of("observationId", "observation-2", "processingGeneration", "2",
+                "contextBindingHash", "context-new-0"));
+
+        assertThat(gate("context-new-0", true).restriction()).isNull();
+    }
+
+    @Test
+    @DisplayName("a sensitive resource from the context on record, and a general resource from a changed context, go on as before")
+    void onlyTheSensitiveResourceOfAChangedContextIsHeld() {
+        assertThat(gate(HOME, true).restriction()).isNull();
+        assertThat(gate("context-new-1", false).restriction()).isNull();
+    }
+
+    @Test
+    @DisplayName("with nothing on record there is nothing to compare: the first call of a user goes on")
+    void withNothingOnRecordTheFirstCallGoesOn() {
+        repository.removeAllUserData(USER);
+
+        assertThat(gate("context-first", true).restriction()).isNull();
     }
 }

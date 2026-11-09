@@ -79,6 +79,13 @@ public class SynchronousProtectableDecisionService {
     private static final Duration CONTEXT_OF_THE_LIMIT_KEPT = Duration.ofMinutes(5);
     private static final int CONTEXTS_OF_THE_LIMIT_KEPT = 20_000;
     /**
+     * How long the analysis of a held context counts as started: the time the model may take, and a margin. A context
+     * still undecided after it is asked about again, as one whose analysis was lost.
+     */
+    private static final Duration CONTEXT_ASKED_ABOUT_KEPT = Duration.ofSeconds(90);
+    /** What a request turned away for its context is told: when the verdict is expected, a few seconds. */
+    private static final int CHANGED_CONTEXT_RETRY_AFTER_SECONDS = 5;
+    /**
      * Q-7: how long a verdict may still come while a store is down. The analysis runs on the application's own client,
      * which waits far longer than a request should, so the request stops waiting for it; a verdict that comes in this
      * time still answers, as a restriction the store did not take does.
@@ -104,6 +111,8 @@ public class SynchronousProtectableDecisionService {
     private ExpiringKeySpace<Boolean> unansweredContexts = unansweredContexts(Clock.systemUTC());
     /** The contexts that asked for a place in the limit of new contexts, and whether they found one. */
     private ExpiringKeySpace<Boolean> contextsOfTheLimit = contextsOfTheLimit(Clock.systemUTC());
+    /** The changed contexts whose analysis a held request has started: one for each, however many calls are turned away. */
+    private ExpiringKeySpace<Boolean> contextsAskedAbout = contextsAskedAbout(Clock.systemUTC());
     private NewContextDecisionLimit newContextDecisionLimit;
 
     public SynchronousProtectableDecisionService(
@@ -139,6 +148,11 @@ public class SynchronousProtectableDecisionService {
     void setClock(Clock clock) {
         this.unansweredContexts = unansweredContexts(clock);
         this.contextsOfTheLimit = contextsOfTheLimit(clock);
+        this.contextsAskedAbout = contextsAskedAbout(clock);
+    }
+
+    private static ExpiringKeySpace<Boolean> contextsAskedAbout(Clock clock) {
+        return ExpiringKeySpace.<Boolean>builder(clock).ttl(CONTEXT_ASKED_ABOUT_KEPT).bound(CONTEXTS_OF_THE_LIMIT_KEPT).build();
     }
 
     private static ExpiringKeySpace<Boolean> contextsOfTheLimit(Clock clock) {
@@ -521,8 +535,13 @@ public class SynchronousProtectableDecisionService {
             return AsyncProtectableGate.DECIDE_IN_PLACE;
         }
         if (action == ZeroTrustAction.PENDING_ANALYSIS && !agentRequest(event) && enforcing.getAsBoolean()) {
-            if (personRequest(event) && contextChanged(event, gateContext) && pastTheChangedContextLimit(event, gateContext)) {
-                return pastTheLimit(event, gateContext);
+            if (personRequest(event) && contextChanged(event, gateContext)) {
+                if (pastTheChangedContextLimit(event, gateContext)) {
+                    return pastTheLimit(event, gateContext);
+                }
+                if (AgentAllowReuse.sensitive(event.getPayload())) {
+                    throw sensitiveWaitsForItsContext(methodInvocation, authentication, event, gateContext);
+                }
             }
             if (AgentAllowReuse.sensitive(event.getPayload()) && securityPlaneAgent.isBehind()) {
                 return heldForItsVerdict(methodInvocation, authentication, event, gateContext);
@@ -548,6 +567,26 @@ public class SynchronousProtectableDecisionService {
             }
             return AgentAllowReuse.sensitive(event.getPayload());
         }
+    }
+
+    /**
+     * The answer to a request for a sensitive resource from a changed context that no decision stands for yet: it is not let
+     * out before a verdict, and no thread waits for it. A stolen session used from elsewhere is this request, and a
+     * verdict that comes after the response comes after its data (a response cut stops a stream that is still running,
+     * and not a record that was sent whole). The request is turned away with "come back in a few seconds" (503 and
+     * {@code Retry-After}); the analysis of its context is started once, as it would be for a request that goes on, and the
+     * call after the verdict is answered by it: ALLOW lets it through, a BLOCK or a CHALLENGE stops it. A resource the host
+     * did not declare sensitive is not held, and neither is a user with nothing on record, who has nothing to compare with.
+     */
+    private ZeroTrustAccessDeniedException sensitiveWaitsForItsContext(MethodInvocation methodInvocation,
+                                                                       Authentication authentication,
+                                                                       ZeroTrustSpringEvent event, String gateContext) {
+        String question = decisionKey(event, event.getUserId()) + '\u0000' + gateContext;
+        if (contextsAskedAbout.putIfAbsent(question, Boolean.TRUE)) {
+            zeroTrustEventPublisher.publishMethodAuthorization(methodInvocation, authentication, true, null,
+                    ZeroTrustEventPublisher.METHOD_NOT_RUN, null);
+        }
+        return ZeroTrustAccessDeniedException.analysisBusy(event.getResource(), CHANGED_CONTEXT_RETRY_AFTER_SECONDS);
     }
 
     /**
