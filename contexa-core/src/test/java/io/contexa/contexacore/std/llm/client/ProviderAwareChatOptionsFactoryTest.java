@@ -27,6 +27,8 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
+import org.springframework.ai.ollama.api.ThinkOption;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
 
@@ -42,6 +44,8 @@ class ProviderAwareChatOptionsFactoryTest {
             "contexa.llm.model-capabilities.openai.max-completion-token-patterns";
     private static final String DEFAULT_SAMPLING_PATTERNS_PROPERTY =
             "contexa.llm.model-capabilities.openai.default-sampling-only-patterns";
+    private static final String OLLAMA_DISABLE_THINKING_PATTERNS_PROPERTY =
+            "contexa.llm.model-capabilities.ollama.disable-thinking-patterns";
 
     @Test
     void buildRuntimeOptionsShouldUseConfiguredOpenAiCapabilities() {
@@ -688,6 +692,67 @@ class ProviderAwareChatOptionsFactoryTest {
         context.setTopP(0.5d);
         return ProviderAwareChatOptionsFactory.buildRuntimeOptions(context,
                 new StubChatModel(AnthropicChatOptions.builder().model(model).build()));
+    }
+
+    @Test
+    void buildRuntimeOptionsShouldTurnOffTheThinkingOfAnOllamaModelNamedByTheConfiguredPattern() {
+        ExecutionContext context = ollamaContext("qwen3:8b");
+        System.setProperty(OLLAMA_DISABLE_THINKING_PATTERNS_PROPERTY, "qwen3.*");
+        try {
+            ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, ollamaModel("qwen3:8b"));
+
+            // Spring AI's ThinkBoolean is a record with static ENABLED/DISABLED, not an enum: it used to throw
+            // "ThinkBoolean is not an enum class" and the call lost every runtime option.
+            assertThat(options).isInstanceOf(OllamaChatOptions.class);
+            OllamaChatOptions ollamaOptions = (OllamaChatOptions) options;
+            assertThat(ollamaOptions.getThinkOption()).isEqualTo(ThinkOption.ThinkBoolean.DISABLED);
+            assertThat(ollamaOptions.getModel()).isEqualTo("qwen3:8b");
+            assertThat(ollamaOptions.getNumPredict()).isEqualTo(2048);
+            assertThat(ollamaOptions.getTemperature()).isEqualTo(0.0d);
+        } finally {
+            System.clearProperty(OLLAMA_DISABLE_THINKING_PATTERNS_PROPERTY);
+        }
+    }
+
+    @Test
+    void buildRuntimeOptionsShouldTurnOffTheThinkingOfAnOllamaModelWhenTheCallAsksFor() {
+        ExecutionContext context = ollamaContext("qwen3:8b");
+        context.addMetadata("disableOllamaThinking", true);
+
+        ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, ollamaModel("qwen3:8b"));
+
+        assertThat(options).isInstanceOf(OllamaChatOptions.class);
+        assertThat(((OllamaChatOptions) options).getThinkOption()).isEqualTo(ThinkOption.ThinkBoolean.DISABLED);
+    }
+
+    @Test
+    void buildRuntimeOptionsShouldLeaveTheThinkingOfAnOllamaModelAloneWhenNoPatternNamesIt() {
+        ExecutionContext context = ollamaContext("llama3.1:8b");
+        System.setProperty(OLLAMA_DISABLE_THINKING_PATTERNS_PROPERTY, "qwen3.*");
+        try {
+            ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, ollamaModel("llama3.1:8b"));
+
+            assertThat(options).isInstanceOf(OllamaChatOptions.class);
+            OllamaChatOptions ollamaOptions = (OllamaChatOptions) options;
+            assertThat(ollamaOptions.getThinkOption()).isNull();
+            assertThat(ollamaOptions.getModel()).isEqualTo("llama3.1:8b");
+            assertThat(ollamaOptions.getNumPredict()).isEqualTo(2048);
+        } finally {
+            System.clearProperty(OLLAMA_DISABLE_THINKING_PATTERNS_PROPERTY);
+        }
+    }
+
+    private static ExecutionContext ollamaContext(String model) {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setMaxTokens(2048);
+        context.setTemperature(0.0d);
+        context.setPreferredModel(model);
+        context.addMetadata("selectedModelProvider", "ollama");
+        return context;
+    }
+
+    private static ChatModel ollamaModel(String model) {
+        return new StubChatModel(OllamaChatOptions.builder().model(model).build());
     }
 
     private static void configureOpenAiCapabilities(String modelName) {
