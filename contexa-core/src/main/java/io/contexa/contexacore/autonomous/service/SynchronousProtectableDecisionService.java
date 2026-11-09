@@ -110,7 +110,7 @@ public class SynchronousProtectableDecisionService {
     private final Map<String, VerdictUnderWay> changedContextVerdicts = new ConcurrentHashMap<>();
     private ExpiringKeySpace<Boolean> unansweredContexts = unansweredContexts(Clock.systemUTC());
     /** The contexts that asked for a place in the limit of new contexts, and whether they found one. */
-    private ExpiringKeySpace<Boolean> contextsOfTheLimit = contextsOfTheLimit(Clock.systemUTC());
+    private ExpiringKeySpace<PlaceInTheLimit> contextsOfTheLimit = contextsOfTheLimit(Clock.systemUTC());
     /** The changed contexts whose analysis a held request has started: one for each, however many calls are turned away. */
     private ExpiringKeySpace<Boolean> contextsAskedAbout = contextsAskedAbout(Clock.systemUTC());
     private NewContextDecisionLimit newContextDecisionLimit;
@@ -155,8 +155,8 @@ public class SynchronousProtectableDecisionService {
         return ExpiringKeySpace.<Boolean>builder(clock).ttl(CONTEXT_ASKED_ABOUT_KEPT).bound(CONTEXTS_OF_THE_LIMIT_KEPT).build();
     }
 
-    private static ExpiringKeySpace<Boolean> contextsOfTheLimit(Clock clock) {
-        return ExpiringKeySpace.<Boolean>builder(clock).ttl(CONTEXT_OF_THE_LIMIT_KEPT).bound(CONTEXTS_OF_THE_LIMIT_KEPT).build();
+    private static ExpiringKeySpace<PlaceInTheLimit> contextsOfTheLimit(Clock clock) {
+        return ExpiringKeySpace.<PlaceInTheLimit>builder(clock).ttl(CONTEXT_OF_THE_LIMIT_KEPT).bound(CONTEXTS_OF_THE_LIMIT_KEPT).build();
     }
 
     private static ExpiringKeySpace<Boolean> unansweredContexts(Clock clock) {
@@ -594,23 +594,47 @@ public class SynchronousProtectableDecisionService {
      * context goes on while it is analysed and does not wait for the verdict, but each such context is a decision of the
      * model that someone pays for, and whoever holds a person's session can change the browser string at every call. The
      * first call of a context takes one place from the limit and the others of the same context take none, and a context
-     * that found no place stays refused for as long as it is remembered. The answer is the CHALLENGE of {@link
-     * #pastTheLimit}, for that call alone. With no limit set nothing is past it.
+     * that found no place stays refused for as long as it is remembered. A place is for one question: the context against
+     * the decision on record when it was asked. A verdict that lands is another decision, so a context asked about again after
+     * it is a new question and takes a place again, and two contexts used turn about cannot buy a decision at each switch
+     * without limit. The answer is the CHALLENGE of {@link #pastTheLimit}, for that call alone. With no limit set nothing is
+     * past it.
      */
     private boolean pastTheChangedContextLimit(ZeroTrustSpringEvent event, String gateContext) {
         if (newContextDecisionLimit == null) {
             return false;
         }
         String subject = decisionKey(event, event.getUserId());
+        String onRecord = contextOnRecord(subject);
         Boolean granted = contextsOfTheLimit.atomically(subject + '\u0000' + gateContext, slot -> {
-            if (slot.value() != null) {
-                return slot.value();
+            PlaceInTheLimit asked = slot.value();
+            if (asked != null && asked.against().equals(onRecord)) {
+                return asked.found();
             }
             boolean taken = newContextDecisionLimit.take(subject, NewContextDecisionLimit.Kind.CHANGED_CONTEXT);
-            slot.set(taken);
+            slot.set(new PlaceInTheLimit(onRecord, taken));
             return taken;
         });
         return !Boolean.TRUE.equals(granted);
+    }
+
+    /**
+     * The decision on record, named by the context it was reached for and the time it was written: a verdict that lands
+     * is another decision even when it is for a context the record held before. An empty text when nothing on record can
+     * be read.
+     */
+    private String contextOnRecord(String subject) {
+        try {
+            String decided = actionRepository.decidedContext(subject);
+            ZeroTrustActionRepository.ZeroTrustAnalysisData data = actionRepository.getAnalysisData(subject);
+            return (decided != null ? decided : "") + '@' + (data != null && data.updatedAt() != null ? data.updatedAt() : "");
+        } catch (RuntimeException unreadable) {
+            return "";
+        }
+    }
+
+    /** Whether a context found a place in the limit, for the question of that context against the one on record. */
+    private record PlaceInTheLimit(String against, boolean found) {
     }
 
     /**

@@ -141,6 +141,22 @@ class ChangedContextLimitWithoutWaitTest {
     }
 
     @Test
+    @DisplayName("two contexts used turn about take a place at each switch, so the switches are not a decision bought without limit")
+    void contextsUsedTurnAboutTakeAtEachSwitch() throws InterruptedException {
+        String[] turn = {"context-a", "context-b"};
+        for (int i = 0; i < 6; i++) {
+            assertThat(gate(turn[i % 2]).restriction()).as("switch %d", i).isNull();
+            // the verdict of the context that asked lands, and it is the decision on record now
+            // (the record names a decision by the time it was written, which a store keeps to the millisecond)
+            Thread.sleep(3);
+            repository.writeFinalAction(USER, ZeroTrustAction.ALLOW, Map.of("observationId", "observation-" + (i + 2),
+                    "processingGeneration", String.valueOf(i + 2), "contextBindingHash", turn[i % 2]));
+        }
+
+        assertThat(gate(turn[0]).restriction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
+    @Test
     @DisplayName("a minute later the window has room again")
     void theWindowOpensAgain() {
         for (int i = 0; i < 7; i++) {
