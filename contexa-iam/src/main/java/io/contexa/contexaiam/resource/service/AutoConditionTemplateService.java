@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.resource.service;
 
 import com.google.common.collect.Lists;
+import io.contexa.contexacore.exception.StrategicOperationConflictException;
 import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacore.std.operations.AICoreOperations;
@@ -33,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -75,7 +77,14 @@ public class AutoConditionTemplateService {
                     .map(batch -> CompletableFuture.supplyAsync(() -> processConditionBatch(batch), ContexaBackgroundExecution.executor()))
                     .toList();
 
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            try {
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            } catch (CompletionException e) {
+                if (e.getCause() instanceof StrategicOperationConflictException conflict) {
+                    throw conflict;
+                }
+                throw e;
+            }
 
             for (CompletableFuture<List<ConditionTemplate>> future : futures) {
                 try {
@@ -114,6 +123,10 @@ public class AutoConditionTemplateService {
             log.warn("Specific condition template batch response is empty for {} methods", batch.size());
             return new ArrayList<>();
 
+        } catch (StrategicOperationConflictException e) {
+            // An identical generation is already running and saves the real templates: an empty batch here would only be
+            // saved beside them.
+            throw e;
         } catch (Exception e) {
             log.error("Condition batch generation failed for {} methods", batch.size(), e);
             return new ArrayList<>();
@@ -132,6 +145,9 @@ public class AutoConditionTemplateService {
             }
             log.warn("Universal condition template response is empty");
             return generateFallbackUniversalTemplates();
+        } catch (StrategicOperationConflictException e) {
+            // The fallback templates are for a generation that failed; here an identical one is running and saves the real ones.
+            throw e;
         } catch (Exception e) {
             log.error("AI universal template generation failed", e);
             return generateFallbackUniversalTemplates();

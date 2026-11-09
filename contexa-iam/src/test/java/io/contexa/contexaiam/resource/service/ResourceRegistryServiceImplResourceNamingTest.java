@@ -17,6 +17,7 @@ package io.contexa.contexaiam.resource.service;
 
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.entity.ManagedResource;
+import io.contexa.contexacore.exception.StrategicOperationConflictException;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.aiam.protocol.context.ResourceNamingContext;
@@ -36,8 +37,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -152,5 +156,41 @@ class ResourceRegistryServiceImplResourceNamingTest {
         assertThat(users.getDescription()).isEqualTo("Manage user account records.");
         assertThat(groups.getFriendlyName()).isEqualTo("groups Feature");
         assertThat(groups.getDescription()).isEqualTo("AI suggestion unavailable");
+    }
+
+    @Test
+    @DisplayName("A request refused for an identical running one is neither named by default nor saved")
+    void processResourceBatch_doesNotFallBackWhenAnIdenticalRequestIsRunning() {
+        ManagedResource resource = ManagedResource.builder()
+                .resourceIdentifier("/contexa/admin/users")
+                .resourceType(ManagedResource.ResourceType.URL)
+                .friendlyName("listUsers")
+                .description("scanner description")
+                .build();
+        when(aiNativeProcessor.process(ArgumentMatchers.<AIRequest<ResourceNamingContext>>any(), eq(ResourceNamingSuggestionResponse.class)))
+                .thenReturn(Mono.error(new StrategicOperationConflictException("Strategic operation conflict: strategy-x")));
+
+        assertThatThrownBy(() -> service.processResourceBatch(List.of(resource)))
+                .isInstanceOf(StrategicOperationConflictException.class);
+
+        assertThat(resource.getFriendlyName()).isEqualTo("listUsers");
+        assertThat(resource.getDescription()).isEqualTo("scanner description");
+        verify(managedResourceRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("Any other failure still saves the resources with defaults")
+    void processResourceBatch_stillFallsBackWhenTheModelFails() {
+        ManagedResource resource = ManagedResource.builder()
+                .resourceIdentifier("/contexa/admin/users")
+                .resourceType(ManagedResource.ResourceType.URL)
+                .build();
+        when(aiNativeProcessor.process(ArgumentMatchers.<AIRequest<ResourceNamingContext>>any(), eq(ResourceNamingSuggestionResponse.class)))
+                .thenReturn(Mono.error(new IllegalStateException("model unavailable")));
+
+        service.processResourceBatch(List.of(resource));
+
+        assertThat(resource.getDescription()).isEqualTo("AI suggestion unavailable");
+        verify(managedResourceRepository).saveAll(List.of(resource));
     }
 }

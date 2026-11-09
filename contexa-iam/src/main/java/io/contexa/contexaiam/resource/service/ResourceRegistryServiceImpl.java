@@ -24,6 +24,7 @@ import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
+import io.contexa.contexacore.exception.StrategicOperationConflictException;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.aiam.protocol.context.ResourceNamingContext;
@@ -226,6 +227,10 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
             managedResourceRepository.saveAll(batch);
 
+        } catch (StrategicOperationConflictException e) {
+            // An identical naming request is already running and writes the real names: these resources are neither
+            // named by default nor saved here, or the defaults could replace what that request saves.
+            throw e;
         } catch (Exception e) {
             log.error("AI suggestion processing failed, saving with defaults", e);
             batch.forEach(this::applyFallback);
