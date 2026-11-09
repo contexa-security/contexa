@@ -17,6 +17,7 @@ package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
+import io.contexa.contexacore.exception.StrategicOperationConflictException;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.streaming.StandardStreamingService;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
@@ -71,6 +72,10 @@ public class AiApiController {
         return streamingService.process(aiRequest, aiNativeProcessor, PolicyResponse.class)
                 .map(ResponseEntity::ok)
                 .onErrorResume(error -> {
+                    if (error instanceof StrategicOperationConflictException) {
+                        log.warn("Policy generation refused: an identical request is already running");
+                        return Mono.just(ResponseEntity.status(HttpStatus.CONFLICT).build());
+                    }
                     log.error("Policy generation failed", error);
                     return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
                 });
