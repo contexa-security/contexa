@@ -909,7 +909,6 @@ public final class ProviderAwareChatOptionsFactory {
         return provider != null && String.valueOf(provider).trim().equalsIgnoreCase("ollama");
     }
 
-    @SuppressWarnings("unchecked")
     private static ChatOptions buildOllamaOptions(ExecutionContext context, ChatModel selectedModel, TieredLLMProperties tieredLLMProperties) {
         try {
             String modelName = determineOllamaModelName(context, selectedModel, tieredLLMProperties);
@@ -938,16 +937,31 @@ public final class ProviderAwareChatOptionsFactory {
                 optionsClass.getMethod("setNumPredict", Integer.class).invoke(options, context.getMaxTokens());
             }
             if (shouldDisableOllamaThinking(context, modelName)) {
-                Class<?> thinkOptionClass = Class.forName("org.springframework.ai.ollama.api.ThinkOption$ThinkBoolean");
-                Object disabledEnum = Enum.valueOf((Class<Enum>) thinkOptionClass, "DISABLED");
-                Class<?> thinkOptionInterface = Class.forName("org.springframework.ai.ollama.api.ThinkOption");
-                optionsClass.getMethod("setThinkOption", thinkOptionInterface).invoke(options, disabledEnum);
+                disableOllamaThinking(optionsClass, options);
             }
 
             return (ChatOptions) options;
         } catch (Exception e) {
             log.error("Failed to build Ollama options via reflection", e);
             return selectedModel.getDefaultOptions();
+        }
+    }
+
+    /**
+     * Turns the thinking of an Ollama model off with {@code ThinkOption.ThinkBoolean.DISABLED}. Spring AI's
+     * {@code ThinkBoolean} is a record whose {@code ENABLED} and {@code DISABLED} are static constants, not an enum, so the
+     * constant is read as a field. A thinking that cannot be turned off (a Spring AI without {@code ThinkOption}, for one)
+     * is logged and the call goes on with the rest of its runtime options: the model, the sampling and the answer limit
+     * must not be dropped with it.
+     */
+    private static void disableOllamaThinking(Class<?> optionsClass, Object options) {
+        try {
+            Class<?> thinkBoolean = Class.forName("org.springframework.ai.ollama.api.ThinkOption$ThinkBoolean");
+            Object disabled = thinkBoolean.getField("DISABLED").get(null);
+            Class<?> thinkOption = Class.forName("org.springframework.ai.ollama.api.ThinkOption");
+            optionsClass.getMethod("setThinkOption", thinkOption).invoke(options, disabled);
+        } catch (ReflectiveOperationException e) {
+            log.warn("Could not turn off the thinking of the Ollama model; the call goes on with it: {}", e.toString());
         }
     }
 

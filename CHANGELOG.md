@@ -470,6 +470,14 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
+  `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
+  `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines
+  `ThinkBoolean` as a record with static constants, so the lookup threw `ThinkBoolean is not an enum class`; the factory
+  logged an error and fell back to the model's default options, and the call ran without its runtime model, sampling and
+  answer limit (`numPredict`) and with the thinking on. The constant is now read as a static field, and a thinking that cannot
+  be turned off is logged as a warning while the rest of the options are kept. A setup that names no pattern was not affected.
+
 - **A repeated name or an empty element in the authorities of a header or a request attribute no longer loses the request's
   bridge.** `HeaderAuthBridge` and `RequestAttributeAuthBridge` read the comma-separated authorities with
   `Set.of(value.split(...))`, which throws on a repeated element: `ROLE_USER, ROLE_USER` and `ROLE_A,,,ROLE_B` raised an
