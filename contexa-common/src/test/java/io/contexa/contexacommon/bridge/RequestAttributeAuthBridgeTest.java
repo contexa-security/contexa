@@ -105,6 +105,21 @@ class RequestAttributeAuthBridgeTest {
         public Instant getAuthenticationTime() { return authenticationTime; }
     }
 
+    @Test
+    void shouldReadAFlatAuthoritiesAttributeWithARepeatedNameOnceAndWithoutEmptyElements() {
+        RequestAttributeAuthBridge bridge = new RequestAttributeAuthBridge(new BridgeProperties.RequestAttributes());
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/profile");
+        request.setAttribute("ctxa.auth.principalId", "flat-user");
+        request.setAttribute("ctxa.auth.authorities", "ROLE_USER, ROLE_USER,,,REPORT_READ ,");
+
+        BridgedUser user = bridge.extractUser(request);
+
+        assertThat(user).isNotNull();
+        assertThat(user.username()).isEqualTo("flat-user");
+        assertThat(user.roles()).containsExactlyInAnyOrder("ROLE_USER", "REPORT_READ");
+    }
+
     static class CandidateRequestUser {
         private final String userId;
         CandidateRequestUser(String userId) { this.userId = userId; }
