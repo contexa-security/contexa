@@ -75,6 +75,16 @@ public class SynchronousProtectableDecisionService {
      */
     private static final Duration UNANSWERED_CONTEXT_PAUSE = Duration.ofSeconds(60);
     private static final int UNANSWERED_CONTEXTS_KEPT = 10_000;
+    /** A context that asked for a place in the limit is remembered for the window of the limit and a margin. */
+    private static final Duration CONTEXT_OF_THE_LIMIT_KEPT = Duration.ofMinutes(5);
+    private static final int CONTEXTS_OF_THE_LIMIT_KEPT = 20_000;
+    /**
+     * How long the analysis of a held context counts as started: the time the model may take, and a margin. A context
+     * still undecided after it is asked about again, as one whose analysis was lost.
+     */
+    private static final Duration CONTEXT_ASKED_ABOUT_KEPT = Duration.ofSeconds(90);
+    /** What a request turned away for its context is told: when the verdict is expected, a few seconds. */
+    private static final int CHANGED_CONTEXT_RETRY_AFTER_SECONDS = 5;
     /**
      * Q-7: how long a verdict may still come while a store is down. The analysis runs on the application's own client,
      * which waits far longer than a request should, so the request stops waiting for it; a verdict that comes in this
@@ -99,6 +109,10 @@ public class SynchronousProtectableDecisionService {
     /** The verdicts this server is reaching for changed contexts, one for each subject and context. */
     private final Map<String, VerdictUnderWay> changedContextVerdicts = new ConcurrentHashMap<>();
     private ExpiringKeySpace<Boolean> unansweredContexts = unansweredContexts(Clock.systemUTC());
+    /** The contexts that asked for a place in the limit of new contexts, and whether they found one. */
+    private ExpiringKeySpace<PlaceInTheLimit> contextsOfTheLimit = contextsOfTheLimit(Clock.systemUTC());
+    /** The changed contexts whose analysis a held request has started: one for each, however many calls are turned away. */
+    private ExpiringKeySpace<Boolean> contextsAskedAbout = contextsAskedAbout(Clock.systemUTC());
     private NewContextDecisionLimit newContextDecisionLimit;
 
     public SynchronousProtectableDecisionService(
@@ -133,6 +147,16 @@ public class SynchronousProtectableDecisionService {
     /** Measures the pause of a changed context with {@code clock}. */
     void setClock(Clock clock) {
         this.unansweredContexts = unansweredContexts(clock);
+        this.contextsOfTheLimit = contextsOfTheLimit(clock);
+        this.contextsAskedAbout = contextsAskedAbout(clock);
+    }
+
+    private static ExpiringKeySpace<Boolean> contextsAskedAbout(Clock clock) {
+        return ExpiringKeySpace.<Boolean>builder(clock).ttl(CONTEXT_ASKED_ABOUT_KEPT).bound(CONTEXTS_OF_THE_LIMIT_KEPT).build();
+    }
+
+    private static ExpiringKeySpace<PlaceInTheLimit> contextsOfTheLimit(Clock clock) {
+        return ExpiringKeySpace.<PlaceInTheLimit>builder(clock).ttl(CONTEXT_OF_THE_LIMIT_KEPT).bound(CONTEXTS_OF_THE_LIMIT_KEPT).build();
     }
 
     private static ExpiringKeySpace<Boolean> unansweredContexts(Clock clock) {
@@ -511,6 +535,14 @@ public class SynchronousProtectableDecisionService {
             return AsyncProtectableGate.DECIDE_IN_PLACE;
         }
         if (action == ZeroTrustAction.PENDING_ANALYSIS && !agentRequest(event) && enforcing.getAsBoolean()) {
+            if (personRequest(event) && contextChanged(event, gateContext)) {
+                if (pastTheChangedContextLimit(event, gateContext)) {
+                    return pastTheLimit(event, gateContext);
+                }
+                if (AgentAllowReuse.sensitive(event.getPayload())) {
+                    throw sensitiveWaitsForItsContext(methodInvocation, authentication, event, gateContext);
+                }
+            }
             if (AgentAllowReuse.sensitive(event.getPayload()) && securityPlaneAgent.isBehind()) {
                 return heldForItsVerdict(methodInvocation, authentication, event, gateContext);
             }
@@ -535,6 +567,74 @@ public class SynchronousProtectableDecisionService {
             }
             return AgentAllowReuse.sensitive(event.getPayload());
         }
+    }
+
+    /**
+     * The answer to a request for a sensitive resource from a changed context that no decision stands for yet: it is not let
+     * out before a verdict, and no thread waits for it. A stolen session used from elsewhere is this request, and a
+     * verdict that comes after the response comes after its data (a response cut stops a stream that is still running,
+     * and not a record that was sent whole). The request is turned away with "come back in a few seconds" (429 and
+     * {@code Retry-After}); the analysis of its context is started once, as it would be for a request that goes on, and the
+     * call after the verdict is answered by it: ALLOW lets it through, a BLOCK or a CHALLENGE stops it. A resource the host
+     * did not declare sensitive is not held, and neither is a user with nothing on record, who has nothing to compare with.
+     */
+    private ZeroTrustAccessDeniedException sensitiveWaitsForItsContext(MethodInvocation methodInvocation,
+                                                                       Authentication authentication,
+                                                                       ZeroTrustSpringEvent event, String gateContext) {
+        String question = decisionKey(event, event.getUserId()) + '\u0000' + gateContext;
+        if (contextsAskedAbout.putIfAbsent(question, Boolean.TRUE)) {
+            zeroTrustEventPublisher.publishMethodAuthorization(methodInvocation, authentication, true, null,
+                    ZeroTrustEventPublisher.METHOD_NOT_RUN, null);
+        }
+        return ZeroTrustAccessDeniedException.analysisBusy(event.getResource(), CHANGED_CONTEXT_RETRY_AFTER_SECONDS);
+    }
+
+    /**
+     * Whether the request is past the decisions of a new context a person may ask for in the window. A call from a changed
+     * context goes on while it is analysed and does not wait for the verdict, but each such context is a decision of the
+     * model that someone pays for, and whoever holds a person's session can change the browser string at every call. The
+     * first call of a context takes one place from the limit and the others of the same context take none, and a context
+     * that found no place stays refused for as long as it is remembered. A place is for one question: the context against
+     * the decision on record when it was asked. A verdict that lands is another decision, so a context asked about again after
+     * it is a new question and takes a place again, and two contexts used turn about cannot buy a decision at each switch
+     * without limit. The answer is the CHALLENGE of {@link #pastTheLimit}, for that call alone. With no limit set nothing is
+     * past it.
+     */
+    private boolean pastTheChangedContextLimit(ZeroTrustSpringEvent event, String gateContext) {
+        if (newContextDecisionLimit == null) {
+            return false;
+        }
+        String subject = decisionKey(event, event.getUserId());
+        String onRecord = contextOnRecord(subject);
+        Boolean granted = contextsOfTheLimit.atomically(subject + '\u0000' + gateContext, slot -> {
+            PlaceInTheLimit asked = slot.value();
+            if (asked != null && asked.against().equals(onRecord)) {
+                return asked.found();
+            }
+            boolean taken = newContextDecisionLimit.take(subject, NewContextDecisionLimit.Kind.CHANGED_CONTEXT);
+            slot.set(new PlaceInTheLimit(onRecord, taken));
+            return taken;
+        });
+        return !Boolean.TRUE.equals(granted);
+    }
+
+    /**
+     * The decision on record, named by the context it was reached for and the time it was written: a verdict that lands
+     * is another decision even when it is for a context the record held before. An empty text when nothing on record can
+     * be read.
+     */
+    private String contextOnRecord(String subject) {
+        try {
+            String decided = actionRepository.decidedContext(subject);
+            ZeroTrustActionRepository.ZeroTrustAnalysisData data = actionRepository.getAnalysisData(subject);
+            return (decided != null ? decided : "") + '@' + (data != null && data.updatedAt() != null ? data.updatedAt() : "");
+        } catch (RuntimeException unreadable) {
+            return "";
+        }
+    }
+
+    /** Whether a context found a place in the limit, for the question of that context against the one on record. */
+    private record PlaceInTheLimit(String against, boolean found) {
     }
 
     /**
