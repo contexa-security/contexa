@@ -18,6 +18,7 @@ package io.contexa.contexacore.std.operations;
 import java.util.Locale;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.exception.AIOperationException;
+import io.contexa.contexacore.exception.StrategicOperationConflictException;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
@@ -73,33 +74,33 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
         String strategyId = generateStrategyId(request, responseType);
         String lockKey = STRATEGIC_LOCK_PREFIX + strategyId;
 
-        return Mono.fromCallable(() -> {
-                    if (acquireStrategicLock(lockKey, strategyId)) {
-                        throw new AIOperationException("Strategic operation conflict: " + strategyId);
-                    }
-                    return strategyId;
-                })
-                .flatMap(id -> {
-                    try {
-                        String auditId = auditLogger.startAudit(request);
-                        return distributedStrategyExecutor.executeDistributedStrategyAsync(request, responseType)
-                                .doOnSuccess(result -> {
-                                    auditLogger.completeAudit(auditId, request, result);
-                                })
-                                .doOnError(error -> {
-                                    failAudit(auditId, request, error);
-                                    handleStrategicFailure(id, request, error);
-                                })
-                                .doFinally(signalType -> {
-                                    releaseStrategicLock(lockKey, id);
-                                });
+        // A Mono is cold: each subscription is one run, so it takes its own lock owner. The lock lets the same owner in again,
+        // so an owner shared by two runs (the node name is the same on every node by default) would keep neither out.
+        return Mono.defer(() -> {
+            String owner = newLockOwner();
+            if (!acquireStrategicLock(lockKey, owner, strategyId)) {
+                return Mono.error(new StrategicOperationConflictException("Strategic operation conflict: " + strategyId));
+            }
+            try {
+                String auditId = auditLogger.startAudit(request);
+                return distributedStrategyExecutor.executeDistributedStrategyAsync(request, responseType)
+                        .doOnSuccess(result -> {
+                            auditLogger.completeAudit(auditId, request, result);
+                        })
+                        .doOnError(error -> {
+                            failAudit(auditId, request, error);
+                            handleStrategicFailure(strategyId, request, error);
+                        })
+                        .doFinally(signalType -> {
+                            releaseStrategicLock(lockKey, owner, strategyId);
+                        });
 
-                    } catch (Exception e) {
-                        handleStrategicFailure(id, request, e);
-                        releaseStrategicLock(lockKey, id);
-                        return Mono.error(new AIOperationException("Async strategic operation failed: " + id, e));
-                    }
-                });
+            } catch (Exception e) {
+                handleStrategicFailure(strategyId, request, e);
+                releaseStrategicLock(lockKey, owner, strategyId);
+                return Mono.error(new AIOperationException("Async strategic operation failed: " + strategyId, e));
+            }
+        });
     }
 
     @Override
@@ -111,12 +112,19 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
         String strategyId = generateStrategyId(request, AIResponse.class);
         String lockKey = STRATEGIC_LOCK_PREFIX + strategyId;
 
-        return Mono.fromCallable(() -> acquireStrategicLock(lockKey, strategyId))
-                .flatMapMany(lockFailed -> {
-                    if (lockFailed) {
-                        return Flux.error(new AIOperationException("Strategic streaming operation conflict: " + strategyId));
+        return Flux.defer(() -> {
+                    String owner = newLockOwner();
+                    if (!acquireStrategicLock(lockKey, owner, strategyId)) {
+                        return Flux.<String>error(new StrategicOperationConflictException(
+                                "Strategic streaming operation conflict: " + strategyId));
                     }
-                    String auditId = auditLogger.startAudit(request);
+                    String auditId;
+                    try {
+                        auditId = auditLogger.startAudit(request);
+                    } catch (RuntimeException e) {
+                        releaseStrategicLock(lockKey, owner, strategyId);
+                        return Flux.<String>error(e);
+                    }
 
                     return distributedStrategyExecutor.executeDistributedStrategyStream(
                             request, (Class<R>) AIResponse.class, auditId
@@ -125,34 +133,42 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                         handleStrategicFailure(strategyId, request, error);
                     }).doFinally(signalType -> {
                         auditLogger.closeAudit(auditId);
-                        releaseStrategicLock(lockKey, strategyId);
+                        releaseStrategicLock(lockKey, owner, strategyId);
                     });
                 })
                 .onErrorResume(e -> {
                     if (!(e instanceof AIOperationException)) {
-                        handleStrategicFailure(strategyId, request, (Exception) e);
-                        releaseStrategicLock(lockKey, strategyId);
+                        handleStrategicFailure(strategyId, request, e);
                         return Flux.error(new AIOperationException("Streaming strategic operation failed: " + strategyId, e));
                     }
                     return Flux.error(e);
                 });
     }
 
-    private boolean acquireStrategicLock(String lockKey, String strategyId) {
+    /**
+     * Takes the lock of the strategy for {@code owner}: false when an identical request holds it. A lock store that cannot
+     * answer is no conflict, so it ends the call with its own failure and nothing runs without the lock.
+     */
+    private boolean acquireStrategicLock(String lockKey, String owner, String strategyId) {
         try {
-            return !distributedLockService.tryLock(lockKey, getNodeId(), STRATEGIC_LOCK_TIMEOUT);
+            return distributedLockService.tryLock(lockKey, owner, STRATEGIC_LOCK_TIMEOUT);
         } catch (Exception e) {
             log.error("Failed to acquire strategic lock: {} - {}", strategyId, e.getMessage());
-            return true;
+            throw new AIOperationException("Strategic lock unavailable: " + strategyId, e);
         }
     }
 
-    private void releaseStrategicLock(String lockKey, String strategyId) {
+    private void releaseStrategicLock(String lockKey, String owner, String strategyId) {
         try {
-            distributedLockService.unlock(lockKey, getNodeId());
+            distributedLockService.unlock(lockKey, owner);
         } catch (Exception e) {
             log.error("Failed to release strategic lock: {} - {}", strategyId, e.getMessage());
         }
+    }
+
+    /** One owner for each run: the node says where it runs, the random part tells it from every other run, here or elsewhere. */
+    private String newLockOwner() {
+        return getNodeId() + ":" + UUID.randomUUID();
     }
 
     /** PR-91: an operation that fails ends its audit: an audit left open stays in memory for the life of the JVM. */

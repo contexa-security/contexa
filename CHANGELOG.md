@@ -487,6 +487,35 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
+  `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
+  `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines
+  `ThinkBoolean` as a record with static constants, so the lookup threw `ThinkBoolean is not an enum class`; the factory
+  logged an error and fell back to the model's default options, and the call ran without its runtime model, sampling and
+  answer limit (`numPredict`) and with the thinking on. The constant is now read as a static field, and a thinking that cannot
+  be turned off is logged as a warning while the rest of the options are kept. A setup that names no pattern was not affected.
+
+- **A repeated name or an empty element in the authorities of a header or a request attribute no longer loses the request's
+  bridge.** `HeaderAuthBridge` and `RequestAttributeAuthBridge` read the comma-separated authorities with
+  `Set.of(value.split(...))`, which throws on a repeated element: `ROLE_USER, ROLE_USER` and `ROLE_A,,,ROLE_B` raised an
+  `IllegalArgumentException`, and `BridgeResolutionFilter` then dropped every stamp of that request (the request itself went
+  on). A single empty element (`A,,B`) did not throw but became an authority named `""`. Each name is now read once, in the order
+  it came, with the spaces around it trimmed, and an empty element is skipped. These two readers are reached only when the
+  header or request-attribute bridge is turned on and the SecurityContext does not name the principal first, so a default
+  setup was not affected.
+
+- **An identical strategy request that is already running is refused, as the documentation says.** `AINativeProcessor` took the
+  lock of a strategy under the node name as its owner, and the lock lets its own owner in again. The node name is
+  `contexa.security.plane.agent.name`, `SecurityPlaneAgent-1` unless it is set, the same on every node, so the second identical
+  request was always let in and `Strategic operation conflict` never came, in standalone mode or in a cluster. Each run now takes
+  the lock under an owner of its own (the node name and a random part), once for each subscription of the `Mono` or `Flux` it
+  returns, and gives it back when it ends, fails or is cancelled. The refusal is a `StrategicOperationConflictException` (an
+  `AIOperationException`). `POST /contexa/admin/api/ai/policies/generate` answers 409 for it instead of 500, and resource naming
+  and condition template generation, which answered any failure with default names and templates, now stop instead of saving
+  defaults beside what the running request saves. A lock store that cannot answer is no longer reported as a conflict: the call
+  fails with `Strategic lock unavailable` and nothing runs without the lock. The lock lasts at most 30 minutes, so a node that
+  stops while holding it in distributed mode keeps an identical request out until it expires.
+
 - **SHADOW now decides, remembers and learns as ENFORCE does, and applies nothing.** SHADOW ended before the final decision was stored, so the ALLOW that answers a user for the next minutes did not exist and every request of a user was analysed again: a 1,000-user trial asked the model 2.15 times as many questions as ENFORCE (2,145 decisions for 1,000 users), and a trial in SHADOW cost that much more than the same traffic in ENFORCE. SHADOW also learned nothing of a user's usual behaviour (baseline, work profile, role scope, decision documents), so the model judged a user it had allowed as new again, and the statistics of a trial were not those of ENFORCE. SHADOW keeps its decisions in a memory under keys of its own (`shadow::`), with the rules and lifetimes of the store ENFORCE uses; only the counting of decisions reads it (the skip of a user already decided, the queue recheck, the synchronous `@Protectable` service, the action an event records). What enforces a decision keeps reading the repository, which holds no decision of SHADOW, so nothing a shadow decision says can stop a user, and a switch to ENFORCE starts without the decisions of the trial. An ALLOW of SHADOW is learned and its context observations and decision document count as ENFORCE's do. What restricts the user is still not done: no block, no challenge, no held request, no narrowing of an agent's scope, no risk signal. The data of a deleted account leaves the memory with the rest. While the store that records decisions refuses writes, SHADOW suspends new analysis of the user's context as ENFORCE does (the model is asked once for each user, not once for each request: 12 questions, not 72, for 12 users asking six times). **Check:** the same 1,000-user test gives 1,000 decisions (ALLOW 900, BLOCK 50, CHALLENGE 50) in both modes, the same keys and the same decision documents; what only ENFORCE leaves is the block, the stopped requests, the challenge sessions and the enforcement result of the audit record (`OBSERVED_ONLY` in SHADOW).
 
 - **Failed sign-ins from one new address, at the same moment, no longer fail a database statement each.** The first failure of an address inserts its row in the table of login attempts per address; failures that came together all found the row missing and all inserted, and every one that lost the unique key left a failed statement in the database log and an `UnexpectedRollbackException` on the commit of the caller (seen with 1,150 sign-ins in seven seconds in the full mode). The failures of one address now take turns before the insert (a lock chosen by the address) and the later ones see the row the first made; the loss of a race between servers is still taken as "the row exists" and the failure is counted again. The upserter no longer swallows the key violation inside its own transaction, which had left that transaction rollback-only.

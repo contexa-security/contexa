@@ -19,7 +19,9 @@ import io.contexa.contexacommon.domain.TruthValues;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -166,6 +168,11 @@ public class RequestAttributeAuthBridge implements AuthBridge {
         return value.toString();
     }
 
+    /**
+     * The comma-separated names of a request attribute, each once and in the order they came. The application writes
+     * the value: a name it repeats or an empty element ("A,,B") may not stop the request's bridge from being read, and an
+     * empty element is no authority.
+     */
     private Set<String> splitValues(Object raw) {
         if (raw == null) {
             return Set.of();
@@ -174,6 +181,13 @@ public class RequestAttributeAuthBridge implements AuthBridge {
         if (text.isBlank()) {
             return Set.of();
         }
-        return Set.of(text.split("\\s*,\\s*"));
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (String value : text.split(",")) {
+            String trimmed = value.trim();
+            if (!trimmed.isEmpty()) {
+                values.add(trimmed);
+            }
+        }
+        return Collections.unmodifiableSet(values);
     }
 }
