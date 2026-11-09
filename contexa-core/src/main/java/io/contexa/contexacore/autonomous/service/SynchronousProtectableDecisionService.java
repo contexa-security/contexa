@@ -75,6 +75,9 @@ public class SynchronousProtectableDecisionService {
      */
     private static final Duration UNANSWERED_CONTEXT_PAUSE = Duration.ofSeconds(60);
     private static final int UNANSWERED_CONTEXTS_KEPT = 10_000;
+    /** A context that asked for a place in the limit is remembered for the window of the limit and a margin. */
+    private static final Duration CONTEXT_OF_THE_LIMIT_KEPT = Duration.ofMinutes(5);
+    private static final int CONTEXTS_OF_THE_LIMIT_KEPT = 20_000;
     /**
      * Q-7: how long a verdict may still come while a store is down. The analysis runs on the application's own client,
      * which waits far longer than a request should, so the request stops waiting for it; a verdict that comes in this
@@ -99,6 +102,8 @@ public class SynchronousProtectableDecisionService {
     /** The verdicts this server is reaching for changed contexts, one for each subject and context. */
     private final Map<String, VerdictUnderWay> changedContextVerdicts = new ConcurrentHashMap<>();
     private ExpiringKeySpace<Boolean> unansweredContexts = unansweredContexts(Clock.systemUTC());
+    /** The contexts that asked for a place in the limit of new contexts, and whether they found one. */
+    private ExpiringKeySpace<Boolean> contextsOfTheLimit = contextsOfTheLimit(Clock.systemUTC());
     private NewContextDecisionLimit newContextDecisionLimit;
 
     public SynchronousProtectableDecisionService(
@@ -133,6 +138,11 @@ public class SynchronousProtectableDecisionService {
     /** Measures the pause of a changed context with {@code clock}. */
     void setClock(Clock clock) {
         this.unansweredContexts = unansweredContexts(clock);
+        this.contextsOfTheLimit = contextsOfTheLimit(clock);
+    }
+
+    private static ExpiringKeySpace<Boolean> contextsOfTheLimit(Clock clock) {
+        return ExpiringKeySpace.<Boolean>builder(clock).ttl(CONTEXT_OF_THE_LIMIT_KEPT).bound(CONTEXTS_OF_THE_LIMIT_KEPT).build();
     }
 
     private static ExpiringKeySpace<Boolean> unansweredContexts(Clock clock) {
@@ -511,6 +521,9 @@ public class SynchronousProtectableDecisionService {
             return AsyncProtectableGate.DECIDE_IN_PLACE;
         }
         if (action == ZeroTrustAction.PENDING_ANALYSIS && !agentRequest(event) && enforcing.getAsBoolean()) {
+            if (personRequest(event) && contextChanged(event, gateContext) && pastTheChangedContextLimit(event, gateContext)) {
+                return pastTheLimit(event, gateContext);
+            }
             if (AgentAllowReuse.sensitive(event.getPayload()) && securityPlaneAgent.isBehind()) {
                 return heldForItsVerdict(methodInvocation, authentication, event, gateContext);
             }
@@ -535,6 +548,30 @@ public class SynchronousProtectableDecisionService {
             }
             return AgentAllowReuse.sensitive(event.getPayload());
         }
+    }
+
+    /**
+     * Whether the request is past the decisions of a new context a person may ask for in the window. A call from a changed
+     * context goes on while it is analysed and does not wait for the verdict, but each such context is a decision of the
+     * model that someone pays for, and whoever holds a person's session can change the browser string at every call. The
+     * first call of a context takes one place from the limit and the others of the same context take none, and a context
+     * that found no place stays refused for as long as it is remembered. The answer is the CHALLENGE of {@link
+     * #pastTheLimit}, for that call alone. With no limit set nothing is past it.
+     */
+    private boolean pastTheChangedContextLimit(ZeroTrustSpringEvent event, String gateContext) {
+        if (newContextDecisionLimit == null) {
+            return false;
+        }
+        String subject = decisionKey(event, event.getUserId());
+        Boolean granted = contextsOfTheLimit.atomically(subject + '\u0000' + gateContext, slot -> {
+            if (slot.value() != null) {
+                return slot.value();
+            }
+            boolean taken = newContextDecisionLimit.take(subject, NewContextDecisionLimit.Kind.CHANGED_CONTEXT);
+            slot.set(taken);
+            return taken;
+        });
+        return !Boolean.TRUE.equals(granted);
     }
 
     /**
