@@ -17,11 +17,11 @@ The format is based on Keep a Changelog and the project follows semantic version
   take one place, and two contexts used turn about take a place at each switch, because a verdict that lands is another
   decision. A call for a resource declared `SENSITIVE` from a changed context that has no decision yet is the case that
   must not go on: a stolen session used from elsewhere is this call, and a verdict after the response comes after its
-  data. It is turned away at once with "analysing, come back in a few seconds" (503 and `Retry-After: 5`; a browser gets
+  data. It is turned away at once with "analysing, come back in a few seconds" (429 and `Retry-After: 5`, as for every request the engine had no time to analyse; a browser gets
   the analysis page), no thread waits for the model, and the analysis of that context is started once however many calls
   are turned away. The call after the verdict is answered by it: ALLOW lets it through, a BLOCK or a CHALLENGE stops it.
   A general resource, a sensitive resource from the context on record, and a user with nothing on record are not held.
-  **Check:** a moved cookie asking for a sensitive resource gets 503 in well under a second with the model down or slow,
+  **Check:** a moved cookie asking for a sensitive resource gets 429 in well under a second with the model down or slow,
   and 200 after an ALLOW for its context; the same cookie asking for a general resource is let through at once; a person
   who switches between two browsers more than six times in a minute is challenged, and the model is asked no more.
 

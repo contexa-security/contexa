@@ -573,7 +573,7 @@ public class SynchronousProtectableDecisionService {
      * The answer to a request for a sensitive resource from a changed context that no decision stands for yet: it is not let
      * out before a verdict, and no thread waits for it. A stolen session used from elsewhere is this request, and a
      * verdict that comes after the response comes after its data (a response cut stops a stream that is still running,
-     * and not a record that was sent whole). The request is turned away with "come back in a few seconds" (503 and
+     * and not a record that was sent whole). The request is turned away with "come back in a few seconds" (429 and
      * {@code Retry-After}); the analysis of its context is started once, as it would be for a request that goes on, and the
      * call after the verdict is answered by it: ALLOW lets it through, a BLOCK or a CHALLENGE stops it. A resource the host
      * did not declare sensitive is not held, and neither is a user with nothing on record, who has nothing to compare with.
