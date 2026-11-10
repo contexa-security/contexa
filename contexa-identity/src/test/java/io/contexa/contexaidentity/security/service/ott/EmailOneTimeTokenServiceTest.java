@@ -47,6 +47,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -451,5 +459,64 @@ class EmailOneTimeTokenServiceTest {
         assertThatThrownBy(() -> service.consume(authToken))
                 .isInstanceOf(InvalidOneTimeTokenException.class)
                 .hasMessageContaining("Invalid or expired code");
+    }
+
+    @Test
+    @DisplayName("a code that requests present together is given to one of them only")
+    void consumeGivesACodeToOneOfTheRequestsThatArriveTogether() throws Exception {
+        jdbcTemplate.update(
+                "INSERT INTO ctxa_one_time_tokens(token_value, username, expires_at) VALUES(?, ?, ?)",
+                "token-shared", "testuser", Timestamp.from(Instant.now().plusSeconds(300))
+        );
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+        int requests = 16;
+        ExecutorService executor = Executors.newFixedThreadPool(requests);
+        CountDownLatch together = new CountDownLatch(1);
+        AtomicInteger accepted = new AtomicInteger();
+        AtomicInteger refused = new AtomicInteger();
+        try {
+            List<Future<?>> answers = new ArrayList<>();
+            for (int i = 0; i < requests; i++) {
+                answers.add(executor.submit(() -> {
+                    together.await();
+                    try {
+                        service.consume(new OneTimeTokenAuthenticationToken("testuser", "token-shared"));
+                        accepted.incrementAndGet();
+                    } catch (InvalidOneTimeTokenException taken) {
+                        refused.incrementAndGet();
+                    }
+                    return null;
+                }));
+            }
+            together.countDown();
+            for (Future<?> answer : answers) {
+                answer.get(30, TimeUnit.SECONDS);
+            }
+        } finally {
+            executor.shutdownNow();
+            service.destroy();
+        }
+
+        assertThat(accepted.get()).isEqualTo(1);
+        assertThat(refused.get()).isEqualTo(requests - 1);
+    }
+
+    @Test
+    @DisplayName("an expired code is refused and leaves the store")
+    void consumeRefusesAnExpiredCode() {
+        jdbcTemplate.update(
+                "INSERT INTO ctxa_one_time_tokens(token_value, username, expires_at) VALUES(?, ?, ?)",
+                "token-old", "testuser", Timestamp.from(Instant.now().minusSeconds(5))
+        );
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+
+        assertThatThrownBy(() -> service.consume(new OneTimeTokenAuthenticationToken("testuser", "token-old")))
+                .isInstanceOf(InvalidOneTimeTokenException.class);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM ctxa_one_time_tokens WHERE token_value = ?", Integer.class, "token-old")).isZero();
     }
 }

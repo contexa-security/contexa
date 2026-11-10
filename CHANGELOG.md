@@ -8,6 +8,21 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A mail code signs in once, also when requests present it together, and a person's sign-ins that arrive together end
+  each other as the limit says.** Two faults that showed only under concurrency, found by starting an application and
+  signing one account in from many clients at once. The mail code was read and then deleted without asking whether the
+  delete had removed anything, so every request that read it before the first delete passed: one code signed in 2 of 2,
+  20 of 20 and 68 of 1000 clients of one account. The delete now decides, and the request whose delete removed the row is
+  the only one that has the code. And a new sign-in read the person's earlier sign-ins, ended them and stored itself
+  without anything holding the three steps together, so sign-ins of one person that completed together each found
+  nothing to end and all stayed: with one sign-in allowed (`contexa.auth.allow-multiple-logins=false`, the default), 13 or
+  14 of 20 stayed signed in. A new sign-in now takes a lock of the database on the person
+  (`pg_advisory_xact_lock`) for the transaction that ends the earlier ones and stores it, so the next sign-in of that
+  person waits and finds this one; sign-ins of different people do not wait for each other. **Check:** one account,
+  20 clients past the password, the one code sent by all at once: one is signed in and 19 get 401; 20 sessions of one
+  account each with a code of its own, sent at once: 20 complete and one stays signed in; 1000 different accounts at
+  once all complete.
+
 - **A call from a changed context waits for no verdict, and a sensitive resource is not let out to it before one.** A call
   from another session, address or browser than the one the user's decision was reached for goes on while it is analysed,
   as a protected call is meant to; the decision applies from the next request. What bounds the cost of this is the limit of
