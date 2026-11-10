@@ -529,10 +529,13 @@ The format is based on Keep a Changelog and the project follows semantic version
   back. The name is checked first; the selection is refused (400) and the code still completes the sign-in.
 - **A sign-in by mail code alone goes on to the page that takes the code.** After the code was requested the browser
   was sent to `/mfa/ott/code-sent?...`, a page of the MFA pages that a single mail-code flow does not have (404). It
-  now goes to the flow's own page (`/login/ott/verify`), and the name asked for is no longer in the address.
+  now goes to the flow's own page: the one its DSL names with `defaultSubmitPageUrl(...)`, and `/login/ott/verify`
+  where it names none. The name asked for is no longer in the address.
 - **A failed password step of an MFA flow goes back to that flow's sign-in page.** A form submitted without the
   script was redirected to a fixed `/login?error=...`, which an MFA flow does not have (its page is `/mfa/login`, under
-  the flow's prefix): 404. The redirect and the `nextStepUrl` of the JSON answer now name the flow's own page.
+  the flow's prefix): 404. The redirect and the `nextStepUrl` of the JSON answer now name the address the flow's DSL
+  gives with `failureUrl(...)`, as it is, and the flow's own sign-in page with `?error=...` where it gives none; until
+  now a `failureUrl` of an MFA flow's password step was not used at all.
 - **A request sent to the addresses of one MFA flow while the sign-in in progress belongs to another is refused.**
   With two MFA flows, such a request was passed on unchecked to the other flow's own filters, which verified the code
   and then failed on the state (500). It is refused with 400 `MFA_FLOW_MISMATCH`; the sign-in in progress is untouched

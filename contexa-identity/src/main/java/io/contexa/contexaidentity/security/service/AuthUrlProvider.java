@@ -123,6 +123,22 @@ public class AuthUrlProvider {
         return applyPrefix(properties.getUrls().getPrimary().getLoginFailure());
     }
 
+    /**
+     * The address the application named for a failed password step of this flow, in its DSL ({@code failureUrl}) or in
+     * its settings, or {@code null} when it named none. Unnamed, the options carry a default of the library
+     * ({@code /login?error}, {@code /mfa/login?error}), which is a page an MFA flow does not have of its own.
+     */
+    @Nullable
+    public String getNamedPrimaryLoginFailure() {
+        String named = primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getFailureUrl())
+                ? primaryAuthOptions.getFailureUrl()
+                : properties.getUrls().getPrimary().getLoginFailure();
+        if (!StringUtils.hasText(named) || "/login?error".equals(named) || "/mfa/login?error".equals(named)) {
+            return null;
+        }
+        return applyPrefix(named);
+    }
+
     public String getPrimaryLoginSuccess() {
         return applyPrefix(properties.getUrls().getPrimary().getLoginSuccess());
     }

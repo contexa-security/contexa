@@ -94,14 +94,33 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
      * "not found".
      */
     private String signInPageOf(HttpServletRequest request) {
-        MfaFlowUrlRegistry registry = this.flowUrlRegistry;
-        if (registry != null && request.getAttribute(FAILED_FLOW_TYPE_NAME_ATTRIBUTE) instanceof String flowTypeName) {
-            AuthUrlProvider flowUrls = registry.getProvider(flowTypeName);
-            if (flowUrls != null && StringUtils.hasText(flowUrls.getPrimaryLoginPage())) {
-                return flowUrls.getPrimaryLoginPage();
-            }
+        AuthUrlProvider flowUrls = urlsOfTheFailedFlow(request);
+        if (flowUrls != null && StringUtils.hasText(flowUrls.getPrimaryLoginPage())) {
+            return flowUrls.getPrimaryLoginPage();
         }
         return DEFAULT_SIGN_IN_PAGE;
+    }
+
+    /**
+     * Where a browser goes after a failed password step: the address the application named for it ({@code failureUrl}
+     * of the flow's DSL), as it is, and otherwise the flow's sign-in page with the error in the query.
+     */
+    private String failureAddressOf(HttpServletRequest request, String errorCode) {
+        AuthUrlProvider flowUrls = urlsOfTheFailedFlow(request);
+        String named = flowUrls != null ? flowUrls.getNamedPrimaryLoginFailure() : null;
+        if (StringUtils.hasText(named)) {
+            return request.getContextPath() + named;
+        }
+        return request.getContextPath() + signInPageOf(request) + "?error=" + errorCode.toLowerCase(Locale.ROOT);
+    }
+
+    @Nullable
+    private AuthUrlProvider urlsOfTheFailedFlow(HttpServletRequest request) {
+        MfaFlowUrlRegistry registry = this.flowUrlRegistry;
+        if (registry != null && request.getAttribute(FAILED_FLOW_TYPE_NAME_ATTRIBUTE) instanceof String flowTypeName) {
+            return registry.getProvider(flowTypeName);
+        }
+        return null;
     }
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
@@ -241,8 +260,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
             failureType = FailureType.MFA_GLOBAL_FAILURE;
         }
 
-        String failureRedirectUrl = request.getContextPath() + signInPageOf(request)
-                + "?error=" + errorCode.toLowerCase(Locale.ROOT);
+        String failureRedirectUrl = failureAddressOf(request, errorCode);
 
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("message", errorMessage);
