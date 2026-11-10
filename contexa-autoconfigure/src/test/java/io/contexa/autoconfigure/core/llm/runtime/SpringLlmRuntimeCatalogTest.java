@@ -24,8 +24,10 @@ import static org.mockito.Mockito.when;
 import io.contexa.autoconfigure.properties.ContexaLlmBindingProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeBinding;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.ai.chat.model.ChatModel;
@@ -268,6 +270,87 @@ class SpringLlmRuntimeCatalogTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("none is marked primary")
                 .hasMessageContaining("contexa.llm.selection.chat.mode=dynamic-priority");
+    }
+
+    // ----- PR-145: the application's own Spring AI Ollama beans beside Contexa's -----
+
+    private SpringLlmRuntimeCatalog catalogWith(String[] chatBeans, String[] embeddingBeans, MockEnvironment environment, ContexaProperties contexaProperties) {
+        ConfigurableApplicationContext applicationContext = mock(ConfigurableApplicationContext.class);
+        ConfigurableListableBeanFactory beanFactory = mock(ConfigurableListableBeanFactory.class);
+        when(applicationContext.getBeanFactory()).thenReturn(beanFactory);
+        when(applicationContext.getEnvironment()).thenReturn(environment);
+        when(beanFactory.getBeanNamesForType(ChatModel.class, true, false)).thenReturn(chatBeans);
+        when(beanFactory.getBeanNamesForType(EmbeddingModel.class, true, false)).thenReturn(embeddingBeans);
+        for (String name : concat(chatBeans, embeddingBeans)) {
+            Mockito.doReturn((Class<?>) OllamaRuntimeStub.class).when(beanFactory).getType(name, false);
+            when(beanFactory.containsBeanDefinition(name)).thenReturn(false);
+        }
+        return new SpringLlmRuntimeCatalog(applicationContext, contexaProperties, new ContexaLlmBindingProperties());
+    }
+
+    private static String[] concat(String[] first, String[] second) {
+        return Stream.concat(Arrays.stream(first), Arrays.stream(second)).toArray(String[]::new);
+    }
+
+    @Test
+    void theApplicationsOllamaEmbeddingAndContexasMayRunTheSameModelAndTheStartDoesNotStop() {
+        ContexaProperties properties = new ContexaProperties();
+        properties.getLlm().getEmbedding().getOllama().setModel("mxbai-embed-large");
+        SpringLlmRuntimeCatalog catalog = catalogWith(new String[0], new String[]{"contexaSharedOllamaEmbeddingModel", "ollamaEmbeddingModel"},
+                new MockEnvironment().withProperty("spring.ai.ollama.embedding.options.model", "mxbai-embed-large"), properties);
+
+        assertThat(catalog.getEmbeddingBindings()).hasSize(2);
+        assertThat(catalog.findEmbeddingBinding("mxbai-embed-large").orElseThrow().getBeanName()).isEqualTo("contexaSharedOllamaEmbeddingModel");
+        assertThat(catalog.findEmbeddingBinding("ollamaEmbeddingModel").orElseThrow().getBeanName()).isEqualTo("ollamaEmbeddingModel");
+        assertThat(catalog.findEmbeddingBinding("contexaSharedOllamaEmbeddingModel").orElseThrow().getBeanName()).isEqualTo("contexaSharedOllamaEmbeddingModel");
+    }
+
+    @Test
+    void contexasOwnOllamaBeansTakeTheirModelFromContexasSettingNotFromTheApplicationsSpringAiProperty() {
+        ContexaProperties properties = new ContexaProperties();
+        properties.getLlm().getEmbedding().getOllama().setModel("mxbai-embed-large");
+        properties.getLlm().getChat().getOllama().setModel("qwen3:8b");
+        SpringLlmRuntimeCatalog catalog = catalogWith(new String[]{"contexaOllamaChatModel", "ollamaChatModel"},
+                new String[]{"contexaSharedOllamaEmbeddingModel", "ollamaEmbeddingModel"},
+                new MockEnvironment().withProperty("spring.ai.ollama.embedding.options.model", "nomic-embed-text")
+                        .withProperty("spring.ai.ollama.chat.options.model", "llama3.2"), properties);
+
+        assertThat(catalog.findEmbeddingBinding("contexaSharedOllamaEmbeddingModel").orElseThrow().getModelId()).isEqualTo("mxbai-embed-large");
+        assertThat(catalog.findEmbeddingBinding("ollamaEmbeddingModel").orElseThrow().getModelId()).isEqualTo("nomic-embed-text");
+        assertThat(catalog.findChatBinding("contexaOllamaChatModel").orElseThrow().getModelId()).isEqualTo("qwen3:8b");
+        assertThat(catalog.findChatBinding("ollamaChatModel").orElseThrow().getModelId()).isEqualTo("llama3.2");
+        assertThat(catalog.findEmbeddingBinding("nomic-embed-text").orElseThrow().getBeanName()).isEqualTo("ollamaEmbeddingModel");
+        assertThat(catalog.findChatBinding("llama3.2").orElseThrow().getBeanName()).isEqualTo("ollamaChatModel");
+    }
+
+    @Test
+    void whenContexaSettingNamesNoModelItsOwnDefaultIsTheModelId() {
+        SpringLlmRuntimeCatalog catalog = catalogWith(new String[]{"contexaOllamaChatModel"}, new String[]{"contexaSharedOllamaEmbeddingModel"},
+                new MockEnvironment().withProperty("spring.ai.ollama.embedding.options.model", "nomic-embed-text"), new ContexaProperties());
+
+        assertThat(catalog.findChatBinding("qwen3:8b").orElseThrow().getBeanName()).isEqualTo("contexaOllamaChatModel");
+        assertThat(catalog.findEmbeddingBinding("mxbai-embed-large").orElseThrow().getBeanName()).isEqualTo("contexaSharedOllamaEmbeddingModel");
+    }
+
+    @Test
+    void theApplicationsChatModelAndContexasMayRunTheSameModelToo() {
+        ContexaProperties properties = new ContexaProperties();
+        properties.getLlm().getChat().getOllama().setModel("qwen3:8b");
+        SpringLlmRuntimeCatalog catalog = catalogWith(new String[]{"contexaOllamaChatModel", "ollamaChatModel"}, new String[0],
+                new MockEnvironment().withProperty("spring.ai.ollama.chat.options.model", "qwen3:8b"), properties);
+
+        assertThat(catalog.getChatBindings()).hasSize(2);
+        assertThat(catalog.findChatBinding("qwen3:8b").orElseThrow().getBeanName()).isEqualTo("contexaOllamaChatModel");
+    }
+
+    @Test
+    void twoBeansOfTheApplicationThatAnswerToOneModelIdStillStopTheStart() {
+        SpringLlmRuntimeCatalog catalog = catalogWith(new String[0], new String[]{"ollamaEmbeddingModel", "otherOllamaEmbeddingModel"},
+                new MockEnvironment().withProperty("spring.ai.ollama.embedding.options.model", "nomic-embed-text"), new ContexaProperties());
+
+        assertThatThrownBy(catalog::getEmbeddingBindings)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Duplicate embedding runtime selector 'nomic-embed-text'");
     }
 
     private static final class OllamaRuntimeStub {

@@ -102,7 +102,7 @@ import org.springframework.web.reactive.function.client.WebClient;
         ModelServerGateProperties.class})
 public class CoreLLMTieredAutoConfiguration {
 
-    private static final String DEFAULT_OLLAMA_CHAT_MODEL = "qwen3:8b";
+    public static final String DEFAULT_OLLAMA_CHAT_MODEL = "qwen3:8b";
     private static final String DEFAULT_OLLAMA_EMBEDDING_MODEL = "mxbai-embed-large";
 
     @Autowired

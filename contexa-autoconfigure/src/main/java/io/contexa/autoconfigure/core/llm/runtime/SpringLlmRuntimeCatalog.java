@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.core.llm.runtime;
 
+import io.contexa.autoconfigure.compat.EmbeddingDimensionResolver;
+import io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaLlmBindingProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeBinding;
@@ -38,6 +40,13 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
     private final ConfigurableListableBeanFactory beanFactory;
     private final ContexaProperties contexaProperties;
     private final ContexaLlmBindingProperties bindingProperties;
+
+    /**
+     * The model beans Contexa builds itself, by name. What they run is Contexa's own setting; the Spring AI property of the same provider
+     * belongs to the application's bean of that provider, and reading it for Contexa's bean gave both the same model id.
+     */
+    private static final Set<String> CONTEXA_MODEL_BEANS = Set.of(
+            "contexaOllamaChatModel", "contexaDedicatedOllamaEmbeddingModel", "contexaSharedOllamaEmbeddingModel");
 
     private volatile Snapshot snapshot;
 
@@ -343,11 +352,28 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
     }
 
     private String inferModelId(String beanName, Class<?> beanType, LlmRuntimeType runtimeType, String provider) {
+        if (CONTEXA_MODEL_BEANS.contains(beanName)) {
+            return contexaModelId(runtimeType);
+        }
         String configuredModelId = configuredProviderModelId(provider, runtimeType);
         if (configuredModelId != null) {
             return configuredModelId;
         }
         return beanName;
+    }
+
+    private String contexaModelId(LlmRuntimeType runtimeType) {
+        String configured = switch (runtimeType) {
+            case CHAT -> contexaProperties.getLlm().getChat().getOllama().getModel();
+            case EMBEDDING -> contexaProperties.getLlm().getEmbedding().getOllama().getModel();
+        };
+        if (StringUtils.hasText(configured)) {
+            return configured.trim();
+        }
+        return switch (runtimeType) {
+            case CHAT -> CoreLLMTieredAutoConfiguration.DEFAULT_OLLAMA_CHAT_MODEL;
+            case EMBEDDING -> EmbeddingDimensionResolver.DEFAULT_OLLAMA_EMBEDDING_MODEL;
+        };
     }
 
     private String configuredProviderModelId(String provider, LlmRuntimeType runtimeType) {
@@ -403,12 +429,29 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
             for (String selector : selectorsOf(binding)) {
                 LlmRuntimeBinding existing = selectors.putIfAbsent(selector, binding);
                 if (existing != null && !sameBinding(existing, binding)) {
+                    if (sharedModelId(existing, binding, selector)) {
+                        // the application's own bean and Contexa's run the same model: that is no ambiguity for the application, and a start must not stop for it
+                        selectors.put(selector, isContexaModelBean(existing) ? existing : binding);
+                        continue;
+                    }
                     throw new IllegalStateException("Duplicate " + runtimeType + " runtime selector '" + selector + "' is mapped by multiple bindings: "
                             + describeBinding(existing) + ", " + describeBinding(binding)
                             + ". Keep bean names, runtime ids, model ids, and aliases unique.");
                 }
             }
         }
+    }
+
+    private boolean isContexaModelBean(LlmRuntimeBinding binding) {
+        return binding.getBeanName() != null && CONTEXA_MODEL_BEANS.contains(binding.getBeanName());
+    }
+
+    /** Exactly one of the two is Contexa's own bean, and the selector is the model id both run (not a bean name or a runtime id someone chose). */
+    private boolean sharedModelId(LlmRuntimeBinding first, LlmRuntimeBinding second, String selector) {
+        if (isContexaModelBean(first) == isContexaModelBean(second)) {
+            return false;
+        }
+        return selector.equals(first.getModelId()) && selector.equals(second.getModelId());
     }
 
     private Set<String> selectorsOf(LlmRuntimeBinding binding) {
@@ -443,7 +486,13 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
             return Optional.empty();
         }
         String normalized = selector.trim();
-        return bindings.stream().filter(binding -> binding.matches(normalized)).findFirst();
+        List<LlmRuntimeBinding> matched = bindings.stream().filter(binding -> binding.matches(normalized)).toList();
+        if (matched.size() < 2) {
+            return matched.stream().findFirst();
+        }
+        return matched.stream().filter(binding -> normalized.equals(binding.getRuntimeId()) || normalized.equals(binding.getBeanName())).findFirst()
+                .or(() -> matched.stream().filter(this::isContexaModelBean).findFirst())
+                .or(() -> matched.stream().findFirst());
     }
 
     private List<String> parsePriority(String priorityConfig) {
