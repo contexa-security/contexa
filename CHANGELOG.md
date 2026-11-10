@@ -502,6 +502,42 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A mail server that answers slowly no longer stops every sign-in.** The mail of a sign-in is sent on the thread of
+  the request that asked for it, and JavaMail waits without end where no timeout is set. With a mail server that greeted
+  one connection a second, 400 requests for a code at once held every request thread: 89 were answered and 311 got no
+  answer in 90 seconds, and the application did not answer its health check for the whole of that time. Two limits now
+  bound it: each step of the SMTP conversation (connect, read, write) ends after
+  `contexa.auth.ott.email-smtp-timeout-seconds` (10) where the application's own
+  `spring.mail.properties.mail.smtp.*timeout` names none (0 leaves the mail settings alone), and at most
+  `contexa.auth.ott.email-max-concurrent-sends` (64) mails are being sent at one time, a request beyond them waiting
+  `contexa.auth.ott.email-send-wait-seconds` (5) for a place and then failing as an undelivered mail does (500 with
+  `contexa.auth.ott.fail-on-email-error=true`, the default). **Check:** against that mail server all 400 requests are
+  answered, the slowest after about 20 seconds, the health check fails for the first four seconds only, and the ten
+  mails the server took in that time arrive; on a mail server that keeps up 1000 accounts sign in at once as before.
+- **A code request with no code in it counts as a failed attempt instead of stopping the sign-in.** The submission was
+  put on record before the request was looked at, and a request with a missing, empty or blank `token` was then passed
+  on by the code filter: the answer was 404, the flow waited for a verification that never ran, the right code got 429
+  for ten seconds and after that the flow was invalid. Such a request is now a failed attempt of the factor (401, one
+  attempt counted) and the right code completes the sign-in.
+- **The same code sent twice under one request id is verified once.** With an `X-Request-Id` (or
+  `X-MFA-Request-Id`) a second submission was answered with the outcome of the first, "accepted", and went on to the
+  code filter as well: of ten requests at once none completed and one got 500. The repeated submission is now told to
+  retry (429, `VERIFICATION_RUNNING`) and one request completes.
+- **A factor selection that names no factor of the flow leaves the sign-in where it is.** The flow was moved to the
+  selection state before the name was checked, so one request with an unknown name (`MFA_TOTP`, `OTT`) took the
+  challenge in progress away: the code already mailed was refused (400), and asking for another did not bring the flow
+  back. The name is checked first; the selection is refused (400) and the code still completes the sign-in.
+- **A sign-in by mail code alone goes on to the page that takes the code.** After the code was requested the browser
+  was sent to `/mfa/ott/code-sent?...`, a page of the MFA pages that a single mail-code flow does not have (404). It
+  now goes to the flow's own page (`/login/ott/verify`), and the name asked for is no longer in the address.
+- **A failed password step of an MFA flow goes back to that flow's sign-in page.** A form submitted without the
+  script was redirected to a fixed `/login?error=...`, which an MFA flow does not have (its page is `/mfa/login`, under
+  the flow's prefix): 404. The redirect and the `nextStepUrl` of the JSON answer now name the flow's own page.
+- **A request sent to the addresses of one MFA flow while the sign-in in progress belongs to another is refused.**
+  With two MFA flows, such a request was passed on unchecked to the other flow's own filters, which verified the code
+  and then failed on the state (500). It is refused with 400 `MFA_FLOW_MISMATCH`; the sign-in in progress is untouched
+  and its code still works at its own address.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines

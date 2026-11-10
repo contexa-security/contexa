@@ -152,7 +152,9 @@ class OneTimeTokenResendResponseTest {
         MockHttpServletResponse first = post(REGISTERED);
         MockHttpServletResponse refused = post(REGISTERED);
 
-        assertThat(first.getRedirectedUrl()).contains("type=code_sent");
+        // the page that takes the code, which a sign-in by code alone has; the name asked for stays out of the address
+        assertThat(first.getRedirectedUrl()).isEqualTo("/login/ott/verify");
+        assertThat(first.getRedirectedUrl()).doesNotContain(REGISTERED);
         assertThat(refused.getStatus()).isEqualTo(first.getStatus());
         assertThat(refused.getRedirectedUrl()).isEqualTo(first.getRedirectedUrl());
         verify(mail, times(1)).sendHtmlMessage(anyString(), anyString(), anyString());

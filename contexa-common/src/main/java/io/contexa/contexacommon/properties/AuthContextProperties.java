@@ -69,6 +69,22 @@ public class AuthContextProperties {
     @Data
     public static class OttSettings {
         private boolean failOnEmailError = true;
+
+        /**
+         * The mails of a sign-in being sent at one time. A mail is sent on the thread of the request that asked for it,
+         * so this is the most request threads a slow mail server can hold.
+         */
+        private int emailMaxConcurrentSends = 64;
+
+        /** The seconds a request waits for a place among the mails being sent before it fails as an undelivered mail does. */
+        private int emailSendWaitSeconds = 5;
+
+        /**
+         * The limit in seconds of the connect, the read and the write of the SMTP conversation, set where the
+         * application's own mail settings ({@code spring.mail.properties.mail.smtp.*timeout}) name none; JavaMail waits
+         * without end otherwise. Zero leaves the application's mail settings as they are.
+         */
+        private int emailSmtpTimeoutSeconds = 10;
     }
 
 }

@@ -19,6 +19,7 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
+import io.contexa.contexaidentity.security.statemachine.core.service.AbstractMfaStateMachineService;
 import io.contexa.contexaidentity.security.statemachine.core.service.AbstractMfaStateMachineService.MfaStateMachineBusyException;
 import io.contexa.contexaidentity.security.statemachine.core.service.AbstractMfaStateMachineService.MfaStateMachineOptimisticLockException;
 import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
@@ -79,6 +80,10 @@ public class MfaStateMachineIntegrator {
     public boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request, Map<String, Object> additionalHeaders) {
         String sessionId = context.getMfaSessionId();
         clearBusyRetry(request);
+        if (request != null) {
+            // one request sends several events; the mark belongs to the event sent last
+            request.removeAttribute(AbstractMfaStateMachineService.DUPLICATE_REQUEST_ATTRIBUTE);
+        }
 
         try {
             sessionRepository.refreshSession(sessionId);
@@ -107,6 +112,21 @@ public class MfaStateMachineIntegrator {
 
     public boolean isBusyRetry(HttpServletRequest request) {
         return request != null && Boolean.TRUE.equals(request.getAttribute(MFA_BUSY_RETRY_ATTRIBUTE));
+    }
+
+    /**
+     * Whether the event sent last for this request was not carried out because a request with the same id had already
+     * sent it. The service answers such a request with the outcome of the earlier one and changes nothing, so "accepted"
+     * alone does not say that this request is the one to go on.
+     */
+    public boolean isDuplicateRequest(HttpServletRequest request) {
+        return request != null
+                && Boolean.TRUE.equals(request.getAttribute(AbstractMfaStateMachineService.DUPLICATE_REQUEST_ATTRIBUTE));
+    }
+
+    /** Marks the request as one that met a verification of the same flow in progress; it is answered "retry shortly". */
+    public void markVerificationRunning(HttpServletRequest request) {
+        markBusyRetry(request, 1_000L, "VERIFICATION_RUNNING");
     }
 
     public long getBusyRetryAfterMs(HttpServletRequest request) {

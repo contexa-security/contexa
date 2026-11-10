@@ -20,6 +20,7 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.SessionIdGenerationException;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker;
@@ -228,6 +229,9 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
                 sessionRepository.getRepositoryType(),
                 failed.getMessage());
 
+        // nothing of the flow exists after a failed password step, so the request carries the flow's name to the handler
+        request.setAttribute(UnifiedAuthenticationFailureHandler.FAILED_FLOW_TYPE_NAME_ATTRIBUTE,
+                (this.flowTypeName != null) ? this.flowTypeName : MfaFlowTypeUtils.getBaseMfaTypeName());
         failureHandler.onAuthenticationFailure(request, response, failed);
     }
 

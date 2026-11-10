@@ -61,9 +61,11 @@ public class IdentityServiceAutoConfiguration {
 
     @Bean(name = "contexaEmailService")
     @ConditionalOnMissingBean
-    public EmailService emailService(ObjectProvider<JavaMailSender> mailSender) {
+    public EmailService emailService(ObjectProvider<JavaMailSender> mailSender, AuthContextProperties mailLimits) {
         // none, or several of the application's: Contexa then does not send mail with the application's sender
-        return new EmailService(mailSender.getIfUnique());
+        AuthContextProperties.OttSettings ott = mailLimits.getOtt();
+        return new EmailService(mailSender.getIfUnique(), ott.getEmailMaxConcurrentSends(), ott.getEmailSendWaitSeconds(),
+                ott.getEmailSmtpTimeoutSeconds());
     }
 
     // Held in a bean that is not a OneTimeTokenService, and not stood aside for the application's own service: the one-time token login of
