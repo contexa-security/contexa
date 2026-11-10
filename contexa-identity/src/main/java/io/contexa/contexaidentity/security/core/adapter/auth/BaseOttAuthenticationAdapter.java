@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.core.adapter.auth;
 
 import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
+import io.contexa.contexaidentity.security.handler.OneTimeTokenCreationSuccessHandler;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
 import io.contexa.contexaidentity.security.filter.OneTimeTokenAddressRefusalFilter;
@@ -55,6 +56,22 @@ public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticatio
         );
     }
 
+    /**
+     * The handler all flows share does not know which flow a request belongs to, and a sign-in by code alone leaves no
+     * flow record to ask. So each flow hands the page it takes its code at to the handler with the request: the page the
+     * DSL named ({@code defaultSubmitPageUrl}), which is where the browser goes once the code is mailed.
+     */
+    private static OneTimeTokenGenerationSuccessHandler naming(String submitPageUrl,
+                                                               OneTimeTokenGenerationSuccessHandler shared) {
+        if (shared == null) {
+            return null;
+        }
+        return (request, response, token) -> {
+            request.setAttribute(OneTimeTokenCreationSuccessHandler.SUBMIT_PAGE_ATTRIBUTE, submitPageUrl);
+            shared.handle(request, response, token);
+        };
+    }
+
     @Override
     public void configureHttpSecurityForOtt(HttpSecurity http, OttOptions opts,
                                             OneTimeTokenGenerationSuccessHandler tokenGenerationSuccessHandler,
@@ -77,7 +94,8 @@ public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticatio
                     .tokenGeneratingUrl(opts.getTokenGeneratingUrl())
                     .tokenService(opts.getOneTimeTokenService())
                     .tokenGenerationSuccessHandler(opts.getTokenGenerationSuccessHandler() == null ?
-                            tokenGenerationSuccessHandler : opts.getTokenGenerationSuccessHandler())
+                            naming(opts.getDefaultSubmitPageUrl(), tokenGenerationSuccessHandler)
+                            : opts.getTokenGenerationSuccessHandler())
                     .generateRequestResolver(new FlowBoundOneTimeTokenRequestResolver(request -> {
                         MfaStateMachineIntegrator flows = appContext.getBeanProvider(MfaStateMachineIntegrator.class).getIfAvailable();
                         return flows != null ? flows.loadFactorContextFromRequest(request) : null;

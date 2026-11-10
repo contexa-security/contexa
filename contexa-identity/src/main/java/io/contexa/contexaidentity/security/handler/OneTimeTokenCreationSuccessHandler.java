@@ -36,6 +36,9 @@ import java.util.Objects;
 @Slf4j
 public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGenerationSuccessHandler {
 
+    /** Where a flow by code alone names, with the request, the page that takes its code. */
+    public static final String SUBMIT_PAGE_ATTRIBUTE = "io.contexa.ott.submitPageUrl";
+
     private final MfaStateMachineIntegrator mfaStateMachineIntegrator;
     private final AuthUrlProvider authUrlProvider;
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
@@ -85,7 +88,12 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
             // A sign-in by mail code alone has no "code sent" page: that page is one of the MFA pages, and its address
             // answers "not found" in such a flow. The browser goes on to the page that takes the code, which the flow
             // does have. The name the code was asked for stays out of the address.
-            String submitPageUrl = resolveProvider(request).getSingleOttChallenge();
+            // The flow names the page with the request (its DSL's defaultSubmitPageUrl); without that the page of the
+            // settings is the one a flow by code alone has by default.
+            String submitPageUrl = request.getAttribute(SUBMIT_PAGE_ATTRIBUTE) instanceof String named ? named : null;
+            if (!StringUtils.hasText(submitPageUrl)) {
+                submitPageUrl = resolveProvider(request).getSingleOttChallenge();
+            }
             if (!StringUtils.hasText(submitPageUrl)) {
                 submitPageUrl = "/login/ott/verify";
             }
