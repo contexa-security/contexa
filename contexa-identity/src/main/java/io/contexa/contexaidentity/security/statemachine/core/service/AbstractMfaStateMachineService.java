@@ -62,6 +62,9 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
     protected static final long DEFAULT_LOCK_LEASE_TIME_SECONDS = 30;
     protected static final long DEFAULT_USER_REQUEST_LOCK_WAIT_TIME_MS = 750;
     protected static final MfaState FALLBACK_INITIAL_MFA_STATE = MfaState.NONE;
+    /** Set on a request whose event was not carried out because a request with the same id had already sent it. */
+    public static final String DUPLICATE_REQUEST_ATTRIBUTE = "io.contexa.mfa.duplicateRequest";
+
     private static final String MFA_REQUEST_ID_HEADER = "X-MFA-Request-Id";
     private static final String REQUEST_ID_HEADER = "X-Request-Id";
     private static final String REQUEST_ID_PARAMETER = "requestId";
@@ -185,6 +188,9 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
                 log.info("[MFA SM Service] [{}] Duplicate request ignored for event ({}) requestId={}.",
                         sessionId, event, requestId);
                 synchronizeExternalContext(context, persistedContext, currentState);
+                if (request != null) {
+                    request.setAttribute(DUPLICATE_REQUEST_ATTRIBUTE, Boolean.TRUE);
+                }
                 return lastEventAccepted(persistedContext);
             }
 

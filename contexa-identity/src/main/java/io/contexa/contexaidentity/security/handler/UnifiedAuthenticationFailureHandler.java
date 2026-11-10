@@ -32,6 +32,8 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -68,6 +70,39 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private final IBlockedUserRecorder blockedUserRecorder;
     private final CentralAuditFacade centralAuditFacade;
     private final SecurityContextDataStore securityContextDataStore;
+
+    /**
+     * Where a password step that failed says which flow it belongs to. Nothing of the flow exists yet at that moment,
+     * so the request is the only thing that can carry its name to this handler.
+     */
+    public static final String FAILED_FLOW_TYPE_NAME_ATTRIBUTE = "io.contexa.mfa.failedFlowTypeName";
+
+    /** The page a browser is sent back to when no flow names its own. */
+    private static final String DEFAULT_SIGN_IN_PAGE = "/login";
+
+    @Nullable
+    private volatile MfaFlowUrlRegistry flowUrlRegistry;
+
+    /** The addresses of each MFA flow, so that a failed password step returns to the sign-in page of its own flow. */
+    public void setFlowUrlRegistry(@Nullable MfaFlowUrlRegistry flowUrlRegistry) {
+        this.flowUrlRegistry = flowUrlRegistry;
+    }
+
+    /**
+     * The sign-in page of the flow whose password step failed. A fixed {@code /login} sent the browser to an address
+     * that an MFA flow does not have (its page is {@code /mfa/login}, under the flow's prefix), and it answered
+     * "not found".
+     */
+    private String signInPageOf(HttpServletRequest request) {
+        MfaFlowUrlRegistry registry = this.flowUrlRegistry;
+        if (registry != null && request.getAttribute(FAILED_FLOW_TYPE_NAME_ATTRIBUTE) instanceof String flowTypeName) {
+            AuthUrlProvider flowUrls = registry.getProvider(flowTypeName);
+            if (flowUrls != null && StringUtils.hasText(flowUrls.getPrimaryLoginPage())) {
+                return flowUrls.getPrimaryLoginPage();
+            }
+        }
+        return DEFAULT_SIGN_IN_PAGE;
+    }
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
                                                MfaStateMachineIntegrator stateMachineIntegrator,
@@ -206,7 +241,8 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
             failureType = FailureType.MFA_GLOBAL_FAILURE;
         }
 
-        String failureRedirectUrl = request.getContextPath() + "/login?error=" + errorCode.toLowerCase(Locale.ROOT);
+        String failureRedirectUrl = request.getContextPath() + signInPageOf(request)
+                + "?error=" + errorCode.toLowerCase(Locale.ROOT);
 
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("message", errorMessage);

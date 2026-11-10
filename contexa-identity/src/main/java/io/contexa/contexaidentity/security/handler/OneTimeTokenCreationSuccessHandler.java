@@ -31,8 +31,6 @@ import org.springframework.security.web.authentication.ott.OneTimeTokenGeneratio
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 @Slf4j
@@ -84,19 +82,15 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
         }
 
         if ((factorContext == null || !MfaFlowTypeUtils.isMfaFlow(factorContext.getFlowTypeName()))) {
-            String email = URLEncoder.encode(usernameFromToken, StandardCharsets.UTF_8);
-            String codeSentUrl = resolveProvider(request).getOttCodeSent();
-            if (!StringUtils.hasText(codeSentUrl)) {
-                codeSentUrl = "/ott/sent";
+            // A sign-in by mail code alone has no "code sent" page: that page is one of the MFA pages, and its address
+            // answers "not found" in such a flow. The browser goes on to the page that takes the code, which the flow
+            // does have. The name the code was asked for stays out of the address.
+            String submitPageUrl = resolveProvider(request).getSingleOttChallenge();
+            if (!StringUtils.hasText(submitPageUrl)) {
+                submitPageUrl = "/login/ott/verify";
             }
 
-            String redirectUrl = request.getContextPath() + codeSentUrl +
-                    "?email=" + email +
-                    "&type=code_sent" +
-                    "&flow=ott_single" +
-                    "&repository=" + sessionRepository.getRepositoryType();
-
-            response.sendRedirect(redirectUrl);
+            response.sendRedirect(request.getContextPath() + submitPageUrl);
             return;
         }
 

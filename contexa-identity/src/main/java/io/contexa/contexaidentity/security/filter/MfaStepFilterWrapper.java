@@ -22,6 +22,7 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorIdentifier;
 import io.contexa.contexaidentity.security.core.validator.MfaContextValidator;
 import io.contexa.contexaidentity.security.core.validator.ValidationResult;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
+import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureHandler;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
@@ -30,7 +31,9 @@ import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -50,6 +53,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
     private final MfaSessionRepository sessionRepository;
     private final MfaSettings mfaSettings;
     private final AuthResponseWriter responseWriter;
+    private final ObjectProvider<UnifiedAuthenticationFailureHandler> factorFailureHandler;
     private volatile String flowTypeName;
 
     public MfaStepFilterWrapper(ConfiguredFactorFilterProvider configuredFactorFilterProvider,
@@ -62,6 +66,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         this.sessionRepository = applicationContext.getBean(MfaSessionRepository.class);
         this.mfaSettings = authContextProperties.getMfa();
         this.responseWriter = responseWriter;
+        this.factorFailureHandler = applicationContext.getBeanProvider(UnifiedAuthenticationFailureHandler.class);
     }
 
     @Override
@@ -88,7 +93,10 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         if (this.flowTypeName != null && ctx != null
                 && ctx.getFlowTypeName() != null
                 && !this.flowTypeName.equalsIgnoreCase(ctx.getFlowTypeName())) {
-            chain.doFilter(request, response);
+            // The sign-in in progress belongs to another flow than the one this address is of. Passed on, the request
+            // reached this flow's factor filter without any of the checks made below (attempts, expiry, state), the
+            // credential was verified there, and the answer was a state error (500). It is refused here instead.
+            refuseAnotherFlow(request, response, ctx);
             return;
         }
 
@@ -159,10 +167,25 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
             }
             return;
         }
+        if (stateMachineIntegrator.isDuplicateRequest(request)) {
+            // The submission under this request id is on record already: a request with the same id is being verified,
+            // or was. The service answered with that earlier outcome and changed nothing, so handing this request to the
+            // factor filter would present the credential a second time. It is told to retry, as a second click is.
+            stateMachineIntegrator.markVerificationRunning(request);
+            if (!response.isCommitted()) {
+                writeBusyRetryResponse(request, response);
+            }
+            return;
+        }
         FactorIdentifier factorIdentifier = FactorIdentifier.of(ctx.getFlowTypeName(), ctx.getCurrentStepId());
         Filter delegateFactorFilter = configuredFactorFilterProvider.getFilter(factorIdentifier);
         if (delegateFactorFilter != null) {
-            delegateFactorFilter.doFilter(request, response, chain);
+            // A factor filter that finds no credential in the request (a missing or blank code) passes the request on
+            // instead of refusing it. The submission is on record by now, so passing it on would answer "not found" and
+            // leave the flow waiting for a verification that never ran. Such a request is a failed attempt of the factor.
+            FilterChain withoutCredential = (passedOn, answer) -> factorFailureHandler.getObject().onAuthenticationFailure(
+                    request, response, new BadCredentialsException("No credential was presented for the factor"));
+            delegateFactorFilter.doFilter(request, response, withoutCredential);
 
         } else {
             log.error("No delegate filter found for factorIdentifier: {}", factorIdentifier);
@@ -202,6 +225,28 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    private void refuseAnotherFlow(HttpServletRequest request, HttpServletResponse response, FactorContext ctx)
+            throws IOException {
+        if (!response.isCommitted()) {
+            writeAnotherFlowRefusal(request, response, responseWriter, ctx.getFlowTypeName(), this.flowTypeName);
+        }
+    }
+
+    /**
+     * Answers a request sent to the addresses of one MFA flow while the sign-in in progress is of another: 400, and
+     * nothing of the sign-in in progress is touched, so it goes on at its own addresses.
+     */
+    static void writeAnotherFlowRefusal(HttpServletRequest request, HttpServletResponse response,
+                                        AuthResponseWriter responseWriter, String flowInProgress, String flowOfTheAddress)
+            throws IOException {
+        Map<String, Object> details = new HashMap<>();
+        details.put("flowInProgress", flowInProgress);
+        details.put("flowOfTheAddress", flowOfTheAddress);
+        responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "MFA_FLOW_MISMATCH",
+                "The sign-in in progress belongs to another flow. Continue it at its own address, or sign in again here.",
+                request.getRequestURI(), details);
     }
 
     private void writeBusyRetryResponse(HttpServletRequest request, HttpServletResponse response) throws IOException {

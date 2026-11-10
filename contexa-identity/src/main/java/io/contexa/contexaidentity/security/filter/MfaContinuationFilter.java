@@ -123,7 +123,10 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         if (this.flowTypeName != null && ctx != null
                 && ctx.getFlowTypeName() != null
                 && !this.flowTypeName.equalsIgnoreCase(ctx.getFlowTypeName())) {
-            filterChain.doFilter(request, response);
+            // The sign-in in progress belongs to another flow than the one this address is of. Passed on, the request
+            // went to this flow's own filters with none of the checks below, and ended in a state error (500).
+            MfaStepFilterWrapper.writeAnotherFlowRefusal(request, response, responseWriter, ctx.getFlowTypeName(),
+                    this.flowTypeName);
             return;
         }
 
