@@ -16,7 +16,7 @@
 package io.contexa.contexaiam.agent;
 
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacore.autonomous.agent.AgentRegistration;
 import io.contexa.contexacore.autonomous.agent.AgentRegistrationRequest;
 import io.contexa.contexacore.autonomous.agent.AgentRegistrationSource;
@@ -91,17 +91,17 @@ public class JdbcAgentRegistry implements AgentRegistry {
 
     private final JdbcOperations jdbc;
     private final Clock clock;
-    private final Cache<String, Optional<AgentRegistration>> lookups = Caffeine.newBuilder()
+    private final Cache<String, Optional<AgentRegistration>> lookups = ContexaCaffeine.newBuilder()
             .expireAfterWrite(LOOKUP_CACHE_TTL)
             .maximumSize(10_000)
             .build();
     /** Client lookups admit tokens, so every life cycle change clears them; a sighting changes no approval. */
-    private final Cache<String, Optional<AgentRegistration>> clientLookups = Caffeine.newBuilder()
+    private final Cache<String, Optional<AgentRegistration>> clientLookups = ContexaCaffeine.newBuilder()
             .expireAfterWrite(LOOKUP_CACHE_TTL)
             .maximumSize(10_000)
             .build();
     /** The client's agent in every tenant, cleared with the client lookups. */
-    private final Cache<String, List<AgentRegistration>> everyTenantClientLookups = Caffeine.newBuilder()
+    private final Cache<String, List<AgentRegistration>> everyTenantClientLookups = ContexaCaffeine.newBuilder()
             .expireAfterWrite(LOOKUP_CACHE_TTL)
             .maximumSize(10_000)
             .build();

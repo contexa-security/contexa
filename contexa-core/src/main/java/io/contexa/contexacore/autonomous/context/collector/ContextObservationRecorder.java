@@ -16,8 +16,8 @@
 package io.contexa.contexacore.autonomous.context.collector;
 
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.security.bridge.AgentSessionKey;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -145,7 +145,7 @@ public class ContextObservationRecorder {
     ContextObservationRecorder(SecurityContextDataStore dataStore, long heldBudgetBytes) {
         this.dataStore = dataStore;
         this.heldBudgetBytes = heldBudgetBytes;
-        this.requests = Caffeine.newBuilder()
+        this.requests = ContexaCaffeine.newBuilder()
                 .maximumSize(MAX_REQUESTS)
                 .expireAfterWrite(REQUEST_TTL_MINUTES, TimeUnit.MINUTES)
                 .evictionListener((String key, Request request, RemovalCause cause) -> removed(request))

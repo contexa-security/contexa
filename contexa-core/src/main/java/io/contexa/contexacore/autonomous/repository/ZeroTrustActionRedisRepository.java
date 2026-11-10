@@ -17,7 +17,7 @@ package io.contexa.contexacore.autonomous.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
@@ -237,8 +237,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
      * reader lets through, so a Redis outage lifted every BLOCK and CHALLENGE. Each read refreshes this, so a restriction
      * lifted while Redis answers is gone from it too.
      */
-    private final Cache<String, Restriction> restrictionsRead = Caffeine.newBuilder().maximumSize(RESTRICTIONS_KEPT).build();
-    private final Cache<String, Boolean> blockRecordAnswers = Caffeine.newBuilder().maximumSize(RESTRICTIONS_KEPT)
+    private final Cache<String, Restriction> restrictionsRead = ContexaCaffeine.newBuilder().maximumSize(RESTRICTIONS_KEPT).build();
+    private final Cache<String, Boolean> blockRecordAnswers = ContexaCaffeine.newBuilder().maximumSize(RESTRICTIONS_KEPT)
             .expireAfterWrite(BLOCK_RECORD_ANSWER_TTL).build();
     /** Whether the database's record holds a block in force for a user; the second copy of a BLOCK. */
     private volatile Predicate<String> blockRecord;

@@ -24,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.rag.service.PgVectorSearchSettings;
 import io.contexa.contexacore.std.rag.service.VectorSearchScope;
@@ -115,7 +116,7 @@ public class VectorStoreCacheLayer {
         long budget = maxSearches > 0 ? defaultCacheBudgetBytes(Runtime.getRuntime().maxMemory()) : 0;
         long searchShare = maxSearches > 0 ? (budget + maxSearches - 1) / maxSearches : 0;
 
-        Caffeine<String, List<Document>> builder = Caffeine.newBuilder()
+        Caffeine<String, List<Document>> builder = ContexaCaffeine.newBuilder()
                 .maximumWeight(budget)
                 .weigher((String key, List<Document> documents) ->
                         (int) Math.min(Integer.MAX_VALUE, Math.max(searchShare, documentsBytes(documents))))

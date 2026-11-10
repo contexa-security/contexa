@@ -15,12 +15,12 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
 import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.domain.EventTimeZone;
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
@@ -196,7 +196,7 @@ public class SecurityDecisionPromptSections {
     private final List<PromptSectionPlan> userSectionPlans;
     private final Cache<String, byte[]> canonicalSecurityContextCache;
     /** The canonical contexts a replay fixed for its event, by event id (the replay's own id). */
-    private final Cache<String, byte[]> pinnedCanonicalContexts = Caffeine.newBuilder()
+    private final Cache<String, byte[]> pinnedCanonicalContexts = ContexaCaffeine.newBuilder()
             .maximumSize(256)
             .expireAfterWrite(10, TimeUnit.MINUTES)
             .build();
@@ -280,12 +280,12 @@ public class SecurityDecisionPromptSections {
         this.learningContextEvidenceAssembler = new LearningContextEvidenceAssembler();
         this.canonicalContextSnapshotMapper = new ObjectMapper().findAndRegisterModules();
         // PR-91: its bytes, not its entries, are what a small heap has room for: a context takes tens of kilobytes.
-        this.canonicalSecurityContextCache = Caffeine.newBuilder()
+        this.canonicalSecurityContextCache = ContexaCaffeine.newBuilder()
                 .maximumWeight(defaultCanonicalContextBudgetBytes(Runtime.getRuntime().maxMemory()))
                 .weigher((String key, byte[] snapshot) -> snapshot.length + 2 * key.length())
                 .expireAfterWrite(15, TimeUnit.MINUTES)
                 .build();
-        this.systemSectionsCache = Caffeine.newBuilder()
+        this.systemSectionsCache = ContexaCaffeine.newBuilder()
                 .maximumSize(64)
                 .expireAfterAccess(30, TimeUnit.MINUTES)
                 .build();

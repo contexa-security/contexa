@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.autonomous.AnalysisTurn;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
@@ -31,7 +32,6 @@ import io.contexa.contexacore.autonomous.context.support.PastRecordPostProcessor
 import io.contexa.contexacore.autonomous.context.support.PastRecordRanking;
 import java.time.Instant;
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
@@ -170,19 +170,19 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected final PromptContextAuditRecorder promptContextAuditRecorder;
     protected final StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry;
     private static final Cache<String, SecurityDecisionStandardPromptTemplate.SessionContext> ESCALATION_SESSION_CACHE =
-            Caffeine.newBuilder()
+            ContexaCaffeine.newBuilder()
                     .maximumSize(1000)
                     .expireAfterWrite(30, TimeUnit.MINUTES)
                     .build();
 
     private static final Cache<String, SecurityDecisionStandardPromptTemplate.BehaviorAnalysis> ESCALATION_BEHAVIOR_CACHE =
-            Caffeine.newBuilder()
+            ContexaCaffeine.newBuilder()
                     .maximumSize(1000)
                     .expireAfterWrite(30, TimeUnit.MINUTES)
                     .build();
 
     private static final Cache<String, List<Document>> ESCALATION_RAG_CACHE =
-            Caffeine.newBuilder()
+            ContexaCaffeine.newBuilder()
                     .maximumSize(500)
                     .expireAfterWrite(30, TimeUnit.MINUTES)
                     .build();

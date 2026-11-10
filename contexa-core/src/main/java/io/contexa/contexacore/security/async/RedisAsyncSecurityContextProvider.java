@@ -16,7 +16,7 @@
 package io.contexa.contexacore.security.async;
 
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacommon.store.ApplicationNamespace;
 import java.time.Duration;
 import java.time.Instant;
@@ -44,7 +44,7 @@ public class RedisAsyncSecurityContextProvider extends AbstractAsyncSecurityCont
                                              Duration localCacheTtl) {
         this.redisTemplate = Objects.requireNonNull(redisTemplate, "redisTemplate");
         this.localCacheTtl = Objects.requireNonNull(localCacheTtl, "localCacheTtl");
-        this.authCache = Caffeine.newBuilder()
+        this.authCache = ContexaCaffeine.newBuilder()
                 .maximumSize(1000)
                 .expireAfterWrite(this.localCacheTtl)
                 .build();

@@ -16,7 +16,7 @@
 package io.contexa.contexacore.security;
 
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
@@ -70,17 +70,17 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
         this.setSpringSecurityContextKey(CONTEXT_KEY);
 
         SecurityZeroTrustProperties properties = support.getProperties();
-        this.invalidatedSessionsCache = Caffeine.newBuilder()
+        this.invalidatedSessionsCache = ContexaCaffeine.newBuilder()
                 .maximumSize(10000)
                 .expireAfterWrite(properties.getCache().getInvalidatedTtlMinutes(), TimeUnit.MINUTES)
                 .build();
 
-        this.lastRedisUpdateCache = Caffeine.newBuilder()
+        this.lastRedisUpdateCache = ContexaCaffeine.newBuilder()
                 .maximumSize(10000)
                 .expireAfterWrite(5, TimeUnit.MINUTES)
                 .build();
 
-        this.previousAuthCache = Caffeine.newBuilder()
+        this.previousAuthCache = ContexaCaffeine.newBuilder()
                 .maximumSize(10000)
                 .expireAfterAccess(properties.getCache().getSessionTtlMinutes(), TimeUnit.MINUTES)
                 .build();

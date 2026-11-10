@@ -18,7 +18,6 @@ package io.contexa.contexacommon.cache;
 import java.util.Locale;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -47,7 +46,7 @@ public abstract class AbstractContexaCacheService implements ContexaCacheService
     }
 
     protected Cache<String, String> buildLocalCache(int ttlSeconds) {
-        return Caffeine.newBuilder()
+        return ContexaCaffeine.newBuilder()
                 .maximumSize(properties.getLocal().getMaxSize())
                 .expireAfterWrite(ttlSeconds, TimeUnit.SECONDS)
                 .recordStats()

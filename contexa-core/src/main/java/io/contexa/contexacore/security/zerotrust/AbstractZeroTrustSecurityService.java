@@ -16,7 +16,7 @@
 package io.contexa.contexacore.security.zerotrust;
 
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -76,7 +76,7 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
         this.threatScoreUtil = threatScoreUtil;
         this.securityZeroTrustProperties = securityZeroTrustProperties;
         this.actionRepository = actionRepository;
-        this.decisionCache = Caffeine.newBuilder()
+        this.decisionCache = ContexaCaffeine.newBuilder()
                 .maximumSize(10000)
                 .expireAfterWrite(5, TimeUnit.SECONDS)
                 .build();

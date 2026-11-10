@@ -15,11 +15,11 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.autonomous.context.support.SessionStart;
 import java.time.Instant;
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityResponse;
@@ -211,7 +211,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         this.ragRetrievalExecutor = ragRetrievalExecutor != null ? ragRetrievalExecutor : ContexaBackgroundExecution.executor();
 
         TieredStrategyProperties.Layer1.Cache cacheConfig = tieredStrategyProperties.getLayer1().getCache();
-        this.sessionContextCache = Caffeine.newBuilder()
+        this.sessionContextCache = ContexaCaffeine.newBuilder()
                 .maximumSize(cacheConfig.getMaxSize())
                 .expireAfterAccess(cacheConfig.getTtlMinutes(), TimeUnit.MINUTES)
                 .recordStats()

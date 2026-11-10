@@ -15,9 +15,9 @@
  */
 package io.contexa.contexacore.autonomous;
 
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
@@ -190,7 +190,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     private volatile QueuedEventRecheck queuedEventRecheck;
-    private final Cache<String, Boolean> decidedSessions = Caffeine.newBuilder()
+    private final Cache<String, Boolean> decidedSessions = ContexaCaffeine.newBuilder()
             .maximumSize(MAX_DECIDED_SESSIONS)
             .expireAfterWrite(DECIDED_SESSION_TTL)
             .build();

@@ -15,7 +15,8 @@
  */
 package io.contexa.autoconfigure.core.scope;
 
-import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacommon.cache.ContexaCaffeine;
+
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.BeanFactory;
@@ -90,7 +91,7 @@ public class ContexaScopedAnnotationAutoConfiguration {
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
     static CacheManager contexaCacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager();
-        manager.setCaffeine(Caffeine.newBuilder()
+        manager.setCaffeine(ContexaCaffeine.newBuilder()
                 .maximumSize(500)
                 .expireAfterWrite(Duration.ofMinutes(5)));
         return manager;

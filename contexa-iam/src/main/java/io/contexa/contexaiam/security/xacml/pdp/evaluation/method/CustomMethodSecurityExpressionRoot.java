@@ -17,7 +17,7 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import java.util.Locale;
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpressionRoot implements MethodSecurityExpressionOperations {
 
-    private static final Cache<String, ZeroTrustAction> actionLocalCache = Caffeine.newBuilder()
+    private static final Cache<String, ZeroTrustAction> actionLocalCache = ContexaCaffeine.newBuilder()
             .maximumSize(10000)
             .expireAfterWrite(5, TimeUnit.SECONDS)
             .build();

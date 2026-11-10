@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.agent;
 
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +41,7 @@ public class AgentRegistryRecorder {
     public AgentRegistryRecorder(AgentRegistry registry, Duration writeInterval) {
         this.registry = registry;
         Duration interval = writeInterval != null && !writeInterval.isNegative() ? writeInterval : Duration.ofMinutes(1);
-        this.recentlyRecorded = Caffeine.newBuilder()
+        this.recentlyRecorded = ContexaCaffeine.newBuilder()
                 .expireAfterWrite(interval)
                 .maximumSize(MAX_TRACKED_AGENTS)
                 .build();
