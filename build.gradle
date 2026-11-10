@@ -41,6 +41,11 @@ subprojects {
     apply plugin: 'signing'
     apply plugin: 'jacoco'
 
+    // The tests that start a Redis of their own reach Docker through Testcontainers. The version Spring Boot 3.5.4 manages
+    // (1.21.3) asks Docker with an API version that Docker Engine 29 refuses, so on such a machine those tests fail before
+    // they start ("Could not find a valid Docker environment"). 1.21.4 is the release that speaks to it.
+    ext['testcontainers.version'] = '1.21.4'
+
     bootJar {
         enabled = false
     }
