@@ -43,6 +43,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -334,7 +335,7 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
 
     @Override
     public OneTimeToken consume(OneTimeTokenAuthenticationToken authenticationToken) {
-        OneTimeToken internalTokenFromStore = delegate.consume(authenticationToken);
+        OneTimeToken internalTokenFromStore = consumeOnce(authenticationToken.getTokenValue());
         if (internalTokenFromStore == null) {
             throw new InvalidOneTimeTokenException("Invalid or expired code. Not found in store.");
         }
@@ -343,5 +344,32 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
         String username = internalTokenFromStore.getUsername();
         claims.release(intervalKey(recipient(username, lookupRegisteredEmail(username))));
         return internalTokenFromStore;
+    }
+
+    /**
+     * Takes the code out of the store for one request only. The Spring Security service reads the code and then deletes
+     * it without asking whether the delete removed anything, so requests that arrive together all read it and all pass.
+     * Here the delete decides: the database lets one of them remove the row, and only that one has the code.
+     *
+     * @return the code, or {@code null} for a code that is unknown, was taken by another request, or has expired
+     */
+    private OneTimeToken consumeOnce(String tokenValue) {
+        if (!StringUtils.hasText(tokenValue)) {
+            return null;
+        }
+        List<OneTimeToken> stored = jdbcTemplate.query(
+                "SELECT token_value, username, expires_at FROM ctxa_one_time_tokens WHERE token_value = ?",
+                (row, rowNumber) -> new DefaultOneTimeToken(row.getString("token_value"), row.getString("username"),
+                        row.getTimestamp("expires_at").toInstant()),
+                tokenValue);
+        if (stored.isEmpty()) {
+            return null;
+        }
+        int removed = jdbcTemplate.update("DELETE FROM ctxa_one_time_tokens WHERE token_value = ?", tokenValue);
+        if (removed != 1) {
+            return null;
+        }
+        OneTimeToken code = stored.get(0);
+        return code.getExpiresAt().isBefore(Instant.now()) ? null : code;
     }
 }

@@ -18,6 +18,7 @@ package io.contexa.contexaidentity.security.core.adapter.state.oauth2;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.PreparedStatementCallback;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
@@ -35,6 +36,9 @@ import java.util.function.Supplier;
 
 @Slf4j
 public class DeviceAwareOAuth2AuthorizationService implements OAuth2AuthorizationService {
+
+    /** The first key of the advisory lock that puts the sign-ins of one person in an order. */
+    private static final int PRINCIPAL_LOCK_CLASS = 0x43534E49;
 
     private static final String FIND_IDS_BY_PRINCIPAL =
             "SELECT id FROM ctxa_oauth2_authorization WHERE principal_name = ? AND refresh_token_value IS NOT NULL";
@@ -100,9 +104,39 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
         // Only a newly created authorization is a new login. Updates of an existing one, such as a
         // refresh token rotation or a logout invalidation, must not count against the login limit.
         if (onOneConnection(() -> delegate.findById(authorization.getId())) == null) {
-            enforceConcurrentLoginPolicy(authorization);
+            saveNewSignIn(authorization);
+            return;
         }
         saveOnOneConnection(authorization);
+    }
+
+    /**
+     * A new sign-in ends the ones the limit has no room for and is then stored. Sign-ins of one person that arrive together
+     * would each read the store before any of them had written, find nothing to end, and all stay. So the three steps run
+     * in one transaction that first takes a lock of the database on the person, held to its end: the next sign-in of
+     * that person waits and then reads this one as stored. Sign-ins of different people do not wait for each other.
+     * Without a transaction manager the steps run as they did, one after the other.
+     */
+    private void saveNewSignIn(OAuth2Authorization authorization) {
+        String principalName = authorization.getPrincipalName();
+        if (transactionTemplate == null || principalName == null || authorization.getRefreshToken() == null) {
+            enforceConcurrentLoginPolicy(authorization);
+            saveOnOneConnection(authorization);
+            return;
+        }
+        transactionTemplate.executeWithoutResult(status -> {
+            lockPrincipal(principalName);
+            enforceConcurrentLoginPolicy(authorization);
+            delegate.save(authorization);
+        });
+    }
+
+    private void lockPrincipal(String principalName) {
+        jdbcTemplate.execute("select pg_advisory_xact_lock(?, hashtext(?))", (PreparedStatementCallback<Boolean>) statement -> {
+            statement.setInt(1, PRINCIPAL_LOCK_CLASS);
+            statement.setString(2, principalName);
+            return statement.execute();
+        });
     }
 
     /** The delegate reads the stored authorization before it writes, and that read has the same second query. */
