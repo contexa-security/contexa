@@ -20,7 +20,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.PreparedStatementCallback;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
@@ -43,6 +45,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -126,6 +129,37 @@ class DeviceAwareOAuth2AuthorizationServiceTest {
         verify(transactions, never()).rollback(any());
         verify(jdbcTemplate).update(contains("DELETE FROM ctxa_oauth2_authorization"), eq("unreadable"));
         verify(delegate).save(login);
+    }
+
+    @Test
+    @DisplayName("A new login takes the lock on the person before it reads the earlier logins, and stores itself after")
+    void newLoginLocksThePersonBeforeItReadsTheEarlierLogins() {
+        PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
+        when(transactions.getTransaction(any())).thenAnswer(invocation -> new SimpleTransactionStatus(true));
+        service = new DeviceAwareOAuth2AuthorizationService(delegate, jdbcTemplate, properties, new TransactionTemplate(transactions));
+        properties.setAllowMultipleLogins(false);
+        OAuth2Authorization login = authorization("new-login", "refresh-new", Instant.now());
+
+        service.save(login);
+
+        InOrder order = inOrder(jdbcTemplate, delegate);
+        order.verify(jdbcTemplate).execute(contains("pg_advisory_xact_lock"), any(PreparedStatementCallback.class));
+        order.verify(jdbcTemplate).queryForList(anyString(), eq(String.class), anyString());
+        order.verify(delegate).save(login);
+    }
+
+    @Test
+    @DisplayName("An update of a stored login takes no lock on the person")
+    void updateOfAStoredLoginTakesNoLock() {
+        PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
+        when(transactions.getTransaction(any())).thenAnswer(invocation -> new SimpleTransactionStatus(true));
+        service = new DeviceAwareOAuth2AuthorizationService(delegate, jdbcTemplate, properties, new TransactionTemplate(transactions));
+        OAuth2Authorization known = authorization("known", "refresh-known", Instant.now().minusSeconds(60));
+        stored.put(known.getId(), known);
+
+        service.save(authorization("known", "refresh-rotated", Instant.now()));
+
+        verify(jdbcTemplate, never()).execute(anyString(), any(PreparedStatementCallback.class));
     }
 
     private static OAuth2Authorization authorization(String id, String refreshTokenValue, Instant issuedAt) {
