@@ -83,6 +83,7 @@ class AnalysesWithoutAUserIdLogTest {
     private static final String RAG_SEARCH_SKIPPED = "userId missing - skipping RAG search for account isolation";
     private static final String PAST_RECORD_LOOKUP_SKIPPED =
             "userId missing - skipping the past record lookup for account isolation";
+    private static final String BASELINE_SKIPPED = "[SYSTEM_ERROR] userId is null - authentication system failure";
     private static final Duration REPORT_INTERVAL = Duration.ofMinutes(5);
     private static final String[] NO_USER = {null, "", "unknown"};
 
@@ -205,6 +206,73 @@ class AnalysesWithoutAUserIdLogTest {
             clearInvocations(vectors);
             strategy.analyzeWithContext(event("v20-alice", "alice"));
             verify(vectors, times(1)).pastRecordQuery();
+        });
+    }
+
+    @Test
+    @DisplayName("Twenty analyses of an event without a user id write the missing-user line once and read no baseline")
+    void analysesWithoutAUserIdWriteTheMissingUserLineOnce() {
+        contextRunner.run(context -> {
+            Layer1ContextualStrategy strategy = context.getBean(Layer1ContextualStrategy.class);
+            BaselineLearningService baselines = context.getBean(BaselineLearningService.class);
+
+            List<SecurityEvent> withoutAUser = new ArrayList<>();
+            List<String> errors = errorsDuring(() -> {
+                for (int index = 0; index < 20; index++) {
+                    SecurityEvent event = event("null-user-" + index, null);
+                    strategy.analyzeWithContext(event);
+                    withoutAUser.add(event);
+                }
+            });
+
+            assertThat(errors).filteredOn(line -> line.contains(BASELINE_SKIPPED)).hasSize(1);
+            assertThat(errors).filteredOn(line -> line.contains(BASELINE_SKIPPED))
+                    .allSatisfy(line -> assertThat(line).contains("similarSinceLastReport=0"));
+            verify(baselines, never()).getPersonalBaseline(any(String.class), any(SecurityEvent.class));
+            assertThat(withoutAUser).allSatisfy(event -> assertThat(event.getMetadata())
+                    .containsEntry("ragAbsenceReason", "USER_ID_MISSING"));
+        });
+    }
+
+    @Test
+    @DisplayName("After the interval the next missing-user line carries the number of lines that were not written")
+    void theNextMissingUserLineCarriesTheLinesThatWereNotWritten() {
+        contextRunner.run(context -> {
+            Layer1ContextualStrategy strategy = context.getBean(Layer1ContextualStrategy.class);
+            AtomicLong now = new AtomicLong(1_000_000L);
+            ReflectionTestUtils.setField(strategy, AbstractTieredStrategy.class, "missingUserIdBaselineLog",
+                    new ErrorLogThrottle(REPORT_INTERVAL, now::get), ErrorLogThrottle.class);
+
+            List<String> errors = errorsDuring(() -> {
+                for (int index = 0; index < 20; index++) {
+                    strategy.analyzeWithContext(event("first-" + index, null));
+                }
+                now.addAndGet(REPORT_INTERVAL.toMillis());
+                strategy.analyzeWithContext(event("after-the-interval", null));
+            });
+
+            List<String> written = errors.stream().filter(line -> line.contains(BASELINE_SKIPPED)).toList();
+            assertThat(written).hasSize(2);
+            assertThat(written.get(0)).contains("similarSinceLastReport=0");
+            assertThat(written.get(1)).contains("similarSinceLastReport=19");
+        });
+    }
+
+    @Test
+    @DisplayName("Analyses that name their user write no missing-user line and read the user's baseline")
+    void analysesThatNameTheirUserWriteNoMissingUserLine() {
+        contextRunner.run(context -> {
+            Layer1ContextualStrategy strategy = context.getBean(Layer1ContextualStrategy.class);
+            BaselineLearningService baselines = context.getBean(BaselineLearningService.class);
+
+            List<String> errors = errorsDuring(() -> {
+                for (int index = 0; index < 5; index++) {
+                    strategy.analyzeWithContext(event("named-" + index, "alice"));
+                }
+            });
+
+            assertThat(errors).noneMatch(line -> line.contains(BASELINE_SKIPPED));
+            verify(baselines, atLeastOnce()).getPersonalBaseline(any(String.class), any(SecurityEvent.class));
         });
     }
 

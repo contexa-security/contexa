@@ -177,6 +177,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
      */
     private final ErrorLogThrottle missingUserIdRagSearchLog = new ErrorLogThrottle(MISSING_USER_ID_LOG_INTERVAL);
     private final ErrorLogThrottle missingUserIdPastRecordLog = new ErrorLogThrottle(MISSING_USER_ID_LOG_INTERVAL);
+    private final ErrorLogThrottle missingUserIdBaselineLog = new ErrorLogThrottle(MISSING_USER_ID_LOG_INTERVAL);
     private static final Cache<String, SecurityDecisionStandardPromptTemplate.SessionContext> ESCALATION_SESSION_CACHE =
             ContexaCaffeine.newBuilder()
                     .maximumSize(1000)
@@ -539,7 +540,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (baselineLearningService == null) {
             analysis.setBaselineEstablished(false);
         } else if (userId == null) {
-            log.error("[{}][SYSTEM_ERROR] userId is null - authentication system failure", getLayerName());
+            long notLogged = missingUserIdBaselineLog.tryAcquire();
+            if (notLogged != ErrorLogThrottle.SUPPRESSED) {
+                log.error("[{}][SYSTEM_ERROR] userId is null - authentication system failure, "
+                        + "similarSinceLastReport={}", getLayerName(), notLogged);
+            }
             analysis.setBaselineEstablished(false);
         } else {
             try {
