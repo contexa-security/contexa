@@ -80,11 +80,13 @@ public class AuthContextProperties {
         private int emailSendWaitSeconds = 5;
 
         /**
-         * The limit in seconds of the connect, the read and the write of the SMTP conversation, set where the
-         * application's own mail settings ({@code spring.mail.properties.mail.smtp.*timeout}) name none; JavaMail waits
-         * without end otherwise. Zero leaves the application's mail settings as they are.
+         * The limit in seconds of the connect, the read and the write of the SMTP conversation. Zero, the default, sets
+         * none: the mail of a sign-in goes out with the application's own mail settings, as its other mail does. A value
+         * is written into the application's mail sender where its settings
+         * ({@code spring.mail.properties.mail.smtp.*timeout}) name none, so it bounds every other mail sent with that
+         * sender as well, and a mail server that takes longer to answer then fails the mail.
          */
-        private int emailSmtpTimeoutSeconds = 10;
+        private int emailSmtpTimeoutSeconds = 0;
     }
 
 }
