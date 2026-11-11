@@ -52,8 +52,8 @@ import java.util.Map;
  * <ul>
  *   <li>CONTEXA_OWNED: Contexa's chain takes every request first, so a chain the application declared is never
  *   reached and its sign-in is silently gone;</li>
- *   <li>CONTEXA_OWNED: a user store the application declared answers Contexa's sign-in, so Contexa's seeded
- *   administrator can sign in only if that store has it;</li>
+ *   <li>CONTEXA_OWNED: a user store the application declared is not read by Contexa's sign-in, which looks its
+ *   own accounts up in Contexa's own store; the application's users do not sign in to Contexa;</li>
  *   <li>either ownership: a one-time-code factor is offered but no mail sender is configured, so no code can be
  *   delivered;</li>
  *   <li>CONTEXA_OWNED: the settings row holds PERMIT for URLs no policy names, so such a path is open to everyone. A
