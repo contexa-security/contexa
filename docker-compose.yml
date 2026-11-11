@@ -198,44 +198,8 @@ services:
       - contexa-network
     restart: unless-stopped
 
-  # Kafka topic initialization
-  kafka-init:
-    image: confluentinc/cp-kafka:7.4.0
-    container_name: contexa-kafka-init
-    profiles:
-      - distributed
-    depends_on:
-      kafka:
-        condition: service_healthy
-    entrypoint: ["/bin/bash", "-c"]
-    command:
-      - |
-        echo "Waiting for Kafka to be ready..."
-        sleep 10
-
-        echo "Creating Kafka topics..."
-
-        # Security event topics
-        kafka-topics --create --if-not-exists --topic security-authorization-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
-        kafka-topics --create --if-not-exists --topic auth-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
-        kafka-topics --create --if-not-exists --topic security-incident-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
-        kafka-topics --create --if-not-exists --topic threat-indicators --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
-        kafka-topics --create --if-not-exists --topic security-audit-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
-        kafka-topics --create --if-not-exists --topic security-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
-
-        # Dead letter queue topic
-        kafka-topics --create --if-not-exists --topic security-dlq --partitions 1 --replication-factor 1 --bootstrap-server kafka:9093
-
-        # Tiered processing topics
-        kafka-topics --create --if-not-exists --topic security-tier1-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
-        kafka-topics --create --if-not-exists --topic security-tier2-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
-        kafka-topics --create --if-not-exists --topic security-tier3-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
-
-        echo "Kafka topics created successfully!"
-        kafka-topics --list --bootstrap-server kafka:9093
-    networks:
-      - contexa-network
-    restart: "no"
+  # Contexa makes the Kafka topics it uses when it starts (the topics of its security events and their dead letters,
+  # named for the application), so there is no topic initialization here.
 
 volumes:
   pgdata:

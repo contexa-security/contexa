@@ -33,7 +33,8 @@ public class SecurityKafkaProperties {
     /**
      * The names of Contexa's topics. A name set here is used exactly as it is set. A name left unset is the default in the
      * namespace of the application, {@code ctxa.<spring.application.name>.} and the default ({@code ctxa.} and the
-     * default without a name of the application), which is read when the name is used.
+     * default without a name of the application), which is read when the name is used. Contexa makes the topics of its
+     * declared events and the dead letters ({@code dlq}); a name set for another topic here makes no topic.
      */
     @Data
     public static class TopicSettings {

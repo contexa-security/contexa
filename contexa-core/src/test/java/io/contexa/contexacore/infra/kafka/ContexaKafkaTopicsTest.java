@@ -58,9 +58,7 @@ class ContexaKafkaTopicsTest {
 
     private static final String LOGIN = "security.events.authentication.success";
     private static final String CALL = "security.events.authorization.method";
-    private static final String UNUSED = "network-events";
-    private static final List<NewTopic> TOPICS = List.of(topic(LOGIN), topic(CALL), topic(UNUSED));
-    private static final Set<String> NEEDED = Set.of(LOGIN, CALL);
+    private static final List<NewTopic> TOPICS = List.of(topic(LOGIN), topic(CALL));
 
     private final Admin admin = mock(Admin.class);
 
@@ -69,7 +67,7 @@ class ContexaKafkaTopicsTest {
     }
 
     private ContexaKafkaTopics topics(boolean create) {
-        return new ContexaKafkaTopics(() -> admin, TOPICS, NEEDED, create);
+        return new ContexaKafkaTopics(() -> admin, TOPICS, create);
     }
 
     private void brokerHolds(String... names) {
@@ -109,12 +107,12 @@ class ContexaKafkaTopicsTest {
         ArgumentCaptor<Collection<NewTopic>> asked = ArgumentCaptor.forClass(Collection.class);
         verify(admin).createTopics(asked.capture());
         assertThat(asked.getValue().stream().map(NewTopic::name).collect(Collectors.toSet()))
-                .containsExactlyInAnyOrder(LOGIN, UNUSED);
+                .containsExactly(LOGIN);
     }
 
     @Test
     void aBrokerThatHoldsEverythingIsLeftAlone(CapturedOutput output) {
-        brokerHolds(LOGIN, CALL, UNUSED);
+        brokerHolds(LOGIN, CALL);
 
         topics(true).afterSingletonsInstantiated();
 
@@ -143,13 +141,14 @@ class ContexaKafkaTopicsTest {
     }
 
     @Test
-    void aTopicNothingWritesToIsNoAlarm(CapturedOutput output) {
-        brokerHolds(LOGIN, CALL);
-        creationEnds(name -> new TopicAuthorizationException("not authorized"));
+    void aBrokerThatRefusesEveryTopicIsNamedOnOneErrorLine(CapturedOutput output) {
+        brokerHolds();
+        creationEnds(name -> new TopicAuthorizationException("not authorized to create " + name));
 
         topics(true).afterSingletonsInstantiated();
 
-        assertThat(errorLines(output)).isEmpty();
+        assertThat(errorLines(output)).hasSize(1);
+        assertThat(errorLines(output).get(0)).contains(LOGIN).contains(CALL).contains("TopicAuthorizationException");
     }
 
     @Test
@@ -170,7 +169,7 @@ class ContexaKafkaTopicsTest {
     void anAdminThatCannotBeMadeIsReportedAndTheStartGoesOn(CapturedOutput output) {
         ContexaKafkaTopics topics = new ContexaKafkaTopics(() -> {
             throw new IllegalArgumentException("no resolvable bootstrap urls");
-        }, TOPICS, NEEDED, true);
+        }, TOPICS, true);
 
         topics.afterSingletonsInstantiated();
 
@@ -200,7 +199,7 @@ class ContexaKafkaTopicsTest {
 
     @Test
     void anAdminThatFailsToCloseDoesNotStopTheStart() {
-        brokerHolds(LOGIN, CALL, UNUSED);
+        brokerHolds(LOGIN, CALL);
         doThrow(new IllegalStateException("interrupted")).when(admin).close(any(Duration.class));
 
         assertThat(topics(true).provision()).isEmpty();
