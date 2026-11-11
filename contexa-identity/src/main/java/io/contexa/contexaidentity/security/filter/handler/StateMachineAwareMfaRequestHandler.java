@@ -50,6 +50,8 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
+import org.springframework.mail.MailAuthenticationException;
+import org.springframework.mail.MailSendException;
 
 @Slf4j
 public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
@@ -63,6 +65,10 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     private static final String UNKNOWN_STATE_MESSAGE = "The authentication flow ended in a state that cannot be answered.";
     /** What the client is told of a request the flow has no step for; the kind is in the log. */
     private static final String UNSUPPORTED_REQUEST_MESSAGE = "Unsupported request type";
+    /** What the client is told when the mail server did not take the code; the failure is in the log. */
+    private static final String CODE_NOT_SENT_MESSAGE = "The code could not be sent. Please try again in a moment.";
+    /** How deep the causes of a failure are read for a mail failure: a chain of causes may loop. */
+    private static final int MAX_CAUSE_DEPTH = 16;
 
     private final AuthContextProperties authContextProperties;
     private final AuthResponseWriter responseWriter;
@@ -100,8 +106,28 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             processRequestByType(requestType, request, response, context, filterChain);
         } catch (Exception e) {
             log.error("Error in unified State Machine request handling for session: {}", sessionId, e);
+            if (requestType == MfaRequestType.OTT_CODE_REQUEST && isMailDeliveryFailure(e)) {
+                handleCodeNotSent(request, response, context);
+                return;
+            }
             handleProcessingError(request, response, context, e);
         }
+    }
+
+    /**
+     * Whether the code did not leave because of the mail server: it could not be reached, cut the connection, did not
+     * answer in time, refused the sender's sign-in or did not take the message. A message that could not be made
+     * (MailParseException, MailPreparationException, or an address the message could not take) is no outage.
+     */
+    private static boolean isMailDeliveryFailure(Throwable error) {
+        Throwable cause = error;
+        for (int depth = 0; cause != null && depth < MAX_CAUSE_DEPTH; depth++) {
+            if (cause instanceof MailSendException || cause instanceof MailAuthenticationException) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     @Override
@@ -540,6 +566,17 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         Map<String, Object> errorResponse = createErrorResponse(context, errorCode, message);
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                 errorCode, message, request.getRequestURI(), errorResponse);
+    }
+
+    /**
+     * The code was not sent and nothing moved: no event went to the state machine, and Contexa's code service gives back
+     * the resend interval of a mailbox it could not mail, so the same request sends the code once mail is back.
+     */
+    private void handleCodeNotSent(HttpServletRequest request, HttpServletResponse response,
+                                   FactorContext context) throws IOException {
+        Map<String, Object> errorResponse = createErrorResponse(context, "OTT_CODE_NOT_SENT", CODE_NOT_SENT_MESSAGE);
+        responseWriter.writeErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+                "OTT_CODE_NOT_SENT", CODE_NOT_SENT_MESSAGE, request.getRequestURI(), errorResponse);
     }
 
     private void handleProcessingError(HttpServletRequest request, HttpServletResponse response,

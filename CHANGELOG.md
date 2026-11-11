@@ -502,6 +502,11 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **Asking for a sign-in code while the mail server cannot take it is answered with 503, not 500.** Under FULL, a mail server
+  that is down, cuts the connection, keeps silent past the application's mail timeout or refuses the sender now answers
+  `503 OTT_CODE_NOT_SENT` ("The code could not be sent. Please try again in a moment."); the flow stays where it was, so the
+  same request sends the code once mail is back. A message that cannot be made is still a 500.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines
