@@ -33,10 +33,6 @@ public interface BusinessResourceActionRepository extends JpaRepository<Business
     Optional<BusinessResource> findByResourceIdentifier(@Param("resourceId") String resourceId);
     
     
-    @Query("SELECT 10.5 FROM BusinessResourceAction bra WHERE bra.businessResource.name = :resourceId")
-    double getAverageAccessesPerDay(@Param("resourceId") String resourceId);
-    
-    
     @Query("SELECT br.resourceType FROM BusinessResource br WHERE br.name = :resourceId")
     Optional<String> getResourceSensitivityLevel(@Param("resourceId") String resourceId);
     

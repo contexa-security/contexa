@@ -1131,12 +1131,16 @@ create table ctxa_security_decision_forwarding_outbox
     payload_json        text         not null,
     status              varchar(32)  not null,
     tenant_external_ref varchar(128) not null,
-    updated_at          timestamp(6) not null
+    updated_at          timestamp(6) not null,
+    version             bigint       default 0 not null
 );
 
 
 create index ctxa_idx_security_decision_forwarding_outbox_dispatch
     on ctxa_security_decision_forwarding_outbox (status, next_attempt_at, created_at);
+-- The version the entity locks its updates with. A database installed before it gains the column at the next start,
+-- and the rows it holds take the version 0.
+alter table ctxa_security_decision_forwarding_outbox add column if not exists version bigint default 0 not null;
 
 create table ctxa_threat_outcome_forwarding_outbox
 (

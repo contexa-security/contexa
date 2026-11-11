@@ -511,6 +511,16 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **Contexa's own repositories run against the schema it installs.** Running every repository on a real PostgreSQL found
+  that the SaaS forwarding outbox table lacked the `version` column its entity maps (every call on it failed; an
+  existing database gains the column, with 0 in its rows, at the next start), that saving a user behavior profile or a
+  policy template failed on its JSON columns (they are now written with a cast to the column's type), and that the
+  unused query `BusinessResourceActionRepository.getAverageAccessesPerDay`, which answered a constant and threw when no
+  row matched, was left in; it is removed.
+
+- **The `userId is null` ERROR of an analysis without a user is written once per five minutes**, with the number of lines
+  left out (`similarSinceLastReport`), like the lines of the skipped searches; the level and the analysis are unchanged.
+
 - **A protected method called without a signed-in user runs under `OBSERVE` and `DISABLED`, as without Contexa.** These modes
   decide on nobody; the method policies of the console still apply, and `SHADOW` and `ENFORCE` refuse the call as before.
 
