@@ -1221,15 +1221,21 @@ public class CoreAutonomousAutoConfiguration {
      * a standalone server ends with it, a Redis can be emptied or replaced, and the keys an application had before it was
      * given a name are no longer read. In every infrastructure mode the blocks the database holds in force are written
      * again where the store has none, and the quarantine of an application with a name is carried over from its earlier
-     * key, before the web server takes a request.
+     * key, before the web server takes a request. Where the store is not the memory of the server (a Redis can be emptied
+     * while the application runs) the blocks are looked at again while it runs, when decisions are enforced.
      */
     @Bean(name = "contexaRestrictionRestorer")
     public RestrictionRestorer restrictionRestorer(
             ObjectProvider<ZeroTrustActionRepository> actionRepository,
             ObjectProvider<IBlockedUserRecorder> blockedUserRecorder,
-            ObjectProvider<SecurityContextDataStore> securityContextDataStore) {
-        return new RestrictionRestorer(actionRepository::getIfAvailable, blockedUserRecorder::getIfUnique,
-                securityContextDataStore::getIfAvailable);
+            ObjectProvider<SecurityContextDataStore> securityContextDataStore,
+            ObjectProvider<ContexaStores> contexaStores,
+            ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
+        RestrictionRestorer restorer = new RestrictionRestorer(actionRepository::getIfAvailable,
+                blockedUserRecorder::getIfUnique, securityContextDataStore::getIfAvailable);
+        contexaStores.ifAvailable(restorer::setContexaStores);
+        securityZeroTrustProperties.ifAvailable(properties -> restorer.setEnforcing(properties::isEnforcementEnabled));
+        return restorer;
     }
 
     /** Discards the late writes of a deleted account's requests for the analysis budget and a margin (Q-15). */

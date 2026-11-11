@@ -16,12 +16,14 @@
 package io.contexa.autoconfigure.core.autonomous;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.RestrictionRestorer;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
@@ -94,7 +96,8 @@ class RestrictionRestorerWiringTest {
 
         RestrictionRestorer restorer = new CoreAutonomousAutoConfiguration().restrictionRestorer(
                 beans.getBeanProvider(ZeroTrustActionRepository.class), beans.getBeanProvider(IBlockedUserRecorder.class),
-                beans.getBeanProvider(SecurityContextDataStore.class));
+                beans.getBeanProvider(SecurityContextDataStore.class), beans.getBeanProvider(ContexaStores.class),
+                beans.getBeanProvider(SecurityZeroTrustProperties.class));
         restorer.start();
         restorer.stop();
 
