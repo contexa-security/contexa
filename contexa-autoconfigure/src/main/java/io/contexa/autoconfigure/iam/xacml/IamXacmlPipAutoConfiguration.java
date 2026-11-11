@@ -70,7 +70,7 @@ public class IamXacmlPipAutoConfiguration {
                 } catch (RuntimeException e) {
                     log.error("The users' cached copies could not be cleared; they end with their TTL", e);
                 }
-            }, "Subject-Cache-Clear");
+            }, "contexa-subject-cache-clear");
             clear.setDaemon(true);
             clear.start();
         });

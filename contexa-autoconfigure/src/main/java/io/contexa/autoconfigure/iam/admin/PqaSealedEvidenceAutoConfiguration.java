@@ -82,7 +82,7 @@ public class PqaSealedEvidenceAutoConfiguration {
             executor.setCorePoolSize(2);
             executor.setMaxPoolSize(4);
             executor.setQueueCapacity(512);
-            executor.setThreadNamePrefix("oss-sealed-evidence-capture-");
+            executor.setThreadNamePrefix("contexa-oss-sealed-evidence-capture-");
             executor.setAllowCoreThreadTimeOut(true);
             // Rejected captures are dropped by the handler; they must never run on the decision thread.
             executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
@@ -157,7 +157,7 @@ public class PqaSealedEvidenceAutoConfiguration {
                             : (context, subject) -> PromptBundleSelection.none());
             return new PromptShadowRunner(shadowSource,
                     template::resolutionContextOf, Executors.newSingleThreadExecutor(runnable -> {
-                        Thread thread = new Thread(runnable, "prompt-shadow-run");
+                        Thread thread = new Thread(runnable, "contexa-prompt-shadow-run");
                         thread.setDaemon(true);
                         return thread;
                     }), new SealedEvidenceShadowSealer(assembler, repository), shadow.getSamplePercent(),

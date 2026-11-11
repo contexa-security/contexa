@@ -30,6 +30,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
@@ -90,6 +91,8 @@ public class UnifiedRedisConfiguration {
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
+        // what the container makes itself when none is given (a SimpleAsyncTaskExecutor), with a name that says it is Contexa's
+        container.setTaskExecutor(new SimpleAsyncTaskExecutor("contexa-redis-message-listener-"));
 
         if (soarApprovalNotifier != null) {
             MessageListenerAdapter listenerAdapter =

@@ -22,6 +22,7 @@ import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.resource.DefaultClientResources;
 import io.lettuce.core.SocketOptions;
 import io.lettuce.core.TimeoutOptions;
+import io.netty.util.concurrent.DefaultThreadFactory;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
@@ -63,11 +64,14 @@ public class ZeroTrustRedisConfig {
     @Bean(name = "contexaClientResources")
     @ConditionalOnMissingBean(RedisConnectionFactory.class)
     public ClientResources clientResources() {
-        return DefaultClientResources.builder()
+        DefaultClientResources.Builder builder = DefaultClientResources.builder()
                 .ioThreadPoolSize(8)  
                 .computationThreadPoolSize(8)  
-                .commandLatencyRecorder(CommandLatencyRecorder.disabled())
-                .build();
+                .commandLatencyRecorder(CommandLatencyRecorder.disabled());
+        // Lettuce's own thread factory (daemon threads named after the pool), with a name that says the threads are Contexa's and not the
+        // application's Lettuce client's: "contexa-lettuce-nioEventLoop-4-1"
+        builder.threadFactoryProvider(poolName -> new DefaultThreadFactory("contexa-" + poolName, true));
+        return builder.build();
     }
 
     @Bean(name = "contexaLettuceClientConfiguration")

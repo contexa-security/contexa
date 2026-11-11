@@ -302,7 +302,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         analysisLineBound = defaultAnalysisLineBound(Runtime.getRuntime().maxMemory(),
                 monitor != null ? monitor.getQueueSize() : DEFAULT_MONITOR_QUEUE);
         judgeAgainTimer = Executors.newSingleThreadScheduledExecutor(task -> {
-            Thread thread = new Thread(task, "SecurityPlane-JudgeAgain");
+            Thread thread = new Thread(task, "contexa-security-plane-judge-again");
             thread.setDaemon(true);
             return thread;
         });
@@ -1297,7 +1297,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
         @Override
         public Thread newThread(Runnable runnable) {
-            Thread thread = new Thread(runnable, "SecurityPlane-Actor-" + threadIds.incrementAndGet());
+            Thread thread = new Thread(runnable, "contexa-security-plane-actor-" + threadIds.incrementAndGet());
             thread.setDaemon(true);
             return thread;
         }

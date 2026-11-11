@@ -82,7 +82,7 @@ public class SecurityMonitoringService {
                 : 0;
         this.eventQueue = new LinkedBlockingDeque<>(queueSize);
         this.dispatcherThreads = new ArrayList<>(1);
-        Thread dispatcherThread = new Thread(this::dispatchLoop, "SecurityMonitoring-BatchDispatcher-0");
+        Thread dispatcherThread = new Thread(this::dispatchLoop, "contexa-security-monitoring-batch-dispatcher-0");
         dispatcherThread.setDaemon(true);
         this.dispatcherThreads.add(dispatcherThread);
     }

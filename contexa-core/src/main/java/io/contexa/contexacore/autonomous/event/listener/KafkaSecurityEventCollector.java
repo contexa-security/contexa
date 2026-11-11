@@ -122,8 +122,13 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
      * The group is the application's own ({@code security-plane-consumer.<name>} for an application with a name), so that
      * the consumers of two applications on one cluster do not split the partitions between them; and a record is
      * analysed only by the application whose name it carries (see {@link SecurityEventOrigin}).
+     * The id names the container and its consumer threads ("contexa-security-event-collector-0-C-1"). Without it the container is
+     * numbered by the processor that serves it, "KafkaListenerEndpointContainer#0" as an application's first listener is, and where the
+     * application turns Kafka listening on, that processor is the application's and the number is taken from its own listeners. The
+     * group stays the one named here.
      */
     @KafkaListener(
+            id = "contexa-security-event-collector",
             topicPattern = SecurityEventTopics.PATTERN,
             groupId = "#{T(io.contexa.contexacommon.store.ApplicationNamespace).consumerGroup("
                     + "'${security.plane.kafka.group-id:security-plane-consumer}')}",

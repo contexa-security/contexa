@@ -31,6 +31,7 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.util.CustomizableThreadCreator;
 import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
@@ -128,26 +129,37 @@ public class WebSocketConfig extends WebSocketMessageBrokerConfigurationSupport 
     @Bean(defaultCandidate = false)
     @Override
     public TaskExecutor clientInboundChannelExecutor() {
-        return (TaskExecutor) super.clientInboundChannelExecutor();
+        return (TaskExecutor) contexaThreads(super.clientInboundChannelExecutor(), "contexa-client-inbound-channel-");
     }
 
     @Bean(defaultCandidate = false)
     @Override
     public TaskExecutor clientOutboundChannelExecutor() {
-        return (TaskExecutor) super.clientOutboundChannelExecutor();
+        return (TaskExecutor) contexaThreads(super.clientOutboundChannelExecutor(), "contexa-client-outbound-channel-");
     }
 
     @Bean(defaultCandidate = false)
     @Override
     public Executor brokerChannelExecutor(@Qualifier("clientInboundChannel") AbstractSubscribableChannel clientInboundChannel,
                                           @Qualifier("clientOutboundChannel") AbstractSubscribableChannel clientOutboundChannel) {
-        return super.brokerChannelExecutor(clientInboundChannel, clientOutboundChannel);
+        return contexaThreads(super.brokerChannelExecutor(clientInboundChannel, clientOutboundChannel), "contexa-broker-channel-");
     }
 
     @Bean(name = {"messageBrokerTaskScheduler", "messageBrokerSockJsTaskScheduler"}, defaultCandidate = false)
     @Override
     public TaskScheduler messageBrokerTaskScheduler() {
-        return super.messageBrokerTaskScheduler();
+        return contexaThreads(super.messageBrokerTaskScheduler(), "contexa-message-broker-");
+    }
+
+    /**
+     * Spring names the threads of a broker the same for every application ("clientInboundChannel-1", "MessageBroker-1"), so in a thread
+     * dump Contexa's broker would read as the application's. The prefix is set the way Spring sets its own; nothing else of the pool changes.
+     */
+    private static <T> T contexaThreads(T executor, String prefix) {
+        if (executor instanceof CustomizableThreadCreator creator) {
+            creator.setThreadNamePrefix(prefix);
+        }
+        return executor;
     }
 
     /** Spring asks for the scheduler by type here; the scheduler is not a candidate by type, so it is named. */

@@ -44,7 +44,7 @@ public class AsyncConfig {
         executor.setCorePoolSize(5);
         executor.setMaxPoolSize(10);
         executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("Async-");
+        executor.setThreadNamePrefix("contexa-async-");
         executor.setAllowCoreThreadTimeOut(true);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
@@ -59,7 +59,7 @@ public class AsyncConfig {
         executor.setCorePoolSize(5);
         executor.setMaxPoolSize(10);
         executor.setQueueCapacity(200);
-        executor.setThreadNamePrefix("ColdPath-");
+        executor.setThreadNamePrefix("contexa-cold-path-");
         executor.setAllowCoreThreadTimeOut(true);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
@@ -74,7 +74,7 @@ public class AsyncConfig {
         executor.setCorePoolSize(8);
         executor.setMaxPoolSize(16);
         executor.setQueueCapacity(300);
-        executor.setThreadNamePrefix("Context-");
+        executor.setThreadNamePrefix("contexa-context-");
         executor.setAllowCoreThreadTimeOut(true);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
@@ -89,7 +89,7 @@ public class AsyncConfig {
         executor.setCorePoolSize(3);
         executor.setMaxPoolSize(5);
         executor.setQueueCapacity(1000);
-        executor.setThreadNamePrefix("SecurityPlane-");
+        executor.setThreadNamePrefix("contexa-security-plane-");
         executor.setAllowCoreThreadTimeOut(true);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
@@ -111,7 +111,7 @@ public class AsyncConfig {
         executor.setCorePoolSize(corePoolSize);
         executor.setMaxPoolSize(maxPoolSize);
         executor.setQueueCapacity(queueCapacity);
-        executor.setThreadNamePrefix("LLM-Analysis-");
+        executor.setThreadNamePrefix("contexa-llm-analysis-");
         executor.setAllowCoreThreadTimeOut(true);
 
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
@@ -204,7 +204,7 @@ public class AsyncConfig {
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(4);
         executor.setQueueCapacity(500);
-        executor.setThreadNamePrefix("SaaS-Forwarding-");
+        executor.setThreadNamePrefix("contexa-saas-forwarding-");
         executor.setAllowCoreThreadTimeOut(true);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);

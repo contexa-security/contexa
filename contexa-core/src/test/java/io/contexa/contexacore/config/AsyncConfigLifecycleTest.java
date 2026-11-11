@@ -32,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class AsyncConfigLifecycleTest {
 
-    private static final String POOL = "LLM-Analysis-";
+    private static final String POOL = "contexa-llm-analysis-";
 
     private static long poolThreads() {
         return Thread.getAllStackTraces().keySet().stream().filter(t -> t.isAlive() && t.getName().startsWith(POOL)).count();

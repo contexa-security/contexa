@@ -318,7 +318,7 @@ public class CoreAutonomousEventAutoConfiguration {
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(2);
         executor.setQueueCapacity(500);
-        executor.setThreadNamePrefix("Security-Baseline-Learning-");
+        executor.setThreadNamePrefix("contexa-security-baseline-learning-");
         executor.setAllowCoreThreadTimeOut(true);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);

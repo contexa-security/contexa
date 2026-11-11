@@ -556,7 +556,7 @@ public class CoreAutonomousAutoConfiguration {
                 60L,
                 TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(1000),
-                namedThreadFactory("Security-Learning-"),
+                namedThreadFactory("contexa-security-learning-"),
                 new LearningStoreRejectionPolicy());
         // threads that have nothing to do are given back: the pool grows with the work and shrinks without it
         pool.allowCoreThreadTimeOut(true);
@@ -669,7 +669,7 @@ public class CoreAutonomousAutoConfiguration {
                 60L,
                 TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(500),
-                namedThreadFactory("Layer1-RAG-"),
+                namedThreadFactory("contexa-layer1-rag-"),
                 new ThreadPoolExecutor.AbortPolicy());
         // threads that have nothing to do are given back: the pool grows with the work and shrinks without it
         pool.allowCoreThreadTimeOut(true);
