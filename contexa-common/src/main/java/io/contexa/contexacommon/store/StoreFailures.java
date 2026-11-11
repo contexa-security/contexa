@@ -42,6 +42,13 @@ public final class StoreFailures {
     private static final Set<String> LETTUCE_OUTAGES = Set.of("io.lettuce.core.RedisConnectionException",
             "io.lettuce.core.RedisCommandTimeoutException", "io.lettuce.core.RedisException");
 
+    /**
+     * Redisson's client, read by name too. A Redis that cannot be reached or does not answer is an outage; a connection pool
+     * that has none to give, or a command Redis refused, is not.
+     */
+    private static final Set<String> REDISSON_OUTAGES = Set.of("org.redisson.client.RedisConnectionException",
+            "org.redisson.client.WriteRedisConnectionException", "org.redisson.client.RedisResponseTimeoutException");
+
     /** SQLSTATE classes of a database that cannot serve: connection, a read-only transaction, resources, shutdown, system. */
     private static final Set<String> SQL_STATE_CLASSES = Set.of("08", "25", "53", "57", "58");
 
@@ -75,6 +82,7 @@ public final class StoreFailures {
                 || failure instanceof RecoverableDataAccessException
                 || failure instanceof CannotCreateTransactionException
                 || LETTUCE_OUTAGES.contains(failure.getClass().getName())
+                || REDISSON_OUTAGES.contains(failure.getClass().getName())
                 || (failure instanceof SQLException sql && sqlOutage(sql));
     }
 

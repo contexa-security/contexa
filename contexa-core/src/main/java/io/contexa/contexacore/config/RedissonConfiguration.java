@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.config;
 
+import io.contexa.contexacommon.config.redis.ContexaRedisRequestPath;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.Redisson;
@@ -37,6 +38,11 @@ import java.time.Duration;
  * Contexa's Redisson client, connected the way the application's own Redis is: user name, password, database, TLS, and standalone, sentinel
  * or cluster as Spring Boot reads them from {@code spring.data.redis.*} (the url form included). It connects when it is first used, so a
  * Redis that is down when the application starts does not stop the application from starting.
+ * <p>
+ * A request of the application takes Contexa's locks through this client, so it waits for Redis as long as Contexa's other
+ * Redis clients let a request wait (about a second): to connect, and for the answer of a command, and a call that failed is
+ * not tried again. With the settings Redisson had here before, a command that did not answer held a request three seconds and one
+ * that is tried again sixteen, a Redis that refuses five, and a Redis no packet comes from twenty-four.
  */
 @Slf4j
 @Configuration
@@ -62,13 +68,14 @@ public class RedissonConfiguration {
 
     /** The Redisson configuration for the connection the application describes; {@code details} may be absent, then the properties are used. */
     static Config configFor(RedisConnectionDetails details, RedisProperties properties) {
-        Duration timeout = properties.getTimeout() != null ? properties.getTimeout() : Duration.ofMillis(5000);
+        Duration timeout = properties.getTimeout() != null && properties.getTimeout().compareTo(ContexaRedisRequestPath.REQUEST_WAIT) < 0
+                ? properties.getTimeout() : ContexaRedisRequestPath.REQUEST_WAIT;
         Config config = new Config();
         config.setLazyInitialization(true);
         if (details != null && details.getCluster() != null) {
             RedisConnectionDetails.Cluster cluster = details.getCluster();
             String scheme = cluster.getSslBundle() != null ? "rediss" : "redis";
-            var servers = config.useClusterServers().setConnectTimeout((int) timeout.toMillis()).setTimeout(3000).setRetryAttempts(3)
+            var servers = config.useClusterServers().setConnectTimeout((int) timeout.toMillis()).setTimeout((int) timeout.toMillis()).setRetryAttempts(0)
                     .setUsername(StringUtils.hasText(details.getUsername()) ? details.getUsername() : null)
                     .setPassword(StringUtils.hasText(details.getPassword()) ? details.getPassword() : null);
             for (RedisConnectionDetails.Node node : cluster.getNodes()) {
@@ -78,7 +85,7 @@ public class RedissonConfiguration {
             RedisConnectionDetails.Sentinel sentinel = details.getSentinel();
             String scheme = sentinel.getSslBundle() != null ? "rediss" : "redis";
             var servers = config.useSentinelServers().setMasterName(sentinel.getMaster()).setDatabase(sentinel.getDatabase())
-                    .setConnectTimeout((int) timeout.toMillis()).setTimeout(3000).setRetryAttempts(3)
+                    .setConnectTimeout((int) timeout.toMillis()).setTimeout((int) timeout.toMillis()).setRetryAttempts(0)
                     .setUsername(StringUtils.hasText(sentinel.getUsername()) ? sentinel.getUsername() : null)
                     .setPassword(StringUtils.hasText(sentinel.getPassword()) ? sentinel.getPassword() : null);
             for (RedisConnectionDetails.Node node : sentinel.getNodes()) {
@@ -115,8 +122,8 @@ public class RedissonConfiguration {
                     .setConnectionPoolSize(10)
                     .setIdleConnectionTimeout(10000)
                     .setConnectTimeout((int) timeout.toMillis())
-                    .setTimeout(3000)
-                    .setRetryAttempts(3)
+                    .setTimeout((int) timeout.toMillis())
+                    .setRetryAttempts(0)
                     .setPingConnectionInterval(0);
         }
         return config;

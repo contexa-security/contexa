@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.identity;
 
 import io.contexa.autoconfigure.hostredis.HostDevice;
 import io.contexa.autoconfigure.hostredis.HostDeviceRepository;
+import io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
@@ -56,11 +57,14 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
 import org.springframework.data.redis.repository.support.RedisRepositoryFactoryBean;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.statemachine.StateMachineContext;
 import org.springframework.statemachine.StateMachinePersist;
 import org.springframework.statemachine.data.redis.RedisStateMachineRepository;
 import org.springframework.statemachine.support.DefaultExtendedState;
 import org.springframework.statemachine.support.DefaultStateMachineContext;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
@@ -77,6 +81,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -183,8 +188,10 @@ class IdentityStateMachineHostRedisRepositoriesDistributedClasspathTest {
             assertThat(((AbstractBeanDefinition) context.getBeanFactory().getBeanDefinition("contexaRedisStateMachineRepository"))
                     .isDefaultCandidate())
                     .as("an injection point of the application never gets Contexa's store by its type").isFalse();
+            assertThat(context.getBeanFactory().getDependentBeans("contexaStringRedisTemplate"))
+                    .as("Contexa's template outlives Contexa's store at shutdown").contains("contexaRedisStateMachineRepository");
             assertThat(context.getBeanFactory().getDependentBeans("redisTemplate"))
-                    .as("the template outlives Contexa's store at shutdown").contains("contexaRedisStateMachineRepository");
+                    .as("the application's template is not Contexa's store's").doesNotContain("contexaRedisStateMachineRepository");
         });
     }
 
@@ -282,8 +289,8 @@ class IdentityStateMachineHostRedisRepositoriesDistributedClasspathTest {
     }
 
     @Test
-    @DisplayName("the flows go through the application's template named redisTemplate, as Spring Data's repositories took it, even one kept from injection")
-    void theFlowsUseTheTemplateNamedRedisTemplate() {
+    @DisplayName("the flows go through Contexa's own template on the application's connection, not through an application template named redisTemplate on another database")
+    void theFlowsUseContexasOwnTemplate() {
         String flow = unique("flow");
         try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using("")) {
             withContexa(host(HostApplicationWithItsOwnTemplate.class)).run(context -> {
@@ -292,14 +299,95 @@ class IdentityStateMachineHostRedisRepositoriesDistributedClasspathTest {
 
                 StringRedisTemplate own = new StringRedisTemplate(HostApplicationWithItsOwnTemplate.connections);
                 try {
-                    assertThat(own.hasKey(FLOWS + ":" + flow)).as("in the database of the application's template").isTrue();
-                    assertThat(redis.hasKey(FLOWS + ":" + flow)).as("not in the database of Spring Boot's connection").isFalse();
+                    assertThat(own.hasKey(FLOWS + ":" + flow)).as("not in the database of the application's template").isFalse();
+                    assertThat(redis.hasKey(FLOWS + ":" + flow)).as("in the database of the application's connection").isTrue();
+                    redis.delete(FLOWS + ":" + flow);
+                    redis.opsForSet().remove(FLOWS, flow);
                 } finally {
                     own.delete(FLOWS + ":" + flow);
                     own.opsForSet().remove(FLOWS, flow);
                 }
             });
         }
+    }
+
+    @Test
+    @DisplayName("an application with no template named redisTemplate, only a connection factory of its own, starts and keeps Contexa's flows on that connection")
+    void anApplicationWithoutATemplateNamedRedisTemplate() {
+        String flow = unique("flow");
+        keysToRemove.add(FLOWS + ":" + flow);
+        remember(FLOWS, flow);
+        try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using("")) {
+            withContexa(new ApplicationContextRunner().withUserConfiguration(HostApplicationWithOnlyAConnectionFactory.class))
+                    .run(context -> {
+                        assertThat(context).hasNotFailed();
+                        assertThat(context).doesNotHaveBean("redisTemplate");
+                        contexaPersist(context).write(flowContext(MfaState.AWAITING_FACTOR_SELECTION), flow);
+
+                        assertThat(contexaPersist(context).read(flow).getState()).isEqualTo(MfaState.AWAITING_FACTOR_SELECTION);
+                        assertThat(redis.hasKey(FLOWS + ":" + flow)).as("on the connection of the application").isTrue();
+                    });
+        }
+    }
+
+    @Test
+    @DisplayName("a Redis that freezes holds a request for about a second once, and then not at all, however long the application's own client waits; it works again by itself")
+    void aFrozenRedisDoesNotHoldRequestsForTheApplicationsWait() throws Exception {
+        String flow = unique("flow");
+        keysToRemove.add(FLOWS + ":" + flow);
+        remember(FLOWS, flow);
+        try (RedisOutageProxy proxy = new RedisOutageProxy(redisHost, redisPort);
+             ApplicationNamespace.Scope ignored = ApplicationNamespace.using("")) {
+            host(HostApplicationWithoutRedisRepositories.class)
+                    .withPropertyValues("spring.data.redis.port=" + proxy.port(), "spring.data.redis.timeout=10s")
+                    .withUserConfiguration(ContexaSide.class)
+                    .withPropertyValues("contexa.infrastructure.mode=distributed")
+                    .withConfiguration(AutoConfigurations.of(CommonRedisAutoConfiguration.class, IdentityStateMachineAutoConfiguration.class))
+                    .run(context -> {
+                        assertThat(context).hasNotFailed();
+                        StateMachinePersist<MfaState, MfaEvent, Object> persist = contexaPersist(context);
+                        onRequestThread(() -> {
+                            persist.write(flowContext(MfaState.AWAITING_FACTOR_SELECTION), flow);
+                            return null;
+                        });
+                        assertThat(onRequestThread(() -> persist.read(flow))).as("read while Redis answers").isNotNull();
+
+                        proxy.freeze();
+                        Duration first = failureOnRequestThread(() -> persist.read(flow));
+                        Duration second = failureOnRequestThread(() -> persist.read(flow));
+                        assertThat(first).as("the request that meets the freeze").isLessThan(Duration.ofSeconds(4));
+                        assertThat(second).as("a request while the gate is down").isLessThan(Duration.ofMillis(300));
+
+                        proxy.restore();
+                        await().atMost(Duration.ofSeconds(30)).ignoreExceptions().untilAsserted(() ->
+                                assertThat(onRequestThread(() -> persist.read(flow))).as("read after Redis answers again").isNotNull());
+                    });
+        }
+    }
+
+    private static <T> T onRequestThread(Call<T> call) throws Exception {
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest()));
+        try {
+            return call.run();
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    /** How long a call of a request thread takes to fail. */
+    private static Duration failureOnRequestThread(Call<?> call) throws Exception {
+        long start = System.nanoTime();
+        try {
+            onRequestThread(call);
+        } catch (RuntimeException failure) {
+            return Duration.ofNanos(System.nanoTime() - start);
+        }
+        throw new AssertionError("the call was expected to fail");
+    }
+
+    @FunctionalInterface
+    private interface Call<T> {
+        T run() throws Exception;
     }
 
     private static ApplicationContextRunner host(Class<?>... configurations) {
@@ -312,7 +400,7 @@ class IdentityStateMachineHostRedisRepositoriesDistributedClasspathTest {
     private static ApplicationContextRunner withContexa(ApplicationContextRunner host) {
         return host.withPropertyValues("contexa.infrastructure.mode=distributed")
                 .withUserConfiguration(ContexaSide.class)
-                .withConfiguration(AutoConfigurations.of(IdentityStateMachineAutoConfiguration.class));
+                .withConfiguration(AutoConfigurations.of(CommonRedisAutoConfiguration.class, IdentityStateMachineAutoConfiguration.class));
     }
 
     /** The repositories the distributed mode used to enable: Spring Data's, on the package of Spring Statemachine. */
@@ -408,6 +496,16 @@ class IdentityStateMachineHostRedisRepositoriesDistributedClasspathTest {
             template.setConnectionFactory(connections);
             template.afterPropertiesSet();
             return template;
+        }
+    }
+
+    /** An application with a connection factory of its own and no template of any name: Spring Boot's Redis auto-configuration is not used. */
+    @Configuration(proxyBeanMethods = false)
+    static class HostApplicationWithOnlyAConnectionFactory {
+
+        @Bean
+        LettuceConnectionFactory hostConnections() {
+            return new LettuceConnectionFactory(new RedisStandaloneConfiguration(redisHost, redisPort));
         }
     }
 
