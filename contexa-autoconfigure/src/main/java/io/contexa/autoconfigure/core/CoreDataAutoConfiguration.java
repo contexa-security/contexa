@@ -82,6 +82,18 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
     private static final String OSS_OFFICIAL_EVIDENCE_PACKAGE =
             "io.contexa.contexacore.verification.evidence";
 
+    /**
+     * Hibernate settles the PostgreSQL dialect from the product name instead of the database's metadata. Contexa's
+     * factory then reaches its database neither while the application starts nor when that database is down, and
+     * Hibernate has no named dialect to warn about in the application's log. The dialect targets the oldest
+     * PostgreSQL version Hibernate supports rather than the version the database reports. Scrollable results stay
+     * on as the PostgreSQL driver reports them, since without the metadata Hibernate would assume they are not.
+     */
+    private static final Map<String, Object> POSTGRESQL_DIALECT_WITHOUT_DATABASE = Map.of(
+            "hibernate.boot.allow_jdbc_metadata_access", "false",
+            "jakarta.persistence.database-product-name", "PostgreSQL",
+            "hibernate.jdbc.use_scrollable_resultset", "true");
+
     private Environment environment;
 
     public CoreDataAutoConfiguration() {
@@ -179,35 +191,41 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
         if (StringUtils.hasText(defaultSchema)) {
             properties.put("hibernate.default_schema", defaultSchema);
         }
-        String dialect = resolveHibernateDialect();
+        String dialect = configuredHibernateDialect();
+        DatabaseDriver databaseDriver = contexaDatabaseDriver();
+        if (!StringUtils.hasText(dialect) && databaseDriver == DatabaseDriver.POSTGRESQL && !schemaToolRuns(ddlAuto)) {
+            properties.putAll(POSTGRESQL_DIALECT_WITHOUT_DATABASE);
+            return properties;
+        }
+        if (!StringUtils.hasText(dialect)) {
+            dialect = switch (databaseDriver) {
+                case POSTGRESQL -> "org.hibernate.dialect.PostgreSQLDialect";
+                case H2 -> "org.hibernate.dialect.H2Dialect";
+                default -> null;
+            };
+        }
         if (StringUtils.hasText(dialect)) {
             properties.put("hibernate.dialect", dialect);
         }
         return properties;
     }
 
-    private String resolveHibernateDialect() {
+    private String configuredHibernateDialect() {
         String dialect = environment.getProperty("contexa.jpa.properties.hibernate.dialect");
         if (StringUtils.hasText(dialect)) {
             return dialect;
         }
+        return environment.getProperty("contexa.jpa.database-platform");
+    }
 
-        dialect = environment.getProperty("contexa.jpa.database-platform");
-        if (StringUtils.hasText(dialect)) {
-            return dialect;
-        }
-
+    private DatabaseDriver contexaDatabaseDriver() {
         String jdbcUrl = environment.getProperty("contexa.datasource.url");
-        if (!StringUtils.hasText(jdbcUrl)) {
-            return null;
-        }
+        return StringUtils.hasText(jdbcUrl) ? DatabaseDriver.fromJdbcUrl(jdbcUrl) : DatabaseDriver.UNKNOWN;
+    }
 
-        DatabaseDriver databaseDriver = DatabaseDriver.fromJdbcUrl(jdbcUrl);
-        return switch (databaseDriver) {
-            case POSTGRESQL -> "org.hibernate.dialect.PostgreSQLDialect";
-            case H2 -> "org.hibernate.dialect.H2Dialect";
-            default -> null;
-        };
+    /** A Hibernate schema tool reads and changes the database while the factory starts, whatever the dialect. */
+    private static boolean schemaToolRuns(String ddlAuto) {
+        return StringUtils.hasText(ddlAuto) && !"none".equalsIgnoreCase(ddlAuto.trim());
     }
 
     private String[] packagesToScan(ObjectProvider<ContexaJpaManagedPackageProvider> packageProviders) {

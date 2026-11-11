@@ -90,6 +90,7 @@ import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
+import io.contexa.contexacore.util.ErrorLogThrottle;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -119,6 +120,7 @@ import reactor.core.publisher.Mono;
 public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy {
 
     private static final ExecutorService RAG_EXECUTOR = createRagExecutor();
+    private static final Duration MISSING_USER_ID_LOG_INTERVAL = Duration.ofMinutes(5);
     private static final String SAME_RESOURCE_RAG_ALLOW_REASONING =
             "Authorization allows access, and authorized RAG is relevant to the same resource.";
     private static final String SAME_RESOURCE_RAG_ESTABLISHED_BASELINE_ALLOW_REASONING =
@@ -169,6 +171,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected final PromptContextAuthorizationService promptContextAuthorizationService;
     protected final PromptContextAuditRecorder promptContextAuditRecorder;
     protected final StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry;
+    /**
+     * An event without a user is skipped by every search the same way, request after request: the skip is written for
+     * the first one and then at most once per interval with the number of skips in between.
+     */
+    private final ErrorLogThrottle missingUserIdRagSearchLog = new ErrorLogThrottle(MISSING_USER_ID_LOG_INTERVAL);
+    private final ErrorLogThrottle missingUserIdPastRecordLog = new ErrorLogThrottle(MISSING_USER_ID_LOG_INTERVAL);
     private static final Cache<String, SecurityDecisionStandardPromptTemplate.SessionContext> ESCALATION_SESSION_CACHE =
             ContexaCaffeine.newBuilder()
                     .maximumSize(1000)
@@ -879,8 +887,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             String userId = event.getUserId();
             List<String> sessionIds = sessionIdsOf(event);
             if (userId == null || userId.isEmpty() || "unknown".equals(userId)) {
-                log.error("[{}] userId missing - skipping RAG search for account isolation",
-                    getLayerName());
+                long notLogged = missingUserIdRagSearchLog.tryAcquire();
+                if (notLogged != ErrorLogThrottle.SUPPRESSED) {
+                    log.error("[{}] userId missing - skipping RAG search for account isolation, "
+                            + "similarSinceLastReport={}", getLayerName(), notLogged);
+                }
                 capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
                         "USER_ID_MISSING", null);
                 markRagRetrievalNotExecuted(event, requestedTopK, "USER_ID_MISSING");
@@ -1118,7 +1129,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                                                     int requestedTopK) {
         String userId = event.getUserId();
         if (userId == null || userId.isEmpty() || "unknown".equals(userId)) {
-            log.error("[{}] userId missing - skipping the past record lookup for account isolation", getLayerName());
+            long notLogged = missingUserIdPastRecordLog.tryAcquire();
+            if (notLogged != ErrorLogThrottle.SUPPRESSED) {
+                log.error("[{}] userId missing - skipping the past record lookup for account isolation, "
+                        + "similarSinceLastReport={}", getLayerName(), notLogged);
+            }
             capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK, "USER_ID_MISSING", null);
             markRagRetrievalNotExecuted(event, requestedTopK, "USER_ID_MISSING");
             return Collections.emptyList();

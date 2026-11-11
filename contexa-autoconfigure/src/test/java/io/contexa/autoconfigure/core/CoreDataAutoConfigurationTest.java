@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -46,6 +47,12 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionManager;
 
 class CoreDataAutoConfigurationTest {
+
+    private static final String[] PRODUCT_NAME_SETTINGS = {
+            "hibernate.boot.allow_jdbc_metadata_access",
+            "jakarta.persistence.database-product-name",
+            "hibernate.jdbc.use_scrollable_resultset"
+    };
 
     private static PostgresTestDatabase applicationDatabase;
     private static PostgresTestDatabase contexaDatabase;
@@ -96,6 +103,62 @@ class CoreDataAutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("A PostgreSQL Contexa database settles the dialect from its product name, without reading the database")
+    void aPostgresContexaDatabaseSettlesTheDialectFromItsProductName() {
+        for (MockEnvironment environment : List.of(
+                new MockEnvironment()
+                        .withProperty("contexa.datasource.url", "jdbc:postgresql://localhost:5432/contexa"),
+                new MockEnvironment()
+                        .withProperty("contexa.datasource.url", "jdbc:postgresql://localhost:5432/contexa")
+                        .withProperty("contexa.jpa.hibernate.ddl-auto", "none"))) {
+            CoreDataAutoConfiguration configuration = new CoreDataAutoConfiguration();
+            configuration.setEnvironment(environment);
+
+            LocalContainerEntityManagerFactoryBean factoryBean =
+                    configuration.contexaEntityManagerFactory(mock(DataSource.class), null);
+
+            assertThat(factoryBean.getJpaPropertyMap())
+                    .doesNotContainKey("hibernate.dialect")
+                    .containsEntry("hibernate.boot.allow_jdbc_metadata_access", "false")
+                    .containsEntry("jakarta.persistence.database-product-name", "PostgreSQL")
+                    .containsEntry("hibernate.jdbc.use_scrollable_resultset", "true");
+        }
+    }
+
+    @Test
+    @DisplayName("A Hibernate schema tool reads the database at start anyway, so its dialect stays named and read as before")
+    void aSchemaToolKeepsTheNamedDialectReadFromTheDatabase() {
+        for (String ddlAuto : List.of("validate", "update", "create", "create-drop", "create-only", "drop")) {
+            CoreDataAutoConfiguration configuration = new CoreDataAutoConfiguration();
+            configuration.setEnvironment(new MockEnvironment()
+                    .withProperty("contexa.jpa.hibernate.ddl-auto", ddlAuto)
+                    .withProperty("contexa.datasource.url", "jdbc:postgresql://localhost:5432/contexa"));
+
+            LocalContainerEntityManagerFactoryBean factoryBean =
+                    configuration.contexaEntityManagerFactory(mock(DataSource.class), null);
+
+            assertThat(factoryBean.getJpaPropertyMap()).as(ddlAuto)
+                    .containsEntry("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect")
+                    .doesNotContainKeys(PRODUCT_NAME_SETTINGS);
+        }
+    }
+
+    @Test
+    @DisplayName("An H2 Contexa database keeps its named dialect")
+    void anH2ContexaDatabaseKeepsItsNamedDialect() {
+        CoreDataAutoConfiguration configuration = new CoreDataAutoConfiguration();
+        configuration.setEnvironment(new MockEnvironment()
+                .withProperty("contexa.datasource.url", "jdbc:h2:mem:contexa"));
+
+        LocalContainerEntityManagerFactoryBean factoryBean =
+                configuration.contexaEntityManagerFactory(mock(DataSource.class), null);
+
+        assertThat(factoryBean.getJpaPropertyMap())
+                .containsEntry("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
+                .doesNotContainKeys(PRODUCT_NAME_SETTINGS);
+    }
+
+    @Test
     @DisplayName("Explicit Contexa Hibernate dialect should override JDBC URL inference")
     void explicitContexaHibernateDialectOverridesJdbcUrlInference() {
         CoreDataAutoConfiguration configuration = new CoreDataAutoConfiguration();
@@ -107,7 +170,8 @@ class CoreDataAutoConfigurationTest {
                 configuration.contexaEntityManagerFactory(mock(DataSource.class), null);
 
         assertThat(factoryBean.getJpaPropertyMap())
-                .containsEntry("hibernate.dialect", "com.example.ExplicitDialect");
+                .containsEntry("hibernate.dialect", "com.example.ExplicitDialect")
+                .doesNotContainKeys(PRODUCT_NAME_SETTINGS);
     }
 
     @Test
@@ -122,7 +186,8 @@ class CoreDataAutoConfigurationTest {
                 configuration.contexaEntityManagerFactory(mock(DataSource.class), null);
 
         assertThat(factoryBean.getJpaPropertyMap())
-                .containsEntry("hibernate.dialect", "com.example.ExplicitDialect");
+                .containsEntry("hibernate.dialect", "com.example.ExplicitDialect")
+                .doesNotContainKeys(PRODUCT_NAME_SETTINGS);
     }
 
     @Test
