@@ -509,6 +509,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **In the distributed mode a request no longer waits as long as the application's Redis client for the MFA flows.** They are read
+  and written through Contexa's own Redis template (the application's connection, about a second a request, none while Redis is down)
+  and no longer through the application's `redisTemplate`, so an application without one starts too. Keys, fields, bytes and expiry are
+  as before. **Check:** if the application's `redisTemplate` used another database or server than `spring.data.redis.*`, an MFA in
+  progress at the upgrade (30 minutes at most) is not found and is done once more.
+
 - **A protected method called without a signed-in user runs under `OBSERVE` and `DISABLED`, as without Contexa.** These modes
   decide on nobody; the method policies of the console still apply, and `SHADOW` and `ENFORCE` refuse the call as before.
 

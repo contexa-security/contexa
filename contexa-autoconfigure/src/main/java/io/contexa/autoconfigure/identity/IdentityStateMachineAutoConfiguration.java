@@ -40,7 +40,6 @@ import io.contexa.contexaidentity.security.statemachine.listener.MfaStateChangeL
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -56,6 +55,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisKeyValueAdapter;
 import org.springframework.data.redis.core.RedisKeyValueTemplate;
 import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.convert.MappingConfiguration;
 import org.springframework.data.redis.core.convert.MappingRedisConverter;
 import org.springframework.data.redis.core.convert.RedisCustomConversions;
@@ -198,9 +198,6 @@ public class IdentityStateMachineAutoConfiguration {
     @ConditionalOnBean(name = CONTEXA_REDISSON_CLIENT)
     static class DistributedStateMachineConfig {
 
-        /** The template Spring Data's Redis repositories take when they name none. */
-        private static final String SPRING_DATA_REDIS_TEMPLATE = "redisTemplate";
-
         @Bean(name = "contexaMfaStateMachineService")
         @ConditionalOnMissingBean
         public MfaStateMachineService mfaStateMachineService(
@@ -216,17 +213,16 @@ public class IdentityStateMachineAutoConfiguration {
          * The repository of the MFA flows in Redis. Enabling Spring Data's repositories for Spring Statemachine's package put
          * repository factories and Spring Data's beans in the application's context, and Spring Boot then made none of the
          * application's own Redis repositories. This repository is what that made, held by Contexa alone: the same keyspaces
-         * (the application's name), mapping and conversions, on the template named redisTemplate that Spring Data's
-         * repositories use when none is named, so a flow keeps its keys, its form and its Redis. The template is taken by its
-         * name, as Spring Data refers to it, so one the application keeps from injection is found too, and it outlives the
-         * repository at shutdown. The repository is no candidate for an injection point of the application.
+         * (the application's name), mapping and conversions, so a flow keeps its keys and its form. It is on Contexa's own
+         * template, like Contexa's other state in Redis: the application's connection, which a request reaches through a client
+         * of Contexa's that waits about a second, and not at all while Redis is known to be down. The template of the
+         * application is the application's. The repository is no candidate for an injection point of the application.
          */
         @Bean(name = "contexaRedisStateMachineRepository", defaultCandidate = false)
         @ConditionalOnMissingBean(name = "contexaRedisStateMachineRepository")
-        public RedisStateMachineRepository redisStateMachineRepository(ConfigurableBeanFactory beanFactory) {
-            RedisOperations<?, ?> redisTemplate = beanFactory.getBean(SPRING_DATA_REDIS_TEMPLATE, RedisOperations.class);
-            beanFactory.registerDependentBean(SPRING_DATA_REDIS_TEMPLATE, "contexaRedisStateMachineRepository");
-            return stateMachineRepository(redisTemplate);
+        public RedisStateMachineRepository redisStateMachineRepository(
+                @Qualifier("contexaStringRedisTemplate") StringRedisTemplate contexaStringRedisTemplate) {
+            return stateMachineRepository(contexaStringRedisTemplate);
         }
 
         /** Z-16 (F6): a context lapses the persistence TTL after its last write, as in the in-memory persist. */
