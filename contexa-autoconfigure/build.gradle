@@ -56,6 +56,8 @@ dependencies {
     testImplementation 'org.springframework.ai:spring-ai-ollama'
     testImplementation 'org.springframework.ai:spring-ai-pgvector-store'
     testImplementation 'org.springframework.ai:spring-ai-autoconfigure-vector-store-pgvector'
+    // the console's pages read the signed-in user through this dialect, as the starter brings it to an application
+    testImplementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
     testRuntimeOnly 'com.h2database:h2'
 }
 

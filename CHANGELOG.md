@@ -8,6 +8,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **Where Contexa owns the sign-in (FULL), a path no URL policy names now needs a signed-in user** (before, everyone
+  passed); Contexa's own sign-in stays open. An existing installation keeps the decision its settings row holds (PERMIT,
+  the former default, unless an operator changed it); the system settings screen chooses either.
+
 - **A mail code signs in once, also when requests present it together, and a person's sign-ins that arrive together end
   each other as the limit says.** Two faults that showed only under concurrency, found by starting an application and
   signing one account in from many clients at once. The mail code was read and then deleted without asking whether the

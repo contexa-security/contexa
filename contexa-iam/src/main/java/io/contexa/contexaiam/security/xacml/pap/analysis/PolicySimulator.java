@@ -186,7 +186,9 @@ public class PolicySimulator {
 
         NoPolicyDecision noPolicyDecision = methodTarget ? settings.missingMethodPolicyDecision()
                 : settings.noMatchingUrlPolicyDecision();
-        CombinedDecision combined = combiningEvaluator.combine(decisions, settings.algorithm(), noPolicyDecision);
+        // The simulated user is signed in, so a URL no policy names is granted under AUTHENTICATED, as at the enforcement point.
+        CombinedDecision combined = combiningEvaluator.combine(decisions, settings.algorithm(), noPolicyDecision,
+                authentication);
         boolean granted = combined.decision().isGranted();
         int decidingIndex = combined.noPolicyDecisionApplied() ? -1 : decidingIndex(decisions, granted);
         Policy decidingPolicy = decidingIndex >= 0 ? matchedPolicies.get(decidingIndex) : null;

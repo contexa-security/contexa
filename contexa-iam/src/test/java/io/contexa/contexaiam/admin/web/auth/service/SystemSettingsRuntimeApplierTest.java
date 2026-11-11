@@ -243,8 +243,8 @@ class SystemSettingsRuntimeApplierTest {
                 .build()));
 
         assertThatCode(applier::applyPolicyDecisionSettings).doesNotThrowAnyException();
-        assertThat(properties.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.PERMIT);
-        assertThat(urlManager.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.PERMIT);
+        assertThat(properties.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.AUTHENTICATED);
+        assertThat(urlManager.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.AUTHENTICATED);
     }
 
     public static class ReportService {

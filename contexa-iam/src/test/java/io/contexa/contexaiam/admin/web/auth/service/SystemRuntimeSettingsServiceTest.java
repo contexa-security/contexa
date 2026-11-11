@@ -82,13 +82,37 @@ class SystemRuntimeSettingsServiceTest {
     }
 
     @Test
-    @DisplayName("should default new policy decision columns to PERMIT")
-    void defaultsArePermit() {
+    @DisplayName("should default new settings rows to a sign-in for URLs without a policy and PERMIT for methods")
+    void defaultsNeedASignInForUrlsAndPermitMethods() {
         SystemSettings defaults = SystemRuntimeSettingsService.defaultSettings();
 
-        assertThat(defaults.getNoMatchingUrlPolicyDecision()).isEqualTo("PERMIT");
+        assertThat(defaults.getNoMatchingUrlPolicyDecision()).isEqualTo("AUTHENTICATED");
         assertThat(defaults.getMissingMethodPolicyDecision()).isEqualTo("PERMIT");
         assertThat(defaults.getPolicyCombiningAlgorithm()).isEqualTo("FIRST_APPLICABLE");
+        assertThat(SystemSettings.builder().build().getNoMatchingUrlPolicyDecision()).isEqualTo("AUTHENTICATED");
+        assertThat(new SystemSettings().getNoMatchingUrlPolicyDecision()).isEqualTo("AUTHENTICATED");
+    }
+
+    @Test
+    @DisplayName("should read a stored AUTHENTICATED for URLs and refuse it for methods")
+    void authenticatedIsADecisionForUrlsOnly() {
+        SystemSettingsRepository repository = mock(SystemSettingsRepository.class);
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder()
+                .noMatchingUrlPolicyDecision("AUTHENTICATED").missingMethodPolicyDecision("DENY").build()));
+        assertThat(new SystemRuntimeSettingsService(repository).findPolicyDecisionSettings()).contains(
+                new PolicyDecisionSettings(CombiningAlgorithm.FIRST_APPLICABLE, NoPolicyDecision.AUTHENTICATED,
+                        NoPolicyDecision.DENY));
+
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder()
+                .missingMethodPolicyDecision("AUTHENTICATED").build()));
+        assertThatThrownBy(() -> new SystemRuntimeSettingsService(repository).findPolicyDecisionSettings())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("missingMethodPolicyDecision");
+        assertThatThrownBy(() -> SystemRuntimeSettingsService.parseMissingMethodPolicyDecision("AUTHENTICATED"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(SystemRuntimeSettingsService.parseMissingMethodPolicyDecision("DENY")).isEqualTo(NoPolicyDecision.DENY);
+        assertThat(SystemRuntimeSettingsService.missingMethodPolicyDecisionOptions())
+                .containsExactly(NoPolicyDecision.PERMIT, NoPolicyDecision.DENY);
     }
 
     @Test

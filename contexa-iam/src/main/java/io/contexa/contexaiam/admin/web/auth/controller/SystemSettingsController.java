@@ -79,7 +79,8 @@ public class SystemSettingsController {
                 zeroTrustProperties != null ? zeroTrustProperties.getMode() : null));
         model.addAttribute("roles", systemSettingsService.getDefaultRoleOptions());
         model.addAttribute("algorithms", CombiningAlgorithm.values());
-        model.addAttribute("noPolicyDecisionOptions", NoPolicyDecision.values());
+        model.addAttribute("noMatchingUrlPolicyDecisionOptions", NoPolicyDecision.values());
+        model.addAttribute("noPolicyDecisionOptions", SystemRuntimeSettingsService.missingMethodPolicyDecisionOptions());
         model.addAttribute("zeroTrustModeOptions", SecurityZeroTrustProperties.EnforcementMode.values());
         return "contexa/admin/system-settings";
     }
@@ -112,8 +113,8 @@ public class SystemSettingsController {
                             SystemRuntimeSettingsService.parseCombiningAlgorithm(form.getPolicyCombiningAlgorithm()),
                             SystemRuntimeSettingsService.parseNoPolicyDecision(
                                     "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision()),
-                            SystemRuntimeSettingsService.parseNoPolicyDecision(
-                                    "missingMethodPolicyDecision", form.getMissingMethodPolicyDecision())));
+                            SystemRuntimeSettingsService.parseMissingMethodPolicyDecision(
+                                    form.getMissingMethodPolicyDecision())));
         }
         if (authorizationManager != null) {
             authorizationManager.reload();

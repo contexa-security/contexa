@@ -38,7 +38,9 @@ public class SystemRuntimeSettingsService {
     public static final SecurityZeroTrustProperties.EnforcementMode DEFAULT_SECURITY_ZEROTRUST_MODE = SecurityZeroTrustProperties.EnforcementMode.SHADOW;
     public static final String DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES = "io.contexa.contexaiam.";
     public static final CombiningAlgorithm DEFAULT_POLICY_COMBINING_ALGORITHM = CombiningAlgorithm.FIRST_APPLICABLE;
-    public static final NoPolicyDecision DEFAULT_NO_POLICY_DECISION = NoPolicyDecision.PERMIT;
+    /** A URL no policy names needs a signed-in user unless the operator chooses otherwise. */
+    public static final NoPolicyDecision DEFAULT_NO_MATCHING_URL_POLICY_DECISION = NoPolicyDecision.AUTHENTICATED;
+    public static final NoPolicyDecision DEFAULT_MISSING_METHOD_POLICY_DECISION = NoPolicyDecision.PERMIT;
 
     private final SystemSettingsRepository repository;
 
@@ -86,14 +88,14 @@ public class SystemRuntimeSettingsService {
                 .map(settings -> new PolicyDecisionSettings(
                         parseCombiningAlgorithm(settings.getPolicyCombiningAlgorithm()),
                         parseNoPolicyDecision("noMatchingUrlPolicyDecision", settings.getNoMatchingUrlPolicyDecision()),
-                        parseNoPolicyDecision("missingMethodPolicyDecision", settings.getMissingMethodPolicyDecision())));
+                        parseMissingMethodPolicyDecision(settings.getMissingMethodPolicyDecision())));
     }
 
     public static SystemSettings defaultSettings() {
         return SystemSettings.builder()
                 .policyCombiningAlgorithm(DEFAULT_POLICY_COMBINING_ALGORITHM.name())
-                .noMatchingUrlPolicyDecision(DEFAULT_NO_POLICY_DECISION.name())
-                .missingMethodPolicyDecision(DEFAULT_NO_POLICY_DECISION.name())
+                .noMatchingUrlPolicyDecision(DEFAULT_NO_MATCHING_URL_POLICY_DECISION.name())
+                .missingMethodPolicyDecision(DEFAULT_MISSING_METHOD_POLICY_DECISION.name())
                 .mvcResourceScannerBasePackages(DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES)
                 .build();
     }
@@ -114,6 +116,25 @@ public class SystemRuntimeSettingsService {
      */
     public static NoPolicyDecision parseNoPolicyDecision(String field, String rawValue) {
         return parseEnum(NoPolicyDecision.class, field, rawValue);
+    }
+
+    /**
+     * Parses the decision for methods without a policy: PERMIT or DENY. AUTHENTICATED is a decision for URL requests
+     * and is refused here like any other unsupported value.
+     *
+     * @throws IllegalArgumentException when the value is blank, not a {@link NoPolicyDecision} or AUTHENTICATED
+     */
+    public static NoPolicyDecision parseMissingMethodPolicyDecision(String rawValue) {
+        NoPolicyDecision decision = parseNoPolicyDecision("missingMethodPolicyDecision", rawValue);
+        if (decision == NoPolicyDecision.AUTHENTICATED) {
+            throw new IllegalArgumentException("missingMethodPolicyDecision has an unsupported value: " + rawValue);
+        }
+        return decision;
+    }
+
+    /** The decisions an operator may choose for methods without a policy. */
+    public static List<NoPolicyDecision> missingMethodPolicyDecisionOptions() {
+        return List.of(NoPolicyDecision.PERMIT, NoPolicyDecision.DENY);
     }
 
     private static <E extends Enum<E>> E parseEnum(Class<E> type, String field, String rawValue) {

@@ -109,7 +109,9 @@ class SystemSettingsControllerTest {
             assertThat(model.getAttribute("settings")).isNotNull();
             assertThat(model.getAttribute("roles")).isNotNull();
             assertThat(model.getAttribute("algorithms")).isEqualTo(CombiningAlgorithm.values());
-            assertThat(model.getAttribute("noPolicyDecisionOptions")).isEqualTo(NoPolicyDecision.values());
+            assertThat(model.getAttribute("noMatchingUrlPolicyDecisionOptions")).isEqualTo(NoPolicyDecision.values());
+            assertThat(model.getAttribute("noPolicyDecisionOptions"))
+                    .as("methods keep PERMIT and DENY").isEqualTo(List.of(NoPolicyDecision.PERMIT, NoPolicyDecision.DENY));
             assertThat(model.getAttribute("hcadModeOptions")).isNull();
         }
 
