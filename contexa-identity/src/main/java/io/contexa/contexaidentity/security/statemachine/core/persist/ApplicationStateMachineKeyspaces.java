@@ -31,8 +31,8 @@ import java.util.List;
  * and another application sharing the Redis finds none of them. Without a name nothing is configured and the library
  * keeps the keyspaces it names itself.
  * <p>
- * Spring Data builds this configuration by its class, with the constructor that has no arguments
- * ({@code @EnableRedisRepositories(keyspaceConfiguration = ...)}).
+ * The distributed mode makes it, with the constructor that has no arguments, when it makes the repository of the flows
+ * (IdentityStateMachineAutoConfiguration), after the start has bound the name: the keyspaces are read here, once.
  */
 public class ApplicationStateMachineKeyspaces extends KeyspaceConfiguration {
 

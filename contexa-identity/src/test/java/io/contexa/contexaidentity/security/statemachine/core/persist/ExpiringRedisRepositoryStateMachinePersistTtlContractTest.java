@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** The Redis persist on a Spring Data repository, as the distributed mode's {@code @EnableRedisRepositories} makes. */
+/** The Redis persist on a Spring Data repository, as the distributed mode makes it with RedisRepositoryFactory. */
 class ExpiringRedisRepositoryStateMachinePersistTtlContractTest extends AbstractMfaStateMachinePersistTtlContractTest {
 
     private static LettuceConnectionFactory connectionFactory;
