@@ -899,6 +899,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Added
 
+- **An application can run without passkeys by excluding webauthn4j.** With `exclude group: 'com.webauthn4j'` the
+  application starts, the start log says passkeys are off, the MFA flows go on with their other factors, the step-up
+  page offers no passkey, and Spring MVC no longer takes in the CBOR converter that webauthn4j's codec brought with it
+  (`Accept: application/cbor` answers 406 again). Passkeys stay on by default. A user whose only way was a passkey is
+  told there is none and counted among the users who cannot answer a CHALLENGE. A flow that cannot be satisfied without
+  a passkey (only a passkey, or more factors required than remain) is refused at start with the reason.
 - **An administrator unlocks an account.** A locked user's page in the console has an Unlock button, and
   `POST /contexa/admin/users/{id}/unlock` ends the lock and the count of failures ahead of time. The audit records who did
   it. A limit on the address the failures came from stays.

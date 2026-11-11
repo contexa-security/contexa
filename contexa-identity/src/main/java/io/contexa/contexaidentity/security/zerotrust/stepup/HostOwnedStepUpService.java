@@ -246,7 +246,9 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
             purpose = Purpose.BLOCK;
         }
         Users user = console ? consoleAccount(authentication.getName()) : bridgedUser(authentication.getName());
-        boolean passkey = user != null && hasPasskey(user);
+        // Without a relying party (webauthn4j is not on the class path) a registered passkey cannot be verified, so it
+        // is no way to answer: the user is one without a passkey, and the page says so instead of offering a dead button.
+        boolean passkey = user != null && relyingParty != null && hasPasskey(user);
         boolean restricted = action == ZeroTrustAction.CHALLENGE || action == ZeroTrustAction.BLOCK
                 || action == ZeroTrustAction.ESCALATE;
         boolean enrollable = !console && user != null && relyingParty != null && !passkey && !restricted;

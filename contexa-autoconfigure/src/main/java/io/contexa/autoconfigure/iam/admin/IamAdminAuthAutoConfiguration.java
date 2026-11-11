@@ -40,6 +40,7 @@ import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.web.auth.service.VerificationCoverageService;
+import io.contexa.contexaidentity.security.webauthn.PasskeyLibrary;
 import io.contexa.contexaiam.admin.web.common.ConsoleAgentRefusal;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
@@ -185,7 +186,7 @@ public class IamAdminAuthAutoConfiguration {
         return new VerificationCoverageService(userRepository, bridge.getSync().getSyntheticEmailDomain(), () -> {
             EmailService mail = emailService.getIfAvailable();
             return mail != null && mail.isMailSenderConfigured();
-        });
+        }, () -> PasskeyLibrary.available(IamAdminAuthAutoConfiguration.class.getClassLoader()));
     }
 
     @Bean(name = "contexaRoleService")

@@ -149,6 +149,7 @@ public interface UserRepository extends JpaRepository<Users, Long> {
      * answers no factor made for people and is left out.
      *
      * @param mailDelivers  whether a mail server is configured; without one no address reaches anybody
+     * @param passkeysWork  whether passkeys can be verified here; without webauthn4j a registered one answers nothing
      * @param syntheticMail the pattern of the addresses the bridge makes up
      * @param agentMail     the pattern of the addresses of agent accounts
      */
@@ -159,11 +160,13 @@ public interface UserRepository extends JpaRepository<Users, Long> {
               and (:mailDelivers = false
                    or position('@' in u.email) = 0
                    or lower(u.email) like :syntheticMail)
-              and not exists (select 1 from ctxa_user_entities e
-                              join ctxa_user_credentials c on c.user_entity_user_id = e.id
-                              where e.name = u.username)
+              and (:passkeysWork = false
+                   or not exists (select 1 from ctxa_user_entities e
+                                  join ctxa_user_credentials c on c.user_entity_user_id = e.id
+                                  where e.name = u.username))
             """, nativeQuery = true)
     long countWithoutVerificationFactor(@Param("mailDelivers") boolean mailDelivers,
+                                        @Param("passkeysWork") boolean passkeysWork,
                                         @Param("syntheticMail") String syntheticMail,
                                         @Param("agentMail") String agentMail);
 
