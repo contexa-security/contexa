@@ -505,15 +505,19 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **A mail server that answers slowly no longer stops every sign-in.** The mail of a sign-in is sent on the thread of
   the request that asked for it, and JavaMail waits without end where no timeout is set. With a mail server that greeted
   one connection a second, 400 requests for a code at once held every request thread: 89 were answered and 311 got no
-  answer in 90 seconds, and the application did not answer its health check for the whole of that time. Two limits now
-  bound it: each step of the SMTP conversation (connect, read, write) ends after
-  `contexa.auth.ott.email-smtp-timeout-seconds` (10) where the application's own
-  `spring.mail.properties.mail.smtp.*timeout` names none (0 leaves the mail settings alone), and at most
-  `contexa.auth.ott.email-max-concurrent-sends` (64) mails are being sent at one time, a request beyond them waiting
+  answer in 90 seconds, and the application did not answer its health check for the whole of that time. At most
+  `contexa.auth.ott.email-max-concurrent-sends` (64) mails are now being sent at one time, a request beyond them waiting
   `contexa.auth.ott.email-send-wait-seconds` (5) for a place and then failing as an undelivered mail does (500 with
-  `contexa.auth.ott.fail-on-email-error=true`, the default). **Check:** against that mail server all 400 requests are
-  answered, the slowest after about 20 seconds, the health check fails for the first four seconds only, and the ten
-  mails the server took in that time arrive; on a mail server that keeps up 1000 accounts sign in at once as before.
+  `contexa.auth.ott.fail-on-email-error=true`, the default). The mail itself goes out with the application's own mail
+  settings. A limit of time on the steps of the SMTP conversation is set only on request, with
+  `contexa.auth.ott.email-smtp-timeout-seconds` (0, none): the mail sender is the application's, so a value is written
+  into that sender where `spring.mail.properties.mail.smtp.*timeout` names none and bounds the application's other mail
+  too. A first form of this fix set ten seconds by default; a mail server that answered after twelve then failed the
+  code it had delivered before (500 after ten seconds), so the default is none. **Check:** against the mail server that
+  greets one connection a second all 400 requests are answered (79 mailed as the server takes them, 321 refused after
+  their wait for a place) and the health check fails for the first four seconds only; a mail server that answers after
+  twelve seconds delivers the code after twelve seconds; on a mail server that keeps up 1000 accounts sign in at once
+  as before.
 - **A code request with no code in it counts as a failed attempt instead of stopping the sign-in.** The submission was
   put on record before the request was looked at, and a request with a missing, empty or blank `token` was then passed
   on by the code filter: the answer was 404, the flow waited for a verification that never ran, the right code got 429
@@ -530,7 +534,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **A sign-in by mail code alone goes on to the page that takes the code.** After the code was requested the browser
   was sent to `/mfa/ott/code-sent?...`, a page of the MFA pages that a single mail-code flow does not have (404). It
   now goes to the flow's own page: the one its DSL names with `defaultSubmitPageUrl(...)`, and `/login/ott/verify`
-  where it names none. The name asked for is no longer in the address.
+  where it names none; the name asked for is not in that address. An application that named a "code sent" address of
+  its own (`contexa.auth.urls.factors.ott.code-sent`, anything but the default) has a page there, and is sent to it as
+  before, with the parameters it had (`email`, `type`, `flow`, `repository`). **Check:** with that address set to a
+  page of the application the browser goes there and the page answers; with none set it goes to `/login/ott/verify`.
 - **A failed password step of an MFA flow goes back to that flow's sign-in page.** A form submitted without the
   script was redirected to a fixed `/login?error=...`, which an MFA flow does not have (its page is `/mfa/login`, under
   the flow's prefix): 404. The redirect and the `nextStepUrl` of the JSON answer now name the address the flow's DSL

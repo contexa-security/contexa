@@ -29,16 +29,18 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Sends the mails of a sign-in on the thread of the request that asked for them, so a mail server that answers slowly
- * holds requests. Two limits keep that from taking every request thread of the application for as long as the server
- * likes: each step of the SMTP conversation ends after a time when the application's mail settings name none, and only
- * so many mails are being sent at once, a request beyond them waiting a short while for a place and then failing as an
- * undelivered mail does.
+ * holds requests. One limit keeps that from taking every request thread of the application: only so many mails are
+ * being sent at once, a request beyond them waiting a short while for a place and then failing as an undelivered mail
+ * does. The mail itself goes out with the application's own mail settings. A limit of time on the steps of the SMTP
+ * conversation is set only where the application asks for one: the mail sender is the application's, so the limit
+ * bounds its other mail too, and a mail server slower than the limit then fails a mail it would have delivered.
  */
 public class EmailService {
 
     public static final int DEFAULT_MAX_CONCURRENT_SENDS = 64;
     public static final int DEFAULT_SEND_WAIT_SECONDS = 5;
-    public static final int DEFAULT_SMTP_TIMEOUT_SECONDS = 10;
+    /** None: the application's mail sender is left as the application configured it. */
+    public static final int DEFAULT_SMTP_TIMEOUT_SECONDS = 0;
 
     private final JavaMailSender mailSender;
     private final Semaphore places;
@@ -61,7 +63,10 @@ public class EmailService {
         limitSmtpSteps(mailSender, smtpTimeoutSeconds);
     }
 
-    /** JavaMail waits without end where no timeout is set; a value the application set is kept. */
+    /**
+     * Only on request (a value above zero): JavaMail waits without end where no timeout is set, and a value the
+     * application set is kept. The sender is the one the application sends its own mail with.
+     */
     private static void limitSmtpSteps(JavaMailSender sender, int seconds) {
         if (seconds <= 0 || !(sender instanceof JavaMailSenderImpl configured)) {
             return;

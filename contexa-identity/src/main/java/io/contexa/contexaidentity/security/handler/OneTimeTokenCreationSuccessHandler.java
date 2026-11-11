@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.properties.OttUrls;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -31,6 +32,8 @@ import org.springframework.security.web.authentication.ott.OneTimeTokenGeneratio
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 @Slf4j
@@ -38,6 +41,9 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
 
     /** Where a flow by code alone names, with the request, the page that takes its code. */
     public static final String SUBMIT_PAGE_ATTRIBUTE = "io.contexa.ott.submitPageUrl";
+
+    /** The "code sent" address of the settings while the application has named none of its own. */
+    private static final String DEFAULT_CODE_SENT_URL = new OttUrls().getCodeSent();
 
     private final MfaStateMachineIntegrator mfaStateMachineIntegrator;
     private final AuthUrlProvider authUrlProvider;
@@ -85,9 +91,20 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
         }
 
         if ((factorContext == null || !MfaFlowTypeUtils.isMfaFlow(factorContext.getFlowTypeName()))) {
-            // A sign-in by mail code alone has no "code sent" page: that page is one of the MFA pages, and its address
-            // answers "not found" in such a flow. The browser goes on to the page that takes the code, which the flow
-            // does have. The name the code was asked for stays out of the address.
+            // An application that named a "code sent" address of its own (contexa.auth.urls.factors.ott.code-sent) has a
+            // page there, and a sign-in by mail code alone goes to it as it always did, with the same parameters.
+            String namedCodeSentUrl = resolveProvider(request).getOttCodeSent();
+            if (StringUtils.hasText(namedCodeSentUrl) && !DEFAULT_CODE_SENT_URL.equals(namedCodeSentUrl)) {
+                response.sendRedirect(request.getContextPath() + namedCodeSentUrl
+                        + "?email=" + URLEncoder.encode(usernameFromToken, StandardCharsets.UTF_8)
+                        + "&type=code_sent"
+                        + "&flow=ott_single"
+                        + "&repository=" + sessionRepository.getRepositoryType());
+                return;
+            }
+            // Unnamed, that address is the "code sent" page of the MFA pages, which a sign-in by mail code alone does
+            // not have: it answers "not found" in such a flow. The browser goes on to the page that takes the code,
+            // which the flow does have. The name the code was asked for stays out of the address.
             // The flow names the page with the request (its DSL's defaultSubmitPageUrl); without that the page of the
             // settings is the one a flow by code alone has by default.
             String submitPageUrl = request.getAttribute(SUBMIT_PAGE_ATTRIBUTE) instanceof String named ? named : null;
