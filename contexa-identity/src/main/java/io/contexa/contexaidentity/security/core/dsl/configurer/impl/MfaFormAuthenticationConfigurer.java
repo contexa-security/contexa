@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaPasswordSignIn;
 import io.contexa.contexaidentity.security.filter.BaseAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.MfaFormAuthenticationFilter;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -41,8 +42,10 @@ public final class MfaFormAuthenticationConfigurer<H extends HttpSecurityBuilder
 
         Assert.notNull(this.mfaInitiateUrl, "mfaInitiateUrl must be configured or have a default value.");
 
+        // Where Contexa owns the sign-in the password is checked by Contexa's provider alone, not by the chain's manager
+        AuthenticationManager contexaSignIn = ContexaPasswordSignIn.manager(applicationContext);
         MfaFormAuthenticationFilter filter = new MfaFormAuthenticationFilter(
-                authenticationManager,
+                contexaSignIn != null ? contexaSignIn : authenticationManager,
                 applicationContext,
                 properties,
                 requestMatcher

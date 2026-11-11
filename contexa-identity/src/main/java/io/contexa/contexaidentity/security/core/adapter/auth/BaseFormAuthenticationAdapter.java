@@ -18,9 +18,11 @@ package io.contexa.contexaidentity.security.core.adapter.auth;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
+import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
+import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -43,11 +45,20 @@ public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfig
 
         T configurer = createConfigurer();
         StateType stateType = resolveStateType(http, currentFlow);
+        ApplicationContext applicationContext = http.getSharedObject(PlatformContext.class).applicationContext();
 
         http.with(configurer, config -> {
             configureFormAuthentication(config, opts, successHandler, failureHandler);
             configureSecurityContext(config, opts, http, stateType);
+            useContexaSignIn(config, applicationContext);
         });
+    }
+
+    /**
+     * Gives the configurer's filter Contexa's own password sign-in ({@link ContexaPasswordSignIn}) where its filter would
+     * take the chain's manager. A configurer of Contexa's that already asks for it does nothing here.
+     */
+    protected void useContexaSignIn(T configurer, ApplicationContext applicationContext) {
     }
 
     protected abstract T createConfigurer();

@@ -23,8 +23,12 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailure
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsRecorder;
 import io.contexa.contexacommon.security.bridge.AuthenticationMethodReferences;
+import org.springframework.context.ApplicationContext;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.SecurityContextRepository;
 
 import java.util.Objects;
@@ -103,5 +107,24 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
     @Override
     protected void applySecurityContextRepository(FormLoginConfigurer<HttpSecurity> configurer, SecurityContextRepository repository) {
         configurer.securityContextRepository(repository);
+    }
+
+    /**
+     * Spring's form filter is handed the chain's manager when the configurer configures it; this hands it Contexa's own
+     * before the filter is added. The post-processor is typed, so it touches the form filter and nothing else.
+     */
+    @Override
+    protected void useContexaSignIn(FormLoginConfigurer<HttpSecurity> configurer, ApplicationContext applicationContext) {
+        AuthenticationManager contexaSignIn = ContexaPasswordSignIn.manager(applicationContext);
+        if (contexaSignIn == null) {
+            return;
+        }
+        configurer.withObjectPostProcessor(new ObjectPostProcessor<UsernamePasswordAuthenticationFilter>() {
+            @Override
+            public <O extends UsernamePasswordAuthenticationFilter> O postProcess(O filter) {
+                filter.setAuthenticationManager(contexaSignIn);
+                return filter;
+            }
+        });
     }
 }
