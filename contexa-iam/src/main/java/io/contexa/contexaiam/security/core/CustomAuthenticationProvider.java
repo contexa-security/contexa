@@ -18,7 +18,6 @@ package io.contexa.contexaiam.security.core;
 import io.contexa.contexacommon.security.LocalAccountStatusChecker;
 import io.contexa.contexacommon.security.LocalCredentialsVerifier;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
-import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -52,8 +51,10 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
                 userDetails,
                 loginPolicyService.isCredentialsExpired(loginId));
 
-        UnifiedCustomUserDetails customUserDetails = (UnifiedCustomUserDetails) userDetails;
-        return UsernamePasswordAuthenticationToken.authenticated(customUserDetails, null, customUserDetails.getAuthorities());
+        // The store is the application's own when it has exactly one (ContexaUserStore), and then the account is whatever
+        // that store returns. Taken for one of Contexa's, such an account failed here with a class cast (500 at every
+        // sign-in); it signs in as it is.
+        return UsernamePasswordAuthenticationToken.authenticated(userDetails, null, userDetails.getAuthorities());
     }
 
     @Override

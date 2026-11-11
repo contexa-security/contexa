@@ -24,18 +24,39 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 @Getter
 public class UnifiedCustomUserDetails implements UserDetails {
 
+    // The value the class had before equals and hashCode: a session stored by an earlier version is still read.
+    private static final long serialVersionUID = 2446394177539806203L;
+
     private final UserDto user;
-    private final Set<GrantedAuthority> originalAuthorities;  
+    private final Set<GrantedAuthority> originalAuthorities;
 
     public UnifiedCustomUserDetails(UserDto user, Set<GrantedAuthority> authorities) {
         this.user = user;
         this.originalAuthorities = Collections.unmodifiableSet(new HashSet<>(authorities));
         this.user.setAuthorities(this.originalAuthorities);
+    }
+
+    /**
+     * Two principals of one account are the same principal, as with Spring Security's own {@code User}. Each sign-in
+     * reads the account anew, and Spring Security counts the sessions of a user by its principal: without this every
+     * sign-in was a user of its own, and a limit of sessions ({@code sessionManagement().maximumSessions(n)}) never
+     * found a second session to end.
+     */
+    @Override
+    public boolean equals(Object other) {
+        return this == other
+                || (other instanceof UnifiedCustomUserDetails that && Objects.equals(getUsername(), that.getUsername()));
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(getUsername());
     }
 
     @Override

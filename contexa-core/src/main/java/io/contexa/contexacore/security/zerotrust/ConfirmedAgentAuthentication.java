@@ -69,7 +69,7 @@ public final class ConfirmedAgentAuthentication {
                 && current instanceof ZeroTrustAuthenticationToken narrowed) {
             ZeroTrustAuthenticationToken restored = new ZeroTrustAuthenticationToken(narrowed.getPrincipal(),
                     narrowed.getCredentials(), account.getOriginalAuthorities(), narrowed.getTrustScore(),
-                    narrowed.getThreatScore(), ZeroTrustAction.ALLOW);
+                    narrowed.getThreatScore(), ZeroTrustAction.ALLOW, narrowed.getName());
             restored.setDetails(narrowed.getDetails());
             context.setAuthentication(restored);
             return true;

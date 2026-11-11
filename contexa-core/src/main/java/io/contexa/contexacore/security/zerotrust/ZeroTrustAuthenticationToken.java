@@ -23,18 +23,42 @@ import java.util.Collection;
 
 public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthenticationToken {
 
+    // The value the class had before the name was kept: a session stored by an earlier version is still read.
+    private static final long serialVersionUID = 4527513060875169932L;
+
     private final double trustScore;
     private final double threatScore;
     private volatile ZeroTrustAction action;
+    /** The name of the authentication this one stands in for; null where none was given, or in a session stored before. */
+    private final String name;
 
     public ZeroTrustAuthenticationToken(Object principal, Object credentials,
                                         Collection<? extends GrantedAuthority> authorities,
                                         double trustScore, double threatScore,
                                         ZeroTrustAction action) {
+        this(principal, credentials, authorities, trustScore, threatScore, action, null);
+    }
+
+    /**
+     * @param name the name of the authentication this one replaces. This class works the name out from the principal,
+     *             and a principal that is no {@code UserDetails}, {@code AuthenticatedPrincipal} or {@code Principal}
+     *             (the user entity of a passkey sign-in) gave its object string for it: the session was then no longer
+     *             the user's for the decisions, the session tracking and the forced sign-out kept by name.
+     */
+    public ZeroTrustAuthenticationToken(Object principal, Object credentials,
+                                        Collection<? extends GrantedAuthority> authorities,
+                                        double trustScore, double threatScore,
+                                        ZeroTrustAction action, String name) {
         super(principal, credentials, authorities);
         this.trustScore = trustScore;
         this.threatScore = threatScore;
         this.action = action;
+        this.name = name;
+    }
+
+    @Override
+    public String getName() {
+        return name != null && !name.isBlank() ? name : super.getName();
     }
 
     public double getTrustScore() {

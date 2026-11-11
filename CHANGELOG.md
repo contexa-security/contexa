@@ -8,6 +8,27 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A session signed in with a passkey alone stays the user's for what Contexa keeps by name.** On every request of a
+  session Contexa may replace the authentication with one whose authorities follow the decision in force, and that
+  replacement worked the user's name out from the principal alone. The principal of a sign-in by passkey alone is a
+  user entity that is no `UserDetails`, so the name became that object's string
+  (`ImmutablePublicKeyCredentialUserEntity@58f01ced`), different at every sign-in, and from the second request on the
+  session was read under it: a decision reached for the user after the sign-in (BLOCK, CHALLENGE), the tracking of the
+  user's sessions and a forced sign-out no longer met that session, and `Authentication.getName()` gave the
+  application that string. The replacement now keeps the name of the authentication it stands in for. Form, MFA and
+  OAuth2 sign-ins were not affected, and the token state already kept the name. **Check:** after a sign-in by passkey
+  alone with the session state, a page of the application that prints `Authentication.getName()` prints the user's
+  name on every request.
+
+- **A limit of sessions per user is enforced for Contexa's accounts.** `sessionManagement(session ->
+  session.maximumSessions(1))` set no limit: Spring Security counts the sessions of a user by its principal, each
+  sign-in reads the account anew, and the principal of a Contexa account had no `equals` and `hashCode`, so every
+  sign-in was a user of its own and no second session was ever found to end. Two principals of one account are now
+  the same principal (as with Spring Security's `User`). The classes kept in a session keep their serial version, so a
+  session stored by an earlier version is still read. **Check:** with a limit of one, the same account signs in from a
+  second browser and the first browser's next request is answered "This session has been expired", in a form flow and
+  in an MFA flow with the session state; before, both browsers stayed signed in.
+
 - **A mail code signs in once, also when requests present it together, and a person's sign-ins that arrive together end
   each other as the limit says.** Two faults that showed only under concurrency, found by starting an application and
   signing one account in from many clients at once. The mail code was read and then deleted without asking whether the
@@ -502,6 +523,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **An application with a user store of its own signs its accounts in at Contexa's form sign-in.** When the
+  application has exactly one `UserDetailsService`, that store serves the sign-in Contexa owns, and its accounts are
+  whatever `UserDetails` it returns. Contexa's password provider took every account for one of its own and failed on
+  such an account with a class cast: 500 at every sign-in. The account now signs in as it is. **Check:** an
+  application with an `InMemoryUserDetailsManager` bean and a form flow with the session state signs its user in
+  (302, and the application sees the user's name); before, 500.
 - **A mail server that answers slowly no longer stops every sign-in.** The mail of a sign-in is sent on the thread of
   the request that asked for it, and JavaMail waits without end where no timeout is set. With a mail server that greeted
   one connection a second, 400 requests for a code at once held every request thread: 89 were answered and 311 got no
