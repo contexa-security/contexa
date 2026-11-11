@@ -183,12 +183,17 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
     static void refuseApplicationChains(List<SecurityFilterChain> chains, Object placeholder) {
         List<String> application = applicationChains(chains, placeholder);
         if (!application.isEmpty()) {
-            throw new ContexaOperatingProfileException(
-                    "Contexa owns the sign-in of this application, but the application declares its own security chain(s) " + application
-                            + ". Contexa's chain takes every request first, so they would never run and what they protect would be open.",
-                    "For an application that keeps its sign-in, use @EnableAISecurity without mode = FULL. For a new application "
-                            + "whose sign-in Contexa owns, remove those chains.");
+            throw applicationChainsRefused(application);
         }
+    }
+
+    /** The one refusal of the application's chains, whether they are found as built chains or as their bean definitions. */
+    static ContexaOperatingProfileException applicationChainsRefused(List<String> application) {
+        return new ContexaOperatingProfileException(
+                "Contexa owns the sign-in of this application, but the application declares its own security chain(s) " + application
+                        + ". Contexa's chain takes every request first, so they would never run and what they protect would be open.",
+                "For an application that keeps its sign-in, use @EnableAISecurity without mode = FULL. For a new application "
+                        + "whose sign-in Contexa owns, remove those chains.");
     }
 
     static List<String> applicationChains(List<SecurityFilterChain> chains, Object placeholder) {

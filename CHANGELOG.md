@@ -502,6 +502,9 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A start refused for a chain of the application where Contexa owns the sign-in (`mode = FULL`) leaves no table behind.**
+  It is refused from the bean definitions, before Contexa touches its database, and names the chain's bean.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines
