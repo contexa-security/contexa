@@ -66,6 +66,51 @@ tasks.named('resolveMainClassName') {
     enabled = false
 }
 
+// The distributed mode keeps the MFA flows in Redis through Redisson and Spring Statemachine's Redis repositories, which an
+// application adds for that mode. The other tests of this module run without them, and adding them to those tests would
+// change the versions they run on (Kryo, Objenesis), so the tests that need them run in a task of their own, on the class
+// path of the tests with both libraries added. Their names end in DistributedClasspathTest; `test` runs them after the others.
+def distributedClasspathTests = '**/*DistributedClasspathTest*'
+
+configurations {
+    distributedClasspathTest {
+        canBeConsumed = false
+        canBeResolved = false
+    }
+    distributedClasspathTestRuntimeClasspath {
+        canBeConsumed = false
+        canBeResolved = true
+        extendsFrom configurations.testImplementation, configurations.testRuntimeOnly, configurations.distributedClasspathTest
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+            attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE,
+                    objects.named(TargetJvmEnvironment, TargetJvmEnvironment.STANDARD_JVM))
+        }
+    }
+}
+
+dependencies {
+    testCompileOnly("org.redisson:redisson:3.48.0")
+    testCompileOnly 'org.springframework.statemachine:spring-statemachine-data-redis:4.0.0'
+    distributedClasspathTest("org.redisson:redisson:3.48.0")
+    distributedClasspathTest 'org.springframework.statemachine:spring-statemachine-data-redis:4.0.0'
+}
+
+def distributedClasspathTest = tasks.register('distributedClasspathTest', Test) {
+    description = 'Runs the tests that need the libraries of the distributed mode on their class path.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.output + sourceSets.main.output + configurations.distributedClasspathTestRuntimeClasspath
+    include distributedClasspathTests
+    useJUnitPlatform()
+    jvmArgs '-XX:+EnableDynamicAgentLoading', '-Dorg.mockito.mock.maker=mock-maker-subclass'
+}
+
 tasks.named('test') {
     useJUnitPlatform()
+    exclude distributedClasspathTests
+    finalizedBy distributedClasspathTest
 }

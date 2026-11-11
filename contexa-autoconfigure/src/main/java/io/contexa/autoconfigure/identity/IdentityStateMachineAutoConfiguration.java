@@ -39,6 +39,8 @@ import io.contexa.contexaidentity.security.statemachine.guard.RetryLimitGuard;
 import io.contexa.contexaidentity.security.statemachine.listener.MfaStateChangeListener;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -49,7 +51,16 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
+import org.springframework.data.redis.core.RedisKeyValueAdapter;
+import org.springframework.data.redis.core.RedisKeyValueTemplate;
+import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.convert.MappingConfiguration;
+import org.springframework.data.redis.core.convert.MappingRedisConverter;
+import org.springframework.data.redis.core.convert.RedisCustomConversions;
+import org.springframework.data.redis.core.convert.ReferenceResolverImpl;
+import org.springframework.data.redis.core.index.IndexConfiguration;
+import org.springframework.data.redis.core.mapping.RedisMappingContext;
+import org.springframework.data.redis.repository.support.RedisRepositoryFactory;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.statemachine.config.StateMachineFactory;
 import org.springframework.statemachine.data.redis.RedisPersistingStateMachineInterceptor;
@@ -176,9 +187,10 @@ public class IdentityStateMachineAutoConfiguration {
     })
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     @ConditionalOnBean(type = "org.redisson.api.RedissonClient")
-    @EnableRedisRepositories(basePackages = "org.springframework.statemachine.data.redis",
-            keyspaceConfiguration = ApplicationStateMachineKeyspaces.class)
     static class DistributedStateMachineConfig {
+
+        /** The template Spring Data's Redis repositories take when they name none. */
+        private static final String SPRING_DATA_REDIS_TEMPLATE = "redisTemplate";
 
         @Bean(name = "contexaMfaStateMachineService")
         @ConditionalOnMissingBean
@@ -191,14 +203,54 @@ public class IdentityStateMachineAutoConfiguration {
                     stateMachineFactory, stateMachinePersister, contexaRedissonClient, properties);
         }
 
+        /**
+         * The repository of the MFA flows in Redis. Enabling Spring Data's repositories for Spring Statemachine's package put
+         * repository factories and Spring Data's beans in the application's context, and Spring Boot then made none of the
+         * application's own Redis repositories. This repository is what that made, held by Contexa alone: the same keyspaces
+         * (the application's name), mapping and conversions, on the template named redisTemplate that Spring Data's
+         * repositories use when none is named, so a flow keeps its keys, its form and its Redis. The template is taken by its
+         * name, as Spring Data refers to it, so one the application keeps from injection is found too, and it outlives the
+         * repository at shutdown. The repository is no candidate for an injection point of the application.
+         */
+        @Bean(name = "contexaRedisStateMachineRepository", defaultCandidate = false)
+        @ConditionalOnMissingBean(name = "contexaRedisStateMachineRepository")
+        public RedisStateMachineRepository redisStateMachineRepository(ConfigurableBeanFactory beanFactory) {
+            RedisOperations<?, ?> redisTemplate = beanFactory.getBean(SPRING_DATA_REDIS_TEMPLATE, RedisOperations.class);
+            beanFactory.registerDependentBean(SPRING_DATA_REDIS_TEMPLATE, "contexaRedisStateMachineRepository");
+            return stateMachineRepository(redisTemplate);
+        }
+
         /** Z-16 (F6): a context lapses the persistence TTL after its last write, as in the in-memory persist. */
         @Bean(name = "contexaStateMachinePersist")
         @ConditionalOnMissingBean
         public RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist(
-                RedisStateMachineRepository redisStateMachineRepository,
+                @Qualifier("contexaRedisStateMachineRepository") RedisStateMachineRepository contexaRedisStateMachineRepository,
                 StateMachineProperties properties) {
-            return new ExpiringRedisRepositoryStateMachinePersist(redisStateMachineRepository,
+            return new ExpiringRedisRepositoryStateMachinePersist(contexaRedisStateMachineRepository,
                     new MfaKryoStateMachineSerialisationService(), persistenceTtl(properties));
+        }
+
+        /**
+         * The objects Spring Data's repository configuration makes for {@code RedisStateMachineRepository}, with its defaults,
+         * as objects of Contexa's: no keyspace events (no listener container, no shadow copies), and no events of the
+         * template or the mapping published to the application.
+         */
+        static RedisStateMachineRepository stateMachineRepository(RedisOperations<?, ?> redisTemplate) {
+            RedisMappingContext mappingContext = new RedisMappingContext(
+                    new MappingConfiguration(new IndexConfiguration(), new ApplicationStateMachineKeyspaces()));
+            mappingContext.afterPropertiesSet();
+
+            MappingRedisConverter converter = new MappingRedisConverter(mappingContext);
+            converter.setReferenceResolver(new ReferenceResolverImpl(redisTemplate));
+            converter.setCustomConversions(new RedisCustomConversions());
+            converter.afterPropertiesSet();
+
+            RedisKeyValueAdapter adapter = new RedisKeyValueAdapter(redisTemplate, converter);
+            adapter.setEnableKeyspaceEvents(RedisKeyValueAdapter.EnableKeyspaceEvents.OFF);
+            adapter.setShadowCopy(RedisKeyValueAdapter.ShadowCopy.DEFAULT);
+
+            return new RedisRepositoryFactory(new RedisKeyValueTemplate(adapter, mappingContext))
+                    .getRepository(RedisStateMachineRepository.class);
         }
 
         @Bean(name = "contexaStateMachineRuntimePersister")

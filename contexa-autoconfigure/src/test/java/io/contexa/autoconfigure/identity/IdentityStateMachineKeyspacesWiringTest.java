@@ -17,18 +17,24 @@ package io.contexa.autoconfigure.identity;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.Bean;
 import org.springframework.core.type.AnnotationMetadata;
+import org.springframework.core.type.MethodMetadata;
 import org.springframework.core.type.classreading.SimpleMetadataReaderFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The repositories of the MFA flows in Redis are made with the keyspaces of the application: the keys of the stored flows
- * are behind its name only if the distributed mode says so where it enables the repositories. The class is read as
- * metadata, since the repositories of Spring Statemachine are not on every class path.
+ * The distributed mode makes the repository of the MFA flows in Redis itself and enables no Spring Data repositories in the
+ * application's context: a repository factory there makes Spring Boot leave out the application's own Redis repositories.
+ * The class is read as metadata, since the repositories of Spring Statemachine are not on every class path; the keys the
+ * repository keeps, with the application's keyspaces, are tested on a real Redis in
+ * IdentityStateMachineHostRedisRepositoriesDistributedClasspathTest.
  */
 class IdentityStateMachineKeyspacesWiringTest {
 
@@ -36,15 +42,20 @@ class IdentityStateMachineKeyspacesWiringTest {
             "org.springframework.data.redis.repository.configuration.EnableRedisRepositories";
 
     @Test
-    @DisplayName("the distributed mode enables the state machine repositories with the keyspaces behind the application's name")
-    void theRepositoriesUseTheApplicationKeyspaces() throws IOException {
+    @DisplayName("the distributed mode enables no Spring Data repositories and holds the repository of the flows under Contexa's name, for Contexa alone")
+    void theDistributedModeEnablesNoRepositories() throws IOException {
         AnnotationMetadata distributed = new SimpleMetadataReaderFactory().getMetadataReader(
                 IdentityStateMachineAutoConfiguration.class.getName() + "$DistributedStateMachineConfig").getAnnotationMetadata();
 
-        Map<String, Object> enabled = distributed.getAnnotationAttributes(ENABLE_REDIS_REPOSITORIES, true);
+        assertThat(distributed.isAnnotated(ENABLE_REDIS_REPOSITORIES)).isFalse();
 
-        assertThat(enabled).isNotNull();
-        assertThat(enabled.get("keyspaceConfiguration"))
-                .isEqualTo("io.contexa.contexaidentity.security.statemachine.core.persist.ApplicationStateMachineKeyspaces");
+        Optional<Map<String, Object>> repository = distributed.getAnnotatedMethods(Bean.class.getName()).stream()
+                .map(method -> method.getAnnotationAttributes(Bean.class.getName()))
+                .filter(bean -> Arrays.asList((String[]) bean.get("name")).contains("contexaRedisStateMachineRepository"))
+                .findFirst();
+        assertThat(repository).isPresent();
+        assertThat(repository.get().get("defaultCandidate")).isEqualTo(false);
+        assertThat(distributed.getAnnotatedMethods(Bean.class.getName()).stream().map(MethodMetadata::getReturnTypeName))
+                .contains("org.springframework.statemachine.data.redis.RedisStateMachineRepository");
     }
 }
