@@ -18,6 +18,7 @@ package io.contexa.contexaidentity.security.core.bootstrap;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.AuthConfigurerAdapter;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.SecurityConfigurer;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.StateConfigurerAdapter;
+import io.contexa.contexaidentity.security.core.bootstrap.configurer.StateDefaultsConfigurerAdapter;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
@@ -89,6 +90,7 @@ public final class DefaultSecurityConfigurerProvider implements SecurityConfigur
 
         adapterRegistry.getStateAdaptersFor(singleFlowList)
                 .forEach(stateAdapter -> {
+                    flowSpecificAdapters.add(new StateDefaultsConfigurerAdapter(stateAdapter, platformContext));
                     flowSpecificAdapters.add(new StateConfigurerAdapter(stateAdapter, platformContext));
                 });
 

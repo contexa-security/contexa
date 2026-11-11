@@ -28,5 +28,13 @@ public interface StateAdapter {
     default void apply(HttpSecurity http, PlatformContext ctx, AuthenticationFlowConfig flowConfig) throws Exception {
         apply(http, ctx);
     }
+
+    /**
+     * What the state gives the chain unless the application says otherwise. It is applied before the global customizer
+     * and the flow's own settings, so what they set stays; {@link #apply} runs after them and sets what the state
+     * needs whatever the application wrote.
+     */
+    default void applyDefaults(HttpSecurity http, PlatformContext ctx, AuthenticationFlowConfig flowConfig) throws Exception {
+    }
 }
 
