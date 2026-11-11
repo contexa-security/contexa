@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.config;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.autonomous.event.SecurityEventTopics;
 import io.contexa.contexacore.infra.kafka.ContexaKafkaTopics;
 import io.contexa.contexacore.infra.kafka.KafkaConfiguration;
@@ -46,11 +47,12 @@ public class KafkaTopicConfiguration {
     public ContexaKafkaTopics contexaKafkaTopics(KafkaProperties kafkaProperties, ObjectProvider<SslBundles> sslBundles,
                                                  ObjectProvider<SecurityKafkaProperties> securityKafkaProperties,
                                                  ObjectProvider<KafkaConnectionDetails> connectionDetails) {
-        String deadLetterTopic = securityKafkaProperties.getIfAvailable(SecurityKafkaProperties::new).getTopic().getDlq();
-        Set<String> needed = new HashSet<>(SecurityEventTopics.DECLARED);
-        needed.add(deadLetterTopic);
+        SecurityKafkaProperties.TopicSettings names =
+                securityKafkaProperties.getIfAvailable(SecurityKafkaProperties::new).getTopic();
+        Set<String> needed = new HashSet<>(SecurityEventTopics.declared());
+        needed.add(names.getDlq());
         return new ContexaKafkaTopics(() -> Admin.create(adminConfig(kafkaProperties, sslBundles, connectionDetails)),
-                allSecurityTopics(deadLetterTopic), needed, kafkaProperties.getAdmin().isAutoCreate());
+                allSecurityTopics(names), needed, kafkaProperties.getAdmin().isAutoCreate());
     }
 
     /** The application's admin settings, with waits that a start can afford. */
@@ -65,25 +67,29 @@ public class KafkaTopicConfiguration {
         return config;
     }
 
-    private List<NewTopic> allSecurityTopics(String deadLetterTopic) {
+    /**
+     * Every topic by the name it is used under: the name set in {@code contexa.security.kafka.topic.*} as it is set, and
+     * otherwise the default in the application's namespace.
+     */
+    private List<NewTopic> allSecurityTopics(SecurityKafkaProperties.TopicSettings names) {
         List<NewTopic> topics = new ArrayList<>(List.of(
             authEventsCriticalTopic().build(),
             authEventsContextualTopic().build(),
             authEventsGeneralTopic().build(),
 
-            securityAuthorizationEventsTopic().build(),
-            securityIncidentEventsTopic().build(),
-            securityAuditEventsTopic().build(),
+            securityAuthorizationEventsTopic(names.getAuthorization()).build(),
+            securityIncidentEventsTopic(names.getIncident()).build(),
+            securityAuditEventsTopic(names.getAudit()).build(),
 
-            securityEventsTopic().build(),
-            threatIndicatorsTopic().build(),
+            securityEventsTopic(names.getGeneral()).build(),
+            threatIndicatorsTopic(names.getThreat()).build(),
             networkEventsTopic().build(),
 
-            deadLetterQueueTopic(deadLetterTopic).build(),
+            deadLetterQueueTopic(names.getDlq()).build(),
 
-            soarActionEventsTopic().build()
+            soarActionEventsTopic(names.getSoarAction()).build()
         ));
-        SecurityEventTopics.DECLARED.forEach(topic -> topics.add(eventTopic(topic).build()));
+        SecurityEventTopics.declared().forEach(topic -> topics.add(eventTopic(topic).build()));
         return topics;
     }
 
@@ -95,7 +101,7 @@ public class KafkaTopicConfiguration {
     }
 
     private TopicBuilder authEventsCriticalTopic() {
-        return TopicBuilder.name("auth-events-critical")
+        return TopicBuilder.name(ApplicationNamespace.topic("auth-events-critical"))
             .partitions(3)  
             .replicas(1)    
             .config(TopicConfig.RETENTION_MS_CONFIG, "604800000")  
@@ -104,63 +110,63 @@ public class KafkaTopicConfiguration {
     }
 
     private TopicBuilder authEventsContextualTopic() {
-        return TopicBuilder.name("auth-events-contextual")
+        return TopicBuilder.name(ApplicationNamespace.topic("auth-events-contextual"))
             .partitions(3)
             .replicas(1)
             .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");  
     }
 
     private TopicBuilder authEventsGeneralTopic() {
-        return TopicBuilder.name("auth-events-general")
+        return TopicBuilder.name(ApplicationNamespace.topic("auth-events-general"))
             .partitions(3)
             .replicas(1)
             .config(TopicConfig.RETENTION_MS_CONFIG, "259200000");  
     }
 
-    private TopicBuilder securityAuthorizationEventsTopic() {
-        return TopicBuilder.name("security-authorization-events")
+    private TopicBuilder securityAuthorizationEventsTopic(String name) {
+        return TopicBuilder.name(name)
             .partitions(3)
             .replicas(1)
             .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");  
     }
 
-    private TopicBuilder securityIncidentEventsTopic() {
-        return TopicBuilder.name("security-incident-events")
+    private TopicBuilder securityIncidentEventsTopic(String name) {
+        return TopicBuilder.name(name)
             .partitions(3)
             .replicas(1)
             .config(TopicConfig.RETENTION_MS_CONFIG, "2592000000");  
     }
 
-    private TopicBuilder securityAuditEventsTopic() {
-        return TopicBuilder.name("security-audit-events")
+    private TopicBuilder securityAuditEventsTopic(String name) {
+        return TopicBuilder.name(name)
             .partitions(3)
             .replicas(1)
             .config(TopicConfig.RETENTION_MS_CONFIG, "7776000000");  
     }
 
-    private TopicBuilder securityEventsTopic() {
-        return TopicBuilder.name("security-events")
+    private TopicBuilder securityEventsTopic(String name) {
+        return TopicBuilder.name(name)
             .partitions(5)  
             .replicas(1)
             .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");  
     }
 
-    private TopicBuilder threatIndicatorsTopic() {
-        return TopicBuilder.name("threat-indicators")
+    private TopicBuilder threatIndicatorsTopic(String name) {
+        return TopicBuilder.name(name)
             .partitions(3)
             .replicas(1)
             .config(TopicConfig.RETENTION_MS_CONFIG, "1209600000");  
     }
 
     private TopicBuilder networkEventsTopic() {
-        return TopicBuilder.name("network-events")
+        return TopicBuilder.name(ApplicationNamespace.topic("network-events"))
             .partitions(5)  
             .replicas(1)
             .config(TopicConfig.RETENTION_MS_CONFIG, "259200000");  
     }
 
-    private TopicBuilder soarActionEventsTopic() {
-        return TopicBuilder.name("soar-action-events")
+    private TopicBuilder soarActionEventsTopic(String name) {
+        return TopicBuilder.name(name)
             .partitions(3)
             .replicas(1)
             .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");

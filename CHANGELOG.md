@@ -8,6 +8,9 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **Contexa's Kafka topics are named for the application.** In the distributed mode every topic Contexa makes, writes and reads is now `ctxa.<spring.application.name>.` and the name it had (`order-service`: `ctxa.order-service.security.events.authentication.success`, `ctxa.order-service.security-events-dlq`; without a name `ctxa.security.events.authentication.success`), so no topic of Contexa has a name another application on the cluster may use (`security-events`, `network-events`, `threat-indicators`, and the consumer's subscription to every `security.events.*`), and applications with different names share none, while the servers of one application share theirs; in a topic a character of the name other than `a-z`, `0-9` and `-` is written as `_` and the hex of its bytes (`my_app` gives `ctxa.my_5fapp.`). A name set in `contexa.security.kafka.topic.*` is used exactly as it is set, and the topic made at start now has that name.
+  **Check:** the topics change name on upgrade and what was not yet read on the old ones is not moved to the new ones; to keep a name, set it, for example `contexa.security.kafka.topic.dlq=security-events-dlq`. The event topics (`security.events.<category>.<type>`), `network-events` and `auth-events-*` have no setting of their name.
+
 - **A mail code signs in once, also when requests present it together, and a person's sign-ins that arrive together end
   each other as the limit says.** Two faults that showed only under concurrency, found by starting an application and
   signing one account in from many clients at once. The mail code was read and then deleted without asking whether the

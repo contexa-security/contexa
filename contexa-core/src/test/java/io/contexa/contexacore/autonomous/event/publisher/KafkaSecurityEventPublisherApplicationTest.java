@@ -76,7 +76,7 @@ class KafkaSecurityEventPublisherApplicationTest {
 
             ArgumentCaptor<ProducerRecord<String, Object>> sent = ArgumentCaptor.forClass(ProducerRecord.class);
             Awaitility.await().untilAsserted(() -> verify(template).send(sent.capture()));
-            assertThat(sent.getValue().topic()).isEqualTo("security.events.authorization.method");
+            assertThat(sent.getValue().topic()).isEqualTo("ctxa.shop.security.events.authorization.method");
             assertThat(sent.getValue().key()).isEqualTo("session-1");
             Header header = sent.getValue().headers().lastHeader("ctxa-app");
             assertThat(new String(header.value(), StandardCharsets.UTF_8)).isEqualTo("shop");
@@ -98,14 +98,34 @@ class KafkaSecurityEventPublisherApplicationTest {
             ArgumentCaptor<ProducerRecord<String, Object>> sent = ArgumentCaptor.forClass(ProducerRecord.class);
             Awaitility.await().untilAsserted(() -> verify(template, times(2)).send(sent.capture()));
             ProducerRecord<String, Object> deadLetter = sent.getAllValues().get(1);
-            assertThat(deadLetter.topic()).isEqualTo(properties.getTopic().getDlq());
+            assertThat(deadLetter.topic()).isEqualTo("ctxa.shop.security-events-dlq");
             assertThat(new String(deadLetter.headers().lastHeader("ctxa-app").value(), StandardCharsets.UTF_8))
                     .isEqualTo("shop");
         }
     }
 
     @Test
-    @DisplayName("an application without a name publishes as it always did: the template is called with the topic, the key and the event")
+    @SuppressWarnings("unchecked")
+    @DisplayName("a dead-letter topic the operator named is used as it is named")
+    void aDeadLetterTopicTheOperatorNamedIsUsedAsItIs() {
+        when(template.send(any(ProducerRecord.class)))
+                .thenThrow(new KafkaException("Send failed"))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        properties.getTopic().setDlq("security-events-dlq");
+
+        try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using("shop")) {
+            publisher = new KafkaSecurityEventPublisher(template, properties);
+            publisher.publishGenericSecurityEvent(event());
+
+            ArgumentCaptor<ProducerRecord<String, Object>> sent = ArgumentCaptor.forClass(ProducerRecord.class);
+            Awaitility.await().untilAsserted(() -> verify(template, times(2)).send(sent.capture()));
+            assertThat(sent.getAllValues().get(0).topic()).isEqualTo("ctxa.shop.security.events.authorization.method");
+            assertThat(sent.getAllValues().get(1).topic()).isEqualTo("security-events-dlq");
+        }
+    }
+
+    @Test
+    @DisplayName("an application without a name publishes as it always did, on Contexa's topic: the template is called with the topic, the key and the event")
     void anUnnamedApplicationStampsNothing() {
         when(template.send(anyString(), anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
 
@@ -114,7 +134,7 @@ class KafkaSecurityEventPublisherApplicationTest {
             publisher.publishGenericSecurityEvent(event());
 
             Awaitility.await().untilAsserted(() -> verify(template, atLeastOnce())
-                    .send(eq("security.events.authorization.method"),
+                    .send(eq("ctxa.security.events.authorization.method"),
                             eq("session-1"), any()));
             verify(template, never()).send(any(ProducerRecord.class));
         }

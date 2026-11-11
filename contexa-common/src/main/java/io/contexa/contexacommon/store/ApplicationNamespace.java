@@ -23,30 +23,38 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Which application's state a Redis key or a Kafka consumer group belongs to, for applications that share one Redis
- * and one Kafka cluster.
+ * Which application's state a Redis key, a Kafka topic or a Kafka consumer group belongs to, for applications that share
+ * one Redis and one Kafka cluster.
  * <p>
  * The identifier is the application's {@code spring.application.name}, normalized (see {@link #normalize}); it is bound
  * once at the start. An application with a name keeps everything Contexa writes to Redis under {@code ctxa:<name>:}, so
  * a block, a session or a decision of one application is never read by another, while the servers of one application
- * (the same name) share all of it. An application without a name keeps the keys it always had.
+ * (the same name) share all of it. An application without a name keeps the keys it always had. Contexa's Kafka topics
+ * are {@code ctxa.<name>.} and the topic's name, or {@code ctxa.} and the topic's name without a name of the application
+ * (see {@link #topic}).
  * <p>
  * This class is the only place that builds the namespace: every key, pattern, lock name and channel Contexa uses goes
- * through {@link #key}. The prefix is made of characters that mean nothing in a glob pattern, so a key and a SCAN pattern
- * are qualified the same way.
+ * through {@link #key}, and every topic through {@link #topic}. The prefix is made of characters that mean nothing in a
+ * glob pattern, so a key and a SCAN pattern are qualified the same way.
  */
 public final class ApplicationNamespace {
 
     /** What every key of a named application starts with. */
     public static final String PREFIX = "ctxa:";
 
+    /** What the name of every Kafka topic Contexa uses starts with, with or without a name of the application. */
+    public static final String TOPIC_PREFIX = "ctxa.";
+
     /** The longest identifier; a longer name is cut and ends in a digest of the whole, so that two long names differ. */
     public static final int MAX_IDENTIFIER_LENGTH = 48;
 
     private static final int DIGEST_CHARACTERS = 12;
     private static final char ESCAPE = '~';
+    private static final String KEPT_PUNCTUATION = "._-";
+    private static final char TOPIC_ESCAPE = '_';
+    private static final String KEPT_TOPIC_PUNCTUATION = "-";
 
-    private static final Naming UNNAMED = new Naming("", "");
+    private static final Naming UNNAMED = new Naming("", "", TOPIC_PREFIX);
     private static volatile Naming current = UNNAMED;
 
     private ApplicationNamespace() {
@@ -88,12 +96,25 @@ public final class ApplicationNamespace {
     }
 
     /**
+     * A Kafka topic of Contexa's as this application names it: {@code ctxa.<topic identifier>.} before the name the topic
+     * has always had (see {@link #topicIdentifier}), or {@code ctxa.} alone for an application without a name. The prefix
+     * keeps Contexa's topics apart from those of the other applications on the cluster, whose names Contexa cannot know,
+     * and the topics of two applications with different names apart from each other. A name the operator set for a topic
+     * is not given to this: it is used as it is.
+     */
+    public static String topic(String name) {
+        Objects.requireNonNull(name, "name");
+        return current.topicPrefix() + name;
+    }
+
+    /**
      * Binds the name of the application ({@code spring.application.name}); a missing or blank name leaves the
      * application without one.
      */
     public static void configure(String applicationName) {
         String identifier = normalize(applicationName);
-        current = identifier.isEmpty() ? UNNAMED : new Naming(identifier, PREFIX + identifier + ":");
+        current = identifier.isEmpty() ? UNNAMED : new Naming(identifier, PREFIX + identifier + ":",
+                TOPIC_PREFIX + topicIdentifier(applicationName) + ".");
     }
 
     /**
@@ -114,6 +135,22 @@ public final class ApplicationNamespace {
      * the empty string.
      */
     public static String normalize(String applicationName) {
+        return identifierOf(applicationName, KEPT_PUNCTUATION, ESCAPE);
+    }
+
+    /**
+     * The identifier of an application name in a Kafka topic, by the rule of {@link #normalize} with fewer characters
+     * kept: a topic name holds only {@code a-z A-Z 0-9 . _ -}, the {@code .} after the identifier is where it ends, and
+     * Kafka takes {@code .} and {@code _} for one character when it compares topic names. So {@code a-z 0-9 -} are kept and
+     * every other byte is written as {@code _} and two hex digits: two different names stay different to Kafka too, and
+     * the identifier holds no {@code .}, so the topics of one application never fall under the name of another. The length
+     * is cut as in {@link #normalize}. A missing or blank name gives the empty string.
+     */
+    public static String topicIdentifier(String applicationName) {
+        return identifierOf(applicationName, KEPT_TOPIC_PUNCTUATION, TOPIC_ESCAPE);
+    }
+
+    private static String identifierOf(String applicationName, String keptPunctuation, char escape) {
         if (applicationName == null || applicationName.isBlank()) {
             return "";
         }
@@ -122,17 +159,17 @@ public final class ApplicationNamespace {
         HexFormat hex = HexFormat.of();
         for (byte b : bytes) {
             char c = (char) (b & 0xff);
-            if (b >= 0 && (c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-')) {
+            if (b >= 0 && (c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || keptPunctuation.indexOf(c) >= 0)) {
                 identifier.append(c);
             } else {
-                identifier.append(ESCAPE).append(hex.toHexDigits(b));
+                identifier.append(escape).append(hex.toHexDigits(b));
             }
         }
         if (identifier.length() <= MAX_IDENTIFIER_LENGTH) {
             return identifier.toString();
         }
         String digest = digestOf(identifier.toString());
-        return identifier.substring(0, MAX_IDENTIFIER_LENGTH - DIGEST_CHARACTERS - 1) + ESCAPE + digest;
+        return identifier.substring(0, MAX_IDENTIFIER_LENGTH - DIGEST_CHARACTERS - 1) + escape + digest;
     }
 
     private static String digestOf(String text) {
@@ -152,6 +189,6 @@ public final class ApplicationNamespace {
         void close();
     }
 
-    private record Naming(String identifier, String keyPrefix) {
+    private record Naming(String identifier, String keyPrefix, String topicPrefix) {
     }
 }

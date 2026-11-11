@@ -68,7 +68,7 @@ class ContexaKafkaTopicsStartTest {
 
         assertThat(Duration.ofNanos(System.nanoTime() - began)).isLessThan(Duration.ofSeconds(20));
         assertThat(output.getOut() + output.getErr()).contains("[ContexaKafkaTopics]")
-                .contains(SecurityEventTopics.DECLARED).contains("security-events-dlq");
+                .contains(SecurityEventTopics.declared()).contains("ctxa.security-events-dlq");
     }
 
     @Test
