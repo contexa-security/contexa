@@ -561,6 +561,16 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **The address after a sign-out that an application names is used, with the session state.** A flow with
+  `.session(...)` wrote its own address after the application's settings, so a `logoutSuccessUrl(...)` or a
+  `logoutSuccessHandler(...)` in `global(...)` or in the flow's `logout(...)` option was dropped without a word, and
+  every sign-out went to `/contexa/admin/login` (to `<prefix>/mfa/login` for an MFA flow with a prefix). That address
+  is now a default, given before the application's settings: what the application names is where the browser goes,
+  and without one it goes where it went. The address of the sign-out itself stays `/logout` (`<prefix>/logout`): the
+  Zero Trust filters and the filter of an unfinished MFA let a restricted session through to that address, so a
+  `logoutUrl(...)` of the application is not used. With the token state the answer after a sign-out is still the
+  `contexaOauth2LogoutSuccessHandler` bean's. **Check:** with `form(form -> form.logout(l ->
+  l.logoutSuccessUrl("/bye")))` and `.session(...)`, `POST /logout` answers 302 to `/bye`.
 - **A flow with `authorizeStaticPermitAll(...)` starts next to rules that end with `anyRequest()`.** The static paths
   of a flow are added as authorization rules after the rules of the global customizer, and Spring Security takes no
   rule after `anyRequest()`: with the usual `authorizeHttpRequests(a -> a....anyRequest().authenticated())` in
