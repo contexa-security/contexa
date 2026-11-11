@@ -57,6 +57,29 @@ public interface AgentClientDirectory {
     }
 
     /**
+     * The same question as {@link #activeAgentForClient}, asked to read a request that is going on (the delegation stamp
+     * of an authenticated request), not to decide anything: whether to accept a token, to issue one, to refuse a sign-in
+     * or to allow an operation stays with {@link #activeAgentForClient}. A directory that can answer from what it holds
+     * in memory does so without waiting for its store, so the request does not wait for it; the answer then follows a
+     * change made in another server within seconds. By default it is {@link #activeAgentForClient}.
+     *
+     * @throws AgentClientStatusUnavailableException as {@link #activeAgentForClient} does
+     */
+    default Optional<String> requestPathActiveAgentForClient(@Nullable String tenantId, String clientId) {
+        return activeAgentForClient(tenantId, clientId);
+    }
+
+    /**
+     * The same question as {@link #activeAgentForAccount}, asked to read a request that is going on, as
+     * {@link #requestPathActiveAgentForClient} is for a client. By default it is {@link #activeAgentForAccount}.
+     *
+     * @throws AgentClientStatusUnavailableException as {@link #activeAgentForClient} does
+     */
+    default Optional<String> requestPathActiveAgentForAccount(@Nullable String tenantId, String accountName) {
+        return activeAgentForAccount(tenantId, accountName);
+    }
+
+    /**
      * docs/agent A5-3: whether the client is an agent a security decision or an operator suspended. Its tokens, its own
      * and those issued to it for people, are refused until it is resumed. None by default.
      *

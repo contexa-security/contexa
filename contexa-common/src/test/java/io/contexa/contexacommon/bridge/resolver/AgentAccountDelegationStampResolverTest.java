@@ -20,6 +20,7 @@ import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.resolver.AgentAccountDelegationStampResolver;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -97,6 +98,48 @@ class AgentAccountDelegationStampResolverTest {
         signIn(UsernamePasswordAuthenticationToken.authenticated("report-bot", null, AuthorityUtils.NO_AUTHORITIES));
 
         assertThat(failing.resolve(null, null, new BridgeProperties())).isEmpty();
+    }
+
+    /** Reading a request is not a decision: it asks the directory the question meant for requests, never the one that decides. */
+    @Test
+    void anAccountIsReadWithTheDirectorysAnswerForARequestAndNotItsAnswerForADecision() {
+        AgentAccountDelegationStampResolver fromMemory = new AgentAccountDelegationStampResolver(new AgentClientDirectory() {
+            @Override
+            public Optional<String> activeAgentForClient(String tenantId, String clientId) {
+                throw new AssertionError("a request does not wait for what decides");
+            }
+
+            @Override
+            public Optional<String> requestPathActiveAgentForAccount(String tenantId, String accountName) {
+                lookups.add(tenantId + "|" + accountName);
+                return "report-bot".equals(accountName) ? Optional.of("report-bot") : Optional.empty();
+            }
+        });
+        signIn(UsernamePasswordAuthenticationToken.authenticated("report-bot", null, AuthorityUtils.NO_AUTHORITIES));
+
+        assertThat(fromMemory.resolve(null, null, new BridgeProperties()).orElseThrow().agentId()).isEqualTo("report-bot");
+        signIn(UsernamePasswordAuthenticationToken.authenticated("alice", null, AuthorityUtils.NO_AUTHORITIES));
+        assertThat(fromMemory.resolve(null, null, new BridgeProperties())).isEmpty();
+        assertThat(lookups).containsExactly("null|report-bot", "null|alice");
+    }
+
+    /** A directory that cannot be read says so, and the account is read as a person, as a failed lookup always was. */
+    @Test
+    void anAccountTheDirectoryCannotBeAskedAboutIsReadAsAPerson() {
+        AgentAccountDelegationStampResolver unreadable = new AgentAccountDelegationStampResolver(new AgentClientDirectory() {
+            @Override
+            public Optional<String> activeAgentForClient(String tenantId, String clientId) {
+                return Optional.of("report-bot");
+            }
+
+            @Override
+            public Optional<String> requestPathActiveAgentForAccount(String tenantId, String accountName) {
+                throw new AgentClientStatusUnavailableException("The approved agents have not been read from the registry");
+            }
+        });
+        signIn(UsernamePasswordAuthenticationToken.authenticated("report-bot", null, AuthorityUtils.NO_AUTHORITIES));
+
+        assertThat(unreadable.resolve(null, null, new BridgeProperties())).isEmpty();
     }
 
     @Test

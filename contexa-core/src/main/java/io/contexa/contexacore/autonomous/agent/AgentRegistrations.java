@@ -19,9 +19,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -181,6 +184,42 @@ public final class AgentRegistrations {
                     .ifPresent(found::add);
         }
         return List.copyOf(found);
+    }
+
+    /**
+     * The registrations among these that decide who is named as an agent in service (see {@link AgentRegistry#approvals}):
+     * every approved one, and every one that names, as its client, the client or the identifier of an approved one of its
+     * tenant.
+     *
+     * @throws IllegalStateException when there are more than {@code limit} of them
+     */
+    public static List<AgentApproval> approvals(Collection<AgentRegistration> registrations, int limit) {
+        Map<String, Set<String>> namesOfApproved = new HashMap<>();
+        for (AgentRegistration registration : registrations) {
+            if (registration.allowlisted()) {
+                Set<String> names = namesOfApproved.computeIfAbsent(tenantKey(registration.tenantId()),
+                        key -> new HashSet<>());
+                names.add(registration.agentId());
+                String client = text(registration.clientId());
+                if (client != null) {
+                    names.add(client);
+                }
+            }
+        }
+        List<AgentApproval> approvals = new ArrayList<>();
+        for (AgentRegistration registration : registrations) {
+            String client = text(registration.clientId());
+            boolean decides = registration.allowlisted() || (client != null
+                    && namesOfApproved.getOrDefault(tenantKey(registration.tenantId()), Set.of()).contains(client));
+            if (decides) {
+                if (approvals.size() >= limit) {
+                    throw new IllegalStateException("The registry holds more than " + limit
+                            + " registrations that decide which clients are approved agents");
+                }
+                approvals.add(AgentApproval.of(registration));
+            }
+        }
+        return List.copyOf(approvals);
     }
 
     static void requireAgent(String agentId) {

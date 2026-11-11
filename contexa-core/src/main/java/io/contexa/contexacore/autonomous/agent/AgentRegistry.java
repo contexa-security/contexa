@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.agent;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * The agents Contexa knows (A1-6, AG-11f). Every agent request is recorded ({@link #observe}), so an agent appears
@@ -53,6 +54,28 @@ public interface AgentRegistry {
 
     /** The tenant's agents (every tenant's for {@code null}), latest seen first, at most {@code limit}. */
     List<AgentRegistration> list(String tenantId, int limit);
+
+    /**
+     * What decides who the registry names as an agent in service, which {@link #findByClientId} answers one client at a
+     * time: every approved registration, whatever its status, and every registration that names the client of an approved
+     * one or the identifier of one as its client (it would be chosen for that client instead of the approved one). With
+     * these the answer of {@link #findByClientId} for any client can be worked out without the registry. A registry that
+     * does not override it reads every agent it holds.
+     *
+     * @throws IllegalStateException when there are more than {@code limit} of them
+     */
+    default List<AgentApproval> approvals(int limit) {
+        return AgentRegistrations.approvals(list(null, Integer.MAX_VALUE), limit);
+    }
+
+    /**
+     * Tells the listener, on the thread that made the change, what the approval of an agent is after this registry
+     * applied a change of it in this JVM (a registration, a deregistration, a suspension, a resumption, a removal); a
+     * removal is told as {@link AgentApproval#removed}. A sighting is not a change of approval and is not told. Changes
+     * another JVM makes to a shared store are not told. A registry that does not tell leaves its readers to read it again.
+     */
+    default void onApprovalChange(Consumer<AgentApproval> listener) {
+    }
 
     /** Records a request of the agent: the first one registers it as observed, later ones move its last seen time. */
     AgentRegistration observe(AgentSighting sighting);

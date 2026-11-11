@@ -64,7 +64,7 @@ public class AgentAccountDelegationStampResolver implements DelegationStampResol
         }
         Optional<String> agentId;
         try {
-            agentId = agentClientDirectory.activeAgentForAccount(tenant(authentication, properties), account)
+            agentId = agentClientDirectory.requestPathActiveAgentForAccount(tenant(authentication, properties), account)
                     .map(AgentTokenClaims::text);
         } catch (RuntimeException lookupFailed) {
             log.error("The agent registry could not be asked whether account {} is an agent; it is read as a person",

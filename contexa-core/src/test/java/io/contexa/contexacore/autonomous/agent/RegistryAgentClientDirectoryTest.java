@@ -287,6 +287,88 @@ class RegistryAgentClientDirectoryTest {
         }
     }
 
+    /**
+     * Reading a request is answered by the list in memory: the registry is not asked, whatever state it is in, and the
+     * suspension is still read from the registry, so the failure of the registry never lifts it.
+     */
+    @Test
+    void aRequestIsReadFromTheListAndASuspensionStillFromTheRegistry() {
+        registry.register(new AgentRegistrationRequest(null, "report-bot", "Report bot", null, "report-client", "carol", null));
+        AtomicBoolean failing = new AtomicBoolean();
+        AtomicLong lookups = new AtomicLong();
+        AgentRegistry counted = new InMemoryAgentRegistry() {
+            @Override
+            public Optional<AgentRegistration> findByClientId(String tenantId, String clientId) {
+                lookups.incrementAndGet();
+                if (failing.get()) {
+                    throw new IllegalStateException("registry unavailable");
+                }
+                return registry.findByClientId(tenantId, clientId);
+            }
+
+            @Override
+            public List<AgentRegistration> findAllByClientId(String clientId) {
+                lookups.incrementAndGet();
+                if (failing.get()) {
+                    throw new IllegalStateException("registry unavailable");
+                }
+                return registry.findAllByClientId(clientId);
+            }
+
+            @Override
+            public List<AgentApproval> approvals(int limit) {
+                return registry.approvals(limit);
+            }
+        };
+        ActiveAgentList list = new ActiveAgentList(counted);
+        list.refresh();
+        RegistryAgentClientDirectory withList = new RegistryAgentClientDirectory(counted, new RequestPathDatabaseGuard(), list);
+
+        failing.set(true);
+        assertThat(withList.requestPathActiveAgentForClient(null, "report-client")).contains("report-bot");
+        assertThat(withList.requestPathActiveAgentForAccount(null, "report-bot")).contains("report-bot");
+        assertThat(withList.requestPathActiveAgentForAccount(null, "alice")).isEmpty();
+        assertThat(lookups.get()).as("the registry was not asked to read a request").isZero();
+
+        assertThatThrownBy(() -> withList.suspendedAgentClient(null, "report-client"))
+                .as("the suspension is read from the registry, and a failure does not read as not suspended")
+                .isInstanceOf(AgentClientStatusUnavailableException.class);
+        assertThatThrownBy(() -> withList.activeAgentForClient(null, "report-client"))
+                .as("what decides something is asked of the registry")
+                .isInstanceOf(AgentClientStatusUnavailableException.class);
+        failing.set(false);
+
+        registry.suspend(null, "report-bot", "stopped elsewhere");
+        assertThat(withList.requestPathActiveAgentForClient(null, "report-client"))
+                .as("a change no one told the list of shows when the list is read again")
+                .contains("report-bot");
+        assertThat(withList.suspendedAgentClient(null, "report-client")).as("the suspension is not late").isTrue();
+        assertThat(withList.activeAgentForClient(null, "report-client")).isEmpty();
+        list.refresh();
+        assertThat(withList.requestPathActiveAgentForClient(null, "report-client")).isEmpty();
+    }
+
+    @Test
+    void aDirectoryWithoutAListReadsARequestFromTheRegistry() {
+        registry.register(new AgentRegistrationRequest(null, "report-bot", "Report bot", null, "report-client", "carol", null));
+
+        assertThat(directory.requestPathActiveAgentForClient(null, "report-client")).contains("report-bot");
+        assertThat(directory.requestPathActiveAgentForAccount(null, "alice")).isEmpty();
+        assertThat(new RegistryAgentClientDirectory(null, new RequestPathDatabaseGuard(),
+                new ActiveAgentList(registry)).requestPathActiveAgentForClient(null, "report-client")).isEmpty();
+    }
+
+    @Test
+    void aListThatCannotBeReadMakesARequestUnreadableAndNeverNoAgent() {
+        ActiveAgentList notRead = new ActiveAgentList(registry);
+        RegistryAgentClientDirectory withList = new RegistryAgentClientDirectory(registry, new RequestPathDatabaseGuard(), notRead);
+
+        assertThatThrownBy(() -> withList.requestPathActiveAgentForClient(null, "report-client"))
+                .isInstanceOf(AgentClientStatusUnavailableException.class);
+        assertThatThrownBy(() -> withList.requestPathActiveAgentForAccount(null, "alice"))
+                .isInstanceOf(AgentClientStatusUnavailableException.class);
+    }
+
     private static List<ILoggingEvent> errors(ListAppender<ILoggingEvent> logged) {
         return logged.list.stream().filter(event -> event.getLevel() == Level.ERROR).toList();
     }

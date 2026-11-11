@@ -36,6 +36,10 @@ import java.util.function.LongSupplier;
  * tenant it belongs to, or that it is not suspended: what it could not read is reported as unreadable, never as absent,
  * since a failure must not lift a restriction (a suspension, a delegation a person revoked) by making the client look like
  * no agent. Whoever asks stops what the client would do for now.
+ * <p>
+ * Reading a request (the delegation stamp of an authenticated request) does not wait for the registry: with an
+ * {@link ActiveAgentList}, {@link #requestPathActiveAgentForClient} answers from the list in memory. What decides
+ * something (accepting or issuing a token, a suspension, a delegation, a sign-in) is asked of the registry as before.
  */
 @Slf4j
 public class RegistryAgentClientDirectory implements AgentClientDirectory {
@@ -45,6 +49,7 @@ public class RegistryAgentClientDirectory implements AgentClientDirectory {
 
     private final AgentRegistry registry;
     private final RequestPathDatabaseGuard requestPathDatabaseGuard;
+    private final ActiveAgentList activeAgents;
     private final LongSupplier nanoClock;
     private final Map<String, Long> reportedAt = new ConcurrentHashMap<>();
 
@@ -53,13 +58,25 @@ public class RegistryAgentClientDirectory implements AgentClientDirectory {
     }
 
     public RegistryAgentClientDirectory(AgentRegistry registry, RequestPathDatabaseGuard requestPathDatabaseGuard) {
-        this(registry, requestPathDatabaseGuard, System::nanoTime);
+        this(registry, requestPathDatabaseGuard, null, System::nanoTime);
+    }
+
+    /** Reads a request from the list of the approved agents in memory, when there is one. */
+    public RegistryAgentClientDirectory(AgentRegistry registry, RequestPathDatabaseGuard requestPathDatabaseGuard,
+                                        ActiveAgentList activeAgents) {
+        this(registry, requestPathDatabaseGuard, activeAgents, System::nanoTime);
     }
 
     RegistryAgentClientDirectory(AgentRegistry registry, RequestPathDatabaseGuard requestPathDatabaseGuard,
                                  LongSupplier nanoClock) {
+        this(registry, requestPathDatabaseGuard, null, nanoClock);
+    }
+
+    private RegistryAgentClientDirectory(AgentRegistry registry, RequestPathDatabaseGuard requestPathDatabaseGuard,
+                                         ActiveAgentList activeAgents, LongSupplier nanoClock) {
         this.registry = registry;
         this.requestPathDatabaseGuard = requestPathDatabaseGuard;
+        this.activeAgents = activeAgents;
         this.nanoClock = nanoClock;
     }
 
@@ -79,6 +96,29 @@ public class RegistryAgentClientDirectory implements AgentClientDirectory {
         } catch (RuntimeException failed) {
             throw unreadable(clientId, "The agent of the client " + clientId + " cannot be read", failed);
         }
+    }
+
+    /**
+     * What {@link #activeAgentForClient} answers, from the list of the approved agents in memory: the request does not wait
+     * for the registry. Without a list, it is {@link #activeAgentForClient}.
+     *
+     * @throws AgentClientStatusUnavailableException when the list has not been read or the registry has not answered for
+     *                                               too long: a client the list cannot be asked about is not "no agent"
+     */
+    @Override
+    public Optional<String> requestPathActiveAgentForClient(String tenantId, String clientId) {
+        if (activeAgents == null) {
+            return activeAgentForClient(tenantId, clientId);
+        }
+        if (registry == null || AgentRegistrations.blank(clientId)) {
+            return Optional.empty();
+        }
+        return activeAgents.activeAgent(tenantId, clientId);
+    }
+
+    @Override
+    public Optional<String> requestPathActiveAgentForAccount(String tenantId, String accountName) {
+        return requestPathActiveAgentForClient(tenantId, accountName);
     }
 
     /**

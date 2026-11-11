@@ -17,6 +17,8 @@ package io.contexa.contexaiam.agent;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import io.contexa.contexacommon.cache.ContexaCaffeine;
+import io.contexa.contexacore.autonomous.agent.AgentApproval;
+import io.contexa.contexacore.autonomous.agent.AgentApprovalListeners;
 import io.contexa.contexacore.autonomous.agent.AgentRegistration;
 import io.contexa.contexacore.autonomous.agent.AgentRegistrationRequest;
 import io.contexa.contexacore.autonomous.agent.AgentRegistrationSource;
@@ -35,6 +37,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * The agent registry kept in the {@code ctxa_agent_registration} table (A1-6). A request's sighting is one atomic upsert,
@@ -87,10 +90,33 @@ public class JdbcAgentRegistry implements AgentRegistry {
                 updated_at = excluded.updated_at
             """;
 
+    /**
+     * What decides which clients are approved agents in service ({@link AgentRegistry#approvals}): the approved
+     * registrations, and those that name as their client the client or the identifier of an approved one of the same
+     * tenant. Each part joins on equality, so the table is read once however many registrations were only observed.
+     */
+    private static final String APPROVALS_SQL = """
+            select tenant_key, agent_id, client_id, status, allowlisted from (
+                select tenant_key, agent_id, client_id, status, allowlisted
+                  from ctxa_agent_registration where allowlisted
+                union
+                select r.tenant_key, r.agent_id, r.client_id, r.status, r.allowlisted
+                  from ctxa_agent_registration r
+                  join ctxa_agent_registration a on a.allowlisted and a.tenant_key = r.tenant_key
+                                                and r.client_id = a.client_id
+                union
+                select r.tenant_key, r.agent_id, r.client_id, r.status, r.allowlisted
+                  from ctxa_agent_registration r
+                  join ctxa_agent_registration a on a.allowlisted and a.tenant_key = r.tenant_key
+                                                and r.client_id = a.agent_id
+            ) approvals limit ?
+            """;
+
     private static final Duration LOOKUP_CACHE_TTL = Duration.ofSeconds(30);
 
     private final JdbcOperations jdbc;
     private final Clock clock;
+    private final AgentApprovalListeners approvalListeners = new AgentApprovalListeners();
     private final Cache<String, Optional<AgentRegistration>> lookups = ContexaCaffeine.newBuilder()
             .expireAfterWrite(LOOKUP_CACHE_TTL)
             .maximumSize(10_000)
@@ -165,6 +191,27 @@ public class JdbcAgentRegistry implements AgentRegistry {
     }
 
     @Override
+    public List<AgentApproval> approvals(int limit) {
+        int rows = Math.max(0, limit);
+        List<AgentApproval> approvals = jdbc.query(APPROVALS_SQL, (rs, rowNum) -> {
+            String tenantKey = rs.getString("tenant_key");
+            return new AgentApproval(tenantKey == null || tenantKey.isEmpty() ? null : tenantKey,
+                    rs.getString("agent_id"), rs.getString("client_id"), AgentStatus.valueOf(rs.getString("status")),
+                    rs.getBoolean("allowlisted"));
+        }, rows + 1);
+        if (approvals.size() > rows) {
+            throw new IllegalStateException("The registry holds more than " + rows
+                    + " registrations that decide which clients are approved agents");
+        }
+        return approvals;
+    }
+
+    @Override
+    public void onApprovalChange(Consumer<AgentApproval> listener) {
+        approvalListeners.add(listener);
+    }
+
+    @Override
     public AgentRegistration observe(AgentSighting sighting) {
         if (sighting == null || sighting.agentId() == null || sighting.agentId().isBlank()) {
             throw new IllegalArgumentException("An agent identifier is required");
@@ -231,6 +278,7 @@ public class JdbcAgentRegistry implements AgentRegistry {
             lookups.invalidate(cacheKey(tenantId, agentId.trim()));
             clientLookups.invalidateAll();
             everyTenantClientLookups.invalidateAll();
+            approvalListeners.changed(AgentApproval.removed(registration.tenantId(), registration.agentId()));
         });
         return current;
     }
@@ -256,7 +304,9 @@ public class JdbcAgentRegistry implements AgentRegistry {
         lookups.invalidate(cacheKey(registration.tenantId(), registration.agentId()));
         clientLookups.invalidateAll();
         everyTenantClientLookups.invalidateAll();
-        return read(registration.tenantId(), registration.agentId()).orElseThrow();
+        AgentRegistration saved = read(registration.tenantId(), registration.agentId()).orElseThrow();
+        approvalListeners.changed(AgentApproval.of(saved));
+        return saved;
     }
 
     private Optional<AgentRegistration> read(String tenantId, String agentId) {
