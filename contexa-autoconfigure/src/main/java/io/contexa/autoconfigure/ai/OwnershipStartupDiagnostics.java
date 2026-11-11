@@ -27,6 +27,7 @@ import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.OrderedSecurityFilterChain;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
+import io.contexa.contexaidentity.security.webauthn.PasskeyLibrary;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.StringUtils;
@@ -105,6 +106,10 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
             if (impact != null) {
                 log.info(impact);
             }
+        }
+        String passkeys = PasskeyLibrary.unavailableNotice(getClass().getClassLoader());
+        if (passkeys != null) {
+            log.warn(passkeys);
         }
         if (profile.declaredDatabaseUnused()) {
             log.warn("[Contexa] contexa.datasource.isolation.contexa-owned-application=true: the application's "

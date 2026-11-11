@@ -19,7 +19,6 @@ import io.contexa.contexaidentity.security.zerotrust.stepup.ContexaPasskeyStores
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexacommon.properties.PasskeyUrls;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
@@ -32,6 +31,7 @@ import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
+import io.contexa.contexaidentity.security.webauthn.PasskeyLibrary;
 import io.contexa.contexaidentity.security.webauthn.codec.DefaultPasskeyCreationOptionsCodec;
 import io.contexa.contexaidentity.security.webauthn.codec.PasskeyCreationOptionsCodec;
 import io.contexa.autoconfigure.ai.HostOwnedEnforcementOrder;
@@ -58,14 +58,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.ott.JdbcOneTimeTokenService;
 import org.springframework.security.authentication.ott.OneTimeTokenService;
-import org.springframework.security.web.webauthn.api.PublicKeyCredentialRpEntity;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
-import org.springframework.security.web.webauthn.management.Webauthn4JRelyingPartyOperations;
-
-import java.util.Arrays;
-import java.util.Set;
-import java.util.stream.Collectors;
+import org.springframework.security.web.webauthn.management.WebAuthnRelyingPartyOperations;
 
 /**
  * The verification-only step-up when the application owns sign-in (HOST_OWNED, ownership design S-2): the service the
@@ -114,8 +109,10 @@ public class HostOwnedStepUpAutoConfiguration {
         ContexaPasskeyStores stores = passkeyStores(bridgeProperties, contexaPasskeyStores, userEntities, userCredentials);
         PublicKeyCredentialUserEntityRepository entities = stores != null ? stores.userEntities() : null;
         UserCredentialRepository credentials = stores != null ? stores.userCredentials() : null;
-        Webauthn4JRelyingPartyOperations relyingParty = entities != null && credentials != null
-                ? relyingParty(entities, credentials, authContextProperties, environment) : null;
+        // Without webauthn4j on the class path there is no relying party, and the step-up has no passkey.
+        WebAuthnRelyingPartyOperations relyingParty = entities != null && credentials != null
+                && PasskeyLibrary.available(HostOwnedStepUpAutoConfiguration.class.getClassLoader())
+                ? Webauthn4jRelyingParty.create(entities, credentials, authContextProperties, environment) : null;
 
         HostOwnedStepUpService service = new HostOwnedStepUpService(actionRepository, resolution, userRepository,
                 bridgeProperties.getSync().getSyntheticEmailDomain(), contexaStepUpOptionsStore,
@@ -186,20 +183,5 @@ public class HostOwnedStepUpAutoConfiguration {
             }
         }
         return contexaPasskeyStores.getIfAvailable();
-    }
-
-    private static Webauthn4JRelyingPartyOperations relyingParty(PublicKeyCredentialUserEntityRepository entities,
-                                                                 UserCredentialRepository credentials,
-                                                                 AuthContextProperties properties,
-                                                                 Environment environment) {
-        PasskeyUrls passkey = properties.getUrls().getFactors().getPasskey();
-        String configured = passkey.getAllowedOrigins();
-        Set<String> origins = configured != null && !configured.isBlank()
-                ? Arrays.stream(configured.split(",")).map(String::trim).filter(o -> !o.isEmpty())
-                .collect(Collectors.toSet())
-                : Set.of("http://localhost:" + environment.getProperty("server.port", "8080"));
-        return new Webauthn4JRelyingPartyOperations(entities, credentials,
-                PublicKeyCredentialRpEntity.builder().id(passkey.getRpId()).name(passkey.getRpName()).build(),
-                origins);
     }
 }

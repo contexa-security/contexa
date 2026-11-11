@@ -31,6 +31,7 @@ import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.exception.DslConfigurationException;
+import io.contexa.contexaidentity.security.webauthn.PasskeyLibrary;
 import io.contexa.contexaidentity.security.exceptionhandling.MfaAuthenticationEntryPoint;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
@@ -71,6 +72,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     private String userDefinedFlowName;
     private String urlPrefix;
     private int requiredFactorCount = -1;
+    private boolean passkeyLeftOut;
 
     public MfaDslConfigurerImpl(ApplicationContext applicationContext) {
         this.applicationContext = Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null");
@@ -153,6 +155,11 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
 
     @Override
     public MfaDslConfigurerImpl<H> passkey(Customizer<PasskeyConfigurerConfigurer> passkeyConfigurerCustomizer) {
+        if (!PasskeyLibrary.available(this.applicationContext.getClassLoader())) {
+            // webauthn4j is not on the class path: the flow goes on with its other factors (the start-up notice says why)
+            this.passkeyLeftOut = true;
+            return this;
+        }
         return configureMfaFactor(AuthType.MFA_PASSKEY, passkeyConfigurerCustomizer, PasskeyConfigurerConfigurer.class);
     }
 
@@ -247,6 +254,12 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         Assert.isTrue(firstConfiguredStep.getOrder() == 0, "MFA flow's first step must have order 0.");
         Assert.isTrue(AuthType.MFA_FORM.name().equalsIgnoreCase(firstConfiguredStep.getType()) || AuthType.MFA_REST.name().equalsIgnoreCase(firstConfiguredStep.getType()),
                 "MFA flow must start with a MFA_FORM or MFA_REST primary authentication step. Current first step: " + firstConfiguredStep.getType());
+        if (passkeyLeftOut && (configuredSteps.size() < 2 || requiredFactorCount > configuredSteps.size() - 1)) {
+            throw new DslConfigurationException("MFA flow [" + this.mfaFlowTypeName + "] could not be built: its passkey "
+                    + "factor is left out because webauthn4j is not on the class path, and the factors that remain ("
+                    + (configuredSteps.size() - 1) + ") cannot satisfy it. Put webauthn4j back on the class path, or add "
+                    + "another factor such as .ott(...) and lower requiredFactors(...).");
+        }
         Assert.isTrue(configuredSteps.size() > 1, "MFA flow must have at least one secondary authentication factor.");
 
         if (primaryAuthOptionsForFlow == null) {

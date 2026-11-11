@@ -59,7 +59,7 @@ class VerificationCoverageServiceTest {
     @Test
     @DisplayName("a made-up address reaches nobody, and an agent is asked no factor")
     void whoCounts() {
-        when(users.countWithoutVerificationFactor(true, "%@shadow.contexa.local", "%@agents.invalid")).thenReturn(3L);
+        when(users.countWithoutVerificationFactor(true, true, "%@shadow.contexa.local", "%@agents.invalid")).thenReturn(3L);
 
         assertThat(service.usersWithoutFactor()).isEqualTo(3L);
     }
@@ -71,13 +71,24 @@ class VerificationCoverageServiceTest {
 
         noMail.usersWithoutFactor();
 
-        verify(users).countWithoutVerificationFactor(false, "%@shadow.contexa.local", "%@agents.invalid");
+        verify(users).countWithoutVerificationFactor(false, true, "%@shadow.contexa.local", "%@agents.invalid");
+    }
+
+    @Test
+    @DisplayName("where passkeys cannot be verified a registered one is no factor")
+    void withoutPasskeys() {
+        VerificationCoverageService noPasskeys = new VerificationCoverageService(users, "shadow.contexa.local",
+                () -> true, () -> false);
+
+        noPasskeys.usersWithoutFactor();
+
+        verify(users).countWithoutVerificationFactor(true, false, "%@shadow.contexa.local", "%@agents.invalid");
     }
 
     @Test
     @DisplayName("the start tells the operator how many and what to do")
     void theStartTells() {
-        when(users.countWithoutVerificationFactor(anyBoolean(), anyString(), anyString())).thenReturn(4L);
+        when(users.countWithoutVerificationFactor(anyBoolean(), anyBoolean(), anyString(), anyString())).thenReturn(4L);
 
         service.onApplicationEvent(mock(ApplicationReadyEvent.class));
 
@@ -97,7 +108,7 @@ class VerificationCoverageServiceTest {
     @Test
     @DisplayName("a database that cannot be read at the start stops nothing")
     void aFailingDatabaseStopsNothing() {
-        when(users.countWithoutVerificationFactor(anyBoolean(), anyString(), anyString()))
+        when(users.countWithoutVerificationFactor(anyBoolean(), anyBoolean(), anyString(), anyString()))
                 .thenThrow(new DataAccessResourceFailureException("database down"));
 
         assertThatCode(() -> service.onApplicationEvent(mock(ApplicationReadyEvent.class))).doesNotThrowAnyException();

@@ -16,6 +16,8 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
+import io.contexa.contexaidentity.security.exception.DslConfigurationException;
+import io.contexa.contexaidentity.security.webauthn.PasskeyLibrary;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
@@ -31,6 +33,11 @@ public abstract class BasePasskeyAuthenticationAdapter extends AbstractAuthentic
                                          AuthenticationFlowConfig currentFlow,
                                          PlatformAuthenticationSuccessHandler successHandler,
                                          PlatformAuthenticationFailureHandler failureHandler) throws Exception {
+        if (!PasskeyLibrary.available(http.getSharedObject(PlatformContext.class).applicationContext().getClassLoader())) {
+            // The DSL leaves the factor out without webauthn4j; a flow that still names it is refused with the reason.
+            throw new DslConfigurationException("The passkey factor of flow [" + currentFlow.getTypeName()
+                    + "] needs webauthn4j on the class path, and it is not there.");
+        }
 
         // WebAuthn looks for the store as the only bean of its type, and the application may have several. Spring's passkey
         // provider takes the account the key names as it is: the store refuses a locked or disabled one.

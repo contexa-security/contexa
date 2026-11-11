@@ -35,15 +35,23 @@ public class VerificationCoverageService implements ApplicationListener<Applicat
     private final UserRepository users;
     private final String syntheticEmailDomain;
     private final BooleanSupplier mailDelivers;
+    private final BooleanSupplier passkeysWork;
 
     public VerificationCoverageService(UserRepository users, String syntheticEmailDomain, BooleanSupplier mailDelivers) {
+        this(users, syntheticEmailDomain, mailDelivers, () -> true);
+    }
+
+    /** @param passkeysWork whether a registered passkey can answer here (it cannot where webauthn4j is not on the class path) */
+    public VerificationCoverageService(UserRepository users, String syntheticEmailDomain, BooleanSupplier mailDelivers,
+                                       BooleanSupplier passkeysWork) {
         this.users = users;
         this.syntheticEmailDomain = syntheticEmailDomain;
         this.mailDelivers = mailDelivers;
+        this.passkeysWork = passkeysWork;
     }
 
     public long usersWithoutFactor() {
-        return users.countWithoutVerificationFactor(mailDelivers.getAsBoolean(),
+        return users.countWithoutVerificationFactor(mailDelivers.getAsBoolean(), passkeysWork.getAsBoolean(),
                 "%@" + syntheticEmailDomain.toLowerCase(Locale.ROOT),
                 "%" + OAuth2AgentProvisioning.ACCOUNT_EMAIL_DOMAIN);
     }

@@ -169,6 +169,43 @@ tasks.register('verifyStarterLeavesSecurityToTheApplication') {
     }
 }
 
+// An application may leave passkeys out (exclude group: 'com.webauthn4j'), which also takes the CBOR codec out of Spring MVC.
+// The tests that run Contexa on such a class path run in a task of their own, on the class path of the tests without
+// webauthn4j; their names end in PasskeyLibraryClasspathTest, and `check` runs them after the others.
+def withoutPasskeyLibraryTests = '**/*WithoutPasskeyLibraryClasspathTest*'
+
+configurations {
+    withoutPasskeyLibraryTestRuntimeClasspath {
+        canBeConsumed = false
+        canBeResolved = true
+        extendsFrom configurations.testImplementation, configurations.testRuntimeOnly
+        exclude group: 'com.webauthn4j'
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+            attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE,
+                    objects.named(TargetJvmEnvironment, TargetJvmEnvironment.STANDARD_JVM))
+        }
+    }
+}
+
+def withoutPasskeyLibraryClasspathTest = tasks.register('withoutPasskeyLibraryClasspathTest', Test) {
+    description = 'Runs the tests that need an application class path without webauthn4j.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.output + sourceSets.main.output + configurations.withoutPasskeyLibraryTestRuntimeClasspath
+    include withoutPasskeyLibraryTests
+    useJUnitPlatform()
+    jvmArgs '-XX:+EnableDynamicAgentLoading', '-Dorg.mockito.mock.maker=mock-maker-subclass'
+}
+
+tasks.named('test') {
+    exclude withoutPasskeyLibraryTests
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyStarterLeavesSecurityToTheApplication')
+    dependsOn withoutPasskeyLibraryClasspathTest
 }
