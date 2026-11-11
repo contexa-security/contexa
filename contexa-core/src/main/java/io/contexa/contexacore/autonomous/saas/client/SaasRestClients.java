@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.client;
 
+import io.contexa.contexacore.infra.ContexaReactorResources;
 import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.web.client.RestClient;
@@ -23,7 +24,8 @@ import java.time.Duration;
 
 /**
  * The HTTP clients of the SaaS exchange. A server that does not answer must not hold a thread for ever: the scheduled sends run on a
- * scheduler the application may share, and a send that never ends would keep one of its threads for good.
+ * scheduler the application may share, and a send that never ends would keep one of its threads for good. A Reactor Netty client
+ * runs on Contexa's event loop, not on the JVM's.
  */
 final class SaasRestClients {
 
@@ -40,7 +42,7 @@ final class SaasRestClients {
     static RestClient create(String baseUrl, Duration connectTimeout, Duration readTimeout) {
         return RestClient.builder()
                 .baseUrl(baseUrl)
-                .requestFactory(ClientHttpRequestFactoryBuilder.detect().build(
+                .requestFactory(ContexaReactorResources.onContexaLoops(ClientHttpRequestFactoryBuilder.detect()).build(
                         ClientHttpRequestFactorySettings.defaults().withConnectTimeout(connectTimeout).withReadTimeout(readTimeout)))
                 .build();
     }
