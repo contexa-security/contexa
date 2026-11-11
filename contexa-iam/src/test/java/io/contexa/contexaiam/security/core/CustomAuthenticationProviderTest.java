@@ -23,6 +23,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -103,6 +105,29 @@ class CustomAuthenticationProviderTest {
 
         assertThat(result.isAuthenticated()).isTrue();
         assertThat(result.getName()).isEqualTo("local-user");
+    }
+
+    /**
+     * The store is the application's own when it has exactly one, and its account is no account of Contexa's. Taken for
+     * one, it failed with a class cast: 500 at every sign-in of such an application.
+     */
+    @Test
+    void anAccountOfTheApplicationsOwnStoreSignsInAsItIs() {
+        UserDetailsService userDetailsService = mock(UserDetailsService.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        LoginPolicyHandler loginPolicyHandler = mock(LoginPolicyHandler.class);
+        CustomAuthenticationProvider provider = new CustomAuthenticationProvider(userDetailsService, passwordEncoder, loginPolicyHandler);
+
+        UserDetails own = User.withUsername("host-user").password("encoded").roles("USER").build();
+        when(userDetailsService.loadUserByUsername("host-user")).thenReturn(own);
+        when(passwordEncoder.matches("pw", "encoded")).thenReturn(true);
+
+        var result = provider.authenticate(new UsernamePasswordAuthenticationToken("host-user", "pw"));
+
+        assertThat(result.isAuthenticated()).isTrue();
+        assertThat(result.getPrincipal()).isSameAs(own);
+        assertThat(result.getName()).isEqualTo("host-user");
+        assertThat(result.getAuthorities()).extracting(Object::toString).containsExactly("ROLE_USER");
     }
 
     @Test

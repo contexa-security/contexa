@@ -20,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.HashSet;
@@ -29,6 +30,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class UnifiedCustomUserDetailsTest {
+
+    /** Each sign-in reads the account anew; Spring Security counts the sessions of a user by its principal. */
+    @Test
+    @DisplayName("Two principals read for one account are the same principal, and a session registry finds its sessions")
+    void principalsOfOneAccountAreTheSamePrincipal() {
+        UnifiedCustomUserDetails first = new UnifiedCustomUserDetails(
+                UserDto.builder().id(1L).username("alice").password("one").name("Alice").build(), new HashSet<>());
+        UnifiedCustomUserDetails again = new UnifiedCustomUserDetails(
+                UserDto.builder().id(1L).username("alice").password("two").name("Alice").build(),
+                Set.of(new SimpleGrantedAuthority("ROLE_USER")));
+        UnifiedCustomUserDetails another = new UnifiedCustomUserDetails(
+                UserDto.builder().id(2L).username("bob").password("one").name("Bob").build(), new HashSet<>());
+
+        assertThat(again).isEqualTo(first).hasSameHashCodeAs(first);
+        assertThat(another).isNotEqualTo(first);
+
+        SessionRegistryImpl registry = new SessionRegistryImpl();
+        registry.registerNewSession("session-of-the-first-sign-in", first);
+        assertThat(registry.getAllSessions(again, false)).hasSize(1);
+        assertThat(registry.getAllSessions(another, false)).isEmpty();
+    }
 
     @Test
     @DisplayName("Constructor should store user and create unmodifiable authorities copy")
