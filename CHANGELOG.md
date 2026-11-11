@@ -8,6 +8,13 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **Where Contexa owns the sign-in (FULL), Contexa's sign-in reads Contexa's own user store, whatever user stores the
+  application declares.** With exactly one store of the application's (or one marked `@Primary`) the form, code, passkey
+  and REST sign-ins read that store: its user with the right password got HTTP 500 and Contexa's administrator, who is
+  not in it, got 401 and could not reach the console. The application's users are now refused as any name nobody holds
+  is, and the administrator signs in; the application's beans and its own sign-in are not touched. **Check:** users the
+  application meant to sign in to Contexa's screens through its own store must be accounts of Contexa.
+
 - **Contexa's Kafka topics are named for the application.** In the distributed mode every topic Contexa makes, writes and reads is now `ctxa.<spring.application.name>.` and the name it had (`order-service`: `ctxa.order-service.security.events.authentication.success`, `ctxa.order-service.security-events-dlq`; without a name `ctxa.security.events.authentication.success`), so no topic of Contexa has a name another application on the cluster may use (`security-events`, `network-events`, `threat-indicators`, and the consumer's subscription to every `security.events.*`), and applications with different names share none, while the servers of one application share theirs; in a topic a character of the name other than `a-z`, `0-9` and `-` is written as `_` and the hex of its bytes (`my_app` gives `ctxa.my_5fapp.`). A name set in `contexa.security.kafka.topic.*` is used exactly as it is set, and the topic made at start now has that name.
   **Check:** the topics change name on upgrade and what was not yet read on the old ones is not moved to the new ones; to keep a name, set it, for example `contexa.security.kafka.topic.dlq=security-events-dlq`. The event topics (`security.events.<category>.<type>`), `network-events` and `auth-events-*` have no setting of their name.
 

@@ -65,6 +65,6 @@ public class IamSecurityCoreContexaOwnedConfiguration {
     @ConditionalOnMissingBean
     public CustomAuthenticationProvider customAuthenticationProvider(BeanFactory beanFactory,
                                                                     LoginPolicyHandler contexaLoginPolicyHandler) {
-        return new CustomAuthenticationProvider(ContexaUserStore.of(beanFactory), ContexaOwnBeans.passwordEncoder(beanFactory), contexaLoginPolicyHandler);
+        return new CustomAuthenticationProvider(ContexaUserStore.forSignIn(beanFactory), ContexaOwnBeans.passwordEncoder(beanFactory), contexaLoginPolicyHandler);
     }
 }

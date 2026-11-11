@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
@@ -39,6 +40,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.WebAuthnConfigurer;
 import org.springframework.security.config.annotation.web.configurers.ott.OneTimeTokenLoginConfigurer;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -60,6 +62,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -143,6 +146,38 @@ class CodeAndPasskeySignInAccountStateTest {
 
         assertThatThrownBy(() -> passkeyStep.authenticate(passkeyOf("locked")))
                 .isInstanceOf(BadCredentialsException.class).hasCauseInstanceOf(LockedException.class);
+    }
+
+    /** Where Contexa owns the sign-in, a code signs Contexa's account in and the application's one store is not asked. */
+    @Test
+    void whereContexaOwnsTheSignInACodeSignsContexasAccountInAndNotTheApplicationsUser() throws Exception {
+        contexaOwnsTheSignIn();
+
+        AuthenticationProvider codeSignIn = codeSignIn(new OttAuthenticationAdapter());
+
+        assertThat(codeSignIn.authenticate(codeOf("administrator")).getName()).isEqualTo("administrator");
+        assertThatThrownBy(() -> codeSignIn.authenticate(codeOf("open"))).isInstanceOf(AuthenticationException.class);
+        verify(context.getBeanProvider(UserDetailsService.class), never()).getIfUnique();
+    }
+
+    /** Where Contexa owns the sign-in, a passkey signs Contexa's account in and the application's one store is not asked. */
+    @Test
+    void whereContexaOwnsTheSignInAPasskeySignsContexasAccountInAndNotTheApplicationsUser() throws Exception {
+        contexaOwnsTheSignIn();
+
+        AuthenticationProvider passkeySignIn = passkeySignIn(new PasskeyAuthenticationAdapter());
+
+        assertThat(passkeySignIn.authenticate(passkeyOf("administrator")).getName()).isEqualTo("administrator");
+        assertThatThrownBy(() -> passkeySignIn.authenticate(passkeyOf("open"))).isInstanceOf(AuthenticationException.class);
+        verify(context.getBeanProvider(UserDetailsService.class), never()).getIfUnique();
+    }
+
+    /** The application has one store (set up above) and Contexa owns the sign-in: its store exists, with its own administrator. */
+    private void contexaOwnsTheSignIn() {
+        UserDetailsService contexaAccounts = new InMemoryUserDetailsManager(
+                User.withUsername("administrator").password("{noop}x").roles("ADMIN").build());
+        when(context.containsBean(ContexaUserStore.BEAN_NAME)).thenReturn(true);
+        when(context.getBean(ContexaUserStore.BEAN_NAME, UserDetailsService.class)).thenReturn(contexaAccounts);
     }
 
     /** The provider the adapter gives Spring's one-time token login, which reads the code of the user named by "user". */

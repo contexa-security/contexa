@@ -47,6 +47,16 @@ class OwnershipStartupDiagnosticsTest {
     private final RequestMatcher api = request -> request.getRequestURI().startsWith("/api/");
 
     @Test
+    void theStartSaysContexasSignInDoesNotReadTheApplicationsStores() {
+        assertThat(OwnershipStartupDiagnostics.userStoresNotice(List.of("usersA")))
+                .contains("usersA", "does not read", "Contexa's own user store")
+                .doesNotContain("@Primary", "instead of Contexa's");
+        assertThat(OwnershipStartupDiagnostics.userStoresNotice(List.of("usersA", "usersB")))
+                .contains("usersA", "usersB", "does not read")
+                .doesNotContain("@Primary", "unless");
+    }
+
+    @Test
     @DisplayName("Q-2: a chain of the application under CONTEXA_OWNED stops the start, and the refusal names it and says what to change")
     void anApplicationChainIsRefused() {
         SecurityFilterChain contexa = new OrderedSecurityFilterChain(100, AnyRequestMatcher.INSTANCE, List.of());

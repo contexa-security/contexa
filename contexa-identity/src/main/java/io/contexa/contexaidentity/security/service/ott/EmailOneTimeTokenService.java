@@ -113,8 +113,9 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
     }
 
     /**
-     * The store the sign-in reads, which may be the application's: its users are in no table of Contexa's, and their name
-     * is the address they are mailed at. Read when a code is asked for.
+     * The store the sign-in reads, which is the application's where the application keeps its sign-in: its users are in no
+     * table of Contexa's, and their name is the address they are mailed at. Where Contexa owns the sign-in it is Contexa's
+     * own. Read when a code is asked for.
      */
     public void setUserStore(Supplier<UserDetailsService> userStore) {
         this.userStore = userStore != null ? userStore : () -> null;
