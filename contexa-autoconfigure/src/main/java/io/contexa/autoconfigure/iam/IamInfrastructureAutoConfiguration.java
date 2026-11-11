@@ -28,7 +28,9 @@ import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableLlmSuppressionWriter;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
+import io.contexa.autoconfigure.ai.HostOwnedEnforcementOrder;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
+import io.contexa.contexaiam.security.xacml.pep.ProtectableRefusalFilter;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableResourceCertificationGate;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
@@ -45,6 +47,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
@@ -126,6 +130,24 @@ public class IamInfrastructureAutoConfiguration {
         });
         advisor.set(interceptor);
         return interceptor;
+    }
+
+    /**
+     * Answers a refusal of the advisor that no Spring Security chain answered, on a path no chain of the application covers
+     * (the servlet container answered 500 there). It runs right ahead of the Spring Security filter, so on a path a chain
+     * covers that chain's exception translation answers first, as it did. Under both ownerships: Contexa's own chain
+     * covers every path only while its sign-in flow has no URL prefix.
+     */
+    @Bean(name = "contexaProtectableRefusalFilterRegistration")
+    @ConditionalOnMissingBean(name = "contexaProtectableRefusalFilterRegistration")
+    public FilterRegistrationBean<ProtectableRefusalFilter> protectableRefusalFilterRegistration(
+            ObjectProvider<SecurityProperties> securityProperties) {
+        FilterRegistrationBean<ProtectableRefusalFilter> registration =
+                new FilterRegistrationBean<>(new ProtectableRefusalFilter());
+        registration.setName("contexaProtectableRefusalFilter");
+        registration.setOrder(HostOwnedEnforcementOrder.securityFilterOrder(securityProperties) - 1);
+        registration.addUrlPatterns("/*");
+        return registration;
     }
 
     /** The advisor exists before the stores do: it is told about them once every singleton exists. */
