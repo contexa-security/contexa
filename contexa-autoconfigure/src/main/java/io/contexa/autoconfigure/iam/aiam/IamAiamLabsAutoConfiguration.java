@@ -69,7 +69,7 @@ public class IamAiamLabsAutoConfiguration {
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(6);
         executor.setQueueCapacity(300);
-        executor.setThreadNamePrefix("Policy-Collection-");
+        executor.setThreadNamePrefix("contexa-policy-collection-");
         executor.setAllowCoreThreadTimeOut(true);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);

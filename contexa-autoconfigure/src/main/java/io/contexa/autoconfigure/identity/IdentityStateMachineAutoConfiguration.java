@@ -302,7 +302,7 @@ public class IdentityStateMachineAutoConfiguration {
         executor.setCorePoolSize(10);
         executor.setMaxPoolSize(50);
         executor.setQueueCapacity(1000);
-        executor.setThreadNamePrefix("mfa-event-");
+        executor.setThreadNamePrefix("contexa-mfa-event-");
         executor.setAllowCoreThreadTimeOut(true);
 
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
@@ -323,7 +323,7 @@ public class IdentityStateMachineAutoConfiguration {
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(5);
         executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("monitoring-");
+        executor.setThreadNamePrefix("contexa-monitoring-");
         executor.setAllowCoreThreadTimeOut(true);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
         executor.initialize();

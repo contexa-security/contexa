@@ -903,6 +903,9 @@ The format is based on Keep a Changelog and the project follows semantic version
   dialect or a Hibernate schema tool (`contexa.jpa.hibernate.ddl-auto` other than `none`) keeps the former reading.
 - **A request without a user id writes its `userId missing - skipping ...` ERROR once and then at most every five minutes**,
   with the number of skips in between (`similarSinceLastReport`); its RAG search is still skipped every time.
+
+- **Contexa's pools say they are Contexa's.** Its database pool beside the application's is named `contexa-db` (`pool=contexa-db`, `contexa-db:housekeeper`), so the
+  application's pool keeps `HikariPool-1`; the threads Contexa creates start with `contexa-` (`Async-1` is `contexa-async-1`, `mfa-event-1` is `contexa-mfa-event-1`).
 - **The action in force of a user is read in one script instead of three round trips.** A protected request asks for it seven times,
   and each ask read the BLOCK flag, the analysis and the held CHALLENGE one after the other, about twenty of the thirty or so
   commands a request waits for on its own thread. One script on the shared connection reads the three; what is decided from them

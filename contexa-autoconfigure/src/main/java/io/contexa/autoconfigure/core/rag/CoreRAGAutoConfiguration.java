@@ -184,7 +184,7 @@ public class CoreRAGAutoConfiguration {
                 } catch (RuntimeException e) {
                     log.error("Past-record vocabulary reindex failed", e);
                 }
-            }, "Vocabulary-Reindex");
+            }, "contexa-vocabulary-reindex");
             reindex.setDaemon(true);
             reindex.start();
         };
@@ -201,7 +201,7 @@ public class CoreRAGAutoConfiguration {
                 60L,
                 TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(1000),
-                namedThreadFactory("Vector-Operation-"),
+                namedThreadFactory("contexa-vector-operation-"),
                 new ThreadPoolExecutor.AbortPolicy());
         // threads that have nothing to do are given back: the pool grows with the work and shrinks without it
         pool.allowCoreThreadTimeOut(true);

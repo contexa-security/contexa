@@ -94,6 +94,8 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
             "jakarta.persistence.database-product-name", "PostgreSQL",
             "hibernate.jdbc.use_scrollable_resultset", "true");
 
+    static final String POOL_NAME = "contexa-db";
+
     private Environment environment;
 
     public CoreDataAutoConfiguration() {
@@ -106,11 +108,16 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
         return new ContexaStores();
     }
 
+    /**
+     * Contexa's database next to the application's: its pool is named {@value #POOL_NAME} (metrics tag {@code pool=contexa-db}, threads
+     * {@code contexa-db:housekeeper}), so that the application's pool keeps the name Hikari gives it. Where the application has no database of
+     * its own, Contexa's pool is the application's data source ({@link ContexaOwnedDataSourceAutoConfiguration}) and keeps Hikari's name.
+     */
     @Bean(name = "contexaDataSource", defaultCandidate = false)
     @ConditionalOnMissingBean(name = "contexaDataSource")
     public DataSource contexaDataSource(ContexaDataSourceProperties properties, ContexaStores contexaStores) {
         ContexaDataSourceIsolation.validate(properties, environment);
-        return new RequestBoundDataSource(properties.initializeDataSource(), contexaStores.database());
+        return new RequestBoundDataSource(properties.initializeDataSource(POOL_NAME), contexaStores.database());
     }
 
     @Bean(name = "contexaEntityManagerFactory", defaultCandidate = false)

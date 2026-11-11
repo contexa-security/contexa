@@ -27,6 +27,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
@@ -83,6 +84,8 @@ public class ContexaCacheAutoConfiguration {
 
             RedisMessageListenerContainer container = new RedisMessageListenerContainer();
             container.setConnectionFactory(connectionFactory);
+            // what the container makes itself when none is given (a SimpleAsyncTaskExecutor), with a name that says it is Contexa's
+            container.setTaskExecutor(new SimpleAsyncTaskExecutor("contexa-cache-listener-"));
 
             if (properties.getPubsub().isEnabled()) {
                 ChannelTopic topic = new ChannelTopic(properties.getPubsub().qualifiedChannel());

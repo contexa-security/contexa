@@ -84,7 +84,7 @@ public class OpenTelemetryConfiguration {
                 .build();
         registerGlobal(openTelemetrySdk);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(tracerProvider::close));
+        Runtime.getRuntime().addShutdownHook(new Thread(tracerProvider::close, "contexa-opentelemetry-shutdown"));
 
                 return openTelemetrySdk;
     }

@@ -56,6 +56,17 @@ public class ContexaDataSourceProperties {
         return dataSource;
     }
 
+    /**
+     * A pool with a name of its own. Hikari numbers the pools it is not given a name for over the whole JVM in the order they start
+     * ("HikariPool-1"), and a pool of Contexa's that starts first takes the application's number: the application's metrics, management
+     * name, log lines and threads would then be read off Contexa's pool.
+     */
+    DataSource initializeDataSource(String poolName) {
+        DataSource dataSource = initializeDataSource();
+        Hikari.invokeStringSetter(dataSource, "setPoolName", poolName);
+        return dataSource;
+    }
+
     public String getUrl() {
         return url;
     }
@@ -157,6 +168,15 @@ public class ContexaDataSourceProperties {
         private static void invokeLongSetter(DataSource dataSource, String methodName, long value) {
             try {
                 Method method = dataSource.getClass().getMethod(methodName, long.class);
+                method.invoke(dataSource, value);
+            } catch (ReflectiveOperationException | IllegalArgumentException ignored) {
+                // Non-Hikari DataSource implementations simply ignore Hikari-specific settings.
+            }
+        }
+
+        private static void invokeStringSetter(DataSource dataSource, String methodName, String value) {
+            try {
+                Method method = dataSource.getClass().getMethod(methodName, String.class);
                 method.invoke(dataSource, value);
             } catch (ReflectiveOperationException | IllegalArgumentException ignored) {
                 // Non-Hikari DataSource implementations simply ignore Hikari-specific settings.

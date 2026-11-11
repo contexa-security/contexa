@@ -40,6 +40,10 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webflux'
     testImplementation 'org.awaitility:awaitility:4.2.0'
+    // the clients of the distributed mode, for the test that reads the threads Contexa starts in it
+    testImplementation 'org.redisson:redisson:3.48.0'
+    testImplementation 'org.springframework.statemachine:spring-statemachine-data-redis:4.0.0'
+    testImplementation 'org.springframework.kafka:spring-kafka'
 }
 
 // The boot jar is the standalone Contexa platform image (PostgreSQL + Ollama, see the repository Dockerfile).
