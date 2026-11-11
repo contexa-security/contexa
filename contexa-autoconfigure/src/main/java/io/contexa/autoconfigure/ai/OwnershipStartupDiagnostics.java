@@ -27,8 +27,12 @@ import io.contexa.contexaidentity.security.core.context.OrderedSecurityFilterCha
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.ClassUtils;
+import org.springframework.util.StringUtils;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.core.env.Environment;
+import org.springframework.lang.Nullable;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.FilterChainProxy;
@@ -55,6 +59,10 @@ import java.util.Map;
 public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
 
     private static final String REACTIVE_ROUTES = "org.springframework.web.reactive.function.server.RouterFunction";
+
+    private static final String UNDELIVERABLE = "[Contexa] A one-time-code factor is offered but no code can be delivered: ";
+    private static final String NO_MAIL_SENDER = "[Contexa] A one-time-code factor is offered but no mail sender is configured "
+            + "(spring.mail.*), so no code can be delivered: configure mail, or users verify with a passkey only.";
 
     /** What comes with Contexa and changes what Spring Boot configures in the application. */
     private static final Map<String, String> CLASS_PATH_IMPACT = orderedImpact();
@@ -117,9 +125,8 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
                     .anyMatch(OwnershipStartupDiagnostics::offersOneTimeCode);
             EmailService email = beans.getBeanProvider(EmailService.class).getIfAvailable();
             if (oneTimeCodeUndeliverable(oneTimeCode, email != null && email.isMailSenderConfigured())) {
-                log.warn("[Contexa] A one-time-code factor is offered but no mail sender is configured "
-                        + "(spring.mail.*), so no code can be delivered: configure mail, or users verify with a "
-                        + "passkey only.");
+                log.warn(email == null ? NO_MAIL_SENDER : undeliverableCodeMessage(profile.ownership(), applicationMailSenders(beans),
+                        mailHostSet(beans.getBeanProvider(Environment.class).getIfAvailable())));
             }
         } catch (RuntimeException e) {
             log.warn("[Contexa] The ownership start-up checks could not run: {}", e.getMessage());
@@ -213,6 +220,47 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
                 .map(Map.Entry::getKey)
                 .sorted()
                 .toList();
+    }
+
+    /** The mail senders the application declares, by bean name: the ones Contexa would have to choose between. */
+    static List<String> applicationMailSenders(ListableBeanFactory beans) {
+        return Arrays.stream(beans.getBeanNamesForType(JavaMailSender.class, true, false)).sorted().toList();
+    }
+
+    /** Whether the application's settings name a mail host, which is what a mail sender is built from. */
+    static boolean mailHostSet(@Nullable Environment environment) {
+        return environment != null && StringUtils.hasText(environment.getProperty("spring.mail.host"));
+    }
+
+    /**
+     * Why no code can be delivered, as it is: the application has several senders and Contexa does not choose one (and, where
+     * Contexa owns the sign-in, has no {@code spring.mail.host} to build a sender of its own from), or there is none at all.
+     * Where Contexa owns the sign-in and a host is set, a sender is built from it whatever the application declares, so that
+     * none is left only when it could not be built.
+     */
+    static String undeliverableCodeMessage(SecurityOwnershipMode ownership, List<String> applicationSenders, boolean mailHostSet) {
+        boolean contexaSigns = ownership == SecurityOwnershipMode.CONTEXA_OWNED;
+        if (contexaSigns && mailHostSet) {
+            return UNDELIVERABLE + "the sender Contexa builds from spring.mail.* could not be created (see the error logged before this "
+                    + "line). Correct spring.mail.*, or users verify with a passkey only.";
+        }
+        if (applicationSenders.size() > 1) {
+            String several = UNDELIVERABLE + "the application has several JavaMailSender beans " + applicationSenders
+                    + " and Contexa does not choose one of them";
+            return contexaSigns
+                    ? several + ", and spring.mail.host is not set, so Contexa has no sender of its own to build. Set spring.mail.host "
+                    + "(Contexa then mails the codes with a sender it builds from spring.mail.*), or mark one of them @Primary, "
+                    + "or users verify with a passkey only."
+                    : several + ". Mark one of them @Primary, or users verify with a passkey only.";
+        }
+        if (applicationSenders.isEmpty()) {
+            return mailHostSet
+                    ? UNDELIVERABLE + "spring.mail.host is set but the application has no JavaMailSender bean (Spring Boot's mail "
+                    + "configuration did not create one). Declare one, or users verify with a passkey only."
+                    : UNDELIVERABLE + "the application has no JavaMailSender and spring.mail.host is not set. Set spring.mail.*, "
+                    + "or users verify with a passkey only.";
+        }
+        return NO_MAIL_SENDER;
     }
 
     static boolean oneTimeCodeUndeliverable(boolean oneTimeCodeOffered, boolean mailConfigured) {

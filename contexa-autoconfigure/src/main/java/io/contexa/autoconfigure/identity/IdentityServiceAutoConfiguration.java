@@ -17,7 +17,11 @@ package io.contexa.autoconfigure.identity;
 
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.ssl.SslBundles;
+import org.springframework.core.env.Environment;
+import io.contexa.contexacommon.operating.ContexaOperatingProfile;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
@@ -61,9 +65,18 @@ public class IdentityServiceAutoConfiguration {
 
     @Bean(name = "contexaEmailService")
     @ConditionalOnMissingBean
-    public EmailService emailService(ObjectProvider<JavaMailSender> mailSender) {
-        // none, or several of the application's: Contexa then does not send mail with the application's sender
-        return new EmailService(mailSender.getIfUnique());
+    public EmailService emailService(ObjectProvider<JavaMailSender> mailSender, Environment environment,
+                                     ObjectProvider<SslBundles> sslBundles) {
+        JavaMailSender application = mailSender.getIfUnique();
+        if (application != null || ContexaOperatingProfile.resolve(environment).ownership() != SecurityOwnershipMode.CONTEXA_OWNED) {
+            // the application's one sender; none, or several of them where the application signs its users in: Contexa then does
+            // not send mail with the application's sender
+            return new EmailService(application);
+        }
+        // Contexa signs the users in, and the administrator reaches the console by the code it mails: that must not depend on how
+        // many senders the application keeps. None or several of them, and Contexa builds a sender of its own from spring.mail.*,
+        // which only the service holds; the application's beans are not touched.
+        return new EmailService(ContexaMailSenders.fromSettings(environment, sslBundles));
     }
 
     // Held in a bean that is not a OneTimeTokenService, and not stood aside for the application's own service: the one-time token login of

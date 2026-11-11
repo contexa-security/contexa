@@ -509,6 +509,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **Where Contexa owns the sign-in (`mode = FULL`), the administrator gets the mail code however many mail senders the application
+  has.** The code went by the application's `JavaMailSender` only when it had exactly one; with two or more (and none marked
+  `@Primary`) there was no sender, the code request failed and nobody could enter the console. Now, with none or several and
+  `spring.mail.host` set, Contexa builds a sender of its own from `spring.mail.*` (the same settings and mail properties, limits
+  included, as the sender Spring Boot builds from them) and holds it itself: it is no bean, the application's senders and what it
+  injects by type are untouched, and an application with one sender, or where it keeps the sign-in (`SANDBOX`), sends as before.
+  The start warning for a one-time-code factor without a sender now says why (several senders and Contexa does not choose, or no
+  sender and no `spring.mail.host`).
+
 - **A protected method called without a signed-in user runs under `OBSERVE` and `DISABLED`, as without Contexa.** These modes
   decide on nobody; the method policies of the console still apply, and `SHADOW` and `ENFORCE` refuse the call as before.
 
