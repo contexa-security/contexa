@@ -75,7 +75,8 @@ import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 @AutoConfigureAfter(name = {
         "org.redisson.spring.starter.RedissonAutoConfiguration",
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
-        "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"
+        "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration",
+        "io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration"
 })
 public class IamXacmlPapAutoConfiguration {
 
@@ -179,11 +180,12 @@ public class IamXacmlPapAutoConfiguration {
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     static class RedissonPapConfiguration {
 
+        /** On Contexa's own Redisson client: an application's own client carries none of Contexa's signals. */
         @Bean(name = "contexaPolicyReloadBroadcaster")
         @ConditionalOnMissingBean
-        @ConditionalOnBean(type = "org.redisson.api.RedissonClient")
+        @ConditionalOnBean(name = "contexaRedissonClient")
         public PolicyReloadBroadcaster policyReloadBroadcaster(
-                RedissonClient contexaRedissonClient,
+                @Qualifier("contexaRedissonClient") RedissonClient contexaRedissonClient,
                 PolicyRetrievalPoint policyRetrievalPoint,
                 CustomDynamicAuthorizationManager authorizationManager,
                 ObjectProvider<SystemSettingsRuntimeApplier> runtimeApplierProvider) {

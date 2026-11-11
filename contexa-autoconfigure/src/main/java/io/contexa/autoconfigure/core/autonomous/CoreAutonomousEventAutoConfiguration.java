@@ -152,11 +152,13 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     static class RedissonEventConfiguration {
 
+        /** On Contexa's own Redisson client: an application's own client carries none of Contexa's signals. */
         @Bean(name = "contexaBlockingDecisionRegistry")
         @ConditionalOnMissingBean
-        @ConditionalOnBean(type = "org.redisson.api.RedissonClient")
+        @ConditionalOnBean(name = "contexaRedissonClient")
         public BlockingDecisionRegistry blockingDecisionRegistry(
-                RedissonClient contexaRedissonClient, ObjectProvider<ZeroTrustActionRepository> decisions) {
+                @Qualifier("contexaRedissonClient") RedissonClient contexaRedissonClient,
+                ObjectProvider<ZeroTrustActionRepository> decisions) {
             return new BlockingDecisionRegistry(contexaRedissonClient, decisionInForce(decisions));
         }
     }

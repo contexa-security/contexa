@@ -102,6 +102,7 @@ class ContexaCoexistenceContractTest {
             Map.entry("PlatformTransactionManager", "contexa"),
             Map.entry("TransactionTemplate", "contexa"),
             Map.entry("RedisTemplate", "contexa"),
+            Map.entry("RedissonClient", "contexaRedissonClient"),
             Map.entry("KafkaTemplate", "contexa"),
             Map.entry("ConcurrentKafkaListenerContainerFactory", "contexa"),
             Map.entry("OpenTelemetry", "contexa"),
