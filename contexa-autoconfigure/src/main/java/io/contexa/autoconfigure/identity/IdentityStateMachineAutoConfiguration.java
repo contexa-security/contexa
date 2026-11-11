@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexacommon.config.redis.ContexaRedisRequestPath;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -39,6 +40,7 @@ import io.contexa.contexaidentity.security.statemachine.guard.RetryLimitGuard;
 import io.contexa.contexaidentity.security.statemachine.listener.MfaStateChangeListener;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -204,9 +206,12 @@ public class IdentityStateMachineAutoConfiguration {
                 StateMachineFactory<MfaState, MfaEvent> stateMachineFactory,
                 StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister,
                 @Qualifier(CONTEXA_REDISSON_CLIENT) RedissonClient contexaRedissonClient,
-                StateMachineProperties properties) {
+                StateMachineProperties properties,
+                ObjectProvider<ContexaRedisRequestPath> requestPath) {
+            ContexaRedisRequestPath path = requestPath.getIfAvailable();
             return new MfaStateMachineServiceImpl(
-                    stateMachineFactory, stateMachinePersister, contexaRedissonClient, properties);
+                    stateMachineFactory, stateMachinePersister, contexaRedissonClient, properties,
+                    path != null ? path.gate() : null);
         }
 
         /**

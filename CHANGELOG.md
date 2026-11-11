@@ -509,6 +509,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **In the distributed mode an MFA step no longer holds a request three to five seconds for a Redis that does not answer.** Contexa's
+  Redisson client waits about a second to connect and for an answer and does not try a call again (it waited three seconds, sixteen for a
+  call it tried again, twenty-four for a Redis no packet comes from); the request that meets the outage waits about that, the ones after
+  it are refused at once, and a step is refused as before, never taken without its lock. **Check:** a Redis that restarts or fails over
+  fails the one MFA step that meets it, which the client used to try again.
+
 - **In the distributed mode a request no longer waits as long as the application's Redis client for the MFA flows.** They are read
   and written through Contexa's own Redis template (the application's connection, about a second a request, none while Redis is down)
   and no longer through the application's `redisTemplate`, so an application without one starts too. Keys, fields, bytes and expiry are

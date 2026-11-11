@@ -49,7 +49,7 @@ import java.util.concurrent.TimeUnit;
 public final class ContexaRedisRequestPath implements InitializingBean, DisposableBean {
 
     /** The wait for one command on a request; a request meets it once, as the first failure lowers the gate. */
-    static final Duration REQUEST_WAIT = Duration.ofSeconds(1);
+    public static final Duration REQUEST_WAIT = Duration.ofSeconds(1);
     /**
      * Spring Boot's client backs off up to thirty seconds, too long for a request path to stay away from a Redis that came
      * back. The client logs every attempt, so it does not try every second either.
