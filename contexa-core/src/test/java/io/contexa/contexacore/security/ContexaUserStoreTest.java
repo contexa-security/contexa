@@ -53,6 +53,21 @@ class ContexaUserStoreTest {
         runner.withUserConfiguration(OneStore.class, PrimaryStore.class).run(context -> assertThat(ContexaUserStore.of(context)).isSameAs(TWO));
     }
 
+    /** A token of the sign-in names one of Contexa's accounts only while Contexa's store is the one that signs the users in. */
+    @Test
+    void contexasAccountsSignInOnlyWhileItsStoreServesTheSignIn() {
+        runner.run(context -> assertThat(ContexaUserStore.signsInWithContexaAccounts(context).getAsBoolean()).isTrue());
+        runner.withUserConfiguration(OneStore.class, AnotherStore.class)
+                .run(context -> assertThat(ContexaUserStore.signsInWithContexaAccounts(context).getAsBoolean()).isTrue());
+        runner.withUserConfiguration(OneStore.class)
+                .run(context -> assertThat(ContexaUserStore.signsInWithContexaAccounts(context).getAsBoolean()).isFalse());
+        runner.withUserConfiguration(OneStore.class, PrimaryStore.class)
+                .run(context -> assertThat(ContexaUserStore.signsInWithContexaAccounts(context).getAsBoolean()).isFalse());
+        new ApplicationContextRunner().withUserConfiguration(OneStore.class)
+                .run(context -> assertThat(ContexaUserStore.signsInWithContexaAccounts(context).getAsBoolean())
+                        .as("where the application owns the sign-in Contexa's store does not exist").isFalse());
+    }
+
     @Configuration(proxyBeanMethods = false)
     static class ContexaStore {
         @Bean(name = ContexaUserStore.BEAN_NAME, defaultCandidate = false)

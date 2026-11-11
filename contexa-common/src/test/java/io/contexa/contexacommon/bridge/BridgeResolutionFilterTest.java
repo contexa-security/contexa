@@ -35,6 +35,7 @@ import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -382,6 +383,10 @@ class BridgeResolutionFilterTest {
         );
 
         Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
+        // The sign-in makes the copy and waits for it; the requests after it find the copy kept for the same facts.
+        MockHttpServletRequest signIn = new MockHttpServletRequest("POST", "/reports/export");
+        populateHeaderBridgeContext(signIn);
+        filter.resolveSignIn(signIn, hostAuthentication);
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
         populateHeaderBridgeContext(request);
 
@@ -469,7 +474,7 @@ class BridgeResolutionFilterTest {
                 .containsEntry("bridgeHandoffConflict", true)
                 .containsEntry("bridgeHandoffPrincipalId", "u-200");
         assertThat(request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP)).isSameAs(stamp);
-        assertThat(filterSyncCalls).hasValue(1);
+        awaitSyncCalls(filterSyncCalls, 1);
     }
 
     @Test
@@ -487,7 +492,7 @@ class BridgeResolutionFilterTest {
         assertThat(stamp.principalId()).isEqualTo("u-100");
         assertThat(stamp.authenticationSource()).isEqualTo("SECURITY_CONTEXT");
         assertThat(stamp.attributes()).doesNotContainKeys("bridgeHandoffConflict", "bridgeHandoffPrincipalId");
-        assertThat(filterSyncCalls).hasValue(1);
+        awaitSyncCalls(filterSyncCalls, 1);
     }
 
     private BridgeResolutionFilter createExternalContextFilter() {
@@ -581,6 +586,16 @@ class BridgeResolutionFilterTest {
                 new BridgeRuntimeSupport(properties, bridgeUserMirrorSyncService),
                 null
         );
+    }
+
+    /** The request does not wait for the copy: its synchronisation runs away from it, once. */
+    private static void awaitSyncCalls(AtomicInteger calls, int expected) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (calls.get() < expected && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        Thread.sleep(50);
+        assertThat(calls).hasValue(expected);
     }
 
     private BridgeUserMirrorSyncService countingMirrorSync(AtomicInteger calls) {

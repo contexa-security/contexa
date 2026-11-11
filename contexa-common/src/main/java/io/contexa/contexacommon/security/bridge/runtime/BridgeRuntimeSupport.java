@@ -18,6 +18,7 @@ package io.contexa.contexacommon.security.bridge.runtime;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
+import io.contexa.contexacommon.security.bridge.ContexaAccountAuthentication;
 import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationDetails;
 import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationToken;
 import io.contexa.contexacommon.security.bridge.authentication.BridgePrincipal;
@@ -33,6 +34,7 @@ import io.contexa.contexacommon.security.subject.SubjectClassifier;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -41,19 +43,23 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 
 @Slf4j
-public class BridgeRuntimeSupport {
+public class BridgeRuntimeSupport implements DisposableBean {
 
     private final BridgeProperties properties;
     @Nullable
     private final BridgeUserMirrorSyncService bridgeUserMirrorSyncService;
     private final RequestPathDatabaseGuard requestPathDatabaseGuard;
+    private final BooleanSupplier contexaAccountsSignIn;
+    private final UserCopyMemory userCopies;
 
     public BridgeRuntimeSupport(
             BridgeProperties properties,
@@ -65,9 +71,24 @@ public class BridgeRuntimeSupport {
             BridgeProperties properties,
             @Nullable BridgeUserMirrorSyncService bridgeUserMirrorSyncService,
             RequestPathDatabaseGuard requestPathDatabaseGuard) {
+        this(properties, bridgeUserMirrorSyncService, requestPathDatabaseGuard, () -> false);
+    }
+
+    /**
+     * @param contexaAccountsSignIn whether Contexa's user store is the one that signs the users in, where Contexa owns the
+     *                              sign-in: an access token naming a user is then one of Contexa's accounts
+     */
+    public BridgeRuntimeSupport(
+            BridgeProperties properties,
+            @Nullable BridgeUserMirrorSyncService bridgeUserMirrorSyncService,
+            RequestPathDatabaseGuard requestPathDatabaseGuard,
+            BooleanSupplier contexaAccountsSignIn) {
         this.properties = properties != null ? properties : new BridgeProperties();
         this.bridgeUserMirrorSyncService = bridgeUserMirrorSyncService;
         this.requestPathDatabaseGuard = requestPathDatabaseGuard;
+        this.contexaAccountsSignIn = contexaAccountsSignIn != null ? contexaAccountsSignIn : () -> false;
+        this.userCopies = new UserCopyMemory(Duration.ofSeconds(Math.max(0L,
+                this.properties.getSync().getMinRefreshIntervalSeconds())));
     }
 
     public Optional<AuthorizationStamp> deriveAuthorizationStamp(
@@ -120,22 +141,88 @@ public class BridgeRuntimeSupport {
         ));
     }
 
+    /** The copy of the user, waited for (within the guard's bound) when nothing is kept for these facts. */
     @Nullable
     public BridgeUserMirrorSyncResult synchronizeUser(
             AuthenticationStamp authenticationStamp,
             AuthorizationStamp authorizationStamp,
             RequestContextSnapshot requestContext) {
-        if (bridgeUserMirrorSyncService == null || authenticationStamp == null || !authenticationStamp.authenticated()) {
+        return synchronizeUser(null, authenticationStamp, authorizationStamp, requestContext, true);
+    }
+
+    /**
+     * The copy of the application's user for a request. One of Contexa's own accounts, where Contexa owns the sign-in, is
+     * the account itself and has no copy: nothing is looked up for it. Otherwise the copy kept for the very same facts is
+     * given back without asking the database. When nothing is kept, a sign-in waits for the synchronisation as it always
+     * did (within the guard's bound); any other request is never held by it: the synchronisation runs away from the
+     * request, and the request goes on without the copy.
+     *
+     * @param authentication       the authentication of the request, which tells one of Contexa's own accounts
+     * @param waitForTheDatabase   whether this request may wait for Contexa's database (a sign-in, an explicit handoff)
+     */
+    @Nullable
+    public BridgeUserMirrorSyncResult synchronizeUser(
+            @Nullable Authentication authentication,
+            AuthenticationStamp authenticationStamp,
+            AuthorizationStamp authorizationStamp,
+            RequestContextSnapshot requestContext,
+            boolean waitForTheDatabase) {
+        if (bridgeUserMirrorSyncService == null || authenticationStamp == null || !authenticationStamp.authenticated()
+                || !properties.getSync().isEnabled()) {
             return null;
         }
+        if (isContexaAccount(authentication, authenticationStamp)) {
+            return null;
+        }
+        UserCopyMemory.Facts facts = UserCopyMemory.Facts.of(authenticationStamp, authorizationStamp, requestContext);
+        if (facts == null) {
+            return null;
+        }
+        UserCopyMemory.Kept kept = userCopies.recall(facts);
+        if (kept != null) {
+            return kept.result();
+        }
+        if (!waitForTheDatabase) {
+            userCopies.synchroniseAway(facts, () -> synchronise(authenticationStamp, authorizationStamp, requestContext));
+            return null;
+        }
+        Optional<BridgeUserMirrorSyncResult> answer = synchronise(authenticationStamp, authorizationStamp, requestContext);
+        if (answer == null) {
+            return null;
+        }
+        userCopies.remember(facts, answer.orElse(null));
+        return answer.orElse(null);
+    }
+
+    /** One of Contexa's own accounts, the very subject the stamp names. */
+    private boolean isContexaAccount(@Nullable Authentication authentication, AuthenticationStamp authenticationStamp) {
+        String account = ContexaAccountAuthentication.accountName(authentication, properties, contexaAccountsSignIn);
+        return account != null && authenticationStamp.principalId() != null
+                && account.equals(authenticationStamp.principalId().trim());
+    }
+
+    /**
+     * What the synchronisation answers, through the guard: empty when it keeps no copy for the facts, {@code null} when no
+     * answer came (the database did not answer in time, or the synchronisation failed).
+     */
+    @Nullable
+    private Optional<BridgeUserMirrorSyncResult> synchronise(
+            AuthenticationStamp authenticationStamp,
+            AuthorizationStamp authorizationStamp,
+            RequestContextSnapshot requestContext) {
         try {
-            return requestPathDatabaseGuard.call(
-                    () -> bridgeUserMirrorSyncService.sync(authenticationStamp, authorizationStamp, requestContext), null);
+            return requestPathDatabaseGuard.call(() -> Optional.ofNullable(
+                    bridgeUserMirrorSyncService.sync(authenticationStamp, authorizationStamp, requestContext)), null);
         } catch (Exception ex) {
             String principalId = authenticationStamp.principalId() != null ? authenticationStamp.principalId() : "unknown";
             log.error("[Bridge] Failed to synchronize bridge user mirror for principalId: {}", principalId, ex);
             return null;
         }
+    }
+
+    @Override
+    public void destroy() {
+        userCopies.close();
     }
 
     public void writeResolutionAttributes(

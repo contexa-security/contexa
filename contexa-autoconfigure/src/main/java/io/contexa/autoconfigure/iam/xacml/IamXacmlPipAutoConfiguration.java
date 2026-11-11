@@ -19,10 +19,13 @@ import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.BusinessResourceActionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaiam.security.xacml.pip.attribute.DatabaseAttributePIP;
 import io.contexa.contexaiam.security.xacml.pip.context.DefaultContextHandler;
 import io.contexa.contexaiam.security.xacml.pip.context.SubjectCache;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -50,8 +53,11 @@ public class IamXacmlPipAutoConfiguration {
     @ConditionalOnMissingBean
     public DefaultContextHandler defaultContextHandler(
             UserRepository userRepository,
-            ContexaCacheService cacheService) {
-        return new DefaultContextHandler(userRepository, cacheService);
+            ContexaCacheService cacheService,
+            ObjectProvider<BridgeProperties> bridgeProperties,
+            BeanFactory beanFactory) {
+        return new DefaultContextHandler(userRepository, cacheService, bridgeProperties.getIfAvailable(),
+                ContexaUserStore.signsInWithContexaAccounts(beanFactory));
     }
 
     /**

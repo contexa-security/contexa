@@ -153,7 +153,7 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         // (an authentication without a name, a principal object that fails when it is walked, a mirror that cannot be written) must never
         // become the application's error: the request goes on. The application's own exceptions in the chain are not caught here.
         try {
-            resolveForTheRequest(request, response, auth);
+            resolveForTheRequest(request, response, auth, false);
         } catch (Exception | LinkageError | StackOverflowError e) {
             reportFailure(e);
         }
@@ -163,14 +163,16 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
     /**
      * The stamps of a sign-in. This filter met the request before its authentication existed, and a sign-in usually ends
      * the request there, so whoever sends the sign-in for analysis asks for them: the resolution of any request, with the
-     * authentication the sign-in put in the security context. Nothing of it may fail the sign-in.
+     * authentication the sign-in put in the security context. Nothing of it may fail the sign-in. The sign-in is where the
+     * copy of the application's user is made, so it waits for it (within the guard's bound), and the requests after it
+     * find the copy kept.
      */
     public void resolveSignIn(HttpServletRequest request, Authentication authentication) {
         if (shouldNotFilter(request)) {
             return;
         }
         try {
-            resolveForTheRequest(request, null, authentication);
+            resolveForTheRequest(request, null, authentication, true);
         } catch (Exception | LinkageError | StackOverflowError e) {
             reportFailure(e);
         }
@@ -186,7 +188,8 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         }
     }
 
-    private void resolveForTheRequest(HttpServletRequest request, @Nullable HttpServletResponse response, Authentication auth) {
+    private void resolveForTheRequest(HttpServletRequest request, @Nullable HttpServletResponse response, Authentication auth,
+                                      boolean signIn) {
         request.setAttribute(
                 BridgeRequestAttributes.HOST_PRINCIPAL_SNAPSHOT,
                 HostPrincipalSnapshotAdapter.INSTANCE.snapshot(auth));
@@ -205,7 +208,9 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
                 .or(() -> bridgeRuntimeSupport.deriveAuthorizationStamp(authenticationStamp, requestContext.requestUri(), requestContext.method()))
                 .orElse(null);
         DelegationStamp delegationStamp = resolveDelegationStamp(request, requestContext).orElse(null);
-        BridgeUserMirrorSyncResult userSyncResult = bridgeRuntimeSupport.synchronizeUser(authenticationStamp, authorizationStamp, requestContext);
+        // the application's request never waits for Contexa's database for the copy of its user; a sign-in does
+        BridgeUserMirrorSyncResult userSyncResult = bridgeRuntimeSupport.synchronizeUser(
+                auth, authenticationStamp, authorizationStamp, requestContext, signIn);
 
         BridgeResolutionResult result = new BridgeResolutionResult(
                 requestContext,

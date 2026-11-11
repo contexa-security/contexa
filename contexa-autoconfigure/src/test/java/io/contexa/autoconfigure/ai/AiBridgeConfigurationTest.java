@@ -42,6 +42,7 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
@@ -203,11 +204,14 @@ class AiBridgeConfigurationTest {
 
         @Override
         public BridgeUserMirrorSyncResult synchronizeUser(
+                Authentication authentication,
                 AuthenticationStamp authenticationStamp,
                 AuthorizationStamp authorizationStamp,
-                RequestContextSnapshot requestContext) {
+                RequestContextSnapshot requestContext,
+                boolean waitForTheDatabase) {
             synchronizeUserCalls.incrementAndGet();
-            return super.synchronizeUser(authenticationStamp, authorizationStamp, requestContext);
+            return super.synchronizeUser(authentication, authenticationStamp, authorizationStamp, requestContext,
+                    waitForTheDatabase);
         }
 
         int synchronizeUserCalls() {
