@@ -29,11 +29,19 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailure
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import io.contexa.contexaidentity.security.filter.DefaultRestLoginPageGeneratingFilter;
+import jakarta.servlet.Filter;
+import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -41,6 +49,10 @@ import org.mockito.quality.Strictness;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.MessageSource;
+import org.slf4j.LoggerFactory;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
@@ -69,6 +81,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -167,6 +180,34 @@ class AuthenticationAdapterTest {
             verify(mockConfigurer).permitAll();
             verify(mockConfigurer).loginPage("/custom-login");
         }
+
+        @Test
+        @DisplayName("a form login of the global customizer that the flow replaces is said at the start")
+        @SuppressWarnings("unchecked")
+        void aReplacedGlobalFormLoginIsSaid() throws Exception {
+            FormOptions options = mock(FormOptions.class);
+            AuthenticationStepConfig step = new AuthenticationStepConfig();
+            step.setType("form");
+            step.getOptions().put(AuthenticationStepConfig.OPTIONS_KEY, options);
+            when(currentFlow.getTypeName()).thenReturn("form");
+            Logger logger = (Logger) LoggerFactory.getLogger(BaseFormAuthenticationAdapter.class);
+            ListAppender<ILoggingEvent> said = new ListAppender<>();
+            said.start();
+            logger.addAppender(said);
+            try {
+                adapter.apply(httpSecurity, List.of(step), stateConfig);
+                assertThat(said.list).isEmpty();
+
+                when(httpSecurity.getConfigurer(FormLoginConfigurer.class)).thenReturn(mock(FormLoginConfigurer.class));
+                adapter.apply(httpSecurity, List.of(step), stateConfig);
+                assertThat(said.list).singleElement().satisfies(event -> {
+                    assertThat(event.getLevel()).isEqualTo(Level.WARN);
+                    assertThat(event.getFormattedMessage()).contains("Flow 'form'").contains("http.formLogin(...)");
+                });
+            } finally {
+                logger.detachAppender(said);
+            }
+        }
     }
 
     @Nested
@@ -213,6 +254,36 @@ class AuthenticationAdapterTest {
             adapter.apply(httpSecurity, List.of(step), stateConfig);
 
             verify(mockConfigurer).loginProcessingUrl("/login/rest");
+        }
+
+        @Test
+        @DisplayName("the generated page is at the address the flow takes its sign-in at")
+        void theGeneratedPageFollowsTheSignInAddress() throws Exception {
+            RestOptions options = mock(RestOptions.class);
+            when(options.getLoginProcessingUrl()).thenReturn("/login/rest");
+            AuthenticationStepConfig step = new AuthenticationStepConfig();
+            step.setType("rest");
+            step.getOptions().put(AuthenticationStepConfig.OPTIONS_KEY, options);
+            when(applicationContext.getBean(MessageSource.class)).thenReturn(mock(MessageSource.class));
+            when(httpSecurity.getSharedObject(ApplicationContext.class)).thenReturn(applicationContext);
+            ArgumentCaptor<Filter> added = ArgumentCaptor.forClass(Filter.class);
+
+            adapter.apply(httpSecurity, List.of(step), stateConfig);
+
+            verify(httpSecurity).addFilterBefore(added.capture(), eq(UsernamePasswordAuthenticationFilter.class));
+            Filter page = added.getValue();
+            assertThat(page).isInstanceOf(DefaultRestLoginPageGeneratingFilter.class);
+
+            MockHttpServletResponse atTheNewAddress = new MockHttpServletResponse();
+            FilterChain rest = mock(FilterChain.class);
+            page.doFilter(new MockHttpServletRequest("GET", "/login/rest"), atTheNewAddress, rest);
+            assertThat(atTheNewAddress.getContentAsString()).contains("fetch('/login/rest'");
+            verify(rest, never()).doFilter(any(), any());
+
+            MockHttpServletRequest theOldAddress = new MockHttpServletRequest("GET", "/api/login");
+            MockHttpServletResponse atTheOldAddress = new MockHttpServletResponse();
+            page.doFilter(theOldAddress, atTheOldAddress, rest);
+            verify(rest).doFilter(theOldAddress, atTheOldAddress);
         }
     }
 

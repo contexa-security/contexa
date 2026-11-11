@@ -31,6 +31,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
+import org.springframework.security.web.authentication.session.NullAuthenticatedSessionStrategy;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -52,6 +54,11 @@ public abstract class BaseAuthenticationFilter extends OncePerRequestFilter {
     protected PlatformAuthenticationSuccessHandler successHandler;
     protected PlatformAuthenticationFailureHandler failureHandler;
     protected SecurityContextRepository securityContextRepository = new RequestAttributeSecurityContextRepository();
+    /**
+     * What the chain does to the session when a sign-in is kept in it: a new session id, the limit of sessions per
+     * user, a new CSRF token. None unless the chain gives its own, which it does for a flow with the session state.
+     */
+    protected SessionAuthenticationStrategy sessionStrategy = new NullAuthenticatedSessionStrategy();
 
     protected BaseAuthenticationFilter(RequestMatcher requestMatcher, AuthenticationManager authenticationManager,
                                        AuthContextProperties properties) {
@@ -175,5 +182,10 @@ public abstract class BaseAuthenticationFilter extends OncePerRequestFilter {
     public void setSecurityContextHolderStrategy(SecurityContextHolderStrategy securityContextHolderStrategy) {
         Assert.notNull(securityContextHolderStrategy, "securityContextHolderStrategy cannot be null");
         this.securityContextHolderStrategy = securityContextHolderStrategy;
+    }
+
+    public void setSessionAuthenticationStrategy(SessionAuthenticationStrategy sessionStrategy) {
+        Assert.notNull(sessionStrategy, "sessionStrategy cannot be null");
+        this.sessionStrategy = sessionStrategy;
     }
 }

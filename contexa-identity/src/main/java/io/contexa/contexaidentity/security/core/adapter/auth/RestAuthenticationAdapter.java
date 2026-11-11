@@ -80,8 +80,11 @@ public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapt
                                          PlatformAuthenticationFailureHandler failureHandler) throws Exception {
         super.configureHttpSecurity(http, opts, currentFlow, successHandler, failureHandler);
 
-        String loginPageUrl = currentFlow.getUrlPrefix() != null
-                ? currentFlow.getUrlPrefix() + "/api/login" : "/api/login";
+        // The generated page is at the address the sign-in is taken at: a GET there shows it, and it posts there. Fixed at
+        // /api/login, the page stayed at the old address and posted to it once the flow took its sign-in elsewhere.
+        String prefix = currentFlow.getUrlPrefix();
+        String loginPageUrl = prefix != null && !opts.getLoginProcessingUrl().startsWith(prefix)
+                ? prefix + opts.getLoginProcessingUrl() : opts.getLoginProcessingUrl();
         DefaultRestLoginPageGeneratingFilter loginPageFilter = new DefaultRestLoginPageGeneratingFilter(loginPageUrl);
         MessageSource messageSource = http.getSharedObject(ApplicationContext.class)
                 .getBean(MessageSource.class);

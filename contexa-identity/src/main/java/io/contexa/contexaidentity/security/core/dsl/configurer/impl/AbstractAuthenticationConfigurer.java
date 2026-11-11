@@ -29,6 +29,7 @@ import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -104,6 +105,13 @@ public abstract class AbstractAuthenticationConfigurer<T extends AbstractAuthent
             } else if (filter instanceof MfaRestAuthenticationFilter mfaRestFilter) {
                 mfaRestFilter.setFlowTypeName(flowConfig.getTypeName());
                 mfaRestFilter.setStateType(stateType);
+            }
+            // A sign-in kept in the session gets the session strategy of its chain (a new session id at the sign-in, the
+            // limit of sessions, a new CSRF token), as Spring Security's own sign-in filters do. A token state keeps no
+            // sign-in in the session, where the session only carries a sign-in in progress.
+            SessionAuthenticationStrategy sessionStrategy = http.getSharedObject(SessionAuthenticationStrategy.class);
+            if (stateType == StateType.SESSION && sessionStrategy != null) {
+                filter.setSessionAuthenticationStrategy(sessionStrategy);
             }
         }
     }

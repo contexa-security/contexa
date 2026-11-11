@@ -181,7 +181,7 @@ class StandaloneAutoConfigurationFilterTest {
                     "io.contexa.autoconfigure.core.CoreDataAutoConfiguration",
                     "io.contexa.contexacommon.cache.ContexaCacheAutoConfiguration",
                     "io.contexa.contexacore.config.CoreSecurityAutoConfiguration",
-                    "io.contexa.contexaidentity.security.core.asep.autoconfigure.AsepAutoConfiguration",
+                    "io.contexa.autoconfigure.identity.IdentityAsepAutoConfiguration",
                     "org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration"
             };
 
@@ -280,7 +280,7 @@ class StandaloneAutoConfigurationFilterTest {
                     "io.contexa.autoconfigure.core.CoreDataAutoConfiguration",
                     "io.contexa.contexacommon.cache.ContexaCacheAutoConfiguration",
                     "io.contexa.contexacore.config.CoreSecurityAutoConfiguration",
-                    "io.contexa.contexaidentity.security.core.asep.autoconfigure.AsepAutoConfiguration"
+                    "io.contexa.autoconfigure.identity.IdentityAsepAutoConfiguration"
             };
 
             boolean[] result = filter.match(classes, metadata);

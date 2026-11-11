@@ -26,7 +26,9 @@ import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.lang.Nullable;
 import org.springframework.security.web.DefaultSecurityFilterChain;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 
 /**
  * Orchestrates post-build customization of SecurityFilterChain filters.
@@ -50,13 +52,24 @@ public class SecurityFilterChainCustomizer {
     public void customize(DefaultSecurityFilterChain builtChain,
                           AuthenticationFlowConfig flowConfig,
                           ApplicationContext appContext) {
+        customize(builtChain, flowConfig, appContext, null);
+    }
+
+    /**
+     * @param sessionStrategy the session strategy of the chain as its {@code HttpSecurity} shares it, for the filters
+     *                        Spring Security's configurers build without it; {@code null} leaves them as they are
+     */
+    public void customize(DefaultSecurityFilterChain builtChain,
+                          AuthenticationFlowConfig flowConfig,
+                          ApplicationContext appContext,
+                          @Nullable SessionAuthenticationStrategy sessionStrategy) {
 
         boolean isMfaFlow = MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName());
         AuthUrlProvider flowUrlProvider = resolveFlowUrlProvider(flowConfig, appContext);
 
         AuthenticationStepConfig passkeyStep = findStep(flowConfig, AuthType.PASSKEY, AuthType.MFA_PASSKEY);
         if (passkeyStep != null) {
-            passkeyCustomizer.replaceHandlers(builtChain, flowConfig, appContext, isMfaFlow);
+            passkeyCustomizer.replaceHandlers(builtChain, flowConfig, appContext, isMfaFlow, sessionStrategy);
             passkeyCustomizer.replaceRegistrationPage(builtChain, appContext);
         }
 

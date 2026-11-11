@@ -27,6 +27,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -36,6 +37,10 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.web.authentication.session.SessionAuthenticationException;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
@@ -133,5 +138,38 @@ class RestAuthenticationFilterTest {
         filter.unsuccessfulAuthentication(request, response, exception);
 
         verify(failureHandler).onAuthenticationFailure(request, response, exception);
+    }
+
+    @Test
+    void theSessionStrategyOfTheChainIsAppliedBeforeTheSignInIsKept() throws Exception {
+        SessionAuthenticationStrategy sessionStrategy = mock(SessionAuthenticationStrategy.class);
+        filter.setSessionAuthenticationStrategy(sessionStrategy);
+
+        filter.successfulAuthentication(request, response, filterChain, authentication);
+
+        InOrder order = inOrder(sessionStrategy, securityContextRepository, successHandler);
+        order.verify(sessionStrategy).onAuthentication(authentication, request, response);
+        order.verify(securityContextRepository).saveContext(eq(securityContext), eq(request), eq(response));
+        order.verify(successHandler).onAuthenticationSuccess(request, response, authentication);
+    }
+
+    @Test
+    void aSignInTheSessionStrategyRefusesIsAnsweredAsAFailureAndIsNotKept() throws Exception {
+        SessionAuthenticationStrategy sessionStrategy = mock(SessionAuthenticationStrategy.class);
+        SessionAuthenticationException refusal = new SessionAuthenticationException("Maximum sessions of 1 exceeded");
+        doThrow(refusal).when(sessionStrategy).onAuthentication(any(), any(), any());
+        filter.setSessionAuthenticationStrategy(sessionStrategy);
+        MockHttpServletRequest signIn = new MockHttpServletRequest("POST", "/api/login");
+        signIn.setContentType("application/json");
+        signIn.setContent("{\"username\":\"user\",\"password\":\"secret\"}".getBytes());
+        MockHttpServletResponse answer = new MockHttpServletResponse();
+        when(requestMatcher.matches(signIn)).thenReturn(true);
+        when(authenticationManager.authenticate(any())).thenReturn(authentication);
+
+        filter.doFilter(signIn, answer, filterChain);
+
+        verify(failureHandler).onAuthenticationFailure(signIn, answer, refusal);
+        verify(securityContextRepository, never()).saveContext(any(), any(), any());
+        verify(successHandler, never()).onAuthenticationSuccess(any(), any(), any());
     }
 }

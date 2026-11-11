@@ -30,7 +30,10 @@ import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.Ordered;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
 import org.springframework.security.web.DefaultSecurityFilterChain;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.util.matcher.AnyRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -114,11 +117,34 @@ public class SecurityFilterChainRegistrar {
         return problems;
     }
 
+    /**
+     * The password of an MFA flow is taken by the flow's own first step, which goes on to the factors. A form login of
+     * Spring Security in the same chain (the application's {@code http.formLogin(...)} in the global customizer, or in
+     * a {@code rawHttp} of the flow) is a second password sign-in that ends at the password: at its own address it
+     * signed a user in beside the factors. It is taken out of the chain before the chain is built, and the start says
+     * where its settings belong.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void keepThePasswordStepOfAnMfaFlowItsOwn(HttpSecurity http, AuthenticationFlowConfig flowConfig) {
+        if (!MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName()) || http.getConfigurer(FormLoginConfigurer.class) == null) {
+            return;
+        }
+        http.removeConfigurer((Class) FormLoginConfigurer.class);
+        log.warn("Flow '{}': the form login of Spring Security written for this chain (http.formLogin(...) in the "
+                        + "global customizer, or in a rawHttp of the flow) is not used. It would sign a user in with "
+                        + "the password alone, beside the factors of this flow. The flow's own first step takes the "
+                        + "password: write the settings there, mfa(mfa -> mfa.primaryAuthentication(auth -> "
+                        + "auth.formLogin(form -> form.loginPage(...).failureUrl(...)))).",
+                flowConfig.getTypeName());
+    }
+
     public OrderedSecurityFilterChain buildAndRegisterFilters(FlowContext fc, ApplicationContext appContext) {
         try {
             AuthenticationFlowConfig flowConfig = fc.flow();
+            keepThePasswordStepOfAnMfaFlowItsOwn(fc.http(), flowConfig);
             DefaultSecurityFilterChain builtChain = fc.http().build();
-            securityFilterChainCustomizer.customize(builtChain, flowConfig, appContext);
+            securityFilterChainCustomizer.customize(builtChain, flowConfig, appContext,
+                    fc.http().getSharedObject(SessionAuthenticationStrategy.class));
 
             for (AuthenticationStepConfig step : flowConfig.getStepConfigs()) {
                 Objects.requireNonNull(step, "AuthenticationStepConfig in flow cannot be null.");
