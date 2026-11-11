@@ -16,9 +16,16 @@
 package io.contexa.autoconfigure.core.llm;
 
 import java.time.Duration;
+import reactor.netty.http.HttpResources;
 import reactor.netty.resources.ConnectionProvider;
 import reactor.netty.http.client.HttpClient;
+import org.springframework.http.client.ReactorClientHttpRequestFactory;
+import org.springframework.http.client.ReactorResourceFactory;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
+import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
+import org.springframework.boot.http.client.ReactorClientHttpRequestFactoryBuilder;
+import io.contexa.contexacore.infra.ContexaReactorResources;
 import io.contexa.autoconfigure.properties.ContexaLlmSelectionProperties;
 import io.contexa.autoconfigure.properties.ContexaLlmBindingProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
@@ -60,6 +67,7 @@ import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.OllamaEmbeddingModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
@@ -75,6 +83,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.ResponseErrorHandler;
@@ -401,7 +410,10 @@ public class CoreLLMTieredAutoConfiguration {
 
     @Configuration
     @ConditionalOnClass(name = "org.springframework.ai.ollama.OllamaChatModel")
-    public static class OllamaConfiguration {
+    public static class OllamaConfiguration implements DisposableBean {
+
+        private ConnectionProvider modelCallConnections;
+        private ReactorClientHttpConnector modelCallConnector;
 
         @Bean(name = "contexaOllamaChatApi", defaultCandidate = false)
         @ConditionalOnProperty(prefix = "contexa.llm.chat.ollama", name = "base-url")
@@ -410,11 +422,13 @@ public class CoreLLMTieredAutoConfiguration {
                 ObjectProvider<RestClient.Builder> restClientBuilderProvider,
                 ObjectProvider<WebClient.Builder> webClientBuilderProvider,
                 ObjectProvider<ResponseErrorHandler> responseErrorHandlerProvider,
+                ObjectProvider<ClientHttpRequestFactoryBuilder<?>> requestFactoryBuilderProvider,
+                ObjectProvider<ClientHttpRequestFactorySettings> requestFactorySettingsProvider,
                 ContexaProperties contexaProperties) {
 
             return buildOllamaApi(
                     resolveChatOllamaBaseUrl(contexaProperties),
-                    restClientBuilderProvider,
+                    modelCallRestClient(restClientBuilderProvider, requestFactoryBuilderProvider, requestFactorySettingsProvider),
                     webClientBuilderProvider,
                     responseErrorHandlerProvider.getIfAvailable(DefaultResponseErrorHandler::new)
             );
@@ -453,11 +467,14 @@ public class CoreLLMTieredAutoConfiguration {
                 ObjectProvider<RestClient.Builder> restClientBuilderProvider,
                 ObjectProvider<WebClient.Builder> webClientBuilderProvider,
                 ObjectProvider<ResponseErrorHandler> responseErrorHandlerProvider,
+                ObjectProvider<ClientHttpRequestFactoryBuilder<?>> requestFactoryBuilderProvider,
+                ObjectProvider<ClientHttpRequestFactorySettings> requestFactorySettingsProvider,
                 ContexaProperties contexaProperties) {
 
             String baseUrl = resolveDedicatedEmbeddingOllamaBaseUrl(contexaProperties);
-            return buildOllamaApi(baseUrl, restClientBuilderProvider, webClientBuilderProvider,
-                    responseErrorHandlerProvider.getIfAvailable(DefaultResponseErrorHandler::new));
+            return buildOllamaApi(baseUrl,
+                    modelCallRestClient(restClientBuilderProvider, requestFactoryBuilderProvider, requestFactorySettingsProvider),
+                    webClientBuilderProvider, responseErrorHandlerProvider.getIfAvailable(DefaultResponseErrorHandler::new));
         }
 
         @Bean(name = "contexaDedicatedOllamaEmbeddingModel", defaultCandidate = false)
@@ -496,24 +513,81 @@ public class CoreLLMTieredAutoConfiguration {
 
         private OllamaApi buildOllamaApi(
                 String baseUrl,
-                ObjectProvider<RestClient.Builder> restClientBuilderProvider,
+                RestClient.Builder restClientBuilder,
                 ObjectProvider<WebClient.Builder> webClientBuilderProvider,
                 ResponseErrorHandler responseErrorHandler
         ) {
             return OllamaApi.builder()
                     .baseUrl(baseUrl)
-                    .restClientBuilder(restClientBuilderProvider.getIfAvailable(RestClient::builder))
+                    .restClientBuilder(restClientBuilder)
                     // a copy of the application's builder, with the connector Contexa's model calls need; the application's own builder is left as it is
                     .webClientBuilder(webClientBuilderProvider.getIfAvailable(WebClient::builder).clone()
-                            .clientConnector(LongRunningConnector.INSTANCE))
+                            .clientConnector(modelCallConnector()))
                     .responseErrorHandler(responseErrorHandler)
                     .build();
         }
 
-        /** Model calls stream for minutes: a response timeout of three minutes and a pool of 50 connections, for Contexa's calls only. */
-        private static final class LongRunningConnector {
-            static final ReactorClientHttpConnector INSTANCE = new ReactorClientHttpConnector(
-                    HttpClient.create(ConnectionProvider.create("contexa-ai-pool", 50)).responseTimeout(Duration.ofMinutes(3)));
+        /**
+         * Model calls stream for minutes: a response timeout of three minutes and a pool of 50 connections, for Contexa's calls only,
+         * on Contexa's event loop. One for the model clients of the application, closed with it.
+         */
+        private synchronized ReactorClientHttpConnector modelCallConnector() {
+            if (modelCallConnector == null) {
+                modelCallConnections = ContexaReactorResources.connections("contexa-ai-pool", 50);
+                modelCallConnector = new ReactorClientHttpConnector(ContexaReactorResources.onContexaLoops(
+                        HttpClient.create(modelCallConnections).responseTimeout(Duration.ofMinutes(3))));
+            }
+            return modelCallConnector;
+        }
+
+        @Override
+        public synchronized void destroy() {
+            if (modelCallConnections != null) {
+                modelCallConnections.dispose();
+            }
+        }
+
+        /**
+         * The builder of Contexa's model calls that wait for their answer: a copy of the application's, with the request factory
+         * Boot makes from the application's settings ({@code spring.http.client.*} and the customizers of the factory builder) on
+         * Contexa's event loop when that factory is Reactor Netty's. A factory of another client has no event loop, and the
+         * application's builder is used as it is.
+         */
+        private static RestClient.Builder modelCallRestClient(
+                ObjectProvider<RestClient.Builder> restClientBuilderProvider,
+                ObjectProvider<ClientHttpRequestFactoryBuilder<?>> requestFactoryBuilderProvider,
+                ObjectProvider<ClientHttpRequestFactorySettings> requestFactorySettingsProvider) {
+            RestClient.Builder application = restClientBuilderProvider.getIfAvailable();
+            if (application == null) {
+                return defaultModelCallRestClient();
+            }
+            ClientHttpRequestFactoryBuilder<?> requestFactories =
+                    requestFactoryBuilderProvider.getIfAvailable(ClientHttpRequestFactoryBuilder::detect);
+            if (!(requestFactories instanceof ReactorClientHttpRequestFactoryBuilder)) {
+                return application;
+            }
+            return application.clone().requestFactory(ContexaReactorResources.onContexaLoops(requestFactories)
+                    .build(requestFactorySettingsProvider.getIfAvailable(ClientHttpRequestFactorySettings::defaults)));
+        }
+
+        /**
+         * RestClient.builder() as an application without Boot's builder has it: the request factory Spring picks from the class
+         * path, and when that is Reactor Netty's, Spring's own client with its defaults on the same connections, on Contexa's
+         * event loop.
+         */
+        private static RestClient.Builder defaultModelCallRestClient() {
+            ClassLoader classLoader = RestClient.class.getClassLoader();
+            if (ClassUtils.isPresent("org.apache.hc.client5.http.classic.HttpClient", classLoader)
+                    || ClassUtils.isPresent("org.eclipse.jetty.client.HttpClient", classLoader)
+                    || !ClassUtils.isPresent("reactor.netty.http.client.HttpClient", classLoader)) {
+                return RestClient.builder();
+            }
+            ReactorResourceFactory resources = new ReactorResourceFactory();
+            resources.setUseGlobalResources(false);
+            resources.setConnectionProvider(HttpResources.get());
+            resources.setLoopResources(ContexaReactorResources.eventLoops());
+            resources.start();
+            return RestClient.builder().requestFactory(new ReactorClientHttpRequestFactory(resources, client -> client));
         }
 
         private OllamaEmbeddingModel buildOllamaEmbeddingModel(

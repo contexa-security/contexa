@@ -42,6 +42,7 @@ import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.gate.ModelServerSignals;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
+import io.contexa.contexacore.infra.ContexaReactorResources;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import lombok.extern.slf4j.Slf4j;
@@ -372,7 +373,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     public Mono<SecurityDecision> performDeepAnalysisAsync(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
         return Mono.fromCallable(() -> performDeepAnalysis(event))
-                .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
+                .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()), ContexaReactorResources.timer())
                 .onErrorResume(throwable -> {
                     log.error("[Layer2] Async analysis failed or timed out", throwable);
                     return Mono.just(createLayer2TechnicalFailureDecision(

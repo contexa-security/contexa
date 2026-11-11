@@ -23,6 +23,8 @@ import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
+import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestClient;
@@ -138,12 +140,16 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
         ObjectProvider<RestClient.Builder> restClientBuilderProvider = mock(ObjectProvider.class);
         ObjectProvider<WebClient.Builder> webClientBuilderProvider = mock(ObjectProvider.class);
         ObjectProvider<ResponseErrorHandler> responseErrorHandlerProvider = mock(ObjectProvider.class);
+        ObjectProvider<ClientHttpRequestFactoryBuilder<?>> requestFactoryBuilderProvider = mock(ObjectProvider.class);
+        ObjectProvider<ClientHttpRequestFactorySettings> requestFactorySettingsProvider = mock(ObjectProvider.class);
 
         CoreLLMTieredAutoConfiguration.OllamaConfiguration ollamaConfig = new CoreLLMTieredAutoConfiguration.OllamaConfiguration();
         assertThatThrownBy(() -> ollamaConfig.contexaDedicatedEmbeddingOllamaApi(
                 restClientBuilderProvider,
                 webClientBuilderProvider,
                 responseErrorHandlerProvider,
+                requestFactoryBuilderProvider,
+                requestFactorySettingsProvider,
                 properties))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("contexa.llm.embedding.ollama.base-url");

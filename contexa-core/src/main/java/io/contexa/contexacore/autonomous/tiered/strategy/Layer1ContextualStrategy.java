@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacore.infra.ContexaBackgroundExecution;
+import io.contexa.contexacore.infra.ContexaReactorResources;
 import io.contexa.contexacore.autonomous.context.support.SessionStart;
 import java.time.Instant;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -429,7 +430,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return Mono.fromCallable(() -> analyzeWithContext(event))
                 // N-OUT-1 (G1-7): on a thread of its own, so the total budget holds for a synchronous analysis.
                 .subscribeOn(ContexaBackgroundExecution.scheduler())
-                .timeout(Duration.ofMillis(totalTimeoutMs))
+                .timeout(Duration.ofMillis(totalTimeoutMs), ContexaReactorResources.timer())
                 .onErrorResume(throwable -> {
                     log.error("[Layer1][AI Native v4.3.0] Async analysis failed or timed out ({}ms)",
                             totalTimeoutMs, throwable);

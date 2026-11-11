@@ -480,10 +480,11 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
 
         Boolean accepted;
         try {
+            // The request's own wait is the limit: a state machine that has not answered in time ends the wait with an
+            // exception, handled below as any other. No timer of another thread is needed to measure it.
             accepted = stateMachine.sendEvent(Mono.just(message))
                     .map(result -> result.getResultType() == StateMachineEventResult.ResultType.ACCEPTED)
-                    .timeout(Duration.ofSeconds(timeoutSeconds))
-                    .blockFirst(Duration.ofSeconds(timeoutSeconds + 1));
+                    .blockFirst(Duration.ofSeconds(timeoutSeconds));
         } catch (Exception e) {
             log.error("[MFA SM Service] Exception during sendEvent - Event: {}, State: {}, Session: {}",
                     event, currentState, sessionId, e);

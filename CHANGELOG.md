@@ -879,6 +879,11 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Changed
 
+- **Contexa no longer runs on the JVM's shared Reactor threads.** Its own model and SaaS clients connect and look names up on an
+  event loop of their own (`contexa-ai-*`, two threads) and its time limits and back-offs wait on a timer of its own
+  (`contexa-timer-*`, two threads), instead of `reactor-http-nio-*` and `parallel-*` (as many threads as cores each, shared with
+  the application's WebClient and reactive code); a step of a sign-in waits on the request's own deadline. Both start with the
+  first call and end when the application closes. A model configured under `spring.ai.*` keeps the HTTP client Spring AI gives it.
 - **The action in force of a user is read in one script instead of three round trips.** A protected request asks for it seven times,
   and each ask read the BLOCK flag, the analysis and the held CHALLENGE one after the other, about twenty of the thirty or so
   commands a request waits for on its own thread. One script on the shared connection reads the three; what is decided from them

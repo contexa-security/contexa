@@ -22,6 +22,7 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacore.exception.AIOperationException;
+import io.contexa.contexacore.infra.ContexaReactorResources;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingContext;
@@ -58,7 +59,7 @@ public class DefaultStandardStreamingService implements StandardStreamingService
             AIRequest<C> request,
             AICoreOperations<C> aiProcessor) {
         return executeStrategyStream(request, aiProcessor)
-                .timeout(DEFAULT_TIMEOUT)
+                .timeout(DEFAULT_TIMEOUT, ContexaReactorResources.timer())
                 .onErrorResume(this::handleStreamError);
     }
 
@@ -67,7 +68,7 @@ public class DefaultStandardStreamingService implements StandardStreamingService
             AIRequest<C> request,
             PipelineOrchestrator pipelineOrchestrator) {
         return executeDirectStream(request, pipelineOrchestrator)
-                .timeout(DEFAULT_TIMEOUT)
+                .timeout(DEFAULT_TIMEOUT, ContexaReactorResources.timer())
                 .onErrorResume(this::handleStreamError);
     }
 

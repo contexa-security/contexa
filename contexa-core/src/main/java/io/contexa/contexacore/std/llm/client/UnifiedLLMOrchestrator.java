@@ -1600,12 +1600,15 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     /**
      * A failure that may pass is sent again up to four times. Through a model server's gate, the server backs off
      * after a rate limit or an overload and the retry waits in line for it (O-1 (4)), so it is sent again at once;
-     * any other failure is sent again after 2 s, 4 s, 8 s and 12 s, as without a gate.
+     * any other failure is sent again after 2 s, 4 s, 8 s and 12 s, as without a gate. The attempt after a back-off
+     * runs on the thread the back-off ends on, and it blocks for the model: both back-offs end on Contexa's blocking
+     * scheduler, not on Reactor's parallel one, which the whole JVM shares.
      */
     private Retry llmProviderRetry(String operation, ExecutionContext context) {
         if (modelServerGates == null) {
             return Retry.backoff(PROVIDER_RETRY_ATTEMPTS, PROVIDER_RETRY_FIRST_BACKOFF)
                     .maxBackoff(PROVIDER_RETRY_MAX_BACKOFF)
+                    .scheduler(ContexaBackgroundExecution.scheduler())
                     .filter(this::isRetryableProviderFailure)
                     .doBeforeRetry(retrySignal -> recordRetry(operation, context, retrySignal))
                     .onRetryExhaustedThrow((spec, retrySignal) -> retriesExhausted(operation, context,

@@ -16,6 +16,7 @@
 package io.contexa.contexacore.std.llm.handler;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
+import io.contexa.contexacore.infra.ContexaReactorResources;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.ProviderAwareChatOptionsFactory;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
@@ -51,7 +52,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
                 Flux<String> rawResponseFlux = promptSpec.stream().content();
 
                 if (context.getTimeoutMs() != null) {
-                    rawResponseFlux = rawResponseFlux.timeout(Duration.ofMillis(context.getTimeoutMs()));
+                    rawResponseFlux = rawResponseFlux.timeout(Duration.ofMillis(context.getTimeoutMs()), ContexaReactorResources.timer());
                 }
 
                 Integer effectiveTier = context.getEffectiveTier();
@@ -150,7 +151,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
             Flux<String> rawResponseFlux = promptSpec.stream().content();
 
             if (context.getTimeoutMs() != null) {
-                rawResponseFlux = rawResponseFlux.timeout(Duration.ofMillis(context.getTimeoutMs()));
+                rawResponseFlux = rawResponseFlux.timeout(Duration.ofMillis(context.getTimeoutMs()), ContexaReactorResources.timer());
             }
 
             return jsonStreamingProcessor.process(rawResponseFlux)
@@ -226,25 +227,25 @@ public class DefaultStreamingHandler implements StreamingHandler {
         return switch (tier) {
             // Only a timeout becomes the timeout answer; any other failure stays an error the caller sees.
             case 1 -> responseFlux
-                    .timeout(Duration.ofMillis(timeout))
+                    .timeout(Duration.ofMillis(timeout), ContexaReactorResources.timer())
                     .onErrorReturn(TimeoutException.class, "TIMEOUT");
             case 2 -> {
                 int bufferMs = Math.max(50, timeout / 6);
                 yield responseFlux
-                        .timeout(Duration.ofMillis(timeout))
-                        .buffer(Duration.ofMillis(bufferMs))
+                        .timeout(Duration.ofMillis(timeout), ContexaReactorResources.timer())
+                        .buffer(Duration.ofMillis(bufferMs), ContexaReactorResources.timer())
                         .flatMap(chunks -> Flux.fromIterable(chunks));
             }
             case 3 -> {
                 int bufferMs = Math.max(100, timeout / 50);
                 yield responseFlux
-                        .timeout(Duration.ofMillis(timeout))
-                        .buffer(Duration.ofMillis(bufferMs))
+                        .timeout(Duration.ofMillis(timeout), ContexaReactorResources.timer())
+                        .buffer(Duration.ofMillis(bufferMs), ContexaReactorResources.timer())
                         .flatMap(chunks -> Flux.fromIterable(chunks));
             }
             default -> {
                 log.error("Unknown tier: {}, using default streaming", tier);
-                yield responseFlux.timeout(Duration.ofMillis(1000));
+                yield responseFlux.timeout(Duration.ofMillis(1000), ContexaReactorResources.timer());
             }
         };
     }
