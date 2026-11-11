@@ -561,6 +561,16 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **After an MFA sign-in the browser goes back to the page it asked for.** A request for a protected page is kept
+  while the browser is sent to sign in, and Spring Security keeps it with a full address (`http://host/path?query`).
+  The sign-in handlers of Contexa refused every address that names a host, so they refused every kept request: after
+  an MFA sign-in, with the session state or the token state, and after a REST sign-in with the session state, the
+  browser went to the default page and never back. A single form flow, which Spring Security answers, was not
+  affected. The handlers now follow the path and the query of the kept address, so the browser stays on the site it
+  signed in on whatever host that address names; an address a browser reads as another site (`//host`) and the
+  requests a browser makes by itself (`/favicon.ico`, `/.well-known/`) are still not followed. Without a kept
+  request the browser goes where it went. **Check:** ask for a protected page without a sign-in, complete the MFA
+  sign-in, and `redirectUrl` of the answer is that page (`/` before).
 - **The address after a sign-out that an application names is used, with the session state.** A flow with
   `.session(...)` wrote its own address after the application's settings, so a `logoutSuccessUrl(...)` or a
   `logoutSuccessHandler(...)` in `global(...)` or in the flow's `logout(...)` option was dropped without a word, and
