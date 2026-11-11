@@ -514,6 +514,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **In the distributed mode an application's own `@RedisHash` repositories are made again.** Contexa no longer enables
   Spring Data's Redis repositories in the application's context; it makes its MFA flow repository itself, with the same keys.
 
+- **Where Contexa owns the sign-in (FULL), its form and MFA password sign-in works beside any number of user stores and
+  providers of the application's.** It leaned on Spring's global manager, which has no password provider when the
+  application declares several, so nobody could sign in; Contexa's own provider now checks the password, alone and once.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines

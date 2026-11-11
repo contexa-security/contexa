@@ -23,6 +23,7 @@ import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexaiam.security.core.CustomAuthenticationProvider;
 import io.contexa.contexaiam.security.core.LoginAttemptCleanupFilter;
 import io.contexa.contexaiam.security.core.LoginAttemptEventListener;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaPasswordSignIn;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -59,7 +60,8 @@ public class IamSecurityCoreContexaOwnedConfiguration {
         return registration;
     }
 
-    @Bean(name = "contexaCustomAuthenticationProvider")
+    /** The provider of Contexa's password sign-in: its form and MFA filters authenticate with it alone. */
+    @Bean(name = ContexaPasswordSignIn.PROVIDER_BEAN)
     @ConditionalOnMissingBean
     public CustomAuthenticationProvider customAuthenticationProvider(BeanFactory beanFactory,
                                                                     LoginPolicyHandler contexaLoginPolicyHandler) {
