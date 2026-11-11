@@ -34,7 +34,7 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
 
     @Override
     protected void beforeFilterCreation(H http, AuthenticationManager authenticationManager, ApplicationContext applicationContext) {
-        UserDetailsService userDetailsService = ContexaUserStore.of(applicationContext);
+        UserDetailsService userDetailsService = ContexaUserStore.forSignIn(applicationContext);
         // Contexa's own accounts are encoded by Contexa's own encoder (held in a bean of no shared type); the application's is the fallback
         PasswordEncoder passwordEncoder = applicationContext.containsBean("contexaPasswordEncoder")
                 && applicationContext.getBean("contexaPasswordEncoder") instanceof HeldBean<?> held

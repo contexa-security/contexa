@@ -117,13 +117,8 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
         try {
             if (profile.ownership() == SecurityOwnershipMode.CONTEXA_OWNED) {
                 List<String> stores = applicationUserStores(beans.getBeansOfType(UserDetailsService.class));
-                if (stores.size() == 1) {
-                    log.warn("[Contexa] CONTEXA_OWNED: Contexa's sign-in looks users up in the application's {} "
-                            + "instead of Contexa's user store; Contexa's seeded administrator can sign in only if "
-                            + "that store has the account.", stores);
-                } else if (stores.size() > 1) {
-                    log.warn("[Contexa] CONTEXA_OWNED: the application has several user stores {}, so Contexa's sign-in "
-                            + "uses Contexa's own unless one of them is marked @Primary.", stores);
+                if (!stores.isEmpty()) {
+                    log.warn(userStoresNotice(stores));
                 }
             }
             boolean oneTimeCode = beans.getBeansOfType(PlatformConfig.class).values().stream()
@@ -274,6 +269,13 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
                     + "or users verify with a passkey only.";
         }
         return NO_MAIL_SENDER;
+    }
+
+    /** What the start says of the application's user stores: Contexa's sign-in does not read them, however many there are. */
+    static String userStoresNotice(List<String> stores) {
+        return "[Contexa] CONTEXA_OWNED: the application declares the user store(s) " + stores + ", which Contexa's sign-in "
+                + "does not read: Contexa's own accounts sign in from Contexa's own user store, and the application's users "
+                + "do not sign in to Contexa.";
     }
 
     static boolean oneTimeCodeUndeliverable(boolean oneTimeCodeOffered, boolean mailConfigured) {

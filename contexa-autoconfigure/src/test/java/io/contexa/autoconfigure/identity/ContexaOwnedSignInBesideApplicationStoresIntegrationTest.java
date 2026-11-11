@@ -7,14 +7,19 @@ package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexacommon.annotation.EnableAISecurity;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
+import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaidentity.security.core.adapter.auth.ContexaPasswordSignIn;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
+import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -49,6 +54,7 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -74,9 +80,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -86,10 +95,14 @@ import static org.mockito.Mockito.mockingDetails;
  * Where Contexa owns the sign-in (FULL), a sign-in with a password is decided by Contexa's own provider over Contexa's own
  * store, whatever user stores and providers the application declares. Spring Security gives its global authentication
  * manager a password provider only when it can pick one alone; an application with several stores and providers of its
- * own left Contexa's form and MFA sign-in without any, and nobody, not even the administrator, could sign in.
+ * own left Contexa's form and MFA sign-in without any, and nobody, not even the administrator, could sign in. And with
+ * exactly one store of the application's the sign-in read that store: its users, with the right password, got HTTP 500
+ * and the administrator, who is not in it, was refused.
  * <p>
  * Each case starts a real application on a real port over a throwaway PostgreSQL database and signs in over HTTP: the
- * same requests answer the same way with no store of the application's, and with two of everything.
+ * same requests answer the same way with no store of the application's, with one, and with two of everything, with a
+ * provider of the application's beside them or without. (Each application stays in the test JVM's heap, so the number of
+ * cases of this class is kept to what the JVM of the module's tests holds.)
  */
 @Timeout(900)
 @EnabledIfEnvironmentVariable(named = "CONTEXA_TEST_DB_URL", matches = ".+")
@@ -123,78 +136,6 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
         }
     }
 
-    /** What an application with no store of its own answers; every other case must answer the same. */
-    @Test
-    void anApplicationWithoutStoresOfItsOwnSignsTheAdministratorIn() throws Exception {
-        try (Running app = Running.start(NoStoresOfItsOwn.class)) {
-            Map<String, String> answers = app.passwordSignIns();
-
-            assertThat(answers).containsEntry("wrong password", REFUSED)
-                    .containsEntry("unknown name", REFUSED)
-                    .containsEntry("right password", PAST_THE_PASSWORD)
-                    .containsEntry("wrong password 5", REFUSED)
-                    .containsEntry("locked in the database", "true")
-                    .containsEntry("right password while locked", REFUSED)
-                    .containsEntry("right password after the unlock", PAST_THE_PASSWORD);
-            assertThat(app.completesTheCodeStep()).isEqualTo("200 MFA_COMPLETED");
-            assertThat(app.console()).isEqualTo(200);
-            assertThat(app.providerCalls()).as("one provider call per sign-in").isEqualTo(app.signIns);
-        }
-    }
-
-    /** The application of the grid: two stores, two encoders, two providers of its own. */
-    @Test
-    void twoStoresAndTwoProvidersOfTheApplicationLeaveContexaSignInAsItIs() throws Exception {
-        Map<String, String> expected;
-        try (Running app = Running.start(NoStoresOfItsOwn.class)) {
-            expected = app.passwordSignIns();
-        }
-        try (Running app = Running.start(TwoOfEverything.class)) {
-            Map<String, String> answers = app.passwordSignIns();
-
-            assertThat(answers).isEqualTo(expected);
-            assertThat(answers).containsEntry("right password", PAST_THE_PASSWORD)
-                    .containsEntry("right password while locked", REFUSED);
-            assertThat(app.completesTheCodeStep()).isEqualTo("200 MFA_COMPLETED");
-            assertThat(app.console()).isEqualTo(200);
-            assertThat(app.providerCalls()).as("one provider call per sign-in").isEqualTo(app.signIns);
-        }
-    }
-
-    /** The application's own users are not Contexa's: their names and passwords are refused like any unknown one. */
-    @Test
-    void theUsersOfTheApplicationsStoresDoNotSignInToContexa() throws Exception {
-        try (Running app = Running.start(TwoOfEverything.class)) {
-            String unknown = app.signIn("nobody-at-all", "whatever-pw-1");
-
-            assertThat(app.signIn("alice", "alice-pw-1")).isEqualTo(unknown);
-            assertThat(app.signIn("bob", "bob-pw-1")).isEqualTo(unknown);
-            assertThat(app.signIn(ADMIN, "host-admin-pw-1")).as("the application's own 'admin'")
-                    .isEqualTo(app.signIn(ADMIN, "not-the-password-1"));
-            assertThat(unknown).doesNotStartWith("200");
-            assertThat(unknown).isEqualTo(REFUSED);
-            assertThat(app.signIn(ADMIN, ADMIN_PASSWORD)).as("Contexa's administrator").isEqualTo(PAST_THE_PASSWORD);
-        }
-    }
-
-    /**
-     * One store of the application's answers Contexa's sign-in, as Contexa says at start and in its documentation: the
-     * store is the application's choice. A provider of the application's beside it left Spring's global manager without a
-     * password provider, and nobody signed in; now the answers are the same with it and without it.
-     */
-    @Test
-    void oneStoreOfTheApplicationAnswersTheSameWithAProviderOfTheApplicationsBesideIt() throws Exception {
-        Map<String, String> alone;
-        try (Running app = Running.start(OneStoreOfItsOwn.class)) {
-            alone = app.storeSignIns();
-            assertThat(app.providerCalls()).as("one provider call per sign-in").isEqualTo(app.signIns);
-        }
-        try (Running app = Running.start(OneStoreAndOneProvider.class)) {
-            assertThat(app.storeSignIns()).isEqualTo(alone);
-            assertThat(app.providerCalls()).as("one provider call per sign-in").isEqualTo(app.signIns);
-        }
-    }
-
     /**
      * Where the application keeps its sign-in (SANDBOX) there is no provider of Contexa's: Contexa's form filter keeps the
      * chain's manager, as before, and the application's own sign-in answers as it did.
@@ -208,27 +149,90 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
             assertThat(app.formSignIn("alice", "not-the-password-1")).isEqualTo("302 /login?error");
             assertThat(app.formSignIn(ADMIN, ADMIN_PASSWORD)).as("Contexa's administrator is not the application's user")
                     .isEqualTo("302 /login?error");
+            assertThat(app.codeServiceStore()).as("the store the code service reads where the application keeps its sign-in")
+                    .isSameAs(app.context.getBean("usersA"));
         }
     }
 
-    /** A single-step form sign-in of a flow the application declares goes through Contexa's provider as well. */
-    @Test
-    void aSingleFormSignInBesideTwoStoresSignsTheAdministratorIn() throws Exception {
-        String expectedRight;
-        String expectedWrong;
-        try (Running app = Running.start(FormSignInWithoutStores.class)) {
-            expectedRight = app.formSignIn(ADMIN, ADMIN_PASSWORD);
-            expectedWrong = app.formSignIn(ADMIN, "not-the-password-1");
-            assertThat(expectedRight).startsWith("302 /signed-in");
-            assertThat(expectedWrong).isEqualTo("302 /login?error");
-            assertThat(app.providerCalls()).isEqualTo(2);
+    /**
+     * Whatever stores and providers the application declares, Contexa's sign-in is Contexa's: its administrator signs in
+     * and finishes the code step, and the application's users are refused as a name nobody holds is, so the same requests
+     * answer the same way in every shape of application. With one store of the application's (or one marked primary) the
+     * sign-in used to read that store: the application's user with the right password got HTTP 500, and the administrator,
+     * who is not in it, got 401.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("applications")
+    void contexasSignInAnswersTheSameWhateverTheApplicationDeclares(String shape, Class<?> application) throws Exception {
+        try (Running app = Running.start(application)) {
+            Map<String, String> answers = app.observedSignIns();
+            System.out.println("SIGN-IN SHAPE [" + shape + "] " + answers);
+
+            assertThat(answers).isEqualTo(expectedSignIns());
         }
-        try (Running app = Running.start(FormSignInWithTwoOfEverything.class)) {
-            assertThat(app.formSignIn(ADMIN, ADMIN_PASSWORD)).isEqualTo(expectedRight).startsWith("302 /");
-            assertThat(app.formSignIn(ADMIN, "not-the-password-1")).isEqualTo(expectedWrong);
-            assertThat(app.formSignIn("alice", "alice-pw-1")).isEqualTo(expectedWrong);
-            assertThat(app.providerCalls()).isEqualTo(3);
+    }
+
+    /**
+     * A single-step form sign-in of a flow the application declares goes through Contexa's provider as well: the
+     * administrator signs in, and the application's users, with the right password too, are refused like any unknown name.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("formApplications")
+    void aSingleFormSignInAnswersTheSameWhateverTheApplicationDeclares(String shape, Class<?> application) throws Exception {
+        try (Running app = Running.start(application)) {
+            Map<String, String> answers = new LinkedHashMap<>();
+            answers.put("the administrator", app.formSignIn(ADMIN, ADMIN_PASSWORD).replaceFirst("^(302 /signed-in).*", "$1"));
+            answers.put("the administrator, wrong password", app.formSignIn(ADMIN, "not-the-password-1"));
+            answers.put("the application's alice", app.formSignIn("alice", "alice-pw-1"));
+            answers.put("the application's admin", app.formSignIn(ADMIN, "host-admin-pw-1"));
+            answers.put("a provider call per sign-in", String.valueOf(app.providerCalls() == 4));
+            System.out.println("FORM SHAPE [" + shape + "] " + answers);
+
+            assertThat(answers).containsExactlyInAnyOrderEntriesOf(Map.of(
+                    "the administrator", "302 /signed-in",
+                    "the administrator, wrong password", "302 /login?error",
+                    "the application's alice", "302 /login?error",
+                    "the application's admin", "302 /login?error",
+                    "a provider call per sign-in", "true"));
         }
+    }
+
+    static Stream<Arguments> formApplications() {
+        return Stream.of(
+                Arguments.of("one store", FormSignInWithOneStore.class),
+                Arguments.of("two stores, two providers", FormSignInWithTwoOfEverything.class));
+    }
+
+    static Stream<Arguments> applications() {
+        return Stream.of(
+                Arguments.of("no store, no provider", NoStoresOfItsOwn.class),
+                Arguments.of("no store, a provider", NoStoreAndOneProvider.class),
+                Arguments.of("one store, no provider", OneStoreOfItsOwn.class),
+                Arguments.of("one store, a provider", OneStoreAndOneProvider.class),
+                Arguments.of("two stores, no provider", TwoStoresOfItsOwn.class),
+                Arguments.of("two stores, two providers", TwoOfEverything.class));
+    }
+
+    /** What an application with no store of its own answers: the one table every shape of application must answer. */
+    private static Map<String, String> expectedSignIns() {
+        Map<String, String> expected = new LinkedHashMap<>();
+        expected.put("wrong password", REFUSED);
+        expected.put("unknown name", REFUSED);
+        expected.put("right password", PAST_THE_PASSWORD);
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            expected.put("wrong password " + attempt, REFUSED);
+        }
+        expected.put("locked in the database", "true");
+        expected.put("right password while locked", REFUSED);
+        expected.put("right password after the unlock", PAST_THE_PASSWORD);
+        expected.put("the code step", "200 MFA_COMPLETED");
+        expected.put("the console", "200");
+        expected.put("the store of the code service", "Contexa's own");
+        expected.put("the application's alice", REFUSED);
+        expected.put("the application's bob", REFUSED);
+        expected.put("the application's admin", REFUSED);
+        expected.put("a provider call per sign-in", "true");
+        return expected;
     }
 
     // ----- a running application -----
@@ -280,6 +284,35 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
             csrf = keptCsrf;
             mfaSession = keptSession;
             return answers;
+        }
+
+        /** Every answer of the table: Contexa's administrator through both steps, then the application's users. */
+        Map<String, String> observedSignIns() throws Exception {
+            Map<String, String> answers = passwordSignIns();
+            answers.put("the code step", attempt(this::completesTheCodeStep));
+            answers.put("the console", attempt(() -> String.valueOf(console())));
+            answers.put("the store of the code service", codeServiceStore() == context.getBean(ContexaUserStore.BEAN_NAME)
+                    ? "Contexa's own" : "another");
+            answers.put("the application's alice", signIn("alice", "alice-pw-1"));
+            answers.put("the application's bob", signIn("bob", "bob-pw-1"));
+            answers.put("the application's admin", signIn(ADMIN, "host-admin-pw-1"));
+            answers.put("a provider call per sign-in", String.valueOf(providerCalls() == signIns));
+            return answers;
+        }
+
+        private static String attempt(Callable<String> step) {
+            try {
+                return step.call();
+            } catch (Throwable failed) {
+                return "failed: " + failed.getClass().getSimpleName() + " " + failed.getMessage();
+            }
+        }
+
+        /** The user store the code service of the running application reads. */
+        @SuppressWarnings("unchecked")
+        Object codeServiceStore() {
+            Object service = context.getBean("contexaOneTimeTokenService", ContexaOneTimeTokens.class).service();
+            return ((Supplier<Object>) ReflectionTestUtils.getField(service, "userStore")).get();
         }
 
         /** Contexa's administrator, then the names of the application's store. */
@@ -506,11 +539,14 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
     @EnableAISecurity(mode = SecurityMode.FULL)
-    static class OneStoreAndOneProvider extends OneApplicationStore {
+    static class NoStoreAndOneProvider extends ModelsAndMail {
 
+        /** A provider of the application's over a store that is no bean of the application's. */
         @Bean
         AuthenticationProvider providerA() {
-            DaoAuthenticationProvider provider = new DaoAuthenticationProvider(usersA());
+            DaoAuthenticationProvider provider = new DaoAuthenticationProvider(new InMemoryUserDetailsManager(
+                    User.withUsername("alice").password(PasswordEncoderFactories.createDelegatingPasswordEncoder()
+                            .encode("alice-pw-1")).roles("USER").build()));
             provider.setPasswordEncoder(PasswordEncoderFactories.createDelegatingPasswordEncoder());
             return provider;
         }
@@ -519,11 +555,30 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
     @EnableAISecurity(mode = SecurityMode.FULL)
-    static class FormSignInWithoutStores extends ModelsAndMail {
+    static class TwoStoresOfItsOwn extends TwoApplicationStores {
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @EnableAutoConfiguration
+    @EnableAISecurity(mode = SecurityMode.FULL)
+    static class FormSignInWithOneStore extends OneApplicationStore {
 
         @Bean
         PlatformConfig platformConfig(ApplicationContext applicationContext) throws Exception {
             return formSignIn(applicationContext);
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @EnableAutoConfiguration
+    @EnableAISecurity(mode = SecurityMode.FULL)
+    static class OneStoreAndOneProvider extends OneApplicationStore {
+
+        @Bean
+        AuthenticationProvider providerA() {
+            DaoAuthenticationProvider provider = new DaoAuthenticationProvider(usersA());
+            provider.setPasswordEncoder(PasswordEncoderFactories.createDelegatingPasswordEncoder());
+            return provider;
         }
     }
 
@@ -558,8 +613,8 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
         }
     }
 
-    /** Two of everything a sign-in is made of, as the grid's application has them. */
-    abstract static class ApplicationStores extends OneApplicationStore {
+    /** Two stores of the application's, neither marked primary. */
+    abstract static class TwoApplicationStores extends OneApplicationStore {
 
         @Bean
         UserDetailsService usersB() {
@@ -567,6 +622,10 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
             return new InMemoryUserDetailsManager(
                     User.withUsername("bob").password(encoder.encode("bob-pw-1")).roles("USER").build());
         }
+    }
+
+    /** Two of everything a sign-in is made of, as the grid's application has them. */
+    abstract static class ApplicationStores extends TwoApplicationStores {
 
         @Bean
         PasswordEncoder encoderA() {

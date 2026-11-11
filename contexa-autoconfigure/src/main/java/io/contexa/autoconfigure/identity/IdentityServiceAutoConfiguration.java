@@ -99,7 +99,7 @@ public class IdentityServiceAutoConfiguration {
                 authContextProperties,
                 authContextProperties.getOtt().isFailOnEmailError(),
                 stepUpOptionsStore.getIfAvailable(InMemoryStepUpOptionsStore::new));
-        service.setUserStore(() -> ContexaUserStore.of(beanFactory));
+        service.setUserStore(() -> ContexaUserStore.forSignIn(beanFactory));
         return new ContexaOneTimeTokens(service);
     }
 

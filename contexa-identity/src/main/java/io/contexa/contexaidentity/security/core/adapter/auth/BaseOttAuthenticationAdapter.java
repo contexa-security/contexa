@@ -64,7 +64,7 @@ public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticatio
         String loginProcessingUrl = opts.getLoginProcessingUrl();
         PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
         ApplicationContext appContext = platformContext.applicationContext();
-        UserDetailsService userDetailsService = ContexaUserStore.of(appContext);
+        UserDetailsService userDetailsService = ContexaUserStore.forSignIn(appContext);
         OneTimeTokenService oneTimeTokenService = appContext.getBean(ContexaOneTimeTokens.BEAN_NAME, ContexaOneTimeTokens.class).service();
 
         http.addFilterBefore(new OneTimeTokenAddressRefusalFilter(appContext.getBean(AuthResponseWriter.class),

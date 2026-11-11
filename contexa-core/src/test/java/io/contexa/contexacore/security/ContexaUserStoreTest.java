@@ -53,6 +53,28 @@ class ContexaUserStoreTest {
         runner.withUserConfiguration(OneStore.class, PrimaryStore.class).run(context -> assertThat(ContexaUserStore.of(context)).isSameAs(TWO));
     }
 
+    /** Where Contexa owns the sign-in its accounts sign in from its own store, whatever stores the application declares. */
+    @Test
+    void contexasSignInReadsContexasStoreWhateverTheApplicationDeclares() {
+        runner.run(context -> assertThat(ContexaUserStore.forSignIn(context)).isSameAs(CONTEXA));
+        runner.withUserConfiguration(OneStore.class)
+                .run(context -> assertThat(ContexaUserStore.forSignIn(context)).isSameAs(CONTEXA));
+        runner.withUserConfiguration(OneStore.class, AnotherStore.class)
+                .run(context -> assertThat(ContexaUserStore.forSignIn(context)).isSameAs(CONTEXA));
+        runner.withUserConfiguration(OneStore.class, PrimaryStore.class)
+                .run(context -> assertThat(ContexaUserStore.forSignIn(context)).isSameAs(CONTEXA));
+    }
+
+    /** Where the application keeps its sign-in Contexa has no store of its own to prefer, and what it asks is asked as before. */
+    @Test
+    void whereContexaDoesNotOwnTheSignInTheApplicationsStoreServesAsBefore() {
+        ApplicationContextRunner application = new ApplicationContextRunner();
+        application.withUserConfiguration(OneStore.class)
+                .run(context -> assertThat(ContexaUserStore.forSignIn(context)).isSameAs(ONE));
+        application.withUserConfiguration(OneStore.class, PrimaryStore.class)
+                .run(context -> assertThat(ContexaUserStore.forSignIn(context)).isSameAs(TWO));
+    }
+
     /** A token of the sign-in names one of Contexa's accounts only while Contexa's store is the one that signs the users in. */
     @Test
     void contexasAccountsSignInOnlyWhileItsStoreServesTheSignIn() {
