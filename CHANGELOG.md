@@ -879,6 +879,9 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Changed
 
+- **Contexa's JPA settles its PostgreSQL dialect without reaching its database, so the start logs no `HHH90000025`.** The
+  dialect then targets PostgreSQL 12.0, the oldest Hibernate supports, not the version the database reports; a configured
+  dialect or a Hibernate schema tool (`contexa.jpa.hibernate.ddl-auto` other than `none`) keeps the former reading.
 - **A request without a user id writes its `userId missing - skipping ...` ERROR once and then at most every five minutes**,
   with the number of skips in between (`similarSinceLastReport`); its RAG search is still skipped every time.
 - **The action in force of a user is read in one script instead of three round trips.** A protected request asks for it seven times,
