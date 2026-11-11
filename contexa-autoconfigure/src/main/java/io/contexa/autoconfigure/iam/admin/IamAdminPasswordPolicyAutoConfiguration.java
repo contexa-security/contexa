@@ -112,9 +112,11 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     public SystemSettingsService systemSettingsService(
             SystemSettingsRepository systemSettingsRepository,
             RoleRepository roleRepository,
-            ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider) {
+            ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider,
+            ObjectProvider<PolicyCombiningProperties> policyCombiningPropertiesProvider) {
         SystemSettingsService service = new SystemSettingsService(systemSettingsRepository, roleRepository);
         zeroTrustPropertiesProvider.ifAvailable(service::setZeroTrustProperties);
+        policyCombiningPropertiesProvider.ifAvailable(service::setPolicyCombiningProperties);
         return service;
     }
 

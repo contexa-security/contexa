@@ -33,9 +33,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The decision for URLs no policy names, as a real PostgreSQL database keeps it: a new installation starts with
- * AUTHENTICATED, and an installation that already stored a decision keeps it through the start of a newer version.
- * Each case has a database of its own: nothing another test left in a shared schema is on its search path.
+ * The decision for URLs no policy names, as a real PostgreSQL database keeps it: a new installation holds none until an
+ * operator saves one (the column is NULL, so the configured decision or the signed-in default applies), and an
+ * installation that already stored a decision keeps it through the start of a newer version, whether an operator chose it
+ * or the column default of an older version put it there. The column loses its default and its NOT NULL constraint on the
+ * way. Each case has a database of its own: nothing another test left in a shared schema is on its search path.
  */
 @EnabledIfEnvironmentVariable(named = "CONTEXA_TEST_UPGRADE_DB_URL", matches = ".+")
 class NoMatchingUrlDecisionSeedPostgresTest {
@@ -69,36 +71,85 @@ class NoMatchingUrlDecisionSeedPostgresTest {
     }
 
     @Test
-    void aNewInstallationRequiresASignInForUrlsNoPolicyNames() throws Exception {
+    void aNewInstallationHoldsNoDecisionSoTheSignedInDefaultApplies() throws Exception {
         DataSource fresh = newDatabase();
         install(fresh, schemaText());
         seedSettings(fresh);
 
         JdbcTemplate jdbc = new JdbcTemplate(fresh);
         assertThat(jdbc.queryForObject("select no_matching_url_policy_decision from ctxa_system_settings", String.class))
-                .isEqualTo("AUTHENTICATED");
+                .as("nobody chose a decision").isNull();
         assertThat(jdbc.queryForObject("select missing_method_policy_decision from ctxa_system_settings", String.class))
                 .isEqualTo("PERMIT");
+        assertThat(urlDecisionColumn(jdbc)).isEqualTo("YES none");
     }
 
     /** Installed while PERMIT was the default (the seed row took it from the column), then started with this version. */
     @Test
     void anInstallationThatStoredPermitKeepsItThroughTheNextStart() throws Exception {
-        String present = "no_matching_url_policy_decision varchar(20) default 'AUTHENTICATED' not null";
-        assertThat(schemaText()).contains(present);
-        DataSource installed = newDatabase();
-        install(installed, schemaText().replace(present, "no_matching_url_policy_decision varchar(20) default 'PERMIT' not null"));
-        seedSettings(installed);
+        DataSource installed = installedWithColumnDefault("PERMIT");
         JdbcTemplate jdbc = new JdbcTemplate(installed);
         assertThat(jdbc.queryForObject("select no_matching_url_policy_decision from ctxa_system_settings", String.class))
                 .isEqualTo("PERMIT");
+        assertThat(urlDecisionColumn(jdbc)).as("as the older version made it").isEqualTo("NO default");
 
         IamSeedDataAutoConfiguration.applyCanonicalSchemaMaintenance(installed, new OssSchemaMaintenanceBacklog(installed), false);
         seedSettings(installed);
 
         assertThat(jdbc.queryForObject("select no_matching_url_policy_decision from ctxa_system_settings", String.class))
-                .isEqualTo("PERMIT");
+                .as("nothing is changed without a choice").isEqualTo("PERMIT");
         assertThat(jdbc.queryForObject("select count(*) from ctxa_system_settings", Integer.class)).isEqualTo(1);
+        assertThat(urlDecisionColumn(jdbc)).as("the column no longer decides for a row that is written without it")
+                .isEqualTo("YES none");
+    }
+
+    /** Installed by the version whose column default was AUTHENTICATED, then started with this version. */
+    @Test
+    void anInstallationThatStoredAuthenticatedKeepsItThroughTheNextStart() throws Exception {
+        DataSource installed = installedWithColumnDefault("AUTHENTICATED");
+        JdbcTemplate jdbc = new JdbcTemplate(installed);
+        assertThat(jdbc.queryForObject("select no_matching_url_policy_decision from ctxa_system_settings", String.class))
+                .isEqualTo("AUTHENTICATED");
+
+        IamSeedDataAutoConfiguration.applyCanonicalSchemaMaintenance(installed, new OssSchemaMaintenanceBacklog(installed), false);
+        seedSettings(installed);
+
+        assertThat(jdbc.queryForObject("select no_matching_url_policy_decision from ctxa_system_settings", String.class))
+                .isEqualTo("AUTHENTICATED");
+        assertThat(urlDecisionColumn(jdbc)).isEqualTo("YES none");
+    }
+
+    /** The upgrade is idempotent: a start after the column was changed neither fails nor writes a decision. */
+    @Test
+    void theColumnChangeCanBeReplayedAndNeverFillsARowThatHoldsNone() throws Exception {
+        DataSource fresh = newDatabase();
+        install(fresh, schemaText());
+        seedSettings(fresh);
+        for (int start = 0; start < 3; start++) {
+            IamSeedDataAutoConfiguration.applyCanonicalSchemaMaintenance(fresh, new OssSchemaMaintenanceBacklog(fresh), false);
+            seedSettings(fresh);
+        }
+
+        JdbcTemplate jdbc = new JdbcTemplate(fresh);
+        assertThat(jdbc.queryForObject("select no_matching_url_policy_decision from ctxa_system_settings", String.class)).isNull();
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_system_settings", Integer.class)).isEqualTo(1);
+        assertThat(urlDecisionColumn(jdbc)).isEqualTo("YES none");
+    }
+
+    /** A database that never had the column gains it unset: the row an older version wrote holds no decision. */
+    @Test
+    void aDatabaseOfAVersionWithoutTheColumnGainsItUnset() throws Exception {
+        DataSource installed = installedWithoutTheColumn();
+        JdbcTemplate jdbc = new JdbcTemplate(installed);
+        assertThat(jdbc.queryForObject("select count(*) from information_schema.columns where table_schema = current_schema() "
+                + "and table_name = 'ctxa_system_settings' and column_name = 'no_matching_url_policy_decision'", Integer.class))
+                .isZero();
+
+        IamSeedDataAutoConfiguration.applyCanonicalSchemaMaintenance(installed, new OssSchemaMaintenanceBacklog(installed), false);
+        seedSettings(installed);
+
+        assertThat(jdbc.queryForObject("select no_matching_url_policy_decision from ctxa_system_settings", String.class)).isNull();
+        assertThat(urlDecisionColumn(jdbc)).isEqualTo("YES none");
     }
 
     /** A database of the names before ctxa_, with the settings row of that time, moved and started with this version. */
@@ -119,6 +170,35 @@ class NoMatchingUrlDecisionSeedPostgresTest {
 
         assertThat(jdbc.queryForObject("select no_matching_url_policy_decision from ctxa_system_settings", String.class))
                 .isEqualTo("PERMIT");
+        assertThat(urlDecisionColumn(jdbc)).isEqualTo("YES none");
+    }
+
+    /** The schema as an older version installed it: the column with a default and NOT NULL, the seed row taking the default. */
+    private DataSource installedWithColumnDefault(String columnDefault) throws Exception {
+        String schema = schemaText();
+        String unset = "(?m)^alter table ctxa_system_settings .*no_matching_url_policy_decision.*;\\s*$";
+        assertThat(schema).containsPattern(unset);
+        DataSource installed = newDatabase();
+        install(installed, schema.replaceAll(unset, "") + "\nalter table ctxa_system_settings add column if not exists "
+                + "no_matching_url_policy_decision varchar(20) default '" + columnDefault + "' not null;\n");
+        seedSettings(installed);
+        return installed;
+    }
+
+    /** The schema of a version that had no such column, with the row its seed wrote. */
+    private DataSource installedWithoutTheColumn() throws Exception {
+        String unset = "(?m)^alter table ctxa_system_settings .*no_matching_url_policy_decision.*;\\s*$";
+        DataSource installed = newDatabase();
+        install(installed, schemaText().replaceAll(unset, ""));
+        seedSettings(installed);
+        return installed;
+    }
+
+    /** Whether the column takes NULL and what it defaults to, as the catalog says. */
+    private static String urlDecisionColumn(JdbcTemplate jdbc) {
+        return jdbc.queryForObject("select is_nullable || ' ' || case when column_default is null then 'none' else 'default' end "
+                + "from information_schema.columns where table_schema = current_schema() and table_name = 'ctxa_system_settings' "
+                + "and column_name = 'no_matching_url_policy_decision'", String.class);
     }
 
     private static String schemaText() throws Exception {

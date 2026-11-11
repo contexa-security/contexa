@@ -23,6 +23,9 @@ import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 import java.util.Optional;
@@ -82,15 +85,48 @@ class SystemRuntimeSettingsServiceTest {
     }
 
     @Test
-    @DisplayName("should default new settings rows to a sign-in for URLs without a policy and PERMIT for methods")
-    void defaultsNeedASignInForUrlsAndPermitMethods() {
+    @DisplayName("should leave the decision for URLs without a policy unset on new settings rows and PERMIT for methods")
+    void newRowsLeaveTheUrlDecisionUnsetAndPermitMethods() {
         SystemSettings defaults = SystemRuntimeSettingsService.defaultSettings();
 
-        assertThat(defaults.getNoMatchingUrlPolicyDecision()).isEqualTo("AUTHENTICATED");
+        assertThat(defaults.getNoMatchingUrlPolicyDecision()).as("not chosen by anyone").isNull();
         assertThat(defaults.getMissingMethodPolicyDecision()).isEqualTo("PERMIT");
         assertThat(defaults.getPolicyCombiningAlgorithm()).isEqualTo("FIRST_APPLICABLE");
-        assertThat(SystemSettings.builder().build().getNoMatchingUrlPolicyDecision()).isEqualTo("AUTHENTICATED");
-        assertThat(new SystemSettings().getNoMatchingUrlPolicyDecision()).isEqualTo("AUTHENTICATED");
+        assertThat(SystemSettings.builder().build().getNoMatchingUrlPolicyDecision()).isNull();
+        assertThat(new SystemSettings().getNoMatchingUrlPolicyDecision()).isNull();
+        assertThat(SystemRuntimeSettingsService.DEFAULT_NO_MATCHING_URL_POLICY_DECISION)
+                .as("what applies while nothing is chosen").isEqualTo(NoPolicyDecision.AUTHENTICATED);
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"", "   "})
+    @DisplayName("should read an unset URL decision as not chosen, never as PERMIT")
+    void anUnsetUrlDecisionIsNotChosen(String stored) {
+        SystemSettingsRepository repository = mock(SystemSettingsRepository.class);
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder()
+                .policyCombiningAlgorithm("DENY_OVERRIDES")
+                .noMatchingUrlPolicyDecision(stored)
+                .missingMethodPolicyDecision("DENY")
+                .build()));
+
+        Optional<PolicyDecisionSettings> settings =
+                new SystemRuntimeSettingsService(repository).findPolicyDecisionSettings();
+
+        assertThat(settings).contains(new PolicyDecisionSettings(
+                CombiningAlgorithm.DENY_OVERRIDES, null, NoPolicyDecision.DENY));
+    }
+
+    @Test
+    @DisplayName("should still refuse a stored URL decision that is no decision")
+    void aStoredUrlDecisionThatIsNoDecisionIsRefused() {
+        SystemSettingsRepository repository = mock(SystemSettingsRepository.class);
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder()
+                .noMatchingUrlPolicyDecision("SOMETIMES").build()));
+
+        assertThatThrownBy(() -> new SystemRuntimeSettingsService(repository).findPolicyDecisionSettings())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("noMatchingUrlPolicyDecision");
     }
 
     @Test

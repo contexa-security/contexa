@@ -114,6 +114,30 @@ class OwnershipStartupDiagnosticsTest {
         assertThat(OwnershipStartupDiagnostics.oneTimeCodeUndeliverable(false, false)).isFalse();
     }
 
+    @Test
+    @DisplayName("a stored PERMIT for URLs no policy names is reported where Contexa owns the sign-in, and only there")
+    void aStoredPermitIsReportedUnderContexaOwnership() {
+        ContexaOperatingProfile full = new ContexaOperatingProfile(SecurityMode.FULL, SecurityOwnershipMode.CONTEXA_OWNED, true, false);
+        ContexaOperatingProfile sandbox = new ContexaOperatingProfile(SecurityMode.SANDBOX, SecurityOwnershipMode.HOST_OWNED, false, false);
+
+        assertThat(OwnershipStartupDiagnostics.openUnnamedPathsNotice(full, "PERMIT"))
+                .startsWith("[Contexa] CONTEXA_OWNED: the stored decision for URLs no policy names is PERMIT")
+                .contains("an upgrade does not change it", "Decision when no URL policy applies");
+        assertThat(OwnershipStartupDiagnostics.openUnnamedPathsNotice(full, " PERMIT ")).isNotNull();
+        assertThat(OwnershipStartupDiagnostics.openUnnamedPathsNotice(sandbox, "PERMIT"))
+                .as("the application's own chain decides there, so the decision is of no consequence").isNull();
+    }
+
+    @Test
+    @DisplayName("nothing is reported for a decision that closes the paths, for none saved or for a value of no meaning")
+    void nothingIsReportedForAnythingButPermit() {
+        ContexaOperatingProfile full = new ContexaOperatingProfile(SecurityMode.FULL, SecurityOwnershipMode.CONTEXA_OWNED, true, false);
+
+        for (String stored : new String[]{null, "", "AUTHENTICATED", "DENY", "permit"}) {
+            assertThat(OwnershipStartupDiagnostics.openUnnamedPathsNotice(full, stored)).as("stored %s", stored).isNull();
+        }
+    }
+
     /** Boot runs a WebFlux application on the servlet stack Contexa brings, and its functional routes then answer 404. */
     @Test
     void anApplicationWithWebFluxRoutesIsToldInsteadOfAnswering404() {

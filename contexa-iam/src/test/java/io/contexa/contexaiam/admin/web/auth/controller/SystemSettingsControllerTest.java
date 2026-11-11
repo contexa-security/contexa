@@ -165,6 +165,51 @@ class SystemSettingsControllerTest {
             assertThat(form.getSecurityZeroTrustMode()).isEqualTo("SHADOW");
         }
 
+        @Test
+        @DisplayName("should show the URL decision in effect when no decision is stored")
+        void showsTheUrlDecisionInEffectWhenNotStored() {
+            when(systemSettingsService.getSettings()).thenReturn(SystemSettings.builder()
+                    .noMatchingUrlPolicyDecision(null)
+                    .build());
+            when(systemSettingsService.getDefaultRoleOptions()).thenReturn(List.of());
+            when(policyCombiningProperties.getNoMatchingUrlPolicyDecision()).thenReturn(NoPolicyDecision.PERMIT);
+
+            Model model = new ConcurrentModel();
+            controller.showSettings(model);
+
+            SystemSettingsForm form = (SystemSettingsForm) model.getAttribute("settings");
+            assertThat(form.getNoMatchingUrlPolicyDecision()).isEqualTo("PERMIT");
+        }
+
+        @Test
+        @DisplayName("should show the signed-in default when nothing is stored and nothing says otherwise")
+        void showsTheCodeDefaultWhenNothingIsKnown() {
+            when(systemSettingsService.getSettings()).thenReturn(SystemSettings.builder().build());
+            when(systemSettingsService.getDefaultRoleOptions()).thenReturn(List.of());
+
+            Model model = new ConcurrentModel();
+            controller.showSettings(model);
+
+            SystemSettingsForm form = (SystemSettingsForm) model.getAttribute("settings");
+            assertThat(form.getNoMatchingUrlPolicyDecision()).isEqualTo("AUTHENTICATED");
+        }
+
+        @Test
+        @DisplayName("should show the stored URL decision before the one in effect")
+        void showsTheStoredUrlDecision() {
+            when(systemSettingsService.getSettings()).thenReturn(SystemSettings.builder()
+                    .noMatchingUrlPolicyDecision("DENY")
+                    .build());
+            when(systemSettingsService.getDefaultRoleOptions()).thenReturn(List.of());
+            when(policyCombiningProperties.getNoMatchingUrlPolicyDecision()).thenReturn(NoPolicyDecision.PERMIT);
+
+            Model model = new ConcurrentModel();
+            controller.showSettings(model);
+
+            SystemSettingsForm form = (SystemSettingsForm) model.getAttribute("settings");
+            assertThat(form.getNoMatchingUrlPolicyDecision()).isEqualTo("DENY");
+        }
+
         private SecurityZeroTrustProperties zeroTrustProperties(SecurityZeroTrustProperties.EnforcementMode mode) {
             SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
             properties.setMode(mode);
@@ -233,6 +278,25 @@ class SystemSettingsControllerTest {
             assertThat(properties.getMissingMethodPolicyDecision()).isEqualTo(NoPolicyDecision.DENY);
             verify(authorizationManager).setCombiningAlgorithm(CombiningAlgorithm.PERMIT_OVERRIDES);
             verify(authorizationManager).setNoMatchingUrlPolicyDecision(NoPolicyDecision.DENY);
+            verify(authorizationManager).reload();
+        }
+
+        @Test
+        @DisplayName("should keep the configured URL decision when the form names none and no applier is registered")
+        void aFormWithoutAUrlDecisionKeepsTheConfiguredOneWithoutRuntimeApplier() {
+            PolicyCombiningProperties properties = new PolicyCombiningProperties();
+            properties.setNoMatchingUrlPolicyDecision(NoPolicyDecision.PERMIT);
+            SystemSettingsController fallbackController = new SystemSettingsController(systemSettingsService,
+                    properties, messageSource, authorizationManager, null);
+            SystemSettingsForm form = new SystemSettingsForm();
+            form.setNoMatchingUrlPolicyDecision("");
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+
+            fallbackController.updateSettings(form, ra);
+
+            assertThat(ra.getFlashAttributes()).as("the save is no failure").doesNotContainKey("errorMessage");
+            assertThat(properties.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.PERMIT);
+            verify(authorizationManager, never()).setNoMatchingUrlPolicyDecision(any());
             verify(authorizationManager).reload();
         }
 

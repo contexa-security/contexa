@@ -51,6 +51,8 @@ import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authorization.AuthorizationDecision;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -233,6 +235,58 @@ class SystemSettingsRuntimeApplierTest {
 
         assertThat(properties.getCombiningAlgorithm()).isEqualTo(CombiningAlgorithm.DENY_OVERRIDES);
         assertThat(properties.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.DENY);
+    }
+
+    @Test
+    @DisplayName("A URL decision nobody chose leaves the configured decision in effect, on both enforcement points")
+    void anUnsetUrlDecisionKeepsTheConfiguredOne() {
+        properties.setNoMatchingUrlPolicyDecision(NoPolicyDecision.PERMIT);
+        urlManager.setNoMatchingUrlPolicyDecision(NoPolicyDecision.PERMIT);
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder()
+                .policyCombiningAlgorithm("DENY_OVERRIDES")
+                .noMatchingUrlPolicyDecision(null)
+                .missingMethodPolicyDecision("DENY")
+                .build()));
+
+        applier.apply();
+
+        assertThat(properties.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.PERMIT);
+        assertThat(urlManager.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.PERMIT);
+        assertThat(properties.getCombiningAlgorithm()).as("the rest of the row still applies")
+                .isEqualTo(CombiningAlgorithm.DENY_OVERRIDES);
+        assertThat(urlManager.getCombiningAlgorithm()).isEqualTo(CombiningAlgorithm.DENY_OVERRIDES);
+        assertThat(properties.getMissingMethodPolicyDecision()).isEqualTo(NoPolicyDecision.DENY);
+    }
+
+    @Test
+    @DisplayName("A URL decision nobody chose is the default that closes the paths, not an open one")
+    void anUnsetUrlDecisionIsAuthenticatedByDefault() {
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder().noMatchingUrlPolicyDecision(null).build()));
+
+        applier.afterSingletonsInstantiated();
+
+        assertThat(properties.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.AUTHENTICATED);
+        assertThat(urlManager.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.AUTHENTICATED);
+        Authentication nobody = new AnonymousAuthenticationToken("key", "anonymousUser",
+                AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"));
+        AuthorizationDecision anonymous = urlManager.check(() -> nobody,
+                new RequestAuthorizationContext(new MockHttpServletRequest("GET", "/api/reports")));
+        assertThat(anonymous.isGranted()).isFalse();
+        assertThat(urlGranted()).as("a signed-in user passes").isTrue();
+    }
+
+    @Test
+    @DisplayName("A URL decision an operator stored wins over the configured one")
+    void aStoredUrlDecisionWinsOverTheConfiguredOne() {
+        properties.setNoMatchingUrlPolicyDecision(NoPolicyDecision.PERMIT);
+        urlManager.setNoMatchingUrlPolicyDecision(NoPolicyDecision.PERMIT);
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder()
+                .noMatchingUrlPolicyDecision("AUTHENTICATED").build()));
+
+        applier.apply();
+
+        assertThat(properties.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.AUTHENTICATED);
+        assertThat(urlManager.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.AUTHENTICATED);
     }
 
     @Test

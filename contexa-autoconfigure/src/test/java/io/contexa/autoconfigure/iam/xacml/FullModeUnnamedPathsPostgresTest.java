@@ -134,8 +134,6 @@ class FullModeUnnamedPathsPostgresTest {
 
     @Test
     void aNewInstallationStartsWithSignInRequiredForPathsNoPolicyNames() {
-        assertThat(jdbc.queryForObject("select no_matching_url_policy_decision from ctxa_system_settings", String.class))
-                .isEqualTo("AUTHENTICATED");
         assertThat(jdbc.queryForObject("select missing_method_policy_decision from ctxa_system_settings", String.class))
                 .as("the decision for methods without a policy is not touched").isEqualTo("PERMIT");
         assertThat(manager().getNoMatchingUrlPolicyDecision().name()).isEqualTo("AUTHENTICATED");
@@ -233,12 +231,17 @@ class FullModeUnnamedPathsPostgresTest {
      */
     @Test
     void theSystemSettingsScreenChoosesTheDecision() throws Exception {
+        jdbc.update("update ctxa_system_settings set no_matching_url_policy_decision = null");
         Browser administrator = signIn(ADMIN, ADMIN_PASSWORD);
         HttpResponse<String> screen = administrator.get("/contexa/admin/system-settings", "text/html");
         assertThat(screen.statusCode()).isEqualTo(200);
         String urlSelect = select(screen.body(), "noMatchingUrlPolicyDecision");
         assertThat(urlSelect).contains("value=\"PERMIT\"", "value=\"DENY\"", "value=\"AUTHENTICATED\"")
+                .as("while nobody chose a decision the screen shows the one in effect")
                 .containsPattern("value=\"AUTHENTICATED\"\\s+selected");
+        assertThat(save(administrator, "AUTHENTICATED", "PERMIT").statusCode()).isEqualTo(302);
+        assertThat(jdbc.queryForObject("select no_matching_url_policy_decision from ctxa_system_settings", String.class))
+                .as("a save that sends back the decision in effect chooses nothing").isNull();
         assertThat(urlSelect).doesNotContain("??");
         String methodSelect = select(screen.body(), "missingMethodPolicyDecision");
         assertThat(methodSelect).contains("value=\"PERMIT\"", "value=\"DENY\"").doesNotContain("AUTHENTICATED");

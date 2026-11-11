@@ -1444,8 +1444,13 @@ alter table ctxa_system_settings add column if not exists security_zerotrust_mod
 alter table ctxa_system_settings alter column security_zerotrust_mode drop not null;
 alter table ctxa_system_settings alter column security_zerotrust_mode drop default;
 alter table ctxa_system_settings add column if not exists mvc_resource_scanner_base_packages text default 'io.contexa.contexaiam.' not null;
--- A URL no policy names needs a signed-in user on a new installation; a database that has the column keeps its value.
-alter table ctxa_system_settings add column if not exists no_matching_url_policy_decision varchar(20) default 'AUTHENTICATED' not null;
+-- no_matching_url_policy_decision stays NULL until an operator saves a decision, so contexa.policy.no-matching-url-policy-decision
+-- applies (a URL no policy names needs a signed-in user without it). Older databases created the column with a PERMIT or
+-- AUTHENTICATED default and a NOT NULL constraint; schema maintenance replays the two ALTER COLUMN statements and removes
+-- both. Stored values are kept: whether one was chosen cannot be told, so none is changed.
+alter table ctxa_system_settings add column if not exists no_matching_url_policy_decision varchar(20);
+alter table ctxa_system_settings alter column no_matching_url_policy_decision drop not null;
+alter table ctxa_system_settings alter column no_matching_url_policy_decision drop default;
 alter table ctxa_system_settings add column if not exists missing_method_policy_decision varchar(20) default 'PERMIT' not null;
 
 -- docs/agent A3-3 (R-01): the tenant of a blocked request, so that an administrator's release learns within it.
