@@ -19,6 +19,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnTransformer;
 
 @Entity
 @Table(name = "CTXA_POLICY_TEMPLATE")
@@ -43,5 +44,6 @@ public class PolicyTemplate {
     private String category; 
 
     @Column(nullable = false, name = "policy_draft_json", columnDefinition = "jsonb")
+    @ColumnTransformer(write = "cast(? as jsonb)")
     private String policyDraftJson;
 }

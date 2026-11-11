@@ -18,6 +18,7 @@ package io.contexa.contexacommon.entity.behavior;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnTransformer;
 
 import java.time.LocalDateTime;
 
@@ -47,12 +48,15 @@ public class UserBehaviorProfile {
     private Integer clusterSize = 0;
 
     @Column(name = "normal_range_metadata", columnDefinition = "JSON")
+    @ColumnTransformer(write = "cast(? as json)")
     private String normalRangeMetadata;
 
     @Column(name = "common_activities", columnDefinition = "JSON")
+    @ColumnTransformer(write = "cast(? as json)")
     private String commonActivities;
 
     @Column(name = "common_ip_ranges", columnDefinition = "JSON")
+    @ColumnTransformer(write = "cast(? as json)")
     private String commonIpRanges;
 
     @Column(name = "last_updated")

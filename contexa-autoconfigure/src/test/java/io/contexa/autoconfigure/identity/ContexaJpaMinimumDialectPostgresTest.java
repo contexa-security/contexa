@@ -268,9 +268,6 @@ class ContexaJpaMinimumDialectPostgresTest {
             IamSeedDataAutoConfiguration.executeSchemaSql(withAnotherSchema.dataSource(), SCHEMA,
                     IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(
                             new ClassPathResource(SCHEMA).getContentAsString(StandardCharsets.UTF_8)));
-            // the canonical schema lacks this column that the entity maps, which validation would stop at first
-            withAnotherSchema.jdbcTemplate().execute(
-                    "alter table ctxa_security_decision_forwarding_outbox add column version bigint not null default 0");
             // another schema of the same database holds a table of the same name whose column has another type
             withAnotherSchema.jdbcTemplate().execute("create schema zz_contexa_copy");
             withAnotherSchema.jdbcTemplate().execute(
@@ -513,7 +510,7 @@ class ContexaJpaMinimumDialectPostgresTest {
         }
     }
 
-    private static List<Method> exercisedMethods(Class<?> repositoryType) {
+    static List<Method> exercisedMethods(Class<?> repositoryType) {
         Map<String, Method> methods = new TreeMap<>();
         for (Method method : repositoryType.getMethods()) {
             if (method.isBridge() || method.isSynthetic() || Modifier.isStatic(method.getModifiers())) {
@@ -540,7 +537,7 @@ class ContexaJpaMinimumDialectPostgresTest {
         };
     }
 
-    private static Object[] arguments(Method method, RepositoryMetadata metadata, Set<Class<?>> entityTypes) {
+    static Object[] arguments(Method method, RepositoryMetadata metadata, Set<Class<?>> entityTypes) {
         Class<?>[] types = method.getParameterTypes();
         Type[] genericTypes = method.getGenericParameterTypes();
         Object[] arguments = new Object[types.length];
