@@ -90,8 +90,8 @@ class ContexaApplicationTopicsBrokerTest {
 
     static final String PORT = "CONTEXA_TEST_KAFKA_PORT";
     private static final Duration WAIT = Duration.ofSeconds(60);
-    /** The topics Contexa makes at start: three of declared events, the dead letters, and ten more. */
-    private static final int TOPICS_MADE = 14;
+    /** The topics Contexa makes at start: the three of declared events and the dead letters, which are all it uses. */
+    private static final int TOPICS_MADE = 4;
 
     @Configuration(proxyBeanMethods = false)
     @EnableConfigurationProperties(SecurityKafkaProperties.class)
@@ -213,6 +213,12 @@ class ContexaApplicationTopicsBrokerTest {
         }
     }
 
+    /** The topics an application of this prefix makes at start: those of its declared events, and its dead letters. */
+    private static List<String> topicsMadeBy(String prefix) {
+        return List.of(prefix + "security.events.authentication.success", prefix + "security.events.authentication.mfa",
+                prefix + "security.events.authorization.method", prefix + "security-events-dlq");
+    }
+
     private static String eventTopicOf(String name, ZeroTrustEventCategory category, String type) {
         try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using(name)) {
             return SecurityEventTopics.of(category, type);
@@ -272,12 +278,7 @@ class ContexaApplicationTopicsBrokerTest {
             Set<String> made = new TreeSet<>(topicsOnTheBroker());
             made.removeAll(before);
             assertThat(made).as("the topics the first application made").hasSize(TOPICS_MADE)
-                    .allMatch(topic -> topic.startsWith(clinicPrefix))
-                    .contains(clinicPrefix + "security.events.authentication.success",
-                            clinicPrefix + "security.events.authentication.mfa",
-                            clinicPrefix + "security.events.authorization.method",
-                            clinicPrefix + "security-events-dlq", clinicPrefix + "network-events",
-                            clinicPrefix + "threat-indicators", clinicPrefix + "security-events");
+                    .containsExactlyInAnyOrderElementsOf(topicsMadeBy(clinicPrefix));
             assertThat(live.assignedTopics()).allMatch(topic -> topic.startsWith(clinicPrefix + "security.events."));
 
             live.publish(ZeroTrustEventCategory.AUTHENTICATION, ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS, "clinic-a1");
@@ -292,7 +293,7 @@ class ContexaApplicationTopicsBrokerTest {
             Set<String> made = new TreeSet<>(topicsOnTheBroker());
             made.removeAll(beforeShop);
             assertThat(made).as("the topics the second application made").hasSize(TOPICS_MADE)
-                    .allMatch(topic -> topic.startsWith(shopPrefix));
+                    .containsExactlyInAnyOrderElementsOf(topicsMadeBy(shopPrefix));
             Set<String> shopTopics = live.assignedTopics();
             assertThat(shopTopics).isNotEmpty().allMatch(topic -> topic.startsWith(shopPrefix + "security.events."));
 
@@ -450,5 +451,49 @@ class ContexaApplicationTopicsBrokerTest {
                 assertThat(read).isNotEmpty().allSatisfy(record -> assertThat(record.value()).contains("not an event"));
             }
         });
+    }
+
+    @Test
+    @DisplayName("a topic nothing writes to or reads is not made, whether it has the default name or one the operator set")
+    void aTopicNothingUsesIsNotMade() throws Exception {
+        String lean = "lean-" + run;
+        String prefix = "ctxa.lean-" + run + ".";
+        List<String> unused = List.of("auth-events-critical", "auth-events-contextual", "auth-events-general",
+                "security-authorization-events", "security-incident-events", "security-audit-events", "security-events",
+                "threat-indicators", "network-events", "soar-action-events");
+        List<String> named = List.of("ops-authorization-" + run, "ops-authentication-" + run, "ops-incident-" + run,
+                "ops-threat-" + run, "ops-audit-" + run, "ops-general-" + run, "ops-soar-" + run);
+        String deadLetters = "ops-dead-letters-" + run;
+
+        Set<String> before = topicsOnTheBroker();
+        running(application(lean, "contexa.security.kafka.topic.dlq=" + deadLetters,
+                "contexa.security.kafka.topic.authorization=" + named.get(0),
+                "contexa.security.kafka.topic.authentication=" + named.get(1),
+                "contexa.security.kafka.topic.incident=" + named.get(2),
+                "contexa.security.kafka.topic.threat=" + named.get(3),
+                "contexa.security.kafka.topic.audit=" + named.get(4),
+                "contexa.security.kafka.topic.general=" + named.get(5),
+                "contexa.security.kafka.topic.soar-action=" + named.get(6)), live -> {
+            Set<String> made = new TreeSet<>(topicsOnTheBroker());
+            made.removeAll(before);
+            assertThat(made).as("the topics the application made").containsExactlyInAnyOrder(
+                    prefix + "security.events.authentication.success", prefix + "security.events.authentication.mfa",
+                    prefix + "security.events.authorization.method", deadLetters);
+            assertThat(made).doesNotContainAnyElementsOf(named);
+            unused.forEach(topic -> assertThat(made).doesNotContain(prefix + topic, topic, "ctxa." + topic));
+
+            // What is made is what the application uses: an event is written, read and analysed.
+            live.publish(ZeroTrustEventCategory.AUTHENTICATION, ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS, "lean-a1");
+            live.publish(ZeroTrustEventCategory.AUTHENTICATION, ZeroTrustSpringEvent.TYPE_AUTHENTICATION_MFA, "lean-a2");
+            live.publish(ZeroTrustEventCategory.AUTHORIZATION, ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD, "lean-a3");
+            Awaitility.await().atMost(WAIT).until(() -> live.analysis.users.size() >= 3);
+            assertThat(live.analysis.users).containsExactlyInAnyOrder("lean-a1", "lean-a2", "lean-a3");
+            assertThat(live.analysis.topicOfUser.values()).allMatch(topic -> topic.startsWith(prefix + "security.events."));
+            assertThat(live.statistics()).containsEntry("error_count", 0L).containsEntry("dlq_dispatch_requested_count", 0L);
+        });
+
+        Set<String> after = topicsOnTheBroker();
+        assertThat(after).doesNotContainAnyElementsOf(named);
+        unused.forEach(topic -> assertThat(after).doesNotContain(prefix + topic));
     }
 }

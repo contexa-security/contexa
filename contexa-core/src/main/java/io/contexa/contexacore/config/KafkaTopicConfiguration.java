@@ -15,7 +15,6 @@
  */
 package io.contexa.contexacore.config;
 
-import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.autonomous.event.SecurityEventTopics;
 import io.contexa.contexacore.infra.kafka.ContexaKafkaTopics;
 import io.contexa.contexacore.infra.kafka.KafkaConfiguration;
@@ -34,10 +33,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Configuration
 @ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
@@ -49,10 +46,8 @@ public class KafkaTopicConfiguration {
                                                  ObjectProvider<KafkaConnectionDetails> connectionDetails) {
         SecurityKafkaProperties.TopicSettings names =
                 securityKafkaProperties.getIfAvailable(SecurityKafkaProperties::new).getTopic();
-        Set<String> needed = new HashSet<>(SecurityEventTopics.declared());
-        needed.add(names.getDlq());
         return new ContexaKafkaTopics(() -> Admin.create(adminConfig(kafkaProperties, sslBundles, connectionDetails)),
-                allSecurityTopics(names), needed, kafkaProperties.getAdmin().isAutoCreate());
+                topicsToMake(names), kafkaProperties.getAdmin().isAutoCreate());
     }
 
     /** The application's admin settings, with waits that a start can afford. */
@@ -68,28 +63,16 @@ public class KafkaTopicConfiguration {
     }
 
     /**
-     * Every topic by the name it is used under: the name set in {@code contexa.security.kafka.topic.*} as it is set, and
-     * otherwise the default in the application's namespace.
+     * The topics something writes to or reads, by the name each is used under: the topic of every declared event, which the
+     * publisher writes and the collector reads, and the dead letters, by the name set in
+     * {@code contexa.security.kafka.topic.dlq} as it is set, and otherwise the default in the application's namespace. No
+     * other topic is made: nothing writes to one, nothing reads one, and one made would stay on a cluster that other
+     * applications share.
      */
-    private List<NewTopic> allSecurityTopics(SecurityKafkaProperties.TopicSettings names) {
-        List<NewTopic> topics = new ArrayList<>(List.of(
-            authEventsCriticalTopic().build(),
-            authEventsContextualTopic().build(),
-            authEventsGeneralTopic().build(),
-
-            securityAuthorizationEventsTopic(names.getAuthorization()).build(),
-            securityIncidentEventsTopic(names.getIncident()).build(),
-            securityAuditEventsTopic(names.getAudit()).build(),
-
-            securityEventsTopic(names.getGeneral()).build(),
-            threatIndicatorsTopic(names.getThreat()).build(),
-            networkEventsTopic().build(),
-
-            deadLetterQueueTopic(names.getDlq()).build(),
-
-            soarActionEventsTopic(names.getSoarAction()).build()
-        ));
+    List<NewTopic> topicsToMake(SecurityKafkaProperties.TopicSettings names) {
+        List<NewTopic> topics = new ArrayList<>();
         SecurityEventTopics.declared().forEach(topic -> topics.add(eventTopic(topic).build()));
+        topics.add(deadLetterQueueTopic(names.getDlq()).build());
         return topics;
     }
 
@@ -97,78 +80,6 @@ public class KafkaTopicConfiguration {
     private TopicBuilder eventTopic(String name) {
         return TopicBuilder.name(name)
             .partitions(3)
-            .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");
-    }
-
-    private TopicBuilder authEventsCriticalTopic() {
-        return TopicBuilder.name(ApplicationNamespace.topic("auth-events-critical"))
-            .partitions(3)  
-            .replicas(1)    
-            .config(TopicConfig.RETENTION_MS_CONFIG, "604800000")  
-            .config(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "1")  
-            .compact();  
-    }
-
-    private TopicBuilder authEventsContextualTopic() {
-        return TopicBuilder.name(ApplicationNamespace.topic("auth-events-contextual"))
-            .partitions(3)
-            .replicas(1)
-            .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");  
-    }
-
-    private TopicBuilder authEventsGeneralTopic() {
-        return TopicBuilder.name(ApplicationNamespace.topic("auth-events-general"))
-            .partitions(3)
-            .replicas(1)
-            .config(TopicConfig.RETENTION_MS_CONFIG, "259200000");  
-    }
-
-    private TopicBuilder securityAuthorizationEventsTopic(String name) {
-        return TopicBuilder.name(name)
-            .partitions(3)
-            .replicas(1)
-            .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");  
-    }
-
-    private TopicBuilder securityIncidentEventsTopic(String name) {
-        return TopicBuilder.name(name)
-            .partitions(3)
-            .replicas(1)
-            .config(TopicConfig.RETENTION_MS_CONFIG, "2592000000");  
-    }
-
-    private TopicBuilder securityAuditEventsTopic(String name) {
-        return TopicBuilder.name(name)
-            .partitions(3)
-            .replicas(1)
-            .config(TopicConfig.RETENTION_MS_CONFIG, "7776000000");  
-    }
-
-    private TopicBuilder securityEventsTopic(String name) {
-        return TopicBuilder.name(name)
-            .partitions(5)  
-            .replicas(1)
-            .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");  
-    }
-
-    private TopicBuilder threatIndicatorsTopic(String name) {
-        return TopicBuilder.name(name)
-            .partitions(3)
-            .replicas(1)
-            .config(TopicConfig.RETENTION_MS_CONFIG, "1209600000");  
-    }
-
-    private TopicBuilder networkEventsTopic() {
-        return TopicBuilder.name(ApplicationNamespace.topic("network-events"))
-            .partitions(5)  
-            .replicas(1)
-            .config(TopicConfig.RETENTION_MS_CONFIG, "259200000");  
-    }
-
-    private TopicBuilder soarActionEventsTopic(String name) {
-        return TopicBuilder.name(name)
-            .partitions(3)
-            .replicas(1)
             .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");
     }
 

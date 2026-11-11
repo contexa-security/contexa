@@ -267,7 +267,7 @@ class RedisKeyRoutingSourceTest {
             }
         }
         assertThat(listeners).as("listeners found in the sources").isPositive();
-        assertThat(topicLiterals).as("topic literals found in the sources").isGreaterThanOrEqualTo(13);
+        assertThat(topicLiterals).as("topic literals found in the sources").isGreaterThanOrEqualTo(9);
         assertThat(problems).isEmpty();
     }
 

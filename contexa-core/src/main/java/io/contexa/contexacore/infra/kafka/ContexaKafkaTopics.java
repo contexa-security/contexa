@@ -53,19 +53,16 @@ public class ContexaKafkaTopics implements SmartInitializingSingleton {
 
     private final Supplier<Admin> admins;
     private final List<NewTopic> topics;
-    private final Set<String> needed;
     private final boolean create;
 
     /**
      * @param admins makes the admin client, which this closes
-     * @param topics every topic to make
-     * @param needed the topics something reads or writes: only these are reported when they are missing
+     * @param topics every topic to make, each one something reads or writes: any of them that is missing is reported
      * @param create false when the application forbids making topics: they are only checked
      */
-    public ContexaKafkaTopics(Supplier<Admin> admins, List<NewTopic> topics, Set<String> needed, boolean create) {
+    public ContexaKafkaTopics(Supplier<Admin> admins, List<NewTopic> topics, boolean create) {
         this.admins = admins;
         this.topics = List.copyOf(topics);
-        this.needed = Set.copyOf(needed);
         this.create = create;
     }
 
@@ -79,7 +76,7 @@ public class ContexaKafkaTopics implements SmartInitializingSingleton {
         }
     }
 
-    /** The needed topics that are not on the broker after this, each with why. */
+    /** The topics that are not on the broker after this, each with why. */
     Map<String, String> provision() {
         Map<String, String> missing = new TreeMap<>();
         Admin admin = null;
@@ -94,14 +91,13 @@ public class ContexaKafkaTopics implements SmartInitializingSingleton {
             }
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
-            needed.forEach(topic -> missing.put(topic, "not checked: the start was interrupted"));
+            topics.forEach(topic -> missing.put(topic.name(), "not checked: the start was interrupted"));
         } catch (Exception failure) {
             String cause = "not checked: " + cause(failure);
-            needed.forEach(topic -> missing.put(topic, cause));
+            topics.forEach(topic -> missing.put(topic.name(), cause));
         } finally {
             close(admin);
         }
-        missing.keySet().retainAll(needed);
         return missing;
     }
 
