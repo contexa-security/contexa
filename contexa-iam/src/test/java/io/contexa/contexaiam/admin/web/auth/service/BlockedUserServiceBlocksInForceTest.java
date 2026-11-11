@@ -40,6 +40,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -80,9 +81,15 @@ class BlockedUserServiceBlocksInForceTest {
 
     @BeforeEach
     void theRecord() {
-        when(blockedUserJpaRepository.findByStatusNot(any())).thenAnswer(call -> {
+        // What the statement answers: the users whose latest record is not in the status (a real database is asked in the
+        // integration test of the restorer, where the answer is compared with isBlockInForce).
+        when(blockedUserJpaRepository.findUserIdsWhoseLatestRecordIsNot(any())).thenAnswer(call -> {
             BlockedUserStatus except = call.getArgument(0);
-            return rows.stream().filter(row -> row.getStatus() != except).toList();
+            return rows.stream().map(BlockedUser::getUserId).filter(Objects::nonNull).distinct()
+                    .filter(userId -> rows.stream().filter(row -> userId.equals(row.getUserId()))
+                            .max(Comparator.comparing(BlockedUser::getBlockedAt))
+                            .map(latest -> latest.getStatus() != except).orElse(false))
+                    .toList();
         });
         when(blockedUserJpaRepository.findFirstByUserIdOrderByBlockedAtDesc(anyString())).thenAnswer(call -> {
             String userId = call.getArgument(0);

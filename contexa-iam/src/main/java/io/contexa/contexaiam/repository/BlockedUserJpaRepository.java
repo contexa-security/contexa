@@ -32,6 +32,16 @@ public interface BlockedUserJpaRepository extends JpaRepository<BlockedUser, Lon
 
     List<BlockedUser> findByStatusNot(BlockedUserStatus status);
 
+    /**
+     * The users whose latest record (by {@code blockedAt}) is not in {@code status}, in one statement that reads the table
+     * once: the latest record is not in {@code status} exactly when the latest time of the user's records equals the
+     * latest time among those that are not. A user whose latest two records share a time is listed when either is not in
+     * {@code status}, which holds a block longer, never shorter.
+     */
+    @Query("SELECT b.userId FROM BlockedUser b GROUP BY b.userId "
+            + "HAVING MAX(b.blockedAt) = MAX(CASE WHEN b.status <> :status THEN b.blockedAt END)")
+    List<String> findUserIdsWhoseLatestRecordIsNot(@Param("status") BlockedUserStatus status);
+
     Optional<BlockedUser> findFirstByUserIdAndStatusOrderByBlockedAtDesc(String userId, BlockedUserStatus status);
 
     Optional<BlockedUser> findFirstByUserIdOrderByBlockedAtDesc(String userId);

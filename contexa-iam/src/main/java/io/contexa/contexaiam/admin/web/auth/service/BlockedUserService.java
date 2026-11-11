@@ -516,18 +516,17 @@ public class BlockedUserService implements IBlockedUserRecorder {
     }
 
     /**
-     * The users {@link #isBlockInForce} answers true for, under the id each block was recorded with: a user with a record
-     * that is not resolved is looked at, and listed when the latest record of the user is not. The question is the one
-     * {@code isBlockInForce} asks, so the list can never differ from it.
+     * The users {@link #isBlockInForce} answers true for, under the id each block was recorded with: those whose latest
+     * record is not resolved. The question is the one {@code isBlockInForce} asks, answered for every user in one
+     * statement that reads the table once, as the list is read again and again while the application runs (a statement
+     * for each user would read the table once for each of them).
      */
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<String> blocksInForce() {
-        return blockedUserJpaRepository.findByStatusNot(BlockedUserStatus.RESOLVED).stream()
-                .map(BlockedUser::getUserId)
+        return blockedUserJpaRepository.findUserIdsWhoseLatestRecordIsNot(BlockedUserStatus.RESOLVED).stream()
                 .filter(StringUtils::hasText)
                 .distinct()
-                .filter(this::isBlockInForce)
                 .toList();
     }
 
