@@ -879,6 +879,8 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Changed
 
+- **A request without a user id writes its `userId missing - skipping ...` ERROR once and then at most every five minutes**,
+  with the number of skips in between (`similarSinceLastReport`); its RAG search is still skipped every time.
 - **The action in force of a user is read in one script instead of three round trips.** A protected request asks for it seven times,
   and each ask read the BLOCK flag, the analysis and the held CHALLENGE one after the other, about twenty of the thirty or so
   commands a request waits for on its own thread. One script on the shared connection reads the three; what is decided from them
