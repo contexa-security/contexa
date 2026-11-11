@@ -85,8 +85,8 @@ public class SystemSettingsService {
                 SystemRuntimeSettingsService.parseCombiningAlgorithm(form.getPolicyCombiningAlgorithm()).name());
         existing.setNoMatchingUrlPolicyDecision(SystemRuntimeSettingsService.parseNoPolicyDecision(
                 "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision()).name());
-        existing.setMissingMethodPolicyDecision(SystemRuntimeSettingsService.parseNoPolicyDecision(
-                "missingMethodPolicyDecision", form.getMissingMethodPolicyDecision()).name());
+        existing.setMissingMethodPolicyDecision(SystemRuntimeSettingsService.parseMissingMethodPolicyDecision(
+                form.getMissingMethodPolicyDecision()).name());
         existing.setRegistrationEnabled(form.isRegistrationEnabled());
         if (operatorChoseMode(existing, form)) {
             existing.setSecurityZeroTrustMode(
@@ -120,8 +120,7 @@ public class SystemSettingsService {
         SystemRuntimeSettingsService.parseCombiningAlgorithm(form.getPolicyCombiningAlgorithm());
         SystemRuntimeSettingsService.parseNoPolicyDecision(
                 "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision());
-        SystemRuntimeSettingsService.parseNoPolicyDecision(
-                "missingMethodPolicyDecision", form.getMissingMethodPolicyDecision());
+        SystemRuntimeSettingsService.parseMissingMethodPolicyDecision(form.getMissingMethodPolicyDecision());
         SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode());
         SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(form.getMvcResourceScannerBasePackages());
     }

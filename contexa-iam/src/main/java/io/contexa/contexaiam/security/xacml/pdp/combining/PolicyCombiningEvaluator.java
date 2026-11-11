@@ -18,6 +18,7 @@ package io.contexa.contexaiam.security.xacml.pdp.combining;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.core.Authentication;
 
 import java.util.List;
 import java.util.Objects;
@@ -63,14 +64,26 @@ public class PolicyCombiningEvaluator {
     /**
      * Combines decisions like {@link #evaluate(List, CombiningAlgorithm, NoPolicyDecision)} and also
      * reports the algorithm and no-matching-policy decision that were applied, and whether the result
-     * is that no-matching-policy decision.
+     * is that no-matching-policy decision. Without a principal, AUTHENTICATED grants nothing.
      */
     public CombinedDecision combine(List<AuthorizationDecision> decisions, CombiningAlgorithm algorithm,
                                     NoPolicyDecision noPolicyDecision) {
+        return combine(decisions, algorithm, noPolicyDecision, null);
+    }
+
+    /**
+     * Combines decisions like {@link #combine(List, CombiningAlgorithm, NoPolicyDecision)}; the
+     * no-matching-policy decision AUTHENTICATED grants when the principal is signed in.
+     *
+     * @param authentication the principal of the request, {@code null} when there is none
+     */
+    public CombinedDecision combine(List<AuthorizationDecision> decisions, CombiningAlgorithm algorithm,
+                                    NoPolicyDecision noPolicyDecision, Authentication authentication) {
         NoPolicyDecision fallback = noPolicyDecision != null ? noPolicyDecision : NoPolicyDecision.PERMIT;
         CombiningAlgorithm effectiveAlgorithm = algorithm != null ? algorithm : CombiningAlgorithm.FIRST_APPLICABLE;
         if (decisions == null || decisions.isEmpty()) {
-            return new CombinedDecision(new AuthorizationDecision(fallback.isGranted()), effectiveAlgorithm, fallback, true);
+            return new CombinedDecision(new AuthorizationDecision(fallback.isGrantedTo(authentication)),
+                    effectiveAlgorithm, fallback, true);
         }
         AuthorizationDecision combined = switch (effectiveAlgorithm) {
             case DENY_OVERRIDES -> evaluateDenyOverrides(decisions);
@@ -80,7 +93,8 @@ public class PolicyCombiningEvaluator {
         };
         return combined != null
                 ? new CombinedDecision(combined, effectiveAlgorithm, fallback, false)
-                : new CombinedDecision(new AuthorizationDecision(fallback.isGranted()), effectiveAlgorithm, fallback, true);
+                : new CombinedDecision(new AuthorizationDecision(fallback.isGrantedTo(authentication)),
+                        effectiveAlgorithm, fallback, true);
     }
 
     /**

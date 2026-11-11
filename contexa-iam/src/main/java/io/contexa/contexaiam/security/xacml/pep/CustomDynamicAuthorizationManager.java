@@ -28,6 +28,7 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator.CombinedDecision;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyEvaluationOrder;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
@@ -63,6 +64,12 @@ import java.util.function.Supplier;
  * combining; when matching policies exist but none applies, DENY_UNLESS_PERMIT denies and the other
  * algorithms use the no-matching-policy decision.</p>
  *
+ * <p>The no-matching-policy decision is AUTHENTICATED unless an operator chooses otherwise: a request no
+ * policy names needs a signed-in user, as under Spring Boot's default chain, and a request that is not
+ * signed in is refused so that the chain asks it to sign in. The requests of the sign-in itself
+ * ({@link #setSignInRequests}) stay open to everyone under that decision; a policy that names them
+ * still decides them.</p>
+ *
  * <p>A policy whose condition is rejected by {@link PolicyExpressionValidator} while loading is not
  * compiled. Its URL targets are mapped to a constant Deny instead, because dropping the policy could
  * open the target through the no-matching-policy default.</p>
@@ -91,7 +98,8 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private BooleanSupplier delegatorAuthorityEnforced;
     @Setter
     private volatile CombiningAlgorithm combiningAlgorithm;
-    private volatile NoPolicyDecision noMatchingUrlPolicyDecision = NoPolicyDecision.PERMIT;
+    private volatile NoPolicyDecision noMatchingUrlPolicyDecision = NoPolicyDecision.AUTHENTICATED;
+    private volatile RequestMatcher signInRequests;
 
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
@@ -178,7 +186,26 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
             matchedDecisions.add(decision);
         }
 
-        return combiningEvaluator.evaluate(matchedDecisions, currentAlgorithm, currentNoPolicyDecision);
+        CombinedDecision combined = combiningEvaluator.combine(matchedDecisions, currentAlgorithm,
+                currentNoPolicyDecision, authenticationSupplier.get());
+        if (combined.noPolicyDecisionApplied() && !combined.decision().isGranted()
+                && currentNoPolicyDecision == NoPolicyDecision.AUTHENTICATED && isSignInRequest(request)) {
+            return new AuthorizationDecision(true);
+        }
+        return combined.decision();
+    }
+
+    private boolean isSignInRequest(HttpServletRequest request) {
+        RequestMatcher currentSignInRequests = signInRequests;
+        return currentSignInRequests != null && currentSignInRequests.matches(request);
+    }
+
+    /**
+     * The requests of the sign-in itself (its pages, the endpoints of its factors, what its pages load), which someone who
+     * is not signed in makes to sign in. They pass when no policy names them and the decision is AUTHENTICATED.
+     */
+    public void setSignInRequests(RequestMatcher signInRequests) {
+        this.signInRequests = signInRequests;
     }
 
     /**
@@ -327,7 +354,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     public void setNoMatchingUrlPolicyDecision(NoPolicyDecision noMatchingUrlPolicyDecision) {
         this.noMatchingUrlPolicyDecision = noMatchingUrlPolicyDecision != null
                 ? noMatchingUrlPolicyDecision
-                : NoPolicyDecision.PERMIT;
+                : NoPolicyDecision.AUTHENTICATED;
     }
 
     public CombiningAlgorithm getCombiningAlgorithm() {

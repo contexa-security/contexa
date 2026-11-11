@@ -22,7 +22,12 @@ import org.junit.jupiter.api.Test;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator.CombinedDecision;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.AuthorityUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -244,6 +249,63 @@ class PolicyCombiningEvaluatorTest {
             assertThat(PolicyCombiningEvaluator.applyEffect(Policy.Effect.ALLOW, false).isGranted()).isFalse();
             assertThat(PolicyCombiningEvaluator.applyEffect(Policy.Effect.DENY, true).isGranted()).isFalse();
             assertThat(PolicyCombiningEvaluator.applyEffect(Policy.Effect.DENY, false)).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("AUTHENTICATED: no policy applies, a signed-in principal passes")
+    class SignedInWhenNoPolicyApplies {
+
+        private final Authentication user = UsernamePasswordAuthenticationToken.authenticated(
+                "user", null, AuthorityUtils.createAuthorityList("ROLE_USER"));
+        private final Authentication anonymous = new AnonymousAuthenticationToken(
+                "key", "anonymousUser", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"));
+        private final Authentication notAuthenticated = new TestingAuthenticationToken("user", null);
+
+        @Test
+        @DisplayName("Without a matching policy a signed-in user passes and anyone else does not")
+        void noMatchingPolicy() {
+            assertThat(evaluator.combine(List.of(), CombiningAlgorithm.FIRST_APPLICABLE, NoPolicyDecision.AUTHENTICATED, user)
+                    .decision().isGranted()).isTrue();
+            assertThat(evaluator.combine(List.of(), CombiningAlgorithm.FIRST_APPLICABLE, NoPolicyDecision.AUTHENTICATED, anonymous)
+                    .decision().isGranted()).isFalse();
+            assertThat(evaluator.combine(List.of(), CombiningAlgorithm.FIRST_APPLICABLE, NoPolicyDecision.AUTHENTICATED,
+                    notAuthenticated).decision().isGranted()).isFalse();
+            assertThat(evaluator.combine(List.of(), CombiningAlgorithm.FIRST_APPLICABLE, NoPolicyDecision.AUTHENTICATED, null)
+                    .decision().isGranted()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Without a principal AUTHENTICATED grants nothing, PERMIT and DENY answer as before")
+        void withoutAPrincipal() {
+            assertThat(evaluator.combine(List.of(), null, NoPolicyDecision.AUTHENTICATED).decision().isGranted()).isFalse();
+            assertThat(evaluator.evaluate(List.of(), null, NoPolicyDecision.AUTHENTICATED).isGranted()).isFalse();
+            assertThat(evaluator.combine(List.of(), null, NoPolicyDecision.PERMIT, anonymous).decision().isGranted()).isTrue();
+            assertThat(evaluator.combine(List.of(), null, NoPolicyDecision.DENY, user).decision().isGranted()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Only NotApplicable decisions fall back to the decision; DENY_UNLESS_PERMIT still denies")
+        void notApplicableOnly() {
+            List<AuthorizationDecision> notApplicable = Arrays.asList(null, null);
+            CombinedDecision signedIn = evaluator.combine(notApplicable, CombiningAlgorithm.DENY_OVERRIDES,
+                    NoPolicyDecision.AUTHENTICATED, user);
+            assertThat(signedIn.decision().isGranted()).isTrue();
+            assertThat(signedIn.noPolicyDecisionApplied()).isTrue();
+            assertThat(signedIn.noPolicyDecision()).isEqualTo(NoPolicyDecision.AUTHENTICATED);
+            assertThat(evaluator.combine(notApplicable, CombiningAlgorithm.DENY_OVERRIDES,
+                    NoPolicyDecision.AUTHENTICATED, anonymous).decision().isGranted()).isFalse();
+            assertThat(evaluator.combine(notApplicable, CombiningAlgorithm.DENY_UNLESS_PERMIT,
+                    NoPolicyDecision.AUTHENTICATED, user).decision().isGranted()).isFalse();
+        }
+
+        @Test
+        @DisplayName("An applicable policy decides whoever asks")
+        void applicablePolicyDecides() {
+            assertThat(evaluator.combine(List.of(DENY), CombiningAlgorithm.FIRST_APPLICABLE,
+                    NoPolicyDecision.AUTHENTICATED, user).decision().isGranted()).isFalse();
+            assertThat(evaluator.combine(List.of(ALLOW), CombiningAlgorithm.FIRST_APPLICABLE,
+                    NoPolicyDecision.AUTHENTICATED, anonymous).decision().isGranted()).isTrue();
         }
     }
 }

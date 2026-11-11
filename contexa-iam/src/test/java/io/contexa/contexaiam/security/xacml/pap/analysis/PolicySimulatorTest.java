@@ -173,6 +173,21 @@ class PolicySimulatorTest {
             assertThat(report.results().get(0).currentResult().noPolicyDecisionApplied()).isTrue();
             assertThat(report.results().get(0).currentResult().noPolicyDecision()).isEqualTo("DENY");
         }
+
+        @Test
+        @DisplayName("By default a URL no policy names is ALLOW for the simulated user, who is signed in")
+        void theDefaultGrantsTheSignedInSimulatedUser() {
+            Users user = buildUser(1L, "testuser", "ROLE_USER");
+            when(policyRepository.findAllWithDetails()).thenReturn(List.of());
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+
+            SimulationReport report = simulator.simulate(null,
+                    List.of(new SimulationTestCase(1L, "/api/unnamed", "GET")));
+
+            assertThat(report.results().get(0).currentResult().decision()).isEqualTo("ALLOW");
+            assertThat(report.results().get(0).currentResult().noPolicyDecisionApplied()).isTrue();
+            assertThat(report.results().get(0).currentResult().noPolicyDecision()).isEqualTo("AUTHENTICATED");
+        }
     }
 
     // ── 2. 여러 테스트 케이스 ───────────────────────────────────

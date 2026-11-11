@@ -36,6 +36,7 @@ import io.contexa.contexaiam.security.xacml.pep.ExpressionAuthorizationManagerRe
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
+import io.contexa.contexaidentity.security.filter.MfaPendingAccessControlFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -46,6 +47,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.access.expression.SecurityExpressionHandler;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
+import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.util.function.SingletonSupplier;
 
 import java.util.List;
 
@@ -81,13 +84,15 @@ public class IamXacmlPepAutoConfiguration {
             PolicyCombiningProperties policyCombiningProperties,
             ObjectProvider<AuthorizationDenialRecorder> authorizationDenialRecorderProvider,
             ObjectProvider<DelegatorAuthority> delegatorAuthority,
-            ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
+            ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties,
+            ObjectProvider<MfaPendingAccessControlFilter> mfaPendingAccessControlFilter) {
         CustomDynamicAuthorizationManager manager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver,
                 objectMapper, contextHandler, metricsCollector, contexaCentralAuditFacade,
                 contexaPolicyCombiningEvaluator);
         manager.setCombiningAlgorithm(policyCombiningProperties.getCombiningAlgorithm());
         manager.setNoMatchingUrlPolicyDecision(policyCombiningProperties.getNoMatchingUrlPolicyDecision());
+        manager.setSignInRequests(signInRequests(mfaPendingAccessControlFilter));
         AuthorizationDenialRecorder authorizationDenialRecorder = authorizationDenialRecorderProvider.getIfAvailable();
         if (authorizationDenialRecorder != null) {
             manager.setAuthorizationDenialRecorder(authorizationDenialRecorder);
@@ -98,6 +103,18 @@ public class IamXacmlPepAutoConfiguration {
             return zeroTrust == null || zeroTrust.isEnforcementEnabled();
         }));
         return manager;
+    }
+
+    /**
+     * The requests of Contexa's sign-in, the ones a pending MFA may make: only a chain of Contexa's own asks the URL
+     * policies, and that chain is built with the sign-in, after this bean. Looked up when a request first needs them.
+     */
+    static RequestMatcher signInRequests(ObjectProvider<MfaPendingAccessControlFilter> mfaPendingAccessControlFilter) {
+        SingletonSupplier<MfaPendingAccessControlFilter> filter = SingletonSupplier.of(mfaPendingAccessControlFilter::getIfAvailable);
+        return request -> {
+            MfaPendingAccessControlFilter signIn = filter.get();
+            return signIn != null && signIn.isSignInRequest(request);
+        };
     }
 
     /**

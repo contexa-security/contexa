@@ -26,6 +26,7 @@ import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.WebUtil;
 import io.contexa.contexaidentity.security.zerotrust.PasskeyRegistrationGate;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -213,13 +214,25 @@ public class MfaPendingAccessControlFilter extends OncePerRequestFilter {
     }
 
     /**
+     * Returns whether someone who is not signed in yet makes the request to sign in: the requests a pending MFA may
+     * make ({@link #isMfaProgressRequest}), except the error page, which answers a failed request (an error dispatch)
+     * and is no page of its own before the sign-in.
+     */
+    public boolean isSignInRequest(HttpServletRequest request) {
+        if (isErrorPath(resolvePath(request))) {
+            return request.getDispatcherType() == DispatcherType.ERROR;
+        }
+        return isMfaProgressRequest(request);
+    }
+
+    /**
      * Returns whether the request is required to progress or leave the MFA flow and may therefore
      * pass while MFA is pending. Subclasses may extend the permitted requests, for example with
      * static resources of custom MFA pages.
      */
     protected boolean isMfaProgressRequest(HttpServletRequest request) {
         String path = resolvePath(request);
-        if (path.equals(FAVICON_PATH) || (StringUtils.hasText(errorPath) && path.equals(errorPath))) {
+        if (path.equals(FAVICON_PATH) || isErrorPath(path)) {
             return true;
         }
         if (!RequestPaths.isPlain(path)) {
@@ -340,6 +353,10 @@ public class MfaPendingAccessControlFilter extends OncePerRequestFilter {
     private AuthUrlProvider resolveProvider(String flowTypeName) {
         AuthUrlProvider flowProvider = mfaFlowUrlRegistry.getProvider(flowTypeName);
         return flowProvider != null ? flowProvider : authUrlProvider;
+    }
+
+    private boolean isErrorPath(String path) {
+        return StringUtils.hasText(errorPath) && path.equals(errorPath);
     }
 
     private String resolvePath(HttpServletRequest request) {

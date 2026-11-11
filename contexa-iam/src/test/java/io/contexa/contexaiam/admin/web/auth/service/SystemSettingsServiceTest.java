@@ -135,7 +135,29 @@ class SystemSettingsServiceTest {
             assertThat(existing.getDefaultRole()).isEqualTo("ROLE_ADMIN");
             assertThat(existing.getPolicyCombiningAlgorithm()).isEqualTo("PERMIT_OVERRIDES");
             assertThat(existing.isRegistrationEnabled()).isFalse();
-            assertThat(existing.getNoMatchingUrlPolicyDecision()).isEqualTo("PERMIT");
+            assertThat(existing.getNoMatchingUrlPolicyDecision()).as("the form's default").isEqualTo("AUTHENTICATED");
+            assertThat(existing.getMissingMethodPolicyDecision()).isEqualTo("PERMIT");
+        }
+
+        @Test
+        @DisplayName("should store AUTHENTICATED for URLs and refuse it for methods")
+        void authenticatedIsADecisionForUrlsOnly() {
+            SystemSettings existing = SystemSettings.builder().noMatchingUrlPolicyDecision("PERMIT").build();
+            when(repository.findAll()).thenReturn(List.of(existing));
+
+            SystemSettingsForm urls = validForm();
+            urls.setNoMatchingUrlPolicyDecision("AUTHENTICATED");
+            service.updateSettings(urls);
+            assertThat(existing.getNoMatchingUrlPolicyDecision()).isEqualTo("AUTHENTICATED");
+
+            SystemSettingsForm methods = validForm();
+            methods.setNoMatchingUrlPolicyDecision("PERMIT");
+            methods.setMissingMethodPolicyDecision("AUTHENTICATED");
+            assertThatThrownBy(() -> service.updateSettings(methods))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("missingMethodPolicyDecision");
+            assertThat(existing.getNoMatchingUrlPolicyDecision()).as("nothing of a refused form is stored")
+                    .isEqualTo("AUTHENTICATED");
             assertThat(existing.getMissingMethodPolicyDecision()).isEqualTo("PERMIT");
         }
 

@@ -32,6 +32,7 @@ import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
@@ -585,6 +586,40 @@ class MfaPendingAccessControlFilterTest {
 
             assertThat(chain.getRequest()).isSameAs(request);
             verifyNoInteractions(responseWriter);
+        }
+    }
+
+    @Nested
+    @DisplayName("Requests of the sign-in, for someone not signed in yet")
+    class SignInRequests {
+
+        @ParameterizedTest
+        @ValueSource(strings = {"/mfa/login", "/mfa/select-factor", "/api/mfa/config", "/js/contexa-mfa-sdk.js",
+                "/contexa/css/main.css", "/contexa/js/toast.js", "/contexa/zero-trust/blocked", "/favicon.ico",
+                "/.well-known/openid-configuration", "/logout"})
+        @DisplayName("The pages, endpoints and resources of the sign-in are sign-in requests")
+        void signInRequests(String path) {
+            assertThat(filter.isSignInRequest(browserRequest(path))).isTrue();
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"/orders", "/h/secured/data", "/js/app.js", "/api/mfa/config/../orders",
+                "/contexa/css/%2e%2e/orders", "/contexa/admin", "/webauthn/register"})
+        @DisplayName("The application's paths, odd spellings and the passkey registration are no sign-in requests")
+        void otherRequests(String path) {
+            assertThat(filter.isSignInRequest(browserRequest(path))).isFalse();
+        }
+
+        @Test
+        @DisplayName("The error page answers a failed request and is no page of its own before the sign-in")
+        void theErrorPageOnlyAsAnAnswer() {
+            MockHttpServletRequest direct = browserRequest("/error");
+            MockHttpServletRequest answer = browserRequest("/error");
+            answer.setDispatcherType(DispatcherType.ERROR);
+
+            assertThat(filter.isSignInRequest(direct)).isFalse();
+            assertThat(filter.isSignInRequest(answer)).isTrue();
+            assertThat(filter.isMfaProgressRequest(direct)).as("a pending MFA still reaches it").isTrue();
         }
     }
 

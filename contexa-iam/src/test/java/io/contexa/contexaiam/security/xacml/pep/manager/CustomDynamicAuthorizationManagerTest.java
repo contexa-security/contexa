@@ -239,10 +239,11 @@ class CustomDynamicAuthorizationManagerTest {
     class CheckMethodTests {
 
         @Test
-        @DisplayName("Should return granted=true when no mapping matches")
+        @DisplayName("Should return granted=true for a signed-in user when no mapping matches")
         void shouldReturnGrantedWhenNoMatch() {
             when(policyRetrievalPoint.findUrlPolicies()).thenReturn(Collections.emptyList());
             authorizationManager.onApplicationEvent(mock(ContextRefreshedEvent.class));
+            when(authentication.isAuthenticated()).thenReturn(true);
 
             when(request.getMethod()).thenReturn("GET");
             when(request.getRequestURI()).thenReturn("/api/unknown");
@@ -291,6 +292,7 @@ class CustomDynamicAuthorizationManagerTest {
         void shouldRecordAuditOnNoMatch() {
             when(policyRetrievalPoint.findUrlPolicies()).thenReturn(Collections.emptyList());
             authorizationManager.onApplicationEvent(mock(ContextRefreshedEvent.class));
+            when(authentication.isAuthenticated()).thenReturn(true);
 
             when(request.getMethod()).thenReturn("GET");
             when(request.getRequestURI()).thenReturn("/api/test");

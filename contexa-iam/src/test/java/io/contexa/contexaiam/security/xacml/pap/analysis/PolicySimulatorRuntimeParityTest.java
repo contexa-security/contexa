@@ -347,6 +347,25 @@ class PolicySimulatorRuntimeParityTest {
         assertThat(user.noPolicyDecision()).isEqualTo("DENY");
     }
 
+    @ParameterizedTest
+    @EnumSource(CombiningAlgorithm.class)
+    @DisplayName("A URL no policy names is granted to the signed-in users under the default AUTHENTICATED, as enforced")
+    void noMatchingUrlPolicyUnderTheDefaultGrantsSignedInUsers(CombiningAlgorithm algorithm) throws Exception {
+        PolicyCombiningProperties settings = new PolicyCombiningProperties();
+        settings.setCombiningAlgorithm(algorithm);
+
+        List<DecisionDetail> details = assertParity(TargetKind.URL, settings, List.of());
+
+        assertThat(details).allSatisfy(detail -> {
+            assertThat(detail.decision()).isEqualTo("ALLOW");
+            assertThat(detail.noPolicyDecisionApplied()).isTrue();
+            assertThat(detail.noPolicyDecision()).isEqualTo("AUTHENTICATED");
+        });
+        assertThat(assertParity(TargetKind.URL, settings,
+                List.of(policy(1L, TargetKind.URL, Policy.Effect.DENY, 10, "hasRole('BLOCKED')"))))
+                .as("only NotApplicable DENY policies").isNotEmpty();
+    }
+
     @ParameterizedTest(name = "{0} {1}")
     @MethodSource("everyTargetAndAlgorithm")
     @DisplayName("Only NotApplicable DENY policies with the default DENY deny, as enforced")
