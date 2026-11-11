@@ -141,7 +141,7 @@ public final class AgentTokenClaims {
             return null;
         }
         try {
-            return directory.activeAgentForClient(tenant(claims, config), clientId)
+            return directory.requestPathActiveAgentForClient(tenant(claims, config), clientId)
                     .map(AgentTokenClaims::text)
                     .orElse(null);
         } catch (AgentClientStatusUnavailableException unreadable) {

@@ -912,6 +912,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 - **An application's request no longer waits for Contexa's database for the copy of its user.** Contexa's own accounts get no lookup; an
   application's user is synchronised at the sign-in, kept for `contexa.bridge.sync.min-refresh-interval-seconds`, and a changed fact off the request.
+- **An application's request no longer waits for the agent registry to find out whether its account is an approved agent.** The approved agents in
+  service are kept in memory (read before the web server takes a request, then every 5 seconds); a change made in the same server shows at once and one
+  made by another server within about 5 seconds, and a registry that cannot be read for 15 seconds reads as before: the account is taken for a person's.
+  What decides something (accepting or issuing an agent's token, its suspension, a sign-in) is still asked of the registry.
 
 - **Contexa's JPA settles its PostgreSQL dialect without reaching its database, so the start logs no `HHH90000025`.** The
   dialect then targets PostgreSQL 12.0, the oldest Hibernate supports, not the version the database reports; a configured

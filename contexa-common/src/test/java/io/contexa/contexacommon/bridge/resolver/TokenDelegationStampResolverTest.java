@@ -19,6 +19,7 @@ import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.resolver.TokenDelegationStampResolver;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -306,6 +307,31 @@ class TokenDelegationStampResolverTest {
         authenticate(jwt(Map.of("sub", "alice", "client_id", "report-client", "act", Map.of("sub", "report-client"))));
         assertThat(withDirectory.resolve(null, null, new BridgeProperties()).orElseThrow().agentId())
                 .isEqualTo("report-client");
+    }
+
+    /** Reading a request is not a decision: it asks the directory the question meant for requests, never the one that decides. */
+    @Test
+    void aTokenIsReadWithTheDirectorysAnswerForARequestAndNotItsAnswerForADecision() {
+        AgentClientDirectory directory = new AgentClientDirectory() {
+            @Override
+            public Optional<String> activeAgentForClient(String tenantId, String clientId) {
+                throw new AssertionError("a request does not wait for what decides");
+            }
+
+            @Override
+            public Optional<String> requestPathActiveAgentForClient(String tenantId, String clientId) {
+                return "report-bot-client".equals(clientId) ? Optional.of("report-bot") : Optional.empty();
+            }
+        };
+        TokenDelegationStampResolver withDirectory = new TokenDelegationStampResolver(directory);
+        authenticate(jwt(Map.of("sub", "report-bot-client", "client_id", "report-bot-client")));
+
+        DelegationStamp stamp = withDirectory.resolve(null, null, new BridgeProperties()).orElseThrow();
+
+        assertThat(stamp.agentId()).isEqualTo("report-bot");
+        assertThat(stamp.delegated()).isFalse();
+        authenticate(jwt(Map.of("sub", "alice", "client_id", "internal-client")));
+        assertThat(withDirectory.resolve(null, null, new BridgeProperties())).isEmpty();
     }
 
     @Test

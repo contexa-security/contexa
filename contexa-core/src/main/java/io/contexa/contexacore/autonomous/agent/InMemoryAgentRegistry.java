@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * The agent registry held in memory (A1-6): the default when no database registry is configured, and the reference
@@ -31,6 +32,7 @@ public class InMemoryAgentRegistry implements AgentRegistry {
 
     private final Map<AgentKey, AgentRegistration> agents = new ConcurrentHashMap<>();
     private final Clock clock;
+    private final AgentApprovalListeners approvalListeners = new AgentApprovalListeners();
 
     public InMemoryAgentRegistry() {
         this(Clock.systemUTC());
@@ -78,7 +80,25 @@ public class InMemoryAgentRegistry implements AgentRegistry {
         if (AgentRegistrations.blank(agentId)) {
             return Optional.empty();
         }
-        return Optional.ofNullable(agents.remove(AgentKey.of(tenantId, agentId)));
+        Optional<AgentRegistration> removed = Optional.ofNullable(agents.remove(AgentKey.of(tenantId, agentId)));
+        removed.ifPresent(registration -> approvalListeners.changed(
+                AgentApproval.removed(registration.tenantId(), registration.agentId())));
+        return removed;
+    }
+
+    @Override
+    public List<AgentApproval> approvals(int limit) {
+        return AgentRegistrations.approvals(agents.values(), limit);
+    }
+
+    @Override
+    public void onApprovalChange(Consumer<AgentApproval> listener) {
+        approvalListeners.add(listener);
+    }
+
+    private AgentRegistration changed(AgentRegistration registration) {
+        approvalListeners.changed(AgentApproval.of(registration));
+        return registration;
     }
 
     @Override
@@ -105,8 +125,8 @@ public class InMemoryAgentRegistry implements AgentRegistry {
     public AgentRegistration register(AgentRegistrationRequest request) {
         AgentRegistrations.requireAgent(request != null ? request.agentId() : null);
         Instant now = clock.instant();
-        return agents.compute(AgentKey.of(request.tenantId(), request.agentId()),
-                (key, current) -> AgentRegistrations.registered(current, request, now));
+        return changed(agents.compute(AgentKey.of(request.tenantId(), request.agentId()),
+                (key, current) -> AgentRegistrations.registered(current, request, now)));
     }
 
     @Override
@@ -116,7 +136,7 @@ public class InMemoryAgentRegistry implements AgentRegistry {
         }
         Instant now = clock.instant();
         return Optional.ofNullable(agents.computeIfPresent(AgentKey.of(tenantId, agentId),
-                (key, current) -> AgentRegistrations.deregistered(current, reason, now)));
+                (key, current) -> AgentRegistrations.deregistered(current, reason, now))).map(this::changed);
     }
 
     @Override
@@ -125,7 +145,7 @@ public class InMemoryAgentRegistry implements AgentRegistry {
             return Optional.empty();
         }
         return Optional.ofNullable(agents.computeIfPresent(AgentKey.of(tenantId, agentId),
-                (key, current) -> AgentRegistrations.suspended(current, reason)));
+                (key, current) -> AgentRegistrations.suspended(current, reason))).map(this::changed);
     }
 
     @Override
@@ -134,7 +154,7 @@ public class InMemoryAgentRegistry implements AgentRegistry {
             return Optional.empty();
         }
         return Optional.ofNullable(agents.computeIfPresent(AgentKey.of(tenantId, agentId),
-                (key, current) -> AgentRegistrations.resumed(current, reason)));
+                (key, current) -> AgentRegistrations.resumed(current, reason))).map(this::changed);
     }
 
     @Override

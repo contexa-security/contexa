@@ -23,6 +23,7 @@ import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.resolver.DelegationStampResolver;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacore.autonomous.agent.ActiveAgentList;
 import io.contexa.contexacore.autonomous.agent.AgentLearningControl;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
@@ -211,7 +212,7 @@ class AgentRegistryWiringTest {
     void theRegistrysApprovedAgentsReachTheTokenDelegationStamp() {
         InMemoryAgentRegistry registry = new InMemoryAgentRegistry();
         registry.register(new AgentRegistrationRequest(null, "report-bot", "Report bot", null, "report-client", "carol", null));
-        AgentClientDirectory directory = new CoreAutonomousAutoConfiguration().agentClientDirectory(registry, new DefaultListableBeanFactory().getBeanProvider(RequestPathDatabaseGuard.class));
+        AgentClientDirectory directory = new CoreAutonomousAutoConfiguration().agentClientDirectory(registry, new DefaultListableBeanFactory().getBeanProvider(RequestPathDatabaseGuard.class), new DefaultListableBeanFactory().getBeanProvider(ActiveAgentList.class));
         ObjectProvider<AgentClientDirectory> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable(any())).thenReturn(directory);
         DelegationStampResolver resolver = new AiBridgeConfiguration().tokenDelegationStampResolver(provider);
@@ -233,7 +234,7 @@ class AgentRegistryWiringTest {
     void anApprovedAgentsSessionLoginIsReadAsThatAgent() {
         InMemoryAgentRegistry registry = new InMemoryAgentRegistry();
         registry.register(new AgentRegistrationRequest(null, "report-bot", "Report bot", null, "report-client", "carol", null));
-        AgentClientDirectory directory = new CoreAutonomousAutoConfiguration().agentClientDirectory(registry, new DefaultListableBeanFactory().getBeanProvider(RequestPathDatabaseGuard.class));
+        AgentClientDirectory directory = new CoreAutonomousAutoConfiguration().agentClientDirectory(registry, new DefaultListableBeanFactory().getBeanProvider(RequestPathDatabaseGuard.class), new DefaultListableBeanFactory().getBeanProvider(ActiveAgentList.class));
         ObjectProvider<AgentClientDirectory> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable(any())).thenReturn(directory);
         DelegationStampResolver resolver = new AiBridgeConfiguration().agentAccountDelegationStampResolver(provider);

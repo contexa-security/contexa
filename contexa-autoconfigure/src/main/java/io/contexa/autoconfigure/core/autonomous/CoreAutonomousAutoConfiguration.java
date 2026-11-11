@@ -162,6 +162,7 @@ import io.contexa.contexacore.autonomous.context.collector.DefaultSessionNarrati
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
 import io.contexa.contexacore.autonomous.context.collector.RoleScopeCollector;
 import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
+import io.contexa.contexacore.autonomous.agent.ActiveAgentList;
 import io.contexa.contexacore.autonomous.agent.AgentRegistry;
 import io.contexa.contexacore.autonomous.agent.RegistryAgentClientDirectory;
 import io.contexa.contexacore.autonomous.agent.AgentRegistryRecorder;
@@ -334,14 +335,28 @@ public class CoreAutonomousAutoConfiguration {
     }
 
     /**
+     * The approved agents in service, in memory, so that reading a request does not wait for the agent registry. It is
+     * read before the web server takes a request, and again every few seconds for what another server changed. It is
+     * declared before the directory it serves: an application that declares a directory of its own gets no list.
+     */
+    @Bean(name = "contexaActiveAgentList")
+    @ConditionalOnMissingBean(AgentClientDirectory.class)
+    public ActiveAgentList activeAgentList(AgentRegistry contexaAgentRegistry) {
+        return new ActiveAgentList(contexaAgentRegistry);
+    }
+
+    /**
      * A1-2: the approved agents, by the client their tokens are issued to. The resource server admits a client's own
      * token without a user account only for these, and the delegation stamp reads such a token as the agent's.
      */
     @Bean(name = "contexaAgentClientDirectory")
     @ConditionalOnMissingBean(AgentClientDirectory.class)
     public AgentClientDirectory agentClientDirectory(AgentRegistry contexaAgentRegistry,
-                                                     ObjectProvider<RequestPathDatabaseGuard> contexaRequestPathDatabaseGuard) {
-        return new RegistryAgentClientDirectory(contexaAgentRegistry, contexaRequestPathDatabaseGuard.getIfAvailable(RequestPathDatabaseGuard::new));
+                                                     ObjectProvider<RequestPathDatabaseGuard> contexaRequestPathDatabaseGuard,
+                                                     ObjectProvider<ActiveAgentList> contexaActiveAgentList) {
+        return new RegistryAgentClientDirectory(contexaAgentRegistry,
+                contexaRequestPathDatabaseGuard.getIfAvailable(RequestPathDatabaseGuard::new),
+                contexaActiveAgentList.getIfAvailable());
     }
 
     /** A1-6: every agent request reaches the registry. */
