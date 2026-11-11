@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.core.dsl.option;
 
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpCustomizer;
 import lombok.Getter;
+import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.*;
@@ -66,14 +67,32 @@ public abstract class AbstractOptions {
             http.logout(logoutCustomizer);
         }
         if (!staticMatchers.isEmpty()) {
+            openStaticPaths(http);
+        }
+        for (SafeHttpCustomizer<HttpSecurity> rawCustomizer : rawHttpCustomizers) {
+            rawCustomizer.customize(http);
+        }
+    }
+
+    /**
+     * The static paths are added as rules, after the rules the application wrote. Where the application closed its
+     * rules with {@code anyRequest()}, Spring Security takes no further rule and refuses the first of them: the flow
+     * did not start. There the paths are opened by {@link StaticPathsFirst} instead, ahead of the rules.
+     */
+    private void openStaticPaths(HttpSecurity http) throws Exception {
+        try {
             http.authorizeHttpRequests(authorizeRequests -> {
                 for (String matcher : staticMatchers) {
                     authorizeRequests.requestMatchers(matcher).permitAll();
                 }
             });
-        }
-        for (SafeHttpCustomizer<HttpSecurity> rawCustomizer : rawHttpCustomizers) {
-            rawCustomizer.customize(http);
+        } catch (IllegalStateException refused) {
+            if (refused.getMessage() == null || !refused.getMessage().contains("after anyRequest")) {
+                throw refused;
+            }
+            ApplicationContext context = http.getSharedObject(ApplicationContext.class);
+            http.authorizeHttpRequests(authorizeRequests ->
+                    authorizeRequests.withObjectPostProcessor(new StaticPathsFirst(context, staticMatchers)));
         }
     }
 
