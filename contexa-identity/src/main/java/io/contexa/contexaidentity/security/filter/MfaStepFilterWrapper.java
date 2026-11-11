@@ -26,6 +26,8 @@ import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureH
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -54,6 +56,8 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
     private final MfaSettings mfaSettings;
     private final AuthResponseWriter responseWriter;
     private final ObjectProvider<UnifiedAuthenticationFailureHandler> factorFailureHandler;
+    private final AuthUrlProvider authUrlProvider;
+    private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private volatile String flowTypeName;
 
     public MfaStepFilterWrapper(ConfiguredFactorFilterProvider configuredFactorFilterProvider,
@@ -67,6 +71,8 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         this.mfaSettings = authContextProperties.getMfa();
         this.responseWriter = responseWriter;
         this.factorFailureHandler = applicationContext.getBeanProvider(UnifiedAuthenticationFailureHandler.class);
+        this.authUrlProvider = applicationContext.getBean(AuthUrlProvider.class);
+        this.mfaFlowUrlRegistry = applicationContext.getBean(MfaFlowUrlRegistry.class);
     }
 
     @Override
@@ -128,9 +134,8 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
             stateMachineIntegrator.sendEvent(MfaEvent.SESSION_TIMEOUT, ctx, request);
             ensureMinimumDelay(startTime);
 
-            if (!response.isCommitted()) {
-                response.sendError(HttpServletResponse.SC_FORBIDDEN, "MFA session expired");
-            }
+            refuse(request, response, ctx, HttpServletResponse.SC_FORBIDDEN, "MFA_SESSION_EXPIRED",
+                    "The verification was not completed in time. Please sign in again.", true);
             return;
         }
 
@@ -139,10 +144,8 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
             stateMachineIntegrator.sendEvent(MfaEvent.RETRY_LIMIT_EXCEEDED, ctx, request);
             ensureMinimumDelay(startTime);
 
-            if (!response.isCommitted()) {
-                response.sendError(HttpServletResponse.SC_FORBIDDEN,
-                        "Maximum verification attempts exceeded");
-            }
+            refuse(request, response, ctx, HttpServletResponse.SC_FORBIDDEN, "MFA_RETRY_LIMIT_EXCEEDED",
+                    "Maximum verification attempts exceeded. Please sign in again.", true);
             return;
         }
 
@@ -162,8 +165,8 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
                     writeBusyRetryResponse(request, response);
                     return;
                 }
-                response.sendError(HttpServletResponse.SC_BAD_REQUEST,
-                        "Invalid state for factor verification");
+                refuse(request, response, ctx, HttpServletResponse.SC_BAD_REQUEST, "MFA_INVALID_STATE",
+                        "Invalid state for factor verification", false);
             }
             return;
         }
@@ -191,11 +194,44 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
             log.error("No delegate filter found for factorIdentifier: {}", factorIdentifier);
             ensureMinimumDelay(startTime);
 
-            if (!response.isCommitted()) {
-                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                        "MFA factor processing misconfiguration");
-            }
+            refuse(request, response, ctx, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "MFA_FACTOR_MISCONFIGURED",
+                    "MFA factor processing misconfiguration", false);
         }
+    }
+
+    /**
+     * Refuses the submission in the form the other answers of the flow have: a code the client can tell apart, a
+     * message for the person, and where the sign-in starts again when it has to. These refusals were errors of the
+     * container (sendError), which carry none of them: a code submitted after its time was answered "403 Forbidden"
+     * and the page could say no more than that.
+     */
+    private void refuse(HttpServletRequest request, HttpServletResponse response, FactorContext ctx, int status,
+                        String errorCode, String message, boolean signInAgain) throws IOException {
+        if (response.isCommitted()) {
+            return;
+        }
+        Map<String, Object> details = new HashMap<>();
+        details.put("mfaSessionId", ctx.getMfaSessionId());
+        if (ctx.getCurrentState() != null) {
+            details.put("currentState", ctx.getCurrentState().name());
+        }
+        String signInPage = signInAgain ? signInPageOf(ctx) : null;
+        if (signInPage != null) {
+            details.put("redirectUrl", request.getContextPath() + signInPage);
+        }
+        responseWriter.writeErrorResponse(response, status, errorCode, message, request.getRequestURI(), details);
+    }
+
+    /** The sign-in page of the flow the submission belongs to. */
+    private String signInPageOf(FactorContext ctx) {
+        AuthUrlProvider urls = null;
+        if (mfaFlowUrlRegistry != null && ctx.getFlowTypeName() != null) {
+            urls = mfaFlowUrlRegistry.getProvider(ctx.getFlowTypeName());
+        }
+        if (urls == null) {
+            urls = authUrlProvider;
+        }
+        return urls != null ? urls.getPrimaryLoginPage() : null;
     }
 
     private boolean isSessionExpired(FactorContext ctx) {

@@ -42,7 +42,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
-import java.util.concurrent.Executor;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -430,7 +429,11 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
             responseWriter.writeSuccessResponse(response, cancelResponse, HttpServletResponse.SC_OK);
 
-            scheduleStateMachineCleanup(sessionId);
+            // The cancelled flow is released here, once the answer is written. It was handed to the shared executor
+            // with a five second sleep in front: beyond the executor's threads and queue the task ran on the request
+            // thread, so a cancel was answered after five seconds, and the executor's other work waited behind it.
+            // A later request of the flow is answered the same with the flow released as with it still stored.
+            stateMachineIntegrator.releaseStateMachine(sessionId);
         } else {
             handleInvalidStateError(request, response, context, "CANCELLATION_FAILED",
                     "MFA cancellation failed.");
@@ -668,18 +671,5 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         } catch (Exception e) {
             log.error("Failed to cleanup terminal session: {}", sessionId, e);
         }
-    }
-
-    private void scheduleStateMachineCleanup(String sessionId) {
-
-        applicationContext.getBean("contexaTaskExecutor", Executor.class)
-                .execute(() -> {
-                    try {
-                        Thread.sleep(5000);
-                        stateMachineIntegrator.releaseStateMachine(sessionId);
-                    } catch (Exception e) {
-                        log.error("Error during State Machine cleanup for session: {}", sessionId, e);
-                    }
-                });
     }
 }
