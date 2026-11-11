@@ -47,8 +47,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.NoneNestedConditions;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisKeyValueAdapter;
@@ -78,7 +80,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 @AutoConfigureAfter(name = {
         "org.redisson.spring.starter.RedissonAutoConfiguration",
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
-        "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"
+        "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration",
+        "io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration"
 })
 @EnableConfigurationProperties(StateMachineProperties.class)
 @ConditionalOnBean(PlatformConfig.class)
@@ -87,6 +90,11 @@ import java.util.concurrent.ThreadPoolExecutor;
         MfaStateMachineConfiguration.class
 })
 public class IdentityStateMachineAutoConfiguration {
+
+    /** Contexa's own Redisson client, which the distributed mode makes (RedissonConfiguration). */
+    private static final String CONTEXA_REDISSON_CLIENT = "contexaRedissonClient";
+    private static final String REDISSON_CLIENT = "org.redisson.api.RedissonClient";
+    private static final String REDIS_STATE_MACHINE_REPOSITORY = "org.springframework.statemachine.data.redis.RedisStateMachineRepository";
 
     public IdentityStateMachineAutoConfiguration() {
     }
@@ -180,13 +188,14 @@ public class IdentityStateMachineAutoConfiguration {
     }
 
 
+    /**
+     * The flows in Redis, on Contexa's own Redisson client. Whether an application has a Redisson client of its own decides
+     * nothing here: the application's client is the application's, and Contexa neither uses it nor asks whether it exists.
+     */
     @Configuration
-    @ConditionalOnClass(name = {
-            "org.redisson.api.RedissonClient",
-            "org.springframework.statemachine.data.redis.RedisStateMachineRepository"
-    })
+    @ConditionalOnClass(name = {REDISSON_CLIENT, REDIS_STATE_MACHINE_REPOSITORY})
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
-    @ConditionalOnBean(type = "org.redisson.api.RedissonClient")
+    @ConditionalOnBean(name = CONTEXA_REDISSON_CLIENT)
     static class DistributedStateMachineConfig {
 
         /** The template Spring Data's Redis repositories take when they name none. */
@@ -197,7 +206,7 @@ public class IdentityStateMachineAutoConfiguration {
         public MfaStateMachineService mfaStateMachineService(
                 StateMachineFactory<MfaState, MfaEvent> stateMachineFactory,
                 StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister,
-                RedissonClient contexaRedissonClient,
+                @Qualifier(CONTEXA_REDISSON_CLIENT) RedissonClient contexaRedissonClient,
                 StateMachineProperties properties) {
             return new MfaStateMachineServiceImpl(
                     stateMachineFactory, stateMachinePersister, contexaRedissonClient, properties);
@@ -264,8 +273,13 @@ public class IdentityStateMachineAutoConfiguration {
     }
 
 
+    /**
+     * The flows in memory, wherever the distributed store is not made: the two are decided by the same conditions, so one
+     * of them is always made. An application's own Redisson client decided between them once, and with it in a standalone
+     * application neither was made and the application did not start.
+     */
     @Configuration
-    @ConditionalOnMissingBean(type = "org.redisson.api.RedissonClient")
+    @Conditional(WithoutDistributedStore.class)
     static class StandaloneStateMachineConfig {
 
         @Bean(name = "contexaStateMachineRuntimePersister")
@@ -284,6 +298,20 @@ public class IdentityStateMachineAutoConfiguration {
                 InMemoryStateMachinePersist persist) {
             return new StandaloneMfaStateMachineServiceImpl(
                     stateMachineFactory, stateMachinePersister, properties, persist);
+        }
+    }
+
+    /** Not every condition of the distributed store holds. */
+    static class WithoutDistributedStore extends NoneNestedConditions {
+
+        WithoutDistributedStore() {
+            super(ConfigurationPhase.REGISTER_BEAN);
+        }
+
+        @ConditionalOnClass(name = {REDISSON_CLIENT, REDIS_STATE_MACHINE_REPOSITORY})
+        @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
+        @ConditionalOnBean(name = CONTEXA_REDISSON_CLIENT)
+        static class DistributedStore {
         }
     }
 

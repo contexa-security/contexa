@@ -502,6 +502,9 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **An application with a Redisson client of its own starts in the standalone mode**, and in the distributed mode Contexa
+  keeps its locks and signals on its own client, made beside the application's, which the application's code is still given.
+
 - **In the distributed mode an application's own `@RedisHash` repositories are made again.** Contexa no longer enables
   Spring Data's Redis repositories in the application's context; it makes its MFA flow repository itself, with the same keys.
 

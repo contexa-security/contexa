@@ -28,6 +28,7 @@ import org.springframework.boot.autoconfigure.data.redis.RedisConnectionDetails;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Fallback;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -46,8 +47,15 @@ public class RedissonConfiguration {
 
     private final RedisProperties redisProperties;
 
+    /**
+     * Contexa's own client, whether or not the application has one: Contexa's locks and signals, and the clean-up of its MFA
+     * flows, never go through a client the application configured (its server, database, codec or timeouts). It is a
+     * fallback candidate, so the application's own client is the one a plain injection point of the application is given,
+     * and an application without one is given this one, as before. Contexa's injection points name it.
+     */
     @Bean(name = "contexaRedissonClient")
-    @ConditionalOnMissingBean(type = "org.redisson.api.RedissonClient")
+    @Fallback
+    @ConditionalOnMissingBean(name = "contexaRedissonClient")
     public RedissonClient redissonClient(ObjectProvider<RedisConnectionDetails> connectionDetails) {
         return Redisson.create(configFor(connectionDetails.getIfAvailable(), redisProperties));
     }
