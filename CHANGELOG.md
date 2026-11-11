@@ -561,6 +561,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A flow with `authorizeStaticPermitAll(...)` starts next to rules that end with `anyRequest()`.** The static paths
+  of a flow are added as authorization rules after the rules of the global customizer, and Spring Security takes no
+  rule after `anyRequest()`: with the usual `authorizeHttpRequests(a -> a....anyRequest().authenticated())` in
+  `global(...)` the application did not start ("Can't configure mvcMatchers after anyRequest"). Where the rules are
+  closed that way, the static paths are now opened ahead of the rules, and every other request is decided by the
+  rules as they are. Where the rules are left open, nothing changes: the static paths stay rules after the
+  application's own, so an earlier rule of the application still decides a path both match. **Check:** with
+  `anyRequest().authenticated()` in `global(...)` and `form(form -> form.authorizeStaticPermitAll("/assets/**"))`,
+  the application starts, `GET /assets/app.css` is answered without a sign-in, and a protected page still asks for one.
 - **`mfa.policyProvider(...)` decides for its flow.** The DSL took the provider and nothing asked it: every decision
   of every MFA flow came from the provider bean, so a flow that named a stricter or a lighter policy got the default
   one. The provider bean now hands the four questions of a flow that names its own provider to that provider (whether
