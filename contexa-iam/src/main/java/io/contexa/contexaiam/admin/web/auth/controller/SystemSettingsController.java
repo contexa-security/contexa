@@ -36,6 +36,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -76,7 +77,8 @@ public class SystemSettingsController {
     public String showSettings(Model model) {
         model.addAttribute("activePage", "system-settings");
         model.addAttribute("settings", SystemSettingsForm.from(systemSettingsService.getSettings(),
-                zeroTrustProperties != null ? zeroTrustProperties.getMode() : null));
+                zeroTrustProperties != null ? zeroTrustProperties.getMode() : null,
+                policyCombiningProperties.getNoMatchingUrlPolicyDecision()));
         model.addAttribute("roles", systemSettingsService.getDefaultRoleOptions());
         model.addAttribute("algorithms", CombiningAlgorithm.values());
         model.addAttribute("noMatchingUrlPolicyDecisionOptions", NoPolicyDecision.values());
@@ -111,8 +113,11 @@ public class SystemSettingsController {
             SystemSettingsRuntimeApplier.applyPolicyDecisionSettings(policyCombiningProperties, authorizationManager,
                     new PolicyDecisionSettings(
                             SystemRuntimeSettingsService.parseCombiningAlgorithm(form.getPolicyCombiningAlgorithm()),
-                            SystemRuntimeSettingsService.parseNoPolicyDecision(
-                                    "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision()),
+                            // a form that names no decision chose none: the one in effect stays
+                            StringUtils.hasText(form.getNoMatchingUrlPolicyDecision())
+                                    ? SystemRuntimeSettingsService.parseNoPolicyDecision(
+                                    "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision())
+                                    : null,
                             SystemRuntimeSettingsService.parseMissingMethodPolicyDecision(
                                     form.getMissingMethodPolicyDecision())));
         }

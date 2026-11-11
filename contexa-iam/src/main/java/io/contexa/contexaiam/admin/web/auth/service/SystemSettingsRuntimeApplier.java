@@ -34,7 +34,8 @@ import java.util.Optional;
  * method policy decision) are applied once all singletons exist, before the web server accepts
  * requests, and again when the application is ready and after every settings save. The URL policy
  * enforcement point keeps its own copy of the URL values; method policy plans read the shared
- * {@link PolicyCombiningProperties} bean on every invocation.</p>
+ * {@link PolicyCombiningProperties} bean on every invocation. A no-matching URL policy decision
+ * that no operator saved is not applied: the {@code contexa.policy.*} value stays in effect.</p>
  */
 @Slf4j
 public class SystemSettingsRuntimeApplier
@@ -117,14 +118,20 @@ public class SystemSettingsRuntimeApplier
         if (settings == null) {
             return;
         }
+        // a decision for URLs no policy names that nobody saved is no decision: the configured one stays in effect
+        boolean urlDecisionSaved = settings.noMatchingUrlPolicyDecision() != null;
         if (policyCombiningProperties != null) {
             policyCombiningProperties.setCombiningAlgorithm(settings.combiningAlgorithm());
-            policyCombiningProperties.setNoMatchingUrlPolicyDecision(settings.noMatchingUrlPolicyDecision());
+            if (urlDecisionSaved) {
+                policyCombiningProperties.setNoMatchingUrlPolicyDecision(settings.noMatchingUrlPolicyDecision());
+            }
             policyCombiningProperties.setMissingMethodPolicyDecision(settings.missingMethodPolicyDecision());
         }
         if (authorizationManager != null) {
             authorizationManager.setCombiningAlgorithm(settings.combiningAlgorithm());
-            authorizationManager.setNoMatchingUrlPolicyDecision(settings.noMatchingUrlPolicyDecision());
+            if (urlDecisionSaved) {
+                authorizationManager.setNoMatchingUrlPolicyDecision(settings.noMatchingUrlPolicyDecision());
+            }
         }
     }
 

@@ -20,6 +20,8 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -185,6 +187,155 @@ class SystemSettingsServiceTest {
             properties.setMode(mode);
             service.setZeroTrustProperties(properties);
             return properties;
+        }
+
+        private PolicyCombiningProperties urlsDecidedBy(NoPolicyDecision decision) {
+            PolicyCombiningProperties properties = new PolicyCombiningProperties();
+            properties.setNoMatchingUrlPolicyDecision(decision);
+            service.setPolicyCombiningProperties(properties);
+            return properties;
+        }
+
+        private SystemSettings aRowWithUrlDecision(String decision) {
+            SystemSettings row = SystemSettings.builder().noMatchingUrlPolicyDecision(decision).build();
+            when(repository.findAll()).thenReturn(List.of(row));
+            return row;
+        }
+
+        private void savedUrlDecision(String decision) {
+            SystemSettingsForm form = validForm();
+            form.setNoMatchingUrlPolicyDecision(decision);
+            service.updateSettings(form);
+        }
+
+        @Test
+        @DisplayName("A save of another setting shows the URL decision in effect and does not store it as a choice")
+        void theFormsOwnUrlDecisionIsNoChoice() {
+            urlsDecidedBy(NoPolicyDecision.AUTHENTICATED);
+            SystemSettings row = aRowWithUrlDecision(null);
+            SystemSettingsForm form = validForm();
+            form.setNoMatchingUrlPolicyDecision("AUTHENTICATED");
+            form.setMvcResourceScannerBasePackages("com.example.");
+
+            service.updateSettings(form);
+
+            verify(repository).save(row);
+            assertThat(row.getNoMatchingUrlPolicyDecision()).isNull();
+            assertThat(row.getMvcResourceScannerBasePackages()).isEqualTo("com.example.");
+        }
+
+        @Test
+        @DisplayName("A configured PERMIT shown on the form is no choice of PERMIT: a save of something else keeps it free")
+        void aConfiguredPermitIsNoChoiceEither() {
+            urlsDecidedBy(NoPolicyDecision.PERMIT);
+            SystemSettings row = aRowWithUrlDecision(null);
+
+            savedUrlDecision("PERMIT");
+
+            assertThat(row.getNoMatchingUrlPolicyDecision()).isNull();
+        }
+
+        @Test
+        @DisplayName("Another decision than the one in effect is the operator's choice and is stored")
+        void anotherUrlDecisionIsStored() {
+            urlsDecidedBy(NoPolicyDecision.AUTHENTICATED);
+            SystemSettings row = aRowWithUrlDecision(null);
+
+            savedUrlDecision("PERMIT");
+
+            assertThat(row.getNoMatchingUrlPolicyDecision()).isEqualTo("PERMIT");
+        }
+
+        @Test
+        @DisplayName("A deployment's configured decision is the one compared: choosing the other of two is stored")
+        void aConfiguredPermitIsLeftByChoosingAuthenticated() {
+            urlsDecidedBy(NoPolicyDecision.PERMIT);
+            SystemSettings row = aRowWithUrlDecision(null);
+
+            savedUrlDecision("AUTHENTICATED");
+
+            assertThat(row.getNoMatchingUrlPolicyDecision()).isEqualTo("AUTHENTICATED");
+        }
+
+        @ParameterizedTest
+        @NullSource
+        @ValueSource(strings = {"", "   "})
+        @DisplayName("A form that names no URL decision stores none and is no error where none was chosen")
+        void aFormWithoutAUrlDecision(String submitted) {
+            urlsDecidedBy(NoPolicyDecision.AUTHENTICATED);
+            SystemSettings row = aRowWithUrlDecision(null);
+
+            savedUrlDecision(submitted);
+
+            verify(repository).save(row);
+            assertThat(row.getNoMatchingUrlPolicyDecision()).isNull();
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"PERMIT", "DENY", "AUTHENTICATED"})
+        @DisplayName("A URL decision already stored follows the form as before, the decision in effect included")
+        void aStoredUrlDecisionFollowsTheForm(String stored) {
+            urlsDecidedBy(NoPolicyDecision.AUTHENTICATED);
+            SystemSettings row = aRowWithUrlDecision(stored);
+
+            savedUrlDecision("DENY");
+            assertThat(row.getNoMatchingUrlPolicyDecision()).isEqualTo("DENY");
+
+            savedUrlDecision("AUTHENTICATED");
+            assertThat(row.getNoMatchingUrlPolicyDecision()).as("back to the decision in effect")
+                    .isEqualTo("AUTHENTICATED");
+        }
+
+        @Test
+        @DisplayName("A stored PERMIT is not lowered by a save that shows it: nothing is changed without a choice")
+        void aStoredPermitStaysWhenTheFormShowsIt() {
+            urlsDecidedBy(NoPolicyDecision.PERMIT);
+            SystemSettings row = aRowWithUrlDecision("PERMIT");
+
+            savedUrlDecision("PERMIT");
+
+            assertThat(row.getNoMatchingUrlPolicyDecision()).isEqualTo("PERMIT");
+        }
+
+        @ParameterizedTest
+        @NullSource
+        @ValueSource(strings = {"", "   "})
+        @DisplayName("A stored decision is still required on the form")
+        void aStoredUrlDecisionStillNeedsAFormValue(String submitted) {
+            urlsDecidedBy(NoPolicyDecision.AUTHENTICATED);
+            SystemSettings row = aRowWithUrlDecision("PERMIT");
+            SystemSettingsForm form = validForm();
+            form.setNoMatchingUrlPolicyDecision(submitted);
+
+            assertThatThrownBy(() -> service.updateSettings(form)).isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("noMatchingUrlPolicyDecision");
+
+            verify(repository, never()).save(any());
+            assertThat(row.getNoMatchingUrlPolicyDecision()).isEqualTo("PERMIT");
+        }
+
+        @Test
+        @DisplayName("A URL decision that does not exist is refused before the row is read, where none is stored too")
+        void anUnknownUrlDecisionIsRefused() {
+            urlsDecidedBy(NoPolicyDecision.AUTHENTICATED);
+            SystemSettingsForm form = validForm();
+            form.setNoMatchingUrlPolicyDecision("MAYBE");
+
+            assertThatThrownBy(() -> service.updateSettings(form)).isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("noMatchingUrlPolicyDecision");
+
+            verify(repository, never()).findAll();
+            verify(repository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("A service that is not told the decision in effect stores the one the form shows, as it did")
+        void withoutTheDecisionInEffectTheFormsIsStored() {
+            SystemSettings row = aRowWithUrlDecision(null);
+
+            savedUrlDecision("AUTHENTICATED");
+
+            assertThat(row.getNoMatchingUrlPolicyDecision()).isEqualTo("AUTHENTICATED");
         }
 
         private SystemSettings aRowWithMode(String mode) {

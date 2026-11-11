@@ -21,6 +21,8 @@ import io.contexa.contexacommon.operating.ContexaOperatingProfile;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.autoconfigure.identity.IdentitySecurityCoreContexaOwnedConfiguration;
 import io.contexa.contexacore.security.UnifiedUserDetailsService;
+import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.OrderedSecurityFilterChain;
@@ -48,7 +50,10 @@ import java.util.Map;
  *   <li>CONTEXA_OWNED: a user store the application declared answers Contexa's sign-in, so Contexa's seeded
  *   administrator can sign in only if that store has it;</li>
  *   <li>either ownership: a one-time-code factor is offered but no mail sender is configured, so no code can be
- *   delivered.</li>
+ *   delivered;</li>
+ *   <li>CONTEXA_OWNED: the settings row holds PERMIT for URLs no policy names, so such a path is open to everyone. A
+ *   new installation holds no decision and closes them; an upgrade never changes a stored one, whether an operator
+ *   chose it or the column default of an older version put it there.</li>
  * </ul>
  */
 @Slf4j
@@ -120,6 +125,14 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
                 log.warn("[Contexa] A one-time-code factor is offered but no mail sender is configured "
                         + "(spring.mail.*), so no code can be delivered: configure mail, or users verify with a "
                         + "passkey only.");
+            }
+            if (profile.ownership() == SecurityOwnershipMode.CONTEXA_OWNED) {
+                SystemRuntimeSettingsService settings = beans.getBeanProvider(SystemRuntimeSettingsService.class).getIfAvailable();
+                String open = settings == null ? null
+                        : openUnnamedPathsNotice(profile, settings.getSettings().getNoMatchingUrlPolicyDecision());
+                if (open != null) {
+                    log.warn(open);
+                }
             }
         } catch (RuntimeException e) {
             log.warn("[Contexa] The ownership start-up checks could not run: {}", e.getMessage());
@@ -217,6 +230,27 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
 
     static boolean oneTimeCodeUndeliverable(boolean oneTimeCodeOffered, boolean mailConfigured) {
         return oneTimeCodeOffered && !mailConfigured;
+    }
+
+    /**
+     * Where Contexa owns the sign-in, a stored PERMIT for URLs no policy names leaves every such path open to everyone,
+     * also those Spring Boot's default chain would have closed. An installation made before the default changed holds
+     * PERMIT without anyone having chosen it, and an upgrade does not change what is stored. Where the application owns
+     * its sign-in, Contexa's URL policies decide no request of the application, so the decision is of no consequence there.
+     *
+     * @param storedDecision the decision the settings row holds, null when none was saved
+     * @return the line to log, null when there is nothing to tell
+     */
+    static String openUnnamedPathsNotice(ContexaOperatingProfile profile, String storedDecision) {
+        if (profile.ownership() != SecurityOwnershipMode.CONTEXA_OWNED
+                || storedDecision == null || !NoPolicyDecision.PERMIT.name().equals(storedDecision.trim())) {
+            return null;
+        }
+        return "[Contexa] CONTEXA_OWNED: the stored decision for URLs no policy names is PERMIT, so everyone passes on a "
+                + "path no policy names, also where Spring Boot's default chain would have asked for a sign-in. An "
+                + "installation made before a signed-in user became the default holds PERMIT without anyone having "
+                + "chosen it, and an upgrade does not change it: choose \"Decision when no URL policy applies\" on the "
+                + "system settings screen.";
     }
 
     private static boolean offersOneTimeCode(PlatformConfig config) {

@@ -111,7 +111,8 @@ class HostOwnedUnnamedPathsPostgresTest {
 
     @Test
     void theApplicationAnswersTheSameWhateverTheDecisionForPathsWithoutAPolicy() throws Exception {
-        String installed = jdbc.queryForObject("select no_matching_url_policy_decision from ctxa_system_settings", String.class);
+        assertThat(jdbc.queryForObject("select no_matching_url_policy_decision from ctxa_system_settings", String.class))
+                .as("nobody chose a decision").isNull();
         Map<String, String> withTheDefault = answers();
         Map<String, String> withPermit;
         Map<String, String> withDeny;
@@ -121,7 +122,7 @@ class HostOwnedUnnamedPathsPostgresTest {
             decide("DENY");
             withDeny = answers();
         } finally {
-            decide(installed);
+            decide("AUTHENTICATED");
         }
 
         assertThat(withPermit).isEqualTo(withTheDefault);

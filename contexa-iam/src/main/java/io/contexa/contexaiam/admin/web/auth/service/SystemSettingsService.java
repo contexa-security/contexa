@@ -22,6 +22,8 @@ import io.contexa.contexacommon.repository.SystemSettingsRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.RoleOption;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +55,16 @@ public class SystemSettingsService {
         this.zeroTrustProperties = zeroTrustProperties;
     }
 
+    private PolicyCombiningProperties policyCombiningProperties;
+
+    /**
+     * The decision for URLs no policy names in effect, which the form shows while no decision is stored; without it a
+     * submitted decision is stored.
+     */
+    public void setPolicyCombiningProperties(PolicyCombiningProperties policyCombiningProperties) {
+        this.policyCombiningProperties = policyCombiningProperties;
+    }
+
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public SystemSettings getSettings() {
         return repository.findAll().stream()
@@ -79,12 +91,14 @@ public class SystemSettingsService {
         SystemSettings existing = repository.findAll().stream()
                 .findFirst()
                 .orElseGet(() -> repository.save(SystemRuntimeSettingsService.defaultSettings()));
+        NoPolicyDecision chosenUrlDecision = chosenNoMatchingUrlDecision(existing, form);
         existing.setAuditLogRetentionDays(form.getAuditLogRetentionDays());
         existing.setDefaultRole(form.getDefaultRole());
         existing.setPolicyCombiningAlgorithm(
                 SystemRuntimeSettingsService.parseCombiningAlgorithm(form.getPolicyCombiningAlgorithm()).name());
-        existing.setNoMatchingUrlPolicyDecision(SystemRuntimeSettingsService.parseNoPolicyDecision(
-                "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision()).name());
+        if (chosenUrlDecision != null) {
+            existing.setNoMatchingUrlPolicyDecision(chosenUrlDecision.name());
+        }
         existing.setMissingMethodPolicyDecision(SystemRuntimeSettingsService.parseMissingMethodPolicyDecision(
                 form.getMissingMethodPolicyDecision()).name());
         existing.setRegistrationEnabled(form.isRegistrationEnabled());
@@ -112,14 +126,41 @@ public class SystemSettingsService {
                 != zeroTrustProperties.getMode();
     }
 
+    /**
+     * While no decision is stored, {@code contexa.policy.no-matching-url-policy-decision} applies and the form shows the
+     * decision in effect. A save of any other setting sends it back, and storing it would freeze the decision: the setting
+     * of the next deployment would no longer apply, without a word. So a form that names no decision, or the decision in
+     * effect, chose nothing (null here). A decision already stored follows the form, which must name one. Choosing the
+     * decision in effect on purpose looks the same as choosing nothing; the setting keeps deciding then, which is what the
+     * operator sees.
+     *
+     * @return the decision to store, null when the form chose none
+     * @throws IllegalArgumentException when the decision is not a {@link NoPolicyDecision}, or is missing where one is stored
+     */
+    private NoPolicyDecision chosenNoMatchingUrlDecision(SystemSettings existing, SystemSettingsForm form) {
+        boolean stored = StringUtils.hasText(existing.getNoMatchingUrlPolicyDecision());
+        boolean inEffectKnown = policyCombiningProperties != null;
+        if (!stored && inEffectKnown && !StringUtils.hasText(form.getNoMatchingUrlPolicyDecision())) {
+            return null;
+        }
+        NoPolicyDecision submitted = SystemRuntimeSettingsService.parseNoPolicyDecision(
+                "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision());
+        if (stored || !inEffectKnown) {
+            return submitted;
+        }
+        return submitted != policyCombiningProperties.getNoMatchingUrlPolicyDecision() ? submitted : null;
+    }
+
     private void validate(SystemSettingsForm form) {
         if (form == null) {
             throw new IllegalArgumentException("Settings form is required.");
         }
         validateRange("auditLogRetentionDays", form.getAuditLogRetentionDays(), 0, 3650);
         SystemRuntimeSettingsService.parseCombiningAlgorithm(form.getPolicyCombiningAlgorithm());
-        SystemRuntimeSettingsService.parseNoPolicyDecision(
-                "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision());
+        if (StringUtils.hasText(form.getNoMatchingUrlPolicyDecision())) {
+            SystemRuntimeSettingsService.parseNoPolicyDecision(
+                    "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision());
+        }
         SystemRuntimeSettingsService.parseMissingMethodPolicyDecision(form.getMissingMethodPolicyDecision());
         SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode());
         SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(form.getMvcResourceScannerBasePackages());

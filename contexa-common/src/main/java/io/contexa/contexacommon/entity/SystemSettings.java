@@ -61,10 +61,13 @@ public class SystemSettings {
     @Column(name = "security_zerotrust_mode", length = 20)
     private String securityZeroTrustMode;
 
-    /** A URL no policy names needs a signed-in user unless an operator chooses PERMIT or DENY. */
-    @Column(name = "no_matching_url_policy_decision", nullable = false, length = 20)
-    @Builder.Default
-    private String noMatchingUrlPolicyDecision = "AUTHENTICATED";
+    /**
+     * The decision for a URL no policy names, saved by an operator. {@code null} means nobody chose it, so
+     * {@code contexa.policy.no-matching-url-policy-decision} stays in effect, and without that setting a URL no policy
+     * names needs a signed-in user.
+     */
+    @Column(name = "no_matching_url_policy_decision", length = 20)
+    private String noMatchingUrlPolicyDecision;
 
     @Column(name = "missing_method_policy_decision", nullable = false, length = 20)
     @Builder.Default

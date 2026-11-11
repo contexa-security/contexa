@@ -38,7 +38,7 @@ public class SystemRuntimeSettingsService {
     public static final SecurityZeroTrustProperties.EnforcementMode DEFAULT_SECURITY_ZEROTRUST_MODE = SecurityZeroTrustProperties.EnforcementMode.SHADOW;
     public static final String DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES = "io.contexa.contexaiam.";
     public static final CombiningAlgorithm DEFAULT_POLICY_COMBINING_ALGORITHM = CombiningAlgorithm.FIRST_APPLICABLE;
-    /** A URL no policy names needs a signed-in user unless the operator chooses otherwise. */
+    /** What applies to a URL no policy names while no operator chose a decision and no property says otherwise. */
     public static final NoPolicyDecision DEFAULT_NO_MATCHING_URL_POLICY_DECISION = NoPolicyDecision.AUTHENTICATED;
     public static final NoPolicyDecision DEFAULT_MISSING_METHOD_POLICY_DECISION = NoPolicyDecision.PERMIT;
 
@@ -77,7 +77,9 @@ public class SystemRuntimeSettingsService {
 
     /**
      * Returns the policy decision settings stored in the singleton row, or empty when the row does
-     * not exist yet so that the {@code contexa.policy.*} property values stay in effect.
+     * not exist yet so that the {@code contexa.policy.*} property values stay in effect. The decision for
+     * URLs no policy names is {@code null} while no operator saved one, and the property value stays in
+     * effect for it.
      *
      * @throws IllegalArgumentException when a stored value is not a valid enum constant
      */
@@ -87,14 +89,13 @@ public class SystemRuntimeSettingsService {
                 .findFirst()
                 .map(settings -> new PolicyDecisionSettings(
                         parseCombiningAlgorithm(settings.getPolicyCombiningAlgorithm()),
-                        parseNoPolicyDecision("noMatchingUrlPolicyDecision", settings.getNoMatchingUrlPolicyDecision()),
+                        parseChosenNoMatchingUrlPolicyDecision(settings.getNoMatchingUrlPolicyDecision()),
                         parseMissingMethodPolicyDecision(settings.getMissingMethodPolicyDecision())));
     }
 
     public static SystemSettings defaultSettings() {
         return SystemSettings.builder()
                 .policyCombiningAlgorithm(DEFAULT_POLICY_COMBINING_ALGORITHM.name())
-                .noMatchingUrlPolicyDecision(DEFAULT_NO_MATCHING_URL_POLICY_DECISION.name())
                 .missingMethodPolicyDecision(DEFAULT_MISSING_METHOD_POLICY_DECISION.name())
                 .mvcResourceScannerBasePackages(DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES)
                 .build();
@@ -116,6 +117,16 @@ public class SystemRuntimeSettingsService {
      */
     public static NoPolicyDecision parseNoPolicyDecision(String field, String rawValue) {
         return parseEnum(NoPolicyDecision.class, field, rawValue);
+    }
+
+    /**
+     * Parses the decision for URLs no policy names that an operator saved: {@code null} when none was saved (the column
+     * holds NULL or blank), so that nothing but a saved value ever replaces the configured decision.
+     *
+     * @throws IllegalArgumentException when a stored value is not a {@link NoPolicyDecision}
+     */
+    public static NoPolicyDecision parseChosenNoMatchingUrlPolicyDecision(String storedValue) {
+        return StringUtils.hasText(storedValue) ? parseNoPolicyDecision("noMatchingUrlPolicyDecision", storedValue) : null;
     }
 
     /**
@@ -200,6 +211,7 @@ public class SystemRuntimeSettingsService {
 
     /**
      * Operator-controlled policy decision settings persisted in {@code ctxa_system_settings}.
+     * {@code noMatchingUrlPolicyDecision} is {@code null} while no operator saved one.
      */
     public record PolicyDecisionSettings(
             CombiningAlgorithm combiningAlgorithm,

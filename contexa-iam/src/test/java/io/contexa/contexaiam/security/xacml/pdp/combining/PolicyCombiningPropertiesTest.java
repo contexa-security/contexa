@@ -49,6 +49,18 @@ class PolicyCombiningPropertiesTest {
     }
 
     @Test
+    void aDecisionForUrlsNobodyNamedIsTheSignedInDefaultAndNeverNullOrPermit() {
+        PolicyCombiningProperties properties = new PolicyCombiningProperties();
+        properties.setNoMatchingUrlPolicyDecision(NoPolicyDecision.PERMIT);
+
+        properties.setNoMatchingUrlPolicyDecision(null);
+
+        assertThat(properties.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.AUTHENTICATED);
+        assertThat(bind(Map.of("contexa.policy.no-matching-url-policy-decision", "")).getNoMatchingUrlPolicyDecision())
+                .isEqualTo(NoPolicyDecision.AUTHENTICATED);
+    }
+
+    @Test
     void theSettingForMethodsStillTakesOnlyPermitAndDeny() {
         assertThat(bind(Map.of("contexa.policy.missing-method-policy-decision", "DENY")).getMissingMethodPolicyDecision())
                 .isEqualTo(NoPolicyDecision.DENY);

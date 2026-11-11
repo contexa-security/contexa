@@ -15,6 +15,13 @@ The format is based on Keep a Changelog and the project follows semantic version
   passed); Contexa's own sign-in stays open. An existing installation keeps the decision its settings row holds (PERMIT,
   the former default, unless an operator changed it); the system settings screen chooses either.
 
+- **The decision for a path no URL policy names is stored only when an operator chooses it.** A new installation holds
+  none, so `contexa.policy.no-matching-url-policy-decision` applies to it (a settings row the seed wrote used to override
+  the setting) and a signed-in user is the default. **Check:** an existing installation keeps the value its row holds, and
+  an upgrade changes none, because a stored PERMIT may be the former default of the column and not a choice. Where
+  Contexa owns the sign-in (FULL) such an installation stays open for those paths and says so at start; to close them,
+  choose "Decision when no URL policy applies" on the system settings screen.
+
 - **A mail code signs in once, also when requests present it together, and a person's sign-ins that arrive together end
   each other as the limit says.** Two faults that showed only under concurrency, found by starting an application and
   signing one account in from many clients at once. The mail code was read and then deleted without asking whether the

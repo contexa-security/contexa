@@ -325,6 +325,33 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("IAM schema maintenance should leave the decision for URLs no policy names unset on new and existing databases")
+    void iamSchemaMaintenanceLeavesTheUrlDecisionUnset() throws Exception {
+        String schema = new ClassPathResource("META-INF/contexa/db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
+
+        String maintenanceSql = IamSeedDataAutoConfiguration.extractIdempotentSchemaMaintenanceSql(
+                IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(schema));
+
+        List<String> statements = IamSeedDataAutoConfiguration.splitSqlStatements(maintenanceSql).stream()
+                .map(statement -> statement.replaceAll("(?m)--.*$", " ")
+                        .replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT))
+                .filter(statement -> statement.contains("no_matching_url_policy_decision"))
+                .toList();
+        assertThat(statements).containsExactly(
+                "alter table ctxa_system_settings add column if not exists no_matching_url_policy_decision varchar(20)",
+                "alter table ctxa_system_settings alter column no_matching_url_policy_decision drop not null",
+                "alter table ctxa_system_settings alter column no_matching_url_policy_decision drop default");
+        assertThat(schema).as("no statement of the schema gives the column a default or a constraint again")
+                .doesNotContain("no_matching_url_policy_decision varchar(20) default")
+                .doesNotContain("no_matching_url_policy_decision varchar(20) not null");
+
+        String creation = IamSeedDataAutoConfiguration.extractMissingTableCreationSql(
+                IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(schema), Set.of("ctxa_system_settings"));
+        assertThat(creation.replaceAll("\\s+", " ")).as("a table created later has the column, unset")
+                .contains("add column if not exists no_matching_url_policy_decision varchar(20);");
+    }
+
+    @Test
     @DisplayName("IAM schema maintenance should replay only nullability and default removal under ALTER COLUMN")
     void iamSchemaMaintenanceAcceptsOnlyDropNotNullAndDropDefaultColumnChanges() {
         String sql = """

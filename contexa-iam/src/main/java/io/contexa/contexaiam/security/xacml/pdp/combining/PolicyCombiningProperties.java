@@ -45,6 +45,13 @@ public class PolicyCombiningProperties {
 
     private volatile NoPolicyDecision missingMethodPolicyDecision = NoPolicyDecision.PERMIT;
 
+    /** A decision of nobody is the default that needs a signed-in user, never PERMIT. */
+    public void setNoMatchingUrlPolicyDecision(NoPolicyDecision noMatchingUrlPolicyDecision) {
+        this.noMatchingUrlPolicyDecision = noMatchingUrlPolicyDecision != null
+                ? noMatchingUrlPolicyDecision
+                : NoPolicyDecision.AUTHENTICATED;
+    }
+
     /**
      * The decision for a method without an applicable policy: PERMIT or DENY. A method invocation is no request a person
      * signs in for, so AUTHENTICATED is refused here as any other unknown value is.

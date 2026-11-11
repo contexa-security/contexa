@@ -18,6 +18,7 @@ package io.contexa.contexaiam.admin.web.auth.dto;
 import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import lombok.Data;
 import org.springframework.util.StringUtils;
 
@@ -45,23 +46,33 @@ public final class SystemSettingsDtos {
         private String mvcResourceScannerBasePackages = SystemRuntimeSettingsService.DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES;
 
         public static SystemSettingsForm from(SystemSettings entity) {
-            return from(entity, null);
+            return from(entity, null, null);
+        }
+
+        public static SystemSettingsForm from(SystemSettings entity,
+                                              SecurityZeroTrustProperties.EnforcementMode effectiveZeroTrustMode) {
+            return from(entity, effectiveZeroTrustMode, null);
         }
 
         /**
          * Builds the form from the stored settings.
          *
          * @param effectiveZeroTrustMode the zero trust mode in effect, shown when no mode is stored
+         * @param effectiveNoMatchingUrlPolicyDecision the decision for URLs no policy names in effect, shown when no
+         *                                             decision is stored; the default of the code when it is null
          */
         public static SystemSettingsForm from(SystemSettings entity,
-                                              SecurityZeroTrustProperties.EnforcementMode effectiveZeroTrustMode) {
+                                              SecurityZeroTrustProperties.EnforcementMode effectiveZeroTrustMode,
+                                              NoPolicyDecision effectiveNoMatchingUrlPolicyDecision) {
             SystemSettings source = entity == null ? SystemRuntimeSettingsService.defaultSettings() : entity;
             SystemSettingsForm form = new SystemSettingsForm();
             form.setAuditLogRetentionDays(source.getAuditLogRetentionDays());
             form.setDefaultRole(source.getDefaultRole());
             form.setPolicyCombiningAlgorithm(source.getPolicyCombiningAlgorithm());
             form.setNoMatchingUrlPolicyDecision(valueOrDefault(source.getNoMatchingUrlPolicyDecision(),
-                    SystemRuntimeSettingsService.DEFAULT_NO_MATCHING_URL_POLICY_DECISION.name()));
+                    (effectiveNoMatchingUrlPolicyDecision != null
+                            ? effectiveNoMatchingUrlPolicyDecision
+                            : SystemRuntimeSettingsService.DEFAULT_NO_MATCHING_URL_POLICY_DECISION).name()));
             form.setMissingMethodPolicyDecision(valueOrDefault(source.getMissingMethodPolicyDecision(),
                     SystemRuntimeSettingsService.DEFAULT_MISSING_METHOD_POLICY_DECISION.name()));
             form.setRegistrationEnabled(source.isRegistrationEnabled());
