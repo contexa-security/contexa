@@ -502,6 +502,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A protected method called without a signed-in user runs under `OBSERVE` and `DISABLED`, as without Contexa.** These modes
+  decide on nobody; the method policies of the console still apply, and `SHADOW` and `ENFORCE` refuse the call as before.
+
+- **A refused protected call on a path no Spring Security chain covers is a 401 or 403, no longer a 500.** Contexa answers only
+  its own refusal there; the application's exceptions, its handlers' answers and a response already sent stay as they are.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines

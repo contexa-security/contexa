@@ -18,6 +18,7 @@ import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.security.access.expression.ExpressionUtils;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.core.Authentication;
@@ -49,6 +50,12 @@ public class ProtectableMethodAuthorizationManager {
         }
 
         if (!plan.policyExpressions().isEmpty()) {
+            if (authentication.get() == null) {
+                // A policy decides on a user, and the context holds none at all (a path no Spring Security chain
+                // covers): the call is refused for it, as Spring Security refuses a method call whose rule needs one.
+                throw new AuthenticationCredentialsNotFoundException(
+                        "A method policy applies and no Authentication was found in the SecurityContext");
+            }
             restrict(context);
         }
 

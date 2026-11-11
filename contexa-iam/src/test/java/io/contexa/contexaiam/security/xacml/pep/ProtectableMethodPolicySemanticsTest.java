@@ -44,6 +44,7 @@ import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.security.access.hierarchicalroles.NullRoleHierarchy;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.core.Authentication;
@@ -270,6 +271,29 @@ class ProtectableMethodPolicySemanticsTest {
                     .isInstanceOf(RuntimeException.class);
             assertThatThrownBy(() -> evaluate("new java.lang.ProcessBuilder('calc')"))
                     .isInstanceOf(RuntimeException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("A call with no authentication at all, on a path no Spring Security chain covers")
+    class WithoutAuthentication {
+
+        @Test
+        @DisplayName("A policy does not decide on nobody: the call is refused for its missing user, it does not fail")
+        void aPolicyNeedsAUser() throws Exception {
+            ProtectableMethodAuthorizationManager manager = manager(CombiningAlgorithm.FIRST_APPLICABLE,
+                    NoPolicyDecision.PERMIT, policy(1L, Policy.Effect.ALLOW, 10, "isAuthenticated()"));
+            MethodInvocation invocation = invocation();
+
+            assertThatThrownBy(() -> manager.protectable(() -> null, invocation))
+                    .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+        }
+
+        @ParameterizedTest
+        @CsvSource({"PERMIT, true", "DENY, false"})
+        @DisplayName("Without a policy the missing-policy decision answers, as it does for every user")
+        void theMissingPolicyDecisionAnswers(NoPolicyDecision missing, boolean expected) throws Exception {
+            assertThat(granted(manager(CombiningAlgorithm.FIRST_APPLICABLE, missing), null)).isEqualTo(expected);
         }
     }
 

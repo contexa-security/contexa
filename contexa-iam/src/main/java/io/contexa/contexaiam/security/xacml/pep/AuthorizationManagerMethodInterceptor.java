@@ -50,6 +50,7 @@ import org.springframework.security.authorization.method.AuthorizationIntercepto
 import org.springframework.security.authorization.method.MethodAuthorizationDeniedHandler;
 import org.springframework.security.authorization.method.ThrowingMethodAuthorizationDeniedHandler;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -266,6 +267,11 @@ public class AuthorizationManagerMethodInterceptor
                 // A real refusal is not analysed, but it is a fact of the session and of the user's scope.
                 authorizationDenialRecorder.record(mi, authentication, denialReason);
             }
+            if (!invoked) {
+                // The method policies or the delegator's authority refused the call before the method ran; a refusal
+                // from inside the method is the application's own.
+                ProtectableRefusalFilter.markRefusal(currentRequest(), denied);
+            }
             return handle(mi, denied);
 
         } catch (Exception e) {
@@ -277,6 +283,11 @@ public class AuthorizationManagerMethodInterceptor
                 granted = false;
                 denialReason = e.getMessage();
                 checkFailure = e.getClass().getSimpleName();
+                if (e instanceof AuthenticationException missingUser) {
+                    // A method policy needs a user the call does not have: the call is refused for it, as Spring
+                    // Security's translation answers such an exception on a path a chain covers.
+                    ProtectableRefusalFilter.markRefusal(currentRequest(), missingUser);
+                }
             }
             throw e;
 
@@ -358,8 +369,8 @@ public class AuthorizationManagerMethodInterceptor
 
     /**
      * Q-10: a scheduled or asynchronous call on a thread that holds neither a user nor a request is no one's request, so
-     * there is nothing to decide. A request with no user stays refused, and so does an anonymous visitor's context, which
-     * names a known nobody; a user carried into the thread is decided as in a request.
+     * there is nothing to decide. A request with no user, and an anonymous visitor's context, which names a known nobody,
+     * go to {@link #getAuthentication()}; a user carried into the thread is decided as in a request.
      */
     private boolean hasNoUserToDecide() {
         return this.securityContextHolderStrategy.get().getContext().getAuthentication() == null && currentRequest() == null;
@@ -377,11 +388,17 @@ public class AuthorizationManagerMethodInterceptor
         }
     }
 
+    /**
+     * The user the call is decided for. A mode that decides on users (SHADOW, ENFORCE) refuses a call without one, as
+     * before. A mode that decides on nobody (OBSERVE, DISABLED) leaves the call as the application made it: it goes on as
+     * a signed-in user's call does there, and the method policies decide on what the context holds, a visitor or nobody.
+     */
     private Authentication getAuthentication() {
         Authentication authentication = this.securityContextHolderStrategy.get().getContext().getAuthentication();
         boolean isAnonymous = this.authenticationTrustResolver.isAnonymous(authentication);
-        if (authentication == null || isAnonymous) {
-            throw new AuthenticationCredentialsNotFoundException("Authentication is anonymousUser or was not found in the SecurityContext");
+        if ((authentication == null || isAnonymous) && isLlmAnalysisAllowed()) {
+            throw ProtectableRefusalFilter.markRefusal(currentRequest(), new AuthenticationCredentialsNotFoundException(
+                    "Authentication is anonymousUser or was not found in the SecurityContext"));
         }
         return authentication;
     }
