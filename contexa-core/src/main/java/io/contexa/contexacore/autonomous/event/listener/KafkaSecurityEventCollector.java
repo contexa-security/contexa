@@ -119,12 +119,15 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
     }
 
     /**
-     * The group is the application's own ({@code security-plane-consumer.<name>} for an application with a name), so that
-     * the consumers of two applications on one cluster do not split the partitions between them; and a record is
-     * analysed only by the application whose name it carries (see {@link SecurityEventOrigin}).
+     * The topics are the application's own ({@code ctxa.<name>.security.events.*}, see {@link SecurityEventTopics}), so
+     * that the consumer of one application never subscribes to the events of another, nor to a topic of an application
+     * that is not Contexa. The group is the application's own too ({@code security-plane-consumer.<name>} for an
+     * application with a name), so that the consumers of two applications on one cluster do not split the partitions
+     * between them; and a record is analysed only by the application whose name it carries (see
+     * {@link SecurityEventOrigin}).
      */
     @KafkaListener(
-            topicPattern = SecurityEventTopics.PATTERN,
+            topicPattern = "#{T(io.contexa.contexacore.autonomous.event.SecurityEventTopics).pattern()}",
             groupId = "#{T(io.contexa.contexacommon.store.ApplicationNamespace).consumerGroup("
                     + "'${security.plane.kafka.group-id:security-plane-consumer}')}",
             containerFactory = "contexaKafkaListenerContainerFactory"

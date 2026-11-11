@@ -28,6 +28,7 @@ import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.event.SecurityEventTopics;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
@@ -241,7 +242,7 @@ class ContexaDecidedRecordBrokerTest {
     @BeforeEach
     void names() {
         prefix = UUID.randomUUID().toString();
-        topic = "security.events.authentication.decided-" + prefix;
+        topic = SecurityEventTopics.of(ZeroTrustEventCategory.AUTHENTICATION, "decided-" + prefix);
         group = "decided-" + prefix;
     }
 

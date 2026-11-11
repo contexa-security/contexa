@@ -146,7 +146,7 @@ class KafkaSecurityEventPublisherHandOffTest {
         publisher.publishGenericSecurityEvent(event("session-1"));
 
         Awaitility.await().untilAsserted(() -> verify(template)
-                .send(eq("security.events.authorization.method"), eq("session-1"), any()));
+                .send(eq("ctxa.security.events.authorization.method"), eq("session-1"), any()));
     }
 
     /** A callback runs on the producer's own thread, which a send that waits for metadata would stop. */

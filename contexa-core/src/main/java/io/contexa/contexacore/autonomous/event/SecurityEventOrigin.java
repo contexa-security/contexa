@@ -28,10 +28,11 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Which application a security event on Kafka belongs to. The topics are shared by every application on the cluster, and
- * the consumer group of each application is its own, so every application reads every event; the application that
- * published an event is the one that analyses it. An application with a name stamps what it publishes with its name
- * ({@value #HEADER}); each reads only the events that carry its own name, or, without a name, none.
+ * Which application a security event on Kafka belongs to. Each application publishes to topics of its own and reads
+ * them in a consumer group of its own (see {@link SecurityEventTopics}); the name on the record is the second guard, for
+ * a record that reaches a topic of an application it does not belong to: the application that published an event is the
+ * one that analyses it. An application with a name stamps what it publishes with its name ({@value #HEADER}); each
+ * reads only the events that carry its own name, or, without a name, none.
  */
 public final class SecurityEventOrigin {
 

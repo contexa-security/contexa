@@ -125,11 +125,11 @@ class ContexaKafkaLoginBrokerTest {
             assertThat(context).hasNotFailed();
             try (Admin admin = Admin.create(login("rc-secret"))) {
                 assertThat(admin.listTopics().names().get(20, TimeUnit.SECONDS))
-                        .as("Contexa's admin client made the topics").containsAll(SecurityEventTopics.DECLARED);
+                        .as("Contexa's admin client made the topics").containsAll(SecurityEventTopics.declared());
             }
             KafkaSecurityEventPublisher publisher = publisher(context);
             try (Consumer<String, String> consumer = consumer(context)) {
-                consumer.subscribe(Pattern.compile(SecurityEventTopics.PATTERN));
+                consumer.subscribe(Pattern.compile(SecurityEventTopics.pattern()));
                 Awaitility.await().atMost(Duration.ofSeconds(30)).pollDelay(Duration.ZERO).until(() -> {
                     consumer.poll(Duration.ofMillis(200));
                     return !consumer.assignment().isEmpty();

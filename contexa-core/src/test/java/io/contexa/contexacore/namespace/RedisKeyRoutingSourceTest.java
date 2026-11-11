@@ -107,6 +107,15 @@ class RedisKeyRoutingSourceTest {
     private static final Pattern KEY_LIKE = Pattern.compile("^(security|threat_score|mfa|mfa_lock|contexa|async|distributed|soar):"
             + "|^RedisRepository");
 
+    /** A literal that names one of Contexa's Kafka topics by the name it had before the namespace. */
+    private static final Pattern TOPIC_LIKE = Pattern.compile("^(security\\.events\\.|security-events|security-authorization-events"
+            + "|security-incident-events|security-audit-events|auth-events|threat-indicators|network-events|soar-action-events)");
+
+    /** The sources whose topic-like literals name no topic Contexa makes, writes or reads. */
+    private static final Map<String, String> TOPIC_LITERALS_THAT_ARE_NOT_TOPICS = Map.of(
+            "SecurityPlaneProperties", "topic and channel defaults that no code reads",
+            "SecurityPipelineProperties", "a topic default that no code reads");
+
     /** The key builders write their keys as formats that start with the namespace of the old keys. */
     private static final Pattern KEY_FORMAT = Pattern.compile("^%s:");
 
@@ -221,6 +230,45 @@ class RedisKeyRoutingSourceTest {
                         .doesNotContain("kafkaTemplate.send(").doesNotContain("KafkaTemplate.send(");
             }
         }
+    }
+
+    @Test
+    @DisplayName("Kafka: every listener reads the topics of its application, and every topic name of Contexa is made through the namespace")
+    void kafkaTopicsGoThroughTheNamespace() {
+        List<String> problems = new ArrayList<>();
+        int topicLiterals = 0;
+        int listeners = 0;
+        for (Source source : sources()) {
+            Matcher listener = Pattern.compile("@KafkaListener\\s*\\(").matcher(source.code());
+            while (listener.find()) {
+                listeners++;
+                String declaration = source.rawFrom(listener.start(), 700);
+                assertThat(declaration).as("%s: a @KafkaListener reads the topics of SecurityEventTopics.pattern()", source.name())
+                        .contains("topicPattern = \"#{T(io.contexa.contexacore.autonomous.event.SecurityEventTopics).pattern()}\"")
+                        .doesNotContain("topics =").doesNotContain("topicPartitions =");
+            }
+            if (TOPIC_LITERALS_THAT_ARE_NOT_TOPICS.containsKey(source.name())) {
+                continue;
+            }
+            for (Literal literal : source.literals()) {
+                if (!TOPIC_LIKE.matcher(literal.content()).find()) {
+                    continue;
+                }
+                topicLiterals++;
+                if (QUALIFIERS.stream().anyMatch(source.statementAround(literal.start())::contains)) {
+                    continue;
+                }
+                Matcher constant = CONSTANT.matcher(source.statementBefore(literal.start()));
+                if (!constant.find() || constant.group(1) == null || !constant.group(1).startsWith("private")) {
+                    problems.add(source.name() + ": the topic literal \"" + literal.content() + "\" is not made through the namespace");
+                    continue;
+                }
+                problems.addAll(source.usesOutsideTheNamespace(constant.group(2), literal.start()));
+            }
+        }
+        assertThat(listeners).as("listeners found in the sources").isPositive();
+        assertThat(topicLiterals).as("topic literals found in the sources").isGreaterThanOrEqualTo(13);
+        assertThat(problems).isEmpty();
     }
 
     private static List<Source> sources() {

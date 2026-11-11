@@ -65,7 +65,8 @@ class ContexaKafkaTopicsBrokerTest {
 
     private static final String PORT = "CONTEXA_TEST_KAFKA_PORT";
     private static final String REFUSING_PORT = "CONTEXA_TEST_KAFKA_REFUSING_PORT";
-    private static final String DEAD_LETTER_TOPIC = "security-events-dlq";
+    private static final String DEAD_LETTER_TOPIC = "ctxa.security-events-dlq";
+    private static final String EVENT_TOPICS = "ctxa.security.events.";
 
     @Configuration(proxyBeanMethods = false)
     static class ContexaSide {
@@ -94,11 +95,11 @@ class ContexaKafkaTopicsBrokerTest {
     private static void deleteSecurityEventTopics(String bootstrap) throws Exception {
         try (Admin admin = admin(bootstrap)) {
             Set<String> existing = admin.listTopics().names().get();
-            List<String> own = existing.stream().filter(name -> name.startsWith("security.events.")).toList();
+            List<String> own = existing.stream().filter(name -> name.startsWith(EVENT_TOPICS)).toList();
             if (!own.isEmpty()) {
                 admin.deleteTopics(own).all().get();
                 Awaitility.await().atMost(Duration.ofSeconds(30)).until(() ->
-                        admin.listTopics().names().get().stream().noneMatch(name -> name.startsWith("security.events.")));
+                        admin.listTopics().names().get().stream().noneMatch(name -> name.startsWith(EVENT_TOPICS)));
             }
         }
     }
@@ -145,19 +146,19 @@ class ContexaKafkaTopicsBrokerTest {
         runner(bootstrap).run(context -> {
             assertThat(context).hasNotFailed();
             try (Admin admin = admin(bootstrap)) {
-                assertThat(admin.listTopics().names().get()).containsAll(SecurityEventTopics.DECLARED)
+                assertThat(admin.listTopics().names().get()).containsAll(SecurityEventTopics.declared())
                         .contains(DEAD_LETTER_TOPIC);
             }
             KafkaSecurityEventPublisher publisher = publisher(context);
             try (Consumer<String, String> consumer = consumer(context)) {
-                consumer.subscribe(Pattern.compile(SecurityEventTopics.PATTERN));
+                consumer.subscribe(Pattern.compile(SecurityEventTopics.pattern()));
                 long began = System.nanoTime();
                 Awaitility.await().atMost(Duration.ofSeconds(15)).pollDelay(Duration.ZERO).until(() -> {
                     consumer.poll(Duration.ofMillis(200));
                     return !consumer.assignment().isEmpty();
                 });
                 Set<String> assigned = consumer.assignment().stream().map(TopicPartition::topic).collect(Collectors.toSet());
-                assertThat(assigned).containsExactlyInAnyOrderElementsOf(new HashSet<>(SecurityEventTopics.DECLARED));
+                assertThat(assigned).containsExactlyInAnyOrderElementsOf(new HashSet<>(SecurityEventTopics.declared()));
 
                 String topic = SecurityEventTopics.of(ZeroTrustEventCategory.AUTHENTICATION,
                         ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS);
@@ -185,7 +186,7 @@ class ContexaKafkaTopicsBrokerTest {
             assertThat(context).hasNotFailed();
             KafkaSecurityEventPublisher publisher = publisher(context);
             try (Consumer<String, String> consumer = consumer(context); Admin admin = admin(bootstrap)) {
-                consumer.subscribe(Pattern.compile(SecurityEventTopics.PATTERN));
+                consumer.subscribe(Pattern.compile(SecurityEventTopics.pattern()));
                 Awaitility.await().atMost(Duration.ofSeconds(15)).pollDelay(Duration.ZERO).until(() -> {
                     consumer.poll(Duration.ofMillis(200));
                     return !consumer.assignment().isEmpty();
@@ -210,13 +211,13 @@ class ContexaKafkaTopicsBrokerTest {
         runner(bootstrap).withPropertyValues("spring.kafka.admin.auto-create=false").run(context -> {
             assertThat(context).hasNotFailed();
             try (Admin admin = admin(bootstrap)) {
-                assertThat(admin.listTopics().names().get()).doesNotContainAnyElementsOf(SecurityEventTopics.DECLARED);
+                assertThat(admin.listTopics().names().get()).doesNotContainAnyElementsOf(SecurityEventTopics.declared());
             }
         });
         List<String> reported = (output.getOut() + output.getErr()).lines()
                 .filter(line -> line.contains("[ContexaKafkaTopics]")).toList();
         assertThat(reported).hasSize(1);
-        assertThat(reported.get(0)).contains(SecurityEventTopics.DECLARED).contains("auto-create");
+        assertThat(reported.get(0)).contains(SecurityEventTopics.declared()).contains("auto-create");
     }
 
     /** A broker that refuses the topics: the application starts, the topics are named, and a request is not held. */
@@ -240,6 +241,6 @@ class ContexaKafkaTopicsBrokerTest {
         List<String> reported = (output.getOut() + output.getErr()).lines()
                 .filter(line -> line.contains("[ContexaKafkaTopics]")).toList();
         assertThat(reported).hasSize(1);
-        assertThat(reported.get(0)).contains(SecurityEventTopics.DECLARED);
+        assertThat(reported.get(0)).contains(SecurityEventTopics.declared());
     }
 }
