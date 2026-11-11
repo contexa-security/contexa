@@ -53,6 +53,12 @@ public class RestAuthenticationFilter extends BaseAuthenticationFilter {
     public void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
                                          Authentication authentication) throws IOException, ServletException {
 
+        // Before the sign-in is kept: with the session state the session gets a new id here, as a sign-in through
+        // Spring Security's own filters does. Kept under the id the browser came with, the session an attacker had
+        // planted in that browser was signed in with the user's. A refusal (the limit of sessions) is an
+        // authentication failure, and the caller answers it as one.
+        sessionStrategy.onAuthentication(authentication, request, response);
+
         SecurityContext context = securityContextHolderStrategy.createEmptyContext();
         context.setAuthentication(authentication);
         securityContextHolderStrategy.setContext(context);

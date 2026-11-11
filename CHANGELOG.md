@@ -8,6 +8,44 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A REST sign-in kept in the session gets a new session id, and the limit of sessions counts it.** A `rest(...)`
+  flow with the session state signs in through Contexa's own filter, and that filter did not apply the session strategy
+  of its chain as Spring Security's sign-in filters do. The session kept the id the browser came with, so a session
+  someone had planted in that browser was signed in with the user's (session fixation), and
+  `sessionManagement(session -> session.maximumSessions(n))` did not count the sign-in. The filter now applies the
+  strategy before the sign-in is kept: a new session id, the limit of sessions, and a new CSRF token as after a form
+  sign-in, so a page reads its token again after the sign-in. A sign-in the limit refuses
+  (`maxSessionsPreventsLogin(true)`) is answered 401 and is not counted as a wrong password. A flow with the token
+  state keeps no sign-in in the session and is unchanged. **Check:** on a `rest(...)` flow with `.session(...)`, the
+  `JSESSIONID` after `POST /api/login` differs from the one before; with `maximumSessions(1)` the first browser reads
+  "This session has been expired" after the same account signs in from a second.
+- **An MFA sign-in that ends at the first step gets a new session id, and the limit of sessions counts it.** When no
+  second factor is asked (the user's MFA is off, an agent account, a decision of the flow's policy provider), the first
+  step completes the sign-in, and no filter of Spring Security handles it: with the session state it kept the session
+  id the browser came with and was not counted by `maximumSessions`. A sign-in that goes on to a factor was not
+  affected, since the filter of its last factor applies the strategy. The first step now applies the session strategy
+  of its chain when it completes the sign-in, and a refusal of the limit is answered as a failed sign-in (401) and not
+  counted as a wrong password. **Check:** with the session state and a user who needs no second factor, the
+  `JSESSIONID` after `POST /mfa/login` differs from the one before.
+- **A passkey sign-in kept in the session gets a new session id, and the limit of sessions counts it.** Spring
+  Security's passkey configurer builds its sign-in filter without the session strategy its other sign-in filters get.
+  A sign-in by passkey, alone or as the factor of an MFA flow, kept the session id the browser came with, and
+  `maximumSessions` never counted it: the principal of a passkey sign-in is another object at every sign-in, so the
+  registry of sessions could not tell that two sessions are one person's. A flow with the session state now gives the
+  filter the strategy of its chain, and the strategy receives the sign-in under the person's entry of the user store,
+  as the other sign-ins of the chain carry it. **Check:** with the session state, the `JSESSIONID` after a passkey
+  sign-in differs from the one before; with `maximumSessions(1)` the first browser's session ends when the same
+  account signs in by passkey from a second.
+- **A form login of Spring Security no longer stands beside an MFA flow.** `http.formLogin(...)` written in the global
+  customizer, or in a `rawHttp` of the flow, stayed in the chain of an MFA flow as a second password sign-in: a POST
+  of the password to its address (`/login`, or the `loginPage` it names) signed the user in without the factors.
+  A single form flow already put its own in its place. It is now taken out of an MFA chain before the chain is built,
+  and the start logs a warning that says where its settings belong:
+  `mfa(mfa -> mfa.primaryAuthentication(auth -> auth.formLogin(form -> form.loginPage(...))))`. Other sign-ins an
+  application adds in the global customizer, such as `httpBasic()`, stay as the application wrote them and sign in
+  as Spring Security defines them, in an MFA chain too. **Check:** with `http.formLogin(form -> form.loginPage("/signin"))`
+  in `global(...)` and an MFA flow, `POST /signin` with a right password does not sign in, and the log of the start
+  has one warning that names the flow.
 - **A session signed in with a passkey alone stays the user's for what Contexa keeps by name.** On every request of a
   session Contexa may replace the authentication with one whose authorities follow the decision in force, and that
   replacement worked the user's name out from the principal alone. The principal of a sign-in by passkey alone is a
@@ -523,6 +561,24 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **`mfa.policyProvider(...)` decides for its flow.** The DSL took the provider and nothing asked it: every decision
+  of every MFA flow came from the provider bean, so a flow that named a stricter or a lighter policy got the default
+  one. The provider bean now hands the four questions of a flow that names its own provider to that provider (whether
+  factors are needed, the next factor, whether a factor is available, how many are required), and the AI adaptation
+  is not put on top of its answer. A provider written around the bean (ask the default, then tighten the answer) gets
+  the bean's own answer and is not handed its own question again. A flow that names none is decided as before.
+  **Check:** an MFA flow with `policyProvider(...)` whose provider answers that no factor is needed completes the
+  sign-in at the password step.
+- **The generated sign-in page of a REST flow is at the address the flow signs in at.** The page was fixed at
+  `/api/login` and posted there. A flow with `rest(rest -> rest.loginProcessingUrl("/api/auth"))` showed the page at
+  the old address, where its POST met 404, and nothing at the new one. The page is now shown at, and posts to, the
+  flow's `loginProcessingUrl`. **Check:** with `loginProcessingUrl("/api/auth")`, `GET /api/auth` shows the page
+  and `GET /api/login` is 404.
+- **A `formLogin(...)` of the global customizer that a form flow replaces is said at the start.** Spring Security
+  keeps one form login per chain, and a `form(...)` flow puts its own in the place of the one written in
+  `global(...)`: its `loginPage`, `failureUrl` and the rest were dropped without a word. The behaviour is the
+  same, and the start now logs a warning that names the flow and says to write the settings in the flow
+  (`form(form -> form.loginPage(...))` or `form.rawFormLogin(...)`).
 - **An application with a user store of its own signs its accounts in at Contexa's form sign-in.** When the
   application has exactly one `UserDetailsService`, that store serves the sign-in Contexa owns, and its accounts are
   whatever `UserDetails` it returns. Contexa's password provider took every account for one of its own and failed on
@@ -952,6 +1008,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Changed
 
+- **ASEP is registered by one auto-configuration.** The `contexa-identity` module listed an auto-configuration of
+  its own, `io.contexa.contexaidentity.security.core.asep.autoconfigure.AsepAutoConfiguration`, next to
+  `io.contexa.autoconfigure.identity.IdentityAsepAutoConfiguration` of `contexa-autoconfigure`: the same beans
+  twice, one set skipped by its conditions. The module's class is removed and the beans are the same as before. An
+  application that names the removed class in an exclusion or an import names
+  `io.contexa.autoconfigure.identity.IdentityAsepAutoConfiguration` instead.
 - **The action in force of a user is read in one script instead of three round trips.** A protected request asks for it seven times,
   and each ask read the BLOCK flag, the analysis and the held CHALLENGE one after the other, about twenty of the thirty or so
   commands a request waits for on its own thread. One script on the shared connection reads the three; what is decided from them

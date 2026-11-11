@@ -63,6 +63,12 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
     @Override
     public MfaDecision evaluateInitialMfaRequirement(FactorContext ctx) {
         Assert.notNull(ctx, "FactorContext cannot be null");
+        // A flow whose DSL names a provider of its own is decided by that provider alone: the adaptation below is this
+        // provider's, and is not put on top of another's decision.
+        MfaPolicyProvider ofFlow = providerOfFlow(ctx.getFlowTypeName());
+        if (ofFlow != null) {
+            return askFlowsProvider(() -> ofFlow.evaluateInitialMfaRequirement(ctx));
+        }
         MfaDecision decision = super.evaluateInitialMfaRequirement(ctx);
 
         if (isAIAvailable()) {

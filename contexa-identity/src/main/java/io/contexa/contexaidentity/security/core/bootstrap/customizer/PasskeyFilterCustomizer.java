@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.core.bootstrap.customizer;
 
 import io.contexa.contexacommon.enums.StateType;
+import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
@@ -29,9 +30,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpMethod;
+import org.springframework.lang.Nullable;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsSuccessHandler;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 import org.springframework.security.web.authentication.HttpMessageConverterAuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.ui.DefaultResourcesFilter;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -129,6 +132,20 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                                  AuthenticationFlowConfig flowConfig,
                                  ApplicationContext appContext,
                                  boolean isMfaFlow) {
+        replaceHandlers(builtChain, flowConfig, appContext, isMfaFlow, null);
+    }
+
+    /**
+     * Replace WebAuthn authentication handlers (success/failure), and give the filter the session strategy of its
+     * chain where the flow keeps its sign-in in the session.
+     *
+     * @param sessionStrategy the session strategy of the chain; {@code null} leaves the filter's own
+     */
+    public void replaceHandlers(DefaultSecurityFilterChain builtChain,
+                                 AuthenticationFlowConfig flowConfig,
+                                 ApplicationContext appContext,
+                                 boolean isMfaFlow,
+                                 @Nullable SessionAuthenticationStrategy sessionStrategy) {
 
         for (Filter filter : getFilters(builtChain)) {
             if (filter instanceof AbstractAuthenticationProcessingFilter authFilter && isWebAuthnAuth(filter)) {
@@ -155,6 +172,12 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
 
                     if (stateType != StateType.SESSION) {
                         authFilter.setSecurityContextRepository(new RequestAttributeSecurityContextRepository());
+                    } else if (sessionStrategy != null) {
+                        // Spring Security's passkey configurer builds its filter without the session strategy its other
+                        // sign-in filters get: a passkey sign-in kept the session id the browser came with, and the
+                        // limit of sessions did not count it.
+                        authFilter.setSessionAuthenticationStrategy(
+                                new PasskeySessionAuthenticationStrategy(sessionStrategy, ContexaUserStore.of(appContext)));
                     }
                     if (successHandler != null) {
                         authFilter.setAuthenticationSuccessHandler(successHandler);

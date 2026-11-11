@@ -50,6 +50,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.util.StringUtils;
 
 @Slf4j
@@ -57,6 +58,13 @@ import org.springframework.util.StringUtils;
 public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthenticationSuccessHandler {
 
     private static final int HTTP_STATUS_TOO_MANY_REQUESTS = 429;
+
+    /**
+     * The request attribute under which the flow's first-step filter hands over the session strategy of its chain (a
+     * {@link SessionAuthenticationStrategy}). This handler is one for every flow, and the strategy is the chain's.
+     */
+    public static final String SESSION_STRATEGY_ATTRIBUTE =
+            PrimaryAuthenticationSuccessHandler.class.getName() + ".SESSION_STRATEGY";
 
     private final MfaPolicyProvider mfaPolicyProvider;
     private final AuthResponseWriter responseWriter;
@@ -153,6 +161,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         }
 
         if (decision.isAllowed()) {
+            applySessionStrategyOfChain(request, response, authentication);
             handleFinalAuthenticationSuccess(request, response, authentication, factorContext);
             return;
         }
@@ -192,6 +201,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
         switch (currentState) {
             case MFA_NOT_REQUIRED, MFA_SUCCESSFUL:
+                applySessionStrategyOfChain(request, response, authentication);
                 handleFinalAuthenticationSuccess(request, response, authentication, finalFactorContext);
                 break;
 
@@ -214,6 +224,20 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                         currentState, username);
                 stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, factorContext, request);
                 handleConfigError(response, request, finalFactorContext, "Unexpected state during MFA processing.");
+        }
+    }
+
+    /**
+     * A sign-in that ends at the first step, with no second factor asked, is kept by this handler, and no filter of
+     * Spring Security has handled it: the session strategy of its chain is applied here (a new session id, the limit of
+     * sessions, a new CSRF token), as the filter of the last factor applies it to a sign-in that goes on. Kept under
+     * the id the browser came with, the session someone had planted in that browser was signed in with the user's. A
+     * refusal (the limit of sessions) leaves as the exception it is, and the filter answers it as a failed sign-in.
+     */
+    private void applySessionStrategyOfChain(HttpServletRequest request, HttpServletResponse response,
+                                             Authentication authentication) {
+        if (request.getAttribute(SESSION_STRATEGY_ATTRIBUTE) instanceof SessionAuthenticationStrategy sessionStrategy) {
+            sessionStrategy.onAuthentication(authentication, request, response);
         }
     }
 

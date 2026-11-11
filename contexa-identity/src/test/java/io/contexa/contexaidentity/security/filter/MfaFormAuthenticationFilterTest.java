@@ -38,6 +38,7 @@ import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
+import io.contexa.contexaidentity.security.handler.PrimaryAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
@@ -58,6 +59,8 @@ import org.mockito.Mock;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationContext;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.web.authentication.session.SessionAuthenticationException;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -171,6 +174,39 @@ class MfaFormAuthenticationFilterTest {
 
             assertThat(session.getAttribute(MfaPendingSessionMarker.SESSION_ATTRIBUTE)).isEqualTo("mfa");
             verify(failureHandler).onAuthenticationFailure(eq(request), eq(response), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("Session strategy of the chain")
+    class SessionStrategyTests {
+
+        @Test
+        @DisplayName("The handler is handed the session strategy of the chain for a sign-in that ends at this step")
+        void handsTheSessionStrategyOfItsChainToTheHandler() throws Exception {
+            when(sessionRepository.supportsDistributedSync()).thenReturn(false);
+            when(stateMachineIntegrator.getCurrentState(anyString())).thenReturn(MfaState.NONE);
+            SessionAuthenticationStrategy sessionStrategy = mock(SessionAuthenticationStrategy.class);
+            filter.setSessionAuthenticationStrategy(sessionStrategy);
+            Authentication auth = createSuccessfulAuthentication();
+
+            filter.successfulAuthentication(request, response, filterChain, auth);
+
+            verify(request).setAttribute(PrimaryAuthenticationSuccessHandler.SESSION_STRATEGY_ATTRIBUTE, sessionStrategy);
+            verify(successHandler).onAuthenticationSuccess(request, response, auth);
+        }
+
+        @Test
+        @DisplayName("A sign-in the session strategy refuses at the end of this step is answered as a failed sign-in")
+        void aRefusedSignInIsAnsweredAsAFailedSignIn() throws Exception {
+            when(sessionRepository.supportsDistributedSync()).thenReturn(false);
+            when(stateMachineIntegrator.getCurrentState(anyString())).thenReturn(MfaState.NONE);
+            SessionAuthenticationException refusal = new SessionAuthenticationException("Maximum sessions of 1 exceeded");
+            doThrow(refusal).when(successHandler).onAuthenticationSuccess(any(), any(), any());
+
+            filter.successfulAuthentication(request, response, filterChain, createSuccessfulAuthentication());
+
+            verify(failureHandler).onAuthenticationFailure(request, response, refusal);
         }
     }
 
