@@ -27,6 +27,8 @@ import io.contexa.contexacore.security.UnifiedUserDetailsService;
 import io.contexa.contexaidentity.security.core.context.OrderedSecurityFilterChain;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.DefaultSecurityFilterChain;
@@ -136,6 +138,68 @@ class OwnershipStartupDiagnosticsTest {
         for (String stored : new String[]{null, "", "AUTHENTICATED", "DENY", "permit"}) {
             assertThat(OwnershipStartupDiagnostics.openUnnamedPathsNotice(full, stored)).as("stored %s", stored).isNull();
         }
+    }
+
+    @Test
+    @DisplayName("an application whose several mail senders Contexa does not choose between is told so, with the names and what to do (SANDBOX)")
+    void severalSendersAreNamedWhereTheApplicationSignsIn() {
+        String message = OwnershipStartupDiagnostics.undeliverableCodeMessage(SecurityOwnershipMode.HOST_OWNED, List.of("mailA", "mailB"), true);
+
+        assertThat(message).contains("the application has several JavaMailSender beans [mailA, mailB]", "does not choose one of them",
+                "@Primary", "passkey").doesNotContain("no mail sender is configured");
+    }
+
+    @Test
+    @DisplayName("FULL: several senders and no spring.mail.host, Contexa is told it has none of its own to build, and how to give it one")
+    void severalSendersAndNoHostAreExplainedWhereContexaSignsIn() {
+        String message = OwnershipStartupDiagnostics.undeliverableCodeMessage(SecurityOwnershipMode.CONTEXA_OWNED, List.of("mailA", "mailB"), false);
+
+        assertThat(message).contains("the application has several JavaMailSender beans [mailA, mailB]", "spring.mail.host is not set",
+                "Set spring.mail.host", "@Primary", "passkey");
+    }
+
+    @Test
+    @DisplayName("no sender of the application and no spring.mail.host: the reason is that neither exists")
+    void noSenderAndNoHostAreExplained() {
+        for (SecurityOwnershipMode ownership : SecurityOwnershipMode.values()) {
+            assertThat(OwnershipStartupDiagnostics.undeliverableCodeMessage(ownership, List.of(), false))
+                    .contains("the application has no JavaMailSender and spring.mail.host is not set", "Set spring.mail.*", "passkey");
+        }
+    }
+
+    @Test
+    @DisplayName("FULL, spring.mail.host set and still no sender: the sender built from spring.mail.* could not be created")
+    void aSenderThatCouldNotBeBuiltIsSaid() {
+        assertThat(OwnershipStartupDiagnostics.undeliverableCodeMessage(SecurityOwnershipMode.CONTEXA_OWNED, List.of("mailA", "mailB"), true))
+                .contains("could not be created", "spring.mail.*").doesNotContain("does not choose");
+        assertThat(OwnershipStartupDiagnostics.undeliverableCodeMessage(SecurityOwnershipMode.CONTEXA_OWNED, List.of(), true))
+                .contains("could not be created");
+    }
+
+    @Test
+    @DisplayName("SANDBOX, spring.mail.host set and no JavaMailSender bean: the sender that Spring Boot would make is missing")
+    void aHostWithoutASenderBeanIsSaid() {
+        assertThat(OwnershipStartupDiagnostics.undeliverableCodeMessage(SecurityOwnershipMode.HOST_OWNED, List.of(), true))
+                .contains("spring.mail.host is set but the application has no JavaMailSender bean");
+    }
+
+    @Test
+    @DisplayName("the start check names the application's senders from its beans, and reads spring.mail.host from its settings")
+    void theStartCheckReadsTheApplicationsSenders() {
+        assertThat(OwnershipStartupDiagnostics.applicationMailSenders(beansWith("mailB", "mailA"))).containsExactly("mailA", "mailB");
+        assertThat(OwnershipStartupDiagnostics.applicationMailSenders(new DefaultListableBeanFactory())).isEmpty();
+        assertThat(OwnershipStartupDiagnostics.mailHostSet(new MockEnvironment().withProperty("spring.mail.host", "smtp.example.test"))).isTrue();
+        assertThat(OwnershipStartupDiagnostics.mailHostSet(new MockEnvironment().withProperty("spring.mail.host", " "))).isFalse();
+        assertThat(OwnershipStartupDiagnostics.mailHostSet(new MockEnvironment())).isFalse();
+        assertThat(OwnershipStartupDiagnostics.mailHostSet(null)).isFalse();
+    }
+
+    private static DefaultListableBeanFactory beansWith(String... senders) {
+        DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
+        for (String sender : senders) {
+            beans.registerSingleton(sender, mock(JavaMailSender.class));
+        }
+        return beans;
     }
 
     /** Boot runs a WebFlux application on the servlet stack Contexa brings, and its functional routes then answer 404. */

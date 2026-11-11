@@ -27,8 +27,10 @@ import org.springframework.web.util.HtmlUtils;
 import java.util.Optional;
 
 /**
- * Mails a notice to the person accountable for an agent (docs/agent A5-2, A5-3) through the application's mail sender,
- * to the address the person's account names. Without a mail sender or an address the notice stays for the console.
+ * Mails a notice to the person accountable for an agent (docs/agent A5-2, A5-3) through the mail sender of the e-mail service
+ * (the application's one sender, or, where Contexa owns the sign-in and the application has none to take, the one Contexa
+ * builds from spring.mail.*), to the address the person's account names. Without a mail sender or an address the notice
+ * stays for the console.
  */
 @Slf4j
 public class MailAgentNoticeChannel implements AgentNoticeChannel {
