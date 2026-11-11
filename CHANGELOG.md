@@ -561,6 +561,20 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **Cancelling an MFA sign-in is answered at once, however many cancel together.** Each cancel handed a task to the
+  shared executor that slept five seconds and then released the cancelled flow. Past the executor's ten threads and
+  its queue of a hundred the task ran on the request thread: of 300 cancels sent together 240 were answered after
+  four seconds or more (half after five, the last after ten), and the executor's other work, the saving of audit
+  records, waited behind the sleeping tasks. The flow is now released in the request, once its answer is written.
+  A later request of a cancelled flow is answered as before (`400 MFA_SESSION_INVALID`). **Check:** 300 and 1000
+  cancels sent together are all answered within 0.2 seconds.
+- **A verification submitted too late says so.** A code submitted after the time of its challenge
+  (`contexa.auth.mfa.challenge-timeout-ms`, five minutes) ends the sign-in, and was answered by an error of the
+  container: `403 {"error":"Forbidden"}`, with nothing a page could tell the person. The same went for a submission
+  past the attempts allowed, in a state that takes none, or for a factor without a filter. These are now answered in
+  the form of the flow's other answers, with a code and a message: `MFA_SESSION_EXPIRED`,
+  `MFA_RETRY_LIMIT_EXCEEDED` (both with `redirectUrl`, the sign-in page of the flow), `MFA_INVALID_STATE` and
+  `MFA_FACTOR_MISCONFIGURED`. The status codes and what happens to the sign-in are unchanged.
 - **After an MFA sign-in the browser goes back to the page it asked for.** A request for a protected page is kept
   while the browser is sent to sign in, and Spring Security keeps it with a full address (`http://host/path?query`).
   The sign-in handlers of Contexa refused every address that names a host, so they refused every kept request: after

@@ -152,7 +152,10 @@ class MfaStepFilterWrapperTest {
         }
 
         verify(stateMachineIntegrator).sendEvent(MfaEvent.SESSION_TIMEOUT, factorContext, request);
-        verify(response).sendError(HttpServletResponse.SC_FORBIDDEN, "MFA session expired");
+        // answered in the form of the flow's other answers, with a code the client can tell apart
+        verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_FORBIDDEN),
+                eq("MFA_SESSION_EXPIRED"), anyString(), any(), anyMap());
+        verify(response, never()).sendError(anyInt(), anyString());
     }
 
     @Test
@@ -181,7 +184,9 @@ class MfaStepFilterWrapperTest {
         }
 
         verify(stateMachineIntegrator).sendEvent(MfaEvent.RETRY_LIMIT_EXCEEDED, factorContext, request);
-        verify(response).sendError(HttpServletResponse.SC_FORBIDDEN, "Maximum verification attempts exceeded");
+        verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_FORBIDDEN),
+                eq("MFA_RETRY_LIMIT_EXCEEDED"), anyString(), any(), anyMap());
+        verify(response, never()).sendError(anyInt(), anyString());
     }
 
     @Test
@@ -298,6 +303,8 @@ class MfaStepFilterWrapperTest {
             filter.doFilterInternal(request, response, filterChain);
         }
 
-        verify(response).sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid state for factor verification");
+        verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_BAD_REQUEST),
+                eq("MFA_INVALID_STATE"), anyString(), any(), anyMap());
+        verify(response, never()).sendError(anyInt(), anyString());
     }
 }

@@ -235,4 +235,23 @@ class StateMachineAwareMfaRequestHandlerTest {
         verify(responseWriter).writeSuccessResponse(eq(response), captor.capture(), eq(HttpServletResponse.SC_OK));
         return (Map<String, Object>) captor.getValue();
     }
+
+    @Test
+    @DisplayName("A cancel is answered and the flow released in the request itself, with no task that waits")
+    void aCancelReleasesTheFlowInTheRequestItself() throws Exception {
+        when(stateMachineIntegrator.sendEvent(eq(MfaEvent.USER_ABORTED_MFA), eq(context), any(HttpServletRequest.class)))
+                .thenAnswer(invocation -> {
+                    context.changeState(MfaState.MFA_CANCELLED);
+                    return true;
+                });
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/mfa/cancel");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        handler.handleRequest(MfaRequestType.CANCEL_MFA, request, response, context, new MockFilterChain());
+
+        InOrder order = inOrder(responseWriter, stateMachineIntegrator);
+        order.verify(responseWriter).writeSuccessResponse(eq(response), anyMap(), eq(HttpServletResponse.SC_OK));
+        order.verify(stateMachineIntegrator).releaseStateMachine(MFA_SESSION_ID);
+        verify(applicationContext, never()).getBean(eq("contexaTaskExecutor"), any(Class.class));
+    }
 }
