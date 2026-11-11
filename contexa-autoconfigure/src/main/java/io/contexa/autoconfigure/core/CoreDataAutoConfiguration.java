@@ -82,7 +82,7 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
     private static final String OSS_OFFICIAL_EVIDENCE_PACKAGE =
             "io.contexa.contexacore.verification.evidence";
 
-    static final String POOL_NAME = "contexa";
+    static final String POOL_NAME = "contexa-db";
 
     private Environment environment;
 
@@ -97,8 +97,8 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
     }
 
     /**
-     * Contexa's database next to the application's: its pool is named {@value #POOL_NAME} (metrics tag {@code pool=contexa}, threads
-     * {@code contexa:housekeeper}), so that the application's pool keeps the name Hikari gives it. Where the application has no database of
+     * Contexa's database next to the application's: its pool is named {@value #POOL_NAME} (metrics tag {@code pool=contexa-db}, threads
+     * {@code contexa-db:housekeeper}), so that the application's pool keeps the name Hikari gives it. Where the application has no database of
      * its own, Contexa's pool is the application's data source ({@link ContexaOwnedDataSourceAutoConfiguration}) and keeps Hikari's name.
      */
     @Bean(name = "contexaDataSource", defaultCandidate = false)

@@ -78,7 +78,7 @@ class ContexaPoolAndThreadNamesIntegrationTest {
 
     private static final String HIKARI_POOL_NUMBER = "com.zaxxer.hikari.pool_number";
     private static final String HOST_DATABASE = "fx2_naming_host";
-    private static final String CONTEXA_POOL = "contexa";
+    private static final String CONTEXA_POOL = "contexa-db";
     private static final Pattern NUMBERS = Pattern.compile("[-#_ ]?\\d+");
 
     /**
@@ -297,9 +297,9 @@ class ContexaPoolAndThreadNamesIntegrationTest {
                 || ContexaPackages.owns(definition.getFactoryBeanName());
     }
 
-    /** Contexa's threads start with "contexa-"; the threads Hikari starts for Contexa's pool carry the pool's name ("contexa:housekeeper"). */
+    /** Contexa's threads start with "contexa-", those Hikari starts for Contexa's pool too: they carry the pool's name ("contexa-db:housekeeper"). */
     private static boolean isContexas(String name) {
-        return name.startsWith("contexa-") || name.startsWith(CONTEXA_POOL + ":");
+        return name.startsWith("contexa-");
     }
 
     private static boolean namedByOthers(String name) {

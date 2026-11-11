@@ -879,7 +879,7 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Changed
 
-- **Contexa's pools say they are Contexa's.** Its database pool beside the application's is named `contexa` (`pool=contexa`, `contexa:housekeeper`), so the
+- **Contexa's pools say they are Contexa's.** Its database pool beside the application's is named `contexa-db` (`pool=contexa-db`, `contexa-db:housekeeper`), so the
   application's pool keeps `HikariPool-1`; the threads Contexa creates start with `contexa-` (`Async-1` is `contexa-async-1`, `mfa-event-1` is `contexa-mfa-event-1`).
 - **The action in force of a user is read in one script instead of three round trips.** A protected request asks for it seven times,
   and each ask read the BLOCK flag, the analysis and the held CHALLENGE one after the other, about twenty of the thirty or so
