@@ -395,9 +395,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         SavedRequest savedRequest = requestCache.getRequest(request, response);
         if (savedRequest != null) {
             requestCache.removeRequest(request, response);
-            String redirectUrl = savedRequest.getRedirectUrl();
-            if (isValidRedirectUrl(redirectUrl)) {
-                return redirectUrl;
+            // The page the browser asked for before it was sent to sign in, by its path: see SavedRequestTarget.
+            String askedFor = SavedRequestTarget.of(savedRequest);
+            if (askedFor != null) {
+                return askedFor;
             }
         }
 
@@ -461,33 +462,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 .filter(f -> MfaFlowTypeUtils.isMfaFlow(f.getTypeName()))
                 .findFirst()
                 .orElse(null);
-    }
-
-    private boolean isValidRedirectUrl(String url) {
-        if (url == null || url.isBlank()) {
-            return false;
-        }
-
-        if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("//")) {
-            return false;
-        }
-
-        String[] invalidPatterns = {
-                "/.well-known/",
-                "/favicon.ico",
-                "chrome-extension://",
-                "about:",
-                "data:",
-                "blob:",
-                "javascript:"
-        };
-
-        for (String pattern : invalidPatterns) {
-            if (url.contains(pattern)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     @Override

@@ -53,14 +53,13 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
         SavedRequest savedRequest = localRequestCache.getRequest(request, response);
 
         if (savedRequest != null) {
-            String redirectUrl = savedRequest.getRedirectUrl();
-
-            if (isValidRedirectUrl(redirectUrl)) {
+            // The page the browser asked for before it was sent to sign in, by its path: see SavedRequestTarget.
+            String askedFor = SavedRequestTarget.of(savedRequest);
+            if (askedFor != null) {
                 localRequestCache.removeRequest(request, response);
-                return redirectUrl;
-            } else {
-                log.warn("Invalid saved redirect URL ignored: {}", redirectUrl);
+                return askedFor;
             }
+            log.warn("Saved request ignored, it is no page to go back to: {}", savedRequest.getRedirectUrl());
         }
 
         return getDefaultTargetUrl(request);
@@ -68,32 +67,9 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
 
     protected abstract String getDefaultTargetUrl(HttpServletRequest request);
 
+    /** Whether the address is a page of this site a browser can be sent to; a full address counts by its path. */
     protected boolean isValidRedirectUrl(String url) {
-        if (url == null || url.isBlank()) {
-            return false;
-        }
-
-        if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("//")) {
-            return false;
-        }
-
-        String[] invalidPatterns = {
-            "/.well-known/",
-            "/favicon.ico",
-            "chrome-extension://",
-            "about:",
-            "data:",
-            "blob:",
-            "javascript:"
-        };
-
-        for (String pattern : invalidPatterns) {
-            if (url.contains(pattern)) {
-                return false;
-            }
-        }
-
-        return true;
+        return SavedRequestTarget.sameSite(url) != null;
     }
 
     protected boolean isApiRequest(HttpServletRequest request) {
