@@ -30,6 +30,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -60,8 +61,7 @@ class PasskeySessionAuthenticationStrategyTest {
 
     private Authentication given() {
         ArgumentCaptor<Authentication> given = ArgumentCaptor.forClass(Authentication.class);
-        verify(strategyOfChain).onAuthentication(given.capture(), org.mockito.ArgumentMatchers.same(request),
-                org.mockito.ArgumentMatchers.same(response));
+        verify(strategyOfChain).onAuthentication(given.capture(), same(request), same(response));
         return given.getValue();
     }
 
