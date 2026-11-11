@@ -32,7 +32,9 @@ import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import io.contexa.contexacore.security.ContexaUserStore;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.DisposableBean;
 import io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration;
 import org.springframework.beans.factory.ObjectProvider;
@@ -213,8 +215,10 @@ public class AiBridgeConfiguration {
     public BridgeRuntimeSupport bridgeRuntimeSupport(
             BridgeProperties properties,
             ObjectProvider<BridgeUserMirrorSyncService> bridgeUserMirrorSyncService,
-            RequestPathDatabaseGuard contexaRequestPathDatabaseGuard) {
-        return new BridgeRuntimeSupport(properties, bridgeUserMirrorSyncService.getIfAvailable(), contexaRequestPathDatabaseGuard);
+            RequestPathDatabaseGuard contexaRequestPathDatabaseGuard,
+            BeanFactory beanFactory) {
+        return new BridgeRuntimeSupport(properties, bridgeUserMirrorSyncService.getIfAvailable(), contexaRequestPathDatabaseGuard,
+                ContexaUserStore.signsInWithContexaAccounts(beanFactory));
     }
 
     /** An outage of Contexa's database must not hold the application's request threads. */

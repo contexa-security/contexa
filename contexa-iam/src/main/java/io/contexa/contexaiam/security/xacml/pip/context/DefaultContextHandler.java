@@ -16,7 +16,9 @@
 package io.contexa.contexaiam.security.xacml.pip.context;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.ContexaAccountAuthentication;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
 import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
@@ -25,11 +27,11 @@ import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.store.StoreFailures;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.aop.support.AopUtils;
+import org.springframework.lang.Nullable;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.security.core.Authentication;
@@ -37,16 +39,35 @@ import org.springframework.security.core.Authentication;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 @Slf4j
-@RequiredArgsConstructor
 public class DefaultContextHandler implements ContextHandler {
 
     private final UserRepository userRepository;
     private final ContexaCacheService cacheService;
+    @Nullable
+    private final BridgeProperties bridgeProperties;
+    private final BooleanSupplier contexaAccountsSignIn;
 
     private static final TypeReference<Users> USERS_TYPE = new TypeReference<>() {};
+
+    public DefaultContextHandler(UserRepository userRepository, ContexaCacheService cacheService) {
+        this(userRepository, cacheService, null, () -> false);
+    }
+
+    /**
+     * @param bridgeProperties      who owns the sign-in, which tells a token of one of Contexa's own accounts
+     * @param contexaAccountsSignIn whether Contexa's user store is the one that signs the users in
+     */
+    public DefaultContextHandler(UserRepository userRepository, ContexaCacheService cacheService,
+                                 @Nullable BridgeProperties bridgeProperties, BooleanSupplier contexaAccountsSignIn) {
+        this.userRepository = userRepository;
+        this.cacheService = cacheService;
+        this.bridgeProperties = bridgeProperties;
+        this.contexaAccountsSignIn = contexaAccountsSignIn != null ? contexaAccountsSignIn : () -> false;
+    }
 
     @Override
     public AuthorizationContext create(Authentication authentication, HttpServletRequest request) {
@@ -154,6 +175,16 @@ public class DefaultContextHandler implements ContextHandler {
                         USERS_TYPE, SubjectCache.DOMAIN);
             }
             return null;
+        }
+
+        // An access token of one of Contexa's own accounts names the account: it is read by that name, as the account
+        // of a session is by its id. The bridge keeps no copy of such an account.
+        String account = ContexaAccountAuthentication.accountName(authentication, bridgeProperties, contexaAccountsSignIn);
+        if (account != null) {
+            Users user = cacheService.get(SubjectCache.byName(account),
+                    () -> userRepository.findByUsernameWithGroupsRolesAndPermissions(account).orElse(null),
+                    USERS_TYPE, SubjectCache.DOMAIN);
+            return user != null && !user.isBridgeManaged() ? user : null;
         }
 
         return null;
