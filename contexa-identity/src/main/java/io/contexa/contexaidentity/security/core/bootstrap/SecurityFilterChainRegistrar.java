@@ -32,6 +32,8 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.Ordered;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
+import org.springframework.security.config.annotation.web.configurers.WebAuthnConfigurer;
+import org.springframework.security.config.annotation.web.configurers.ott.OneTimeTokenLoginConfigurer;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -126,7 +128,11 @@ public class SecurityFilterChainRegistrar {
      */
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void keepThePasswordStepOfAnMfaFlowItsOwn(HttpSecurity http, AuthenticationFlowConfig flowConfig) {
-        if (!MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName()) || http.getConfigurer(FormLoginConfigurer.class) == null) {
+        if (!MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName())) {
+            return;
+        }
+        keepThePasskeyAndCodeSignInOfAnMfaFlowItsOwn(http, flowConfig);
+        if (http.getConfigurer(FormLoginConfigurer.class) == null) {
             return;
         }
         http.removeConfigurer((Class) FormLoginConfigurer.class);
@@ -136,6 +142,39 @@ public class SecurityFilterChainRegistrar {
                         + "password: write the settings there, mfa(mfa -> mfa.primaryAuthentication(auth -> "
                         + "auth.formLogin(form -> form.loginPage(...).failureUrl(...)))).",
                 flowConfig.getTypeName());
+    }
+
+    /**
+     * Spring Security's passkey sign-in ({@code http.webAuthn(...)}) and one-time code sign-in
+     * ({@code http.oneTimeTokenLogin(...)}) written in the global customizer are added to every chain. In an MFA chain
+     * whose flow has no factor of that kind they are a sign-in of their own, at Spring's addresses, with the passkey or
+     * the mail code alone. A flow with the factor configures the same configurer as its factor, so nothing is taken
+     * out then. A {@code rawHttp} of an MFA step that adds one is refused when the step is applied.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void keepThePasskeyAndCodeSignInOfAnMfaFlowItsOwn(HttpSecurity http, AuthenticationFlowConfig flowConfig) {
+        if (!hasFactor(flowConfig, "PASSKEY") && http.getConfigurer(WebAuthnConfigurer.class) != null) {
+            http.removeConfigurer((Class) WebAuthnConfigurer.class);
+            log.warn("Flow '{}': the passkey sign-in of Spring Security written in the global customizer "
+                            + "(http.webAuthn(...)) is not used in this chain. The flow has no passkey factor, and that "
+                            + "sign-in would let a person in with the passkey alone, without the factors of this flow. "
+                            + "Give the flow a passkey factor, mfa(mfa -> mfa.passkey(...)), or use a single passkey flow.",
+                    flowConfig.getTypeName());
+        }
+        if (!hasFactor(flowConfig, "OTT") && http.getConfigurer(OneTimeTokenLoginConfigurer.class) != null) {
+            http.removeConfigurer((Class) OneTimeTokenLoginConfigurer.class);
+            log.warn("Flow '{}': the one-time code sign-in of Spring Security written in the global customizer "
+                            + "(http.oneTimeTokenLogin(...)) is not used in this chain. The flow has no one-time code "
+                            + "factor, and that sign-in would let a person in with the mail code alone, without the factors "
+                            + "of this flow. Give the flow a code factor, mfa(mfa -> mfa.ott(...)), or use a single ott flow.",
+                    flowConfig.getTypeName());
+        }
+    }
+
+    private static boolean hasFactor(AuthenticationFlowConfig flowConfig, String kind) {
+        return flowConfig.getStepConfigs() != null && flowConfig.getStepConfigs().stream()
+                .anyMatch(step -> !step.isPrimary() && step.getType() != null
+                        && step.getType().toUpperCase(Locale.ROOT).contains(kind));
     }
 
     public OrderedSecurityFilterChain buildAndRegisterFilters(FlowContext fc, ApplicationContext appContext) {

@@ -582,9 +582,17 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         );
     }
 
-    /** A host without an MFA flow cannot step the user up, so the request is refused without opening a procedure. */
+    /**
+     * A host without an MFA flow cannot step the user up, so the request is refused without opening a procedure. A
+     * browser is sent to the notice, which says so and offers the sign-out; a JSON answer on a page left the person
+     * with nothing to do.
+     */
     private void writeChallengeWithoutProcedure(HttpServletResponse response, HttpServletRequest request)
             throws IOException {
+        if (!WebUtil.isApiOrAjaxRequest(request)) {
+            response.sendRedirect(ZeroTrustScreens.challengeRequiredWithoutStepUp(request));
+            return;
+        }
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("error", CHALLENGE_CODE);
         responseBody.put("code", CHALLENGE_CODE);

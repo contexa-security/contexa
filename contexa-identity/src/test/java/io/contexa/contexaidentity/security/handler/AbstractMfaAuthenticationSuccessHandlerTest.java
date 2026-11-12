@@ -46,6 +46,7 @@ import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaPasskeyRegistrationIntent;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker;
@@ -511,7 +512,41 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
         private final BlockMfaStateStore blockStore = mock(BlockMfaStateStore.class);
 
         @Test
-        @DisplayName("a login MFA does not release a CHALLENGE and is recorded as a login MFA")
+        @DisplayName("a sign-in completed with a factor after a CHALLENGE releases it for its session, the others stay")
+        void aSignInWithAFactorAnswersTheChallenge() throws Exception {
+            when(actionRepository.getActionFromHash("admin")).thenReturn(ZeroTrustAction.CHALLENGE);
+            FactorContext factorContext = completedFactorContext(false);
+            factorContext.addCompletedFactor(new AuthenticationStepConfig("mfa", "MFA_OTT", 1, false));
+
+            handler().complete(requestWithSession(), new MockHttpServletResponse(),
+                    new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"), factorContext);
+
+            verify(actionRepository).holdChallengeForOtherSessions(eq("admin"), anyString());
+            verify(actionRepository).saveActionWithPrevious(eq("admin"), eq(ZeroTrustAction.ALLOW), anyString());
+            ArgumentCaptor<String> record = ArgumentCaptor.forClass(String.class);
+            verify(dataStore).addSessionAction(eq("session-1"), record.capture());
+            assertThat(record.getValue()).contains("MFA_LOGIN");
+        }
+
+        @Test
+        @DisplayName("a sign-in with a factor answers no ESCALATE and no BLOCK")
+        void aSignInWithAFactorAnswersNoEscalateAndNoBlock() throws Exception {
+            for (ZeroTrustAction inForce : new ZeroTrustAction[] {ZeroTrustAction.ESCALATE, ZeroTrustAction.BLOCK}) {
+                when(actionRepository.getActionFromHash("admin")).thenReturn(inForce);
+                FactorContext factorContext = completedFactorContext(false);
+                factorContext.addCompletedFactor(new AuthenticationStepConfig("mfa", "MFA_OTT", 1, false));
+
+                handler().complete(requestWithSession(), new MockHttpServletResponse(),
+                        new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"), factorContext);
+            }
+
+            verify(actionRepository, never()).saveActionWithPrevious(anyString(), any(), any());
+            verify(actionRepository, never()).holdChallengeForOtherSessions(anyString(), any());
+            verify(broadcaster, never()).registerUnblock(anyString());
+        }
+
+        @Test
+        @DisplayName("a sign-in the policy let through without a factor does not release a CHALLENGE")
         void loginMfaDoesNotReleaseAChallenge() throws Exception {
             when(actionRepository.getActionFromHash("admin")).thenReturn(ZeroTrustAction.CHALLENGE);
             FactorContext factorContext = completedFactorContext(false);

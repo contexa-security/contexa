@@ -388,6 +388,23 @@ class ZeroTrustChallengeFilterTest {
     }
 
     @Test
+    @DisplayName("Without an MFA flow a page request goes to the notice, which says so and offers the sign-out")
+    void challengeWithoutMfaFlowSendsAPageToTheNotice() throws Exception {
+        filter.setChallengeProcedureAvailable(false);
+        when(request.getRequestURI()).thenReturn("/reports");
+        when(request.getContextPath()).thenReturn("/app");
+        setUpChallengeAuthentication();
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(response).sendRedirect("/app/contexa/zero-trust/challenge-required?stepUp=none");
+        verify(responseWriter, never()).writeErrorResponse(any(), anyInt(), anyString(), anyString(), any(), any());
+        verify(challengeMfaInitializer, never()).initializeChallengeFlow(any(), any(), any());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
     @DisplayName("Without an MFA flow a CHALLENGE is refused with 401 and no procedure is opened (W1-5)")
     void challengeWithoutMfaFlowIsRefused() throws Exception {
         filter.setChallengeProcedureAvailable(false);

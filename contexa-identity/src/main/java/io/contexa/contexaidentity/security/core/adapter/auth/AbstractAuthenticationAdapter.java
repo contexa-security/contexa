@@ -34,6 +34,8 @@ import org.jspecify.annotations.NonNull;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.WebAuthnConfigurer;
+import org.springframework.security.config.annotation.web.configurers.ott.OneTimeTokenLoginConfigurer;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.NullSecurityContextRepository;
@@ -137,8 +139,30 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         } else {
             configureHttpSecurity(http, options, currentFlow, successHandler, failureHandler);
         }
+        boolean passkeySignInBefore = http.getConfigurer(WebAuthnConfigurer.class) != null;
+        boolean codeSignInBefore = http.getConfigurer(OneTimeTokenLoginConfigurer.class) != null;
         options.applyCommonSecurityConfigs(http);
+        if (currentFlow != null && MfaFlowTypeUtils.isMfaFlow(currentFlow.getTypeName())) {
+            refuseASignInOfItsOwnInAnMfaStep(currentFlow,
+                    !passkeySignInBefore && http.getConfigurer(WebAuthnConfigurer.class) != null,
+                    !codeSignInBefore && http.getConfigurer(OneTimeTokenLoginConfigurer.class) != null);
+        }
 
+    }
+
+    /**
+     * Spring Security's passkey or one-time code sign-in written in the {@code rawHttp} of an MFA step is a sign-in of
+     * its own at Spring's addresses: it lets a person in with the passkey or the mail code alone, past the password and
+     * the factors of the flow.
+     */
+    private static void refuseASignInOfItsOwnInAnMfaStep(AuthenticationFlowConfig flow, boolean passkey, boolean code) {
+        if (passkey || code) {
+            throw new IllegalStateException("rawHttp(...) of a step of MFA flow '" + flow.getTypeName() + "' cannot add "
+                    + (passkey ? "http.webAuthn(...)" : "http.oneTimeTokenLogin(...)") + ": that sign-in lets a person "
+                    + "in with the " + (passkey ? "passkey" : "mail code") + " alone, without the factors of the flow. "
+                    + "Use the flow's " + (passkey ? "passkey(...)" : "ott(...)") + " factor, or a single "
+                    + (passkey ? "passkey" : "ott") + " flow for that sign-in.");
+        }
     }
 
     protected PlatformAuthenticationSuccessHandler resolveSuccessHandler(

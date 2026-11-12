@@ -129,8 +129,13 @@ class ExchangedTokensEndWithTheSignOutPostgresTest {
 
     @AfterEach
     void close() {
-        entityManagers.destroy();
-        database.close();
+        // Without a test database the setup is skipped before these exist; closing them then failed the test.
+        if (entityManagers != null) {
+            entityManagers.destroy();
+        }
+        if (database != null) {
+            database.close();
+        }
     }
 
     /** The sign-out Contexa configures, with the agents and delegations the application holds. */

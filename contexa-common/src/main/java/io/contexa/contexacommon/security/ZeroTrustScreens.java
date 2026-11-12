@@ -110,6 +110,20 @@ public final class ZeroTrustScreens {
                 + URLEncoder.encode(stepUpUrl, StandardCharsets.UTF_8);
     }
 
+    /** The value of {@link #STEP_UP_PARAMETER} for an application that offers no step-up to answer a CHALLENGE. */
+    public static final String NO_STEP_UP = "none";
+
+    /** The parameter of the CHALLENGE notice that says whether a step-up is offered. */
+    public static final String STEP_UP_PARAMETER = "stepUp";
+
+    /**
+     * The CHALLENGE notice of an application that has no MFA flow: it says the verification cannot be made here and
+     * offers the sign-out, where the notice of a step-up leads to it.
+     */
+    public static String challengeRequiredWithoutStepUp(HttpServletRequest request) {
+        return request.getContextPath() + CHALLENGE_REQUIRED + "?" + STEP_UP_PARAMETER + "=" + NO_STEP_UP;
+    }
+
     public static String analysisPending(HttpServletRequest request) {
         return request.getContextPath() + ANALYSIS_PENDING + "?returnUrl="
                 + URLEncoder.encode(request.getRequestURI(), StandardCharsets.UTF_8);
