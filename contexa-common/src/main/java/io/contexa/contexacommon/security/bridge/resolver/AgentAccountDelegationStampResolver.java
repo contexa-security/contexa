@@ -22,6 +22,7 @@ import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacommon.store.RepeatedFailure;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -45,6 +46,7 @@ public class AgentAccountDelegationStampResolver implements DelegationStampResol
     public static final String RESOLVER = "AGENT_ACCOUNT";
 
     private final AgentClientDirectory agentClientDirectory;
+    private final RepeatedFailure lookupFailures = new RepeatedFailure();
 
     public AgentAccountDelegationStampResolver(AgentClientDirectory agentClientDirectory) {
         this.agentClientDirectory = agentClientDirectory != null ? agentClientDirectory : AgentClientDirectory.NONE;
@@ -67,8 +69,11 @@ public class AgentAccountDelegationStampResolver implements DelegationStampResol
             agentId = agentClientDirectory.requestPathActiveAgentForAccount(tenant(authentication, properties), account)
                     .map(AgentTokenClaims::text);
         } catch (RuntimeException lookupFailed) {
-            log.error("The agent registry could not be asked whether account {} is an agent; it is read as a person",
-                    account, lookupFailed);
+            long unreported = lookupFailures.count();
+            if (unreported > 0) {
+                log.error("The agent registry could not be asked whether account {} is an agent; it is read as a person. "
+                        + "{} requests were read that way since this was last said.", account, unreported, lookupFailed);
+            }
             return Optional.empty();
         }
         if (agentId.isEmpty()) {

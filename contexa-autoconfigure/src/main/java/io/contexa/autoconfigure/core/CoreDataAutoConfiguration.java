@@ -36,9 +36,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.orm.jpa.JpaTransactionManager;
 import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexacommon.store.RequestBoundDataSource;
+import io.contexa.contexacommon.store.RequestBoundJpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -137,8 +137,9 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
     @Bean(name = "contexaTransactionManager", defaultCandidate = false)
     @ConditionalOnMissingBean(name = "contexaTransactionManager")
     public PlatformTransactionManager contexaTransactionManager(
-            @Qualifier("contexaEntityManagerFactory") EntityManagerFactory entityManagerFactory) {
-        return new JpaTransactionManager(entityManagerFactory);
+            @Qualifier("contexaEntityManagerFactory") EntityManagerFactory entityManagerFactory,
+            ContexaStores contexaStores) {
+        return new RequestBoundJpaTransactionManager(entityManagerFactory, contexaStores.database());
     }
 
     @Bean(name = "contexaTransactionTemplate", defaultCandidate = false)

@@ -619,6 +619,18 @@ The format is based on Keep a Changelog and the project follows semantic version
   database before Contexa has seen that it does not answer may wait about a second, once; a full pool of Contexa's still runs
   the work on the caller, as before.
 
+- **A database of Contexa's that stays away no longer fills the application's log.** While it did not answer, every request
+  left errors with their stacks in the application's log: the agent registry that could not be asked whether the account is an
+  agent, each audit record that was not written, and under FULL two more lines from Hibernate for every transaction that asked
+  for a connection. With the database frozen for 45 seconds under load the log grew by 0.6 GB under SANDBOX and by 1.9 GB under
+  FULL, and the registry went on writing for some seconds after the database was back: a disk the application shares with its
+  log fills in minutes. Each of these is now told once, and after that in one line a minute that says how many there were. A
+  request's transaction is refused before it asks the pool for anything, in the failure it ended in all along, and the audit
+  records that were not written are counted: one record of how many, of which kinds and between which times is written to the
+  audit log when the database answers again. **Check:** the records themselves are not kept to be written later, as before, and
+  an account the registry could not be asked about is read as a person, as before; a record that fails for any other reason is
+  still logged each time, with its stack.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines

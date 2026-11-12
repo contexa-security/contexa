@@ -642,8 +642,10 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean(name = "contexaAuditPersistenceListener")
     @ConditionalOnMissingBean
-    public AuditPersistenceListener auditPersistenceListener(CentralAuditFacade contexaCentralAuditFacade) {
-        return new AuditPersistenceListener(contexaCentralAuditFacade);
+    public AuditPersistenceListener auditPersistenceListener(CentralAuditFacade contexaCentralAuditFacade,
+                                                             ObjectProvider<ContexaStores> contexaStores) {
+        ContexaStores stores = contexaStores.getIfAvailable();
+        return new AuditPersistenceListener(contexaCentralAuditFacade, stores != null ? stores.database() : null);
     }
 
     @Bean(name = "contexaAuditingHandler")

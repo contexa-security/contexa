@@ -23,6 +23,9 @@ import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -30,6 +33,7 @@ import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -43,6 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * A1-13: an approved agent signed in with its own account (a session login) is that agent acting on its own; a person's
  * account is not looked up beyond the one directory question and yields no stamp.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class AgentAccountDelegationStampResolverTest {
 
     private final List<String> lookups = new ArrayList<>();
@@ -140,6 +145,31 @@ class AgentAccountDelegationStampResolverTest {
         signIn(UsernamePasswordAuthenticationToken.authenticated("report-bot", null, AuthorityUtils.NO_AUTHORITIES));
 
         assertThat(unreadable.resolve(null, null, new BridgeProperties())).isEmpty();
+    }
+
+    /** PR-200: a registry that stays away is told once and then counted, not once a request with its stack. */
+    @Test
+    void aRegistryThatStaysAwayIsToldOnceAndNotOnceARequest(CapturedOutput output) {
+        AgentAccountDelegationStampResolver unreadable = new AgentAccountDelegationStampResolver(new AgentClientDirectory() {
+            @Override
+            public Optional<String> activeAgentForClient(String tenantId, String clientId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<String> requestPathActiveAgentForAccount(String tenantId, String accountName) {
+                throw new AgentClientStatusUnavailableException(
+                        "The approved agents were last read from the registry too long ago");
+            }
+        });
+        signIn(UsernamePasswordAuthenticationToken.authenticated("alice", null, AuthorityUtils.NO_AUTHORITIES));
+
+        for (int request = 0; request < 200; request++) {
+            assertThat(unreadable.resolve(null, null, new BridgeProperties())).isEmpty();
+        }
+
+        assertThat(StringUtils.countOccurrencesOf(output.getAll(), "could not be asked whether account"))
+                .as("one line for the outage, the rest are counted").isEqualTo(1);
     }
 
     @Test
