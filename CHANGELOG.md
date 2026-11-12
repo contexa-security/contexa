@@ -579,6 +579,16 @@ The format is based on Keep a Changelog and the project follows semantic version
   `503 OTT_CODE_NOT_SENT` ("The code could not be sent. Please try again in a moment."); the flow stays where it was, so the
   same request sends the code once mail is back. A message that cannot be made is still a 500.
 
+- **A code mail no longer holds the request for a mail server that does not answer.** A mail server that took the connection and
+  kept silent held the request that asked for the code as long as it pleased (80 to 110 seconds were measured), and on a server
+  with few request threads the application's other requests waited behind it. Contexa now sends on mail threads of its own (eight,
+  with 32 mails waiting) and the request waits five seconds at most; while every mail thread is held, a new code mail is refused
+  at once, with the answer of a code that could not be sent. The sender Contexa builds itself from `spring.mail.*` gets a limit
+  where the settings name none (5 seconds to connect, 10 for an answer, 10 to write); a limit the settings name, zero included,
+  and the application's own sender are left as they are. **Check:** a mail the server takes more than five seconds to accept is
+  answered as not sent though the server may still deliver it; and with a sender of the application's that has no timeout, the
+  held mail threads come back only when its connections end, so code mails stay refused until then.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines
