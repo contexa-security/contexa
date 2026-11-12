@@ -26,6 +26,7 @@ import io.contexa.contexacommon.entity.UserGroup;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
+import io.contexa.contexacommon.store.RequestPathScope;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.DefaultContextHandler;
 import jakarta.servlet.http.HttpServletRequest;
@@ -45,7 +46,7 @@ import org.mockito.Mock;
 import org.mockito.quality.Strictness;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class DefaultContextHandlerTest {
@@ -247,6 +248,36 @@ class DefaultContextHandlerTest {
             // then
             assertThat(context.subjectEntity()).isNull();
             assertThat(context.attributes()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("should read the subject's record as Contexa's own work (PR-196)")
+        void shouldReadSubjectAsContexasOwnWork() {
+            // given
+            UserDto userDto = UserDto.builder().id(21L).username("scopeuser").build();
+            UnifiedCustomUserDetails details = new UnifiedCustomUserDetails(userDto, new HashSet<>());
+            Users expectedUser = createTestUser(21L, "scopeuser");
+            List<Boolean> inContexaWork = new ArrayList<>();
+
+            Authentication auth = mock(Authentication.class);
+            when(auth.getPrincipal()).thenReturn(details);
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(21L)).thenAnswer(inv -> {
+                inContexaWork.add(RequestPathScope.inContexaWork());
+                return Optional.of(expectedUser);
+            });
+
+            HttpServletRequest request = mock(HttpServletRequest.class);
+            when(request.getRequestURI()).thenReturn("/test");
+            when(request.getMethod()).thenReturn("GET");
+            when(request.getRemoteAddr()).thenReturn("127.0.0.1");
+
+            // when
+            AuthorizationContext context = contextHandler.create(auth, request);
+
+            // then
+            assertThat(context.subjectEntity()).isEqualTo(expectedUser);
+            assertThat(inContexaWork).containsExactly(true);
+            assertThat(RequestPathScope.inContexaWork()).isFalse();
         }
     }
 

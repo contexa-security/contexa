@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.service;
 
+import io.contexa.contexacommon.store.RequestPathScope;
+
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -23,7 +25,8 @@ import java.util.concurrent.ThreadPoolExecutor;
  * document store that the enforcement hands over while it holds the request's lock, is deferred: its document is left
  * to the vector store retry, so the enforcement thread does not wait for the embedding and the store and the document
  * is not lost. Every other task runs on the thread that handed it over, as {@link ThreadPoolExecutor.CallerRunsPolicy}
- * runs it, and is discarded once the executor is shut down.
+ * runs it, and is discarded once the executor is shut down. It runs there as Contexa's own work
+ * ({@link RequestPathScope}): the thread may be serving a request, which must not wait for a store behind it.
  */
 public final class LearningStoreRejectionPolicy implements RejectedExecutionHandler {
 
@@ -55,8 +58,14 @@ public final class LearningStoreRejectionPolicy implements RejectedExecutionHand
             deferrable.defer();
             return;
         }
-        if (!executor.isShutdown()) {
+        if (executor.isShutdown()) {
+            return;
+        }
+        RequestPathScope.enter();
+        try {
             task.run();
+        } finally {
+            RequestPathScope.leave();
         }
     }
 }

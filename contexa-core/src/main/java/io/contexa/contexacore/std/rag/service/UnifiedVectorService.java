@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.rag.service;
 
+import io.contexa.contexacommon.store.ContexaWorkCallerRunsPolicy;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext;
 import io.contexa.contexacore.std.llm.gate.ModelCallTimer;
@@ -111,7 +112,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
                         return thread;
                     }
                 },
-                new ThreadPoolExecutor.CallerRunsPolicy()
+                new ContexaWorkCallerRunsPolicy()
         );
         // threads that have nothing to do are given back: the pool grows with the work and shrinks without it
         pool.allowCoreThreadTimeOut(true);

@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.web.auth.filter;
 
 import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
+import io.contexa.contexacommon.store.RequestPathScope;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
@@ -55,6 +56,8 @@ public class IpAccessFilter extends OncePerRequestFilter {
         String clientIp = null;
         boolean denied = false;
         boolean rejected = false;
+        // Contexa's own work ahead of the application's request: a database that does not answer costs it about a second
+        RequestPathScope.enter();
         try {
             clientIp = RequestInfoExtractor.extractClientIp(request, securityProperties);
             denied = ipAccessRuleService.isIpDenied(clientIp);
@@ -62,6 +65,8 @@ public class IpAccessFilter extends OncePerRequestFilter {
         } catch (RuntimeException e) {
             // the rules live in Contexa's database: when they cannot be read the request is not refused for them
             log.warn("IP access rules could not be read; the request goes on: {}", e.toString());
+        } finally {
+            RequestPathScope.leave();
         }
         if (denied) {
             log.warn("IP access denied for: {}", clientIp);

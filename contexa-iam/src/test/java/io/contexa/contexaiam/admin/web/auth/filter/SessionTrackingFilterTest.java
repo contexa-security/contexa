@@ -15,10 +15,12 @@
  */
 package io.contexa.contexaiam.admin.web.auth.filter;
 
+import io.contexa.contexacommon.store.RequestPathScope;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
+import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -31,12 +33,15 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextImpl;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -109,6 +114,29 @@ class SessionTrackingFilterTest {
         verify(sessions).trackSession(eq(RequestFactRedaction.sessionReference(RAW)), eq("admin"), eq("admin"),
                 anyString(), any());
         verify(sessions, never()).trackSession(eq(RAW), anyString(), anyString(), anyString(), any());
+    }
+
+    /** PR-196: the tracked sessions are read and written as Contexa's own work; the application's part of the request is not. */
+    @Test
+    void theTrackedSessionsAreReadAndWrittenAsContexasOwnWorkAndTheApplicationRunsOutsideIt() throws Exception {
+        SecurityContextHolder.setContext(new SecurityContextImpl(new TestingAuthenticationToken("admin", "x",
+                "ROLE_ADMIN")));
+        List<String> seen = new ArrayList<>();
+        when(tracked.findById(RequestFactRedaction.sessionReference(RAW))).thenAnswer(call -> {
+            seen.add("read " + RequestPathScope.inContexaWork());
+            return Optional.empty();
+        });
+        doAnswer(call -> {
+            seen.add("tracked " + RequestPathScope.inContexaWork());
+            return null;
+        }).when(sessions).trackSession(eq(RequestFactRedaction.sessionReference(RAW)), eq("admin"), eq("admin"),
+                anyString(), any());
+        FilterChain chain = (request, response) -> seen.add("application " + RequestPathScope.inContexaWork());
+
+        filter.doFilter(request(), new MockHttpServletResponse(), chain);
+
+        assertThat(seen).containsExactly("read true", "application false", "tracked true");
+        assertThat(RequestPathScope.inContexaWork()).isFalse();
     }
 
     private static MockHttpServletRequest request() {

@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexacommon.config.redis.ContexaRedisRequestPath;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.store.ContexaWorkCallerRunsPolicy;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
@@ -334,7 +335,7 @@ public class IdentityStateMachineAutoConfiguration {
         executor.setThreadNamePrefix("contexa-mfa-event-");
         executor.setAllowCoreThreadTimeOut(true);
 
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ContexaWorkCallerRunsPolicy());
 
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);

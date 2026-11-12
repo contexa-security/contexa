@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.config;
 
+import io.contexa.contexacommon.store.ContexaWorkCallerRunsPolicy;
 import io.contexa.contexacore.autonomous.AnalysisTurn;
 import io.contexa.contexacore.autonomous.LlmAnalysisBackpressureMonitor;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
@@ -46,7 +47,7 @@ public class AsyncConfig {
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("contexa-async-");
         executor.setAllowCoreThreadTimeOut(true);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ContexaWorkCallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
         executor.initialize();
@@ -61,7 +62,7 @@ public class AsyncConfig {
         executor.setQueueCapacity(200);
         executor.setThreadNamePrefix("contexa-cold-path-");
         executor.setAllowCoreThreadTimeOut(true);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ContexaWorkCallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(120);
         executor.initialize();
@@ -76,7 +77,7 @@ public class AsyncConfig {
         executor.setQueueCapacity(300);
         executor.setThreadNamePrefix("contexa-context-");
         executor.setAllowCoreThreadTimeOut(true);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ContexaWorkCallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
         executor.initialize();
@@ -91,7 +92,7 @@ public class AsyncConfig {
         executor.setQueueCapacity(1000);
         executor.setThreadNamePrefix("contexa-security-plane-");
         executor.setAllowCoreThreadTimeOut(true);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ContexaWorkCallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(300); 
         executor.initialize();
@@ -206,7 +207,7 @@ public class AsyncConfig {
         executor.setQueueCapacity(500);
         executor.setThreadNamePrefix("contexa-saas-forwarding-");
         executor.setAllowCoreThreadTimeOut(true);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ContexaWorkCallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(120);
         executor.initialize();

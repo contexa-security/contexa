@@ -15,13 +15,16 @@
  */
 package io.contexa.contexaiam.admin.web.auth.filter;
 
+import io.contexa.contexacommon.store.RequestPathScope;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
+import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -187,5 +190,26 @@ class IpAccessFilterTest {
             MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
             assertThat(filter.shouldNotFilter(request)).as(path).isTrue();
         }
+    }
+
+    /** PR-196: the rules are read as Contexa's own work; the application's part of the request is not. */
+    @Test
+    void theRulesAreReadAsContexasOwnWorkAndTheApplicationRunsOutsideIt() throws Exception {
+        IpAccessFilter filter = new IpAccessFilter(ipAccessRuleService);
+        List<String> seen = new ArrayList<>();
+        when(ipAccessRuleService.isIpDenied("203.0.113.10")).thenAnswer(call -> {
+            seen.add("denied " + RequestPathScope.inContexaWork());
+            return false;
+        });
+        when(ipAccessRuleService.hasActiveAllowRules()).thenAnswer(call -> {
+            seen.add("allow-list " + RequestPathScope.inContexaWork());
+            return false;
+        });
+        FilterChain chain = (request, response) -> seen.add("application " + RequestPathScope.inContexaWork());
+
+        filter.doFilter(requestFrom("203.0.113.10"), new MockHttpServletResponse(), chain);
+
+        assertThat(seen).containsExactly("denied true", "allow-list true", "application false");
+        assertThat(RequestPathScope.inContexaWork()).isFalse();
     }
 }

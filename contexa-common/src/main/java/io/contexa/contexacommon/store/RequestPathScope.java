@@ -20,8 +20,9 @@ import org.springframework.web.context.request.RequestContextHolder;
 /**
  * Where a thread is, for what a store may cost it. A thread serving a request waits about a second for a store that does
  * not answer, because the application's request is waiting behind it; the engine's own threads keep the waits they rely
- * on. Inside a protected call Contexa's own work is bounded further, up to the application's method, which is the
- * application's own business however long it takes.
+ * on. Contexa's own work on such a thread is bounded further: what it does inside a protected call, up to the
+ * application's method, which is the application's own business however long it takes; what its filters and its
+ * authorization read ahead of and behind every request; and the work one of its full pools hands back to the caller.
  */
 public final class RequestPathScope {
 
@@ -35,12 +36,12 @@ public final class RequestPathScope {
         return RequestContextHolder.getRequestAttributes() != null;
     }
 
-    /** Whether this thread is in Contexa's own work of a protected call. */
+    /** Whether this thread is in Contexa's own work. */
     public static boolean inContexaWork() {
         return DEPTH.get() > 0;
     }
 
-    /** Contexa's own work of a protected call starts here; {@link #leave()} ends it. */
+    /** Contexa's own work starts here; {@link #leave()} ends it. A scope opened inside another one keeps the outer one. */
     public static void enter() {
         DEPTH.set(DEPTH.get() + 1);
     }

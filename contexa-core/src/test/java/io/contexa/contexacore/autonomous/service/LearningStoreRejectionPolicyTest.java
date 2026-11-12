@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.service;
 
+import io.contexa.contexacommon.store.RequestPathScope;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -90,5 +91,16 @@ class LearningStoreRejectionPolicyTest {
         executor.execute(LearningStoreRejectionPolicy.deferrable(() -> done.add("stored"), () -> done.add("deferred")));
 
         assertThat(done).containsExactly("deferred");
+    }
+
+    /** PR-196: the task the caller runs is Contexa's own work there: a request's thread does not wait for a store behind it. */
+    @Test
+    void anOtherTaskRunsOnTheCallerAsContexasOwnWork() {
+        List<Boolean> inContexaWork = new ArrayList<>();
+
+        executor.execute(() -> inContexaWork.add(RequestPathScope.inContexaWork()));
+
+        assertThat(inContexaWork).containsExactly(true);
+        assertThat(RequestPathScope.inContexaWork()).isFalse();
     }
 }

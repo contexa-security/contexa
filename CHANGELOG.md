@@ -608,6 +608,17 @@ The format is based on Keep a Changelog and the project follows semantic version
   whose database takes longer to answer that question is closed and replaced; an application that sets the property higher has
   that first request wait as long as it says.
 
+- **Under FULL, a database of Contexa's that froze no longer leaves the application's requests without an answer.** What Contexa
+  reads ahead of and writes behind every request (the tracked sessions, the IP rules, the signed-in account, the subject of an
+  authorization) waited for that database as long as it kept silent, and so did the work one of its full pools handed back to
+  the thread that asked: with the database frozen for 45 seconds, requests went 40 seconds without an answer, a new sign-in
+  answered 500 after five, and the application served far fewer requests. All of it now runs as Contexa's own work on the
+  request's thread, where a statement to a database that does not answer ends after about a second and the request goes on as
+  it does with a database that is down. The IP rules every request asks about are answered from their cache without a
+  transaction, so the rules already read stay enforced while the database is away. **Check:** a request that meets the frozen
+  database before Contexa has seen that it does not answer may wait about a second, once; a full pool of Contexa's still runs
+  the work on the caller, as before.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines

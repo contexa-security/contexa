@@ -22,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -191,7 +192,10 @@ public class IpAccessRuleService {
     /**
      * Check if a client IP is denied by any active DENY rule.
      * Returns true if the IP matches any enabled DENY rule.
+     * Every request asks this, so it opens no transaction of its own: the rules the cache holds are answered without the
+     * database and are still enforced while it does not answer.
      */
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true, propagation = Propagation.SUPPORTS)
     public boolean isIpDenied(String clientIp) {
         if (clientIp == null || clientIp.isBlank()) {
             return false;
@@ -209,6 +213,8 @@ public class IpAccessRuleService {
         return false;
     }
 
+    /** Asked on every request, as {@link #isIpDenied(String)} is: no transaction of its own. */
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true, propagation = Propagation.SUPPORTS)
     public boolean isIpAllowed(String clientIp) {
         if (clientIp == null || clientIp.isBlank()) {
             return false;
@@ -226,6 +232,8 @@ public class IpAccessRuleService {
         return false;
     }
 
+    /** Asked on every request, as {@link #isIpDenied(String)} is: no transaction of its own. */
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true, propagation = Propagation.SUPPORTS)
     public boolean hasActiveAllowRules() {
         LocalDateTime now = LocalDateTime.now();
         return getAllowRules().stream().anyMatch(rule -> isRuleActive(rule, now));

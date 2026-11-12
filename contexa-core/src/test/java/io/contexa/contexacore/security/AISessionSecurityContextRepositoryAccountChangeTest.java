@@ -18,6 +18,7 @@ package io.contexa.contexacore.security;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
+import io.contexa.contexacommon.store.RequestPathScope;
 import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
@@ -44,6 +45,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -335,5 +337,22 @@ class AISessionSecurityContextRepositoryAccountChangeTest {
 
         assertThat(authoritiesOf(request)).contains("ROLE_APP");
         verify(accounts, never()).loadUserByUsername(anyString());
+    }
+
+    @Test
+    @DisplayName("the account is read as Contexa's own work, so a request does not wait for the database behind it")
+    void theAccountIsReadAsContexasOwnWork() {
+        MockHttpServletRequest request = signedInSession("ROLE_USER", "ROLE_KEEPER");
+        List<Boolean> inContexaWork = new ArrayList<>();
+        when(accounts.loadUserByUsername(user)).thenAnswer(call -> {
+            inContexaWork.add(RequestPathScope.inContexaWork());
+            return account(user, true, false, "ROLE_USER");
+        });
+
+        store.advanceAuthoritiesVersion();
+
+        assertThat(authoritiesOf(nextRequest(request))).doesNotContain("ROLE_KEEPER");
+        assertThat(inContexaWork).containsExactly(true);
+        assertThat(RequestPathScope.inContexaWork()).isFalse();
     }
 }

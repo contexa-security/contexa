@@ -17,6 +17,7 @@ package io.contexa.contexacore.security;
 
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
+import io.contexa.contexacommon.store.RequestPathScope;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -117,11 +118,15 @@ public class SessionAccountRefresher {
         return signedIn.getId() != null && !Objects.equals(signedIn.getPasswordChangedAt(), current.getPasswordChangedAt());
     }
 
+    /** Read as Contexa's own work: the request waits behind it, and a database that does not answer costs it about a second. */
     private UserDetails readAccount(String username) {
+        RequestPathScope.enter();
         try {
             return accounts.loadUserByUsername(username);
         } catch (UsernameNotFoundException gone) {
             return null;
+        } finally {
+            RequestPathScope.leave();
         }
     }
 }

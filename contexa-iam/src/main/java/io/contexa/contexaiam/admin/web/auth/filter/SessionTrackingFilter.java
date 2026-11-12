@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
+import io.contexa.contexacommon.store.RequestPathScope;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
@@ -67,12 +68,16 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
             if (lastCheck == null || now - lastCheck > 10_000) {
                 session.setAttribute("_sessionExpireCheck", now);
                 ActiveSession tracked = null;
+                // Contexa's own work ahead of the application's request: a database that does not answer costs it about a second
+                RequestPathScope.enter();
                 try {
                     tracked = activeSessionRepository.findById(RequestFactRedaction.sessionReference(session.getId()))
                             .orElse(null);
                 } catch (RuntimeException e) {
                     // the tracked sessions live in Contexa's database: when it cannot be read the session is not forced out for it
                     log.warn("Tracked sessions could not be read; the request goes on: {}", e.toString());
+                } finally {
+                    RequestPathScope.leave();
                 }
                 if (tracked != null && tracked.isExpired()) {
                     session.invalidate();
@@ -93,6 +98,8 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
                 long nowTrack = System.currentTimeMillis();
                 if (lastTrack == null || nowTrack - lastTrack > 30_000) {
                     session.setAttribute("_sessionTrackTime", nowTrack);
+                    // Contexa's own work behind the application's request, bounded as the read ahead of it is
+                    RequestPathScope.enter();
                     try {
                         sessionManagementService.trackSession(
                                 RequestFactRedaction.sessionReference(session.getId()),
@@ -102,6 +109,8 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
                                 request.getHeader("User-Agent"));
                     } catch (RuntimeException e) {
                         log.warn("The session could not be tracked; the response is not affected: {}", e.toString());
+                    } finally {
+                        RequestPathScope.leave();
                     }
                 }
             }

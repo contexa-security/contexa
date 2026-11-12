@@ -20,6 +20,7 @@ import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.store.ContexaWorkCallerRunsPolicy;
 import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
@@ -34,7 +35,6 @@ import io.contexa.contexaiam.aiam.labs.resource.ResourceNamingLab;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -45,7 +45,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.MessageSource;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-
+
 
 @AutoConfiguration
 @AutoConfigureAfter(name = "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration")
@@ -71,7 +71,7 @@ public class IamAiamLabsAutoConfiguration {
         executor.setQueueCapacity(300);
         executor.setThreadNamePrefix("contexa-policy-collection-");
         executor.setAllowCoreThreadTimeOut(true);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ContexaWorkCallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
         executor.initialize();

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.config;
 
+import io.contexa.contexacommon.store.ContexaWorkCallerRunsPolicy;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.Map;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -44,6 +46,27 @@ class AsyncPoolsGiveBackIdleThreadsTest {
             assertThat(pools).hasSize(6);
             pools.forEach((name, pool) -> assertThat(pool.getThreadPoolExecutor().allowsCoreThreadTimeOut())
                     .as("the pool %s gives back its idle core threads", name).isTrue());
+        }
+        finally {
+            context.close();
+        }
+    }
+
+    @Test
+    @DisplayName("work a full pool turns away runs on the caller as Contexa's own work (PR-196)")
+    void workAFullPoolTurnsAwayRunsAsContexasOwnWork() {
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
+        context.registerBean(SecurityPlaneProperties.class, SecurityPlaneProperties::new);
+        context.register(AsyncConfig.class);
+        context.refresh();
+        try {
+            Map<String, ThreadPoolTaskExecutor> pools = context.getBeansOfType(ThreadPoolTaskExecutor.class);
+
+            pools.forEach((name, pool) -> assertThat(pool.getThreadPoolExecutor().getRejectedExecutionHandler())
+                    .as("what the pool %s does with the work it has no room for", name)
+                    .isNotInstanceOf(ThreadPoolExecutor.CallerRunsPolicy.class));
+            assertThat(pools.values()).filteredOn(pool -> pool.getThreadPoolExecutor().getRejectedExecutionHandler()
+                    instanceof ContexaWorkCallerRunsPolicy).hasSize(5);
         }
         finally {
             context.close();

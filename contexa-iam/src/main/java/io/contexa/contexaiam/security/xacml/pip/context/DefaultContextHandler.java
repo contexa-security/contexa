@@ -25,6 +25,7 @@ import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacommon.entity.UserGroup;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.store.RequestPathScope;
 import io.contexa.contexacommon.store.StoreFailures;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -133,9 +134,11 @@ public class DefaultContextHandler implements ContextHandler {
 
     /**
      * The policies decide on the authentication when the subject's record cannot be read: a store that does not answer
-     * must not cost a policy that can still be evaluated, a DENY among them (Q-7).
+     * must not cost a policy that can still be evaluated, a DENY among them (Q-7). The record is read as Contexa's own
+     * work: every request comes through here, and a database that does not answer costs it about a second.
      */
     private Users getSubjectEntity(Authentication authentication, HttpServletRequest request) {
+        RequestPathScope.enter();
         try {
             return readSubjectEntity(authentication, request);
         } catch (RuntimeException unreadable) {
@@ -143,6 +146,8 @@ public class DefaultContextHandler implements ContextHandler {
                 throw unreadable;
             }
             return null;
+        } finally {
+            RequestPathScope.leave();
         }
     }
 

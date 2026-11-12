@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacommon.cache.ContexaCaffeine;
+import io.contexa.contexacommon.store.ContexaWorkCallerRunsPolicy;
 import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.autonomous.AnalysisTurn;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
@@ -142,7 +143,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     thread.setDaemon(true);
                     return thread;
                 },
-                new ThreadPoolExecutor.CallerRunsPolicy()
+                new ContexaWorkCallerRunsPolicy()
         );
         // threads that have nothing to do are given back: the pool grows with the work and shrinks without it
         pool.allowCoreThreadTimeOut(true);

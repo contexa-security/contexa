@@ -18,12 +18,18 @@ package io.contexa.contexaiam.admin.web.auth.service;
 import io.contexa.contexaiam.domain.entity.IpAccessRule;
 import io.contexa.contexaiam.repository.IpAccessRuleRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
+import org.springframework.transaction.interceptor.TransactionAttribute;
 
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class IpAccessRuleServiceTest {
@@ -69,6 +75,37 @@ class IpAccessRuleServiceTest {
 
         assertThat(service.isIpDenied("203.0.113.42")).isTrue();
         assertThat(service.isIpDenied("198.51.100.42")).isFalse();
+    }
+
+    /**
+     * PR-196: every request asks these three, and none of them opens a transaction of its own: the rules the cache holds
+     * are still enforced while Contexa's database does not answer.
+     */
+    @Test
+    void whatEveryRequestAsksOpensNoTransactionOfItsOwn() throws Exception {
+        AnnotationTransactionAttributeSource attributes = new AnnotationTransactionAttributeSource();
+
+        for (Method asked : List.of(
+                IpAccessRuleService.class.getMethod("isIpDenied", String.class),
+                IpAccessRuleService.class.getMethod("isIpAllowed", String.class),
+                IpAccessRuleService.class.getMethod("hasActiveAllowRules"))) {
+            TransactionAttribute attribute = attributes.getTransactionAttribute(asked, IpAccessRuleService.class);
+
+            assertThat(attribute).as(asked.getName()).isNotNull();
+            assertThat(attribute.getPropagationBehavior()).as(asked.getName())
+                    .isEqualTo(TransactionDefinition.PROPAGATION_SUPPORTS);
+        }
+    }
+
+    @Test
+    void theRulesAreReadFromTheStoreOnceAndAnsweredFromTheCacheAfterThat() {
+        when(repository.findByRuleTypeAndEnabledTrueOrderByCreatedAtDesc(IpAccessRule.RuleType.DENY))
+                .thenReturn(List.of(denyRule("203.0.113.0/24", LocalDateTime.now().plusMinutes(10))));
+
+        assertThat(service.isIpDenied("203.0.113.42")).isTrue();
+        assertThat(service.isIpDenied("203.0.113.43")).isTrue();
+
+        verify(repository, times(1)).findByRuleTypeAndEnabledTrueOrderByCreatedAtDesc(IpAccessRule.RuleType.DENY);
     }
 
     private IpAccessRule allowRule(String ipAddress, LocalDateTime expiresAt) {
