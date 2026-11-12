@@ -27,7 +27,6 @@ import jakarta.servlet.Filter;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.MessageSource;
 import org.springframework.http.HttpMethod;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsSuccessHandler;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
@@ -42,7 +41,7 @@ import org.springframework.security.web.webauthn.registration.PublicKeyCredentia
 import org.springframework.security.web.webauthn.registration.WebAuthnRegistrationFilter;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.util.StringUtils;
-
+
 /**
  * Applies per-flow URL prefix to WebAuthn (Passkey) filters.
  * Also handles WebAuthn handler replacement and registration page replacement.
@@ -192,12 +191,7 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
 
             ContexaWebAuthnRegistrationPageFilter contexaFilter =
                     new ContexaWebAuthnRegistrationPageFilter(userEntities, userCredentials);
-            try {
-                MessageSource messageSource =
-                        appContext.getBean(MessageSource.class);
-                contexaFilter.setMessageSource(messageSource);
-            } catch (Exception ignored) {
-            }
+            contexaFilter.setMessageSource(appContext);
 
             List<Filter> filters = builtChain.getFilters();
             for (int i = 0; i < filters.size(); i++) {

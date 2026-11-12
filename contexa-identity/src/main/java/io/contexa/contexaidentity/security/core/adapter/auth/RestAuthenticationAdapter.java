@@ -26,10 +26,9 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailure
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import java.util.Objects;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.MessageSource;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
+
 public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapter<RestAuthenticationConfigurer<HttpSecurity>> {
 
     @Override
@@ -83,9 +82,7 @@ public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapt
         String loginPageUrl = currentFlow.getUrlPrefix() != null
                 ? currentFlow.getUrlPrefix() + "/api/login" : "/api/login";
         DefaultRestLoginPageGeneratingFilter loginPageFilter = new DefaultRestLoginPageGeneratingFilter(loginPageUrl);
-        MessageSource messageSource = http.getSharedObject(ApplicationContext.class)
-                .getBean(MessageSource.class);
-        loginPageFilter.setMessageSource(messageSource);
+        loginPageFilter.setMessageSource(http.getSharedObject(ApplicationContext.class));
         http.addFilterBefore(loginPageFilter, UsernamePasswordAuthenticationFilter.class);
     }
 }

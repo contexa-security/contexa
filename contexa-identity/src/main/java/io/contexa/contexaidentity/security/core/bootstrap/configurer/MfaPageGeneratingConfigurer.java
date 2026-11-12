@@ -32,7 +32,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.MessageSource;
 import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -111,11 +110,8 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                     mailConfigured,
                     failOnEmailError
             );
-            try {
-                MessageSource messageSource =
-                        applicationContext.getBean(MessageSource.class);
-                mfaPageFilter.setMessageSource(messageSource);
-            } catch (Exception ignored) {
+            if (applicationContext != null) {
+                mfaPageFilter.setMessageSource(applicationContext);
             }
             try {
                 mfaPageFilter.setJdbcTemplate(accountStore(applicationContext));

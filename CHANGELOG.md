@@ -526,6 +526,19 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **Contexa's screens find their texts in an application whose only message source goes by another name.** With one
+  `MessageSource` bean under a name other than `messageSource` and no `messages` bundle of its own, the application
+  kept the context's empty source, Contexa's bundle was attached to nothing, and every text of Contexa's screens ended
+  in `NoSuchMessageException` (creating a user in the console showed a failure after the user had been stored).
+  Contexa's bundle now stands behind the context's own source in that case too. No `MessageSource` bean is added and
+  the application's own source is not touched; the sign-in, MFA and passkey registration pages take their texts from
+  the application context rather than from a `MessageSource` looked up by type (PR-190).
+
+- **A stopped embedding service is reported once a minute, not with a stack trace for every decision.** While a
+  decision could not be stored for learning, each one wrote `Failed to store ... document` with its full trace. The
+  first failure is still written with its trace; after that at most one a minute, with the number left out in between
+  (`similarSinceLastReport`). The others stand at DEBUG without a trace (PR-186).
+
 - **A request thread no longer does Contexa's own work when Contexa falls behind.** Under load three pieces of that work
   ran on the application's request threads. The session record of a request answered by the decision in force was made
   by the asking thread when the recording line was full; a full line now drops the record and counts it, told once and

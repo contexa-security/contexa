@@ -26,6 +26,7 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -130,6 +131,27 @@ class IamI18nAutoConfigurationTest {
                 .withPropertyValues("contexa.bridge.ownership=HOST_OWNED", "spring.messages.basename=no-such-bundle")
                 .run(context -> assertThat(context.getBean(MessageSource.class)
                         .getMessage("zerotrust.stepup.back", null, "missing", Locale.ENGLISH)).isNotEqualTo("missing"));
+    }
+
+    @Test
+    @DisplayName("a host whose only message source goes by another name: Contexa's texts resolve, the host's is as it was")
+    void aHostSourceUnderAnotherName() {
+        new WebApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(MessageSourceAutoConfiguration.class,
+                        IamI18nAutoConfiguration.class, WebMvcAutoConfiguration.class))
+                .withBean("auditMessages", MessageSource.class, StaticMessageSource::new)
+                .withPropertyValues("contexa.bridge.ownership=HOST_OWNED", "spring.messages.basename=no-such-bundle")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getMessage("zerotrust.stepup.back", null, Locale.ENGLISH))
+                            .as("the context's own source is what Contexa's screens are given")
+                            .isNotEqualTo("zerotrust.stepup.back");
+                    assertThat(context.getBean("auditMessages", StaticMessageSource.class).getParentMessageSource())
+                            .as("the host's own source is not touched").isNull();
+                    assertThat(context.getBeansOfType(MessageSource.class).values())
+                            .as("no message source is added to those the host can be given by type")
+                            .noneMatch(source -> source instanceof IamI18nAutoConfiguration.ContexaMessageSource);
+                });
     }
 
     @Test

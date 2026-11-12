@@ -18,8 +18,11 @@ package io.contexa.autoconfigure.iam;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import java.util.Locale;
+import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.BeanFactoryAware;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.beans.factory.config.SingletonBeanRegistry;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.web.WebProperties;
@@ -28,6 +31,8 @@ import org.springframework.context.HierarchicalMessageSource;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.AbstractApplicationContext;
+import org.springframework.context.support.DelegatingMessageSource;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -71,35 +76,63 @@ public class IamI18nAutoConfiguration {
     /**
      * Puts Contexa's bundle behind the message source of an application that has one of its own (Spring Boot makes
      * one as soon as the application has a {@code messages.properties}, and Contexa's then stands aside), so that the
-     * texts of Contexa's screens do not show as missing keys.
+     * texts of Contexa's screens do not show as missing keys. An application whose only message source goes by another
+     * name has none named {@code messageSource}: the context then puts an empty one of its own there, and Contexa's
+     * bundle stands behind that one. The application's source under its own name is not touched.
      */
     @Bean
     static BeanPostProcessor contexaMessagesBehindTheApplications() {
         return new ContexaMessagesBehindTheApplications();
     }
 
-    static final class ContexaMessagesBehindTheApplications implements BeanPostProcessor {
+    static final class ContexaMessagesBehindTheApplications implements BeanPostProcessor, BeanFactoryAware {
+
+        private static final String NAME = AbstractApplicationContext.MESSAGE_SOURCE_BEAN_NAME;
 
         private final MessageSource contexa = new ContexaMessageSource();
+        private SingletonBeanRegistry singletons;
+        private volatile boolean contextsOwnSeen;
+
+        @Override
+        public void setBeanFactory(BeanFactory beanFactory) {
+            if (beanFactory instanceof SingletonBeanRegistry registry) {
+                singletons = registry;
+            }
+        }
+
+        /** The context's own empty source is registered as it is, shown to no post-processor: it is looked up here. */
+        @Override
+        public Object postProcessBeforeInitialization(Object bean, String beanName) {
+            if (!contextsOwnSeen && singletons != null && singletons.containsSingleton(NAME)) {
+                contextsOwnSeen = true;
+                if (singletons.getSingleton(NAME) instanceof DelegatingMessageSource own) {
+                    behind(own);
+                }
+            }
+            return bean;
+        }
 
         @Override
         public Object postProcessAfterInitialization(Object bean, String beanName) {
-            if (!"messageSource".equals(beanName) || !(bean instanceof HierarchicalMessageSource source)) {
-                return bean;
+            if (NAME.equals(beanName) && bean instanceof HierarchicalMessageSource source) {
+                behind(source);
             }
+            return bean;
+        }
+
+        private void behind(HierarchicalMessageSource source) {
             HierarchicalMessageSource last = source;
             for (MessageSource next = source; next instanceof HierarchicalMessageSource hierarchical; ) {
                 if (next instanceof ContexaMessageSource) {
-                    return bean;
+                    return;
                 }
                 last = hierarchical;
                 next = hierarchical.getParentMessageSource();
                 if (next != null && !(next instanceof HierarchicalMessageSource)) {
-                    return bean;
+                    return;
                 }
             }
             last.setParentMessageSource(contexa);
-            return bean;
         }
     }
 

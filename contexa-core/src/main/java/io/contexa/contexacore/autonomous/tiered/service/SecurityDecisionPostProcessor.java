@@ -37,6 +37,8 @@ import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacore.util.ErrorLogThrottle;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -59,6 +61,8 @@ public class SecurityDecisionPostProcessor {
     private static final Set<String> NOT_ALLOWED_TYPES = Set.of(VectorDocumentType.SUSPICIOUS.getValue(),
             VectorDocumentType.THREAT.getValue(), VectorDocumentType.AMBIGUOUS.getValue());
     private final UnifiedVectorService unifiedVectorService;
+    private static final Duration STORE_FAILURE_LOG_INTERVAL = Duration.ofMinutes(1);
+    private final ErrorLogThrottle storeFailureLog = new ErrorLogThrottle(STORE_FAILURE_LOG_INTERVAL);
 
     private LearningPromotionPolicy.Settings learningPromotionSettings = LearningPromotionPolicy.Settings.DEFAULTS;
 
@@ -135,8 +139,22 @@ public class SecurityDecisionPostProcessor {
             }
 
         } catch (Exception e) {
-            log.error("[SecurityDecisionPostProcessor] Failed to store vector document: eventId={}",
-                    event.getEventId(), e);
+            logStoreFailure("vector", event, e);
+        }
+    }
+
+    /**
+     * A store that keeps failing (the embedding service or the vector store is down) fails for every decision: the
+     * failure is logged with its trace once per interval, with how many were not logged in between.
+     */
+    private void logStoreFailure(String kind, SecurityEvent event, Exception e) {
+        long notLogged = storeFailureLog.tryAcquire();
+        if (notLogged != ErrorLogThrottle.SUPPRESSED) {
+            log.error("[SecurityDecisionPostProcessor] Failed to store {} document: eventId={}, "
+                    + "similarSinceLastReport={}", kind, event.getEventId(), notLogged, e);
+        } else {
+            log.debug("[SecurityDecisionPostProcessor] Failed to store {} document: eventId={}, cause={}",
+                    kind, event.getEventId(), e.toString());
         }
     }
 
@@ -223,8 +241,7 @@ public class SecurityDecisionPostProcessor {
             Document document = new Document(content, metadata);
             writer.accept(document);
         } catch (Exception e) {
-            log.error("[SecurityDecisionPostProcessor] Failed to store behavior document: eventId={}",
-                    event.getEventId(), e);
+            logStoreFailure("behavior", event, e);
         }
     }
 
@@ -317,8 +334,7 @@ public class SecurityDecisionPostProcessor {
             Document threatDoc = new Document(content, metadata);
             writer.accept(threatDoc);
         } catch (Exception e) {
-            log.error("[SecurityDecisionPostProcessor] Failed to store threat document: eventId={}",
-                    event.getEventId(), e);
+            logStoreFailure("threat", event, e);
         }
     }
 
@@ -349,8 +365,7 @@ public class SecurityDecisionPostProcessor {
             Document doc = new Document(content, metadata);
             writer.accept(doc);
         } catch (Exception e) {
-            log.error("[SecurityDecisionPostProcessor] Failed to store suspicious document: eventId={}",
-                    event.getEventId(), e);
+            logStoreFailure("suspicious", event, e);
         }
     }
 
@@ -373,8 +388,7 @@ public class SecurityDecisionPostProcessor {
             Document doc = new Document(content, metadata);
             writer.accept(doc);
         } catch (Exception e) {
-            log.error("[SecurityDecisionPostProcessor] Failed to store ambiguous document: eventId={}",
-                    event.getEventId(), e);
+            logStoreFailure("ambiguous", event, e);
         }
     }
 
