@@ -644,6 +644,21 @@ The format is based on Keep a Changelog and the project follows semantic version
   an account the registry could not be asked about is read as a person, as before; a record that fails for any other reason is
   still logged each time, with its stack.
 
+- **An application that has no database of its own starts with Contexa added, switched on or not.** Contexa's starter
+  brings JDBC and JPA to the class path of every application, and the pgvector starter its vector store asks for brings
+  Spring AI's pgvector auto-configuration. In an application without a database, with Contexa switched on, Spring Boot's
+  data source auto-configuration then ended the startup with `Failed to configure a DataSource`; with that starter there
+  and Contexa switched off (`contexa.enabled=false`), the pgvector auto-configuration ended it for the `JdbcTemplate` it
+  did not find. Both are now left out, in every mode, for an application that says nothing about a database: no property
+  under `spring.datasource`, `spring.jpa`, `spring.data.jpa`, `spring.flyway`, `spring.liquibase` or `spring.sql.init`,
+  no embedded database on its class path, no `DataSource` bean declared in its code. The properties are read the way
+  Spring Boot binds them, so a database named only by environment variables (`SPRING_DATASOURCE_URL`) counts: before,
+  the starter alone took the data source auto-configuration away from such an application. **Check:** a `DataSource`
+  that comes only from an imported configuration, another library's auto-configuration, a factory bean or XML is not
+  seen at that point; one property under `spring.datasource` says the application has a database. Spring Boot's
+  Hibernate and transaction manager auto-configurations are not left out, so their configuration beans and
+  `JpaProperties` stay in such an application.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines
