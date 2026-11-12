@@ -25,11 +25,13 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorIdentifier;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.store.RequestPathScope;
 import io.contexa.contexaidentity.security.handler.MfaFactorProcessingSuccessHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureHandler;
 import jakarta.servlet.Filter;
+import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -43,9 +45,12 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.core.Ordered;
 import org.springframework.security.web.DefaultSecurityFilterChain;
+import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 import org.springframework.security.web.util.matcher.AnyRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -283,8 +288,97 @@ class SecurityFilterChainRegistrarTest {
             OrderedSecurityFilterChain result = registrar.buildAndRegisterFilters(fc, applicationContext);
 
             assertThat(result).isNotNull();
-            assertThat(result.getFilters()).containsExactly(firstFilter, secondFilter);
+            // the chain's own filters, in their order, between the two that open and close Contexa's work
+            List<Filter> filters = result.getFilters();
+            assertThat(filters.subList(1, filters.size() - 1)).containsExactly(firstFilter, secondFilter);
             assertThat(result.getOrder()).isEqualTo(Ordered.HIGHEST_PRECEDENCE + 10);
+        }
+    }
+
+    @Nested
+    @DisplayName("Contexa's work in its own chain (PR-201)")
+    class ContexaWorkTests {
+
+        private final List<String> seen = new ArrayList<>();
+
+        @Test
+        @DisplayName("The chain's filters run as Contexa's work and the application behind them does not")
+        void theChainsFiltersRunAsContexasWork() throws Exception {
+            OrderedSecurityFilterChain chain = chainOf(marks("first"), marks("last"));
+
+            new FilterChainProxy(chain).doFilter(new MockHttpServletRequest("GET", "/"), new MockHttpServletResponse(),
+                    (request, response) -> seen.add("application " + RequestPathScope.inContexaWork()));
+
+            assertThat(seen).containsExactly("first true", "last true", "application false", "last true", "first true");
+            assertThat(RequestPathScope.inContexaWork()).isFalse();
+        }
+
+        @Test
+        @DisplayName("A protected call of the application keeps its own marks inside the chain's")
+        void aProtectedCallInsideTheApplication() throws Exception {
+            OrderedSecurityFilterChain chain = chainOf(marks("filter"));
+
+            new FilterChainProxy(chain).doFilter(new MockHttpServletRequest("GET", "/"), new MockHttpServletResponse(),
+                    (request, response) -> {
+                        RequestPathScope.enter();
+                        seen.add("call " + RequestPathScope.inContexaWork());
+                        int work = RequestPathScope.suspend();
+                        seen.add("method " + RequestPathScope.inContexaWork());
+                        RequestPathScope.resume(work);
+                        RequestPathScope.leave();
+                        seen.add("application " + RequestPathScope.inContexaWork());
+                    });
+
+            assertThat(seen).containsExactly("filter true", "call true", "method false", "application false",
+                    "filter true");
+            assertThat(RequestPathScope.inContexaWork()).isFalse();
+        }
+
+        @Test
+        @DisplayName("The application's failure comes back through the chain as Contexa's work and leaves no mark")
+        void theApplicationsFailureLeavesNoMark() throws Exception {
+            OrderedSecurityFilterChain chain = chainOf(marks("filter"));
+
+            assertThatThrownBy(() -> new FilterChainProxy(chain).doFilter(new MockHttpServletRequest("GET", "/"),
+                    new MockHttpServletResponse(), (request, response) -> {
+                        throw new ServletException("the application failed");
+                    })).isInstanceOf(ServletException.class);
+
+            assertThat(seen).containsExactly("filter true", "filter true");
+            assertThat(RequestPathScope.inContexaWork()).isFalse();
+        }
+
+        @Test
+        @DisplayName("A filter of the chain that fails leaves no mark")
+        void aFailingFilterLeavesNoMark() throws Exception {
+            OrderedSecurityFilterChain chain = chainOf((request, response, next) -> {
+                throw new IllegalStateException("the store did not answer");
+            });
+
+            assertThatThrownBy(() -> new FilterChainProxy(chain).doFilter(new MockHttpServletRequest("GET", "/"),
+                    new MockHttpServletResponse(), (request, response) -> seen.add("application")))
+                    .isInstanceOf(IllegalStateException.class);
+
+            assertThat(seen).isEmpty();
+            assertThat(RequestPathScope.inContexaWork()).isFalse();
+        }
+
+        private OrderedSecurityFilterChain chainOf(Filter... filters) throws Exception {
+            FlowContext fc = createMockFlowContext("FORM", 10, List.of());
+            when(fc.http().build()).thenReturn(new DefaultSecurityFilterChain(AnyRequestMatcher.INSTANCE, List.of(filters)));
+            return registrar.buildAndRegisterFilters(fc, applicationContext);
+        }
+
+        /** A filter that writes down, on the way in and on the way out, whether it runs as Contexa's work. */
+        private Filter marks(String name) {
+            return (request, response, next) -> {
+                seen.add(name + " " + RequestPathScope.inContexaWork());
+                try {
+                    next.doFilter(request, response);
+                } finally {
+                    seen.add(name + " " + RequestPathScope.inContexaWork());
+                }
+            };
         }
     }
 

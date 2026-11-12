@@ -619,6 +619,16 @@ The format is based on Keep a Changelog and the project follows semantic version
   database before Contexa has seen that it does not answer may wait about a second, once; a full pool of Contexa's still runs
   the work on the caller, as before.
 
+- **Under FULL, a token request no longer goes unanswered while Contexa's database is frozen.** What the chains Contexa builds
+  read on the request's thread (the client of a token request, the authorization behind a bearer token, the account and the
+  policy of a sign-in) was not bounded as a protected call's reads are: with the database frozen, an agent's token request
+  stayed without an answer for as long as its caller would wait, three minutes in the measurement, and held one of the server's
+  request threads for that time. The filters of every chain Contexa builds now run as Contexa's own work, so such a read ends
+  after about a second and the request is refused. What runs behind the chain, the application's handler, is not Contexa's work
+  and keeps its own time. **Check:** while that database does not answer, a token request and a new sign-in under FULL are
+  answered 500 after about a second, and they are answered again without a restart once it is back; the chains an application
+  builds itself are not touched.
+
 - **A database of Contexa's that stays away no longer fills the application's log.** While it did not answer, every request
   left errors with their stacks in the application's log: the agent registry that could not be asked whether the account is an
   agent, each audit record that was not written, and under FULL two more lines from Hibernate for every transaction that asked

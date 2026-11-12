@@ -161,7 +161,7 @@ public class SecurityFilterChainRegistrar {
             return new OrderedSecurityFilterChain(
                     Ordered.HIGHEST_PRECEDENCE + flowConfig.getOrder(),
                     builtChain.getRequestMatcher(),
-                    builtChain.getFilters()
+                    ContexaWorkFilters.around(builtChain.getFilters())
             );
         } catch (Exception e) {
             log.error("Error building SecurityFilterChain or registering factor filters for flow: {}", fc.flow().getTypeName(), e);
