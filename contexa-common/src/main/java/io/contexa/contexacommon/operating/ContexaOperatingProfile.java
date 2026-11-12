@@ -53,7 +53,8 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
     private static final String REDISSON_LIBRARY = "org.redisson:redisson";
     /** PR-71: the library brings a JCache provider, and Spring Boot gives it the cache of an application that goes through JCache. */
     private static final String REDISSON_JCACHE_NOTE = " " + REDISSON_LIBRARY + " brings a JCache provider: an application"
-            + " whose cache goes through JCache then does not start, so it sets its cache, for example spring.cache.type=caffeine.";
+            + " whose cache goes through JCache then does not start, so it sets its cache, for example spring.cache.type=caffeine,"
+            + " or names its own JCache provider with spring.cache.jcache.provider.";
     private static final Map<String, String> DISTRIBUTED_LIBRARIES = distributedLibraries();
 
     private static Map<String, String> distributedLibraries() {

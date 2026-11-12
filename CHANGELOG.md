@@ -704,6 +704,14 @@ The format is based on Keep a Changelog and the project follows semantic version
   it raised to that version once the starter was added. Contexa does not use Guava any more and declares none; an
   application keeps the version it had.
 
+- **A start that two JCache providers stopped says why.** `contexa.infrastructure.mode=distributed` needs
+  `org.redisson:redisson`, which brings a JCache provider. An application with a provider of its own (Ehcache, for
+  instance) then has two, Spring Boot picks none, and the start ended with `required a bean of type
+  'javax.cache.CacheManager' that could not be found` and nothing of the cause. The failed start now names the two
+  providers and what to set: `spring.cache.jcache.provider`, for example
+  `spring.cache.jcache.provider=org.ehcache.jsr107.EhcacheCachingProvider`. Contexa changes no setting of the
+  application's cache.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines
