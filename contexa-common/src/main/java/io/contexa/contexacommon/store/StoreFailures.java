@@ -65,6 +65,11 @@ public final class StoreFailures {
         return anyCause(failure, StoreUnavailableException.class::isInstance);
     }
 
+    /** Whether the failure, or one of its causes, was raised by the driver or the pool, whatever it says. */
+    static boolean isJdbcFailure(@Nullable Throwable failure) {
+        return anyCause(failure, SQLException.class::isInstance);
+    }
+
     private static boolean anyCause(@Nullable Throwable failure, Predicate<Throwable> test) {
         Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Throwable cause = failure; cause != null && seen.add(cause); cause = cause.getCause()) {
