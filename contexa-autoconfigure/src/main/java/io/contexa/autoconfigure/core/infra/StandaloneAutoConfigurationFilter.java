@@ -35,6 +35,11 @@ import org.springframework.core.type.MethodMetadata;
 import org.springframework.util.ClassUtils;
 
 import javax.sql.DataSource;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -48,7 +53,8 @@ import java.util.stream.Stream;
  * <p>Contexa-owned ({@code io.contexa.*}) infrastructure auto-configurations are always excluded in
  * standalone mode. Third-party infrastructure auto-configurations (Spring Boot, Redisson, Spring Kafka)
  * are excluded only when the host application has not configured that infrastructure itself, so a host
- * application that uses its own Redis or Kafka keeps its auto-configuration.</p>
+ * application that uses its own Redis or Kafka keeps its auto-configuration. It says so with a connection
+ * property, or in its code: a class it registered or scanned names Spring's support for that infrastructure.</p>
  *
  * <p>Spring Boot's data source auto-configuration and Spring AI's pgvector store auto-configuration are excluded,
  * in every mode and whether Contexa is switched on or not, for an application that has no database of its own:
@@ -95,6 +101,14 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
             "spring.kafka.admin.bootstrap-servers",
             "spring.kafka.streams.bootstrap-servers");
 
+    /** The packages of Spring's support for Redis, the Redisson starter's included, and for Kafka, as a class file names them. */
+    private static final List<String> REDIS_SUPPORT = List.of("org/springframework/data/redis/", "org/redisson/");
+    private static final List<String> KAFKA_SUPPORT = List.of("org/springframework/kafka/");
+
+    /** What the Redis and the Kafka auto-configurations stand on: where it is not on the class path they keep out by themselves. */
+    private static final String REDIS_OPERATIONS = "org/springframework/data/redis/core/RedisOperations.class";
+    private static final String KAFKA_TEMPLATE = "org/springframework/kafka/core/KafkaTemplate.class";
+
     /** Property names under which an application says it has a database (the host's own, not Contexa's). */
     private static final List<ConfigurationPropertyName> DATABASE_PROPERTIES = Stream.of(
             "spring.datasource", "spring.jpa", "spring.data.jpa", "spring.flyway", "spring.liquibase", "spring.sql.init")
@@ -108,6 +122,7 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
 
     private Environment environment;
     private BeanFactory beanFactory;
+    private Set<String> supportNamedInCode;
 
     @Override
     public boolean[] match(String[] autoConfigurationClasses, AutoConfigurationMetadata metadata) {
@@ -115,6 +130,7 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
                 environment.getProperty(MODE_PROPERTY, "standalone"));
         boolean contexaPlatformActive = isContexaPlatformActive();
         Boolean hasDatabase = null;
+        supportNamedInCode = null;
 
         boolean[] result = new boolean[autoConfigurationClasses.length];
         for (int i = 0; i < autoConfigurationClasses.length; i++) {
@@ -166,10 +182,65 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
         if (isContexaAutoConfiguration(autoConfigurationClass)) {
             return true;
         }
-        if (redisRelated && !hasAnyApplicationProperty(APPLICATION_REDIS_PROPERTIES)) {
+        if (redisRelated && !applicationUses(APPLICATION_REDIS_PROPERTIES, REDIS_SUPPORT)) {
             return true;
         }
-        return kafkaRelated && !hasAnyApplicationProperty(APPLICATION_KAFKA_PROPERTIES);
+        return kafkaRelated && !applicationUses(APPLICATION_KAFKA_PROPERTIES, KAFKA_SUPPORT);
+    }
+
+    /**
+     * Whether the application uses that infrastructure itself: it gives a connection property, or its code names Spring's support for
+     * it. An application that builds its connection factories in code, or takes Spring Boot's template with the default address, gives
+     * no property.
+     */
+    private boolean applicationUses(List<String> connectionProperties, List<String> support) {
+        if (hasAnyApplicationProperty(connectionProperties)) {
+            return true;
+        }
+        if (supportNamedInCode == null) {
+            supportNamedInCode = supportNamedInCode();
+        }
+        return support.stream().anyMatch(supportNamedInCode::contains);
+    }
+
+    /**
+     * Which of Spring's Redis and Kafka support the classes the application registered or scanned name. Spring asks this filter before it
+     * reads the beans of any configuration, so each class file is read as it stands, without loading the class: a type the class takes,
+     * returns, builds or annotates with is named there by its package. Nothing is read where the support is not on the class path.
+     */
+    private Set<String> supportNamedInCode() {
+        Set<String> named = new HashSet<>();
+        if (!(beanFactory instanceof ConfigurableListableBeanFactory listable) || listable.getBeanClassLoader() == null) {
+            return named;
+        }
+        ClassLoader classLoader = listable.getBeanClassLoader();
+        List<String> sought = new ArrayList<>();
+        if (classLoader.getResource(REDIS_OPERATIONS) != null) {
+            sought.addAll(REDIS_SUPPORT);
+        }
+        if (classLoader.getResource(KAFKA_TEMPLATE) != null) {
+            sought.addAll(KAFKA_SUPPORT);
+        }
+        for (String beanName : listable.getBeanDefinitionNames()) {
+            if (named.size() == sought.size()) {
+                break;
+            }
+            if (listable.getBeanDefinition(beanName) instanceof AnnotatedBeanDefinition annotated) {
+                String classFile = classFile(annotated.getMetadata().getClassName(), classLoader);
+                sought.stream().filter(classFile::contains).forEach(named::add);
+            }
+        }
+        return named;
+    }
+
+    private static String classFile(String className, ClassLoader classLoader) {
+        String resource = ClassUtils.convertClassNameToResourcePath(className) + ClassUtils.CLASS_FILE_SUFFIX;
+        try (InputStream in = classLoader.getResourceAsStream(resource)) {
+            return in != null ? new String(in.readAllBytes(), StandardCharsets.ISO_8859_1) : "";
+        } catch (IOException | RuntimeException ex) {
+            // a class that cannot be read says nothing about what the application uses, and must not be what stops it
+            return "";
+        }
     }
 
     /** The application declared Spring Security: only that puts its configuration support on the class path. */

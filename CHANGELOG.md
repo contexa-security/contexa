@@ -668,6 +668,18 @@ The format is based on Keep a Changelog and the project follows semantic version
   only where Contexa signs the users in (`CONTEXA_OWNED`). **Check:** where the application signs its own users in, a
   `MagicLinkHandler` taken by type or `contexaMagicLinkHandler` by name is no longer there; nothing of Contexa's took it.
 
+- **An application that sets its Kafka or Redis up in code keeps Spring Boot's support for it in standalone mode.**
+  In Contexa's default standalone mode Spring Boot's Redis and Kafka auto-configurations were left to an application
+  only when it gave a connection property (`spring.kafka.bootstrap-servers`, `spring.data.redis.host`, ...). One that
+  builds its connection factories in code, or takes `KafkaTemplate` or `StringRedisTemplate` with the default address,
+  gives none: switched on, it ended its startup on a missing `KafkaTemplate` or `StringRedisTemplate` bean, and one with
+  its own `KafkaTemplate` started and received none of its `@KafkaListener` messages, with no error. The application now
+  also says it in its code: where a class it registered or scanned names Spring for Apache Kafka
+  (`org.springframework.kafka`), Spring Data Redis (`org.springframework.data.redis`) or Redisson (`org.redisson`), the
+  auto-configurations of that infrastructure stay; the other one's are still left out. **Limit:** only the classes
+  Spring scanned or was given are read, not the ones they import; an application whose only use is there, or that
+  relies on a dependency alone with the default address, still says it with a connection property.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines
