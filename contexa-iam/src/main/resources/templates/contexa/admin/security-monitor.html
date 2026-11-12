@@ -201,7 +201,7 @@
                             <span th:if="${log.riskScore == null}" class="text-xs" style="color: #64748b;">-</span>
                         </td>
                         <td class="px-4 py-3 text-xs" style="color: #64748b;" th:text="${log.clientIp ?: '-'}"></td>
-                        <td class="px-4 py-3 text-xs" th:with="status=${integrity != null ? integrity[log.id] : null}">
+                        <td class="px-4 py-3 text-xs" th:with="status=${integrity != null ? integrity.of(log.id) : null}">
                             <span th:if="${status != null}" class="px-2 py-0.5 rounded" th:style="${status == 'VERIFIED' ? 'background: rgba(74,222,128,0.15); color: #4ade80;' : status == 'MISMATCH' ? 'background: rgba(248,113,113,0.15); color: #f87171;' : 'background: rgba(71,85,105,0.2); color: #94a3b8;'}"
                                   th:text="#{${'admin.security.monitor.integrity.' + status}}">Verified</span>
                             <span th:if="${status == null}" style="color: #64748b;">-</span>

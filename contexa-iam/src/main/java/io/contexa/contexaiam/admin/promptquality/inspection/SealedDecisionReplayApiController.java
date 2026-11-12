@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.promptquality.inspection;
 
+import io.contexa.contexaiam.common.ErrorBody;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays.ReplayRequest;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays.Replayed;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays.UnavailableException;
@@ -30,7 +31,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -84,6 +84,6 @@ public class SealedDecisionReplayApiController {
     }
 
     private static ResponseEntity<?> error(HttpStatus status, String message) {
-        return ResponseEntity.status(status).body(Map.of("error", message));
+        return ResponseEntity.status(status).body(new ErrorBody(message));
     }
 }

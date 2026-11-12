@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.controller;
 
+import io.contexa.contexaiam.admin.web.monitoring.dto.DecisionRecordIntegrity;
 import java.util.Locale;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
@@ -48,8 +49,6 @@ import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import org.springframework.lang.Nullable;
 import io.contexa.contexacore.autonomous.audit.DecisionRecordSeal;
 import io.contexa.contexacore.verification.evidence.EvidenceSigner;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Security Monitor - real-time security event viewer based on ctxa_audit_log.
@@ -205,7 +204,7 @@ public class SecurityMonitorController {
         // docs/agent A5-5: an agent's decision shows the delegation it ran under, as the delegation record states it.
         model.addAttribute("delegation", delegationOf(auditLog));
         // docs/agent A5-6: whether the decision record is as it was sealed.
-        model.addAttribute("integrity", integrityOf(List.of(auditLog)).get(auditLog.getId()));
+        model.addAttribute("integrity", integrityOf(List.of(auditLog)).of(auditLog.getId()));
         return "contexa/admin/security-monitor-detail";
     }
 
@@ -213,15 +212,15 @@ public class SecurityMonitorController {
      * docs/agent A5-6: the integrity of each decision record on the page (VERIFIED, MISMATCH or UNVERIFIABLE), by
      * record ID; records that are no decisions have none.
      */
-    private Map<Long, String> integrityOf(List<AuditLog> records) {
-        Map<Long, String> integrity = new HashMap<>();
+    private DecisionRecordIntegrity integrityOf(List<AuditLog> records) {
+        DecisionRecordIntegrity integrity = new DecisionRecordIntegrity();
         for (AuditLog record : records) {
             if (record.getId() == null || !"SECURITY_DECISION".equals(record.getEventCategory())) {
                 continue;
             }
             try {
                 // The oldest kept record names a previous record the audit retention deleted: not a mismatch.
-                integrity.put(record.getId(), DecisionRecordSeal.evaluate(record, evidenceSigner,
+                integrity.found(record.getId(), DecisionRecordSeal.evaluate(record, evidenceSigner,
                         auditLogRepository::existsByRecordHash, kept -> auditLogRepository
                                 .existsByEventCategoryAndRecordHashIsNotNullAndIdLessThan("SECURITY_DECISION",
                                         kept.getId()),
@@ -230,7 +229,7 @@ public class SecurityMonitorController {
                                         evidenceSigner.activeKeyId(), kept.getId())).name());
             } catch (RuntimeException e) {
                 log.error("Integrity check failed for audit log {}", record.getId(), e);
-                integrity.put(record.getId(), "UNVERIFIABLE");
+                integrity.found(record.getId(), "UNVERIFIABLE");
             }
         }
         return integrity;

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.agent.controller;
 
+import io.contexa.contexaiam.common.ErrorBody;
 import io.contexa.contexacore.autonomous.agent.AgentRegistration;
 import io.contexa.contexacore.autonomous.agent.AgentRegistry;
 import io.contexa.contexaiam.admin.web.agent.dto.AgentView;
@@ -32,7 +33,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.function.Supplier;
 
@@ -143,7 +143,7 @@ public class AgentRegistrationApiController {
         return AgentView.of(registration);
     }
 
-    private static ResponseEntity<Map<String, String>> error(HttpStatus status, String message) {
-        return ResponseEntity.status(status).body(Map.of("error", message));
+    private static ResponseEntity<ErrorBody> error(HttpStatus status, String message) {
+        return ResponseEntity.status(status).body(new ErrorBody(message));
     }
 }

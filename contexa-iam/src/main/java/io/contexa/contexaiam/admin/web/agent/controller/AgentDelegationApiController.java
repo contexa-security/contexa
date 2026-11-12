@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.agent.controller;
 
+import io.contexa.contexaiam.common.ErrorBody;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
@@ -37,7 +38,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Clock;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A person's delegations to agents (docs/agent OC-1): the signed-in person records what work an agent may do for them,
@@ -126,7 +126,7 @@ public class AgentDelegationApiController {
                 && StringUtils.hasText(stamp.agentId());
     }
 
-    static ResponseEntity<Map<String, String>> error(HttpStatus status, String message) {
-        return ResponseEntity.status(status).body(Map.of("error", message));
+    static ResponseEntity<ErrorBody> error(HttpStatus status, String message) {
+        return ResponseEntity.status(status).body(new ErrorBody(message));
     }
 }
