@@ -659,6 +659,15 @@ The format is based on Keep a Changelog and the project follows semantic version
   Hibernate and transaction manager auto-configurations are not left out, so their configuration beans and
   `JpaProperties` stay in such an application.
 
+- **An application that signs its own users in with Spring Security's one-time token login starts with Contexa added.**
+  `oneTimeTokenLogin()` takes the `OneTimeTokenGenerationSuccessHandler` it was not given in its own configuration by
+  type, and needs exactly one. Contexa registered a handler of that type, `contexaMagicLinkHandler`, in every mode: beside
+  the application's own handler bean that made two, and the application ended its startup with
+  `A OneTimeTokenGenerationSuccessHandler is required to enable oneTimeTokenLogin().`, enforcing, shadowing, observing
+  or disabled; an application with no handler of its own would have been given Contexa's. The bean is now registered
+  only where Contexa signs the users in (`CONTEXA_OWNED`). **Check:** where the application signs its own users in, a
+  `MagicLinkHandler` taken by type or `contexaMagicLinkHandler` by name is no longer there; nothing of Contexa's took it.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines
