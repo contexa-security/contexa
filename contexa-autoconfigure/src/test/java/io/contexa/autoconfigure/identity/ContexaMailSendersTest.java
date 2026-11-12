@@ -34,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * The sender Contexa builds where it owns the sign-in and the application has none to take: made from spring.mail.* as
  * Spring Boot makes the sender it builds from them, so the limits and the login an application sets there apply to it
- * as they apply to Boot's own.
+ * as they apply to Boot's own. A limit the settings do not set is Contexa's: its sender never waits without one.
  */
 class ContexaMailSendersTest {
 
@@ -42,7 +42,7 @@ class ContexaMailSendersTest {
             .withConfiguration(AutoConfigurations.of(MailSenderAutoConfiguration.class));
 
     @Test
-    @DisplayName("from the settings Spring Boot reads for its own sender, Contexa's has the same host, port, login, protocol, encoding and mail properties")
+    @DisplayName("from the settings Spring Boot reads for its own sender, Contexa's has the same host, port, login, protocol, encoding and mail properties, and nothing more than the limits the settings left out")
     void theSenderIsTheOneSpringBootBuildsFromTheSameSettings() {
         for (String[] settings : new String[][] {
                 {"spring.mail.host=smtp.example.test"},
@@ -67,27 +67,58 @@ class ContexaMailSendersTest {
                     assertThat(sender.getPassword()).isEqualTo(theirs.getPassword());
                     assertThat(sender.getProtocol()).isEqualTo(theirs.getProtocol());
                     assertThat(sender.getDefaultEncoding()).isEqualTo(theirs.getDefaultEncoding());
-                    assertThat(sender.getJavaMailProperties()).isEqualTo(theirs.getJavaMailProperties());
+                    Properties properties = sender.getJavaMailProperties();
+                    assertThat(properties).containsAllEntriesOf(theirs.getJavaMailProperties());
+                    String protocol = theirs.getProtocol() == null ? "smtp" : theirs.getProtocol();
+                    assertThat(properties.stringPropertyNames())
+                            .filteredOn(name -> !theirs.getJavaMailProperties().containsKey(name))
+                            .as("what Contexa's sender has and Spring Boot's has not: the limits the settings left out")
+                            .allMatch(name -> name.equals("mail." + protocol + ".connectiontimeout")
+                                    || name.equals("mail." + protocol + ".timeout")
+                                    || name.equals("mail." + protocol + ".writetimeout"));
                 });
             });
         }
     }
 
     @Test
-    @DisplayName("the limits spring.mail.properties sets are Contexa's sender's limits too, and none is invented where none is set")
+    @DisplayName("the limits spring.mail.properties sets are Contexa's sender's limits too, a zero that says 'no limit' among them")
     void theLimitsOfTheSettingsAreTheLimitsOfTheSender() {
         JavaMailSenderImpl limited = (JavaMailSenderImpl) ContexaMailSenders.fromSettings(environmentOf(
                 "spring.mail.host=smtp.example.test", "spring.mail.properties.mail.smtp.connectiontimeout=3000",
-                "spring.mail.properties.mail.smtp.timeout=4000", "spring.mail.properties.mail.smtp.writetimeout=5000"), none());
+                "spring.mail.properties.mail.smtp.timeout=4000", "spring.mail.properties.mail.smtp.writetimeout=0"), none());
         Properties properties = limited.getJavaMailProperties();
         assertThat(properties.getProperty("mail.smtp.connectiontimeout")).isEqualTo("3000");
         assertThat(properties.getProperty("mail.smtp.timeout")).isEqualTo("4000");
-        assertThat(properties.getProperty("mail.smtp.writetimeout")).isEqualTo("5000");
+        assertThat(properties.getProperty("mail.smtp.writetimeout")).isEqualTo("0");
+    }
 
-        JavaMailSenderImpl unlimited = (JavaMailSenderImpl) ContexaMailSenders.fromSettings(
-                environmentOf("spring.mail.host=smtp.example.test"), none());
-        assertThat(unlimited.getJavaMailProperties().stringPropertyNames())
-                .as("no default limit: Spring Boot's sender has none either").noneMatch(name -> name.contains("timeout"));
+    @Test
+    @DisplayName("a limit the settings do not set is Contexa's: its sender never waits for a mail server without one")
+    void aLimitTheSettingsDoNotSetIsContexas() {
+        Properties none = ((JavaMailSenderImpl) ContexaMailSenders.fromSettings(
+                environmentOf("spring.mail.host=smtp.example.test"), none())).getJavaMailProperties();
+        assertThat(none.getProperty("mail.smtp.connectiontimeout")).isEqualTo(ContexaMailSenders.CONNECT_LIMIT_MS);
+        assertThat(none.getProperty("mail.smtp.timeout")).isEqualTo(ContexaMailSenders.ANSWER_LIMIT_MS);
+        assertThat(none.getProperty("mail.smtp.writetimeout")).isEqualTo(ContexaMailSenders.ANSWER_LIMIT_MS);
+        assertThat(Integer.parseInt(ContexaMailSenders.CONNECT_LIMIT_MS)).isBetween(1, 30_000);
+        assertThat(Integer.parseInt(ContexaMailSenders.ANSWER_LIMIT_MS)).isBetween(1, 30_000);
+
+        Properties one = ((JavaMailSenderImpl) ContexaMailSenders.fromSettings(environmentOf(
+                "spring.mail.host=smtp.example.test", "spring.mail.properties.mail.smtp.timeout=4000"), none())).getJavaMailProperties();
+        assertThat(one.getProperty("mail.smtp.timeout")).as("the one the settings set").isEqualTo("4000");
+        assertThat(one.getProperty("mail.smtp.connectiontimeout")).isEqualTo(ContexaMailSenders.CONNECT_LIMIT_MS);
+        assertThat(one.getProperty("mail.smtp.writetimeout")).isEqualTo(ContexaMailSenders.ANSWER_LIMIT_MS);
+
+        Properties secure = ((JavaMailSenderImpl) ContexaMailSenders.fromSettings(environmentOf(
+                "spring.mail.host=smtp.example.test", "spring.mail.protocol=smtps",
+                "spring.mail.properties.mail.smtp.timeout=4000"), none())).getJavaMailProperties();
+        assertThat(secure.getProperty("mail.smtps.connectiontimeout"))
+                .as("the mail library reads the limits of the protocol it sends with").isEqualTo(ContexaMailSenders.CONNECT_LIMIT_MS);
+        assertThat(secure.getProperty("mail.smtps.timeout"))
+                .as("a limit set for smtp is no limit for smtps").isEqualTo(ContexaMailSenders.ANSWER_LIMIT_MS);
+        assertThat(secure.getProperty("mail.smtps.writetimeout")).isEqualTo(ContexaMailSenders.ANSWER_LIMIT_MS);
+        assertThat(secure.getProperty("mail.smtp.timeout")).isEqualTo("4000");
     }
 
     @Test
