@@ -589,6 +589,16 @@ The format is based on Keep a Changelog and the project follows semantic version
   answered as not sent though the server may still deliver it; and with a sender of the application's that has no timeout, the
   held mail threads come back only when its connections end, so code mails stay refused until then.
 
+- **A mail server only Contexa uses no longer decides, or holds, the application's health.** Contexa brings the mail classes with
+  it, so `spring.mail.host` set for its code mails made Spring Boot add its `mail` health to an application that sends no mail of
+  its own: with the mail server down `/actuator/health` answered DOWN, and with one that took the connection and kept silent it
+  did not answer at all (that health waits without a limit), so a platform that restarts on the health restarted a working
+  application. Contexa now takes that health out again, under either ownership, and says so once at the start. Nothing is touched
+  where the application mails (a bean of its own had the sender handed to it), declares a sender or a mail health of its own,
+  names `mail` in a health group, or sets `management.health.mail.enabled`. **Check:** an application that only looks its sender
+  up when it mails (`ObjectProvider`, `getBean`, `@Lazy`) is not seen to mail and loses the `mail` health, and
+  `/actuator/health/mail` answers 404 then; `management.health.mail.enabled=true` keeps it.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines

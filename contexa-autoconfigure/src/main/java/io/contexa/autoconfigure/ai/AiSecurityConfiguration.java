@@ -56,8 +56,8 @@ import java.util.UUID;
  * @see io.contexa.contexacommon.annotation.EnableAISecurity
  */
 @Configuration
-@Import({AiBridgeConfiguration.class, HostOwnedHealthConfiguration.class, HostOwnedDiagnosticsConfiguration.class,
-        ContexaOwnedDiagnosticsConfiguration.class})
+@Import({AiBridgeConfiguration.class, HostOwnedHealthConfiguration.class, HostMailHealthConfiguration.class,
+        HostOwnedDiagnosticsConfiguration.class, ContexaOwnedDiagnosticsConfiguration.class})
 @ConditionalOnClass(SecurityFilterChain.class)
 public class AiSecurityConfiguration {
 

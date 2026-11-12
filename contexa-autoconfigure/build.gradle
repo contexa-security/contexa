@@ -46,6 +46,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.ai:spring-ai-anthropic'
     testImplementation 'org.springframework.boot:spring-boot-actuator'
+    testImplementation 'org.springframework.boot:spring-boot-actuator-autoconfigure'
     testImplementation 'io.micrometer:micrometer-core'
     testImplementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
     testImplementation 'org.springframework.boot:spring-boot-starter-security'
