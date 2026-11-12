@@ -15,7 +15,6 @@
  */
 package io.contexa.contexaiam.resource.service;
 
-import com.google.common.collect.Lists;
 import io.contexa.contexacore.exception.StrategicOperationConflictException;
 import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacommon.entity.ManagedResource;
@@ -71,7 +70,7 @@ public class AutoConditionTemplateService {
                 ));
 
         if (!uniqueResources.isEmpty()) {
-            List<List<ManagedResource>> batches = Lists.partition(uniqueResources, BATCH_SIZE);
+            List<List<ManagedResource>> batches = Batches.of(uniqueResources, BATCH_SIZE);
 
             List<CompletableFuture<List<ConditionTemplate>>> futures = batches.stream()
                     .map(batch -> CompletableFuture.supplyAsync(() -> processConditionBatch(batch), ContexaBackgroundExecution.executor()))

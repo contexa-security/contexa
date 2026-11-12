@@ -18,7 +18,6 @@ package io.contexa.contexaiam.resource.service;
 import java.util.Locale;
 import java.util.Objects;
 
-import com.google.common.collect.Lists;
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -113,7 +112,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
         if (!newResources.isEmpty()) {
             int batchSize = 100;
-            List<List<ManagedResource>> resourceBatches = Lists.partition(newResources, batchSize);
+            List<List<ManagedResource>> resourceBatches = Batches.of(newResources, batchSize);
             resourceBatches.forEach(this::processResourceBatch);
         }
         if (iamAdminProperties.getConditionTemplates().isEnabled()) {

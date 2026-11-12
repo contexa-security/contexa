@@ -699,6 +699,11 @@ The format is based on Keep a Changelog and the project follows semantic version
   as well, rather than given code with Contexa left out. A build with `contexa.enabled=false` is not refused; nothing
   changed for it, nor for an application that starts without AOT processing.
 
+- **Contexa no longer brings Guava into an application.** `contexa-iam` declared `com.google.guava:guava:33.4.8-jre` for
+  two calls, so an application that had an older Guava (33.0.0 with Spring Security's SAML 2 support, for instance) got
+  it raised to that version once the starter was added. Contexa does not use Guava any more and declares none; an
+  application keeps the version it had.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines
