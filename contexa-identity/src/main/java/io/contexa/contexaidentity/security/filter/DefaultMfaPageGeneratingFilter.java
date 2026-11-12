@@ -720,7 +720,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             </head>
             <body>
                 <div class="container">
-                    <div class="icon">🔐</div>
+                    <div class="icon">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"/><circle cx="16.5" cy="7.5" r=".5" fill="#667eea"/>
+                        </svg>
+                    </div>
                     <h1>{{i18nPasskeyTitle}}</h1>
                     <p class="description">{{i18nPasskeyDescription}}</p>
 
@@ -1148,7 +1152,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             </head>
             <body>
                 <div class="container">
-                    <div class="icon">❌</div>
+                    <div class="icon">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#e53e3e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/>
+                        </svg>
+                    </div>
                     <h1>{{i18nFailureTitle}}</h1>
                     <p class="error-message">{{errorMessage}}</p>
 

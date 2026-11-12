@@ -202,6 +202,15 @@ class ZeroTrustPageControllerTest {
     }
 
     @Test
+    @DisplayName("The CHALLENGE notice of an application without an MFA flow offers the sign-out, not a step-up")
+    void theNoticeWithoutAStepUpOffersTheSignOut() throws Exception {
+        mvc.perform(get(CHALLENGE_REQUIRED).param("stepUp", "none"))
+                .andExpect(model().attribute("stepUpOffered", false));
+        mvc.perform(get(CHALLENGE_REQUIRED))
+                .andExpect(model().attribute("stepUpOffered", true));
+    }
+
+    @Test
     @DisplayName("Without a value the screens fall back to their own destination")
     void aMissingValueFallsBack() throws Exception {
         mvc.perform(get(ANALYSIS_PENDING)).andExpect(model().attribute("returnUrl", "/"));

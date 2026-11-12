@@ -17,6 +17,7 @@ package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.SameAppPath;
+import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
@@ -86,8 +87,12 @@ public class ZeroTrustPageController {
     @GetMapping("/challenge-required")
     public String challengeRequired(
             @RequestParam(value = "mfaUrl", required = false) String mfaUrl,
+            @RequestParam(value = ZeroTrustScreens.STEP_UP_PARAMETER, required = false) String stepUp,
             HttpServletRequest request, Model model) {
         String contextPath = request.getContextPath();
+        // An application without an MFA flow has no step-up to lead to: the notice says so and offers the sign-out.
+        boolean stepUpOffered = !ZeroTrustScreens.NO_STEP_UP.equals(stepUp);
+        model.addAttribute("stepUpOffered", stepUpOffered);
         model.addAttribute("mfaUrl", SameAppPath.orElse(mfaUrl, contextPath, contextPath + "/mfa/select-factor"));
         return "contexa/zero-trust/challenge-required";
     }

@@ -187,9 +187,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 successStage = "markMfaVerifiedOnChallengeSuccess";
                 markMfaVerifiedOnChallengeSuccess(userId, request);
                 if (challengeFlow) {
-                    // A login MFA, in this or another session, does not answer a Zero Trust challenge; only the
-                    // step-up the challenge started releases it and is learned as normal behaviour.
                     successStage = "resetActionOnMfaSuccess";
+                    resetActionOnMfaSuccess(userId, request, factorContext, stateType, finalAuthentication);
+                } else if (answersAStoredChallenge(userId, factorContext)) {
+                    // A sign-in completed with its factors after a CHALLENGE was decided is the verification the
+                    // challenge asks for: the person signing in was asked for the code once more on the next page.
+                    // The session it opens is released as a step-up releases it; the user's other sessions stay
+                    // challenged.
+                    successStage = "releaseChallengeOnFactorSignIn";
                     resetActionOnMfaSuccess(userId, request, factorContext, stateType, finalAuthentication);
                 }
                 successStage = "recordMfaCompletionInSession";
@@ -734,6 +739,24 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             }
         } catch (Exception e) {
             safeLogError("[MFA] Failed to update SecurityContext action to {}", e, newAction);
+        }
+    }
+
+    /**
+     * Whether this sign-in answers the user's stored CHALLENGE: it went through at least one factor (a sign-in the
+     * policy let through at the password is no verification) and the decision in force is a CHALLENGE, decided before
+     * this sign-in ended. A BLOCK or an ESCALATE is never answered this way.
+     */
+    private boolean answersAStoredChallenge(String userId, FactorContext factorContext) {
+        if (actionRedisRepository == null || userId == null || userId.isBlank()
+                || factorContext.getCompletedFactors() == null || factorContext.getCompletedFactors().isEmpty()) {
+            return false;
+        }
+        try {
+            return actionRedisRepository.getActionFromHash(userId) == ZeroTrustAction.CHALLENGE;
+        } catch (RuntimeException e) {
+            safeLogError("[MFA] Could not read the decision in force for {}", e, userId);
+            return false;
         }
     }
 

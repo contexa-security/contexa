@@ -13,14 +13,25 @@
             </svg>
         </div>
         <h1 class="text-2xl font-bold mb-3" style="color: #e2e8f0;" th:text="#{zerotrust.challenge.title}">Additional authentication is required</h1>
-        <p class="mb-8" style="color: #94a3b8;"
+        <p th:if="${stepUpOffered}" class="mb-8" style="color: #94a3b8;"
            th:utext="#{zerotrust.challenge.desc}"></p>
 
-        <a th:href="${mfaUrl}"
+        <a th:if="${stepUpOffered}" th:href="${mfaUrl}"
            class="inline-block w-full py-3 px-6 rounded-lg text-sm font-semibold transition-all duration-300"
            style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">
             <span th:text="#{zerotrust.challenge.mfa.proceed}">Proceed with MFA Verification</span>
         </a>
+
+        <!-- The application has no MFA flow: the verification cannot be made here, the sign-out still works. -->
+        <p th:unless="${stepUpOffered}" id="challenge-no-step-up" class="mb-8" style="color: #94a3b8;"
+           th:utext="#{zerotrust.challenge.none.desc}"></p>
+        <form th:unless="${stepUpOffered}" method="post" th:action="@{/logout}">
+            <button type="submit" id="challenge-sign-out"
+                    class="inline-block w-full py-3 px-6 rounded-lg text-sm font-semibold transition-all duration-300"
+                    style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">
+                <span th:text="#{zerotrust.challenge.none.logout}">Sign out</span>
+            </button>
+        </form>
     </div>
 </div>
 

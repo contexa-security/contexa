@@ -82,8 +82,12 @@ class IamControllerMapBoundaryTest {
             return paths
                     .filter(Files::isRegularFile)
                     .filter(path -> path.getFileName().toString().endsWith("Controller.java"))
-                    .filter(path -> !path.toString().contains("promptquality/official") 
+                    .filter(path -> !path.toString().contains("promptquality/official")
                             && !path.toString().contains("promptquality\\official"))
+                    // The AuthZEN Authorization API: its subject, resource, action and context carry properties any
+                    // enforcement point names (open JSON objects by the specification), so the evaluation endpoint
+                    // reads and answers them as maps.
+                    .filter(path -> !path.getFileName().toString().equals("AccessEvaluationController.java"))
                     .sorted()
                     .toList();
         }
