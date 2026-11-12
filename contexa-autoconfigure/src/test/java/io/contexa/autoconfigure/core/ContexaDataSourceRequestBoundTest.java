@@ -48,6 +48,14 @@ class ContexaDataSourceRequestBoundTest {
     }
 
     @Test
+    @DisplayName("a connection that rested is asked whether it lives for no longer than a request waits (PR-198)")
+    void aRestedConnectionIsAskedForNoLongerThanARequestWaits() throws Exception {
+        DataSource dataSource = contexaDataSource();
+
+        assertThat(dataSource.unwrap(HikariDataSource.class).getValidationTimeout()).isLessThanOrEqualTo(1000L);
+    }
+
+    @Test
     @DisplayName("the pool closes with the bean, as it did when it was the bean")
     void thePoolClosesWithTheBean() throws Exception {
         DataSource dataSource = contexaDataSource();

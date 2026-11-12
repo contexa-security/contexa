@@ -140,7 +140,8 @@ public class ContexaDataSourceProperties {
         private int maximumPoolSize = 48;
         private int minimumIdle = 8;
         private long connectionTimeoutMs = 60000L;
-        private long validationTimeoutMs = 5000L;
+        // The pool asks a connection that rested whether it lives before a request gets it, and a request waits a second.
+        private long validationTimeoutMs = 1000L;
         private long idleTimeoutMs = 600000L;
         private long maxLifetimeMs = 1800000L;
 

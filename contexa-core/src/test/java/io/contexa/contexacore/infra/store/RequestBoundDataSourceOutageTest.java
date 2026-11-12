@@ -53,7 +53,8 @@ import static org.awaitility.Awaitility.await;
 /**
  * Q-7 (PR-51, PR-55, PR-56) on a real database that stops, runs out of connections, holds a lock and freezes. A request
  * waits about a second once and then not at all; the engine keeps the pool's own wait; and everything comes back by
- * itself. The pool here waits three seconds, as the one of an application waits a minute.
+ * itself. The pool here waits three seconds, as the one of an application waits a minute, and asks a connection that
+ * rested whether it lives for a second, as Contexa's own pool does (PR-198).
  */
 class RequestBoundDataSourceOutageTest {
 
@@ -268,6 +269,26 @@ class RequestBoundDataSourceOutageTest {
         } finally {
             RequestPathScope.leave();
             POSTGRES.getDockerClient().unpauseContainerCmd(POSTGRES.getContainerId()).exec();
+        }
+    }
+
+    @Test
+    @DisplayName("a database that froze while the pool's connections rested costs one request about a second, the next none (PR-198)")
+    void aDatabaseThatFrozeWhileTheConnectionsRested() throws Exception {
+        onARequestThread();
+        // The pool asks a connection whether it lives once it rested for half a second, and waits for that answer.
+        Thread.sleep(700L);
+        POSTGRES.getDockerClient().pauseContainerCmd(POSTGRES.getContainerId()).exec();
+
+        assertThat(took(this::connection)).as("the first request").isLessThan(REQUEST_LIMIT);
+        assertThat(stores.database().isDown()).isTrue();
+        assertThat(took(this::connection)).as("while the gate is down").isLessThan(Duration.ofMillis(100));
+
+        POSTGRES.getDockerClient().unpauseContainerCmd(POSTGRES.getContainerId()).exec();
+        awaitGateUp();
+
+        try (Connection connection = connection(); Statement statement = connection.createStatement()) {
+            assertThat(statement.execute("select 1")).isTrue();
         }
     }
 }

@@ -599,6 +599,15 @@ The format is based on Keep a Changelog and the project follows semantic version
   up when it mails (`ObjectProvider`, `getBean`, `@Lazy`) is not seen to mail and loses the `mail` health, and
   `/actuator/health/mail` answers 404 then; `management.health.mail.enabled=true` keeps it.
 
+- **A database of Contexa's that froze no longer holds the first protected request for five seconds.** A request waits a second
+  for a connection to Contexa's database, but the pool first asked a connection that had rested whether it still lived and waited
+  five seconds for that answer, whatever the request's limit was: with the database frozen (its connections open, nothing
+  answered), the first protected request after it took about five seconds, under SANDBOX as well. Contexa's pool now asks for a
+  second (`contexa.datasource.hikari.validation-timeout-ms`, 5000 before, 1000 now), so that request waits about a second and the
+  ones after it none, as with a database that is down. **Check:** the engine's own threads ask for a second too, and a connection
+  whose database takes longer to answer that question is closed and replaced; an application that sets the property higher has
+  that first request wait as long as it says.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines
