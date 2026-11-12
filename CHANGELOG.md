@@ -680,6 +680,15 @@ The format is based on Keep a Changelog and the project follows semantic version
   Spring scanned or was given are read, not the ones they import; an application whose only use is there, or that
   relies on a dependency alone with the default address, still says it with a connection property.
 
+- **A WebFlux application's functional routes are refused before Contexa touches its database.** Contexa runs on the
+  servlet stack and never maps a `RouterFunction` of WebFlux, so it ends such a start with
+  `Contexa runs on a servlet stack, and this application has WebFlux routes that it never maps: [...]`. It said so only
+  when every bean existed: by then it had installed its schema in the database it was given, and the refused start
+  left 152 tables, their seed rows and the `vector` extension behind, in the application's own database where the two
+  were shared. The routes are now read from their bean definitions, before a single bean is created, and the refused
+  start leaves nothing; the words of the refusal are the same. **Limit:** routes declared as something wider than
+  `RouterFunction` (a `@Bean` method returning `Object`) are still found only when the beans exist.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines

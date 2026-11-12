@@ -161,17 +161,26 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
      * keep working, but its functional routes are never mapped: every one of them would answer 404 without a word.
      */
     static void refuseReactiveRoutes(ListableBeanFactory beans, ClassLoader loader) {
-        if (!ClassUtils.isPresent(REACTIVE_ROUTES, loader)) {
-            return;
-        }
-        Class<?> routes = ClassUtils.resolveClassName(REACTIVE_ROUTES, loader);
-        String[] names = beans.getBeanNamesForType(routes, true, false);
+        String[] names = reactiveRoutes(beans, loader);
         if (names.length > 0) {
-            throw new ContexaOperatingProfileException(
-                    "Contexa runs on a servlet stack, and this application has WebFlux routes that it never maps: "
-                            + Arrays.toString(names) + ".",
-                    "Run this application on the servlet stack with Spring MVC, or remove Contexa from it.");
+            throw reactiveRoutesRefused(names);
         }
+    }
+
+    /** The application's WebFlux routes by bean name, read from what the beans are declared as: it creates none of them. */
+    static String[] reactiveRoutes(ListableBeanFactory beans, ClassLoader loader) {
+        if (!ClassUtils.isPresent(REACTIVE_ROUTES, loader)) {
+            return new String[0];
+        }
+        return beans.getBeanNamesForType(ClassUtils.resolveClassName(REACTIVE_ROUTES, loader), true, false);
+    }
+
+    /** The one refusal of the application's WebFlux routes, whether they are found as beans or as their bean definitions. */
+    static ContexaOperatingProfileException reactiveRoutesRefused(String[] names) {
+        return new ContexaOperatingProfileException(
+                "Contexa runs on a servlet stack, and this application has WebFlux routes that it never maps: "
+                        + Arrays.toString(names) + ".",
+                "Run this application on the servlet stack with Spring MVC, or remove Contexa from it.");
     }
 
     /** What the class path brought, for an application that wonders why Boot behaves differently. */

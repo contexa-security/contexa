@@ -158,4 +158,10 @@ public class AiSecurityConfiguration {
         return new OwnershipStartupDiagnostics(beanFactory, ContexaOperatingProfile.resolve(environment),
                 environment.getProperty("contexa.startup.class-path-report", Boolean.class, true));
     }
+
+    /** The refusal of WebFlux routes from their bean definitions, before Contexa touches its database (PR-174). */
+    @Bean(name = "contexaReactiveRoutesDefinitionCheck")
+    public static ReactiveRoutesDefinitionCheck reactiveRoutesDefinitionCheck() {
+        return new ReactiveRoutesDefinitionCheck();
+    }
 }
