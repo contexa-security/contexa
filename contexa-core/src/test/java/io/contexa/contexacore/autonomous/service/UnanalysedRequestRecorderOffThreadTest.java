@@ -27,8 +27,8 @@ import static org.mockito.Mockito.mock;
 /**
  * The session record of a request answered by the decision in force (N-SES-1) is made off the request's thread: the
  * request has been answered, and the record only feeds the decisions that come later, so the request does not wait for
- * the dozens of Redis commands it takes. The records of one session keep their order, and a line that is full is not
- * a lost record: the thread that asks makes it.
+ * the dozens of Redis commands it takes. The records of one session keep their order, and a line that is full drops
+ * the record and counts it (PR-187): the thread that asks never makes it.
  */
 @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
 class UnanalysedRequestRecorderOffThreadTest {
@@ -39,7 +39,6 @@ class UnanalysedRequestRecorderOffThreadTest {
     private final List<String> threads = new CopyOnWriteArrayList<>();
     private final CountDownLatch release = new CountDownLatch(1);
     private final CountDownLatch firstStarted = new CountDownLatch(1);
-    private final CountDownLatch askingStarted = new CountDownLatch(1);
     private SessionRecordingLine line;
 
     @AfterEach
@@ -55,9 +54,6 @@ class UnanalysedRequestRecorderOffThreadTest {
             SecurityEvent event = call.getArgument(0);
             if ("r1".equals(event.getMetadata().get("requestId"))) {
                 firstStarted.countDown();
-            }
-            if ("asking".equals(Thread.currentThread().getName())) {
-                askingStarted.countDown();
             }
             if (blocked) {
                 release.await();
@@ -128,7 +124,7 @@ class UnanalysedRequestRecorderOffThreadTest {
     }
 
     @Test
-    void aFullLineIsNoLostRecordTheThreadThatAsksMakesIt() {
+    void aFullLineDropsTheRecordAndTheThreadThatAsksDoesNotMakeIt() {
         collecting(true);
         line = new SessionRecordingLine(1, 1);
         UnanalysedRequestRecorder unanalysed = new UnanalysedRequestRecorder(collector, recorder, null, null, line);
@@ -136,15 +132,18 @@ class UnanalysedRequestRecorderOffThreadTest {
         unanalysed.record(event("session-1", "r1"), ZeroTrustAction.ALLOW);
         assertThat(awaited(firstStarted)).isTrue();
         unanalysed.record(event("session-1", "r2"), ZeroTrustAction.ALLOW);
-        Thread asking = new Thread(() -> unanalysed.record(event("session-1", "r3"), ZeroTrustAction.ALLOW), "asking");
-        asking.start();
 
-        // r3 finds the line full and is made by the asking thread, which waits for the collector as the others do;
-        // nothing is released before the asking thread is making it
-        assertThat(awaited(askingStarted)).isTrue();
+        // r3 finds the line full: the asking thread comes back at once (the collector is still held), and the record
+        // is counted, not made
+        long began = System.nanoTime();
+        unanalysed.record(event("session-1", "r3"), ZeroTrustAction.ALLOW);
+        long tookMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - began);
+
+        assertThat(tookMillis).isLessThan(1_000L);
+        assertThat(line.dropped()).isEqualTo(1L);
         release.countDown();
-        Awaitility.await().untilAsserted(() -> assertThat(recorded).containsExactlyInAnyOrder("r1", "r2", "r3"));
-        assertThat(threads).contains("asking");
+        Awaitility.await().untilAsserted(() -> assertThat(recorded).containsExactly("r1", "r2"));
+        assertThat(threads).doesNotContain(Thread.currentThread().getName());
     }
 
     @Test

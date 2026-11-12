@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.service;
 
+import io.contexa.contexacommon.store.RepeatedFailure;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
 
@@ -23,13 +24,16 @@ import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The line the session records of requests are made in, off the thread of the request. The records of one session go
  * through one thread in the order they were asked for (the session's narrative is a list the records are appended to),
- * and sessions are spread over a few threads. A line that is full, or stopped, loses no record: the thread that asks
- * makes it, as it did before the line existed, and the request then waits for it like any other work it does itself.
- * A thread with nothing to record is given back after a minute.
+ * and sessions are spread over a few threads. A thread with nothing to record is given back after a minute.
+ *
+ * <p>PR-187: a line that is full, or stopped, drops the record and counts it. The thread that asks is the application's
+ * request, which has been answered by the decision in force and must not wait for work that is Contexa's own; the
+ * record only feeds the decisions that come later. How many were dropped is told once and then a line a minute.
  */
 @Slf4j
 public final class SessionRecordingLine implements DisposableBean {
@@ -38,20 +42,26 @@ public final class SessionRecordingLine implements DisposableBean {
     private static final long STOP_WAIT_SECONDS = 10L;
 
     private final ThreadPoolExecutor[] threads;
-    private final AtomicInteger full = new AtomicInteger();
+    private final AtomicLong dropped = new AtomicLong();
+    private final RepeatedFailure droppedReports = new RepeatedFailure();
 
     /**
      * @param threads   how many threads record, one session always on the same one
-     * @param queueSize how many records wait for each thread before the asking thread makes the record itself
+     * @param queueSize how many records wait for each thread before a further record is dropped
      */
     public SessionRecordingLine(int threads, int queueSize) {
         int count = Math.max(1, threads);
         int size = Math.max(1, queueSize);
         this.threads = new ThreadPoolExecutor[count];
         AtomicInteger names = new AtomicInteger();
-        RejectedExecutionHandler askingThreadMakes = (work, line) -> {
-            full.incrementAndGet();
-            work.run();
+        RejectedExecutionHandler countsAndDrops = (work, line) -> {
+            dropped.incrementAndGet();
+            long unreported = droppedReports.count();
+            if (unreported > 0) {
+                log.warn("[SessionRecordingLine] {} session records were not made since this was last said: the line "
+                        + "was full or stopped. The requests were answered as decided; they are missing only from the "
+                        + "history the later decisions read.", unreported);
+            }
         };
         for (int index = 0; index < count; index++) {
             ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, IDLE_SECONDS, TimeUnit.SECONDS,
@@ -59,7 +69,7 @@ public final class SessionRecordingLine implements DisposableBean {
                 Thread thread = new Thread(work, "contexa-session-record-" + names.incrementAndGet());
                 thread.setDaemon(true);
                 return thread;
-            }, askingThreadMakes);
+            }, countsAndDrops);
             executor.allowCoreThreadTimeOut(true);
             this.threads[index] = executor;
         }
@@ -71,9 +81,9 @@ public final class SessionRecordingLine implements DisposableBean {
         threads[index].execute(work);
     }
 
-    /** How many records the asking thread made itself because the line was full or stopped. */
-    public int madeByTheAskingThread() {
-        return full.get();
+    /** How many records were dropped because the line was full or stopped. */
+    public long dropped() {
+        return dropped.get();
     }
 
     @Override

@@ -976,7 +976,7 @@ public class CoreAutonomousAutoConfiguration {
     @Bean(name = "contexaSessionRecordingLine")
     @ConditionalOnMissingBean
     public SessionRecordingLine sessionRecordingLine() {
-        return new SessionRecordingLine(8, 1_000);
+        return new SessionRecordingLine(8, 2_000);
     }
 
     @Bean(name = "contexaSessionRecordsIdChangeListener")

@@ -30,6 +30,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,6 +46,9 @@ import static org.mockito.Mockito.verify;
 /**
  * PR-200: the records a silent database does not take are counted and told once, not one error with its stack for each,
  * and how many there were is on the audit log once the database answers again.
+ *
+ * <p>PR-188: the record is written by the listener's own threads, and one the line has no place for is counted with the
+ * others, not written by the thread that made it.
  */
 @ExtendWith(OutputCaptureExtension.class)
 class AuditPersistenceListenerTest {
@@ -90,7 +94,7 @@ class AuditPersistenceListenerTest {
     @DisplayName("while the database is known to be down nothing is asked of it and the outage is told once")
     void aDatabaseKnownToBeDownIsNotAsked(CapturedOutput output) {
         gateDown();
-        AuditPersistenceListener listener = new AuditPersistenceListener(audit, stores.database());
+        AuditPersistenceListener listener = new AuditPersistenceListener(audit, stores.database(), Runnable::run);
 
         for (int record = 0; record < 300; record++) {
             listener.onAuditRecordEvent(event(AuditEventCategory.AUTHENTICATION_SUCCESS));
@@ -105,7 +109,7 @@ class AuditPersistenceListenerTest {
     @DisplayName("records a silent database refuses are told once, by cause and without a stack for each")
     void recordsASilentDatabaseRefusesAreToldOnce(CapturedOutput output) {
         aDatabaseThatAnswersOnlyWhenTold();
-        AuditPersistenceListener listener = new AuditPersistenceListener(audit);
+        AuditPersistenceListener listener = new AuditPersistenceListener(audit, null, Runnable::run);
 
         for (int record = 0; record < 300; record++) {
             listener.onAuditRecordEvent(event(AuditEventCategory.AUTHENTICATION_SUCCESS));
@@ -122,7 +126,7 @@ class AuditPersistenceListenerTest {
     void theAuditLogHoldsHowManyWereNotWritten() {
         aDatabaseThatAnswersOnlyWhenTold();
         gateDown();
-        AuditPersistenceListener listener = new AuditPersistenceListener(audit, stores.database());
+        AuditPersistenceListener listener = new AuditPersistenceListener(audit, stores.database(), Runnable::run);
         listener.onAuditRecordEvent(event(AuditEventCategory.AUTHENTICATION_SUCCESS));
         listener.onAuditRecordEvent(event(AuditEventCategory.AUTHENTICATION_SUCCESS));
         listener.onAuditRecordEvent(event(AuditEventCategory.SECURITY_DECISION));
@@ -150,7 +154,7 @@ class AuditPersistenceListenerTest {
     @DisplayName("without a gate the count is written after the first record the database takes again")
     void withoutAGateTheCountFollowsTheFirstRecordWritten() {
         aDatabaseThatAnswersOnlyWhenTold();
-        AuditPersistenceListener listener = new AuditPersistenceListener(audit);
+        AuditPersistenceListener listener = new AuditPersistenceListener(audit, null, Runnable::run);
         for (int record = 0; record < 7; record++) {
             listener.onAuditRecordEvent(event(AuditEventCategory.AUTHENTICATION_SUCCESS));
         }
@@ -165,10 +169,60 @@ class AuditPersistenceListenerTest {
     }
 
     @Test
+    @DisplayName("the record is written by the listener's own thread, not by the thread that made it")
+    void theRecordIsWrittenOffTheThreadThatMadeIt() {
+        List<String> threads = new CopyOnWriteArrayList<>();
+        doAnswer(asked -> {
+            threads.add(Thread.currentThread().getName());
+            return null;
+        }).when(audit).persist(any());
+        AuditPersistenceListener listener = new AuditPersistenceListener(audit);
+        try {
+            listener.onAuditRecordEvent(event(AuditEventCategory.AUTHENTICATION_SUCCESS));
+
+            await().atMost(Duration.ofSeconds(5)).until(() -> !threads.isEmpty());
+            assertThat(threads).allMatch(name -> name.startsWith("contexa-audit-write-"));
+        } finally {
+            listener.destroy();
+        }
+    }
+
+    @Test
+    @DisplayName("a record the line has no place for is counted, told once, and stands on the audit log; its thread does not write it")
+    void aRecordTheLineHasNoPlaceForIsCountedNotWritten(CapturedOutput output) {
+        answering.set(true);
+        aDatabaseThatAnswersOnlyWhenTold();
+        AtomicBoolean full = new AtomicBoolean(true);
+        AuditPersistenceListener listener = new AuditPersistenceListener(audit, null, work -> {
+            if (full.get()) {
+                throw new RejectedExecutionException("full");
+            }
+            work.run();
+        });
+
+        for (int record = 0; record < 5; record++) {
+            listener.onAuditRecordEvent(event(AuditEventCategory.AUTHENTICATION_SUCCESS));
+        }
+
+        verify(audit, never()).persist(any());
+        assertThat(StringUtils.countOccurrencesOf(output.getAll(), TOLD)).isEqualTo(1);
+        assertThat(output.getAll()).contains("the line of those waiting was full").doesNotContain(EACH);
+
+        full.set(false);
+        listener.onAuditRecordEvent(event(AuditEventCategory.SECURITY_DECISION));
+
+        assertThat(written).hasSize(2);
+        assertThat(written.get(0).getEventCategory()).isEqualTo(AuditEventCategory.SECURITY_DECISION);
+        assertThat(written.get(1).getAction()).isEqualTo("AUDIT_RECORDS_NOT_WRITTEN");
+        assertThat(written.get(1).getOutcome()).isEqualTo("AUDIT_LINE_FULL");
+        assertThat(written.get(1).getDetails()).containsEntry("records", 5L).containsEntry("lineFull", 5L);
+    }
+
+    @Test
     @DisplayName("a record that fails for another reason is still told each time, with its stack, and is not counted")
     void aRecordThatFailsForAnotherReasonIsStillTold(CapturedOutput output) {
         doThrow(new IllegalStateException("bad record")).when(audit).persist(any());
-        AuditPersistenceListener listener = new AuditPersistenceListener(audit, stores.database());
+        AuditPersistenceListener listener = new AuditPersistenceListener(audit, stores.database(), Runnable::run);
 
         for (int record = 0; record < 3; record++) {
             listener.onAuditRecordEvent(event(AuditEventCategory.AUTHENTICATION_SUCCESS));

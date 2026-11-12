@@ -382,8 +382,11 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
     private StoredAction storedAction(String userId, String contextBindingHash, OneTrip oneTrip) {
         Map<Object, Object> analysis = settledAnalysis(userId, oneTrip);
+        // The last-verified record of the trip stands only beside the analysis the trip read: an ESCALATE ended above
+        // was read again, and then the record is read again as well.
+        OneTrip sameRead = oneTrip != null && analysis == oneTrip.analysis() ? oneTrip : null;
         if (analysis.isEmpty()) {
-            return StoredAction.of(unresolvedEscalationOrPending(userId));
+            return StoredAction.of(unresolvedEscalationOrPending(userId, sameRead));
         }
         Object actionValue = analysis.get("action");
         Object storedHash = analysis.get("contextBindingHash");
@@ -400,12 +403,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             return StoredAction.of(action, analysis);
         }
 
-        String lastAction = readLastVerifiedAction(userId);
+        String lastAction = sameRead != null ? sameRead.lastVerified() : readLastVerifiedAction(userId);
         if (lastAction != null) {
             ZeroTrustAction action = ZeroTrustAction.fromString(lastAction);
             if (ZeroTrustActionPrecedence.isContextBound(action)
                     && contextBindingHash != null) {
-                String lastContextHash = readLastVerifiedActionContext(userId);
+                String lastContextHash = sameRead != null
+                        ? sameRead.lastVerifiedContext() : readLastVerifiedActionContext(userId);
                 if (lastContextHash != null && !lastContextHash.equals(contextBindingHash)) {
                     log.debug("[ZeroTrustActionRedisRepository] Last verified context binding hash mismatch: userId={}, action={}", userId, action);
                     return StoredAction.of(ZeroTrustAction.PENDING_ANALYSIS);
@@ -499,13 +503,19 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         return !typedKey.equals(blockKey) && "true".equals(stringRedisTemplate.opsForValue().get(typedKey));
     }
 
+    private ZeroTrustAction unresolvedEscalationOrPending(String userId) {
+        return unresolvedEscalationOrPending(userId, null);
+    }
+
     // An ESCALATE whose analysis hash expires without resolution keeps reading as ESCALATE through the 24 h
     // last-verified key, so the access filter promotes it to BLOCK; every other expired action reads as PENDING_ANALYSIS.
     // With a replacement set it ends here instead, and nothing promotes it.
-    private ZeroTrustAction unresolvedEscalationOrPending(String userId) {
-        String lastAction = readLastVerifiedAction(userId);
+    private ZeroTrustAction unresolvedEscalationOrPending(String userId, OneTrip sameRead) {
+        String lastAction = sameRead != null ? sameRead.lastVerified() : readLastVerifiedAction(userId);
         if (lastAction == null || ZeroTrustAction.fromString(lastAction) != ZeroTrustAction.ESCALATE) {
-            return endedMeanwhileOrPending(userId);
+            // Read in one trip, the empty analysis and this record are of one moment: no other reader ended an ESCALATE
+            // between the two reads, which is all the second look is for.
+            return sameRead != null ? ZeroTrustAction.PENDING_ANALYSIS : endedMeanwhileOrPending(userId);
         }
         ZeroTrustAction replacement = escalateReplacement;
         if (replacement == null) {
@@ -1270,8 +1280,11 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
      * as typed, when that is another key), the analysis hash and the CHALLENGE held for the other sessions. They were three
      * round trips to Redis one after the other and a protected request makes the call seven times, and a round trip is most
      * of what a request waits for, so they are asked for in one. What each answers is what its own read answers.
+     * PR-189: the last-verified action and its context come in the same trip. A user with no analysis, which is every
+     * request before the first decision, cost two more round trips for them on the thread of the request.
      */
-    private record OneTrip(String blocked, String blockedAsTyped, Map<Object, Object> analysis, List<Object> held) {
+    private record OneTrip(String blocked, String blockedAsTyped, Map<Object, Object> analysis, List<Object> held,
+                           String lastVerified, String lastVerifiedContext) {
     }
 
     /** Whether {@code getCurrentAction} reads in one trip; off only in a test that compares it with the reads one by one. */
@@ -1301,23 +1314,25 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     private static final RedisSerializer<List> RAW_REPLY = (RedisSerializer<List>) (RedisSerializer) RedisSerializer.byteArray();
 
     /**
-     * The three reads in one script, which runs on the connection the other reads use. KEYS: the BLOCK flag, the analysis
-     * hash, the held CHALLENGE and, when it is another key, the flag under the name as typed. ARGV: the fields of the held
-     * CHALLENGE to read. Returns the flag, the flag as typed (or nothing), the analysis as a list of fields and values and
-     * the held fields, each as the command answers.
+     * The reads in one script, which runs on the connection the other reads use. KEYS: the BLOCK flag, the analysis
+     * hash, the held CHALLENGE, the last-verified action, its context and, when it is another key, the flag under the
+     * name as typed. ARGV: the fields of the held CHALLENGE to read. Returns the flag, the flag as typed (or nothing),
+     * the analysis as a list of fields and values, the held fields, the last-verified action and its context, each as
+     * the command answers.
      */
     @SuppressWarnings("rawtypes")
     private static final DefaultRedisScript<List> CURRENT_STATE_SCRIPT = new DefaultRedisScript<>("""
             local blocked = redis.call('GET', KEYS[1])
             local typed = false
-            if KEYS[4] then
-                typed = redis.call('GET', KEYS[4])
+            if KEYS[6] then
+                typed = redis.call('GET', KEYS[6])
             end
-            return {blocked, typed, redis.call('HGETALL', KEYS[2]), redis.call('HMGET', KEYS[3], ARGV[1], ARGV[2])}
+            return {blocked, typed, redis.call('HGETALL', KEYS[2]), redis.call('HMGET', KEYS[3], ARGV[1], ARGV[2]),
+                    redis.call('GET', KEYS[4]), redis.call('GET', KEYS[5])}
             """, List.class);
 
     /**
-     * The three reads in one trip, or null when they are to be made one by one: an analysis in a form the template cannot
+     * The reads in one trip, or null when they are to be made one by one: an analysis in a form the template cannot
      * read (an earlier version wrote one) is read by the old way, which knows that form, and so are templates that have
      * no serializers. A store that does not answer fails here as it would at the first of the reads, and the caller
      * handles it the same.
@@ -1341,7 +1356,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         String typedKey = ZeroTrustRedisKeys.userBlockedAsTyped(userId);
         boolean typedDiffers = !typedKey.equals(blockKey);
         List<String> keys = new ArrayList<>(List.of(blockKey, ZeroTrustRedisKeys.autonomousActionAnalysis(userId),
-                ZeroTrustRedisKeys.autonomousChallengeHold(userId)));
+                ZeroTrustRedisKeys.autonomousChallengeHold(userId), ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId),
+                ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId)));
         if (typedDiffers) {
             keys.add(typedKey);
         }
@@ -1364,7 +1380,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     + " the reads are made one by one for {}", oneTripRetryAfter, failure);
             return null;
         }
-        if (result == null || result.size() != 4 || !(result.get(2) instanceof List<?> analysisFlat)
+        if (result == null || result.size() != 6 || !(result.get(2) instanceof List<?> analysisFlat)
                 || !(result.get(3) instanceof List<?> heldRaw)) {
             return null;
         }
@@ -1379,11 +1395,15 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             }
             readsInOneTrip.incrementAndGet();
             oneTripHeldBack = false;
-            return new OneTrip(result.get(0) != null ? (String) flags.deserialize((byte[]) result.get(0)) : null,
-                    result.get(1) != null ? (String) flags.deserialize((byte[]) result.get(1)) : null, analysis, held);
+            return new OneTrip(text(flags, result.get(0)), text(flags, result.get(1)), analysis, held,
+                    text(flags, result.get(4)), text(flags, result.get(5)));
         } catch (SerializationException | ClassCastException unreadableForm) {
             return null;
         }
+    }
+
+    private static String text(RedisSerializer<Object> values, Object raw) {
+        return raw != null ? (String) values.deserialize((byte[]) raw) : null;
     }
 
     private Map<Object, Object> readAnalysis(String userId) {

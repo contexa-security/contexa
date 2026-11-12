@@ -526,6 +526,17 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A request thread no longer does Contexa's own work when Contexa falls behind.** Under load three pieces of that work
+  ran on the application's request threads. The session record of a request answered by the decision in force was made
+  by the asking thread when the recording line was full; a full line now drops the record and counts it, told once and
+  then a line a minute (the line holds 2,000 a thread, was 1,000) (PR-187). Audit records went through the shared
+  executor, which hands the work back to the caller when it is full, so request threads wrote them to Contexa's
+  database; they are now written by four threads of the listener's own behind a line of 2,000, and a record more than
+  that is counted and stands in the `AUDIT_RECORDS_NOT_WRITTEN` record of the audit log (`outcome = AUDIT_LINE_FULL`,
+  written at most once a minute while the line stays full) (PR-188). And a user with no analysis yet cost two more trips
+  to Redis on every request; the last-verified record is now read in the same trip as the rest (PR-189). Decisions are
+  unchanged.
+
 - **Contexa's own repositories run against the schema it installs.** Running every repository on a real PostgreSQL found
   that the SaaS forwarding outbox table lacked the `version` column its entity maps (every call on it failed; an
   existing database gains the column, with 0 in its rows, at the next start), that saving a user behavior profile or a
