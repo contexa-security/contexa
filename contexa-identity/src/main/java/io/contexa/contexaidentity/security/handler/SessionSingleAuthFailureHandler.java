@@ -16,7 +16,6 @@
 package io.contexa.contexaidentity.security.handler;
 
 import java.util.Locale;
-import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LocalCredentialsVerifier;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
@@ -26,8 +25,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -78,20 +75,8 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
         }
 
         if (exception instanceof CredentialsExpiredException) {
-            String expiredUsername = request.getParameter("username");
-            String passwordChangeUrl = request.getContextPath() + ContexaConsolePaths.PASSWORD_CHANGE + "?username="
-                    + URLEncoder.encode(expiredUsername != null ? expiredUsername : "", StandardCharsets.UTF_8) + "&expired=true";
-            if (isApiRequest(request)) {
-                Map<String, Object> responseData = new HashMap<>();
-                responseData.put("authenticated", false);
-                responseData.put("errorCode", "CREDENTIALS_EXPIRED");
-                responseData.put("message", "Password has expired");
-                responseData.put("nextStepUrl", passwordChangeUrl);
-                responseWriter.writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
-                        "CREDENTIALS_EXPIRED", "Password has expired", request.getRequestURI(), responseData);
-            } else {
-                response.sendRedirect(passwordChangeUrl);
-            }
+            ExpiredPasswordAnswer.write(request, response, responseWriter,
+                    ExpiredPasswordAnswer.accountOf(exception, request.getParameter("username")), isApiRequest(request));
             return;
         }
 
@@ -130,6 +115,7 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
 
     @Override
     protected String getDefaultTargetUrl(HttpServletRequest request) {
+        String defaultTargetUrl = defaultTargetUrl(request);
         if (defaultTargetUrl != null) return defaultTargetUrl;
         return authContextProperties.getUrls().getPrimary().getLoginFailure();
     }

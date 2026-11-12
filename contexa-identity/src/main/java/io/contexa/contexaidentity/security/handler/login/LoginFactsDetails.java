@@ -52,6 +52,12 @@ public class LoginFactsDetails extends WebAuthenticationDetails {
      * correction 7).
      */
     private final String signInId;
+    /**
+     * The type name of the MFA flow the login completed (such as {@code mfa_admin}), or {@code null} for a login of a
+     * single flow. An MFA flow's scope accepts its own logins also when its policy asked no factor.
+     */
+    @Nullable
+    private final String signInFlow;
 
     public LoginFactsDetails(@Nullable String remoteAddress, @Nullable String sessionId,
                              List<String> methods, Instant authenticationTime) {
@@ -69,6 +75,7 @@ public class LoginFactsDetails extends WebAuthenticationDetails {
         this.principalType = ExecutionSubjectTypes.HUMAN_USER;
         this.challengeVerifiedAt = null;
         this.signInId = Objects.requireNonNull(signInId, "signInId");
+        this.signInFlow = null;
     }
 
     /**
@@ -99,6 +106,7 @@ public class LoginFactsDetails extends WebAuthenticationDetails {
         this.principalType = ExecutionSubjectTypes.HUMAN_USER;
         this.challengeVerifiedAt = Objects.requireNonNull(challengeVerifiedAt, "challengeVerifiedAt");
         this.signInId = login != null ? login.signInId : UUID.randomUUID().toString();
+        this.signInFlow = login != null ? login.signInFlow : null;
     }
 
     /**
@@ -111,7 +119,12 @@ public class LoginFactsDetails extends WebAuthenticationDetails {
     }
 
     private LoginFactsDetails(LoginFactsDetails login) {
-        super(null, null);
+        this(null, null, login, login.signInFlow);
+    }
+
+    private LoginFactsDetails(@Nullable String remoteAddress, @Nullable String sessionId, LoginFactsDetails login,
+                              @Nullable String signInFlow) {
+        super(remoteAddress, sessionId);
         this.authenticationType = login.authenticationType;
         this.amr = login.amr;
         this.mfaCompleted = login.mfaCompleted;
@@ -120,6 +133,21 @@ public class LoginFactsDetails extends WebAuthenticationDetails {
         this.principalType = login.principalType;
         this.challengeVerifiedAt = login.challengeVerifiedAt;
         this.signInId = login.signInId;
+        this.signInFlow = signInFlow;
+    }
+
+    /** The same facts, of the same request, as the login of the given MFA flow. */
+    public LoginFactsDetails ofFlow(@Nullable String flowTypeName) {
+        return new LoginFactsDetails(getRemoteAddress(), getSessionId(), this, flowTypeName);
+    }
+
+    /** The facts a token states, with the MFA flow it names (see {@link #getSignInFlow()}). */
+    @Nullable
+    public static LoginFactsDetails restored(@Nullable String remoteAddress, @Nullable String sessionId,
+                                             @Nullable Collection<String> amr, @Nullable Instant authenticationTime,
+                                             @Nullable String signInId, @Nullable String signInFlow) {
+        LoginFactsDetails login = restored(remoteAddress, sessionId, amr, authenticationTime, signInId);
+        return login != null && signInFlow != null && !signInFlow.isBlank() ? login.ofFlow(signInFlow.trim()) : login;
     }
 
     /** The same facts without the request they came with: a store does not keep its address or its servlet session. */
@@ -160,6 +188,11 @@ public class LoginFactsDetails extends WebAuthenticationDetails {
         return signInId;
     }
 
+    @Nullable
+    public String getSignInFlow() {
+        return signInFlow;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -172,11 +205,12 @@ public class LoginFactsDetails extends WebAuthenticationDetails {
                 && Objects.equals(amr, that.amr)
                 && Objects.equals(authenticationTime, that.authenticationTime)
                 && Objects.equals(challengeVerifiedAt, that.challengeVerifiedAt)
-                && Objects.equals(signInId, that.signInId);
+                && Objects.equals(signInId, that.signInId)
+                && Objects.equals(signInFlow, that.signInFlow);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), authenticationType, amr, authenticationTime, challengeVerifiedAt, signInId);
+        return Objects.hash(super.hashCode(), authenticationType, amr, authenticationTime, challengeVerifiedAt, signInId, signInFlow);
     }
 }

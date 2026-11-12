@@ -91,6 +91,7 @@ public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler 
             responseData.put("message", "Login successful!");
             responseData.put("username", authentication.getName());
             responseData.put("stateType", "SESSION");
+            CsrfTokenAnswer.put(responseData, request);
 
             responseWriter.writeSuccessResponse(response, responseData, HttpServletResponse.SC_OK);
         } else {
@@ -101,10 +102,7 @@ public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler 
     @Override
     protected String getDefaultTargetUrl(HttpServletRequest request) {
 
-        if (alwaysUse && defaultTargetUrl != null) {
-            return request.getContextPath() + defaultTargetUrl;
-        }
-
+        String defaultTargetUrl = defaultTargetUrl(request);
         if (defaultTargetUrl != null) return request.getContextPath() + defaultTargetUrl;
 
         String successUrl = authContextProperties.getUrls().getSingle().getLoginSuccess();

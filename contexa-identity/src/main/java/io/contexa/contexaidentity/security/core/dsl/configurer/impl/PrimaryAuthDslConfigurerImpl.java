@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
 import io.contexa.contexaidentity.security.core.dsl.configurer.FormConfigurerConfigurer;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.core.dsl.configurer.PrimaryAuthDslConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.RestConfigurerConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.factory.AuthMethodConfigurerFactory;
@@ -49,17 +50,27 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
     @Override
     public PrimaryAuthDslConfigurer formLogin(Customizer<FormConfigurerConfigurer> formLoginCustomizer) {
         Assert.notNull(formLoginCustomizer, "formLoginCustomizer cannot be null");
+        // Both written, the later one replaced the other without a word.
+        Assert.state(this.restLoginCustomizer == null,
+                "primaryAuthentication takes formLogin(...) or restLogin(...), not both");
         this.formLoginCustomizer = formLoginCustomizer;
-        this.restLoginCustomizer = null;
         return this;
     }
 
     @Override
     public PrimaryAuthDslConfigurer restLogin(Customizer<RestConfigurerConfigurer> restLoginCustomizer) {
         Assert.notNull(restLoginCustomizer, "restLoginCustomizer cannot be null");
+        Assert.state(this.formLoginCustomizer == null,
+                "primaryAuthentication takes formLogin(...) or restLogin(...), not both");
         this.restLoginCustomizer = restLoginCustomizer;
-        this.formLoginCustomizer = null;
         return this;
+    }
+
+    private static void warnOrderHasNoEffect(boolean orderSet, int order) {
+        if (orderSet) {
+            log.warn("order({}) inside the primary step of an MFA flow has no effect: the flow's place among the chains "
+                    + "is mfa.order(...)", order);
+        }
     }
 
     @Override
@@ -76,6 +87,7 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
             );
             formLoginCustomizer.customize(formDslBuilder);
             FormOptions builtFormOptions = formDslBuilder.buildConcreteOptions();
+            warnOrderHasNoEffect(builtFormOptions.isOrderSet(), builtFormOptions.getOrder());
 
             optionsBuilder.formOptions(builtFormOptions);
             determinedLoginProcessingUrl = builtFormOptions.getLoginProcessingUrl();
@@ -87,8 +99,12 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
             );
             restLoginCustomizer.customize(restDslBuilder);
             RestOptions builtRestOptions = restDslBuilder.buildConcreteOptions();
+            warnOrderHasNoEffect(builtRestOptions.isOrderSet(), builtRestOptions.getOrder());
 
             optionsBuilder.restOptions(builtRestOptions);
+            // A REST primary step names no sign-in page of its own: its page is the configured one
+            // (contexa.auth.urls.primary.form-login-page), as the form step's default.
+            optionsBuilder.loginPage(applicationContext.getBean(AuthUrlProvider.class).getPrimaryLoginPage());
             determinedLoginProcessingUrl = builtRestOptions.getLoginProcessingUrl();
                     } else {
 

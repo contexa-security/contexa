@@ -48,7 +48,24 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
         this.alwaysUse = alwaysUse;
     }
 
+    /** The default success address of the step being answered (see {@link StepScopedSuccessHandler}). */
+    protected final String defaultTargetUrl(HttpServletRequest request) {
+        StepScopedSuccessHandler.Settings step = StepScopedSuccessHandler.current(request);
+        return step != null ? step.defaultTargetUrl() : defaultTargetUrl;
+    }
+
+    /** Whether the step being answered always goes to its default success address. */
+    protected final boolean alwaysUse(HttpServletRequest request) {
+        StepScopedSuccessHandler.Settings step = StepScopedSuccessHandler.current(request);
+        return step != null ? step.alwaysUse() : alwaysUse;
+    }
+
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {
+        // defaultSuccessUrl(url, true): always that address, whatever page the browser asked for before.
+        String always = defaultTargetUrl(request);
+        if (alwaysUse(request) && always != null) {
+            return request.getContextPath() + always;
+        }
         RequestCache localRequestCache = new HttpSessionRequestCache();
         SavedRequest savedRequest = localRequestCache.getRequest(request, response);
 

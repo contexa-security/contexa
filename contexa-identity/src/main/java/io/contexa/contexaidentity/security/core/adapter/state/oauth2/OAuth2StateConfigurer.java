@@ -53,6 +53,8 @@ import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
+import io.contexa.contexaidentity.security.utils.UrlPrefixes;
+import org.springframework.lang.Nullable;
 
 @Slf4j
 public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2StateConfigurer, HttpSecurity> {
@@ -101,6 +103,13 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
 
     @Override
     public void init(HttpSecurity http) throws Exception {
+        AuthenticationFlowConfig signInFlow = http.getSharedObject(AuthenticationFlowConfig.class);
+        if (!mode.includesAuthorizationServer() && signInFlow != null) {
+            // Validate-only: no token can be issued, so the flow's sign-in started and answered 500 when it succeeded.
+            throw new IllegalStateException("Flow '" + signInFlow.getTypeName() + "' keeps its sign-in in tokens "
+                    + "(oauth2 state), but contexa.auth.oauth2-server-mode=" + mode + " issues no tokens. Use COMBINED "
+                    + "(or AUTHORIZATION_SERVER) where this application signs people in, or give the flow the session state.");
+        }
         if (mode.includesResourceServer()) {
             configureResourceServer(http);
         }
@@ -118,7 +127,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
         ApplicationContext appContext = http.getSharedObject(ApplicationContext.class);
         AuthenticationFlowConfig flow = http.getSharedObject(AuthenticationFlowConfig.class);
         String refreshUri = mode.includesAuthorizationServer() && appContext != null
-                ? appContext.getBean(AuthContextProperties.class).getInternal().getRefreshUri()
+                ? flowRefreshUri(appContext.getBean(AuthContextProperties.class), flow)
                 : null;
         Set<String> paths = TokenRequestScope.flowPaths(flow, mfaUrls(appContext, flow), refreshUri);
         http.securityMatcher(TokenRequestScope.matcher(
@@ -130,6 +139,15 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                 flow != null ? flow.getTypeName() : "?",
                 authorizationServer != null ? "authorization server endpoints, " : "", paths,
                 tokenScopeRequests.isEmpty() ? "" : " and " + tokenScopeRequests);
+    }
+
+    /**
+     * The refresh address of the flow's chain: the configured one, under the flow's URL prefix when the flow has one.
+     * A prefixed MFA chain matches only {@code <prefix>/**}, so the unprefixed address reached no chain of the flow.
+     */
+    static String flowRefreshUri(AuthContextProperties properties, @Nullable AuthenticationFlowConfig flow) {
+        String refreshUri = properties.getInternal().getRefreshUri();
+        return flow != null ? UrlPrefixes.apply(flow.getUrlPrefix(), refreshUri) : refreshUri;
     }
 
     private AuthUrlProvider mfaUrls(ApplicationContext appContext, AuthenticationFlowConfig flow) {
@@ -180,7 +198,8 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
         if (cookieTokenSupport != null) {
             // The refresh entry point is registered only where this chain also hosts the authorization server.
             String refreshUri = mode.includesAuthorizationServer()
-                    ? appContext.getBean(AuthContextProperties.class).getInternal().getRefreshUri()
+                    ? flowRefreshUri(appContext.getBean(AuthContextProperties.class),
+                            http.getSharedObject(AuthenticationFlowConfig.class))
                     : null;
             http.addFilterBefore(new OAuth2CookieTokenRefreshFilter(cookieTokenSupport, refreshUri),
                     BearerTokenAuthenticationFilter.class);
@@ -296,7 +315,8 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
         if (tokenService != null && responseWriter != null) {
             // Placed before the bearer token filter, so an expired access token sent along with the
             // refresh request cannot block the renewal.
-            http.addFilterBefore(new OAuth2TokenRefreshFilter(properties.getInternal().getRefreshUri(), tokenService,
+            http.addFilterBefore(new OAuth2TokenRefreshFilter(
+                    flowRefreshUri(properties, http.getSharedObject(AuthenticationFlowConfig.class)), tokenService,
                     properties.getTokenTransportType(), responseWriter), BearerTokenAuthenticationFilter.class);
         }
     }

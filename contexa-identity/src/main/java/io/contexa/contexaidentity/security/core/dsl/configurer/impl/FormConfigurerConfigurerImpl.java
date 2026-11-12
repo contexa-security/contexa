@@ -40,7 +40,11 @@ public final class FormConfigurerConfigurerImpl
     public FormConfigurerConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
         super(isMfaMode ? FormOptions.builderForMfa(applicationContext) : FormOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
+        this.mfaPrimaryStep = isMfaMode;
     }
+
+    /** Whether this is the primary step of an MFA flow, whose sign-in Contexa's own filter takes. */
+    private boolean mfaPrimaryStep;
 
     @Override
     public FormConfigurerConfigurer order(int order) {
@@ -122,6 +126,12 @@ public final class FormConfigurerConfigurerImpl
 
     @Override
     public FormConfigurerConfigurer rawFormLogin(SafeHttpFormLoginCustomizer customizer) {
+        if (mfaPrimaryStep) {
+            // Spring's form login is not on an MFA chain: the customizer was accepted and never ran.
+            throw new UnsupportedOperationException("rawFormLogin(...) has no effect on the primary step of an MFA flow: "
+                    + "Contexa's own filter takes that sign-in. Use the step's options (loginPage, loginProcessingUrl, "
+                    + "failureUrl, defaultSuccessUrl, usernameParameter, passwordParameter) instead.");
+        }
         getOptionsBuilder().rawFormLoginCustomizer(customizer);
         return self();
     }

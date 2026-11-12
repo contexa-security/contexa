@@ -2,6 +2,15 @@
     var authButton = document.getElementById('authButton');
     var errorMessage = document.getElementById('errorMessage');
     var configEl = document.getElementById('contexa-page-config');
+    if (!configEl) {
+        var missing = 'This page needs the element id="contexa-page-config" (see "Rules for your own MFA pages").';
+        if (errorMessage) {
+            errorMessage.style.display = 'block';
+            errorMessage.textContent = missing;
+        }
+        console.error('[Contexa] ' + missing);
+        return;
+    }
     var tokenPersistence = configEl.dataset.tokenPersistence || 'memory';
     var mfaConfig = window.__MFA_CONFIG__;
     var failureUrl = configEl.dataset.failureUrl
@@ -60,14 +69,16 @@
             authButton.disabled = false;
             authButton.textContent = 'Authenticate with Passkey';
         } catch (error) {
-            var errorText = error && error.message ? error.message : 'Passkey verification failed.';
+            // CL-2: the browser's own sentence is no message for the person and does not belong in the address.
+            console.error('[Contexa] Passkey verification failed', error);
+            var errorText = 'The passkey could not be used. Try again, or choose another way to sign in.';
             errorMessage.style.display = 'block';
             errorMessage.textContent = errorText;
             authButton.disabled = false;
             authButton.textContent = 'Authenticate with Passkey';
 
             setTimeout(function () {
-                window.location.href = failureUrl + '?error=' + encodeURIComponent(errorText);
+                window.location.href = failureUrl + '?error=passkey_failed';
             }, 700);
         }
     });

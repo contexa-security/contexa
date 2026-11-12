@@ -88,6 +88,11 @@ public final class LoginFactsRecorder {
 
     /** Records a login completed with one method on the authentication the login flow produced. */
     public static void recordSingleFactor(@Nullable Authentication authentication, @Nullable HttpServletRequest request) {
+        // One login, one record: facts already on it (its details source, its provider, a passkey sign-in turned into
+        // the account's) are its own, and a later step would record them again under another identifier.
+        if (authentication != null && authentication.getDetails() instanceof LoginFactsDetails) {
+            return;
+        }
         String method = methodOf(authentication);
         if (method != null) {
             record(authentication, request, List.of(method));
@@ -115,8 +120,8 @@ public final class LoginFactsRecorder {
         if (methods.isEmpty()) {
             addIfPresent(methods, methodOf(finalAuthentication));
         }
-        if (!methods.isEmpty()) {
-            record(finalAuthentication, request, methods);
+        if (!methods.isEmpty() && finalAuthentication instanceof AbstractAuthenticationToken token) {
+            token.setDetails(details(request, methods).ofFlow(factorContext != null ? factorContext.getFlowTypeName() : null));
         }
     }
 
@@ -171,7 +176,8 @@ public final class LoginFactsRecorder {
         return LoginFactsDetails.restored(remoteAddress, sessionId,
                 BridgeObjectExtractor.extractStringSet(token, List.of(LoginFactClaims.AMR)),
                 BridgeObjectExtractor.extractInstant(token, List.of(LoginFactClaims.AUTH_TIME)),
-                BridgeObjectExtractor.extractString(token, List.of(LoginFactClaims.SID)));
+                BridgeObjectExtractor.extractString(token, List.of(LoginFactClaims.SID)),
+                BridgeObjectExtractor.extractString(token, List.of(LoginFactClaims.SIGN_IN_FLOW)));
     }
 
     private static void record(@Nullable Authentication authentication, @Nullable HttpServletRequest request,

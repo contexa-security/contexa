@@ -76,10 +76,8 @@ public abstract class AbstractFlowRegistrar<H extends HttpSecurityBuilder<H>> im
         Objects.requireNonNull(configurerCustomizer, "configurerCustomizer cannot be null").customize(configurer);
         O options = configurer.buildConcreteOptions();
 
-        int actualOrder = defaultOrder;
-        if (options.getOrder() != 0) { 
-            actualOrder = options.getOrder();
-        }
+        // The order the application named, also 0; otherwise the method's default.
+        int actualOrder = options.isOrderSet() ? options.getOrder() : defaultOrder;
 
         String flowTypeName = authType.name().toLowerCase(Locale.ROOT) + "_flow"; 
         String finalFlowTypeName = flowTypeName;

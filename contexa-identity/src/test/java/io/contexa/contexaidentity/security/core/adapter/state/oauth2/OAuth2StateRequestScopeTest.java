@@ -47,10 +47,12 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -95,16 +97,19 @@ class OAuth2StateRequestScopeTest {
     @Test
     void tokenScopeNarrowsTheChainToTokenRequestsAndTheFlowLogin() throws Exception {
         AuthenticationFlowConfig flow = restFlow("/api/agent/login");
-        when(http.getSharedObject(AuthenticationFlowConfig.class)).thenReturn(flow);
         OAuth2StateConfigurer configurer = new OAuth2StateConfigurer(OAuth2ServerMode.RESOURCE_SERVER)
                 .requestScope(OAuth2RequestScope.TOKEN_REQUESTS)
                 .tokenScopeRequests(PathPatternRequestMatcher.withDefaults().matcher("/.well-known/oauth-protected-resource"));
         configurer.setBuilder(http);
 
+        // A sign-in flow in the validate-only mode is refused by init (see the test below): the token side is
+        // prepared without one, and the scope is then the one of the chain the flow signs in at.
         configurer.init(http);
+        when(http.getSharedObject(AuthenticationFlowConfig.class)).thenReturn(flow);
+        configurer.configureRequestScope(http);
 
         ArgumentCaptor<RequestMatcher> scope = ArgumentCaptor.forClass(RequestMatcher.class);
-        verify(http).securityMatcher(scope.capture());
+        verify(http, times(2)).securityMatcher(scope.capture());
         MockHttpServletRequest bearer = request("GET", "/api/orders");
         bearer.addHeader("Authorization", "Bearer eyJhbGciOiJSUzI1NiJ9.e30.c2ln");
         assertThat(scope.getValue().matches(bearer)).isTrue();
@@ -112,6 +117,19 @@ class OAuth2StateRequestScopeTest {
         assertThat(scope.getValue().matches(request("GET", "/.well-known/oauth-protected-resource"))).isTrue();
         assertThat(scope.getValue().matches(request("GET", "/dashboard"))).isFalse();
         assertThat(scope.getValue().matches(request("POST", "/api/login"))).isFalse();
+    }
+
+    @Test
+    void aSignInFlowInTheValidateOnlyModeStopsTheStart() {
+        AuthenticationFlowConfig flow = restFlow("/api/agent/login");
+        when(http.getSharedObject(AuthenticationFlowConfig.class)).thenReturn(flow);
+        OAuth2StateConfigurer configurer = new OAuth2StateConfigurer(OAuth2ServerMode.RESOURCE_SERVER);
+        configurer.setBuilder(http);
+
+        assertThatThrownBy(() -> configurer.init(http))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("contexa.auth.oauth2-server-mode=RESOURCE_SERVER issues no tokens")
+                .hasMessageContaining("Use COMBINED");
     }
 
     @Test

@@ -36,6 +36,12 @@ public abstract class SessionBasedFailureHandler implements PlatformAuthenticati
 
     protected abstract String getDefaultTargetUrl(HttpServletRequest request);
 
+    /** The failure address of the step being answered (see {@link StepScopedFailureHandler}). */
+    protected final String defaultTargetUrl(HttpServletRequest request) {
+        StepScopedFailureHandler.Settings step = StepScopedFailureHandler.current(request);
+        return step != null ? step.failureUrl() : defaultTargetUrl;
+    }
+
     protected boolean isApiRequest(HttpServletRequest request) {
         String acceptHeader = request.getHeader("Accept");
         if (acceptHeader != null && acceptHeader.contains("application/json")) {

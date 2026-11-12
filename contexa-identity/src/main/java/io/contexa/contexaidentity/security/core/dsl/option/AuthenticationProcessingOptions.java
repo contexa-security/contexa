@@ -27,6 +27,8 @@ import java.util.Objects;
 public abstract class AuthenticationProcessingOptions extends AbstractOptions {
     private final String loginProcessingUrl;
     private final int order;
+    /** Whether the application named the order ({@code order(...)}): {@code order(0)} is a choice too. */
+    private final boolean orderSet;
     private final PlatformAuthenticationSuccessHandler successHandler;
     private final PlatformAuthenticationFailureHandler failureHandler;
     private final SecurityContextRepository securityContextRepository;
@@ -36,6 +38,7 @@ public abstract class AuthenticationProcessingOptions extends AbstractOptions {
         Objects.requireNonNull(builder, "Builder cannot be null");
         this.loginProcessingUrl = builder.loginProcessingUrl;
         this.order = builder.order;
+        this.orderSet = builder.orderSet;
         this.successHandler = builder.successHandler;
         this.failureHandler = builder.failureHandler;
         this.securityContextRepository = builder.securityContextRepository;
@@ -47,18 +50,23 @@ public abstract class AuthenticationProcessingOptions extends AbstractOptions {
 
         protected String loginProcessingUrl;
         protected int order = 0;
+        protected boolean orderSet;
         protected PlatformAuthenticationSuccessHandler successHandler;
         protected PlatformAuthenticationFailureHandler failureHandler;
         protected SecurityContextRepository securityContextRepository;
 
         public B loginProcessingUrl(String processingUrl) {
             Assert.hasText(processingUrl, "loginProcessingUrl cannot be empty or null");
+            // Without the '/' a form flow started and every sign-in POST answered 404; the other methods failed later
+            // with a message that named no option.
+            Assert.isTrue(processingUrl.startsWith("/"), () -> "loginProcessingUrl must start with '/': " + processingUrl);
             this.loginProcessingUrl = processingUrl;
             return self();
         }
 
         public B order(int order) {
             this.order = order;
+            this.orderSet = true;
             return self();
         }
 

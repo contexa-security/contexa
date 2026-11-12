@@ -1,5 +1,15 @@
 (function () {
     var configEl = document.getElementById('contexa-page-config');
+    if (!configEl) {
+        // CL-11: without it the script stopped with a TypeError and the button did nothing.
+        var area = document.getElementById('message-area');
+        var missing = 'This page needs the element id="contexa-page-config" (see "Rules for your own MFA pages").';
+        if (area) {
+            area.textContent = missing;
+        }
+        console.error('[Contexa] ' + missing);
+        return;
+    }
     var tokenPersistence = configEl.dataset.tokenPersistence || 'memory';
     var mfaConfig = window.__MFA_CONFIG__;
     var fallbackSelectFactorUrl = configEl.dataset.selectFactorUrl
@@ -70,6 +80,13 @@
             loginButton.disabled = false;
             loginButton.textContent = 'Sign In';
         } catch (error) {
+            var refused = error.response || {};
+            if ((refused.error === 'CREDENTIALS_EXPIRED' || refused.errorCode === 'CREDENTIALS_EXPIRED') && refused.nextStepUrl) {
+                // The password is right and has expired: on to the page that changes it.
+                showMessage('error', error.message || 'Password has expired');
+                window.location.href = refused.nextStepUrl;
+                return;
+            }
             showMessage('error', error.message || 'Login failed.');
             loginButton.disabled = false;
             loginButton.textContent = 'Sign In';

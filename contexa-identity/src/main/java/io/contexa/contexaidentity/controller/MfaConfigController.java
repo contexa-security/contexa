@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.controller;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
@@ -23,6 +24,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -43,7 +45,7 @@ public class MfaConfigController {
     public ResponseEntity<Map<String, Object>> getEndpointConfig(HttpServletRequest request) {
         try {
             AuthUrlProvider effectiveProvider = resolveFlowUrlProvider(request);
-            Map<String, Object> config = effectiveProvider.getAllUiPageUrls();
+            Map<String, Object> config = effectiveProvider.getAllUiPageUrls(request.getContextPath());
             return ResponseEntity.ok(config);
         } catch (Exception e) {
             log.error("Error retrieving endpoint configuration", e);
@@ -55,6 +57,12 @@ public class MfaConfigController {
         }
     }
 
+    /**
+     * The flow whose addresses the page gets: the flow of the sign-in in progress; else the flow the page names
+     * ({@code ?flow=} with the flow's name or type name, such as {@code admin} or {@code mfa_admin}); else the only MFA
+     * flow; else the shared addresses. Without the last two steps a page of an application whose only MFA flow has a
+     * URL prefix got the unprefixed addresses of a flow that does not exist.
+     */
     private AuthUrlProvider resolveFlowUrlProvider(HttpServletRequest request) {
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
         if (ctx != null && ctx.getFlowTypeName() != null) {
@@ -63,6 +71,16 @@ public class MfaConfigController {
                 return flowProvider;
             }
         }
-        return authUrlProvider;
+        String named = request.getParameter("flow");
+        if (StringUtils.hasText(named)) {
+            AuthUrlProvider flowProvider = mfaFlowUrlRegistry.getProvider(named);
+            if (flowProvider == null) {
+                flowProvider = mfaFlowUrlRegistry.getProvider(MfaFlowTypeUtils.generateTypeName(named));
+            }
+            if (flowProvider != null) {
+                return flowProvider;
+            }
+        }
+        return mfaFlowUrlRegistry.onlyFlowProvider().orElse(authUrlProvider);
     }
 }

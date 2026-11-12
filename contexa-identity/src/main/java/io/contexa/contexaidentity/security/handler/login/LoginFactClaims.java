@@ -46,8 +46,10 @@ public final class LoginFactClaims {
     public static final String PRINCIPAL_TYPE = "principalType";
     public static final String MFA_COMPLETED = "mfaCompleted";
     public static final String CHALLENGE_VERIFIED_AT = "challengeVerifiedAt";
+    /** The MFA flow the login completed (its type name); absent for a login of a single flow. */
+    public static final String SIGN_IN_FLOW = "signInFlow";
     public static final List<String> NAMES = List.of(AUTH_TIME, AMR, ACR, SID, PRINCIPAL_TYPE, MFA_COMPLETED,
-            CHALLENGE_VERIFIED_AT);
+            CHALLENGE_VERIFIED_AT, SIGN_IN_FLOW);
 
     private LoginFactClaims() {
     }
@@ -75,6 +77,9 @@ public final class LoginFactClaims {
         if (details.getChallengeVerifiedAt() != null) {
             facts.put(MFA_COMPLETED, Boolean.TRUE.toString());
             facts.put(CHALLENGE_VERIFIED_AT, details.getChallengeVerifiedAt().toString());
+        }
+        if (details.getSignInFlow() != null) {
+            facts.put(SIGN_IN_FLOW, details.getSignInFlow());
         }
         return facts;
     }
@@ -122,6 +127,10 @@ public final class LoginFactClaims {
             } catch (DateTimeParseException ignored) {
                 // A value that is not an instant is not a challenge time and is not written.
             }
+        }
+        Object signInFlow = facts.get(SIGN_IN_FLOW);
+        if (signInFlow != null && StringUtils.hasText(signInFlow.toString())) {
+            claim.accept(SIGN_IN_FLOW, signInFlow.toString().trim());
         }
     }
 }

@@ -16,6 +16,9 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import org.springframework.security.web.savedrequest.SavedRequest;
+import org.springframework.security.web.savedrequest.RequestCache;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsDetails;
@@ -113,7 +116,10 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         setCookies(response, transportResult);
 
         if (!isApiRequest(request)) {
-            String targetUrl = determineTargetUrl(request, response);
+            // The target was resolved once for the response body; resolving it again consumed the saved request a
+            // second time, and a page sign-in went to the default address instead of the page it asked for.
+            Object resolved = responseData.get("redirectUrl");
+            String targetUrl = resolved != null ? resolved.toString() : determineTargetUrl(request, response);
             if (response.isCommitted()) {
                 log.error("Did not redirect to {} since response already committed.", targetUrl);
                 return;
@@ -140,6 +146,7 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         responseData.put("redirectUrl", determineTargetUrl(request, response));
         responseData.put("message", "Login successful!");
         responseData.put("username", authentication.getName());
+        CsrfTokenAnswer.put(responseData, request);
 
         return responseData;
     }
@@ -147,8 +154,21 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
     @Override
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {
 
-        if (alwaysUse && defaultTargetUrl != null) {
+        String defaultTargetUrl = defaultTargetUrl(request);
+        if (alwaysUse(request) && defaultTargetUrl != null) {
             return request.getContextPath() + defaultTargetUrl;
+        }
+
+        // The page the browser asked for before it was sent to sign in, as in the MFA and session flows: the token
+        // state answered every page sign-in with the default address.
+        RequestCache requestCache = new HttpSessionRequestCache();
+        SavedRequest savedRequest = requestCache.getRequest(request, response);
+        if (savedRequest != null) {
+            String askedFor = SavedRequestTarget.of(savedRequest);
+            if (askedFor != null) {
+                requestCache.removeRequest(request, response);
+                return askedFor;
+            }
         }
 
         if (defaultTargetUrl != null) return request.getContextPath() + defaultTargetUrl;

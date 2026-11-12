@@ -119,10 +119,21 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
             return;
         }
 
-        log.error("OTT context mismatch: repository={}, flow={}, contextUser={}, tokenUser={}",
+        if (factorContext != null && Objects.equals(factorContext.getUsername(), usernameFromToken)
+                && factorContext.getCurrentProcessingFactor() != AuthType.MFA_OTT) {
+            // The person chose another factor (a passkey) and then asked for a code: back to the choice of factors,
+            // where the mail code can be chosen. The reason given was "user not found".
+            log.warn("OTT code requested while factor {} is selected: repository={}, flow={}",
+                    factorContext.getCurrentProcessingFactor(), sessionRepository.getRepositoryType(),
+                    factorContext.getFlowTypeName());
+            response.sendRedirect(request.getContextPath() + resolveProvider(request).getMfaSelectFactor());
+            return;
+        }
+
+        log.warn("OTT context mismatch: repository={}, flow={}, contextUser={}, tokenUser={}",
                 sessionRepository.getRepositoryType(),
-                factorContext.getFlowTypeName(),
-                factorContext.getUsername(),
+                factorContext != null ? factorContext.getFlowTypeName() : null,
+                factorContext != null ? factorContext.getUsername() : null,
                 usernameFromToken);
 
         String ottRequestUrl = resolveProvider(request).getOttRequestCodeUi();
