@@ -41,9 +41,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -175,15 +173,15 @@ public class AgentConfirmationApiController {
             return null;
         }
         callGuard.outcome(subject, true);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", AgentCallGuard.CALL_LIMIT);
-        body.put("message", "The agent passed its call limit; slow down");
-        body.put("path", request.getRequestURI());
-        body.put("scope", admission.scope());
-        body.put("limit", admission.limit());
-        body.put("retryAfterSeconds", admission.retryAfterSeconds());
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .header(HttpHeaders.RETRY_AFTER, String.valueOf(admission.retryAfterSeconds())).body(body);
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(admission.retryAfterSeconds()))
+                .body(new CallLimitAnswer(AgentCallGuard.CALL_LIMIT, "The agent passed its call limit; slow down",
+                        request.getRequestURI(), admission.scope(), admission.limit(), admission.retryAfterSeconds()));
+    }
+
+    /** The answer to an ask past the agent's call limit, the same members as the gate's answer to a call. */
+    public record CallLimitAnswer(String error, String message, String path, @Nullable String scope, int limit,
+                                  long retryAfterSeconds) {
     }
 
     private static String truncate(String value, int length) {

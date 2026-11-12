@@ -17,8 +17,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -77,7 +75,7 @@ public class PromptInspectionApiController {
     }
 
     @PostMapping("/packages/{packageId}/reinspect")
-    public ResponseEntity<Map<String, Object>> reinspect(@PathVariable String packageId) {
+    public ResponseEntity<ReinspectionSummary> reinspect(@PathVariable String packageId) {
         return reinspection.reinspect(packageId).map(PromptInspectionApiController::summary).map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
@@ -101,13 +99,13 @@ public class PromptInspectionApiController {
         return reinspection.status(from, to);
     }
 
-    private static Map<String, Object> summary(PromptInspectionResult result) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("packageId", result.packageId());
-        summary.put("verdict", result.verdict().name());
-        summary.put("inspectorVersion", result.inspectorVersion());
-        summary.put("mismatchCount", result.mismatchCount());
-        summary.put("unverifiableCount", result.unverifiableCount());
-        return summary;
+    private static ReinspectionSummary summary(PromptInspectionResult result) {
+        return new ReinspectionSummary(result.packageId(), result.verdict().name(), result.inspectorVersion(),
+                result.mismatchCount(), result.unverifiableCount());
+    }
+
+    /** What the re-inspection of one package found, in the order the console reads it. */
+    public record ReinspectionSummary(String packageId, String verdict, String inspectorVersion, int mismatchCount,
+                                      int unverifiableCount) {
     }
 }

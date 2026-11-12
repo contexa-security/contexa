@@ -74,7 +74,8 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
             return requiredFactors;
         }
 
-        log.error("PolicyProvider returned null/invalid for user: {}, flow: {}. Using default: 1",
+        // Falls back to one factor, the safe side: a policy that names no count is no failure of the sign-in.
+        log.warn("PolicyProvider returned null/invalid for user: {}, flow: {}. Using default: 1",
                 userId, flowType);
         return 1;
     }

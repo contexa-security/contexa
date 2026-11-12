@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.inspection;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.MessageSource;
@@ -10,10 +11,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -83,7 +82,7 @@ public class PromptInspectionPageController {
 
     /** The script words as JSON safe inside a script element. */
     private String scriptMessages(Locale locale) {
-        Map<String, String> words = new LinkedHashMap<>();
+        ObjectNode words = objectMapper.createObjectNode();
         for (String key : SCRIPT_KEYS) {
             words.put(key, messages.getMessage(key, null, key, locale));
         }

@@ -26,7 +26,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
 
 /**
  * The push endpoint of revocation and risk signals (docs/agent A5-8; RFC 8935 push delivery, OpenID SSF 1.0): a
@@ -48,15 +47,22 @@ public class RiskSignalReceiverController {
     }
 
     @PostMapping(consumes = {"application/secevent+jwt", "application/jwt", "text/plain"})
-    public ResponseEntity<Map<String, String>> receive(@RequestBody(required = false) String token) {
+    public ResponseEntity<DeliveryError> receive(@RequestBody(required = false) String token) {
         SecurityEventToken verified;
         try {
             verified = verifier.verify(token);
         } catch (SecurityEventTokenVerifier.InvalidSecurityEventTokenException e) {
             log.warn("A risk signal was refused: error={}, description={}", e.error(), e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of("err", e.error(), "description", e.getMessage()));
+            return ResponseEntity.badRequest().body(new DeliveryError(e.error(), e.getMessage()));
         }
         receiver.receive(verified);
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
+    }
+
+    /**
+     * The error of a refused Security Event Token, in the members of RFC 8935 (push delivery): {@code err} and
+     * {@code description}.
+     */
+    public record DeliveryError(String err, String description) {
     }
 }

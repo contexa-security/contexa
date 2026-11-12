@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.company.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
@@ -102,6 +103,9 @@ class CompanyRecordsAdminTest {
         assertThat(alice).extracting(RecordView::kind).containsExactlyInAnyOrder("PERSON", "ASSIGNMENT", "TICKET");
 
         assertThat(api.delete(new DeleteBody(null, "TICKET", List.of("TCK-1", "TCK-9")), integration).getBody())
+                .isEqualTo(new CompanyRecordsApiController.Removed(1));
+        // as the answer is written
+        assertThat(new ObjectMapper().convertValue(new CompanyRecordsApiController.Removed(1), Map.class))
                 .isEqualTo(Map.of("removed", 1));
         assertThat(store.ofSubject(null, "alice").tickets()).isEmpty();
 
@@ -120,7 +124,9 @@ class CompanyRecordsAdminTest {
         ResponseEntity<?> refused = api.put(null, invalid, integration);
 
         assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(((Map<?, ?>) refused.getBody()).get("problems")).isEqualTo(List.of(
+        Map<?, ?> written = new ObjectMapper().convertValue(refused.getBody(), Map.class);
+        assertThat(written.get("error")).isEqualTo("The company records request is not valid");
+        assertThat(written.get("problems")).isEqualTo(List.of(
                 "assignment alice||| names no target", "network 'office' is not a valid network block"));
         assertThat(api.put(null, null, integration).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(api.list(null, "salary", null, null, 10).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);

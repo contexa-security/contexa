@@ -86,6 +86,7 @@ class OrdinaryFlowLogLevelContractTest {
         WARN.put("MfaFactorProcessingSuccessHandler.java", List.of("MFA Factor Processing Success using {} repository: Invalid FactorContext"));
         WARN.put("OneTimeTokenCreationSuccessHandler.java", List.of("OTT code requested while factor {} is selected", "OTT context mismatch"));
         WARN.put("MfaSignInScopeFilter.java", List.of("A login that does not meet MFA flow"));
+        WARN.put("AllFactorsCompletedGuard.java", List.of("PolicyProvider returned null/invalid for user"));
         WARN.put("MfaContinuationFilter.java", List.of("Invalid MFA context for request", "MFA context warnings for request"));
         WARN.put("RetryLimitGuard.java", List.of("Factor {} retry limit exceeded", "Total retry limit exceeded"));
         WARN.put("HandleFailureAction.java", List.of("Max retry attempts exceeded"));

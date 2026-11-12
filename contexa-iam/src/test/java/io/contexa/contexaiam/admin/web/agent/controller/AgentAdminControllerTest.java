@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.agent.controller;
 
+import io.contexa.contexaiam.admin.web.agent.dto.ActiveDelegationCounts;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
@@ -122,7 +123,9 @@ class AgentAdminControllerTest {
 
         controller.list(null, null, model);
 
-        assertThat((Map<String, Integer>) model.get("activeDelegations")).containsExactly(Map.entry("agent-7", 2));
+        ActiveDelegationCounts counts = (ActiveDelegationCounts) model.get("activeDelegations");
+        assertThat(counts.of("agent-7")).isEqualTo(2);
+        assertThat(counts.of("agent-sp-1")).isZero();
     }
 
     private static AgentDelegationRequest delegation(String person, String agent, Instant from, Instant until) {
