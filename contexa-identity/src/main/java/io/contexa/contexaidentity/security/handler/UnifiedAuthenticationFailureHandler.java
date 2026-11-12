@@ -19,7 +19,6 @@ import java.util.Locale;
 import io.contexa.contexacore.autonomous.store.LoginFailureRecording;
 import java.time.Instant;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
-import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.MfaSettings;
@@ -43,8 +42,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -242,9 +239,10 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
 
         if (exception instanceof CredentialsExpiredException) {
-            String passwordChangeUrl = request.getContextPath() + ContexaConsolePaths.PASSWORD_CHANGE + "?username="
-                    + URLEncoder.encode(usernameForLog, StandardCharsets.UTF_8) + "&expired=true";
-            response.sendRedirect(passwordChangeUrl);
+            // A script gets JSON it can follow: a redirect made the sign-in page's script read the change page as JSON.
+            ExpiredPasswordAnswer.write(request, response, responseWriter,
+                    ExpiredPasswordAnswer.accountOf(exception, UNKNOWN_USER.equals(usernameForLog) ? null : usernameForLog),
+                    isApiRequest(request));
             return;
         }
 

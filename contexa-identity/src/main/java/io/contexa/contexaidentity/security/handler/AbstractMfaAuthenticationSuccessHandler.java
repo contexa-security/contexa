@@ -380,7 +380,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {
 
-        if (alwaysUse && defaultTargetUrl != null) {
+        String defaultTargetUrl = defaultTargetUrl(request);
+        if (alwaysUse(request) && defaultTargetUrl != null) {
             return request.getContextPath() + defaultTargetUrl;
         }
 
@@ -418,6 +419,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 if (formOptions != null) {
                     return formOptions.getDefaultSuccessUrl();
                 }
+                var restOptions = mfaFlow.getPrimaryAuthenticationOptions().getRestOptions();
+                if (restOptions != null) {
+                    return restOptions.getDefaultSuccessUrl();
+                }
             }
         } catch (Exception e) {
             log.error("Failed to get DSL defaultSuccessUrl: {}", e.getMessage());
@@ -434,6 +439,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 var formOptions = mfaFlow.getPrimaryAuthenticationOptions().getFormOptions();
                 if (formOptions != null) {
                     return formOptions.isAlwaysUseDefaultSuccessUrl();
+                }
+                var restOptions = mfaFlow.getPrimaryAuthenticationOptions().getRestOptions();
+                if (restOptions != null) {
+                    return restOptions.isAlwaysUseDefaultSuccessUrl();
                 }
             }
         } catch (Exception e) {
@@ -500,6 +509,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         responseData.put("authenticated", true);
         responseData.put("status", "MFA_COMPLETED");
         responseData.put("message", "Authentication completed.");
+        CsrfTokenAnswer.put(responseData, request);
         responseData.put("redirectUrl",
                 targetUrlOverride != null ? targetUrlOverride : determineTargetUrl(request, response));
         responseData.put("stateType", stateType.name());

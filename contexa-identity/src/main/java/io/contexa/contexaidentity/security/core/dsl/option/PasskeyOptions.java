@@ -96,6 +96,7 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions {
 
         public Builder assertionOptionsEndpoint(String url) {
             Assert.hasText(url, "assertionOptionsEndpoint cannot be empty or null");
+            Assert.isTrue(url.startsWith("/"), () -> "assertionOptionsEndpoint must start with '/': " + url);
             this.assertionOptionsEndpoint = url;
             return this;
         }

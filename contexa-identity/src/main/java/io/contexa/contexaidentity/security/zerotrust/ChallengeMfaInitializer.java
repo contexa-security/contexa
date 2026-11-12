@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexaidentity.security.utils.UrlPrefixes;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -251,7 +252,7 @@ public class ChallengeMfaInitializer {
                 continue;
             }
             String urlPrefix = flow.getUrlPrefix();
-            if (urlPrefix != null && path.startsWith(urlPrefix)) {
+            if (UrlPrefixes.isUnder(path, urlPrefix)) {
                 return flow.getTypeName();
             }
         }

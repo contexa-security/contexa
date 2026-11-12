@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.core.bootstrap.customizer;
 
 import io.contexa.contexacommon.enums.StateType;
+import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
@@ -169,6 +170,12 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                             failureHandler = appContext.getBean(OAuth2SingleAuthFailureHandler.class);
                         }
                     }
+                    // The passkey step's own handlers of the application, for its requests only (as the other steps).
+                    PasskeyOptions passkeyOptions = passkeyOptionsOf(flowConfig);
+                    successHandler = StepScopedSuccessHandler.of(successHandler,
+                            passkeyOptions != null ? passkeyOptions.getSuccessHandler() : null);
+                    failureHandler = StepScopedFailureHandler.of(failureHandler,
+                            passkeyOptions != null ? passkeyOptions.getFailureHandler() : null);
 
                     if (stateType != StateType.SESSION) {
                         authFilter.setSecurityContextRepository(new RequestAttributeSecurityContextRepository());
@@ -179,13 +186,15 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                         authFilter.setSessionAuthenticationStrategy(
                                 new PasskeySessionAuthenticationStrategy(sessionStrategy, ContexaUserStore.of(appContext)));
                     }
-                    if (successHandler != null) {
+                    if (isMfaFlow) {
                         authFilter.setAuthenticationSuccessHandler(successHandler);
                     } else {
                         // Single-factor session passkey login keeps Spring's default response; the passkey filter
-                        // builds its own provider, so the login facts are recorded in front of that handler.
-                        authFilter.setAuthenticationSuccessHandler(
-                                new LoginFactsSuccessHandler(new HttpMessageConverterAuthenticationSuccessHandler()));
+                        // builds its own provider, so the login facts are recorded in front of that handler. A passkey
+                        // sign-in alone becomes the Contexa account's first, as the MFA passkey factor does.
+                        authFilter.setAuthenticationSuccessHandler(PasskeyAuthentications.asContexaAccountFirst(
+                                successHandler != null ? successHandler
+                                        : new LoginFactsSuccessHandler(new HttpMessageConverterAuthenticationSuccessHandler())));
                     }
                     if (failureHandler != null) {
                         authFilter.setAuthenticationFailureHandler(failureHandler);
@@ -232,6 +241,16 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
         } catch (Exception e) {
             log.error("Failed to replace DefaultWebAuthnRegistrationPageGeneratingFilter with Contexa version", e);
         }
+    }
+
+    @Nullable
+    private static PasskeyOptions passkeyOptionsOf(AuthenticationFlowConfig flowConfig) {
+        for (AuthenticationStepConfig step : flowConfig.getStepConfigs()) {
+            if (step.getOption(AuthenticationStepConfig.OPTIONS_KEY) instanceof PasskeyOptions options) {
+                return options;
+            }
+        }
+        return null;
     }
 
     private boolean isWebAuthnAuth(Filter filter) {

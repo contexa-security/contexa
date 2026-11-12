@@ -94,6 +94,36 @@ class LoginFactsRecorderTest {
         assertThat(facts.getAuthenticationAssurance()).isEqualTo("AAL2");
     }
 
+    /** The scope of an MFA flow reads which flow completed a login, from the session and from the token alike. */
+    @Test
+    void anMfaLoginNamesTheFlowThatCompletedIt() {
+        UsernamePasswordAuthenticationToken primary = UsernamePasswordAuthenticationToken.authenticated(
+                user("dave"), null, ROLES);
+        FactorContext factorContext = new FactorContext("mfa-9", primary, MfaState.NONE, "mfa_admin");
+        factorContext.addCompletedFactor(new AuthenticationStepConfig("mfa_admin", "MFA_OTT", 1, false));
+        OneTimeTokenAuthenticationToken last = OneTimeTokenAuthenticationToken.authenticated(user("dave"), ROLES);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("10.0.0.9");
+
+        LoginFactsRecorder.recordFinal(last, request, factorContext);
+
+        LoginFactsDetails facts = (LoginFactsDetails) last.getDetails();
+        assertThat(facts.getSignInFlow()).isEqualTo("mfa_admin");
+        assertThat(facts.getRemoteAddress()).isEqualTo("10.0.0.9");
+        assertThat(LoginFactClaims.of(last)).containsEntry(LoginFactClaims.SIGN_IN_FLOW, "mfa_admin");
+
+        Jwt token = Jwt.withTokenValue("token-9").header("alg", "none").subject("dave")
+                .claim(LoginFactClaims.AMR, List.of("pwd", "otp", "mfa"))
+                .claim(LoginFactClaims.AUTH_TIME, Instant.ofEpochSecond(LOGIN_TIME))
+                .claim(LoginFactClaims.SID, "login-9")
+                .claim(LoginFactClaims.SIGN_IN_FLOW, "mfa_admin")
+                .build();
+        LoginFactsDetails restored = LoginFactsRecorder.loginOf(new JwtAuthenticationToken(token, ROLES), null, null);
+        assertThat(restored).isNotNull();
+        assertThat(restored.getSignInFlow()).isEqualTo("mfa_admin");
+        assertThat(restored.getSignInId()).isEqualTo("login-9");
+    }
+
     @Test
     void anMfaFlowEndingWithoutAFactorIsAOneFactorLogin() {
         RestAuthenticationToken primary = RestAuthenticationToken.authenticated(user("erin"), ROLES);

@@ -80,12 +80,16 @@ public class LoginPolicyService implements LoginPolicyHandler {
     // Public API — legacy signatures delegate to the extended ones
     // ---------------------------------------------------------------------
 
+    // The short forms call the long ones on this object, past the proxy: without their own transaction the write ran
+    // with none ("No EntityManager with actual transaction available") and the sign-in was not recorded.
     @Override
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void onLoginSuccess(String username, String ip) {
         onLoginSuccess(username, ip, "HANDLER");
     }
 
     @Override
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void onLoginFailure(String username) {
         onLoginFailure(username, null, "UNKNOWN", "HANDLER");
     }

@@ -439,6 +439,15 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     private TokenSettings configuredTokenSettings(TokenSettings.Builder builder) {
+        // Spring's own refusal named no setting ("accessTokenTimeToLive must be greater than Duration.ZERO").
+        if (authContextProperties.getAccessTokenValidity() <= 0) {
+            throw new IllegalStateException("contexa.auth.access-token-validity must be more than 0 milliseconds: "
+                    + authContextProperties.getAccessTokenValidity());
+        }
+        if (authContextProperties.getRefreshTokenValidity() <= 0) {
+            throw new IllegalStateException("contexa.auth.refresh-token-validity must be more than 0 milliseconds: "
+                    + authContextProperties.getRefreshTokenValidity());
+        }
         return builder
                 .accessTokenTimeToLive(Duration.ofMillis(authContextProperties.getAccessTokenValidity()))
                 .refreshTokenTimeToLive(Duration.ofMillis(authContextProperties.getRefreshTokenValidity()))

@@ -16,6 +16,8 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import io.contexa.contexaidentity.security.handler.StepScopedFailureHandler;
+import io.contexa.contexaidentity.security.handler.StepScopedSuccessHandler;
 import io.contexa.contexaidentity.security.core.adapter.AuthenticationAdapter;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
@@ -114,17 +116,11 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         PlatformAuthenticationSuccessHandler successHandler = resolveSuccessHandler(options, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, resolvedStateConfig, appContext);
         PlatformAuthenticationFailureHandler failureHandler = resolveFailureHandler(options, currentFlow, resolvedStateConfig, appContext);
 
-        if (successHandler instanceof AbstractTokenBasedSuccessHandler tokenBasedSuccessHandler) {
-            if (options.getSuccessHandler() != null) {
-                tokenBasedSuccessHandler.setDelegateHandler(options.getSuccessHandler());
-            }
-        }
-
-        if (failureHandler instanceof AbstractTokenBasedFailureHandler tokenBasedFailureHandler) {
-            if (options.getFailureHandler() != null) {
-                tokenBasedFailureHandler.setDelegateHandler(options.getFailureHandler());
-            }
-        }
+        // The shared handlers serve every flow and every step: what this step sets on them (the application's
+        // handlers, the default addresses) goes on a step scope around them, not on the shared beans, where the
+        // step configured last decided for all.
+        successHandler = StepScopedSuccessHandler.of(successHandler, options.getSuccessHandler());
+        failureHandler = StepScopedFailureHandler.of(failureHandler, options.getFailureHandler());
 
         OneTimeTokenGenerationSuccessHandler generationSuccessHandler;
 

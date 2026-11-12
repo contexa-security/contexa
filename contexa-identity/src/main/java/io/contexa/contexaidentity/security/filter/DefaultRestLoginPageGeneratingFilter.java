@@ -236,15 +236,22 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
 
                                     if (!response.ok) {
                                         const errorData = await response.json().catch(() => ({ message: msgErrorFailed }));
+                                        if ((errorData.error === 'CREDENTIALS_EXPIRED' || errorData.errorCode === 'CREDENTIALS_EXPIRED')
+                                                && errorData.nextStepUrl) {
+                                            // The password is right and has expired: on to the page that changes it.
+                                            showMessage('error', errorData.message || msgErrorGeneric);
+                                            setTimeout(() => {
+                                                window.location.href = errorData.nextStepUrl;
+                                            }, 800);
+                                            return;
+                                        }
                                         throw new Error(errorData.message || msgErrorGeneric);
                                     }
 
                                     const result = await response.json();
 
-                                    console.log('[DEBUG] Login success:', result);
-
                                     showMessage('success', msgSuccess);
-                                    const redirectUrl = result.redirectUrl || '/';
+                                    const redirectUrl = result.redirectUrl || '%s/';
                                     setTimeout(() => {
                                         window.location.href = redirectUrl;
                                     }, 500);
@@ -284,7 +291,9 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                 submitText,
                 authenticatingText,
                 footerText,
-                loginPageUrl
+                // The page posts where the sign-in is taken: under the context path, as requests are matched.
+                request.getContextPath() + loginPageUrl,
+                request.getContextPath()
         );
 
         writer.write(html);

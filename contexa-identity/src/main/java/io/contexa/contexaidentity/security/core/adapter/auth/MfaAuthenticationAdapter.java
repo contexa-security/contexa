@@ -16,6 +16,9 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
 import io.contexa.contexaidentity.security.core.adapter.AuthenticationAdapter;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
+import io.contexa.contexaidentity.security.filter.MfaSignInScopeFilter;
+import io.contexa.contexaidentity.security.utils.UrlPrefixes;
 import io.contexa.contexaidentity.security.core.bootstrap.AdapterRegistry;
 import io.contexa.contexaidentity.security.core.bootstrap.ConfiguredFactorFilterProvider;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
@@ -136,8 +139,7 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
 
             if (currentFlow.getUrlPrefix() != null) {
                 String prefix = currentFlow.getUrlPrefix();
-                Assert.state(prefix.matches("^[a-zA-Z0-9/_-]+$"),
-                        "urlPrefix contains invalid characters. Only alphanumeric, '/', '_', '-' are allowed: " + prefix);
+                UrlPrefixes.validate(prefix);
                 http.securityMatcher(prefix + "/**");
             }
 
@@ -150,6 +152,12 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
         }
 
         http.addFilterBefore(mfaContinuationFilter, LogoutFilter.class);
+
+        // The flow's scope takes only logins that meet it: a login of a flow that asks for less is no login here.
+        int requiredFactors = currentFlow.getRequiredFactorCount() > 0 ? currentFlow.getRequiredFactorCount()
+                : (int) currentFlow.getStepConfigs().stream().filter(step -> !step.isPrimary()).count();
+        http.addFilterAfter(new MfaSignInScopeFilter(currentFlow.getTypeName(), requiredFactors, flowUrlProvider),
+                AnonymousAuthenticationFilter.class);
 
         List<RequestMatcher> factorProcessingMatchers = new ArrayList<>();
         for (String processingUrl : flowUrlProvider.getAllFactorProcessingUrls()) {

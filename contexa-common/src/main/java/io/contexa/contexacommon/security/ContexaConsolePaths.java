@@ -24,6 +24,12 @@ public final class ContexaConsolePaths {
      */
     public static final String PASSWORD_CHANGE = "/contexa/password-change";
 
+    /**
+     * The session attribute that names the account for {@link #PASSWORD_CHANGE} after a sign-in with an expired
+     * password, so that the name is not carried in the page's address.
+     */
+    public static final String PASSWORD_CHANGE_USERNAME_ATTRIBUTE = "io.contexa.passwordChange.username";
+
     private ContexaConsolePaths() {
     }
 }

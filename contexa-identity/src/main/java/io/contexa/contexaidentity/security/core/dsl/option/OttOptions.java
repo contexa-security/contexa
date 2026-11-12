@@ -99,11 +99,14 @@ public final class OttOptions extends AuthenticationProcessingOptions {
 
         public Builder tokenGeneratingUrl(String url) {
             Assert.hasText(url, "tokenGeneratingUrl cannot be empty or null");
+            Assert.isTrue(url.startsWith("/"), () -> "tokenGeneratingUrl must start with '/': " + url);
             this.tokenGeneratingUrl = url;
             return this;
         }
 
         public Builder defaultSubmitPageUrl(String url) {
+            // Without the '/' the browser was sent after the code request to a page relative to the current one.
+            Assert.isTrue(url == null || url.startsWith("/"), () -> "defaultSubmitPageUrl must start with '/': " + url);
             this.defaultSubmitPageUrl = url;
             return this;
         }

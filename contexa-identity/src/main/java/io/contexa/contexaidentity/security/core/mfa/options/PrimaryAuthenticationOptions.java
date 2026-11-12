@@ -95,7 +95,9 @@ public final class PrimaryAuthenticationOptions {
                 if (this.loginPage == null) {
                     this.loginPage = "/mfa/login";
                 }
-                if (this.failureUrl == null) {
+                if (restOptions.getFailureUrl() != null) {
+                    this.failureUrl = restOptions.getFailureUrl();
+                } else if (this.failureUrl == null) {
                     this.failureUrl = "/mfa/login?error";
                 }
             }
@@ -189,8 +191,11 @@ public final class PrimaryAuthenticationOptions {
             if (failureUrl == null) {
                 return; 
             }
-
-            validateLoginPageUrl(failureUrl);
+            try {
+                validateLoginPageUrl(failureUrl);
+            } catch (IllegalArgumentException invalid) {
+                throw new IllegalArgumentException(invalid.getMessage().replaceFirst("^loginPage", "failureUrl"), invalid);
+            }
         }
     }
 }

@@ -33,6 +33,8 @@
     // the memory token persistence silently drops the issued tokens.
     window.TokenMemory = window.TokenMemory || { accessToken: null, refreshToken: null };
 
+    const SDK_VERSION = '2.2.0';
+
     /**
      * Bundled i18n strings for user-facing texts the SDK renders directly
      * (the response-blocked page). Auto-selected by navigator.language.
@@ -189,10 +191,53 @@
         /**
          * Logging utility
          */
+        /** A copy of a server answer without its tokens, for the console (CL-9). */
+        redact(data) {
+            if (!data || typeof data !== 'object' || data instanceof Error) {
+                return data;
+            }
+            const copy = Array.isArray(data) ? data.slice() : Object.assign({}, data);
+            ['accessToken', 'refreshToken', 'idToken', 'csrfToken'].forEach(function(key) {
+                if (copy[key]) {
+                    copy[key] = '<redacted>';
+                }
+            });
+            return copy;
+        },
+
+        /**
+         * Takes the CSRF token a completed sign-in answers with. Signing in replaced the token the page was given, so a
+         * page that stays open after a script sign-in sent its next POST (sign-out, refresh) with the old one.
+         */
+        adoptCsrfToken(result) {
+            if (!result || !result.csrfToken) {
+                return;
+            }
+            const setMeta = function(name, value) {
+                if (!value) {
+                    return;
+                }
+                let meta = document.querySelector('meta[name="' + name + '"]');
+                if (!meta) {
+                    meta = document.createElement('meta');
+                    meta.setAttribute('name', name);
+                    document.head.appendChild(meta);
+                }
+                meta.setAttribute('content', value);
+            };
+            setMeta('_csrf', result.csrfToken);
+            setMeta('_csrf_header', result.csrfHeader);
+            setMeta('_csrf_parameter', result.csrfParameter);
+            const parameter = result.csrfParameter || '_csrf';
+            document.querySelectorAll('input[type="hidden"][name="' + parameter + '"]').forEach(function(input) {
+                input.value = result.csrfToken;
+            });
+        },
+
         log(message, type = 'info', data = null) {
-            const prefix = `[Contexa MFA SDK v2.0]`;
+            const prefix = `[Contexa MFA SDK v${SDK_VERSION}]`;
             if (data) {
-                console[type](prefix, message, data);
+                console[type](prefix, message, ContexaMFAUtils.redact(data));
             } else {
                 console[type](prefix, message);
             }
@@ -606,15 +651,21 @@
                 sessionStorage.setItem('mfaSessionId', result.mfaSessionId);
                 this.state = 'MFA_REQUIRED';
                 const message = result.message || 'MFA required';
-                ContexaMFAUtils.log(`✅ Primary authentication successful: ${message}`, 'info', result);
+                ContexaMFAUtils.log(`Primary authentication successful: ${message}`, 'info', result);
             } else if (result.status === 'MFA_COMPLETED') {
                 this.state = 'AUTHENTICATED';
                 const message = result.message || 'Login successful';
-                ContexaMFAUtils.log(`✅ ${message} (MFA completed, tokens issued)`, 'info', result);
+                ContexaMFAUtils.log(`${message} (MFA completed, tokens issued)`, 'info', result);
             } else {
                 this.state = 'AUTHENTICATED';
                 const message = result.message || 'Login successful';
-                ContexaMFAUtils.log(`✅ ${message}`, 'info', result);
+                ContexaMFAUtils.log(`${message}`, 'info', result);
+            }
+
+            ContexaMFAUtils.adoptCsrfToken(result);
+            if (result.status === 'MFA_COMPLETED' && this.owner) {
+                // Completed at the password step (no factor was needed): its tokens are kept as a completed factor's.
+                this.owner.handleAuthenticationResult(result);
             }
 
             return result;
@@ -684,15 +735,21 @@
                 sessionStorage.setItem('mfaSessionId', result.mfaSessionId);
                 this.state = 'MFA_REQUIRED';
                 const message = result.message || 'MFA required';
-                ContexaMFAUtils.log(`✅ Primary authentication successful (Form): ${message}`, 'info', result);
+                ContexaMFAUtils.log(`Primary authentication successful (Form): ${message}`, 'info', result);
             } else if (result.status === 'MFA_COMPLETED') {
                 this.state = 'AUTHENTICATED';
                 const message = result.message || 'Login successful';
-                ContexaMFAUtils.log(`✅ ${message} (MFA completed, tokens issued)`, 'info', result);
+                ContexaMFAUtils.log(`${message} (MFA completed, tokens issued)`, 'info', result);
             } else {
                 this.state = 'AUTHENTICATED';
                 const message = result.message || 'Login successful';
-                ContexaMFAUtils.log(`✅ ${message}`, 'info', result);
+                ContexaMFAUtils.log(`${message}`, 'info', result);
+            }
+
+            ContexaMFAUtils.adoptCsrfToken(result);
+            if (result.status === 'MFA_COMPLETED' && this.owner) {
+                // Completed at the password step (no factor was needed): its tokens are kept as a completed factor's.
+                this.owner.handleAuthenticationResult(result);
             }
 
             return result;
@@ -948,6 +1005,8 @@
         constructor(options = {}) {
             this.stateTracker = new MfaStateTracker();
             this.apiClient = ContexaMFAApiClient;
+            // The client the page made: the API client hands it what a completed password step answers.
+            ContexaMFAApiClient.owner = this;
             this.options = {
                 autoInit: true,
                 autoRedirect: true,
@@ -991,6 +1050,10 @@
                 window.TokenMemory.accessToken = accessToken;
                 if (refreshToken) {
                     window.TokenMemory.refreshToken = refreshToken;
+                }
+                const expiresAt = Number(storage.getItem(TOKEN_STORAGE_KEYS.EXPIRES_AT));
+                if (expiresAt) {
+                    window.TokenMemory.expiresAt = expiresAt;
                 }
             }
         }
@@ -1226,6 +1289,10 @@
          * - cookie: all tokens managed by cookies, no TokenMemory storage needed
          */
         handleAuthenticationResult(result) {
+            ContexaMFAUtils.adoptCsrfToken(result);
+            if (result.expiresIn && window.TokenMemory) {
+                window.TokenMemory.expiresAt = Date.now() + result.expiresIn;
+            }
             const authMode = result.tokenTransportMethod
                 ? result.tokenTransportMethod.toLowerCase()
                 : localStorage.getItem('authMode') || 'header';
@@ -1443,6 +1510,10 @@
                 window.TokenMemory.accessToken = data.accessToken;
                 updateStoredToken(TOKEN_STORAGE_KEYS.ACCESS_TOKEN, data.accessToken);
             }
+            if (data.expiresIn) {
+                window.TokenMemory.expiresAt = Date.now() + data.expiresIn;
+                updateStoredToken(TOKEN_STORAGE_KEYS.EXPIRES_AT, String(window.TokenMemory.expiresAt));
+            }
             if (data.refreshToken) {
                 window.TokenMemory.refreshToken = data.refreshToken;
                 updateStoredToken(TOKEN_STORAGE_KEYS.REFRESH_TOKEN, data.refreshToken);
@@ -1508,8 +1579,15 @@
             return !!value && /^Bearer\s+/i.test(value);
         }
 
+        /** Whether the access token the page holds is known to have run out (or to run out within five seconds). */
+        function accessTokenExpired() {
+            const expiresAt = window.TokenMemory.expiresAt;
+            return !!expiresAt && Date.now() >= expiresAt - 5000;
+        }
+
         return { refresh: refresh, renewalCount: renewalCount, isEligible: isEligible, usesHeaderToken: usesHeaderToken,
-            withAuthorization: withAuthorization, shouldAttach: shouldAttach, presentedBearer: presentedBearer };
+            withAuthorization: withAuthorization, shouldAttach: shouldAttach, presentedBearer: presentedBearer,
+            accessTokenExpired: accessTokenExpired };
     })();
 
     /**
@@ -1810,6 +1888,45 @@
         const OriginalXHR = window.XMLHttpRequest;
 
         class InterceptedXHR extends OriginalXHR {
+            /**
+             * CL-12: an XHR gets the access token as a fetch does (attachAuthorization), and is sent after a renewal
+             * when the token is known to have run out. An XHR already answered 401 cannot be sent again behind the
+             * application's back: the token is renewed then, so that the next request is answered for the person.
+             */
+            open(method, url, async) {
+                this.__contexaUrl = url;
+                this.__contexaAsync = async !== false;
+                this.__contexaAuthorization = false;
+                return super.open.apply(this, arguments);
+            }
+
+            setRequestHeader(name, value) {
+                if (String(name).toLowerCase() === 'authorization') {
+                    this.__contexaAuthorization = true;
+                }
+                return super.setRequestHeader(name, value);
+            }
+
+            send(body) {
+                const xhr = this;
+                const url = this.__contexaUrl;
+                if (url == null || this.__contexaAuthorization || !ContexaTokenRefresh.shouldAttach(url)) {
+                    return super.send(body);
+                }
+                if (this.__contexaAsync && ContexaTokenRefresh.accessTokenExpired()) {
+                    ContexaTokenRefresh.refresh(window.__contexaOriginalFetch || window.fetch).finally(function() {
+                        if (window.TokenMemory.accessToken) {
+                            OriginalXHR.prototype.setRequestHeader.call(xhr, 'Authorization',
+                                'Bearer ' + window.TokenMemory.accessToken);
+                        }
+                        OriginalXHR.prototype.send.call(xhr, body);
+                    });
+                    return undefined;
+                }
+                OriginalXHR.prototype.setRequestHeader.call(this, 'Authorization', 'Bearer ' + window.TokenMemory.accessToken);
+                return super.send(body);
+            }
+
             constructor() {
                 super();
                 const xhr = this;
@@ -1853,6 +1970,14 @@
                         const status = xhr.status;
                         if (status !== 401 && status !== 403 && status !== 423) {
                             return;
+                        }
+                        if (status === 401 && xhr.__contexaUrl != null && ContexaTokenRefresh.isEligible(xhr.__contexaUrl)) {
+                            const contentTypeOf401 = xhr.getResponseHeader('Content-Type') || '';
+                            const challenged = contentTypeOf401.indexOf('application/json') !== -1
+                                && /"error"\s*:\s*"(MFA_CHALLENGE_REQUIRED|BLOCK_MFA_REQUIRED)"/.test(xhr.responseText || '');
+                            if (!challenged) {
+                                ContexaTokenRefresh.refresh(window.__contexaOriginalFetch || window.fetch);
+                            }
                         }
 
                         const contentType = xhr.getResponseHeader('Content-Type');
@@ -1907,7 +2032,7 @@
         Utils: ContexaMFAUtils,
         StateTracker: MfaStateTracker,
         TOKEN_STORAGE_KEYS: TOKEN_STORAGE_KEYS,
-        version: '2.2.0'
+        version: SDK_VERSION
     };
 
     if (!window.mfaStateTracker) {
@@ -1915,6 +2040,6 @@
         window.mfaStateTracker.restoreFromSession();
     }
 
-    ContexaMFAUtils.log(`Contexa MFA SDK v2.1.0 loaded successfully`, 'info');
+    ContexaMFAUtils.log(`Contexa MFA SDK v${SDK_VERSION} loaded successfully`, 'info');
 
 })(window);

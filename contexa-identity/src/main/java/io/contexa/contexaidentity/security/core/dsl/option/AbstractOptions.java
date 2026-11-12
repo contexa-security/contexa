@@ -70,7 +70,17 @@ public abstract class AbstractOptions {
             openStaticPaths(http);
         }
         for (SafeHttpCustomizer<HttpSecurity> rawCustomizer : rawHttpCustomizers) {
-            rawCustomizer.customize(http);
+            try {
+                rawCustomizer.customize(http);
+            } catch (IllegalStateException refused) {
+                if (refused.getMessage() != null && refused.getMessage().contains("after anyRequest")) {
+                    // Spring's refusal named neither the option nor where the rules go.
+                    throw new IllegalStateException("rawHttp(...) cannot add authorizeHttpRequests rules: the rules of "
+                            + "the chain already end with anyRequest() when the flow options run. Write such rules "
+                            + "in global(...) instead.", refused);
+                }
+                throw refused;
+            }
         }
     }
 

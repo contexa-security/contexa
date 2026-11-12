@@ -82,7 +82,10 @@ class OrdinaryFlowLogLevelContractTest {
         WARN.put("MfaRestAuthenticationFilter.java", List.of("Authentication failed for user"));
         WARN.put("MfaStepFilterWrapper.java", List.of(
                 "Invalid context for MFA factor processing", "MFA factor processing warnings", "MFA session expired for session",
-                "Retry limit exceeded for session"));
+                "Retry limit exceeded for session", "State Machine rejected SUBMIT_FACTOR_CREDENTIAL event for session"));
+        WARN.put("MfaFactorProcessingSuccessHandler.java", List.of("MFA Factor Processing Success using {} repository: Invalid FactorContext"));
+        WARN.put("OneTimeTokenCreationSuccessHandler.java", List.of("OTT code requested while factor {} is selected", "OTT context mismatch"));
+        WARN.put("MfaSignInScopeFilter.java", List.of("A login that does not meet MFA flow"));
         WARN.put("MfaContinuationFilter.java", List.of("Invalid MFA context for request", "MFA context warnings for request"));
         WARN.put("RetryLimitGuard.java", List.of("Factor {} retry limit exceeded", "Total retry limit exceeded"));
         WARN.put("HandleFailureAction.java", List.of("Max retry attempts exceeded"));
@@ -95,7 +98,7 @@ class OrdinaryFlowLogLevelContractTest {
         WARN.put("PrimaryAuthenticationSuccessHandler.java", List.of(
                 "Authentication blocked/escalated for user", "SECURITY_ALERT: Authentication blocked for user"));
         WARN.put("AIAdaptiveMfaPolicyProvider.java", List.of("AI blocked authentication for user"));
-        WARN.put("SessionBasedSuccessHandler.java", List.of("Invalid saved redirect URL ignored"));
+        WARN.put("SessionBasedSuccessHandler.java", List.of("Saved request ignored, it is no page to go back to"));
         WARN.put("CustomMethodSecurityExpressionRoot.java", List.of("Ownership verification failed"));
         WARN.put("ColdPathEventProcessor.java", List.of("[ColdPath] Escalate rate {}/{} ({}%) exceeded threshold"));
         WARN.put("SecurityDecisionEnforcementHandler.java", List.of("[SecurityDecisionEnforcementHandler] LLM returned no action"));

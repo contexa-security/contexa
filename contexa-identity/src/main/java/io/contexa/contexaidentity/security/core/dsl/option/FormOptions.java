@@ -112,7 +112,7 @@ public final class FormOptions extends AuthenticationProcessingOptions {
                 super.loginProcessingUrl(urlProvider.getSingleFormLoginProcessing());
             }
 
-            super.order(100);
+            this.order = 100;
         }
 
         @Override

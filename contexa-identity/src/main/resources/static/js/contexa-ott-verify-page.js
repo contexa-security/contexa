@@ -1,5 +1,15 @@
 (function () {
     var configEl = document.getElementById('contexa-page-config');
+    if (!configEl) {
+        var missingMessage = document.getElementById('errorMessage');
+        var missing = 'This page needs the element id="contexa-page-config" (see "Rules for your own MFA pages").';
+        if (missingMessage) {
+            missingMessage.style.display = 'block';
+            missingMessage.textContent = missing;
+        }
+        console.error('[Contexa] ' + missing);
+        return;
+    }
     var tokenPersistence = configEl.dataset.tokenPersistence || 'memory';
     var maxAttempts = parseInt(configEl.dataset.maxAttempts || '5', 10);
     var attemptsMade = parseInt(configEl.dataset.attemptsMade || '0', 10);
@@ -89,13 +99,37 @@
             verifyButton.disabled = false;
             verifyButton.textContent = 'Verify';
         } catch (error) {
-            if (error.response && error.response.blockMfaFailed && error.response.redirectUrl) {
-                window.location.href = error.response.redirectUrl;
+            var answer = error.response || {};
+            var reason = answer.error || answer.errorCode;
+            if (answer.blockMfaFailed && answer.redirectUrl) {
+                window.location.href = answer.redirectUrl;
+                return;
+            }
+            if (reason === 'MFA_RETRY_LIMIT_EXCEEDED') {
+                disableAll('Maximum verification attempts exceeded.');
+                return;
+            }
+            if (reason === 'MFA_BUSY_RETRY' || error.status === 429) {
+                errorMessage.style.display = 'block';
+                errorMessage.textContent = 'The code is still being checked. Try again in a moment.';
+                verifyButton.disabled = false;
+                verifyButton.textContent = 'Verify';
+                return;
+            }
+            // CL-1: only a wrong code is an attempt. Anything else (the time ran out, the sign-in ended) says so
+            // and goes on where the server says.
+            if (reason !== 'MFA_FACTOR_VERIFICATION_FAILED' && !(error.status === 401 && !reason)) {
+                disableAll(answer.message || 'This sign-in has ended. You will be taken to sign in again.');
+                if (answer.redirectUrl) {
+                    setTimeout(function () {
+                        window.location.href = answer.redirectUrl;
+                    }, 1500);
+                }
                 return;
             }
 
-            if (error.response && error.response.attemptsMade != null) {
-                attemptsMade = parseInt(error.response.attemptsMade, 10);
+            if (answer.attemptsMade != null) {
+                attemptsMade = parseInt(answer.attemptsMade, 10);
             } else {
                 attemptsMade += 1;
             }

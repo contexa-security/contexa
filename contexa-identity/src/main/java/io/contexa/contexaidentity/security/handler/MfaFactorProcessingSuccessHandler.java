@@ -30,7 +30,6 @@ import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
-import io.contexa.contexaidentity.security.filter.RestAuthenticationToken;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
@@ -42,20 +41,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.web.webauthn.api.ImmutablePublicKeyCredentialUserEntity;
 
 @Slf4j
 public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenticationSuccessHandler {
@@ -265,7 +259,8 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
     private void handleInvalidContext(HttpServletResponse response, HttpServletRequest request,
                                       @Nullable Authentication authentication) throws IOException {
-        log.error("MFA Factor Processing Success using {} repository: Invalid FactorContext. Message: {}. User from auth: {}",
+        // A refused submission (the sign-in is another person's, or it is gone): warn, as other refusals.
+        log.warn("MFA Factor Processing Success using {} repository: Invalid FactorContext. Message: {}. User from auth: {}",
                 sessionRepository.getRepositoryType(), "Context not found or user mismatch after MFA factor processing success.",
                 (authentication != null ? authentication.getName() : "UnknownUser"));
 
@@ -392,22 +387,6 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     }
 
     private Authentication replaceWithSerializableAuthentication(Authentication authentication) {
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof ImmutablePublicKeyCredentialUserEntity entity) {
-            try {
-                UserDto userDto = UserDto.builder()
-                        .username(entity.getName())
-                        .build();
-
-                Set<GrantedAuthority> authorities = new HashSet<>((Collection<? extends GrantedAuthority>) authentication.getAuthorities());
-                return RestAuthenticationToken.authenticated(new UnifiedCustomUserDetails(userDto, authorities), authentication.getAuthorities());
-
-            } catch (Exception e) {
-                log.error("Failed to replace Authentication with serializable version. " +
-                        "UnifiedCustomUserDetails will remain in SecurityContext (may cause Redis serialization error)", e);
-                return null;
-            }
-        }
-        return authentication;
+        return PasskeyAuthentications.asContexaAccount(authentication);
     }
 }

@@ -323,7 +323,8 @@ class MfaAuthenticationAdapterTest {
 
             assertThatThrownBy(() -> adapter.apply(httpSecurity, Collections.emptyList(), stateConfig))
                     .isInstanceOf(IllegalStateException.class)
-                    .hasStackTraceContaining("urlPrefix contains invalid characters");
+                    .hasStackTraceContaining("urlPrefix must be a path such as")
+                    .hasStackTraceContaining("Given: \"/invalid#prefix\"");
         }
 
         @Test

@@ -28,6 +28,11 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
     private final MfaSettings mfaSettings;
 
     public RetryLimitGuard(MfaSettings mfaSettings) {
+        // With no attempt allowed even the right code was refused (MFA_RETRY_LIMIT_EXCEEDED): every MFA sign-in failed.
+        if (mfaSettings.getMaxRetryAttempts() < 1) {
+            throw new IllegalStateException("contexa.auth.mfa.max-retry-attempts must be at least 1: with "
+                    + mfaSettings.getMaxRetryAttempts() + " even the right code is refused and no MFA sign-in can end");
+        }
         this.mfaSettings = mfaSettings;
     }
 

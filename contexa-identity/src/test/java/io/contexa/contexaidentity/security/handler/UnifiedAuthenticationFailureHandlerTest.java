@@ -21,6 +21,7 @@ import java.util.Arrays;
 import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.MfaSettings;
+import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
@@ -49,6 +50,9 @@ import org.springframework.security.authentication.BadCredentialsException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -106,7 +110,29 @@ class UnifiedAuthenticationFailureHandlerTest {
 
         handler.onAuthenticationFailure(request, response, new CredentialsExpiredException("expired"));
 
-        assertThat(response.getRedirectedUrl()).isEqualTo("/contexa/password-change?username=admin&expired=true");
+        // the account goes to the page in the session: an address is kept by browsers and proxies
+        assertThat(response.getRedirectedUrl()).isEqualTo("/contexa/password-change?expired=true");
+        assertThat(request.getSession(false)).isNotNull();
+        assertThat(request.getSession(false).getAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE))
+                .isEqualTo("admin");
+    }
+
+    /** A script followed the redirect and read the HTML of the page as JSON: it gets the code and the page instead. */
+    @Test
+    void aScriptWithAnExpiredPasswordGetsTheCodeAndThePageToGoOn() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/mfa/login");
+        request.addHeader("Accept", "application/json");
+        request.setParameter("username", "admin");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        when(stateMachineIntegrator.loadFactorContextFromRequest(request)).thenReturn(null);
+
+        handler.onAuthenticationFailure(request, response, new CredentialsExpiredException("expired"));
+
+        assertThat(response.getRedirectedUrl()).isNull();
+        verify(responseWriter).writeErrorResponse(same(response), eq(401), eq("CREDENTIALS_EXPIRED"),
+                anyString(), anyString(), argThat(details -> "/contexa/password-change?expired=true".equals(details.get("nextStepUrl"))));
+        assertThat(request.getSession(false).getAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE))
+                .isEqualTo("admin");
     }
 
     @Test

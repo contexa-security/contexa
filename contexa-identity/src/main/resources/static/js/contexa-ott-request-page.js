@@ -3,7 +3,10 @@
 
     if (typeof ContexaMFA !== 'undefined') {
         var configEl = document.getElementById('contexa-page-config');
-        var tokenPersistence = configEl.dataset.tokenPersistence || 'memory';
+        if (!configEl) {
+            console.error('[Contexa] This page needs the element id="contexa-page-config" (see "Rules for your own MFA pages").');
+        }
+        var tokenPersistence = (configEl && configEl.dataset.tokenPersistence) || 'memory';
         var mfa = new ContexaMFA.Client({
             autoRedirect: false,
             tokenPersistence: tokenPersistence
