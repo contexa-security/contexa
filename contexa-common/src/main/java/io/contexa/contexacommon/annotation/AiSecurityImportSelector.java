@@ -76,6 +76,7 @@ public class AiSecurityImportSelector implements DeferredImportSelector, Ordered
                     .error("Contexa does not support Spring Boot 4.x. Current version: {}. Please downgrade to Spring Boot 3.x.", version);
             throw new IllegalStateException("Spring Boot 4.x is not supported by Contexa. Current version: " + version);
         }
+        ContexaOperatingProfile.refuseAotProcessing();
 
         Map<String, Object> attributes = importingClassMetadata
                 .getAnnotationAttributes(EnableAISecurity.class.getName(), false);

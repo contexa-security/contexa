@@ -689,6 +689,16 @@ The format is based on Keep a Changelog and the project follows semantic version
   start leaves nothing; the words of the refusal are the same. **Limit:** routes declared as something wider than
   `RouterFunction` (a `@Bean` method returning `Object`) are still found only when the beans exist.
 
+- **A build that runs Spring AOT processing is told that Contexa does not support it.** Contexa supports neither
+  Spring AOT processing nor native images: its beans are not ones Spring can write as code. A build that ran
+  `processAot` on an application with `@EnableAISecurity` ended on one of them, with
+  `Code generation does not support org.springframework.statemachine.config.builders.StateMachineConfigBuilder`, which
+  names neither Contexa nor what to do. It now ends with
+  `Contexa does not support Spring AOT processing or native images, and this build runs AOT processing on an application with @EnableAISecurity: build it without AOT processing, or remove @EnableAISecurity.`
+  That is said before Contexa looks at its database or its settings, so a build where the database is down is refused
+  as well, rather than given code with Contexa left out. A build with `contexa.enabled=false` is not refused; nothing
+  changed for it, nor for an application that starts without AOT processing.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines

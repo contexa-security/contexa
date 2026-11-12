@@ -8,6 +8,7 @@ import io.contexa.contexacommon.security.bridge.SecurityMode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.context.aot.AbstractAotProcessor;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 
@@ -320,6 +321,76 @@ class AiSecurityImportSelectorTest {
         assertThat(imports).isEmpty();
         assertThat(environment.getProperty(AiSecurityImportSelector.PROP_MODE)).isNull();
         assertThat(environment.getProperty(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP)).isNull();
+    }
+
+    /**
+     * PR-175: Contexa's beans cannot be written as code, so a build that runs Spring AOT processing ended on one of them
+     * without a word about Contexa. It is refused before anything of Contexa is brought or asked.
+     */
+    @ParameterizedTest
+    @ValueSource(classes = {DefaultSandboxApplication.class, FullModeApplication.class})
+    void aBuildThatRunsAotProcessingIsToldThatContexaDoesNotSupportIt(Class<?> application) {
+        StandardEnvironment environment = new StandardEnvironment();
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(unused -> {
+            throw new AssertionError("the database must not be asked");
+        }, unused -> {
+            throw new AssertionError("Redis must not be asked");
+        });
+        selector.setEnvironment(environment);
+
+        duringAotProcessing(() -> assertThatThrownBy(() -> selector.selectImports(AnnotationMetadata.introspect(application)))
+                .isInstanceOf(ContexaOperatingProfileException.class)
+                .hasMessageContaining("Contexa does not support Spring AOT processing")
+                .hasMessageContaining("remove @EnableAISecurity"));
+
+        assertThat(environment.getPropertySources().contains(AiSecurityImportSelector.ACTIVATION_SOURCE))
+                .as("nothing of Contexa is active").isFalse();
+    }
+
+    /** Contexa left out of the code a build generates stays out of the application for good, and nothing would say so. */
+    @Test
+    void aBuildThatRunsAotProcessingIsNotLeftWithContexaOffWhereAStartWouldBe() {
+        AiSecurityImportSelector withoutTheEngine = new AiSecurityImportSelector(unreachable -> null, unreachable -> null);
+        withoutTheEngine.setEnvironment(withEngineSetting("false"));
+        AiSecurityImportSelector withoutTheDatabase = new AiSecurityImportSelector(unused -> "connection refused");
+        withoutTheDatabase.setEnvironment(new StandardEnvironment());
+
+        duringAotProcessing(() -> {
+            assertThatThrownBy(() -> withoutTheEngine.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class)))
+                    .isInstanceOf(ContexaOperatingProfileException.class)
+                    .hasMessageContaining("Spring AOT processing");
+            assertThatThrownBy(() -> withoutTheDatabase.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class)))
+                    .isInstanceOf(ContexaOperatingProfileException.class)
+                    .hasMessageContaining("Spring AOT processing");
+        });
+    }
+
+    /** An application that switched Contexa off is built as any other. */
+    @Test
+    void aBuildWithContexaSwitchedOffRunsAotProcessingAsAnyOther() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("contexaDisabled",
+                Map.of(AiSecurityImportSelector.PROP_ENABLED, false)));
+        AiSecurityImportSelector selector = new AiSecurityImportSelector();
+        selector.setEnvironment(environment);
+
+        duringAotProcessing(() ->
+                assertThat(selector.selectImports(AnnotationMetadata.introspect(FullModeApplication.class))).isEmpty());
+    }
+
+    /** Spring sets the property for as long as it processes an application ahead of time, and clears it after. */
+    private static void duringAotProcessing(Runnable build) {
+        String before = System.getProperty(AbstractAotProcessor.AOT_PROCESSING);
+        System.setProperty(AbstractAotProcessor.AOT_PROCESSING, "true");
+        try {
+            build.run();
+        } finally {
+            if (before != null) {
+                System.setProperty(AbstractAotProcessor.AOT_PROCESSING, before);
+            } else {
+                System.clearProperty(AbstractAotProcessor.AOT_PROCESSING);
+            }
+        }
     }
 
     private StandardEnvironment select(Class<?> applicationClass) {

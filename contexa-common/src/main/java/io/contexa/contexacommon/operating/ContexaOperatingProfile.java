@@ -47,6 +47,8 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
     public static final String PROP_APPLICATION_DATA = "contexa.datasource.isolation.contexa-owned-application";
     private static final String PROP_WEB_APPLICATION_TYPE = "spring.main.web-application-type";
     private static final String PROP_INFRASTRUCTURE_MODE = "contexa.infrastructure.mode";
+    /** The system property Spring sets for as long as it processes an application ahead of time. */
+    private static final String AOT_PROCESSING = "spring.aot.processing";
     private static final String HTTP_SECURITY = "org.springframework.security.config.annotation.web.builders.HttpSecurity";
     private static final String REDISSON_LIBRARY = "org.redisson:redisson";
     /** PR-71: the library brings a JCache provider, and Spring Boot gives it the cache of an application that goes through JCache. */
@@ -88,6 +90,21 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
             throw new ContexaOperatingProfileException(
                     "@EnableAISecurity applies security through Spring Security, and it is not on the class path.",
                     "Add org.springframework.boot:spring-boot-starter-security to this application.");
+        }
+    }
+
+    /**
+     * Contexa's beans are not ones Spring can write as code, so a build that processes the application ahead of time ended
+     * on one of them, which names neither Contexa nor what to do. Nothing analyses a failure there and only the reason is
+     * shown, so it carries what to do as well.
+     */
+    public static void refuseAotProcessing() {
+        if (Boolean.getBoolean(AOT_PROCESSING)) {
+            throw new ContexaOperatingProfileException(
+                    "Contexa does not support Spring AOT processing or native images, and this build runs AOT processing"
+                            + " on an application with @EnableAISecurity: build it without AOT processing, or remove"
+                            + " @EnableAISecurity.",
+                    "Build this application without AOT processing and without a native image, or remove @EnableAISecurity.");
         }
     }
 

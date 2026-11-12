@@ -22,6 +22,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.asm.ClassWriter;
 import org.springframework.asm.Opcodes;
+import org.springframework.context.aot.AbstractAotProcessor;
 import org.springframework.mock.env.MockEnvironment;
 
 import static io.contexa.contexacommon.operating.ContexaOperatingProfile.PROP_APPLICATION_DATA;
@@ -230,5 +231,47 @@ class ContexaOperatingProfileTest {
         assertThatThrownBy(() -> ContexaOperatingProfile.refuseWithoutSpringSecurity(new ClassLoader(null) {
         })).isInstanceOfSatisfying(ContexaOperatingProfileException.class,
                 e -> assertThat(e.action()).contains("spring-boot-starter-security"));
+    }
+
+    /**
+     * PR-175: a build that runs Spring AOT processing ended on a bean of Contexa's that cannot be written as code, which
+     * names neither Contexa nor what to do. Nothing analyses a failure there, so the reason carries what to do as well.
+     */
+    @Test
+    void aBuildThatRunsAotProcessingIsToldInOneLineWhatToDo() {
+        duringAotProcessing("true", () -> assertThatThrownBy(ContexaOperatingProfile::refuseAotProcessing)
+                .isInstanceOfSatisfying(ContexaOperatingProfileException.class, refused -> {
+                    assertThat(refused.getMessage()).isEqualTo("Contexa does not support Spring AOT processing or native"
+                            + " images, and this build runs AOT processing on an application with @EnableAISecurity:"
+                            + " build it without AOT processing, or remove @EnableAISecurity.");
+                    assertThat(refused.getMessage()).doesNotContain("\n");
+                    assertThat(refused.action()).isEqualTo("Build this application without AOT processing and without a"
+                            + " native image, or remove @EnableAISecurity.");
+                }));
+    }
+
+    @Test
+    void anApplicationThatStartsIsNotInAotProcessing() {
+        duringAotProcessing(null, ContexaOperatingProfile::refuseAotProcessing);
+        duringAotProcessing("false", ContexaOperatingProfile::refuseAotProcessing);
+    }
+
+    /** The property Spring sets for as long as it processes an application ahead of time, and clears after. */
+    private static void duringAotProcessing(String value, Runnable build) {
+        String before = System.getProperty(AbstractAotProcessor.AOT_PROCESSING);
+        try {
+            if (value != null) {
+                System.setProperty(AbstractAotProcessor.AOT_PROCESSING, value);
+            } else {
+                System.clearProperty(AbstractAotProcessor.AOT_PROCESSING);
+            }
+            build.run();
+        } finally {
+            if (before != null) {
+                System.setProperty(AbstractAotProcessor.AOT_PROCESSING, before);
+            } else {
+                System.clearProperty(AbstractAotProcessor.AOT_PROCESSING);
+            }
+        }
     }
 }

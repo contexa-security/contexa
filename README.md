@@ -66,7 +66,7 @@ The request path only reads the stored decision; it never calls the model. The a
 
 ## Get started
 
-**You need:** Java 17+, Spring Boot **3.5.x** (older versions do not start, and 4.x is not supported), a PostgreSQL database with the pgvector extension that is dedicated to Contexa, and an AI model for chat and for embeddings: a local [Ollama](https://ollama.com), or OpenAI. Anthropic can serve chat, with OpenAI or Ollama for the embeddings.
+**You need:** Java 17+, Spring Boot **3.5.x** (older versions do not start, and 4.x is not supported; neither are Spring AOT processing and native images), a PostgreSQL database with the pgvector extension that is dedicated to Contexa, and an AI model for chat and for embeddings: a local [Ollama](https://ollama.com), or OpenAI. Anthropic can serve chat, with OpenAI or Ollama for the embeddings.
 
 ### Fastest: the CLI
 
