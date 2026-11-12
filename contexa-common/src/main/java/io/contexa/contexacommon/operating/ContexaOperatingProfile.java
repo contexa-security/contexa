@@ -50,6 +50,7 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
     /** The system property Spring sets for as long as it processes an application ahead of time. */
     private static final String AOT_PROCESSING = "spring.aot.processing";
     private static final String HTTP_SECURITY = "org.springframework.security.config.annotation.web.builders.HttpSecurity";
+    private static final String SERVLET_FILTER = "jakarta.servlet.Filter";
     private static final String REDISSON_LIBRARY = "org.redisson:redisson";
     /** PR-71: the library brings a JCache provider, and Spring Boot gives it the cache of an application that goes through JCache. */
     private static final String REDISSON_JCACHE_NOTE = " " + REDISSON_LIBRARY + " brings a JCache provider: an application"
@@ -91,6 +92,30 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
             throw new ContexaOperatingProfileException(
                     "@EnableAISecurity applies security through Spring Security, and it is not on the class path.",
                     "Add org.springframework.boot:spring-boot-starter-security to this application.");
+        }
+    }
+
+    /**
+     * Contexa is built for Spring Boot 3. On Spring Boot 4 the start ended on a stack trace; it is refused here, before
+     * anything of Contexa is configured, with the reason and what to do.
+     */
+    public static void refuseSpringBoot4(@Nullable String version) {
+        if (version != null && version.startsWith("4.")) {
+            throw new ContexaOperatingProfileException(
+                    "Contexa runs on Spring Boot 3.x, and this application runs on Spring Boot " + version + ".",
+                    "Run this application on Spring Boot 3.x, or remove @EnableAISecurity.");
+        }
+    }
+
+    /**
+     * Contexa's enforcement is a chain of servlet filters. An application that leaves out spring-boot-starter-web has no
+     * servlet API, and its start ended on a class that was not found, which names neither Contexa nor what to do.
+     */
+    public static void refuseWithoutServletApi(ClassLoader classLoader) {
+        if (!ClassUtils.isPresent(SERVLET_FILTER, classLoader)) {
+            throw new ContexaOperatingProfileException(
+                    "Contexa runs on a servlet stack, and the servlet API (" + SERVLET_FILTER + ") is not on the class path.",
+                    "Add org.springframework.boot:spring-boot-starter-web to this application, or remove @EnableAISecurity.");
         }
     }
 

@@ -15,10 +15,12 @@
  */
 package io.contexa.autoconfigure.core;
 
+import io.contexa.contexacommon.operating.ContexaOperatingProfileException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -57,7 +59,8 @@ class ContexaDataSourceIsolationTest {
                 .withProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/shared");
 
         assertThatThrownBy(() -> ContexaDataSourceIsolation.validate(properties, environment))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOfSatisfying(ContexaOperatingProfileException.class,
+                        refused -> assertThat(refused.action()).contains("contexa.datasource.url"))
                 .hasMessageContaining("must not share spring.datasource unless");
     }
 

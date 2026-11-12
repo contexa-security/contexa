@@ -65,6 +65,9 @@ import java.util.Map;
 public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
 
     private static final String REACTIVE_ROUTES = "org.springframework.web.reactive.function.server.RouterFunction";
+    /** What an application written for WebFlux declares and the servlet stack never calls. */
+    private static final List<String> REACTIVE_ONLY = List.of("org.springframework.web.server.WebFilter",
+            "org.springframework.security.web.server.SecurityWebFilterChain");
 
     private static final String UNDELIVERABLE = "[Contexa] A one-time-code factor is offered but no code can be delivered: ";
     private static final String NO_MAIL_SENDER = "[Contexa] A one-time-code factor is offered but no mail sender is configured "
@@ -100,6 +103,10 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
     @Override
     public void afterSingletonsInstantiated() {
         refuseReactiveRoutes(beans, getClass().getClassLoader());
+        String reactive = reactiveBeansNotice(beans, getClass().getClassLoader());
+        if (reactive != null) {
+            log.warn(reactive);
+        }
         log.info(report(profile, enforcement()));
         if (reportClassPath) {
             String impact = classPathImpact(getClass().getClassLoader());
@@ -165,6 +172,27 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
         if (names.length > 0) {
             throw reactiveRoutesRefused(names);
         }
+    }
+
+    /**
+     * PR-173: Boot runs an application written for WebFlux on the servlet stack Contexa brings, and says nothing. Its WebFlux
+     * filters and its WebFlux security chain are then beans nothing calls, so the start names them. Read from what the beans
+     * are declared as: it creates none of them.
+     */
+    @Nullable
+    static String reactiveBeansNotice(ListableBeanFactory beans, ClassLoader loader) {
+        List<String> names = REACTIVE_ONLY.stream()
+                .filter(type -> ClassUtils.isPresent(type, loader))
+                .flatMap(type -> Arrays.stream(beans.getBeanNamesForType(ClassUtils.resolveClassName(type, loader), true, false)))
+                .distinct()
+                .sorted()
+                .toList();
+        if (names.isEmpty()) {
+            return null;
+        }
+        return "[Contexa] This application runs on the servlet stack, which Contexa brings, and these WebFlux beans of it never"
+                + " run there: " + String.join(", ", names) + ". An application written for WebFlux is not supported: remove"
+                + " @EnableAISecurity from it.";
     }
 
     /** The application's WebFlux routes by bean name, read from what the beans are declared as: it creates none of them. */

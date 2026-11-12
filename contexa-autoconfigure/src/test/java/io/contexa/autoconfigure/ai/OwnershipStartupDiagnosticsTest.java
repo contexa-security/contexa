@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.ai;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.web.reactive.function.server.RouterFunctions;
+import org.springframework.web.server.WebFilter;
 import jakarta.servlet.Filter;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
@@ -226,6 +227,18 @@ class OwnershipStartupDiagnosticsTest {
     @Test
     void anApplicationWithoutWebFluxRoutesStarts() {
         OwnershipStartupDiagnostics.refuseReactiveRoutes(new DefaultListableBeanFactory(), getClass().getClassLoader());
+    }
+
+    /** PR-173: on the servlet stack Contexa brings, the WebFlux filters of an application are beans nothing calls. */
+    @Test
+    void theWebFluxBeansOfAnApplicationAreNamedAsNeverRunning() {
+        DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
+        beans.registerSingleton("hostWebFilter", mock(WebFilter.class));
+
+        assertThat(OwnershipStartupDiagnostics.reactiveBeansNotice(beans, getClass().getClassLoader()))
+                .contains("hostWebFilter").contains("never run");
+        assertThat(OwnershipStartupDiagnostics.reactiveBeansNotice(new DefaultListableBeanFactory(), getClass().getClassLoader()))
+                .isNull();
     }
 
     @Test

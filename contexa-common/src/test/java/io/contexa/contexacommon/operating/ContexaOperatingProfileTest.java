@@ -233,6 +233,27 @@ class ContexaOperatingProfileTest {
                 e -> assertThat(e.action()).contains("spring-boot-starter-security"));
     }
 
+    /** PR-172: an application on Spring Boot 4 was refused with a stack trace; it is told why and what to do. */
+    @Test
+    void springBoot4IsRefusedWithWhatToDo() {
+        assertThatThrownBy(() -> ContexaOperatingProfile.refuseSpringBoot4("4.1.2"))
+                .isInstanceOfSatisfying(ContexaOperatingProfileException.class, refused -> {
+                    assertThat(refused.getMessage()).contains("Spring Boot 4.1.2");
+                    assertThat(refused.action()).contains("Spring Boot 3.x");
+                });
+        ContexaOperatingProfile.refuseSpringBoot4("3.5.4");
+        ContexaOperatingProfile.refuseSpringBoot4(null);
+    }
+
+    /** PR-172: an application that leaves out spring-boot-starter-web ended on NoClassDefFoundError: jakarta/servlet/Filter. */
+    @Test
+    void anApplicationWithoutTheServletApiIsToldWhatToAdd() {
+        assertThatThrownBy(() -> ContexaOperatingProfile.refuseWithoutServletApi(new ClassLoader(null) {
+        })).isInstanceOfSatisfying(ContexaOperatingProfileException.class,
+                e -> assertThat(e.action()).contains("spring-boot-starter-web"));
+        ContexaOperatingProfile.refuseWithoutServletApi(getClass().getClassLoader());
+    }
+
     /**
      * PR-175: a build that runs Spring AOT processing ended on a bean of Contexa's that cannot be written as code, which
      * names neither Contexa nor what to do. Nothing analyses a failure there, so the reason carries what to do as well.

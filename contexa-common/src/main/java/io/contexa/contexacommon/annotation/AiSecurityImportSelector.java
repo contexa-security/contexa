@@ -70,12 +70,7 @@ public class AiSecurityImportSelector implements DeferredImportSelector, Ordered
             return new String[0];
         }
 
-        String version = SpringBootVersion.getVersion();
-        if (version.startsWith("4.")) {
-            LoggerFactory.getLogger(AiSecurityImportSelector.class)
-                    .error("Contexa does not support Spring Boot 4.x. Current version: {}. Please downgrade to Spring Boot 3.x.", version);
-            throw new IllegalStateException("Spring Boot 4.x is not supported by Contexa. Current version: " + version);
-        }
+        ContexaOperatingProfile.refuseSpringBoot4(SpringBootVersion.getVersion());
         ContexaOperatingProfile.refuseAotProcessing();
 
         Map<String, Object> attributes = importingClassMetadata
@@ -102,6 +97,7 @@ public class AiSecurityImportSelector implements DeferredImportSelector, Ordered
         if (environment == null) {
             return new String[]{AI_SECURITY_CONFIGURATION};
         }
+        ContexaOperatingProfile.refuseWithoutServletApi(getClass().getClassLoader());
         ContexaOperatingProfile.refuseWithoutSpringSecurity(getClass().getClassLoader());
         ContexaOperatingProfile.refuseReactive(environment);
         ContexaOperatingProfile.refuseDistributedWithoutRedis(environment, getClass().getClassLoader());

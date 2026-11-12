@@ -712,6 +712,17 @@ The format is based on Keep a Changelog and the project follows semantic version
   `spring.cache.jcache.provider=org.ehcache.jsr107.EhcacheCachingProvider`. Contexa changes no setting of the
   application's cache.
 
+- **Three more refused starts say why in two lines.** An application on Spring Boot 4, one whose
+  `contexa.datasource.url` names the database of `spring.datasource.url` without the approval settings, and one that
+  leaves out `spring-boot-starter-web` were refused with a stack trace and, in the last case
+  (`NoClassDefFoundError: jakarta/servlet/Filter`), without a word of Contexa's. Each is now refused with a description
+  and an action, as the other refusals are. What is refused did not change.
+
+- **An application written for WebFlux is told which of its beans do not run.** Contexa brings the servlet stack, and
+  Spring Boot then starts such an application on it without a word. Its `WebFilter` and `SecurityWebFilterChain` beans
+  are never called there; the start now logs a warning that names them. Such an application is refused, as before, only
+  when it has functional routes or sets `spring.main.web-application-type=reactive`.
+
 - **Turning the thinking of an Ollama model off no longer throws away the call's options.** When a model matched
   `contexa.llm.model-capabilities.ollama.disable-thinking-patterns` (or the call set `disableOllamaThinking`),
   `ProviderAwareChatOptionsFactory` read `ThinkOption.ThinkBoolean.DISABLED` as an enum constant. Spring AI 1.1 defines

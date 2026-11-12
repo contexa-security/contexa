@@ -15,20 +15,24 @@
  */
 package io.contexa.autoconfigure.core;
 
+import io.contexa.contexacommon.operating.ContexaOperatingProfileException;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.util.StringUtils;
 
 final class ContexaDataSourceIsolation {
 
+    private static final String OWN_DATABASE = "Give Contexa a database of its own with contexa.datasource.url.";
+
     private ContexaDataSourceIsolation() {
     }
 
+    /** A refusal says why and what to change, as the other refused starts do, instead of a stack trace. */
     static void validate(ContexaDataSourceProperties properties, Environment environment) {
         String contexaUrl = normalize(properties.getUrl());
         if (!StringUtils.hasText(contexaUrl)) {
-            throw new IllegalStateException("contexa.datasource.url must be configured for @EnableAISecurity. "
-                    + "Use a dedicated Contexa database by default; sharing the application database requires explicit POC approval.");
+            throw new ContexaOperatingProfileException("contexa.datasource.url must be configured for @EnableAISecurity.",
+                    "Use a dedicated Contexa database by default; sharing the application database requires explicit POC approval.");
         }
 
         String applicationUrl = normalize(environment.getProperty("spring.datasource.url"));
@@ -44,12 +48,17 @@ final class ContexaDataSourceIsolation {
         boolean sharedApproved = isolation.isAllowSharedApplicationDatasource()
                 && isolation.isSharedApplicationDatasourceRiskAccepted();
         if (isProduction(environment)) {
-            throw new IllegalStateException("contexa.datasource must not share the application datasource in production profiles");
+            throw new ContexaOperatingProfileException(
+                    "contexa.datasource must not share the application datasource in production profiles: "
+                            + "contexa.datasource.url and spring.datasource.url name the same database.",
+                    OWN_DATABASE);
         }
         if (!sharedApproved) {
-            throw new IllegalStateException("contexa.datasource must not share spring.datasource unless "
-                    + "contexa.datasource.isolation.allow-shared-application-datasource=true and "
-                    + "contexa.datasource.isolation.shared-application-datasource-risk-accepted=true are both set for an approved POC");
+            throw new ContexaOperatingProfileException(
+                    "contexa.datasource must not share spring.datasource unless it is an approved POC: "
+                            + "contexa.datasource.url and spring.datasource.url name the same database.",
+                    OWN_DATABASE + " An approved POC sets contexa.datasource.isolation.allow-shared-application-datasource=true"
+                            + " and contexa.datasource.isolation.shared-application-datasource-risk-accepted=true.");
         }
     }
 
