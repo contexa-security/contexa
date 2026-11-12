@@ -108,9 +108,9 @@ class ReactiveRoutesDefinitionCheckTest {
     /** The functional routes of Spring MVC are the servlet stack's own: they are mapped, and nothing is wrong with them. */
     @Test
     void anApplicationOnTheServletStackStarts() {
-        try (AnnotationConfigApplicationContext host = host(ServletHost.class)) {
+        try (AnnotationConfigApplicationContext host = host(ServletRoutesHost.class)) {
             assertThatCode(host::refresh).doesNotThrowAnyException();
-            assertThat(host.getBeanNamesForType(org.springframework.web.servlet.function.RouterFunction.class)).hasSize(1);
+            assertThat(host.containsBean(ServletRoutesHost.ROUTES)).isTrue();
         }
 
         assertThat(MADE).hasValue(1);
@@ -170,7 +170,7 @@ class ReactiveRoutesDefinitionCheckTest {
 
     @Test
     void anInstallationOnTheServletStackStarts() {
-        installation(ServletHost.class).run(context -> {
+        installation(ServletRoutesHost.class).run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(ReactiveRoutesDefinitionCheck.class);
             assertThat(context).hasSingleBean(OwnershipStartupDiagnostics.class);
@@ -237,22 +237,6 @@ class ReactiveRoutesDefinitionCheckTest {
         @Bean
         Object declaredWider() {
             return routes();
-        }
-    }
-
-    @Configuration(proxyBeanMethods = false)
-    static class ServletHost {
-
-        @Bean
-        org.springframework.web.servlet.function.RouterFunction<org.springframework.web.servlet.function.ServerResponse> mvcRoutes() {
-            return org.springframework.web.servlet.function.RouterFunctions.route()
-                    .GET("/orders", request -> org.springframework.web.servlet.function.ServerResponse.ok().build())
-                    .build();
-        }
-
-        @Bean
-        Installed installed() {
-            return new Installed();
         }
     }
 }
