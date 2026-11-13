@@ -32,7 +32,7 @@
                         <label for="roleName" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-tag mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.roles.detail.name}">Role Name (unique, e.g. ADMIN)</span>
                         </label>
-                        <input type="text" id="roleName" th:field="*{roleName}"
+                        <input type="text" id="roleName" th:field="*{roleName}" maxlength="100"
                                class="detail-input font-mono"
                                placeholder="ROLE_USER" required />
                     </div>
@@ -41,7 +41,7 @@
                         <label for="roleDesc" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-align-left mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.roles.detail.description}">Description</span>
                         </label>
-                        <input type="text" id="roleDesc" th:field="*{roleDesc}"
+                        <input type="text" id="roleDesc" th:field="*{roleDesc}" maxlength="500"
                                class="detail-input"
                                th:placeholder="#{admin.roles.detail.description.placeholder}" placeholder="Enter role description" />
                     </div>

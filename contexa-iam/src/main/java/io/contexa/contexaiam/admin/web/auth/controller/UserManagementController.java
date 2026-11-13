@@ -35,15 +35,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.http.HttpStatus;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.servlet.support.RequestContextUtils;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
@@ -115,7 +114,12 @@ public class UserManagementController {
 	@GetMapping("/{id}")
 	public String getUser(@PathVariable Long id, Model model, RedirectAttributes ra) {
 		try {
-			UserDto userDto = userManagementService.getUser(id);
+			// Looked up without an exception: one thrown through the service would mark this read-only transaction for
+			// rollback, and its commit would end the request with a server error.
+			UserDto userDto = userManagementService.findUser(id).orElse(null);
+			if (userDto == null) {
+				return toListWithoutUser(id, ra);
+			}
 			List<Role> roleList = roleService.getRolesWithoutExpression();
 			List<Group> groupList = groupService.getAllGroups();
 
@@ -147,16 +151,17 @@ public class UserManagementController {
 							 @ModelAttribute("user") UserDto userDto,
 							 @RequestParam(value = "selectedGroupIds", required = false) List<Long> selectedGroupIds,
 							 RedirectAttributes ra) {
+		// A user who is not there is refused by the service; the user's page then goes back to the list and says so.
 		try {
 			userDto.setId(id);
 			userDto.setSelectedGroupIds(selectedGroupIds);
 			userManagementService.modifyUser(userDto);
 			ra.addFlashAttribute("message", msg("msg.user.updated", userDto.getUsername()));
 		} catch (LastAdministratorException e) {
-			throw e;
+			ra.addFlashAttribute("errorMessage", textOf(e, "modify user " + id));
+			return "redirect:/contexa/admin/users/" + id;
 		} catch (Exception e) {
-			log.error("Error modifying user: ", e);
-			ra.addFlashAttribute("errorMessage", msg("msg.user.update.error", ConsoleFault.textOf(e)));
+			ra.addFlashAttribute("errorMessage", msg("msg.user.update.error", textOf(e, "modify user " + id)));
 			return "redirect:/contexa/admin/users/" + id;
 		}
 		return "redirect:/contexa/admin/users";
@@ -182,8 +187,7 @@ public class UserManagementController {
 			userManagementService.createUser(userDto);
 			ra.addFlashAttribute("message", msg("msg.user.created", userDto.getUsername()));
 		} catch (Exception e) {
-			log.error("Error creating user: ", e);
-			model.addAttribute("errorMessage", ConsoleFault.textOf(e));
+			model.addAttribute("errorMessage", textOf(e, "create user " + userDto.getUsername()));
 			model.addAttribute("user", userDto);
 			model.addAttribute("roleList", roleService.getRolesWithoutExpression());
 			model.addAttribute("groupList", groupService.getAllGroups());
@@ -215,12 +219,12 @@ public class UserManagementController {
 	public String removeUser(@PathVariable Long id, RedirectAttributes ra) {
 		try {
 			userManagementService.deleteUser(id);
-			ra.addFlashAttribute("message", msg("msg.user.deleted", id));
+			ra.addFlashAttribute("message", msg("msg.user.deleted", String.valueOf(id)));
 		} catch (LastAdministratorException e) {
-			throw e;
+			// Told in its own words, as the change of a user that it refuses is.
+			ra.addFlashAttribute("errorMessage", textOf(e, "delete user " + id));
 		} catch (Exception e) {
-			log.error("Error deleting user: ", e);
-			ra.addFlashAttribute("errorMessage", msg("msg.user.delete.error", ConsoleFault.textOf(e)));
+			ra.addFlashAttribute("errorMessage", msg("msg.user.delete.error", textOf(e, "delete user " + id)));
 		}
 		return "redirect:/contexa/admin/users";
 	}
@@ -232,26 +236,29 @@ public class UserManagementController {
 	}
 
 	/**
-	 * A change of a user that would take the console's last active administrator is refused with a 409: nothing of it
-	 * was kept (the refusal rolls the transaction back), and the list of users says why.
+	 * A change of a user that would take the console's last active administrator, thrown past the handlers above, goes
+	 * back to the list of users with the reason: nothing of it was kept (the refusal rolls the transaction back), and the
+	 * address left is the list's, not the one of the request that was refused.
 	 */
 	@ExceptionHandler(LastAdministratorException.class)
-	public ModelAndView lastAdministrator(LastAdministratorException refusal) {
-		ModelAndView view = new ModelAndView("contexa/admin/users");
-		view.setStatus(HttpStatus.CONFLICT);
-		view.addObject("errorMessage", refusal.getMessage());
-		try {
-			Page<UserListDto> page = userManagementService.getUsers(null,
-					PageRequest.of(0, 15, Sort.by(Sort.Direction.DESC, "id")));
-			view.addObject("users", page.getContent());
-			view.addObject("page", page);
-		} catch (RuntimeException e) {
-			log.error("[UserManagement] The users could not be listed with a refusal: {}", e.toString());
-			view.addObject("users", List.of());
-			view.addObject("page", Page.empty());
+	public String lastAdministrator(LastAdministratorException refusal, HttpServletRequest request) {
+		log.warn("[UserManagement] {}", refusal.getMessage());
+		RequestContextUtils.getOutputFlashMap(request).put("errorMessage", refusal.getMessage());
+		return "redirect:/contexa/admin/users";
+	}
+
+	/** The list of users, telling that the one asked for is not there. */
+	private String toListWithoutUser(Long id, RedirectAttributes ra) {
+		log.warn("[UserManagement] No user with ID {}", id);
+		ra.addFlashAttribute("errorMessage", msg("msg.user.not.found.id", String.valueOf(id)));
+		return "redirect:/contexa/admin/users";
+	}
+
+	/** What the administrator is told of a failed change: a refusal is logged as one, a fault with its stack. */
+	private String textOf(Exception failure, String doing) {
+		if (ConsoleFault.isRefusal(failure)) {
+			log.warn("[UserManagement] Could not {}: {}", doing, failure.getMessage());
 		}
-		view.addObject("keyword", null);
-		view.addObject("usersWithoutFactor", usersWithoutFactor());
-		return view;
+		return ConsoleFault.textOf(failure, log, doing);
 	}
 }

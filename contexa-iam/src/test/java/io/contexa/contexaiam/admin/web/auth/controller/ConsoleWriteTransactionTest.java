@@ -209,6 +209,7 @@ class ConsoleWriteTransactionTest {
         when(passwordPolicy.validatePassword("short")).thenReturn(List.of("at least 12 characters"));
         UserDto form = new UserDto();
         form.setUsername("alice");
+        form.setName("Alice");
         form.setPassword("short");
         form.setEnabled(true);
         RedirectAttributesModelMap flash = new RedirectAttributesModelMap();
@@ -228,6 +229,7 @@ class ConsoleWriteTransactionTest {
         when(groups.findAllWithRolesAndUsers()).thenReturn(List.of());
         UserDto form = new UserDto();
         form.setUsername("alice");
+        form.setName("Alice");
         ConcurrentModel model = new ConcurrentModel();
 
         String view = console.getBean(UserManagementController.class).createUser(form, null, model,
@@ -259,7 +261,8 @@ class ConsoleWriteTransactionTest {
     @Test
     @DisplayName("a hierarchy that exists already is told to the person on the form")
     void aHierarchyThatExistsAlready() throws Exception {
-        RoleHierarchyEntity existing = RoleHierarchyEntity.builder().id(2L).hierarchyString("ROLE_A > ROLE_B").build();
+        RoleHierarchyEntity existing = RoleHierarchyEntity.builder().id(2L).hierarchyString("ROLE_A > ROLE_B")
+                .description("A over B").build();
         when(hierarchies.findByHierarchyString("ROLE_A > ROLE_B")).thenReturn(Optional.of(existing));
         when(mapper.map(any(RoleHierarchyDto.class), eq(RoleHierarchyEntity.class))).thenReturn(existing);
         RedirectAttributesModelMap flash = new RedirectAttributesModelMap();

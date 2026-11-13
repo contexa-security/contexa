@@ -194,12 +194,12 @@ class RoleControllerTest {
             RoleDto roleDto = RoleDto.builder().roleName("ADMIN").build();
             PermissionDto permDto = PermissionDto.builder().id(5L).build();
 
-            when(roleService.getRole(1L)).thenReturn(role);
+            when(roleService.findRole(1L)).thenReturn(Optional.of(role));
             when(modelMapper.map(role, RoleDto.class)).thenReturn(roleDto);
             when(permissionService.getAllPermissions()).thenReturn(List.of(perm));
             when(modelMapper.map(perm, PermissionDto.class)).thenReturn(permDto);
 
-            String view = controller.getRoleDetails(1L, model);
+            String view = controller.getRoleDetails(1L, model, new RedirectAttributesModelMap());
 
             assertThat(view).isEqualTo("contexa/admin/rolesdetails");
             assertThat(model.getAttribute("role")).isEqualTo(roleDto);

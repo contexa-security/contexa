@@ -18,6 +18,7 @@ package io.contexa.contexaiam.admin.web.auth.service.impl;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
+import io.contexa.contexaiam.common.ConsoleInput;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.Role;
@@ -33,6 +34,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -50,14 +52,23 @@ public class GroupServiceImpl extends AccountAuthoritiesService implements Group
     private final MessageSource messageSource;
     private final LastAdministratorGuard lastAdministratorGuard;
 
+    /** The lengths of the columns of a group. */
+    private static final int NAME_LENGTH = 100;
+    private static final int DESCRIPTION_LENGTH = 500;
+
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
+    // The console's own administration of its groups, behind ROLE_ADMIN like the users and roles beside it: not a
+    // resource of the business whose prompts are certified, so the certificate gate is not asked (verificationRequired).
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
-    @Protectable
+    @Protectable(verificationRequired = false)
     public Group createGroup(Group group, List<Long> selectedRoleIds) {
+        group.setName(ConsoleInput.required(messageSource, "crud.field.group.name", group.getName(), NAME_LENGTH));
+        group.setDescription(ConsoleInput.optional(messageSource, "crud.field.group.description", group.getDescription(),
+                DESCRIPTION_LENGTH));
         if (groupRepository.findByName(group.getName()).isPresent()) {
             throw new IllegalArgumentException(msg("msg.group.name.duplicate"));
         }
@@ -73,7 +84,15 @@ public class GroupServiceImpl extends AccountAuthoritiesService implements Group
             group.setGroupRoles(groupRoles);
         }
 
-        return groupRepository.save(group);
+        try {
+            // Flushed here, so a group of the same name that another administrator saved a moment before is refused with
+            // its reason, not with the constraint of the table.
+            Group saved = groupRepository.save(group);
+            groupRepository.flush();
+            return saved;
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalArgumentException(msg("msg.group.name.duplicate"), e);
+        }
     }
 
     public Optional<Group> getGroup(Long id) {
@@ -98,13 +117,18 @@ public class GroupServiceImpl extends AccountAuthoritiesService implements Group
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
+    // The console's own administration of its groups, behind ROLE_ADMIN like the users and roles beside it: not a
+    // resource of the business whose prompts are certified, so the certificate gate is not asked (verificationRequired).
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
-    @Protectable
+    @Protectable(verificationRequired = false)
     public void deleteGroup(Long id) {
         // First in the transaction: a change of who administers the console waits for the one before it.
         lastAdministratorGuard.serializeChanges();
         List<String> administrators = lastAdministratorGuard.administrators();
         authoritiesChanged();
+        if (!groupRepository.existsById(id)) {
+            throw new IllegalArgumentException(msg("msg.group.not.found.id", String.valueOf(id)));
+        }
         // The group's memberships and roles go with it by the database's cascade; the permissions given with its roles
         // reference it without one and go here, as the rows that reference an account go with the account.
         groupRepository.deleteRolePermissionsOf(id);
@@ -113,17 +137,29 @@ public class GroupServiceImpl extends AccountAuthoritiesService implements Group
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
+    // The console's own administration of its groups, behind ROLE_ADMIN like the users and roles beside it: not a
+    // resource of the business whose prompts are certified, so the certificate gate is not asked (verificationRequired).
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
-    @Protectable
+    @Protectable(verificationRequired = false)
     public Group updateGroup(Group group, List<Long> selectedRoleIds) {
         lastAdministratorGuard.serializeChanges();
         List<String> administrators = lastAdministratorGuard.administrators();
         authoritiesChanged();
         Group existingGroup = groupRepository.findByIdWithRoles(group.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Group not found."));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        msg("msg.group.not.found.id", String.valueOf(group.getId()))));
 
-        existingGroup.setName(group.getName());
-        existingGroup.setDescription(group.getDescription());
+        String name = ConsoleInput.required(messageSource, "crud.field.group.name", group.getName(), NAME_LENGTH);
+        if (!name.equals(existingGroup.getName())) {
+            groupRepository.findByName(name)
+                    .filter(other -> !Objects.equals(other.getId(), existingGroup.getId()))
+                    .ifPresent(other -> {
+                        throw new IllegalArgumentException(msg("msg.group.name.duplicate"));
+                    });
+        }
+        existingGroup.setName(name);
+        existingGroup.setDescription(ConsoleInput.optional(messageSource, "crud.field.group.description",
+                group.getDescription(), DESCRIPTION_LENGTH));
 
         Set<Long> desiredRoleIds = selectedRoleIds != null ? new HashSet<>(selectedRoleIds) : new HashSet<>();
         Set<GroupRole> currentGroupRoles = existingGroup.getGroupRoles();

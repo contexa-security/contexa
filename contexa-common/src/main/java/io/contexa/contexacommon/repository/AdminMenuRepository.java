@@ -26,7 +26,7 @@ import java.util.List;
 
 public interface AdminMenuRepository extends JpaRepository<AdminMenu, Long> {
 
-    @Query("SELECT DISTINCT m FROM AdminMenu m LEFT JOIN FETCH m.roles ORDER BY m.menuOrder ASC")
+    @Query("SELECT DISTINCT m FROM AdminMenu m LEFT JOIN FETCH m.roles ORDER BY m.menuOrder ASC, m.id ASC")
     List<AdminMenu> findAllWithRolesOrderByMenuOrder();
 
     List<AdminMenu> findByEnabledTrueOrderByMenuOrderAsc();

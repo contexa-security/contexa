@@ -37,16 +37,15 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.servlet.support.RequestContextUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -107,19 +106,20 @@ public class RoleHierarchyController {
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
             roleHierarchyService.createRoleHierarchy(entity);
             ra.addFlashAttribute("message", msg("msg.hierarchy.created"));
-        } catch (IllegalArgumentException e) {
-            ra.addFlashAttribute("error", e.getMessage());
+        } catch (Exception e) {
+            ra.addFlashAttribute("error", textOf(e, "create a role hierarchy"));
             return "redirect:/contexa/admin/role-hierarchies/register";
         }
         return "redirect:/contexa/admin/role-hierarchies";
     }
 
     @GetMapping("/{id}")
-    public String roleHierarchyDetails(@PathVariable Long id, Model model) {
+    public String roleHierarchyDetails(@PathVariable Long id, Model model, RedirectAttributes ra) {
+        RoleHierarchyEntity entity = roleHierarchyService.getRoleHierarchy(id).orElse(null);
+        if (entity == null) {
+            return toListWithoutHierarchy(id, ra);
+        }
         try {
-            RoleHierarchyEntity entity = roleHierarchyService.getRoleHierarchy(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Invalid RoleHierarchy ID: " + id));
-
             RoleHierarchyDto dto = modelMapper.map(entity, RoleHierarchyDto.class);
 
             String hierarchyString = entity.getHierarchyString();
@@ -153,7 +153,7 @@ public class RoleHierarchyController {
 
         } catch (Exception e) {
             log.error("Error loading role hierarchy details for ID: {}", id, e);
-            model.addAttribute("error", msg("msg.hierarchy.load.error"));
+            ra.addFlashAttribute("error", msg("msg.hierarchy.load.error"));
             return "redirect:/contexa/admin/role-hierarchies";
         }
 
@@ -163,13 +163,14 @@ public class RoleHierarchyController {
     @PostMapping("/{id}/edit")
     @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String updateRoleHierarchy(@PathVariable Long id, @ModelAttribute("hierarchy") RoleHierarchyDto hierarchyDto, RedirectAttributes ra) {
+        // A hierarchy that is not there is refused by the service; its page then goes back to the list and says so.
         try {
             hierarchyDto.setId(id);
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
             roleHierarchyService.updateRoleHierarchy(entity);
             ra.addFlashAttribute("message", msg("msg.hierarchy.updated"));
-        } catch (IllegalArgumentException e) {
-            ra.addFlashAttribute("error", e.getMessage());
+        } catch (Exception e) {
+            ra.addFlashAttribute("error", textOf(e, "update role hierarchy " + id));
             return "redirect:/contexa/admin/role-hierarchies/" + id;
         }
         return "redirect:/contexa/admin/role-hierarchies";
@@ -180,28 +181,38 @@ public class RoleHierarchyController {
     public String deleteRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             roleHierarchyService.deleteRoleHierarchy(id);
-            ra.addFlashAttribute("message", msg("msg.hierarchy.deleted", id));
-        } catch (LastAdministratorException e) {
-            throw e;
+            ra.addFlashAttribute("message", msg("msg.hierarchy.deleted", String.valueOf(id)));
         } catch (Exception e) {
-            ra.addFlashAttribute("error", ConsoleFault.textOf(e));
-            log.error("Error deleting role hierarchy ID: {}", id, e);
+            ra.addFlashAttribute("error", textOf(e, "delete role hierarchy " + id));
         }
         return "redirect:/contexa/admin/role-hierarchies";
     }
 
+    /** The list of hierarchies, telling that the one asked for is not there. */
+    private String toListWithoutHierarchy(Long id, RedirectAttributes ra) {
+        log.warn("[RoleHierarchy] No role hierarchy with ID {}", id);
+        ra.addFlashAttribute("error", msg("msg.role.hierarchy.not.found.id", String.valueOf(id)));
+        return "redirect:/contexa/admin/role-hierarchies";
+    }
+
+    /** What the administrator is told of a failed change: a refusal is logged as one, a fault with its stack. */
+    private String textOf(Exception failure, String doing) {
+        if (ConsoleFault.isRefusal(failure)) {
+            log.warn("[RoleHierarchy] Could not {}: {}", doing, failure.getMessage());
+        }
+        return ConsoleFault.textOf(failure, log, doing);
+    }
+
     /**
-     * A change of the role hierarchy that would take the console's last active administrator is refused with a 409:
-     * nothing of it was kept (the refusal rolls the transaction back), and the list of hierarchies says why.
+     * A change of the role hierarchy that would take the console's last active administrator, thrown past the handlers
+     * above, goes back to the list of hierarchies with the reason: nothing of it was kept (the refusal rolls the
+     * transaction back), and the address left is the list's, not the one of the request that was refused.
      */
     @ExceptionHandler(LastAdministratorException.class)
-    public ModelAndView lastAdministrator(LastAdministratorException refusal) {
-        Model model = new ConcurrentModel();
-        String view = getRoleHierarchies(null, 0, model);
-        ModelAndView page = new ModelAndView(view, model.asMap());
-        page.setStatus(HttpStatus.CONFLICT);
-        page.addObject("error", refusal.getMessage());
-        return page;
+    public String lastAdministrator(LastAdministratorException refusal, HttpServletRequest request) {
+        log.warn("[RoleHierarchy] {}", refusal.getMessage());
+        RequestContextUtils.getOutputFlashMap(request).put("error", refusal.getMessage());
+        return "redirect:/contexa/admin/role-hierarchies";
     }
 
     @PostMapping("/{id}/activate")
@@ -210,9 +221,9 @@ public class RoleHierarchyController {
         try {
             boolean newState = roleHierarchyService.activateRoleHierarchy(id);
             String status = newState ? msg("msg.hierarchy.status.activated") : msg("msg.hierarchy.status.deactivated");
-            ra.addFlashAttribute("message", msg("msg.hierarchy.status.changed", id, status));
-        } catch (IllegalArgumentException e) {
-            ra.addFlashAttribute("error", e.getMessage());
+            ra.addFlashAttribute("message", msg("msg.hierarchy.status.changed", String.valueOf(id), status));
+        } catch (Exception e) {
+            ra.addFlashAttribute("error", textOf(e, "switch role hierarchy " + id));
         }
         return "redirect:/contexa/admin/role-hierarchies";
     }

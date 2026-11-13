@@ -268,6 +268,7 @@ class GroupServiceImplTest {
         @Test
         @DisplayName("should delete group by ID")
         void shouldDeleteById() {
+            when(groupRepository.existsById(1L)).thenReturn(true);
             service.deleteGroup(1L);
 
             verify(groupRepository).deleteById(1L);
@@ -276,6 +277,7 @@ class GroupServiceImplTest {
         @Test
         @DisplayName("the permissions given to the group with its roles are deleted first, and the lock stays the first thing")
         void shouldDeleteTheRolePermissionsFirst() {
+            when(groupRepository.existsById(1L)).thenReturn(true);
             service.deleteGroup(1L);
 
             InOrder order = inOrder(lastAdministratorGuard, groupRepository);
@@ -283,6 +285,16 @@ class GroupServiceImplTest {
             order.verify(groupRepository).deleteRolePermissionsOf(1L);
             order.verify(groupRepository).deleteById(1L);
             order.verify(lastAdministratorGuard).refuseLosingEveryAdministrator(any());
+        }
+
+        @Test
+        @DisplayName("a group that is not there is refused with its ID, nothing deleted")
+        void aGroupThatIsNotThere() {
+            when(groupRepository.existsById(999999L)).thenReturn(false);
+
+            assertThatThrownBy(() -> service.deleteGroup(999999L))
+                    .isInstanceOf(IllegalArgumentException.class);
+            verify(groupRepository, never()).deleteById(any());
         }
     }
 

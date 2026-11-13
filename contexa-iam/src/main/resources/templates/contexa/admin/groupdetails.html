@@ -32,7 +32,7 @@
                         <label for="name" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-tag mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.groups.detail.name}">Group Name (unique)</span>
                         </label>
-                        <input type="text" id="name" th:field="*{name}"
+                        <input type="text" id="name" th:field="*{name}" maxlength="100"
                                class="detail-input"
                                th:placeholder="#{admin.groups.detail.name.placeholder}" placeholder="e.g. DEVELOPERS" required />
                     </div>
@@ -41,7 +41,7 @@
                         <label for="description" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-align-left mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.groups.detail.description}">Description</span>
                         </label>
-                        <input type="text" id="description" th:field="*{description}"
+                        <input type="text" id="description" th:field="*{description}" maxlength="500"
                                class="detail-input"
                                th:placeholder="#{admin.groups.detail.description.placeholder}" placeholder="Enter group description" />
                     </div>
