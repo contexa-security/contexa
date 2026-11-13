@@ -189,20 +189,23 @@ class PermissionControllerTest {
             when(permissionService.getPermission(1L)).thenReturn(Optional.of(permission));
             when(modelMapper.map(permission, PermissionDto.class)).thenReturn(dto);
 
-            String view = controller.permissionDetails(1L, model);
+            String view = controller.permissionDetails(1L, model, new RedirectAttributesModelMap());
 
             assertThat(view).isEqualTo("contexa/admin/permissiondetails");
             assertThat(model.getAttribute("permission")).isEqualTo(dto);
         }
 
         @Test
-        @DisplayName("should throw exception for invalid id")
+        @DisplayName("a permission that is not there goes back to the list and says so, the ID without a separator")
         void invalidId() {
             Model model = new ConcurrentModel();
-            when(permissionService.getPermission(999L)).thenReturn(Optional.empty());
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            when(permissionService.getPermission(999999L)).thenReturn(Optional.empty());
 
-            assertThrows(IllegalArgumentException.class,
-                    () -> controller.permissionDetails(999L, model));
+            String view = controller.permissionDetails(999999L, model, ra);
+
+            assertThat(view).isEqualTo("redirect:/contexa/admin/permissions");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).isEqualTo("msg.permission.not.found.id 999999");
         }
     }
 

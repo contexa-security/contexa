@@ -16,7 +16,7 @@
     'use strict';
 
     /**
-     * Bundled i18n strings. Auto-selected by navigator.language; caller can still
+     * Bundled i18n strings. Auto-selected by the page language (then navigator.language); caller can still
      * override any key by passing an explicit options.xxxText to the SDK.
      */
     const __ContexaLlmI18n = (function() {
@@ -44,7 +44,10 @@
                 errorPrefix: '오류'
             }
         };
-        const lang = ((typeof navigator !== 'undefined' && navigator.language) || 'en')
+        // The console language (html lang, set from the session locale) wins over the browser language.
+        const pageLang = typeof document !== 'undefined' && document.documentElement
+                ? document.documentElement.lang : '';
+        const lang = (pageLang || (typeof navigator !== 'undefined' && navigator.language) || 'en')
                 .slice(0, 2).toLowerCase();
         return messages[lang] || messages.en;
     })();
@@ -97,6 +100,8 @@
             return new Promise((resolve, reject) => {
                 let finalResponse = null;
                 let finalResponseMarkerReceived = false;
+                // A failure the server sent (an "error" event, or an "ERROR:" line) ends the call as an error.
+                let streamError = null;
 
                 this.startStreaming(url, requestData, {
                     onChunk: (chunk) => {
@@ -110,6 +115,11 @@
                         if (callbacks.onFinalResponse) callbacks.onFinalResponse(data);
                     },
                     onComplete: () => {
+                        if (streamError) {
+                            if (callbacks.onError) callbacks.onError(streamError);
+                            reject(streamError);
+                            return;
+                        }
                         if (finalResponseMarkerReceived && this.finalResponseBuffer) {
                             finalResponse = this.parseFinalResponse(this.finalResponseBuffer);
                         }
@@ -128,7 +138,10 @@
                         resolve(null);
                     },
                     onDone: callbacks.onDone,
-                    onStreamError: callbacks.onStreamError
+                    onStreamError: (error) => {
+                        streamError = error instanceof Error ? error : new Error(String(error));
+                        if (callbacks.onStreamError) callbacks.onStreamError(streamError);
+                    }
                 });
             });
         }
@@ -225,12 +238,40 @@
 
         processSSELine(line, callbacks) {
             const trimmedLine = line.trim();
-            if (!trimmedLine || trimmedLine.startsWith(':')) return;
+            if (!trimmedLine) {
+                // A blank line ends an SSE event: its name holds for that event only.
+                this.eventName = null;
+                return;
+            }
+            if (trimmedLine.startsWith(':')) return;
+
+            if (trimmedLine.startsWith('event:')) {
+                this.eventName = trimmedLine.substring(6).trim();
+                return;
+            }
 
             if (trimmedLine.startsWith('data:')) {
                 const data = trimmedLine.substring(5).trim();
+                if (this.eventName === 'error') {
+                    this.processSSEError(data, callbacks);
+                    return;
+                }
                 this.processSSEData(data, callbacks);
             }
+        }
+
+        // The server ends a failed stream with one "error" event whose data is {"code": ..., "message": ...}; the message
+        // is already in the page language, the code says the cause (AI_MODEL_UNREACHABLE, TIMEOUT, ...).
+        processSSEError(data, callbacks) {
+            let detail = null;
+            try {
+                detail = JSON.parse(data);
+            } catch (e) {
+                detail = null;
+            }
+            const error = new Error((detail && detail.message) || data || 'The stream failed');
+            error.code = (detail && detail.code) || 'STREAM_ERROR';
+            if (callbacks.onStreamError) callbacks.onStreamError(error);
         }
 
         processSSEData(data, callbacks) {

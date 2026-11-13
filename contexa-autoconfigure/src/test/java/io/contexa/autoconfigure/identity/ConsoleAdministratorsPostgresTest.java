@@ -15,6 +15,13 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import io.contexa.contexacommon.entity.Permission;
+import io.contexa.contexacommon.entity.SystemSettings;
+import org.slf4j.LoggerFactory;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Role;
@@ -76,6 +83,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
@@ -91,7 +99,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * The console keeps an active administrator on a real PostgreSQL database: two administrators who demote each other
@@ -116,6 +126,12 @@ class ConsoleAdministratorsPostgresTest {
 
     /** Where the two edits of a race meet before either has finished: set by the test that races. */
     private static final AtomicReference<CyclicBarrier> MEETING = new AtomicReference<>();
+
+    /** The method of a repository the two edits of the next race meet at. */
+    private static final AtomicReference<String> MEETING_AT = new AtomicReference<>();
+
+    private static final PasswordEncoder ENCODER = mock(PasswordEncoder.class);
+    private static final SystemSettingsService SETTINGS = mock(SystemSettingsService.class);
 
     private long adminRole;
     private long userRole;
@@ -147,11 +163,14 @@ class ConsoleAdministratorsPostgresTest {
         EntityManager entityManager = SharedEntityManagerCreator.createSharedEntityManager(entityManagers.getObject());
         JpaRepositoryFactory repositories = new JpaRepositoryFactory(entityManager);
 
-        UserRepository users = meeting(repositories.getRepository(UserRepository.class));
-        GroupRepository groups = repositories.getRepository(GroupRepository.class);
-        RoleRepository roles = repositories.getRepository(RoleRepository.class);
+        UserRepository users = meeting(UserRepository.class, repositories.getRepository(UserRepository.class));
+        GroupRepository groups = meeting(GroupRepository.class, repositories.getRepository(GroupRepository.class));
+        RoleRepository roles = meeting(RoleRepository.class, repositories.getRepository(RoleRepository.class));
         RoleHierarchyRepository hierarchies = repositories.getRepository(RoleHierarchyRepository.class);
-        PermissionRepository permissions = repositories.getRepository(PermissionRepository.class);
+        PermissionRepository permissions = meeting(PermissionRepository.class,
+                repositories.getRepository(PermissionRepository.class));
+        when(ENCODER.encode(any())).thenReturn("encoded");
+        when(SETTINGS.getSettings()).thenReturn(SystemSettings.builder().build());
         UserRolePermissionRepository userRolePermissions = repositories.getRepository(UserRolePermissionRepository.class);
         GroupRolePermissionRepository groupRolePermissions = repositories.getRepository(GroupRolePermissionRepository.class);
         hierarchy = new RoleHierarchyImpl();
@@ -169,15 +188,15 @@ class ConsoleAdministratorsPostgresTest {
                 mock(PolicySynchronizationService.class), messages, guard);
         groupService = new GroupServiceImpl(groups, roles, hierarchies, messages, guard);
         hierarchyService = new RoleHierarchyService(hierarchies, roles, hierarchy, messages, guard);
-        userManagement = new UserManagementServiceImpl(users, groups, roles, mock(PasswordEncoder.class),
+        userManagement = new UserManagementServiceImpl(users, groups, roles, ENCODER,
                 new ModelMapper(), mock(CentralAuditFacade.class), mock(PasswordPolicyService.class),
-                mock(SystemSettingsService.class), messages, userRolePermissions,
+                SETTINGS, messages, userRolePermissions,
                 repositories.getRepository(BridgeUserProfileRepository.class), mock(ApplicationEventPublisher.class),
                 guard);
         accessCenter = new AccessCenterService(users, repositories.getRepository(UserRoleRepository.class), groups,
                 roles, permissions, roleService, userRolePermissions, groupRolePermissions, guard);
         permissionService = new PermissionServiceImpl(permissions, mock(ManagedResourceRepository.class),
-                mock(PolicyRepository.class), messages);
+                mock(PolicyRepository.class), messages, guard);
         warmUp();
     }
 
@@ -206,6 +225,7 @@ class ConsoleAdministratorsPostgresTest {
     @BeforeEach
     void anEmptyConsole() {
         MEETING.set(null);
+        MEETING_AT.set(null);
         jdbc.execute("truncate ctxa_user_roles, ctxa_user_groups, ctxa_group_roles, ctxa_users, ctxa_role, "
                 + "ctxa_app_group, ctxa_role_hierarchy_config, ctxa_permission restart identity cascade");
         hierarchy.setHierarchy("");
@@ -337,8 +357,8 @@ class ConsoleAdministratorsPostgresTest {
         long line = hierarchyLine("ROLE_SUPER > ROLE_ADMIN");
 
         assertRefusedAndNothingKept(() -> transactions.executeWithoutResult(s -> hierarchyService.updateRoleHierarchy(
-                RoleHierarchyEntity.builder().id(line).hierarchyString("ROLE_SUPER > ROLE_USER").isActive(true)
-                        .build())));
+                RoleHierarchyEntity.builder().id(line).hierarchyString("ROLE_SUPER > ROLE_USER").description("rewritten")
+                        .isActive(true).build())));
         assertRefusedAndNothingKept(() -> transactions.executeWithoutResult(s -> hierarchyService.deleteRoleHierarchy(line)));
         assertRefusedAndNothingKept(() -> transactions.executeWithoutResult(s -> hierarchyService.activateRoleHierarchy(line)));
 
@@ -632,7 +652,147 @@ class ConsoleAdministratorsPostgresTest {
                 unused)).isZero();
     }
 
+    // ----- two administrators who create the same name at the same moment -----
+
+    @Test
+    @DisplayName("two creations of a user of the same name at the same moment: one user, the other told why, no error logged")
+    void twoCreationsOfTheSameUser() throws Exception {
+        meetAt("findByUsername");
+
+        Race race = race(() -> transactions.executeWithoutResult(s -> userManagement.createUser(newUser("carol", "carol"))),
+                () -> transactions.executeWithoutResult(s -> userManagement.createUser(newUser("carol", "carol"))));
+
+        assertOneCreatedAndTheOtherToldWhy(race, "Username already exists: carol");
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_users where username = 'carol'", Integer.class))
+                .isOne();
+    }
+
+    @Test
+    @DisplayName("two creations of users with one email address at the same moment: one user, the other told why")
+    void twoCreationsWithTheSameEmail() throws Exception {
+        meetAt("findByUsername");
+
+        Race race = race(() -> transactions.executeWithoutResult(s -> userManagement.createUser(newUser("dave", "shared"))),
+                () -> transactions.executeWithoutResult(s -> userManagement.createUser(newUser("erin", "shared"))));
+
+        assertOneCreatedAndTheOtherToldWhy(race, "shared@console.example is already used by another user");
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_users where email = 'shared@console.example'",
+                Integer.class)).isOne();
+    }
+
+    @Test
+    @DisplayName("two creations of a role of the same name at the same moment: one role, the other told why, no error logged")
+    void twoCreationsOfTheSameRole() throws Exception {
+        meetAt("findAll");
+
+        Race race = race(() -> transactions.executeWithoutResult(s -> roleService.createRole(newRole("ROLE_AUDIT"), null)),
+                () -> transactions.executeWithoutResult(s -> roleService.createRole(newRole("ROLE_AUDIT"), null)));
+
+        assertOneCreatedAndTheOtherToldWhy(race, "Role with name ROLE_AUDIT already exists");
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_role where role_name = 'ROLE_AUDIT'", Integer.class))
+                .isOne();
+    }
+
+    @Test
+    @DisplayName("two creations of a group of the same name at the same moment: one group, the other told why, no error logged")
+    void twoCreationsOfTheSameGroup() throws Exception {
+        meetAt("findByName");
+
+        Race race = race(() -> transactions.executeWithoutResult(s -> groupService.createGroup(newGroup("audit"), null)),
+                () -> transactions.executeWithoutResult(s -> groupService.createGroup(newGroup("audit"), null)));
+
+        assertOneCreatedAndTheOtherToldWhy(race, "A group with this name already exists");
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_app_group where group_name = 'audit'", Integer.class))
+                .isOne();
+    }
+
+    @Test
+    @DisplayName("two creations of a permission of the same name at the same moment: one permission, the other told why")
+    void twoCreationsOfTheSamePermission() throws Exception {
+        meetAt("findByName");
+
+        Race race = race(() -> transactions.executeWithoutResult(s -> permissionService.createPermission(newPermission())),
+                () -> transactions.executeWithoutResult(s -> permissionService.createPermission(newPermission())));
+
+        assertOneCreatedAndTheOtherToldWhy(race, "Permission with name AUDIT_READ already exists");
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_permission where permission_name = 'AUDIT_READ'",
+                Integer.class)).isOne();
+    }
+
     // ----- helpers -----
+
+    /** The outcomes of two edits made at the same moment, and what was logged as an error while they ran. */
+    private record Race(List<Throwable> outcomes, List<String> errorsLogged) {
+    }
+
+    private static Race race(Runnable first, Runnable second) throws Exception {
+        // The reasons are read in English on the threads of the race too.
+        Runnable firstInEnglish = () -> {
+            LocaleContextHolder.setLocale(Locale.ENGLISH);
+            first.run();
+        };
+        Runnable secondInEnglish = () -> {
+            LocaleContextHolder.setLocale(Locale.ENGLISH);
+            second.run();
+        };
+        Logger root = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        ListAppender<ILoggingEvent> logged = new ListAppender<>();
+        logged.start();
+        root.addAppender(logged);
+        try {
+            List<Throwable> outcomes = concurrently(firstInEnglish, secondInEnglish);
+            List<String> errors = logged.list.stream()
+                    .filter(event -> event.getLevel().isGreaterOrEqual(Level.ERROR))
+                    .map(event -> event.getLoggerName() + ": " + event.getFormattedMessage())
+                    .toList();
+            return new Race(outcomes, errors);
+        } finally {
+            root.detachAppender(logged);
+        }
+    }
+
+    /**
+     * One creation went through; the other waited for it and was refused with the reason the console gives for a name
+     * that is taken, not with the unique constraint of the table, which would be logged as an error.
+     */
+    private static void assertOneCreatedAndTheOtherToldWhy(Race race, String reason) {
+        assertThat(race.outcomes()).hasSize(2);
+        assertThat(race.outcomes().stream().filter(outcome -> outcome == null)).as("creations that went through: "
+                + race.outcomes()).hasSize(1);
+        assertThat(race.outcomes().stream().filter(outcome -> outcome != null).toList())
+                .singleElement()
+                .satisfies(refusal -> assertThat(refusal).isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining(reason));
+        assertThat(race.errorsLogged()).as("errors logged while the two creations ran").isEmpty();
+    }
+
+    /** The two edits of the next race reach the given method of a repository together, when they can. */
+    private static void meetAt(String method) {
+        MEETING_AT.set(method);
+        MEETING.set(new CyclicBarrier(2));
+    }
+
+    private static UserDto newUser(String username, String mailbox) {
+        UserDto form = new UserDto();
+        form.setUsername(username);
+        form.setName(username);
+        form.setEmail(mailbox + "@console.example");
+        form.setPassword("a password of the policy");
+        form.setEnabled(true);
+        return form;
+    }
+
+    private static Role newRole(String name) {
+        return Role.builder().roleName(name).roleDesc("audit").enabled(true).rolePermissions(new HashSet<>()).build();
+    }
+
+    private static Group newGroup(String name) {
+        return Group.builder().name(name).description("audit").enabled(true).build();
+    }
+
+    private static Permission newPermission() {
+        return Permission.builder().name("AUDIT_READ").friendlyName("Audit read").build();
+    }
 
     private static AccessRoleAssignmentsRequest assignment(long roleId, String crud) {
         AccessCenterDtos.AccessRoleAssignmentRequest assignment = new AccessCenterDtos.AccessRoleAssignmentRequest();
@@ -683,18 +843,18 @@ class ConsoleAdministratorsPostgresTest {
 
     /** The two edits of the next race reach the check of the last administrator together, when they can. */
     private void meetBeforeEitherFinishes() {
-        MEETING.set(new CyclicBarrier(2));
+        meetAt("countEnabledOwnAccountsHoldingAnyRole");
     }
 
     /**
-     * The user repository the guard counts through: while a race is set up, the first count of each edit waits for the
-     * other edit's count, so that both look before either has finished. An edit that cannot get there because the
-     * other holds the console's lock stops waiting after a moment.
+     * A repository the edits read through: while a race is set up, the first call of each edit to the method of the race
+     * waits for the other edit's call, so that both look before either has finished. An edit that cannot get there
+     * because the other holds the console's lock stops waiting after a moment.
      */
-    private static UserRepository meeting(UserRepository real) {
-        return (UserRepository) Proxy.newProxyInstance(UserRepository.class.getClassLoader(),
-                new Class<?>[]{UserRepository.class}, (proxy, method, args) -> {
-                    if (method.getName().equals("countEnabledOwnAccountsHoldingAnyRole")) {
+    private static <T> T meeting(Class<T> type, T real) {
+        return type.cast(Proxy.newProxyInstance(type.getClassLoader(),
+                new Class<?>[]{type}, (proxy, method, args) -> {
+                    if (method.getName().equals(MEETING_AT.get())) {
                         CyclicBarrier barrier = MEETING.get();
                         if (barrier != null) {
                             try {
@@ -709,7 +869,7 @@ class ConsoleAdministratorsPostgresTest {
                     } catch (InvocationTargetException e) {
                         throw e.getCause();
                     }
-                });
+                }));
     }
 
     private static List<Throwable> concurrently(Runnable first, Runnable second) throws Exception {

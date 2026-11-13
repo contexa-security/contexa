@@ -47,7 +47,12 @@ public class FlowBoundOneTimeTokenRequestResolver implements GenerateOneTimeToke
             throw new OneTimeTokenAddressRefusedException("Invalid one-time token delivery request");
         }
         String email = request.getParameter("email");
-        if (email != null && !email.isBlank()) {
+        boolean blankEmail = email == null || email.isBlank();
+        if (flow != null && MfaFlowTypeUtils.isMfaFlow(flow.getFlowTypeName())) {
+            // the step knows its user when the code comes back and limits the attempts: a six-digit code
+            return new MfaCodeRequest(username, blankEmail ? null : email);
+        }
+        if (!blankEmail) {
             return new EmailGenerateOneTimeTokenRequest(username, email);
         }
         return new GenerateOneTimeTokenRequest(username);

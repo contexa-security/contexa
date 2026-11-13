@@ -34,10 +34,21 @@ public final class PromptReleaseScreen {
             // N-GOV-5: a deprecation needs another active release in the bundle's place.
             "NO_OTHER_ACTIVE_RELEASE");
 
+    /**
+     * The bundle elements by code and state that the compare screen describes in the page language. The manifest's own
+     * description of an element is the frozen text of the bundle and stays in the record; another combination shows its
+     * state only.
+     */
+    public static final List<String> ELEMENT_DETAILS = List.of("B1.PRESENT", "B2.ABSENT", "B2.PRESENT", "B3.PRESENT",
+            "B4.PRESENT", "B5.ABSENT", "B5.PRESENT", "B6.PRESENT", "B7.PRESENT", "B8.PRESENT", "B9.ABSENT",
+            "B9.PRESENT", "B10.PRESENT", "B10.UNVERSIONED", "B11.INCLUDED");
+
     /** The reasons a rollback or its approval is refused (PromptBundleRollbackService). */
     public static final List<String> REFUSALS = List.of("SOURCE_NOT_EXECUTING", "TARGET_NOT_IN_BUILD",
             "TARGET_NOT_DECLARED", "VOCABULARY_INCOMPATIBLE", "TARGET_NOT_REGISTERED", "POLICY_SET_MISSING",
-            "EXECUTION_NOT_FOUND", "NOT_AWAITING_APPROVAL", "APPROVER_IS_ACTOR");
+            "EXECUTION_NOT_FOUND", "NOT_AWAITING_APPROVAL", "APPROVER_IS_ACTOR", "REQUEST_REQUIRED",
+            "REGISTRY_SCOPE_REQUIRED", "PROMPT_KEY_REQUIRED", "FROM_VERSION_REQUIRED", "TO_VERSION_REQUIRED",
+            "REASON_REQUIRED");
 
     /** The statuses a recorded rollback execution can have. */
     public static final List<String> EXECUTIONS = List.of(PromptBundleRollbackService.EXECUTED,

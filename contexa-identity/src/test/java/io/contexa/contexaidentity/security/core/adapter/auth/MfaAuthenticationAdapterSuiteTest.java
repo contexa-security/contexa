@@ -283,6 +283,7 @@ class MfaAuthenticationAdapterSuiteTest {
             when(mockConfigurer.tokenService(any())).thenReturn(mockConfigurer);
             when(mockConfigurer.tokenGenerationSuccessHandler(any())).thenReturn(mockConfigurer);
             when(mockConfigurer.generateRequestResolver(any())).thenReturn(mockConfigurer);
+            when(mockConfigurer.authenticationConverter(any())).thenReturn(mockConfigurer);
             when(mockConfigurer.authenticationProvider(any())).thenReturn(mockConfigurer);
 
             when(httpSecurity.oneTimeTokenLogin(any(Customizer.class))).thenAnswer(invocation -> {

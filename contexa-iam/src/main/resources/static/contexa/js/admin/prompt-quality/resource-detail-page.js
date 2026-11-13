@@ -1,10 +1,11 @@
 import { appPath, escapeHtml, ensureArray, rawText, text } from '../verification-ui-common.js';
 import { bootDetailPage } from './prompt-quality-page.js';
 import { t } from './prompt-quality-i18n.js';
+import { promptQualityApiRoot, promptQualityRouteRoot } from './prompt-quality-api.js';
 
 const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD']);
-const API_BASE = appPath('/admin/api/enterprise/prompt-quality');
-const PAGE_BASE = appPath('/admin/enterprise/prompt-quality');
+const API_BASE = appPath(promptQualityApiRoot());
+const PAGE_BASE = appPath(promptQualityRouteRoot());
 
 const root = document.querySelector('[data-pqa-page="resource-detail"]');
 const resourceId = root?.dataset.resourceId || '';
@@ -521,7 +522,8 @@ function formatProcessTime(value) {
     if (Number.isNaN(date.getTime())) {
         return raw;
     }
-    return date.toLocaleString();
+    // The console language (html lang), not the browser language.
+    return date.toLocaleString(document.documentElement.lang || undefined);
 }
 
 function validRoute(value) {

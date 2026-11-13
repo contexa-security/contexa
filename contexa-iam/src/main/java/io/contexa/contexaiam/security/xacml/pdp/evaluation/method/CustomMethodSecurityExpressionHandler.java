@@ -6,6 +6,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyFunctions;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -105,6 +106,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         MethodBasedEvaluationContext ctx = new MethodBasedEvaluationContext(
                 root, method, mi.getArguments(), getParameterNameDiscoverer());
         ctx.setBeanResolver(getBeanResolver());
+        PolicyFunctions.register(ctx);
         ctx.setVariable("ai", root);
         if (StringUtils.hasText(ownerField)) {
             ctx.setVariable("ownerField", ownerField);

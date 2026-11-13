@@ -86,6 +86,7 @@ public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapt
         String loginPageUrl = UrlPrefixes.apply(prefix, opts.getLoginProcessingUrl());
         DefaultRestLoginPageGeneratingFilter loginPageFilter = new DefaultRestLoginPageGeneratingFilter(loginPageUrl);
         loginPageFilter.setMessageSource(http.getSharedObject(ApplicationContext.class));
+        loginPageFilter.setLocaleSource(http.getSharedObject(ApplicationContext.class));
         http.addFilterBefore(loginPageFilter, UsernamePasswordAuthenticationFilter.class);
     }
 }

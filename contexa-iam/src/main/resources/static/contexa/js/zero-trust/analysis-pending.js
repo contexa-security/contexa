@@ -4,6 +4,8 @@
     var eventSource = null;
     var reconnectTimeout = null;
     var noResponseTimeout = null;
+    // Console paths get the servlet context path in front (console-net.js); addresses that carry it stay as they are.
+    var consoleUrl = window.ContexaConsole ? window.ContexaConsole.url : function (value) { return value; };
 
     function _i18n(key, fallback) {
         var el = document.getElementById('i18nZeroTrustPending');
@@ -44,16 +46,16 @@
         updateStep('step-decision', 'complete');
 
         if (action === 'ALLOW') {
-            window.location.href = returnUrl;
+            window.location.href = consoleUrl(returnUrl);
         } else if (action === 'BLOCK') {
-            window.location.href = '/contexa/zero-trust/blocked';
+            window.location.href = consoleUrl('/contexa/zero-trust/blocked');
         } else if (action === 'CHALLENGE') {
             showError(_i18n('mfaRequired', 'Additional authentication required. Redirecting to MFA login page.'));
             setTimeout(function () {
                 var cfg = window.__MFA_CONFIG__;
                 var loginPage = (cfg && cfg.primary && cfg.primary.formLoginPage)
                     ? cfg.primary.formLoginPage : '/mfa/login';
-                window.location.href = loginPage;
+                window.location.href = consoleUrl(loginPage);
             }, 2000);
         }
     }
@@ -70,7 +72,7 @@
             eventSource.close();
         }
 
-        eventSource = new EventSource('/contexa/admin/api/aiam/sse/zero-trust/subscribe');
+        eventSource = new EventSource(consoleUrl('/contexa/admin/api/aiam/sse/zero-trust/subscribe'));
 
         eventSource.addEventListener('connected', function () {
             updateSseStatus(true);

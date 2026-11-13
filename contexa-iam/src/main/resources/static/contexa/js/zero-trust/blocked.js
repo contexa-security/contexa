@@ -52,7 +52,7 @@ function initiateBlockMfa() {
     .then(function (res) { return res.json(); })
     .then(function (data) {
         if (data.success) {
-            window.location.href = '/';
+            window.location.href = window.ContexaConsole ? window.ContexaConsole.url('/') : '/';
         } else {
             showResult(false, data.message || _i18n('mfaInitFailed', 'MFA initialization failed.'));
             btn.disabled = false;

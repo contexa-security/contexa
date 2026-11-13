@@ -25,9 +25,11 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.OverviewSumm
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.ReadinessSummary;
 import io.contexa.contexaiam.admin.web.monitoring.service.AiSecurityDecisionMonitoringService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -46,10 +48,14 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.List;
 import java.util.Locale;
 
+@Slf4j
 @Controller
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AiMonitorController {
+
+    /** The reason code of a reset refused because the confirmation text did not match. */
+    public static final String RESET_CONFIRMATION_MISMATCH = "RESET_CONFIRMATION_MISMATCH";
 
     private final AiSecurityDecisionMonitoringService aiSecurityDecisionMonitoringService;
 
@@ -157,18 +163,28 @@ public class AiMonitorController {
         return summary == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(summary);
     }
 
+    /**
+     * Restarts monitoring once the confirmation word is typed. A wrong or missing word is a 400 whose body names the
+     * reason ({@link #RESET_CONFIRMATION_MISMATCH}) and the word required, so the screen can say it in its language.
+     */
     @ResponseBody
     @PostMapping("/contexa/admin/api/ai-monitor/reset")
-    public MonitoringResetResponse resetMonitoring(
+    public ResponseEntity<?> resetMonitoring(
             @RequestBody(required = false) MonitoringResetRequest request,
             Authentication authentication) {
         requireAdmin(authentication);
         if (!AiSecurityDecisionMonitoringService.isResetConfirmationAccepted(request)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "AI security monitoring reset confirmation is required.");
+            log.warn("[AI-MONITOR-RESET] Reset refused: confirmation text did not match");
+            ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+                    "AI security monitoring reset requires the confirmation text "
+                            + AiSecurityDecisionMonitoringService.RESET_CONFIRMATION_TEXT + ".");
+            problem.setProperty("code", RESET_CONFIRMATION_MISMATCH);
+            problem.setProperty("required", AiSecurityDecisionMonitoringService.RESET_CONFIRMATION_TEXT);
+            return ResponseEntity.badRequest().body(problem);
         }
         String resetBy = authentication == null ? null : authentication.getName();
-        return aiSecurityDecisionMonitoringService.resetMonitoring(request, resetBy);
+        MonitoringResetResponse response = aiSecurityDecisionMonitoringService.resetMonitoring(request, resetBy);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping(value = "/contexa/admin/api/ai-monitor/export.csv", produces = "text/csv")
@@ -191,6 +207,7 @@ public class AiMonitorController {
         model.addAttribute("period", period == null || period.isBlank() ? "day" : period);
         model.addAttribute("activePage", activePage);
         model.addAttribute("pagePath", pagePath);
+        model.addAttribute("resetConfirmationText", AiSecurityDecisionMonitoringService.RESET_CONFIRMATION_TEXT);
         return "contexa/admin/ai-monitor";
     }
 

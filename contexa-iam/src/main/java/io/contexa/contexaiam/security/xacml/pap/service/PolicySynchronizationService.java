@@ -88,11 +88,20 @@ public class PolicySynchronizationService {
                 .toList();
 
         Optional<Policy> existingPolicy = policyRepository.findByName(policyName);
-        if (targetDtos.isEmpty() && existingPolicy.isEmpty()) {
+        if (targetDtos.isEmpty()) {
             // A policy needs a target, and the target is the resource a permission guards: with none, there is nothing
-            // for an automatic policy to say. A policy that exists is still brought up to date below.
-            log.info("Role '{}' holds no permission that guards a resource, so it has no automatic policy to make",
-                    role.getRoleName());
+            // for an automatic policy to say. One made before is deleted, as when the role is deleted, instead of being
+            // left active with no target and a condition that is always false (D42); the permissions and
+            // their links to the resources stay.
+            existingPolicy.ifPresentOrElse(
+                    policy -> {
+                        log.info("Role '{}' holds no permission that guards a resource any more, so its automatic "
+                                + "policy is deleted. policyId={}", role.getRoleName(), policy.getId());
+                        policyService.deleteAutomaticPolicy(policy.getId(),
+                                "Auto-cleanup: role holds no permission that guards a resource - " + role.getRoleName());
+                    },
+                    () -> log.info("Role '{}' holds no permission that guards a resource, so it has no automatic "
+                            + "policy to make", role.getRoleName()));
             return;
         }
 
@@ -112,7 +121,8 @@ public class PolicySynchronizationService {
 
         PolicyDto policyDto = PolicyDto.builder()
                 .name(policyName)
-                .description(String.format("Auto-synchronized policy for role '%s'", role.getRoleDesc()))
+                // D31: the role name, not its description: a description in another language would mix with the sentence.
+                .description(String.format("Auto-synchronized policy for role '%s'", role.getRoleName()))
                 .effect(Policy.Effect.ALLOW)
                 .priority(500) 
                 .targets(targetDtos)

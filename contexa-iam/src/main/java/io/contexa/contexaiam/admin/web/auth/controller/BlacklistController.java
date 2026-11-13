@@ -77,7 +77,7 @@ public class BlacklistController {
                     return "contexa/admin/blacklist-detail";
                 })
                 .orElseGet(() -> {
-                    ra.addFlashAttribute("errorMessage", msg("msg.blacklist.not.found", id));
+                    ra.addFlashAttribute("errorMessage", msg("msg.blacklist.not.found", String.valueOf(id)));
                     return "redirect:/contexa/admin/blacklist";
                 });
     }

@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.center.service;
 
 import io.contexa.contexaiam.common.ConsoleFault;
+import io.contexa.contexaiam.common.ConsoleInput;
 import java.util.Locale;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
@@ -47,7 +48,9 @@ import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.resource.util.ResourceTargetKey;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
 import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
+import io.contexa.contexaiam.security.xacml.pap.service.DefaultPolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyEnrichmentService;
+import io.contexa.contexaiam.security.xacml.pap.service.PolicyReloadAfterCommit;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
@@ -58,9 +61,7 @@ import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.MessageSource;
-import org.springframework.context.event.EventListener;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -70,8 +71,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -88,6 +93,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class PolicyCenterCommandService {
 
     private static final Pattern AUTHORITY = Pattern.compile("hasAuthority\\(" + SpelLiteral.PATTERN + "\\)");
+    private static final String AUTO_POLICY_PREFIX = "AUTO_POLICY_FOR_";
 
     private final ResourceRegistryService resourceRegistryService;
     /** Tells the other nodes to reload in the distributed mode (CF-02); null on a single node. */
@@ -133,10 +139,10 @@ public class PolicyCenterCommandService {
             policyService.createPolicy(request.toPolicyDto());
             return new PolicyActionResponse(true, msg("msg.policy.created"), null);
         } catch (DataIntegrityViolationException e) {
-            log.error("Duplicate policy name", e);
+            log.warn("Policy creation refused, the name is taken: {}", e.getMessage());
             return new PolicyActionResponse(false, msg("msg.policy.name.duplicate"), null);
         } catch (Exception e) {
-            log.error("Failed to create policy", e);
+            ConsoleFault.report(e, log, "create a policy");
             return new PolicyActionResponse(false, msg("msg.policy.create.error", ConsoleFault.textOf(e)), null);
         }
     }
@@ -183,10 +189,10 @@ public class PolicyCenterCommandService {
                     : msg("msg.policy.auto.duplicate.warning", String.join(", ", duplicateAutoRoles));
             return new PolicyQuickCreateResponse(true, saved.getId(), msg("msg.policy.created"), warning);
         } catch (DataIntegrityViolationException e) {
-            log.error("Duplicate policy name", e);
+            log.warn("Policy creation refused, the name is taken: {}", e.getMessage());
             return new PolicyQuickCreateResponse(false, null, msg("msg.policy.name.duplicate"), null);
         } catch (Exception e) {
-            log.error("Failed to create quick policy", e);
+            ConsoleFault.report(e, log, "create a quick policy");
             return new PolicyQuickCreateResponse(false, null, msg("msg.policy.create.error", ConsoleFault.textOf(e)), null);
         }
     }
@@ -223,7 +229,7 @@ public class PolicyCenterCommandService {
                     updated++;
                 }
             } catch (Exception e) {
-                log.error("Failed to reset resource status: {}", id, e);
+                ConsoleFault.report(e, log, "reset the status of resource " + id);
             }
         }
         return new PolicyActionResponse(true, null, updated);
@@ -274,6 +280,9 @@ public class PolicyCenterCommandService {
                         continue;
                     }
 
+                    // D67: the resource is the target and the description of the policy: refused beyond its column.
+                    ConsoleInput.required(messageSource, "policy.field.target.identifier", item.getResourceIdentifier(),
+                            DefaultPolicyService.TEXT_MAX);
                     String crudCondition = new TreeSet<>(item.getCrudPermissions()).stream()
                             .map(SpelLiteral::hasAuthority)
                             .collect(Collectors.joining(" or "));
@@ -366,7 +375,7 @@ public class PolicyCenterCommandService {
                             null,
                             null));
                 } catch (Exception e) {
-                    log.error("Batch item failed: {}", item.getResourceIdentifier(), e);
+                    ConsoleFault.report(e, log, "create the batch policy of " + item.getResourceIdentifier());
                     results.add(new PolicyBatchItemResponse(
                             resourceIdentifierOrUnknown(item),
                             "ERROR",
@@ -392,32 +401,35 @@ public class PolicyCenterCommandService {
         }
     }
 
-    @EventListener(ApplicationReadyEvent.class)
-    @Transactional(transactionManager = "contexaTransactionManager")
-    public void autoMigratePolicyExpressions() {
-        try {
-            int migrated = executePolicyMigration();
-            if (migrated > 0) {
-                log.info("[migration] Auto-migrated {} policy expressions from URL_/METHOD_ to CRUD", migrated);
-            }
-        } catch (Exception e) {
-            log.error("[migration] Auto-migration failed", e);
-            rollBackWhatFailed();
-        }
-    }
-
+    /**
+     * Rewrites the URL_/METHOD_ authorities of policy conditions as CRUD permissions, when an administrator asks for it.
+     * It no longer runs at every start (D41): the resource definition and the access center write URL_/METHOD_
+     * authorities today, and a rewrite nobody asked for changed what saved policies mean. An authority no permission
+     * has is kept as it is, each policy changed gets a version to roll back to, the automatic policies of the roles
+     * are left to the synchronization that writes them, and the policies are reloaded once the change has committed.
+     */
     @Transactional(transactionManager = "contexaTransactionManager")
     public PolicyMigrationResponse migratePolicyExpressionsToCrud() {
         try {
             int migrated = executePolicyMigration();
+            if (migrated > 0) {
+                log.info("Policy expressions migrated from URL_/METHOD_ to CRUD on request. policies={}", migrated);
+                reloadAfterCommit();
+            }
             return new PolicyMigrationResponse(true, migrated, null);
         } catch (Exception e) {
-            log.error("Failed to migrate policy expressions", e);
+            ConsoleFault.report(e, log, "migrate the policy expressions");
             rollBackWhatFailed();
             return new PolicyMigrationResponse(false, null, ConsoleFault.textOf(e));
         }
     }
 
+    /**
+     * Deletes the automatic URL_/METHOD_ permissions nothing uses any more (D40). The resource definition makes
+     * permissions of the same shape today, so the shape alone does not tell an old one: a permission is deleted only
+     * when no resource is linked to it, no role, group role or account role carries it, and no policy condition names
+     * it. A permission still in use is kept and named in the answer, and no grant is ever removed with it.
+     */
     @Transactional(transactionManager = "contexaTransactionManager")
     public PolicyCleanupResponse cleanupOldAutoCreatedPermissions() {
         try {
@@ -426,25 +438,29 @@ public class PolicyCenterCommandService {
                             && p.getName() != null
                             && (p.getName().startsWith("URL_") || p.getName().startsWith("METHOD_")))
                     .toList();
+            Set<String> namedInPolicies = oldPerms.isEmpty() ? Set.of() : authoritiesNamedInPolicies();
 
             List<Long> deletedIds = new ArrayList<>();
+            List<String> keptNames = new ArrayList<>();
             for (Permission perm : oldPerms) {
-                if (perm.getManagedResource() != null) {
-                    perm.setManagedResource(null);
+                if (isInUse(perm, namedInPolicies)) {
+                    keptNames.add(perm.getName());
+                } else {
+                    deletedIds.add(perm.getId());
                 }
-                deletedIds.add(perm.getId());
             }
 
             if (!deletedIds.isEmpty()) {
-                permissionRepository.saveAll(oldPerms);
-                permissionRepository.flush();
                 permissionRepository.deleteAllByIds(deletedIds);
                 permissionRepository.flush();
             }
+            log.info("Cleanup of old automatic permissions. deleted={}, keptInUse={}", deletedIds.size(), keptNames);
 
-            return new PolicyCleanupResponse(true, deletedIds.size(), null);
+            String kept = keptNames.isEmpty()
+                    ? null : msg("msg.policy.cleanup.kept", keptNames.size(), String.join(", ", keptNames));
+            return new PolicyCleanupResponse(true, deletedIds.size(), kept);
         } catch (Exception e) {
-            log.error("Failed to cleanup old permissions", e);
+            ConsoleFault.report(e, log, "clean up the old automatic permissions");
             rollBackWhatFailed();
             return new PolicyCleanupResponse(false, null, ConsoleFault.textOf(e));
         }
@@ -460,7 +476,7 @@ public class PolicyCenterCommandService {
             policyService.rollbackPolicy(policyId, versionNumber, reason);
             return new PolicyActionResponse(true, msg("msg.policy.rollback.success"), null);
         } catch (Exception e) {
-            log.error("Failed to rollback policy {} to version {}", policyId, versionNumber, e);
+            ConsoleFault.report(e, log, "roll policy " + policyId + " back to version " + versionNumber);
             return new PolicyActionResponse(false, ConsoleFault.textOf(e), null);
         }
     }
@@ -496,11 +512,50 @@ public class PolicyCenterCommandService {
         }
     }
 
+    /** Whether a permission is still linked, granted or named by a policy, and so not an old one to delete. */
+    private boolean isInUse(Permission perm, Set<String> namedInPolicies) {
+        return perm.getManagedResource() != null
+                || namedInPolicies.contains(perm.getName())
+                || permissionRepository.countRoleAssignments(perm.getId()) > 0
+                || permissionRepository.countGroupAssignments(perm.getId()) > 0
+                || permissionRepository.countAccountAssignments(perm.getId()) > 0;
+    }
+
+    private Set<String> authoritiesNamedInPolicies() {
+        Set<String> names = new HashSet<>();
+        for (Policy policy : policyRepository.findAllWithDetails()) {
+            policy.getRules().stream()
+                    .flatMap(rule -> rule.getConditions().stream())
+                    .map(PolicyCondition::getExpression)
+                    .filter(Objects::nonNull)
+                    .forEach(expression -> {
+                        Matcher matcher = AUTHORITY.matcher(expression);
+                        while (matcher.find()) {
+                            names.add(SpelLiteral.unquote(matcher.group(1)));
+                        }
+                    });
+        }
+        return names;
+    }
+
+    private void reloadAfterCommit() {
+        PolicyReloadAfterCommit.schedule(() -> {
+            authorizationManager.reload();
+            if (policyReloadBroadcaster != null) {
+                policyReloadBroadcaster.broadcastReload();
+            }
+        });
+    }
+
     private int executePolicyMigration() {
         int migrated = 0;
         List<Policy> allPolicies = policyRepository.findAllWithDetails();
         for (Policy policy : allPolicies) {
-            boolean changed = false;
+            if (policy.getName() != null && policy.getName().startsWith(AUTO_POLICY_PREFIX)) {
+                // Written from the permissions of a role by the synchronization, which writes it back the same way.
+                continue;
+            }
+            Map<PolicyCondition, String> rewritten = new LinkedHashMap<>();
             for (PolicyRule rule : policy.getRules()) {
                 for (PolicyCondition condition : rule.getConditions()) {
                     String expr = condition.getExpression();
@@ -509,12 +564,16 @@ public class PolicyCenterCommandService {
                     }
                     String newExpr = migrateExpressionToCrud(expr);
                     if (!expr.equals(newExpr)) {
-                        condition.setExpression(newExpr);
-                        changed = true;
+                        rewritten.put(condition, newExpr);
                     }
                 }
             }
+            boolean changed = !rewritten.isEmpty();
             if (changed) {
+                // The version keeps the policy as it was, as an edit of the policy form does, to roll back to.
+                policyVersionService.createVersion(policy, PolicyVersion.ChangeType.UPDATED,
+                        msg("msg.policy.migration.version.reason"));
+                rewritten.forEach(PolicyCondition::setExpression);
                 policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
                 policyRepository.save(policy);
                 migrated++;
@@ -528,8 +587,9 @@ public class PolicyCenterCommandService {
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
             String authority = SpelLiteral.unquote(matcher.group(1));
+            // An authority no permission has is kept: it is not known what it stood for (D41).
             String replacement = authority.startsWith("URL_") || authority.startsWith("METHOD_")
-                    ? SpelLiteral.hasAuthority(resolvePermissionToCrud(authority))
+                    ? resolvePermissionToCrud(authority).map(SpelLiteral::hasAuthority).orElse(matcher.group())
                     : matcher.group();
             // A $ or \ of a name is text, not a group reference or an escape.
             matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
@@ -538,7 +598,7 @@ public class PolicyCenterCommandService {
         return sb.toString();
     }
 
-    private String resolvePermissionToCrud(String permissionName) {
+    private Optional<String> resolvePermissionToCrud(String permissionName) {
         return permissionRepository.findByName(permissionName)
                 .map(perm -> {
                     ManagedResource resource = perm.getManagedResource();
@@ -564,8 +624,7 @@ public class PolicyCenterCommandService {
                         return "UPDATE";
                     }
                     return "READ";
-                })
-                .orElse("READ");
+                });
     }
 
     private void auditBatchCreation(int created, int total, String allRoleNames) {

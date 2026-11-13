@@ -45,6 +45,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -136,6 +137,24 @@ class PolicySynchronizationServiceTest {
     }
 
     @Test
+    @DisplayName("D31: the automatic policy names the role, not its description in another language")
+    void theDescriptionNamesTheRoleNotItsDescription() {
+        when(policyRepository.findByName(anyString())).thenReturn(Optional.empty());
+        Role role = role("ROLE_USER", "READ", true);
+        role.setRoleDesc("일반 사용자 역할");
+        when(roleRepository.findByIdWithPermissionsAndResources(7L)).thenReturn(Optional.of(role));
+
+        new PolicySynchronizationService(policyRepository, roleRepository, policyService)
+                .handleRolePermissionsChange(new RolePermissionsChangedEvent(7L));
+
+        ArgumentCaptor<PolicyDto> captor = ArgumentCaptor.forClass(PolicyDto.class);
+        verify(policyService).createPolicy(captor.capture());
+        assertThat(captor.getValue().getName()).isEqualTo("AUTO_POLICY_FOR_ROLE_USER");
+        assertThat(captor.getValue().getDescription()).isEqualTo("Auto-synchronized policy for role 'ROLE_USER'");
+        assertThat(captor.getValue().getRules().get(0).getDescription()).isEqualTo("Auto-sync rule for ROLE_USER");
+    }
+
+    @Test
     @DisplayName("a role that starts with ROLE_ is asked for by its name, as before")
     void aRoleWithThePrefixIsAskedForByItsName() {
         when(policyRepository.findByName(anyString())).thenReturn(Optional.empty());
@@ -167,8 +186,8 @@ class PolicySynchronizationServiceTest {
     }
 
     @Test
-    @DisplayName("a role that already has its policy and loses the last resource keeps updating that policy")
-    void aRoleThatLosesItsLastResourceStillUpdatesItsPolicy() {
+    @DisplayName("D42: a role that loses the last permission guarding a resource has its automatic policy deleted")
+    void aRoleThatLosesItsLastResourceHasItsPolicyDeleted() {
         Policy existing = Policy.builder().id(41L).name("AUTO_POLICY_FOR_ROLE_SALES").build();
         when(policyRepository.findByName("AUTO_POLICY_FOR_ROLE_SALES")).thenReturn(Optional.of(existing));
         when(roleRepository.findByIdWithPermissionsAndResources(7L)).thenReturn(Optional.of(role("ROLE_SALES", "READ", false)));
@@ -176,10 +195,9 @@ class PolicySynchronizationServiceTest {
         new PolicySynchronizationService(policyRepository, roleRepository, policyService)
                 .handleRolePermissionsChange(new RolePermissionsChangedEvent(7L));
 
-        ArgumentCaptor<PolicyDto> captor = ArgumentCaptor.forClass(PolicyDto.class);
-        verify(policyService).updatePolicy(captor.capture());
-        assertThat(captor.getValue().getId()).isEqualTo(41L);
-        assertThat(captor.getValue().getTargets()).isEmpty();
+        verify(policyService).deleteAutomaticPolicy(eq(41L), anyString());
+        verify(policyService, never()).deletePolicy(any(), any());
+        verify(policyService, never()).updatePolicy(any(PolicyDto.class));
         verify(policyService, never()).createPolicy(any(PolicyDto.class));
     }
 

@@ -196,6 +196,7 @@ class CodeAndPasskeySignInAccountStateTest {
         when(configurer.tokenService(any())).thenReturn(configurer);
         when(configurer.tokenGenerationSuccessHandler(any())).thenReturn(configurer);
         when(configurer.generateRequestResolver(any())).thenReturn(configurer);
+        when(configurer.authenticationConverter(any())).thenReturn(configurer);
         when(configurer.authenticationProvider(any())).thenReturn(configurer);
         when(http.oneTimeTokenLogin(any(Customizer.class))).thenAnswer(invocation -> {
             Customizer<OneTimeTokenLoginConfigurer<HttpSecurity>> customizer = invocation.getArgument(0);

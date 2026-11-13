@@ -45,7 +45,7 @@ class OrdinaryFlowLogLevelContractTest {
     static {
         DEBUG.put("UserManagementServiceImpl.java", List.of(
                 "[UserManagementService.modifyUser] findByIdWithGroupsRolesAndPermissions",
-                "[UserManagementService.getUser] findByIdWithGroupsRolesAndPermissions"));
+                "[UserManagementService.findUser] findByIdWithGroupsRolesAndPermissions"));
         DEBUG.put("AccessCenterService.java", List.of("[AccessCenterController] findByIdWithGroupsRolesAndPermissions"));
         DEBUG.put("DefaultMfaPolicyEvaluator.java", List.of("[DefaultMfaPolicyEvaluator] findByUsernameWithGroupsRolesAndPermissions"));
         DEBUG.put("SecurityPlaneAgent.java", List.of("Agent {} is already running", "[SecurityPlaneAgent] Event {} already processed"));
@@ -67,7 +67,6 @@ class OrdinaryFlowLogLevelContractTest {
 
         INFO.put("NoOpSecurityActionEventPublisher.java", List.of("[NoOpActionPublisher] SOAR auto-response is disabled"));
         INFO.put("AuditLogRetentionScheduler.java", List.of("Audit log retention: deleted"));
-        INFO.put("PolicyCenterCommandService.java", List.of("[migration] Auto-migrated"));
         INFO.put("ResourceRegistryServiceImpl.java", List.of(
                 "{} resources not found in current code", "Resource status reverted to PERMISSION_CREATED"));
         INFO.put("IdentityOAuth2AutoConfiguration.java", List.of("[OAuth2] Issuer URI not configured"));

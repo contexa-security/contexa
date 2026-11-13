@@ -22,8 +22,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.ai.retry.TransientAiException;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -72,6 +76,16 @@ class UnifiedLLMOrchestratorProviderFailureTest {
         // the Boot wording without a body is still read, and a message that only starts with digits is no status
         assertThat(retryable(new NonTransientAiException("HTTP 429"))).isTrue();
         assertThat(retryable(new NonTransientAiException("429 requests were refused"))).isFalse();
+    }
+
+    /** IAM-D62: a server that cannot be reached is not sent the call again; a failure after it was reached still is. */
+    @Test
+    void anUnreachableModelServerIsNotSentAgain() {
+        assertThat(retryable(new ResourceAccessException("I/O error on POST", new ConnectException("Connection refused"))))
+                .isFalse();
+        assertThat(retryable(new RuntimeException(new UnknownHostException("ollama")))).isFalse();
+        assertThat(retryable(new ResourceAccessException("I/O error on POST", new SocketException("Connection reset"))))
+                .isTrue();
     }
 
     private boolean retryable(Throwable failure) {

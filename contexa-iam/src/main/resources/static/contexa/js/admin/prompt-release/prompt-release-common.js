@@ -104,16 +104,23 @@ export function gateChip(target) {
     if (target.ready) {
         return el('span', {class: 'pi-chip pi-chip-matched', text: t('promptRelease.gate.ready', target.targetState)});
     }
-    return el('span', {class: 'pi-chip pi-chip-mismatch', title: (target.blockers || []).join('\n'),
+    return el('span', {class: 'pi-chip pi-chip-mismatch',
+        title: (target.blockers || []).map((blocker) => reasonText(blocker, 'blocker')).join('\n'),
         text: t('promptRelease.gate.blocked', target.targetState, number((target.blockers || []).length))});
+}
+
+/** A blocker or a refusal in the reader's words when its code is known, otherwise the recorded sentence. */
+function reasonText(reason, kind) {
+    const text = String(reason || '');
+    const code = text.split(/\s+/)[0];
+    const known = (kind === 'blocker' ? settings.blockers : settings.refusals) || [];
+    return known.includes(code) ? t(`promptRelease.${kind}.${code}`) : text;
 }
 
 /** A blocker or a refusal in the reader's words when its code is known; the recorded sentence stays as the title. */
 export function reasonItem(reason, kind) {
     const text = String(reason || '');
-    const code = text.split(/\s+/)[0];
-    const known = (kind === 'blocker' ? settings.blockers : settings.refusals) || [];
-    return el('li', {title: text, text: known.includes(code) ? t(`promptRelease.${kind}.${code}`) : text});
+    return el('li', {title: text, text: reasonText(text, kind)});
 }
 
 export function shortHash(hash) {

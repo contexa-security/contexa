@@ -88,6 +88,30 @@ class MfaAuthenticationEntryPointTest {
         assertThat(response.getRedirectedUrl()).endsWith("/mfa/challenge/passkey");
     }
 
+    /** IAM-D77: a console page whose name holds a step's name is not that step's page. */
+    @Test
+    void aPageWhoseNameHoldsAStepNameGoesToTheLoginPage() throws Exception {
+        when(defaultProvider.getPasskeyRegistrationPage()).thenReturn("/webauthn/register");
+        when(stateMachineIntegrator.loadFactorContextFromRequest(any())).thenReturn(null);
+        when(defaultProvider.getMfaFailure()).thenReturn("/mfa/failure");
+
+        for (String page : new String[] {"/contexa/admin/ai-monitor/failures",
+                "/contexa/admin/prompt-quality/verification/failures", "/contexa/admin/x/failure-details",
+                "/contexa/admin/configure", "/contexa/admin/passkeys", "/contexa/admin/select-factor-report"}) {
+            assertThat(commenceForPage(boundEntryPoint(), page).getRedirectedUrl()).as(page).endsWith("/login");
+        }
+    }
+
+    @Test
+    void theFailurePageItselfStillGoesToTheFailureStep() throws Exception {
+        when(defaultProvider.getPasskeyRegistrationPage()).thenReturn("/webauthn/register");
+        when(stateMachineIntegrator.loadFactorContextFromRequest(any())).thenReturn(null);
+        when(defaultProvider.getMfaFailure()).thenReturn("/custom/failed");
+
+        assertThat(commenceForPage(boundEntryPoint(), "/mfa/failure").getRedirectedUrl()).endsWith("/custom/failed");
+        assertThat(commenceForPage(boundEntryPoint(), "/custom/failed").getRedirectedUrl()).endsWith("/custom/failed");
+    }
+
     private MockHttpServletResponse commenceForPage(MfaAuthenticationEntryPoint entryPoint, String uri)
             throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", uri);

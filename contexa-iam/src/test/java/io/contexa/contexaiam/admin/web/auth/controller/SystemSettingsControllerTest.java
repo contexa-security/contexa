@@ -260,6 +260,23 @@ class SystemSettingsControllerTest {
             verify(policyReloadBroadcaster, never()).broadcastReload();
         }
 
+        /** IAM-D69: a refusal is said in the administrator's language, with the label of the value it is about. */
+        @Test
+        @DisplayName("a refusal of the service is said with its message and the label of the value")
+        void aRefusalIsSaidWithItsLabel() {
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            SystemSettingsForm form = new SystemSettingsForm();
+            doThrow(new SystemSettingsService.SettingRefusedException("admin.system.settings.refused.choice",
+                    "admin.system.settings.llm.mode", "LOUD")).when(systemSettingsService).updateSettings(form);
+
+            controller.updateSettings(form, ra);
+
+            verify(messageSource).getMessage(eq("admin.system.settings.llm.mode"), any(), any(Locale.class));
+            verify(messageSource).getMessage(eq("admin.system.settings.refused.choice"), any(), any(Locale.class));
+            verify(runtimeApplier, never()).apply();
+            verify(policyReloadBroadcaster, never()).broadcastReload();
+        }
+
         @Test
         @DisplayName("should apply submitted values directly when no runtime applier is registered")
         void appliesSubmittedValuesWithoutRuntimeApplier() {

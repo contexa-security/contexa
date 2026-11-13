@@ -188,7 +188,8 @@ class ConsoleOutputEscapingTest {
 
         assertThat(screen).contains(
                 "<strong>${escapeHtml(role)}</strong><br/>${escapeHtml(desc)}",
-                "'<option value=\"' + escapeHtml(role.roleName) + '\">' + escapeHtml(displayText) + '</option>'",
+                "'<option value=\"' + escapeHtml(role.roleName) + '\" title=\"' + escapeHtml(role.roleDesc) + '\">'",
+                "+ escapeHtml(role.roleName) + '</option>'",
                 "document.createTextNode(message)");
         assertThat(screen).doesNotContain("(icons[type] || icons.info) + message");
     }
@@ -226,7 +227,7 @@ class ConsoleOutputEscapingTest {
     void aSnapshotThatFailsToLoadSaysSo() throws IOException {
         String viewer = functionText(template("admin/policydetails.html"), "viewSnapshot: function(");
 
-        assertThat(viewer.indexOf("var _snapI18n")).isNotNegative().isLessThan(viewer.indexOf("fetch("));
+        assertThat(viewer.indexOf("var _snapI18n")).isNotNegative().isLessThan(viewer.indexOf("PolicyVersionUI.json("));
         assertThat(viewer).containsOnlyOnce("var _snapI18n");
     }
 

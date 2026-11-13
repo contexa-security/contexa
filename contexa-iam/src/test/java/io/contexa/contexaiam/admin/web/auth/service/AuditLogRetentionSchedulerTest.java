@@ -37,7 +37,7 @@ class AuditLogRetentionSchedulerTest {
     private AuditLogRepository auditLogRepository;
 
     @Mock
-    private SystemSettingsService systemSettingsService;
+    private SystemRuntimeSettingsService systemRuntimeSettingsService;
 
     @InjectMocks
     private AuditLogRetentionScheduler scheduler;
@@ -48,7 +48,7 @@ class AuditLogRetentionSchedulerTest {
         SystemSettings settings = SystemSettings.builder()
                 .auditLogRetentionDays(0)
                 .build();
-        when(systemSettingsService.getSettings()).thenReturn(settings);
+        when(systemRuntimeSettingsService.getSettings()).thenReturn(settings);
 
         scheduler.cleanupExpiredAuditLogs();
 
@@ -61,7 +61,7 @@ class AuditLogRetentionSchedulerTest {
         SystemSettings settings = SystemSettings.builder()
                 .auditLogRetentionDays(30)
                 .build();
-        when(systemSettingsService.getSettings()).thenReturn(settings);
+        when(systemRuntimeSettingsService.getSettings()).thenReturn(settings);
         when(auditLogRepository.deleteByTimestampBefore(any(LocalDateTime.class))).thenReturn(5);
 
         scheduler.cleanupExpiredAuditLogs();

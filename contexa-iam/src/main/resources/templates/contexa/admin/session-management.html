@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.session.title})}"></head>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.session.title})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{contexa/fragments/header :: header}"></div>
@@ -27,7 +27,7 @@
                 </a>
             </div>
 
-            <form th:action="@{/contexa/admin/session-management}" method="get" class="mb-6 flex gap-3">
+            <form th:action="@{/contexa/admin/session-management}" method="get" class="mb-6 flex flex-wrap gap-3 console-search-form">
                 <div class="relative flex-1">
                     <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2" style="color:#64748b;"></i>
                     <input type="text" name="keyword" th:value="${keyword}"
@@ -76,7 +76,6 @@
                         <td class="py-4 px-6">
                             <div class="flex gap-2">
                                 <form th:action="@{/contexa/admin/session-management/{id}/invalidate(id=${s.sessionReference})}" method="post" class="inline-block">
-                                    <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                     <button type="submit"
                                             class="px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-300"
                                             style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);"
@@ -84,7 +83,6 @@
                                 </form>
                                 <form th:action="@{/contexa/admin/session-management/user/{uid}/invalidate-all(uid=${s.userId})}" method="post" class="inline-block"
                                       th:data-confirm-msg="#{admin.session.invalidate.all}" onsubmit="return confirm(this.getAttribute('data-confirm-msg') + '?');">
-                                    <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                     <button type="submit"
                                             class="px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-300"
                                             style="background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3);"

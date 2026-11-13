@@ -3,7 +3,7 @@
         <ul class="main-menu">
             <th:block th:if="${menuTree != null and !menuTree.isEmpty()}" th:each="node : ${menuTree}">
                 <li th:if="${!node.hasChildren()}" class="main-menu-item">
-                    <a th:href="${node.url()}" class="main-menu-link" th:data-group="${node.dataPage()}">
+                    <a th:href="${node.isGroup()} ? ${node.url()} : @{${node.url()}}" class="main-menu-link" th:data-group="${node.dataPage()}">
                         <div class="main-menu-icon" th:if="${node.icon() != null and node.icon().startsWith('<')}" th:utext="${node.icon()}"></div>
                         <div class="main-menu-icon" th:if="${node.icon() != null and !node.icon().isBlank() and !node.icon().startsWith('<')}"><i th:class="${node.icon()}"></i></div>
                         <span class="main-menu-label" th:classappend="${node.dataPage() == 'prompt-quality'} ? ' pqa-menu-label' : ''" th:text="${#messages.msg(node.name())}">Menu</span>
@@ -18,7 +18,7 @@
                     <div class="submenu-panel">
                         <ul>
                             <li th:each="child : ${node.children()}">
-                                <a th:href="${child.url()}" class="submenu-link" th:data-page="${child.dataPage()}">
+                                <a th:href="${child.isGroup()} ? ${child.url()} : @{${child.url()}}" class="submenu-link" th:data-page="${child.dataPage()}">
                                     <span th:text="${#messages.msg(child.name())}">Submenu</span>
                                 </a>
                             </li>
@@ -29,5 +29,5 @@
 
         </ul>
     </nav>
-    <script th:src="@{/contexa/js/admin-menu.js?v=20260326d}"></script>
+    <script th:src="@{/contexa/js/admin-menu.js?v=20261113-ctx}"></script>
 </div>

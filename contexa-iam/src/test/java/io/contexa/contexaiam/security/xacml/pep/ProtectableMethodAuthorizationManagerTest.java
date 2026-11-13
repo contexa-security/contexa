@@ -60,6 +60,46 @@ class ProtectableMethodAuthorizationManagerTest {
                 .doesNotThrowAnyException();
     }
 
+    @Test
+    void conditionThatCannotBeEvaluatedDeniesTheCallInsteadOfFailing() {
+        // D68: a function no context has, under PERMIT_OVERRIDES with a policy that would grant
+        ProtectableMethodAuthorizationManager manager = manager(new MethodPolicyPlan(
+                List.of(parser.parseExpression("#notAFunction()"), parser.parseExpression("missing.value")),
+                CombiningAlgorithm.PERMIT_OVERRIDES,
+                NoPolicyDecision.PERMIT));
+
+        assertThatThrownBy(() -> manager.protectable(() -> mock(Authentication.class), mock(MethodInvocation.class)))
+                .isInstanceOf(AuthorizationDeniedException.class);
+    }
+
+    @Test
+    void failureThatIsNoEvaluationOfAConditionStillPropagates() {
+        MethodSecurityExpressionHandler handler = mock(MethodSecurityExpressionHandler.class);
+        StandardEvaluationContext context = new StandardEvaluationContext(new ChallengingRoot());
+        context.setVariable("methodPolicyPlan", new MethodPolicyPlan(
+                List.of(parser.parseExpression("challenge()")), CombiningAlgorithm.DENY_OVERRIDES,
+                NoPolicyDecision.PERMIT));
+        when(handler.createEvaluationContext(ArgumentMatchers.<Supplier<Authentication>>any(),
+                ArgumentMatchers.any(MethodInvocation.class))).thenReturn(context);
+        ProtectableMethodAuthorizationManager manager =
+                new ProtectableMethodAuthorizationManager(handler, new PolicyCombiningEvaluator());
+
+        assertThatThrownBy(() -> manager.protectable(() -> mock(Authentication.class), mock(MethodInvocation.class)))
+                .isInstanceOf(ChallengeRaised.class);
+    }
+
+    /** Stands for a Zero Trust challenge a condition raises on purpose. */
+    static final class ChallengeRaised extends RuntimeException {
+    }
+
+    /** The root of a condition whose method raises the challenge. */
+    public static final class ChallengingRoot {
+
+        public boolean challenge() {
+            throw new ChallengeRaised();
+        }
+    }
+
     private ProtectableMethodAuthorizationManager manager(MethodPolicyPlan plan) {
         MethodSecurityExpressionHandler handler = mock(MethodSecurityExpressionHandler.class);
         StandardEvaluationContext context = new StandardEvaluationContext(new Object());

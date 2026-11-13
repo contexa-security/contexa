@@ -276,6 +276,16 @@ export async function fetchJson(url, options = {}) {
     return response.json();
 }
 
+/**
+ * The sentence in the console language (html lang). These are said when an answer is not JSON, which is also when the
+ * message bundle of the screen cannot be read, so they cannot come from the bundle.
+ */
+function pageText(korean, english) {
+    const lang = typeof document !== 'undefined' && document.documentElement
+            ? String(document.documentElement.lang || '').toLowerCase() : '';
+    return lang.startsWith('ko') ? korean : english;
+}
+
 function nonJsonResponseError(response, url, contentType, bodyText) {
     const textBody = String(bodyText || '').trim();
     const looksLikeHtml = textBody.startsWith('<!DOCTYPE')
@@ -283,10 +293,12 @@ function nonJsonResponseError(response, url, contentType, bodyText) {
             || textBody.includes('<title>');
     const targetUrl = response.url || url || '';
     const message = looksLikeHtml
-            ? t('enterprise.pqa.common.error.nonJsonHtml',
-                    'API가 JSON 데이터가 아니라 HTML 화면을 반환했습니다. 로그인 상태와 API 라우팅을 확인하십시오.')
-            : t('enterprise.pqa.common.error.nonJson',
-                    'API가 JSON 데이터가 아닌 응답을 반환했습니다.');
+            ? t('enterprise.pqa.common.error.nonJsonHtml', pageText(
+                    'API가 JSON 데이터가 아니라 HTML 화면을 반환했습니다. 로그인 상태와 API 라우팅을 확인하십시오.',
+                    'The API returned an HTML page instead of JSON data. Check the sign-in state and the API routing.'))
+            : t('enterprise.pqa.common.error.nonJson', pageText(
+                    'API가 JSON 데이터가 아닌 응답을 반환했습니다.',
+                    'The API returned a response that is not JSON data.'));
     const error = new Error(message);
     error.status = response.status;
     error.targetUrl = targetUrl;
@@ -294,10 +306,11 @@ function nonJsonResponseError(response, url, contentType, bodyText) {
     error.detail = textBody.slice(0, 500);
     error.body = {
         message,
-        cause: targetUrl ? `API 경로: ${targetUrl}` : '',
+        cause: targetUrl ? pageText(`API 경로: ${targetUrl}`, `API path: ${targetUrl}`) : '',
         nextAction: looksLikeHtml
-                ? '로그인 상태와 API 라우팅을 확인한 뒤 다시 실행하십시오.'
-                : 'API 응답 Content-Type을 확인하십시오.',
+                ? pageText('로그인 상태와 API 라우팅을 확인한 뒤 다시 실행하십시오.',
+                        'Check the sign-in state and the API routing, then run it again.')
+                : pageText('API 응답 Content-Type을 확인하십시오.', 'Check the Content-Type of the API response.'),
         targetUrl,
         contentType
     };

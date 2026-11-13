@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.system.settings.title})}"></head>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.system.settings.title})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans">
 <link rel="stylesheet" th:href="@{/contexa/css/system-settings.css}" />
 <div th:insert="~{contexa/fragments/header :: header}"></div>
@@ -32,7 +32,6 @@
                         <i class="fas fa-brain"></i>
                         <div>
                             <h2 th:text="#{admin.system.settings.runtime.title}">Runtime AI Security Modes</h2>
-                            <p th:text="#{admin.system.settings.runtime.desc}">Set runtime modes.</p>
                         </div>
                     </div>
                     <div class="system-settings-grid system-settings-grid--single">
@@ -53,7 +52,6 @@
                         <i class="fas fa-file-alt"></i>
                         <div>
                             <h2 th:text="#{admin.system.settings.audit.title}">Audit &amp; Compliance</h2>
-                            <p th:text="#{admin.system.settings.audit.retention.desc}">Audit retention.</p>
                         </div>
                     </div>
                     <div class="system-settings-grid system-settings-grid--single">
@@ -70,7 +68,6 @@
                         <i class="fas fa-shield-alt"></i>
                         <div>
                             <h2 th:text="#{admin.system.settings.access.title}">Access Control</h2>
-                            <p th:text="#{admin.system.settings.combining.algorithm.desc}">Access policy behavior.</p>
                         </div>
                     </div>
                     <div class="system-settings-grid">
@@ -111,30 +108,11 @@
                     </div>
                 </section>
 
-                <section class="system-settings-section system-settings-section--registration">
-                    <div class="system-settings-section-header">
-                        <i class="fas fa-user-plus"></i>
-                        <div>
-                            <h2 th:text="#{admin.system.settings.registration.title}">User Registration</h2>
-                            <p th:text="#{admin.system.settings.registration.enabled.desc}">Registration control.</p>
-                        </div>
-                    </div>
-                    <label class="system-settings-toggle" for="registrationEnabled">
-                        <input type="checkbox" th:field="*{registrationEnabled}" id="registrationEnabled" />
-                        <span class="system-settings-toggle-box"></span>
-                        <span>
-                            <strong th:text="#{admin.system.settings.registration.enabled}">Allow User Self-Registration</strong>
-                            <em th:text="#{admin.system.settings.registration.enabled.desc}">If disabled, only administrators can create new user accounts.</em>
-                        </span>
-                    </label>
-                </section>
-
                 <section class="system-settings-section system-settings-section--resource-scan">
                     <div class="system-settings-section-header">
                         <i class="fas fa-route"></i>
                         <div>
                             <h2 th:text="#{admin.system.settings.resource.scan.title}">Resource Scan Settings</h2>
-                            <p th:text="#{admin.system.settings.resource.scan.base.packages.desc}">Controller package scan settings.</p>
                         </div>
                     </div>
                     <div class="system-settings-grid system-settings-grid--single">

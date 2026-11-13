@@ -15,19 +15,22 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
+import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexaiam.common.ConsoleFault;
 import java.util.Locale;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.domain.entity.IpAccessRule;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -39,12 +42,12 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @Slf4j
 @Controller
 @RequestMapping("/contexa/admin/ip-management")
-@RequiredArgsConstructor
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class IpManagementController {
 
@@ -54,6 +57,25 @@ public class IpManagementController {
     private final IpAccessRuleService ipAccessRuleService;
     private final MessageSource messageSource;
     private final CsvExportService csvExportService;
+    private final TieredStrategyProperties.Security securityProperties;
+
+    public IpManagementController(IpAccessRuleService ipAccessRuleService, MessageSource messageSource,
+                                  CsvExportService csvExportService) {
+        this(ipAccessRuleService, messageSource, csvExportService, null);
+    }
+
+    /**
+     * @param securityProperties how the IP access filter reads the address of a request (the proxies it trusts), so
+     *                           that a change is checked against the address the filter will see; null for the defaults
+     */
+    public IpManagementController(IpAccessRuleService ipAccessRuleService, MessageSource messageSource,
+                                  CsvExportService csvExportService,
+                                  TieredStrategyProperties.Security securityProperties) {
+        this.ipAccessRuleService = ipAccessRuleService;
+        this.messageSource = messageSource;
+        this.csvExportService = csvExportService;
+        this.securityProperties = securityProperties != null ? securityProperties : new TieredStrategyProperties.Security();
+    }
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -65,7 +87,8 @@ public class IpManagementController {
                        @RequestParam(defaultValue = "0") int page,
                        Model model) {
         model.addAttribute("activePage", "ip-management");
-        PageRequest pageable = PageRequest.of(page, PAGE_SIZE);
+        // A page number below the first is the first page, as in every other list of the console.
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), PAGE_SIZE);
 
         Page<IpAccessRule> rules = ipAccessRuleService.searchRules(type, keyword, pageable);
         String currentType = ipAccessRuleService.normalizeRuleTypeFilter(type);
@@ -84,6 +107,7 @@ public class IpManagementController {
                              @RequestParam String ruleType,
                              @RequestParam(required = false) String description,
                              @RequestParam(required = false) String expiresAt,
+                             HttpServletRequest request,
                              RedirectAttributes ra) {
         if (!ipAccessRuleService.isValidIpOrCidr(ipAddress)) {
             ra.addFlashAttribute("errorMessage", msg("admin.ip.invalid.ip"));
@@ -92,9 +116,9 @@ public class IpManagementController {
 
         IpAccessRule.RuleType type;
         try {
-            type = IpAccessRule.RuleType.valueOf(ruleType.toUpperCase(Locale.ROOT));
+            type = IpAccessRule.RuleType.valueOf(ruleType.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            ra.addFlashAttribute("errorMessage", msg("admin.ip.invalid.ip"));
+            ra.addFlashAttribute("errorMessage", msg("admin.ip.invalid.type"));
             return "redirect:/contexa/admin/ip-management";
         }
 
@@ -103,47 +127,64 @@ public class IpManagementController {
             return "redirect:/contexa/admin/ip-management";
         }
 
+        // A time that cannot be read is refused: taken as no time, a rule meant to end would be kept for ever.
         LocalDateTime expires = null;
         if (expiresAt != null && !expiresAt.isBlank()) {
             try {
-                expires = LocalDateTime.parse(expiresAt);
-            } catch (Exception e) {
-                log.error("Invalid expiresAt format: {}", expiresAt, e);
+                expires = LocalDateTime.parse(expiresAt.trim());
+            } catch (DateTimeParseException e) {
+                log.warn("[IpManagement] An IP rule was refused: the expiry {} is not a date and time", expiresAt);
+                ra.addFlashAttribute("errorMessage", msg("admin.ip.invalid.expires"));
+                return "redirect:/contexa/admin/ip-management";
             }
         }
 
-        String createdBy = extractCurrentUserId();
-        ipAccessRuleService.createRule(ipAddress.trim(), type, description, createdBy, expires);
-        ra.addFlashAttribute("message", msg("admin.ip.created"));
+        try {
+            ipAccessRuleService.createRule(ipAddress.trim(), type, description, extractCurrentUserId(), expires,
+                    clientIpOf(request));
+            ra.addFlashAttribute("message", msg("admin.ip.created"));
+        } catch (IpAccessRuleService.IpRuleRefusedException refused) {
+            ra.addFlashAttribute("errorMessage", msg(refused.getMessageKey(), refused.getMessageArgs()));
+        }
         return "redirect:/contexa/admin/ip-management";
     }
 
     @PostMapping("/{id}/delete")
-    public String deleteRule(@PathVariable Long id, RedirectAttributes ra) {
+    public String deleteRule(@PathVariable Long id, HttpServletRequest request, RedirectAttributes ra) {
         try {
-            ipAccessRuleService.deleteRule(id);
+            ipAccessRuleService.deleteRule(id, clientIpOf(request));
             ra.addFlashAttribute("message", msg("admin.ip.deleted"));
+        } catch (IpAccessRuleService.IpRuleRefusedException refused) {
+            ra.addFlashAttribute("errorMessage", msg("msg.ip.delete.error",
+                    msg(refused.getMessageKey(), refused.getMessageArgs())));
         } catch (Exception e) {
-            log.error("Failed to delete IP rule: id={}", id, e);
-            ra.addFlashAttribute("errorMessage", msg("msg.ip.delete.error", ConsoleFault.textOf(e)));
+            ra.addFlashAttribute("errorMessage", msg("msg.ip.delete.error",
+                    ConsoleFault.textOf(e, log, "delete the IP rule " + id)));
         }
         return "redirect:/contexa/admin/ip-management";
     }
 
     @PostMapping("/{id}/toggle")
-    public String toggleRule(@PathVariable Long id, RedirectAttributes ra) {
+    public String toggleRule(@PathVariable Long id, HttpServletRequest request, RedirectAttributes ra) {
         try {
-            ipAccessRuleService.toggleRule(id);
+            ipAccessRuleService.toggleRule(id, clientIpOf(request));
             ra.addFlashAttribute("message", msg("admin.ip.toggled"));
+        } catch (IpAccessRuleService.IpRuleRefusedException refused) {
+            ra.addFlashAttribute("errorMessage", msg("msg.ip.toggle.error",
+                    msg(refused.getMessageKey(), refused.getMessageArgs())));
         } catch (Exception e) {
-            log.error("Failed to toggle IP rule: id={}", id, e);
-            ra.addFlashAttribute("errorMessage", msg("msg.ip.toggle.error", ConsoleFault.textOf(e)));
+            ra.addFlashAttribute("errorMessage", msg("msg.ip.toggle.error",
+                    ConsoleFault.textOf(e, log, "turn the IP rule " + id + " on or off")));
         }
         return "redirect:/contexa/admin/ip-management";
     }
 
+    /**
+     * The rules the list shows: the same type and search word, so that the download is what the administrator sees.
+     */
     @GetMapping("/export")
     public void export(@RequestParam(required = false) String type,
+                       @RequestParam(required = false) String keyword,
                        HttpServletResponse response) throws IOException {
         List<CsvColumn<IpAccessRule>> columns = List.of(
                 new CsvColumn<>("IP Address", r -> r.getIpAddress() != null ? r.getIpAddress() : ""),
@@ -155,16 +196,13 @@ public class IpManagementController {
                 new CsvColumn<>("Enabled", r -> String.valueOf(r.isEnabled()))
         );
 
-        csvExportService.export(response, "ip-access-rules", columns, () -> {
-            if ("ALLOW".equalsIgnoreCase(type)) {
-                return ipAccessRuleService.findAllRules().stream()
-                        .filter(r -> r.getRuleType() == IpAccessRule.RuleType.ALLOW);
-            } else if ("DENY".equalsIgnoreCase(type)) {
-                return ipAccessRuleService.findAllRules().stream()
-                        .filter(r -> r.getRuleType() == IpAccessRule.RuleType.DENY);
-            }
-            return ipAccessRuleService.findAllRules().stream();
-        });
+        csvExportService.export(response, "ip-access-rules", columns,
+                () -> ipAccessRuleService.searchRules(type, keyword, Pageable.unpaged()).stream());
+    }
+
+    /** The address the request comes from, read as the IP access filter reads it. */
+    private String clientIpOf(HttpServletRequest request) {
+        return request != null ? RequestInfoExtractor.extractClientIp(request, securityProperties) : null;
     }
 
     private String extractCurrentUserId() {

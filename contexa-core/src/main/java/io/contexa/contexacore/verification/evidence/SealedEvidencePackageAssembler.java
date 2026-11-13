@@ -143,7 +143,8 @@ public class SealedEvidencePackageAssembler {
                 .packageId(UUID.randomUUID().toString())
                 .correlationId(correlationId)
                 .idempotencyKey(resolveText(event.getMetadata(), SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY))
-                .tenantId(resolveText(event.getMetadata(), "tenantId", "tenant_id"))
+                .tenantId(SealedEvidencePackage.tenantOrDefault(
+                        resolveText(event.getMetadata(), "tenantId", "tenant_id")))
                 .userId(event.getUserId())
                 .capturedAt(Instant.now())
 

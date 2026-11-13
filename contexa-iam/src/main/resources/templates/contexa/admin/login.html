@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html th:lang="${#locale.language}" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="description" content="">
     <meta name="author" content="">
-    <title>Please sign in</title>
+    <title th:text="#{admin.login.heading}">Please sign in</title>
     <link rel="icon" href="data:,">
-    <link href="/contexa/css/main.css" rel="stylesheet" />
+    <link th:href="@{/contexa/css/main.css}" href="/contexa/css/main.css" rel="stylesheet" />
     <style>
         * {
             box-sizing: border-box;
@@ -105,6 +105,16 @@
             box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
         }
 
+        .login-notice {
+            margin-bottom: 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            color: #bbf7d0;
+            font-size: 0.875rem;
+        }
+
         .screenreader {
             position: absolute;
             width: 1px;
@@ -131,6 +141,7 @@
     <form class="login-form" method="post"
           th:action="${adminLoginProcessingUrl != null} ? @{${adminLoginProcessingUrl}} : @{/login}">
         <h2 th:text="#{admin.login.heading}">Please sign in</h2>
+        <p class="login-notice" role="status" th:if="${passwordChanged}" th:text="#{msg.password.change.success}">Password changed</p>
         <p>
             <label for="username" class="screenreader" th:text="#{admin.login.username}">Username</label>
             <input type="text" id="username" name="username" th:placeholder="#{admin.login.username}" required autofocus>

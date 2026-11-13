@@ -29,8 +29,10 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
+import io.contexa.contexacore.autonomous.agent.AgentRegistry;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.controller.*;
+import io.contexa.contexaiam.admin.web.agent.service.AgentSponsorship;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.impl.*;
@@ -168,11 +170,15 @@ public class IamAdminAuthAutoConfiguration {
             UserRolePermissionRepository userRolePermissionRepository,
             BridgeUserProfileRepository bridgeUserProfileRepository,
             ApplicationEventPublisher eventPublisher,
-            LastAdministratorGuard contexaLastAdministratorGuard) {
-        return new UserManagementServiceImpl(
+            LastAdministratorGuard contexaLastAdministratorGuard,
+            ObjectProvider<AgentRegistry> agentRegistry) {
+        UserManagementServiceImpl service = new UserManagementServiceImpl(
                 userRepository, groupRepository, roleRepository, ContexaOwnBeans.passwordEncoder(beanFactory), contexaModelMapper,
                 contexaCentralAuditFacade, contexaPasswordPolicyService, contexaSystemSettingsService, messageSource,
                 userRolePermissionRepository, bridgeUserProfileRepository, eventPublisher, contexaLastAdministratorGuard);
+        // IAM-D57: the sponsor of an agent in service is not deleted; the registry is read when a deletion asks.
+        service.setAgentSponsorship(new AgentSponsorship(agentRegistry::getIfUnique, messageSource));
+        return service;
     }
 
     /** Q-1: who could not answer a CHALLENGE, for the start and the console's user list. */
@@ -224,9 +230,10 @@ public class IamAdminAuthAutoConfiguration {
             PermissionRepository permissionRepository,
             ManagedResourceRepository managedResourceRepository,
             PolicyRepository policyRepository,
-            MessageSource messageSource) {
-        return new PermissionServiceImpl(
-                permissionRepository, managedResourceRepository, policyRepository, messageSource);
+            MessageSource messageSource,
+            LastAdministratorGuard contexaLastAdministratorGuard) {
+        return new PermissionServiceImpl(permissionRepository, managedResourceRepository, policyRepository,
+                messageSource, contexaLastAdministratorGuard);
     }
 
     @Bean(name = "contexaRoleHierarchyService")

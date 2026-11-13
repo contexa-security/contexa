@@ -18,16 +18,21 @@ package io.contexa.contexaiam.aiam.web;
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.exception.StrategicOperationConflictException;
+import io.contexa.contexacore.std.llm.gate.ModelServerSignals;
 import io.contexa.contexacore.std.operations.AICoreOperations;
+import io.contexa.contexacore.std.pipeline.PipelineFailurePolicy;
+import io.contexa.contexacore.std.streaming.DefaultStandardStreamingService;
 import io.contexa.contexacore.std.streaming.StandardStreamingService;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,30 +43,66 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
+import java.util.Locale;
+
 @RestController
 @RequestMapping("/contexa/admin/api/ai/policies")
-@RequiredArgsConstructor
 @Slf4j
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AiApiController {
 
+    /** The message key of a stream failure: this prefix and the code of the failure. */
+
     private final AICoreOperations<PolicyContext> aiNativeProcessor;
     private final StandardStreamingService streamingService;
+    private final MessageSource messageSource;
 
+    public AiApiController(AICoreOperations<PolicyContext> aiNativeProcessor, StandardStreamingService streamingService) {
+        this(aiNativeProcessor, streamingService, null);
+    }
+
+    public AiApiController(AICoreOperations<PolicyContext> aiNativeProcessor, StandardStreamingService streamingService,
+                           MessageSource messageSource) {
+        this.aiNativeProcessor = aiNativeProcessor;
+        this.streamingService = streamingService;
+        this.messageSource = messageSource;
+    }
+
+    /**
+     * Streams the generation. A failure ends the stream with one error event ({"code", "message"}), its message in the
+     * language of the screen, so that the policy center can say why (the model server cannot be reached, it did not
+     * answer in time, ...).
+     */
     @PostMapping(value = "/generate/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> generatePolicyFromTextStream(@RequestBody PolicyGenerationItem request) {
 
+        Locale locale = LocaleContextHolder.getLocale();
         String naturalLanguageQuery = request.naturalLanguageQuery();
         if (naturalLanguageQuery == null || naturalLanguageQuery.trim().isEmpty()) {
-            return streamingService.errorStream("VALIDATION_ERROR", "naturalLanguageQuery is required");
+            return streamingService.errorStream("VALIDATION_ERROR", "naturalLanguageQuery is required")
+                    .map(event -> PolicyStreamErrors.inPageLanguage(event, messageSource, locale));
         }
 
         PolicyGenerationRequest aiRequest = createPolicyRequest(request, new TemplateType("PolicyGenerationStreaming"), new DiagnosisType("PolicyGeneration"));
-        return streamingService.stream(aiRequest, aiNativeProcessor);
+        return streamingService.stream(aiRequest, aiNativeProcessor).map(event -> PolicyStreamErrors.inPageLanguage(event, messageSource, locale));
     }
 
+    /** The model server cannot be reached (connection refused, unknown host). */
+    public static final String MODEL_UNREACHABLE = "AI_MODEL_UNREACHABLE";
+    /** The model did not answer in time. */
+    public static final String MODEL_TIMEOUT = "AI_MODEL_TIMEOUT";
+    /** The model answered, but with no policy. */
+    public static final String NO_POLICY = "AI_NO_POLICY_GENERATED";
+    /** Any other failure of the generation. */
+    public static final String GENERATION_FAILED = "AI_GENERATION_FAILED";
+
+    /**
+     * Generates a policy. A failed generation answers with an error status and the reason (model unreachable, timed
+     * out, no policy in the answer), never with a 200 carrying a synthetic response.
+     */
     @PostMapping("/generate")
-    public Mono<ResponseEntity<PolicyResponse>> generatePolicyFromText(@RequestBody PolicyGenerationItem request) {
+    public Mono<ResponseEntity<Object>> generatePolicyFromText(@RequestBody PolicyGenerationItem request) {
 
         String naturalLanguageQuery = request.naturalLanguageQuery();
         if (naturalLanguageQuery == null || naturalLanguageQuery.trim().isEmpty()) {
@@ -69,16 +110,48 @@ public class AiApiController {
         }
 
         PolicyGenerationRequest aiRequest = createPolicyRequest(request, new TemplateType("PolicyGeneration"), new DiagnosisType("PolicyGeneration"));
+        aiRequest.withParameter("pipelineFailurePolicy", PipelineFailurePolicy.PROPAGATE_ERROR.name());
         return streamingService.process(aiRequest, aiNativeProcessor, PolicyResponse.class)
-                .map(ResponseEntity::ok)
-                .onErrorResume(error -> {
-                    if (error instanceof StrategicOperationConflictException) {
-                        log.warn("Policy generation refused: an identical request is already running");
-                        return Mono.just(ResponseEntity.status(HttpStatus.CONFLICT).build());
-                    }
-                    log.error("Policy generation failed", error);
-                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
-                });
+                .map(this::answer)
+                .switchIfEmpty(Mono.fromSupplier(() -> failure(HttpStatus.BAD_GATEWAY, NO_POLICY,
+                        "The model returned no answer.")))
+                .onErrorResume(error -> Mono.just(failure(error)));
+    }
+
+    private ResponseEntity<Object> answer(PolicyResponse response) {
+        if (response.getErrorMessage() != null && !response.getErrorMessage().isBlank()) {
+            log.error("Policy generation failed: {}", response.getErrorMessage());
+            return failure(HttpStatus.INTERNAL_SERVER_ERROR, GENERATION_FAILED, "The policy could not be generated.");
+        }
+        if (response.getPolicyData() == null) {
+            log.warn("Policy generation answered without a policy");
+            return failure(HttpStatus.UNPROCESSABLE_ENTITY, NO_POLICY,
+                    "The model answered without a policy. Rephrase the request or check the available items.");
+        }
+        return ResponseEntity.ok(new GeneratedPolicy(response.getPolicyData(), response.getRoleIdToNameMap(),
+                response.getPermissionIdToNameMap(), response.getConditionIdToNameMap(), response.getReasoning(),
+                LocalDateTime.now()));
+    }
+
+    private ResponseEntity<Object> failure(Throwable error) {
+        if (error instanceof StrategicOperationConflictException) {
+            log.warn("Policy generation refused: an identical request is already running");
+            return failure(HttpStatus.CONFLICT, "AI_GENERATION_RUNNING", "An identical request is already running.");
+        }
+        log.error("Policy generation failed", error);
+        if (ModelServerSignals.isUnreachable(error)) {
+            return failure(HttpStatus.SERVICE_UNAVAILABLE, MODEL_UNREACHABLE, "The AI model server cannot be reached.");
+        }
+        if (ModelServerSignals.isTimeLimit(error)) {
+            return failure(HttpStatus.GATEWAY_TIMEOUT, MODEL_TIMEOUT, "The AI model did not answer in time.");
+        }
+        return failure(HttpStatus.INTERNAL_SERVER_ERROR, GENERATION_FAILED, "The policy could not be generated.");
+    }
+
+    private static ResponseEntity<Object> failure(HttpStatus status, String code, String message) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, message);
+        problem.setProperty("code", code);
+        return ResponseEntity.status(status).body(problem);
     }
 
     private PolicyGenerationRequest createPolicyRequest(PolicyGenerationItem request,TemplateType templateType, DiagnosisType diagnosisType) {

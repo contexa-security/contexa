@@ -23,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -42,6 +43,8 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -177,7 +180,7 @@ class IpManagementControllerTest {
                             .param("ruleType", "INVALID"))
                     .andExpect(status().is3xxRedirection())
                     .andExpect(redirectedUrl("/contexa/admin/ip-management"))
-                    .andExpect(flash().attribute("errorMessage", "admin.ip.invalid.ip"));
+                    .andExpect(flash().attribute("errorMessage", "admin.ip.invalid.type"));
         }
 
         @Test
@@ -206,7 +209,7 @@ class IpManagementControllerTest {
                             .param("ipAddress", "192.168.1.0/24")
                             .param("ruleType", "ALLOW")
                             .param("description", "Office range")
-                            .param("expiresAt", "2026-12-31T23:59:59"))
+                            .param("expiresAt", "2099-12-31T23:59:59"))
                     .andExpect(status().is3xxRedirection())
                     .andExpect(redirectedUrl("/contexa/admin/ip-management"))
                     .andExpect(flash().attribute("message", "admin.ip.created"));
@@ -216,8 +219,42 @@ class IpManagementControllerTest {
                     eq(IpAccessRule.RuleType.ALLOW),
                     eq("Office range"),
                     eq("admin"),
-                    eq(LocalDateTime.of(2026, 12, 31, 23, 59, 59))
+                    eq(LocalDateTime.of(2099, 12, 31, 23, 59, 59)),
+                    eq("127.0.0.1")
             );
+        }
+
+        /** IAM-D44: a time that cannot be read is refused; taken as no time, it would keep the rule for ever. */
+        @Test
+        @DisplayName("refuses an expiry that is not a date and time, without creating a rule")
+        void refusesAnUnreadableExpiry() throws Exception {
+            when(ipAccessRuleService.isValidIpOrCidr("198.51.100.7")).thenReturn(true);
+
+            for (String expiry : new String[] {"2026-13-45T25:61", "2027-01-01"}) {
+                mockMvc.perform(post("/contexa/admin/ip-management/create")
+                                .param("ipAddress", "198.51.100.7")
+                                .param("ruleType", "DENY")
+                                .param("expiresAt", expiry))
+                        .andExpect(status().is3xxRedirection())
+                        .andExpect(flash().attribute("errorMessage", "admin.ip.invalid.expires"));
+            }
+            verify(ipAccessRuleService, never()).createRule(any(), any(), any(), any(), any(), any());
+        }
+
+        /** IAM-D45: the service's refusal (a past expiry, a rule shutting out the requester) is told, not a success. */
+        @Test
+        @DisplayName("tells the refusal of the service instead of a success")
+        void tellsTheRefusalOfTheService() throws Exception {
+            when(ipAccessRuleService.isValidIpOrCidr("0.0.0.0/0")).thenReturn(true);
+            when(ipAccessRuleService.createRule(any(), any(), any(), any(), any(), any()))
+                    .thenThrow(new IpAccessRuleService.IpRuleRefusedException("admin.ip.refused.deny.self", "127.0.0.1"));
+
+            mockMvc.perform(post("/contexa/admin/ip-management/create")
+                            .param("ipAddress", "0.0.0.0/0")
+                            .param("ruleType", "DENY"))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(flash().attribute("errorMessage", "admin.ip.refused.deny.self"))
+                    .andExpect(flash().attributeCount(1));
         }
     }
 
@@ -233,13 +270,13 @@ class IpManagementControllerTest {
                     .andExpect(redirectedUrl("/contexa/admin/ip-management"))
                     .andExpect(flash().attribute("message", "admin.ip.deleted"));
 
-            verify(ipAccessRuleService).deleteRule(1L);
+            verify(ipAccessRuleService).deleteRule(1L, "127.0.0.1");
         }
 
         @Test
         @DisplayName("should redirect with error message when deletion fails")
         void failure() throws Exception {
-            doThrow(new RuntimeException("Database error")).when(ipAccessRuleService).deleteRule(1L);
+            doThrow(new RuntimeException("Database error")).when(ipAccessRuleService).deleteRule(1L, "127.0.0.1");
 
             mockMvc.perform(post("/contexa/admin/ip-management/1/delete"))
                     .andExpect(status().is3xxRedirection())
@@ -260,13 +297,13 @@ class IpManagementControllerTest {
                     .andExpect(redirectedUrl("/contexa/admin/ip-management"))
                     .andExpect(flash().attribute("message", "admin.ip.toggled"));
 
-            verify(ipAccessRuleService).toggleRule(1L);
+            verify(ipAccessRuleService).toggleRule(1L, "127.0.0.1");
         }
 
         @Test
         @DisplayName("should redirect with error message when toggle fails")
         void failure() throws Exception {
-            doThrow(new RuntimeException("Rule not active")).when(ipAccessRuleService).toggleRule(1L);
+            doThrow(new RuntimeException("Rule not active")).when(ipAccessRuleService).toggleRule(1L, "127.0.0.1");
 
             mockMvc.perform(post("/contexa/admin/ip-management/1/toggle"))
                     .andExpect(status().is3xxRedirection())
@@ -287,6 +324,25 @@ class IpManagementControllerTest {
                     .andExpect(status().isOk());
 
             verify(csvExportService).export(any(), eq("ip-access-rules"), any(), any());
+        }
+
+        /** IAM-D79: the download is the list the administrator sees: the same type and search word. */
+        @Test
+        @DisplayName("exports the rules of the same type and search word as the list")
+        @SuppressWarnings("unchecked")
+        void exportsTheSearchedRules() throws Exception {
+            when(ipAccessRuleService.searchRules(eq("DENY"), eq("198"), any())).thenReturn(new PageImpl<>(List.of()));
+
+            mockMvc.perform(get("/contexa/admin/ip-management/export")
+                            .param("type", "DENY")
+                            .param("keyword", "198"))
+                    .andExpect(status().isOk());
+
+            ArgumentCaptor<Supplier<Stream<IpAccessRule>>> rows = ArgumentCaptor.forClass(Supplier.class);
+            verify(csvExportService).export(any(), eq("ip-access-rules"), any(), rows.capture());
+            rows.getValue().get().count();
+            verify(ipAccessRuleService).searchRules(eq("DENY"), eq("198"), any());
+            verify(ipAccessRuleService, never()).findAllRules();
         }
     }
 }

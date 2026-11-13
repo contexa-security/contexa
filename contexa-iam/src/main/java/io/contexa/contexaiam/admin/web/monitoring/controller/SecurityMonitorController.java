@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.controller;
 
+import io.contexa.contexaiam.security.xacml.pep.AuthorizationAuditReason;
 import io.contexa.contexaiam.admin.web.monitoring.dto.DecisionRecordIntegrity;
 import java.util.Locale;
 import io.contexa.contexacommon.entity.AuditLog;
@@ -29,6 +30,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -68,6 +71,7 @@ public class SecurityMonitorController {
     private final DelegationRegistry delegationRegistry;
     /** docs/agent A5-6: the signer the decision records are verified with; none reads them as not verifiable. */
     private EvidenceSigner evidenceSigner;
+    private MessageSource messageSource;
 
     public SecurityMonitorController(AuditLogRepository auditLogRepository, CsvExportService csvExportService) {
         this(auditLogRepository, csvExportService, null);
@@ -82,6 +86,11 @@ public class SecurityMonitorController {
         this.auditLogRepository = auditLogRepository;
         this.csvExportService = csvExportService;
         this.delegationRegistry = delegationRegistry;
+    }
+
+    /** IAM-D05: the notices of the screen in the administrator's language; without it they are in English. */
+    public void setMessageSource(MessageSource messageSource) {
+        this.messageSource = messageSource;
     }
 
     /** docs/agent A5-6: the signer the decision records were signed with. */
@@ -194,13 +203,19 @@ public class SecurityMonitorController {
 
         AuditLog auditLog = auditLogRepository.findById(id).orElse(null);
         if (auditLog == null) {
-            String message = "Audit log not found: " + id;
+            // The list says why it is shown instead (IAM-D05); the ID as typed, not as a number with separators (IAM-D06).
+            String fallback = "No security event has the ID " + id + ". It may have been removed when its retention ended.";
+            String message = messageSource == null ? fallback : messageSource.getMessage(
+                    "admin.security.monitor.not.found", new Object[]{String.valueOf(id)}, fallback,
+                    LocaleContextHolder.getLocale());
             ra.addFlashAttribute("errorMessage", message);
-            log.warn(message);
+            log.warn("[SecurityMonitor] No audit log has the ID {}", id);
             return "redirect:/contexa/admin/security-monitor";
         }
 
         model.addAttribute("log", auditLog);
+        // D29: an authorization reason is a code, shown in the language of the screen; any other reason as stored.
+        model.addAttribute("reason", AuthorizationAuditReason.describe(auditLog.getReason()));
         // docs/agent A5-5: an agent's decision shows the delegation it ran under, as the delegation record states it.
         model.addAttribute("delegation", delegationOf(auditLog));
         // docs/agent A5-6: whether the decision record is as it was sealed.

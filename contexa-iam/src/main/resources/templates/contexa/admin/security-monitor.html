@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle='Security Monitor')}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
@@ -21,6 +21,9 @@
                 </h1>
                 <p class="text-sm mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.subtitle}">Audit log based Zero Trust security event monitoring</p>
             </div>
+            <div th:if="${errorMessage}" class="rounded-lg p-3 mb-6 text-sm" role="alert"
+                 style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.4); color: #fca5a5;"
+                 th:text="${errorMessage}">Not found</div>
 
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
                 <a th:href="@{/contexa/admin/security-monitor(hours=${hours}, keyword=${keyword})}" class="rounded-lg p-3 text-center" style="background: rgba(30,41,59,0.6); border: 1px solid rgba(71,85,105,0.4); text-decoration: none;">
@@ -165,7 +168,7 @@
                         <td colspan="8" class="text-center py-8" style="color: #64748b;" th:text="#{admin.security.monitor.no.events}">No security events for this period.</td>
                     </tr>
                     <tr th:each="log : ${logPage.content}" style="border-bottom: 1px solid rgba(71,85,105,0.2); cursor: pointer;"
-                        th:onclick="'window.location.href=\'/contexa/admin/security-monitor/' + ${log.id} + '\''"
+                        th:data-href="@{/contexa/admin/security-monitor/{id}(id=${log.id})}" onclick="window.location.href=this.dataset.href"
                         onmouseover="this.style.background='rgba(71,85,105,0.15)'" onmouseout="this.style.background=''">
                         <td class="px-4 py-3 text-xs" style="color: #94a3b8;" th:text="${#temporals.format(log.timestamp, 'MM-dd HH:mm:ss')}"></td>
                         <td class="px-4 py-3">

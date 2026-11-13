@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.policy.detail.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
@@ -28,7 +28,7 @@
                 </a>
             </div>
 
-            <form id="policy-edit-form" th:action="${policy.id != null ? '/contexa/admin/policies/' + policy.id + '/edit' : '/contexa/admin/policies'}" method="post" th:object="${policy}" class="space-y-6" onsubmit="return PolicyDetailValidation.validateAndSubmit(event)">
+            <form id="policy-edit-form" th:action="${policy.id != null} ? @{/contexa/admin/policies/{id}/edit(id=${policy.id})} : @{/contexa/admin/policies}" method="post" th:object="${policy}" class="space-y-6" onsubmit="return PolicyDetailValidation.validateAndSubmit(event)">
                 <input type="hidden" th:field="*{id}" th:if="${policy.id != null}" />
 
                 <div class="modern-card p-6 space-y-4">
@@ -71,7 +71,7 @@
                     </div>
                     <div th:if="${policy.id != null}" style="margin-bottom:0.5rem;">
                         <label class="block text-xs font-semibold mb-1" style="color:#64748b;" th:text="#{admin.policy.detail.friendly.desc}">Friendly Description</label>
-                        <textarea th:field="*{friendlyDescription}" class="modern-input" rows="2" style="font-size:0.8125rem;"></textarea>
+                        <textarea th:field="*{friendlyDescription}" maxlength="2048" class="modern-input" rows="2" style="font-size:0.8125rem;"></textarea>
                     </div>
 
                     <div th:if="${policy.isAIGenerated()}" style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.15);border-radius:0.5rem;padding:0.75rem;margin-bottom:0.5rem;">
@@ -88,11 +88,11 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
                             <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;" th:text="#{admin.policy.center.create.manual.policy.name}">Policy Name</label>
-                            <input type="text" th:field="*{name}" class="modern-input" required />
+                            <input type="text" th:field="*{name}" maxlength="255" class="modern-input" required />
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;" th:text="#{admin.policy.center.create.manual.policy.desc}">Description</label>
-                            <input type="text" th:field="*{description}" class="modern-input" />
+                            <input type="text" th:field="*{description}" maxlength="255" class="modern-input" />
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -136,7 +136,7 @@
                                 </select>
                             </div>
                             <div class="col-span-4">
-                                <input type="text" th:field="*{targets[__${stat.index}__].targetIdentifier}" class="modern-input" required />
+                                <input type="text" th:field="*{targets[__${stat.index}__].targetIdentifier}" maxlength="255" class="modern-input" required />
                             </div>
                             <div class="col-span-1">
                                 <input type="number" th:field="*{targets[__${stat.index}__].targetOrder}" class="modern-input text-center" min="0" max="999" style="padding:0.4rem;" />
@@ -167,7 +167,7 @@
                             <h3 class="font-semibold" style="color:#e2e8f0;" th:text="'Rule #' + ${ruleStat.index + 1}"></h3>
                             <div>
                                 <label class="block text-sm font-medium mb-1" style="color:#cbd5e1;" th:text="#{admin.policy.center.create.manual.rule.desc}">Rule Description</label>
-                                <input type="text" th:field="*{rules[__${ruleStat.index}__].description}" class="modern-input" />
+                                <input type="text" th:field="*{rules[__${ruleStat.index}__].description}" maxlength="255" class="modern-input" />
                             </div>
                             <div>
                                 <label class="block text-sm font-medium mb-1" style="color:#cbd5e1;" th:text="#{admin.policy.center.create.manual.conditions}">Conditions</label>
@@ -180,7 +180,7 @@
                                             </select>
                                         </div>
                                         <div class="col-span-8">
-                                            <input type="text" th:field="*{rules[__${ruleStat.index}__].conditions[__${condStat.index}__].expression}" class="modern-input font-mono text-sm" />
+                                            <input type="text" th:field="*{rules[__${ruleStat.index}__].conditions[__${condStat.index}__].expression}" maxlength="2048" class="modern-input font-mono text-sm" />
                                         </div>
                                         <div class="col-span-1 text-center">
                                             <button type="button" onclick="removeElement(this, '.condition-block')" class="remove-btn">&times;</button>
@@ -204,7 +204,7 @@
                         <span th:text="#{msg.policy.version.change.reason}">Change Reason</span>
                         <span style="color: #f87171;">*</span>
                     </label>
-                    <textarea th:field="*{changeReason}" rows="2" class="modern-input w-full"
+                    <textarea th:field="*{changeReason}" maxlength="1024" rows="2" class="modern-input w-full"
                               th:placeholder="#{msg.policy.version.change.reason.required}"
                               required></textarea>
                 </div>
@@ -290,7 +290,7 @@
         <h3 class="text-lg font-bold" style="color:#e2e8f0;"><i class="fas fa-undo mr-2" style="color:#c084fc;"></i> <span th:text="#{msg.policy.version.rollback}">Rollback</span></h3>
         <div>
             <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;" th:text="#{msg.policy.version.change.reason}">Change Reason</label>
-            <textarea id="rollback-reason-input" class="modern-input w-full" rows="3" th:placeholder="#{msg.policy.version.change.reason.required}"></textarea>
+            <textarea id="rollback-reason-input" maxlength="1024" class="modern-input w-full" rows="3" th:placeholder="#{msg.policy.version.change.reason.required}"></textarea>
         </div>
         <div class="flex justify-end gap-3 mt-4">
             <button type="button" onclick="PolicyVersionUI.closeReasonModal()" class="dark-btn-secondary px-4 py-2" th:text="#{common.cancel}">Cancel</button>
@@ -316,7 +316,7 @@ function addTarget() {
         '<div class="target-block grid grid-cols-12 gap-2 items-center">'
         + '<div class="col-span-2"><select name="targets['+idx+'].targetType" onchange="toggleHttpMethod(this)" class="modern-select"><option value="URL">URL</option><option value="METHOD">METHOD</option></select></div>'
         + '<div class="col-span-2"><select name="targets['+idx+'].httpMethod" class="http-method-select modern-select"><option value="ALL">ALL</option><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option></select></div>'
-        + '<div class="col-span-4"><input type="text" name="targets['+idx+'].targetIdentifier" class="modern-input" required /></div>'
+        + '<div class="col-span-4"><input type="text" name="targets['+idx+'].targetIdentifier" class="modern-input" maxlength="255" required /></div>'
         + '<div class="col-span-1"><input type="number" name="targets['+idx+'].targetOrder" class="modern-input text-center" value="0" min="0" max="999" style="padding:0.4rem;" /></div>'
         + '<div class="col-span-2 text-center"><input type="hidden" name="targets['+idx+'].sourceType" value="RESOURCE" /><span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,0.2);color:#22c55e;">' + PD_I18N.resourceBadge + '</span></div>'
         + '<div class="col-span-1 text-center"><button type="button" onclick="removeElement(this,\'.target-block\')" class="remove-btn">&times;</button></div></div>');
@@ -333,7 +333,7 @@ function addRule() {
         '<div class="rule-block p-4 rounded-lg space-y-3 relative" style="background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.3);">'
         + '<button type="button" onclick="removeRule(this)" class="remove-btn">&times;</button>'
         + '<h3 class="font-semibold" style="color:#e2e8f0;">' + PD_I18N.ruleLabel + ' #'+(idx+1)+'</h3>'
-        + '<div><label class="block text-sm font-medium mb-1" style="color:#cbd5e1;">' + PD_I18N.descriptionLabel + '</label><input type="text" name="rules['+idx+'].description" class="modern-input" /></div>'
+        + '<div><label class="block text-sm font-medium mb-1" style="color:#cbd5e1;">' + PD_I18N.descriptionLabel + '</label><input type="text" name="rules['+idx+'].description" class="modern-input" maxlength="255" /></div>'
         + '<div><label class="block text-sm font-medium mb-1" style="color:#cbd5e1;">' + PD_I18N.conditionsLabel + '</label><div class="conditions-list space-y-2 mt-2"></div>'
         + '<button type="button" onclick="addCondition(this)" class="add-btn mt-2"><i class="fas fa-plus"></i> ' + PD_I18N.addCondition + '</button></div></div>');
 }
@@ -344,7 +344,7 @@ function addCondition(btn) {
     cl.insertAdjacentHTML('beforeend',
         '<div class="condition-block grid grid-cols-12 gap-2 items-center">'
         + '<div class="col-span-3"><select name="rules['+ri+'].conditions['+ci+'].authorizationPhase" class="modern-select text-sm"><option value="PRE_AUTHORIZE">PRE_AUTHORIZE</option><option value="POST_AUTHORIZE">POST_AUTHORIZE</option></select></div>'
-        + '<div class="col-span-8"><input type="text" name="rules['+ri+'].conditions['+ci+'].expression" class="modern-input font-mono text-sm" /></div>'
+        + '<div class="col-span-8"><input type="text" name="rules['+ri+'].conditions['+ci+'].expression" class="modern-input font-mono text-sm" maxlength="2048" /></div>'
         + '<div class="col-span-1 text-center"><button type="button" onclick="removeElement(this,\'.condition-block\')" class="remove-btn">&times;</button></div></div>');
 }
 function removeElement(btn, sel) { btn.closest(sel).remove(); updateIndices(); }
@@ -407,12 +407,11 @@ var PolicyDetailUI = {
         };
         document.getElementById('impact-summary').innerHTML = '<p class="text-sm col-span-3" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> ' + _impI18n.analyzing + '</p>';
 
-        fetch('/contexa/admin/policy-center/api/impact-analysis', {
+        PolicyVersionUI.json('/contexa/admin/policy-center/api/impact-analysis', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', [PolicyVersionUI.csrfHeader()]: PolicyVersionUI.csrfToken() },
             body: JSON.stringify(policyDto)
         })
-        .then(function(r) { return r.json(); })
         .then(function(report) {
             var s = report.accessChangeSummary;
             document.getElementById('impact-summary').innerHTML =
@@ -455,6 +454,19 @@ var PolicyVersionUI = {
     csrfToken: function() { return document.querySelector('meta[name="_csrf"]')?.content; },
     csrfHeader: function() { return document.querySelector('meta[name="_csrf_header"]')?.content || 'X-CSRF-TOKEN'; },
 
+    /** A console call that rejects with the server's reason (console-net.js), so a failure is not drawn as no data. */
+    json: function(path, options) {
+        if (window.ContexaConsole) return window.ContexaConsole.fetchJson(path, options);
+        return fetch(path, options).then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        });
+    },
+
+    reason: function(err) {
+        return err && err.message ? ' ' + PolicyVersionUI.escapeHtml(err.message) : '';
+    },
+
     load: function() {
         if (!this.policyId) return;
         var container = document.getElementById('version-history-container');
@@ -463,10 +475,9 @@ var PolicyVersionUI = {
         var noHistoryText = /*[[#{msg.policy.version.empty}]]*/ 'No version history.';
         container.innerHTML = '<p class="text-sm" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> ' + loadingText + '</p>';
 
-        fetch('/contexa/admin/policy-center/api/' + this.policyId + '/versions', {
+        PolicyVersionUI.json('/contexa/admin/policy-center/api/' + this.policyId + '/versions', {
             headers: { [this.csrfHeader()]: this.csrfToken() }
         })
-        .then(function(r) { return r.json(); })
         .then(function(versions) {
             if (!versions.length) {
                 container.innerHTML = '<p class="text-sm" style="color:#64748b;">' + noHistoryText + '</p>';
@@ -506,7 +517,7 @@ var PolicyVersionUI = {
         })
         .catch(function(err) {
             var failText = /*[[#{msg.policy.version.load.error}]]*/ 'Failed to load versions.';
-            container.innerHTML = '<p class="text-sm" style="color:#f87171;">' + failText + '</p>';
+            container.innerHTML = '<p class="text-sm" style="color:#f87171;">' + failText + PolicyVersionUI.reason(err) + '</p>';
         });
     },
 
@@ -540,10 +551,9 @@ var PolicyVersionUI = {
         };
         resultDiv.innerHTML = '<p class="text-sm" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> ' + _verI18n.comparing + '</p>';
 
-        fetch('/contexa/admin/policy-center/api/' + this.policyId + '/versions/compare?v1=' + v1 + '&v2=' + v2, {
+        PolicyVersionUI.json('/contexa/admin/policy-center/api/' + this.policyId + '/versions/compare?v1=' + v1 + '&v2=' + v2, {
             headers: { [this.csrfHeader()]: this.csrfToken() }
         })
-        .then(function(r) { return r.json(); })
         .then(function(changes) {
             if (!changes.length) {
                 resultDiv.innerHTML = '<p class="text-sm" style="color:#4ade80;"><i class="fas fa-check mr-1"></i> ' + _verI18n.noDiff + '</p>';
@@ -560,7 +570,7 @@ var PolicyVersionUI = {
             html += '</tbody></table>';
             resultDiv.innerHTML = html;
         })
-        .catch(function(err) { resultDiv.innerHTML = '<p class="text-sm" style="color:#f87171;">' + _verI18n.failed + '</p>'; });
+        .catch(function(err) { resultDiv.innerHTML = '<p class="text-sm" style="color:#f87171;">' + _verI18n.failed + PolicyVersionUI.reason(err) + '</p>'; });
     },
 
     viewSnapshot: function(versionNumber) {
@@ -583,10 +593,9 @@ var PolicyVersionUI = {
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
 
-        fetch('/contexa/admin/policy-center/api/' + this.policyId + '/versions/' + versionNumber, {
+        PolicyVersionUI.json('/contexa/admin/policy-center/api/' + this.policyId + '/versions/' + versionNumber, {
             headers: { [this.csrfHeader()]: this.csrfToken() }
         })
-        .then(function(r) { return r.json(); })
         .then(function(data) {
             document.getElementById('snapshot-meta').innerHTML =
                 '<span class="status-badge text-xs" style="background:rgba(99,102,241,0.15);color:#a5b4fc;border-color:rgba(99,102,241,0.3);">' + PolicyVersionUI.escapeHtml(data.changeType) + '</span>'
@@ -642,7 +651,7 @@ var PolicyVersionUI = {
         })
         .catch(function(err) {
             document.getElementById('snapshot-meta').innerHTML = '';
-            document.getElementById('snapshot-content').innerHTML = '<p class="text-sm" style="color:#f87171;">' + _snapI18n.loadFailed + '</p>';
+            document.getElementById('snapshot-content').innerHTML = '<p class="text-sm" style="color:#f87171;">' + _snapI18n.loadFailed + PolicyVersionUI.reason(err) + '</p>';
         });
     },
 
@@ -685,12 +694,11 @@ var PolicyVersionUI = {
         }
         var versionNumber = this._pendingRollbackVersion;
         this.closeReasonModal();
-        fetch('/contexa/admin/policy-center/api/' + this.policyId + '/rollback/' + versionNumber, {
+        PolicyVersionUI.json('/contexa/admin/policy-center/api/' + this.policyId + '/rollback/' + versionNumber, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', [this.csrfHeader()]: this.csrfToken() },
             body: JSON.stringify({ reason: reason })
         })
-        .then(function(r) { return r.json(); })
         .then(function(result) {
             if (result.success) {
                 showToast(result.message, 'success');
@@ -747,12 +755,11 @@ var PolicyDetailValidation = {
         try {
             var csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
             var csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content || 'X-CSRF-TOKEN';
-            var resp = await fetch('/contexa/admin/policy-center/api/validate', {
+            var validation = await PolicyVersionUI.json('/contexa/admin/policy-center/api/validate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', [csrfHeader]: csrfToken },
                 body: JSON.stringify(dto)
             });
-            var validation = await resp.json();
             if (!validation.canCreate) {
                 this.showModal(validation, false);
                 return false;
@@ -766,6 +773,9 @@ var PolicyDetailValidation = {
             }
         } catch (valErr) {
             console.error('Validation error', valErr);
+            // The check could not run: the person decides, with the reason, instead of saving as if it had passed.
+            var unavailable = /*[[#{policy.center.js.validation.unavailable.confirm}]]*/ 'The conflict check could not run ({0}). Save the policy without it?';
+            if (!window.confirm(unavailable.replace('{0}', valErr.message || ''))) return false;
         }
         var form = document.getElementById('policy-edit-form');
         form.removeAttribute('onsubmit');

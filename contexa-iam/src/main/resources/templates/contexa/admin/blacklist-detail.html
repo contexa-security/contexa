@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.blacklist.detail.title})}"></head>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.blacklist.detail.title})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{contexa/fragments/header :: header}"></div>

@@ -157,7 +157,7 @@ class CompanyRecordsAdminTest {
         assertThat(html).contains(">업무 기록<", ">티켓<", ">배정<", "TCK-1", "CHANGE · OPEN · DESIGN_CHANGE",
                 "approver pm-11", "actions READ", "DESIGN · 2026-01-01 .. ", "hr-sync", PUT_AT,
                 "company-records?target=HX-310").doesNotContain("??");
-        assertThat(render(Locale.ENGLISH, model)).contains(">Company records<", ">Ticket<", ">Assignment<")
+        assertThat(render(Locale.ENGLISH, model)).contains(">Company Records<", ">Ticket<", ">Assignment<")
                 .doesNotContain("??");
 
         ExtendedModelMap rules = new ExtendedModelMap();

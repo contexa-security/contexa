@@ -16,8 +16,10 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
 import io.contexa.contexacommon.annotation.Protectable;
-import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
+import io.contexa.contexacommon.security.ConsoleSession;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
+import io.contexa.contexaiam.common.ConsoleInput;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
@@ -48,6 +50,9 @@ public class RoleHierarchyService extends AccountAuthoritiesService {
     private final RoleHierarchyImpl roleHierarchy;
     private final MessageSource messageSource;
     private final LastAdministratorGuard lastAdministratorGuard;
+
+    /** The length of the column of a hierarchy's description. */
+    private static final int DESCRIPTION_LENGTH = 255;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -93,35 +98,43 @@ public class RoleHierarchyService extends AccountAuthoritiesService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public RoleHierarchyEntity createRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
+        // First in the transaction: the console's lock (LastAdministratorGuard.serializeChanges). A creation of the same
+        // name that came a moment before is committed by the time this one has the lock, and is found below; the unique
+        // constraint of the table stays the last defense, for a write that does not come through the console.
+        lastAdministratorGuard.serializeChanges();
         authoritiesChanged();
-        try {
-
-            if (roleHierarchyRepository.findByHierarchyString(roleHierarchyEntity.getHierarchyString()).isPresent()) {
-                throw new IllegalArgumentException(msg("msg.role.hierarchy.duplicate"));
-            }
-
-            validateHierarchyString(roleHierarchyEntity.getHierarchyString());
-
-            validateHierarchyLogic(roleHierarchyEntity.getHierarchyString());
-
-            // Validate against existing active hierarchies (even if registering as inactive)
-            String currentMerged = getMergedActiveHierarchyString();
-            if (!currentMerged.isEmpty()) {
-                String candidateMerged = currentMerged + "\n" + roleHierarchyEntity.getHierarchyString();
-                validateMergedHierarchy(candidateMerged);
-            }
-
-            RoleHierarchyEntity savedEntity = roleHierarchyRepository.save(roleHierarchyEntity);
-
-            if (savedEntity.getIsActive()) {
-                reloadRoleHierarchyBean();
-            }
-            return savedEntity;
-
-        } catch (Exception e) {
-            log.error("Error creating role hierarchy: ", e);
-            throw e;
+        String hierarchyString = requiredHierarchy(roleHierarchyEntity.getHierarchyString());
+        roleHierarchyEntity.setHierarchyString(hierarchyString);
+        roleHierarchyEntity.setDescription(ConsoleInput.required(messageSource, "crud.field.hierarchy.description",
+                roleHierarchyEntity.getDescription(), DESCRIPTION_LENGTH));
+        if (roleHierarchyEntity.getIsActive() == null) {
+            roleHierarchyEntity.setIsActive(false);
         }
+
+        if (roleHierarchyRepository.findByHierarchyString(hierarchyString).isPresent()) {
+            throw new IllegalArgumentException(msg("msg.role.hierarchy.duplicate"));
+        }
+
+        validateHierarchyString(hierarchyString);
+
+        validateHierarchyLogic(hierarchyString);
+
+        // Refused even when registered as inactive: switching it on later would make the holders administrators at once.
+        lastAdministratorGuard.refuseRolesAboveAdministrator(hierarchyString);
+
+        // Validate against existing active hierarchies (even if registering as inactive)
+        String currentMerged = getMergedActiveHierarchyString();
+        if (!currentMerged.isEmpty()) {
+            String candidateMerged = currentMerged + "\n" + hierarchyString;
+            validateMergedHierarchy(candidateMerged);
+        }
+
+        RoleHierarchyEntity savedEntity = roleHierarchyRepository.save(roleHierarchyEntity);
+
+        if (savedEntity.getIsActive()) {
+            reloadRoleHierarchyBean();
+        }
+        return savedEntity;
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -131,39 +144,46 @@ public class RoleHierarchyService extends AccountAuthoritiesService {
         lastAdministratorGuard.serializeChanges();
         List<String> administrators = lastAdministratorGuard.administrators();
         authoritiesChanged();
-        try {
+        RoleHierarchyEntity existingEntity = roleHierarchyRepository.findById(roleHierarchyEntity.getId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        msg("msg.role.hierarchy.not.found.id", String.valueOf(roleHierarchyEntity.getId()))));
 
-            RoleHierarchyEntity existingEntity = roleHierarchyRepository.findById(roleHierarchyEntity.getId())
-                    .orElseThrow(() -> new IllegalArgumentException(msg("msg.role.hierarchy.not.found.id", roleHierarchyEntity.getId())));
-
-            validateHierarchyString(roleHierarchyEntity.getHierarchyString());
-
-            validateHierarchyLogic(roleHierarchyEntity.getHierarchyString());
-
-            existingEntity.setHierarchyString(roleHierarchyEntity.getHierarchyString());
-            existingEntity.setDescription(roleHierarchyEntity.getDescription());
-            existingEntity.setIsActive(roleHierarchyEntity.getIsActive());
-
-            RoleHierarchyEntity updatedEntity = roleHierarchyRepository.save(existingEntity);
-
-            // Always validate merged hierarchy if any hierarchy is active
-            String merged = getMergedActiveHierarchyString();
-            if (!merged.isEmpty()) {
-                validateMergedHierarchy(merged);
-            }
-
-            // Read by the hierarchy the change leaves, before the console runs on it.
-            lastAdministratorGuard.refuseLosingEveryAdministrator(administrators, merged);
-            reloadRoleHierarchyBean();
-
-            return updatedEntity;
-
-        } catch (LastAdministratorException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Error updating role hierarchy: ", e);
-            throw e;
+        String hierarchyString = requiredHierarchy(roleHierarchyEntity.getHierarchyString());
+        String description = ConsoleInput.required(messageSource, "crud.field.hierarchy.description",
+                roleHierarchyEntity.getDescription(), DESCRIPTION_LENGTH);
+        boolean takenByAnother = roleHierarchyRepository.findByHierarchyString(hierarchyString)
+                .filter(other -> !Objects.equals(other.getId(), existingEntity.getId()))
+                .isPresent();
+        if (takenByAnother) {
+            throw new IllegalArgumentException(msg("msg.role.hierarchy.duplicate"));
         }
+
+        validateHierarchyString(hierarchyString);
+
+        validateHierarchyLogic(hierarchyString);
+
+        lastAdministratorGuard.refuseRolesAboveAdministrator(hierarchyString);
+
+        existingEntity.setHierarchyString(hierarchyString);
+        existingEntity.setDescription(description);
+        // A request that does not say whether the hierarchy is in force leaves it as it is.
+        if (roleHierarchyEntity.getIsActive() != null) {
+            existingEntity.setIsActive(roleHierarchyEntity.getIsActive());
+        }
+
+        RoleHierarchyEntity updatedEntity = roleHierarchyRepository.save(existingEntity);
+
+        // Always validate merged hierarchy if any hierarchy is active
+        String merged = getMergedActiveHierarchyString();
+        if (!merged.isEmpty()) {
+            validateMergedHierarchy(merged);
+        }
+
+        // Read by the hierarchy the change leaves, before the console runs on it.
+        lastAdministratorGuard.refuseLosingEveryAdministrator(administrators, merged);
+        reloadRoleHierarchyBean();
+
+        return updatedEntity;
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -172,7 +192,10 @@ public class RoleHierarchyService extends AccountAuthoritiesService {
         lastAdministratorGuard.serializeChanges();
         List<String> administrators = lastAdministratorGuard.administrators();
         authoritiesChanged();
-        roleHierarchyRepository.deleteById(id);
+        RoleHierarchyEntity target = roleHierarchyRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        msg("msg.role.hierarchy.not.found.id", String.valueOf(id))));
+        roleHierarchyRepository.delete(target);
         lastAdministratorGuard.refuseLosingEveryAdministrator(administrators, getMergedActiveHierarchyString());
         reloadRoleHierarchyBean();
     }
@@ -184,12 +207,15 @@ public class RoleHierarchyService extends AccountAuthoritiesService {
         List<String> administrators = lastAdministratorGuard.administrators();
         authoritiesChanged();
         RoleHierarchyEntity target = roleHierarchyRepository.findById(activeId)
-                .orElseThrow(() -> new IllegalArgumentException(msg("msg.role.hierarchy.not.found.id", activeId)));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        msg("msg.role.hierarchy.not.found.id", String.valueOf(activeId))));
 
         // Toggle activation
         boolean newState = !Boolean.TRUE.equals(target.getIsActive());
 
         if (newState) {
+            // A hierarchy kept from before the check of ROLE_ADMIN is not switched on with such a relation.
+            lastAdministratorGuard.refuseRolesAboveAdministrator(target.getHierarchyString());
             // Validate merged hierarchy with this one added
             String currentMerged = getMergedActiveHierarchyString();
             String candidateMerged = currentMerged.isEmpty()
@@ -223,10 +249,50 @@ public class RoleHierarchyService extends AccountAuthoritiesService {
                 hierarchyString = hierarchyString.replace("\\n", "\n");
             }
 
-            roleHierarchy.setHierarchy(hierarchyString);
+            roleHierarchy.setHierarchy(withoutRolesAboveAdministrator(hierarchyString));
         } catch (Exception e) {
             log.error("Failed to reload RoleHierarchyImpl bean dynamically. Error: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * The hierarchy without a relation that places a role above {@code ROLE_ADMIN}. Such a relation is refused when a
+     * hierarchy is saved or switched on; one kept from before that check would make the holders of the role above it
+     * administrators of the console, so the console does not run on it.
+     */
+    static String withoutRolesAboveAdministrator(String hierarchyString) {
+        if (hierarchyString == null || hierarchyString.isBlank()) {
+            return hierarchyString;
+        }
+        List<String> kept = new ArrayList<>();
+        for (String line : hierarchyString.split("\n")) {
+            String[] roles = line.split(">");
+            boolean aboveAdministrator = Arrays.stream(roles).skip(1)
+                    .map(String::trim)
+                    .anyMatch(RoleHierarchyService::isAdministratorRole);
+            if (aboveAdministrator) {
+                log.warn("[RoleHierarchy] A relation that places a role above {} is left out of the hierarchy in force: "
+                        + "{}", ConsoleSession.ADMIN_AUTHORITY, line.trim());
+                continue;
+            }
+            kept.add(line);
+        }
+        return String.join("\n", kept);
+    }
+
+    private static boolean isAdministratorRole(String token) {
+        return StringUtils.hasText(token)
+                && (ConsoleSession.ADMIN_AUTHORITY.equalsIgnoreCase(token)
+                || ConsoleSession.ADMIN_AUTHORITY.equalsIgnoreCase(RoleAuthority.authorityOf(token)));
+    }
+
+    /** The relations of a hierarchy, refused when there is none. */
+    private String requiredHierarchy(String hierarchyString) {
+        String value = hierarchyString == null ? "" : hierarchyString.trim();
+        if (value.isEmpty() || !value.contains(">")) {
+            throw new IllegalArgumentException(msg("msg.role.hierarchy.empty"));
+        }
+        return value;
     }
 
     private void validateHierarchyString(String hierarchyString) {

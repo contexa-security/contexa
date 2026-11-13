@@ -91,12 +91,21 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- ----------------------------------------------------------------
 -- POLICY_TARGET — canonical child rows of seed policies.
+-- A child row is written only to a seed policy that has no row of its own of that kind (a new installation, or a
+-- seed policy deleted outside the console), or updated where it is still the seed's row (an older installation).
+-- An edit of a seed policy writes its targets, rules and conditions as new rows. The seed leaves such a policy as
+-- the administrator saved it instead of grafting its own rows on it.
 -- ----------------------------------------------------------------
 INSERT INTO CTXA_POLICY_TARGET (
     id, policy_id, target_type, target_identifier, http_method, target_order, source_type
-) VALUES
+)
+SELECT v.id, v.policy_id, v.target_type, v.target_identifier, v.http_method, v.target_order, v.source_type
+FROM (VALUES
     (1, 1, 'URL', '/contexa/admin/login', 'ANY', 1, 'MANUAL'),
     (2, 2, 'URL', '/contexa/admin/**', 'ANY', 1, 'MANUAL')
+) AS v(id, policy_id, target_type, target_identifier, http_method, target_order, source_type)
+WHERE NOT EXISTS (SELECT 1 FROM CTXA_POLICY_TARGET t WHERE t.policy_id = v.policy_id AND t.id <> v.id)
+  AND NOT EXISTS (SELECT 1 FROM CTXA_POLICY_TARGET t WHERE t.id = v.id AND t.policy_id <> v.policy_id)
 ON CONFLICT (id) DO UPDATE SET
                                policy_id = EXCLUDED.policy_id,
                                target_type = EXCLUDED.target_type,
@@ -109,9 +118,13 @@ ON CONFLICT (id) DO UPDATE SET
 -- POLICY_RULE — canonical child rows of seed policies.
 -- ----------------------------------------------------------------
 INSERT INTO CTXA_POLICY_RULE (id, policy_id, description)
-VALUES
+SELECT v.id, v.policy_id, v.description
+FROM (VALUES
     (1, 1, '로그인 화면은 인증 전 접근을 허용합니다.'),
     (2, 2, '관리자 역할이 있는 사용자만 관리자 영역에 접근할 수 있습니다.')
+) AS v(id, policy_id, description)
+WHERE NOT EXISTS (SELECT 1 FROM CTXA_POLICY_RULE r WHERE r.policy_id = v.policy_id AND r.id <> v.id)
+  AND NOT EXISTS (SELECT 1 FROM CTXA_POLICY_RULE r WHERE r.id = v.id AND r.policy_id <> v.policy_id)
 ON CONFLICT (id) DO UPDATE SET
                                policy_id = EXCLUDED.policy_id,
                                description = EXCLUDED.description;
@@ -119,10 +132,14 @@ ON CONFLICT (id) DO UPDATE SET
 -- ----------------------------------------------------------------
 -- POLICY_CONDITION — canonical child rows of seed policies.
 -- ----------------------------------------------------------------
+-- Written under the seed rule only, which the statement above kept only where the policy is still the seed's.
 INSERT INTO CTXA_POLICY_CONDITION (
     id, rule_id, condition_expression, authorization_phase, description
-) VALUES
+)
+SELECT v.id, v.rule_id, v.condition_expression, v.authorization_phase, v.description
+FROM (VALUES
     (
+        1,
         1,
         1,
         'permitAll',
@@ -132,10 +149,15 @@ INSERT INTO CTXA_POLICY_CONDITION (
     (
         2,
         2,
+        2,
         'hasRole(''ADMIN'')',
         'PRE_AUTHORIZE',
         '요청 사용자에게 관리자 역할(ROLE_ADMIN)이 있어야 합니다.'
     )
+) AS v(id, rule_id, policy_id, condition_expression, authorization_phase, description)
+JOIN CTXA_POLICY_RULE r ON r.id = v.rule_id AND r.policy_id = v.policy_id
+WHERE NOT EXISTS (SELECT 1 FROM CTXA_POLICY_CONDITION c WHERE c.rule_id = v.rule_id AND c.id <> v.id)
+  AND NOT EXISTS (SELECT 1 FROM CTXA_POLICY_CONDITION c WHERE c.id = v.id AND c.rule_id <> v.rule_id)
 ON CONFLICT (id) DO UPDATE SET
                                rule_id = EXCLUDED.rule_id,
                                condition_expression = EXCLUDED.condition_expression,
@@ -165,13 +187,27 @@ INSERT INTO CTXA_SECURITY_SPEL (name, expression, description, category) VALUES
      'policy id=1: /contexa/admin/login 로그인 화면은 인증 없이 접근할 수 있습니다.',
      'POLICY'),
     ('POLICY_2_ADMIN_AUTHENTICATED',
-     'isAuthenticated()',
-     'policy id=2: /contexa/admin/** 관리자 영역은 인증된 사용자만 접근할 수 있습니다.',
+     'hasRole(''ADMIN'')',
+     'policy id=2: /contexa/admin/** 관리자 영역은 관리자 역할(ROLE_ADMIN)이 있는 사용자만 접근할 수 있습니다.',
      'POLICY')
 ON CONFLICT (name) DO UPDATE SET
                                   expression = EXCLUDED.expression,
                                   description = EXCLUDED.description,
                                   category = EXCLUDED.category;
+
+-- ----------------------------------------------------------------
+-- PERMISSION — the CRUD permissions (READ, WRITE, UPDATE, DELETE).
+-- The access center grants them with a role, and the quick, batch and AI policies of the policy center write them
+-- in conditions as hasAuthority('READ') and the like. Seeded by name, and a row an installation made of its own is kept.
+-- ----------------------------------------------------------------
+INSERT INTO CTXA_PERMISSION (
+    permission_name, friendly_name, description, target_type, action_type, auto_created, created_at
+) VALUES
+    ('READ',   '조회', '리소스를 조회할 수 있습니다.', 'CRUD', 'READ',   FALSE, CURRENT_TIMESTAMP),
+    ('WRITE',  '생성', '리소스를 생성할 수 있습니다.', 'CRUD', 'WRITE',  FALSE, CURRENT_TIMESTAMP),
+    ('UPDATE', '수정', '리소스를 수정할 수 있습니다.', 'CRUD', 'UPDATE', FALSE, CURRENT_TIMESTAMP),
+    ('DELETE', '삭제', '리소스를 삭제할 수 있습니다.', 'CRUD', 'DELETE', FALSE, CURRENT_TIMESTAMP)
+ON CONFLICT (permission_name) DO NOTHING;
 
 -- ----------------------------------------------------------------
 -- SHEDLOCK — no seed row.

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.role.hierarchy.detail.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
@@ -37,7 +37,7 @@
 
                 <div>
                     <label for="description" class="dark-label" th:text="#{admin.role.hierarchy.detail.description.label}">Hierarchy Description:</label>
-                    <input type="text" id="description" th:field="*{description}"
+                    <input type="text" id="description" th:field="*{description}" maxlength="255"
                            class="dark-input"
                            th:placeholder="#{admin.role.hierarchy.detail.description.placeholder}" required />
                 </div>
@@ -95,7 +95,8 @@
                                 <i class="fas fa-arrow-down"></i> <span th:text="#{admin.role.hierarchy.detail.drop.hint}">Drop here to add as parent role</span>
                             </div>
                             <div id="mermaid-container" style="width: 100%; height: 100%;">
-                                <div id="mermaid-diagram" class="mermaid">
+                                <div id="mermaid-diagram" class="mermaid"
+                                     th:text="|graph TD; A[#{admin.role.hierarchy.visual.placeholder}]|">
                                     graph TD
                                     A[Set role relations to see visualization here]
                                 </div>
@@ -120,7 +121,8 @@
                                                     <option value="" th:text="#{admin.role.hierarchy.detail.select.parent}">Select parent role</option>
                                                     <option th:each="role : ${allRoles}"
                                                             th:value="${role.roleName}"
-                                                            th:text="${role.roleName + ' (' + role.roleDesc + ')'}"
+                                                            th:text="${role.roleName}"
+                                                            th:title="${role.roleDesc}"
                                                             th:selected="${role.roleName == pair.parentRole}"></option>
                                                 </select>
                                                 <div class="select-arrow"><i class="fas fa-chevron-down"></i></div>
@@ -141,7 +143,8 @@
                                                     <option value="" th:text="#{admin.role.hierarchy.detail.select.child}">Select child role</option>
                                                     <option th:each="role : ${allRoles}"
                                                             th:value="${role.roleName}"
-                                                            th:text="${role.roleName + ' (' + role.roleDesc + ')'}"
+                                                            th:text="${role.roleName}"
+                                                            th:title="${role.roleDesc}"
                                                             th:selected="${role.roleName == pair.childRole}"></option>
                                                 </select>
                                                 <div class="select-arrow"><i class="fas fa-chevron-down"></i></div>
@@ -476,8 +479,9 @@
 
         roles.forEach(role => {
             if (lower && !role.roleName.toLowerCase().includes(lower) && !role.roleDesc.toLowerCase().includes(lower)) return;
-            const displayText = role.roleName + ' (' + role.roleDesc + ')';
-            optionsHtml += '<option value="' + escapeHtml(role.roleName) + '">' + escapeHtml(displayText) + '</option>';
+            // The name alone fits the narrow select; the description is its tooltip.
+            optionsHtml += '<option value="' + escapeHtml(role.roleName) + '" title="' + escapeHtml(role.roleDesc) + '">'
+                + escapeHtml(role.roleName) + '</option>';
         });
 
         return optionsHtml;
@@ -732,9 +736,8 @@
 
         if (relations.length > 0) {
             updateVisualization(relations);
-            if (!hasError) {
-                updateResultPreview(relations);
-            }
+            // The string is shown as it stands, an error or not; saving is refused while the error is shown.
+            updateResultPreview(relations);
         } else {
             showInitialState();
         }

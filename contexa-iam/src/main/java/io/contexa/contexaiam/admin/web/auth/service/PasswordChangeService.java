@@ -196,7 +196,7 @@ public class PasswordChangeService {
         if (!violations.isEmpty()) {
             throw new PasswordChangeException("msg.password.change.policy.violation", String.join(", ", violations));
         }
-        if (passwordPolicyService.isPasswordReused(user.getId(), newPassword)) {
+        if (passwordPolicyService.isPasswordReused(user.getId(), user.getPassword(), newPassword)) {
             throw new PasswordChangeException("msg.password.change.reused");
         }
 

@@ -84,6 +84,11 @@ public class LastAdministratorGuard {
      * Takes the lock every change of who may administer the console goes through, until the end of the transaction: the
      * rows of the roles. A change that waits here reads, once it has the lock, what the change before it left. Call it
      * before anything else is read in the transaction, since what was read earlier is not read again.
+     * <p>
+     * The creations of users, roles, groups, permissions and role hierarchies take it too: two creations of the same name
+     * at the same moment would both find the name free and the second would meet the unique constraint of the table.
+     * The lock is the database's, held until the transaction ends with its commit, so the second creation reads the
+     * first one's row on every node of the console, and is refused with its reason.
      */
     public void serializeChanges() {
         roles.findAllForUpdate();
@@ -159,6 +164,38 @@ public class LastAdministratorGuard {
         log.warn("[RoleManagement] A change that would leave the console without an active administrator was refused: "
                 + "administrators={}", before);
         throw new LastAdministratorException(messageForEvery(before));
+    }
+
+    /**
+     * Refuses a role hierarchy that gives {@code ROLE_ADMIN} to the holders of another role: a relation of
+     * {@code A > ROLE_ADMIN}, or a path of relations that ends there, makes everyone who holds {@code A} an administrator
+     * of the console. Every role is read, the switched-off ones too, since switching one on would grant it at once.
+     *
+     * @param hierarchyToCheck one relation of {@code A > B} to a line
+     * @throws IllegalArgumentException naming the roles that would grant {@code ROLE_ADMIN}
+     */
+    public void refuseRolesAboveAdministrator(String hierarchyToCheck) {
+        if (hierarchyToCheck == null || hierarchyToCheck.isBlank()) {
+            return;
+        }
+        RoleHierarchy candidate = hierarchyOf(hierarchyToCheck);
+        List<String> raised = roles.findAll().stream()
+                .filter(role -> role != null && StringUtils.hasText(role.getRoleName()))
+                .map(Role::getRoleName)
+                .filter(name -> !ConsoleSession.ADMIN_AUTHORITY.equals(RoleAuthority.authorityOf(name)))
+                .filter(name -> grantsAdministrator(name, candidate))
+                .sorted()
+                .toList();
+        if (raised.isEmpty()) {
+            return;
+        }
+        log.warn("[RoleManagement] A role hierarchy that would give ROLE_ADMIN to the holders of other roles was "
+                + "refused: roles={}", raised);
+        String names = String.join(", ", raised);
+        String fallback = "No role can be placed above " + ConsoleSession.ADMIN_AUTHORITY + ": this hierarchy would give "
+                + ConsoleSession.ADMIN_AUTHORITY + " to the holders of " + names + ".";
+        throw new IllegalArgumentException(messages == null ? fallback : messages.getMessage(
+                "msg.role.hierarchy.above.admin", new Object[]{names}, fallback, LocaleContextHolder.getLocale()));
     }
 
     private static RoleHierarchy hierarchyOf(String hierarchy) {

@@ -25,6 +25,7 @@ import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.InternetAddress;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.ott.*;
@@ -40,6 +41,7 @@ import org.springframework.web.util.HtmlUtils;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
@@ -85,6 +87,12 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
     private final StepUpOptionsStore claims;
     private final Duration resendInterval;
     private volatile Supplier<UserDetailsService> userStore = () -> null;
+    /** Development and tests: the code is written to the log too, and a sign-in does not wait on a mail server. */
+    private volatile boolean codeToConsole;
+
+    public void setCodeToConsole(boolean codeToConsole) {
+        this.codeToConsole = codeToConsole;
+    }
 
     /** The resend interval is then this instance's own: a distributed deployment hands in the store it shares. */
     public EmailOneTimeTokenService(EmailService emailService,
@@ -148,11 +156,16 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
         if (request instanceof EmailGenerateOneTimeTokenRequest emailRequest) {
             customEmail = emailRequest.getEmail();
         }
-        return generateAndSendVerificationCode(request.getUsername(), "Authentication Code (via generate)", customEmail);
+        return generateAndSendVerificationCode(request.getUsername(), "Authentication Code (via generate)", customEmail,
+                request instanceof MfaCodeRequest);
     }
 
     public OneTimeToken generateAndSendVerificationCode(String username, String emailPurpose) {
         return generateAndSendVerificationCode(username, emailPurpose, null);
+    }
+
+    public OneTimeToken generateAndSendVerificationCode(String username, String emailPurpose, String customEmail) {
+        return generateAndSendVerificationCode(username, emailPurpose, customEmail, false);
     }
 
     /**
@@ -163,10 +176,12 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
      * sign in to nothing. A locked or disabled account is mailed nothing either: the code would sign in to nothing, and the
      * answer is the one a name of no account gets, so asking tells nothing of the account's state.
      *
+     * @param mfaCode a code of an MFA step, six digits kept under the user ({@link MfaCodes}); otherwise a long code
      * @return the code, or a token of the user with an empty value: inside the interval, where the code mailed before stays
      * good, for a name of no account, and for an account the sign-in refuses
      */
-    public OneTimeToken generateAndSendVerificationCode(String username, String emailPurpose, String customEmail) {
+    private OneTimeToken generateAndSendVerificationCode(String username, String emailPurpose, String customEmail,
+                                                         boolean mfaCode) {
         Assert.hasText(username, "Username cannot be empty");
         Assert.hasText(emailPurpose, "Email purpose cannot be empty");
 
@@ -191,7 +206,7 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
 
         boolean mailed = false;
         try {
-            OneTimeToken token = generateCode(username);
+            OneTimeToken token = mfaCode ? generateMfaCode(username) : generateCode(username);
             mailed = mail(to, username, emailPurpose, token);
             return token;
         } finally {
@@ -199,6 +214,27 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
                 claims.release(interval);
             }
         }
+    }
+
+    /**
+     * A six-digit code stored under the user. Two users may draw the same digits, since each is kept under its user; the
+     * same user drawing the digits of a code still good is the one collision, and another draw follows.
+     */
+    private OneTimeToken generateMfaCode(String username) {
+        Instant expiresAt = Instant.now().plusSeconds(authContextProperties.getMfa().getOtpTokenValiditySeconds());
+        for (int draw = 0; draw < 5; draw++) {
+            String code = MfaCodes.newCode();
+            try {
+                transactionTemplate.executeWithoutResult(status -> jdbcTemplate.update(
+                        "INSERT INTO ctxa_one_time_tokens (token_value, username, expires_at) VALUES (?, ?, ?)",
+                        MfaCodes.keyOf(username, code), username, Timestamp.from(expiresAt)));
+                return new DefaultOneTimeToken(code, username, expiresAt);
+            } catch (DuplicateKeyException sameDigits) {
+                log.debug("An MFA code of the same digits is still good for the user; another is drawn: username={}",
+                        username);
+            }
+        }
+        throw new IllegalStateException("No free MFA code could be drawn for the user");
     }
 
     private OneTimeToken generateCode(String username) {
@@ -224,7 +260,17 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
                 HtmlUtils.htmlEscape(username), emailPurpose, token.getTokenValue(), tokenValidityMinutes
         );
 
+        if (codeToConsole) {
+            log.warn("[OTT] Sign-in code for {} <{}>: {} (valid {} minutes). It is written here because one-time codes go "
+                            + "to the log in development and tests (contexa.auth.ott.code-to-console); a production start "
+                            + "mails them only.",
+                    username, to, token.getTokenValue(), tokenValidityMinutes);
+        }
+
         if (!emailService.isMailSenderConfigured()) {
+            if (codeToConsole) {
+                return true;
+            }
             IllegalStateException failure = new IllegalStateException(
                     "Email sender is not configured. Please configure Spring mail properties.");
             if (failOnEmailError) {
@@ -239,6 +285,12 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
             emailService.sendHtmlMessage(to, emailSubject, htmlBody);
             return true;
         } catch (RuntimeException ex) {
+            if (codeToConsole) {
+                // the code in the log above finishes the sign-in: a mail server that is down or absent stops nothing
+                log.warn("[OTT] The code mail to {} was not sent ({}); the code written above stands for this sign-in",
+                        to, ex.toString());
+                return true;
+            }
             if (failOnEmailError) {
                 throw ex;
             }
@@ -334,9 +386,24 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
         }
     }
 
+    /**
+     * Takes the code a person entered. A six-digit code of an MFA step is looked up under the user of the step, which the
+     * authentication carries as its principal: without the user it is not found at all, so the digits alone reach no code
+     * of anyone. A long code is looked up as it is, and is held to the user too when the step names one.
+     */
     @Override
     public OneTimeToken consume(OneTimeTokenAuthenticationToken authenticationToken) {
-        OneTimeToken internalTokenFromStore = consumeOnce(authenticationToken.getTokenValue());
+        String entered = authenticationToken.getTokenValue();
+        String stepUser = authenticationToken.getPrincipal() instanceof String user && StringUtils.hasText(user) ? user : null;
+        OneTimeToken internalTokenFromStore;
+        if (MfaCodes.isCode(entered)) {
+            internalTokenFromStore = stepUser == null ? null : consumeOnce(MfaCodes.keyOf(stepUser, entered));
+        } else {
+            internalTokenFromStore = consumeOnce(entered);
+            if (internalTokenFromStore != null && stepUser != null && !stepUser.equals(internalTokenFromStore.getUsername())) {
+                internalTokenFromStore = null;
+            }
+        }
         if (internalTokenFromStore == null) {
             throw new InvalidOneTimeTokenException("Invalid or expired code. Not found in store.");
         }

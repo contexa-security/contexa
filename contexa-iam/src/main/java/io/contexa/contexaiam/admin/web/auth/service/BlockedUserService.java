@@ -287,11 +287,11 @@ public class BlockedUserService implements IBlockedUserRecorder {
     @Transactional(transactionManager = "contexaTransactionManager")
     public void resolveBlockById(Long id, String adminId, String resolvedAction, String reason) {
         BlockedUser blocked = blockedUserJpaRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(msg("msg.blocked.user.not.found.id", id)));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.blocked.user.not.found.id", String.valueOf(id))));
 
         refuseRelease(blocked.getUserId(), adminId, "RESOLVE_BLOCK");
         if (blocked.getStatus() == BlockedUserStatus.RESOLVED) {
-            throw new IllegalStateException(msg("msg.blocked.user.already.resolved", id));
+            throw new IllegalStateException(msg("msg.blocked.user.already.resolved", String.valueOf(id)));
         }
 
         applyResolution(blocked, adminId, resolvedAction, reason);
@@ -592,12 +592,12 @@ public class BlockedUserService implements IBlockedUserRecorder {
     @Transactional(transactionManager = "contexaTransactionManager")
     public void deleteBlockRecord(Long id, String adminId) {
         BlockedUser blocked = blockedUserJpaRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(msg("msg.blocked.user.not.found.id", id)));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.blocked.user.not.found.id", String.valueOf(id))));
 
         // Without its record a block no longer reads as in force, and whoever it stopped leaves no trace of it.
         refuseRelease(blocked.getUserId(), adminId, "DELETE_BLOCK_RECORD");
         if (blocked.getStatus() == BlockedUserStatus.BLOCKED) {
-            throw new IllegalStateException(msg("msg.blocked.user.delete.active", id));
+            throw new IllegalStateException(msg("msg.blocked.user.delete.active", String.valueOf(id)));
         }
 
         blockedUserJpaRepository.delete(blocked);

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.controller;
 
+import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
@@ -55,7 +56,7 @@ public class PolicyApiController {
             return ResponseEntity.ok(responseDto);
 
         } catch (Exception e) {
-            log.error("Error occurred while processing policy creation API", e);
+            ConsoleFault.report(e, log, "create a policy from a business rule");
             
             return ResponseEntity.badRequest().build();
         }

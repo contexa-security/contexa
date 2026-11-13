@@ -155,27 +155,52 @@ export function renderJsonBlock(label, value) {
 
 // Korean status keywords preserve compatibility with localized server payloads.
 const TONE_KEYWORDS = {
-    ready: ['ready', 'issued', 'enabled', 'approved', 'pass', 'passed', 'success', 'allow', 'active',
-            '통과', '승인', '정상', '허용', '활성', '발급'],
-    blocked: ['blocked', 'denied', 'fail', 'failed', 'error', 'critical', 'expired', 'reject',
-            '차단', '실패', '위험', '거부', '만료', '오류'],
-    reverify: ['reverify', 'expiring', 'review', 'warning',
+    ready: ['ready', 'issued', 'enabled', 'approved', 'pass', 'passed', 'success', 'succeeded', 'allow', 'allowed',
+            'active', '통과', '승인', '정상', '허용', '활성', '발급'],
+    blocked: ['blocked', 'blocking', 'denied', 'fail', 'failed', 'failure', 'error', 'critical', 'expired', 'reject',
+            'rejected', '차단', '실패', '위험', '거부', '만료', '오류'],
+    reverify: ['reverify', 'expiring', 'review', 'warning', 'warn',
             '재검증', '만료예정', '검토', '경고'],
     pending: ['pending', 'waiting', 'queued', 'discovered', 'draft',
-            '대기', '준비', '검사중', '초안']
+            '대기', '승인대기', '준비', '검사중', '초안']
 };
 
+/** When the words of one status disagree, the more cautious tone wins. */
+const TONE_PRIORITY = ['blocked', 'reverify', 'pending', 'ready'];
+const NEGATIONS = new Set(['not', 'no', 'non']);
+const HANGUL = /[\u3131-\u318e\uac00-\ud7a3]/;
+
+/**
+ * The tone of one word. An English word must equal a keyword, so "inactive" is not "active" and "unblocked" is not
+ * "blocked". A Korean word takes its longest keyword prefix, so "만료예정" is expiring (reverify), not expired.
+ */
+function wordTone(word) {
+    let best = null;
+    for (const tone of TONE_PRIORITY) {
+        for (const keyword of TONE_KEYWORDS[tone]) {
+            const matches = word === keyword || (HANGUL.test(keyword) && word.startsWith(keyword));
+            if (matches && (!best || keyword.length > best.keyword.length)) {
+                best = { tone, keyword };
+            }
+        }
+    }
+    return best ? best.tone : null;
+}
+
+/**
+ * A status is read word by word, never by substring. A negated ready word ("not ready", "NOT_APPROVED") is still
+ * pending, and a status no keyword names stays neutral.
+ */
 function resolveTone(raw, explicit) {
     if (explicit) {
         return explicit;
     }
-    const lower = raw.toLowerCase();
-    for (const tone of ['ready', 'blocked', 'reverify', 'pending']) {
-        if (TONE_KEYWORDS[tone].some(keyword => lower.includes(keyword.toLowerCase()) || raw.includes(keyword))) {
-            return tone;
-        }
-    }
-    return 'neutral';
+    const words = String(raw).replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
+            .split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+    const negated = words.some(word => NEGATIONS.has(word));
+    const tones = new Set(words.map(wordTone).filter(Boolean)
+            .map(tone => negated && tone === 'ready' ? 'pending' : tone));
+    return TONE_PRIORITY.find(tone => tones.has(tone)) || 'neutral';
 }
 
 export function badge(value, options) {

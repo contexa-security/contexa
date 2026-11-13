@@ -31,6 +31,7 @@ import org.springframework.context.MessageSource;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -111,6 +112,7 @@ class AdminMenuManagementServiceTest {
         req.setMenuOrder("5");
         req.setEnabled("true");
 
+        when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(AdminMenu.builder().id(1L).name("Top").build()));
         when(adminMenuService.saveMenu(any())).thenAnswer(inv -> {
             AdminMenu menu = inv.getArgument(0);
             menu.setId(99L);
@@ -121,6 +123,81 @@ class AdminMenuManagementServiceTest {
         assertThat(res.success()).isTrue();
         assertThat(res.id()).isEqualTo(99L);
         verify(adminMenuService).saveMenu(any(AdminMenu.class));
+    }
+
+    private AdminMenuSaveRequest request(String name, String dataPage, String menuType, String parentId) {
+        AdminMenuSaveRequest req = new AdminMenuSaveRequest();
+        req.setName(name);
+        req.setDataPage(dataPage);
+        req.setMenuType(menuType);
+        req.setParentId(parentId);
+        return req;
+    }
+
+    @Test
+    @DisplayName("a menu without a name, with a name of the built-in menus or longer than its column is not created")
+    void aMenuWithoutAUsableNameIsNotCreated() {
+        for (String name : new String[]{null, "", "   ", "menu.custom", "M".repeat(101)}) {
+            AdminMenuSaveRequest req = request(name, null, "CORE", null);
+            assertThatThrownBy(() -> service.createMenu(req))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+        verify(adminMenuService, never()).saveMenu(any());
+    }
+
+    @Test
+    @DisplayName("a menu of a kind the console does not know, under a parent that is not a top menu, or with a data page "
+            + "taken is not created")
+    void aMenuWithAWrongPlaceIsNotCreated() {
+        AdminMenu child = AdminMenu.builder().id(2L).name("Child").parentId(1L).build();
+        lenient().when(adminMenuService.getMenuById(999999L)).thenReturn(Optional.empty());
+        lenient().when(adminMenuService.getMenuById(2L)).thenReturn(Optional.of(child));
+        lenient().when(adminMenuService.getMenusByDataPage("users"))
+                .thenReturn(List.of(AdminMenu.builder().id(13L).name("menu.iam.users").dataPage("users").build()));
+
+        for (AdminMenuSaveRequest req : List.of(request("Odd", null, "ODD", null), request("Orphan", null, "CORE", "999999"),
+                request("Deep", null, "CORE", "2"), request("Twin", "users", "CORE", null),
+                request("Long", "d".repeat(51), "CORE", null))) {
+            assertThatThrownBy(() -> service.createMenu(req))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+        verify(adminMenuService, never()).saveMenu(any());
+    }
+
+    @Test
+    @DisplayName("the name and data page of a built-in menu stay; its other fields can change")
+    void aBuiltInMenuKeepsItsNameAndDataPage() {
+        AdminMenu settings = AdminMenu.builder().id(17L).name("menu.iam.system.settings").dataPage("system-settings")
+                .url("/contexa/admin/system-settings").parentId(4L).menuType("CORE").menuOrder(7).build();
+        when(adminMenuService.getMenuById(17L)).thenReturn(Optional.of(settings));
+
+        assertThatThrownBy(() -> service.updateMenu(17L, request("Settings", "system-settings", "CORE", "4")))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("msg.menu.system.locked");
+        assertThatThrownBy(() -> service.updateMenu(17L, request("menu.iam.system.settings", "other", "CORE", "4")))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("msg.menu.system.locked");
+        verify(adminMenuService, never()).saveMenu(any());
+
+        AdminMenuSaveRequest reorder = request("menu.iam.system.settings", "system-settings", "CORE", "4");
+        reorder.setMenuOrder("9");
+        assertThat(service.updateMenu(17L, reorder).success()).isTrue();
+        assertThat(settings.getMenuOrder()).isEqualTo(9);
+    }
+
+    @Test
+    @DisplayName("a menu that holds a built-in menu is not deleted; one that holds its own submenus is, with them")
+    void deletingAMenuWithSubmenus() {
+        AdminMenu custom = AdminMenu.builder().id(30L).name("Custom group").build();
+        when(adminMenuService.getMenuById(30L)).thenReturn(Optional.of(custom));
+        when(adminMenuService.getDescendants(30L)).thenReturn(List.of(
+                AdminMenu.builder().id(31L).name("menu.iam.users").parentId(30L).build()));
+
+        assertThat(service.deleteMenu(30L)).get().extracting(AdminMenuActionResponse::success).isEqualTo(false);
+        verify(adminMenuService, never()).deleteMenu(anyLong());
+
+        when(adminMenuService.getDescendants(30L)).thenReturn(List.of(
+                AdminMenu.builder().id(32L).name("Own child").parentId(30L).build()));
+        assertThat(service.deleteMenu(30L)).get().extracting(AdminMenuActionResponse::success).isEqualTo(true);
+        verify(adminMenuService).deleteMenu(30L);
     }
 
     @Test

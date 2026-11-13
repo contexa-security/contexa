@@ -16,6 +16,9 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
 import java.util.Locale;
+import java.util.NoSuchElementException;
+import java.util.function.Supplier;
+import io.contexa.contexacore.autonomous.service.IForceLogoutService;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
@@ -34,6 +37,11 @@ import java.util.List;
  * reference ({@link RequestFactRedaction#sessionReference}), the value the audit names it by: the value its cookie
  * carries is never kept, so no one who reads the console or the database can take the session. An identifier handed
  * over raw is turned into its reference here; a reference stays as it is.
+ *
+ * <p>Ending a session also ends what keeps its person in beyond the tracked row ({@link IForceLogoutService}, as a changed
+ * password or a disabled account does): the HTTP session is not all of it; the access token works until it expires and
+ * the refresh token brings new ones. The tokens are not tied to one HTTP session, so ending one session ends every
+ * sign-in of its person.</p>
  */
 @Slf4j
 public class SessionManagementService {
@@ -43,19 +51,31 @@ public class SessionManagementService {
 
     private final ActiveSessionRepository activeSessionRepository;
     private final ActiveSessionReferences references;
+    private static final String FORCE_LOGOUT_REASON = "CONSOLE_SESSION_INVALIDATED";
+
+    private final Supplier<IForceLogoutService> forceLogout;
 
     public SessionManagementService(ActiveSessionRepository activeSessionRepository) {
         this(activeSessionRepository, null);
     }
 
-    /**
-     * @param references turns the rows a node not yet on references wrote into their references when the console reads
-     *                   the sessions, or null to leave them to the next start
-     */
     public SessionManagementService(ActiveSessionRepository activeSessionRepository,
                                     @Nullable ActiveSessionReferences references) {
+        this(activeSessionRepository, references, null);
+    }
+
+    /**
+     * @param references  turns the rows a node not yet on references wrote into their references when the console reads
+     *                    the sessions, or null to leave them to the next start
+     * @param forceLogout gives the forced logout that ends the person's sessions and sign-in tokens, or null (or a supplier
+     *                    of null) where the application keeps its people in HTTP sessions only
+     */
+    public SessionManagementService(ActiveSessionRepository activeSessionRepository,
+                                    @Nullable ActiveSessionReferences references,
+                                    @Nullable Supplier<IForceLogoutService> forceLogout) {
         this.activeSessionRepository = activeSessionRepository;
         this.references = references;
+        this.forceLogout = forceLogout != null ? forceLogout : () -> null;
     }
 
     /**
@@ -93,14 +113,40 @@ public class SessionManagementService {
         return activeSessionRepository.countByExpiredFalse();
     }
 
+    /**
+     * Ends the session and every sign-in of its person.
+     *
+     * @return whether the person's sign-ins were ended as well; false where only the HTTP sessions keep people in
+     * @throws NoSuchElementException when no tracked session has that identifier
+     */
     @Transactional(transactionManager = "contexaTransactionManager")
-    public void invalidateSession(String sessionId) {
-        activeSessionRepository.expireSession(RequestFactRedaction.sessionReference(sessionId));
+    public boolean invalidateSession(String sessionId) {
+        String reference = RequestFactRedaction.sessionReference(sessionId);
+        ActiveSession session = activeSessionRepository.findById(reference)
+                .orElseThrow(() -> new NoSuchElementException("Session not found: " + sessionId));
+        activeSessionRepository.expireSession(reference);
+        return endSignIns(session.getUserId());
     }
 
+    /**
+     * Ends every tracked session of the person and every sign-in of the person, also those the console never tracked.
+     *
+     * @return whether the person's sign-ins were ended as well; false where only the HTTP sessions keep people in
+     */
     @Transactional(transactionManager = "contexaTransactionManager")
-    public void invalidateAllSessionsForUser(String userId) {
+    public boolean invalidateAllSessionsForUser(String userId) {
         activeSessionRepository.expireAllSessionsForUser(userId);
+        return endSignIns(userId);
+    }
+
+    private boolean endSignIns(String userId) {
+        IForceLogoutService logout = forceLogout.get();
+        if (logout == null || !StringUtils.hasText(userId)) {
+            return false;
+        }
+        logout.forceLogoutByUserId(userId, FORCE_LOGOUT_REASON);
+        log.info("[SessionManagement] Ended the sign-ins of a person from the console: userId={}", userId);
+        return true;
     }
 
     /**

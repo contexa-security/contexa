@@ -122,7 +122,8 @@ export function formatTime(value) {
         return '-';
     }
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+    // The console language (html lang), not the browser language.
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString(document.documentElement.lang || undefined);
 }
 
 /** The local calendar date of a date, as an input of type date reads it. */

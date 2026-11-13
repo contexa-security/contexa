@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.iam;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import java.util.Locale;
+import java.util.Set;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
 import org.springframework.beans.factory.ObjectProvider;
@@ -191,9 +192,20 @@ public class IamI18nAutoConfiguration {
         }
     }
 
+    /**
+     * The language a person chose (?lang=) for the rest of the session; before a choice, the browser's when the screens
+     * have it (Korean, English), Korean otherwise. The sign-in pages ask the same resolver, so the two do not differ.
+     */
     private static LocaleResolver screensResolver() {
         SessionLocaleResolver resolver = new SessionLocaleResolver();
-        resolver.setDefaultLocale(Locale.KOREAN);
+        resolver.setDefaultLocaleFunction(request -> {
+            Locale browser = request.getLocale();
+            return browser != null && SCREEN_LANGUAGES.contains(browser.getLanguage())
+                    ? Locale.forLanguageTag(browser.getLanguage()) : Locale.KOREAN;
+        });
         return resolver;
     }
+
+    /** The languages the screens are written in. */
+    private static final Set<String> SCREEN_LANGUAGES = Set.of("ko", "en");
 }

@@ -160,9 +160,21 @@ public class SystemRuntimeSettingsService {
         throw new IllegalArgumentException(field + " has an unsupported value: " + rawValue);
     }
 
+    /**
+     * Parses a zero trust mode, in any case and with '-' for '_'; a blank value is the default mode.
+     *
+     * @throws IllegalArgumentException when the value names no mode, with the field and the value (not the JDK's text of
+     *                                  a failed enum lookup, which names the class)
+     */
     public static SecurityZeroTrustProperties.EnforcementMode normalizeSecurityZeroTrustMode(String rawValue) {
         String value = StringUtils.hasText(rawValue) ? rawValue.trim() : DEFAULT_SECURITY_ZEROTRUST_MODE.name();
-        return SecurityZeroTrustProperties.EnforcementMode.valueOf(value.replace('-', '_').toUpperCase(Locale.ROOT));
+        String name = value.replace('-', '_').toUpperCase(Locale.ROOT);
+        for (SecurityZeroTrustProperties.EnforcementMode mode : SecurityZeroTrustProperties.EnforcementMode.values()) {
+            if (mode.name().equals(name)) {
+                return mode;
+            }
+        }
+        throw new IllegalArgumentException("securityZeroTrustMode has an unsupported value: " + rawValue);
     }
 
     public static String normalizeSecurityZeroTrustModeForStorage(String rawValue) {

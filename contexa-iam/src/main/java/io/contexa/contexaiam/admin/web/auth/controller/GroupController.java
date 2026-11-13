@@ -28,19 +28,17 @@ import org.modelmapper.ModelMapper;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.servlet.support.RequestContextUtils;
 import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.HashSet;
 import java.util.List;
@@ -107,12 +105,8 @@ public class GroupController {
             groupService.createGroup(group, selectedRoleIds);
 
             ra.addFlashAttribute("message", msg("msg.group.created", group.getName()));
-                    } catch (IllegalArgumentException e) {
-            ra.addFlashAttribute("errorMessage", e.getMessage());
-            log.warn("Failed to create group: {}", e.getMessage());
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("msg.group.create.error", ConsoleFault.textOf(e)));
-            log.error("Error creating group", e);
+            ra.addFlashAttribute("errorMessage", textOf(e, "msg.group.create.error", "create group " + groupDto.getName()));
         }
         return "redirect:/contexa/admin/groups";
     }
@@ -120,8 +114,10 @@ public class GroupController {
     @GetMapping("/{id}")
     public String getGroupDetails(@PathVariable Long id, Model model, RedirectAttributes ra) {
         try {
-            Group group = groupService.getGroup(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Invalid group ID: " + id));
+            Group group = groupService.getGroup(id).orElse(null);
+            if (group == null) {
+                return toListWithoutGroup(id, ra);
+            }
             List<Role> roles = roleService.getRoles();
 
             GroupDto groupDto = modelMapper.map(group, GroupDto.class);
@@ -140,9 +136,6 @@ public class GroupController {
             model.addAttribute("roleList", roleListDtos);
             model.addAttribute("selectedRoleIds", selectedRoleIds);
             return "contexa/admin/groupdetails";
-        } catch (IllegalArgumentException e) {
-            ra.addFlashAttribute("errorMessage", e.getMessage());
-            log.warn("Failed to load group details: {}", e.getMessage());
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", msg("msg.group.load.failed", ConsoleFault.textOf(e)));
             log.error("Error loading group details for ID: {}", id, e);
@@ -161,14 +154,8 @@ public class GroupController {
             groupService.updateGroup(group, selectedRoleIds);
 
             ra.addFlashAttribute("message", msg("msg.group.updated", group.getName()));
-                    } catch (LastAdministratorException e) {
-            throw e;
-        } catch (IllegalArgumentException e) {
-            ra.addFlashAttribute("errorMessage", e.getMessage());
-            log.warn("Failed to update group: {}", e.getMessage());
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("msg.group.update.error", ConsoleFault.textOf(e)));
-            log.error("Error updating group", e);
+            ra.addFlashAttribute("errorMessage", textOf(e, "msg.group.update.error", "update group " + id));
         }
         return "redirect:/contexa/admin/groups";
     }
@@ -178,27 +165,41 @@ public class GroupController {
     public String deleteGroup(@PathVariable Long id, RedirectAttributes ra) {
         try {
             groupService.deleteGroup(id);
-            ra.addFlashAttribute("message", msg("msg.group.deleted", id));
-                    } catch (LastAdministratorException e) {
-            throw e;
+            ra.addFlashAttribute("message", msg("msg.group.deleted", String.valueOf(id)));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("msg.group.delete.error", ConsoleFault.textOf(e)));
-            log.error("Error deleting group ID: {}", id, e);
+            ra.addFlashAttribute("errorMessage", textOf(e, "msg.group.delete.error", "delete group " + id));
         }
         return "redirect:/contexa/admin/groups";
     }
 
     /**
-     * A change of a group that would take the console's last active administrator is refused with a 409: nothing of it
-     * was kept (the refusal rolls the transaction back), and the list of groups says why.
+     * A change of a group that would take the console's last active administrator, thrown past the handlers above, goes
+     * back to the list of groups with the reason: nothing of it was kept (the refusal rolls the transaction back), and
+     * the address left is the list's, not the one of the request that was refused.
      */
     @ExceptionHandler(LastAdministratorException.class)
-    public ModelAndView lastAdministrator(LastAdministratorException refusal) {
-        Model model = new ConcurrentModel();
-        String view = getGroups(null, PageRequest.of(0, 15, Sort.by(Sort.Direction.DESC, "id")), model);
-        ModelAndView page = new ModelAndView(view, model.asMap());
-        page.setStatus(HttpStatus.CONFLICT);
-        page.addObject("errorMessage", refusal.getMessage());
-        return page;
+    public String lastAdministrator(LastAdministratorException refusal, HttpServletRequest request) {
+        log.warn("[GroupManagement] {}", refusal.getMessage());
+        RequestContextUtils.getOutputFlashMap(request).put("errorMessage", refusal.getMessage());
+        return "redirect:/contexa/admin/groups";
+    }
+
+    /** The list of groups, telling that the one asked for is not there. */
+    private String toListWithoutGroup(Long id, RedirectAttributes ra) {
+        log.warn("[GroupManagement] No group with ID {}", id);
+        ra.addFlashAttribute("errorMessage", msg("msg.group.not.found.id", String.valueOf(id)));
+        return "redirect:/contexa/admin/groups";
+    }
+
+    /**
+     * What the administrator is told of a failed change: a refusal in its own words, logged as one; a fault of the
+     * server within the message of the action, logged with its stack.
+     */
+    private String textOf(Exception failure, String faultKey, String doing) {
+        if (ConsoleFault.isRefusal(failure)) {
+            log.warn("[GroupManagement] Could not {}: {}", doing, failure.getMessage());
+            return ConsoleFault.textOf(failure);
+        }
+        return msg(faultKey, ConsoleFault.textOf(failure, log, doing));
     }
 }

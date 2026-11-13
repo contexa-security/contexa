@@ -28,13 +28,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.mockito.quality.Strictness.*;
@@ -130,6 +134,47 @@ class PasswordPolicyServiceTest {
             assertThat(result.getPasswordExpiryDays()).isEqualTo(90);
             assertThat(result.getHistoryCount()).isEqualTo(3);
             verify(repository).save(existing);
+        }
+
+        /** IAM-D23: a policy no password can meet, or one that holds no one, is refused and nothing is kept. */
+        @Test
+        @DisplayName("refuses a maximum length below the minimum, and every value outside what it may take")
+        void refusesAPolicyNoOneCanMeet() {
+            assertThatThrownBy(() -> service.updatePolicy(valid().minLength(20).maxLength(10).build()))
+                    .isInstanceOf(PasswordPolicyService.PolicyRefusedException.class)
+                    .extracting("messageKey").isEqualTo("common.validation.min.length.exceeds.max");
+            for (PasswordPolicy refused : List.of(
+                    valid().minLength(0).build(), valid().minLength(-1).build(),
+                    valid().maxLength(0).build(), valid().maxLength(513).build(),
+                    valid().maxFailedAttempts(0).build(), valid().lockoutDurationMinutes(0).build(),
+                    valid().ipMaxFailedAttempts(-1).build(), valid().ipWindowMinutes(0).build(),
+                    valid().passwordExpiryDays(-1).build(), valid().passwordExpiryDays(366).build(),
+                    valid().historyCount(-1).build(), valid().historyCount(25).build())) {
+                assertThatThrownBy(() -> service.updatePolicy(refused))
+                        .isInstanceOf(PasswordPolicyService.PolicyRefusedException.class)
+                        .extracting("messageKey").isEqualTo("admin.password.policy.refused.range");
+            }
+            verify(repository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("keeps the edges of what each value may take, and 0 where 0 turns a rule off")
+        void keepsTheEdges() {
+            when(repository.findAll()).thenReturn(List.of(PasswordPolicy.builder().build()));
+            when(repository.save(any(PasswordPolicy.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            PasswordPolicy edges = service.updatePolicy(PasswordPolicy.builder().minLength(1).maxLength(1)
+                    .maxFailedAttempts(1).lockoutDurationMinutes(1).ipMaxFailedAttempts(0).ipWindowMinutes(1)
+                    .passwordExpiryDays(0).historyCount(0).build());
+
+            assertThat(edges.getMinLength()).isEqualTo(1);
+            assertThat(edges.getIpMaxFailedAttempts()).isZero();
+            assertThat(edges.getPasswordExpiryDays()).isZero();
+        }
+
+        private PasswordPolicy.PasswordPolicyBuilder valid() {
+            return PasswordPolicy.builder().minLength(8).maxLength(128).maxFailedAttempts(5).lockoutDurationMinutes(30)
+                    .ipMaxFailedAttempts(30).ipWindowMinutes(15).passwordExpiryDays(90).historyCount(3);
         }
     }
 
@@ -275,6 +320,44 @@ class PasswordPolicyServiceTest {
             boolean result = service.isPasswordReused(1L, "myNewPassword");
 
             assertThat(result).isFalse();
+        }
+
+        @Test
+        @DisplayName("the password in use counts as the newest: changed to itself it is refused, unless reuse is allowed")
+        void thePasswordInUseIsReused() {
+            when(repository.findAll()).thenReturn(List.of(PasswordPolicy.builder().historyCount(3).build()));
+            when(passwordHistoryRepository.findByUserIdOrderByChangedAtDesc(1L)).thenReturn(List.of());
+            when(passwordEncoder.matches("kept-password", "current-hash")).thenReturn(true);
+
+            assertThat(service.isPasswordReused(1L, "current-hash", "kept-password")).isTrue();
+            assertThat(service.isPasswordReused(1L, "current-hash", "other-password")).isFalse();
+
+            when(repository.findAll()).thenReturn(List.of(PasswordPolicy.builder().historyCount(0).build()));
+            assertThat(service.isPasswordReused(1L, "current-hash", "kept-password")).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("validatePassword with a message source")
+    class LocalizedViolations {
+
+        @Test
+        @DisplayName("the reasons are the rules' texts in the language of the request")
+        void reasonsInTheLanguageOfTheRequest() {
+            when(repository.findAll()).thenReturn(List.of(PasswordPolicy.builder()
+                    .minLength(8).maxLength(12).requireUppercase(true).requireLowercase(false).requireDigit(true).build()));
+            StaticMessageSource messages = new StaticMessageSource();
+            messages.addMessage("password.policy.min.length", Locale.KOREAN, "최소 {0}자 이상");
+            messages.addMessage("password.policy.digit", Locale.KOREAN, "숫자(0-9) 포함");
+            service.setMessageSource(messages);
+            LocaleContextHolder.setLocale(Locale.KOREAN);
+            try {
+                assertThat(service.validatePassword("Abc"))
+                        .containsExactly("최소 8자 이상", "숫자(0-9) 포함");
+            } finally {
+                LocaleContextHolder.resetLocaleContext();
+                service.setMessageSource(null);
+            }
         }
     }
 

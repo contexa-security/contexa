@@ -102,7 +102,8 @@ public interface StandardStreamingService {
     );
 
     /**
-     * Creates an error SSE stream with the specified error details.
+     * Creates an error SSE stream with the specified error details: one event named {@code error} whose data is
+     * {@code {"code": ..., "message": ...}}.
      *
      * @param errorCode the error code
      * @param message the error message

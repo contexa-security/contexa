@@ -174,11 +174,24 @@ class RoleHierarchyServiceTest {
         @DisplayName("should delete and reload bean")
         void shouldDeleteAndReload() {
             stubNoActiveHierarchies();
+            RoleHierarchyEntity target = buildEntity(1L, "ROLE_A > ROLE_B", "H1", false);
+            when(roleHierarchyRepository.findById(1L)).thenReturn(Optional.of(target));
 
             service.deleteRoleHierarchy(1L);
 
-            verify(roleHierarchyRepository).deleteById(1L);
+            verify(roleHierarchyRepository).delete(target);
             verify(roleHierarchy).setHierarchy(any());
+        }
+
+        @Test
+        @DisplayName("a hierarchy that is not there is refused with its ID, not told as deleted")
+        void aHierarchyThatIsNotThere() {
+            when(roleHierarchyRepository.findById(999999L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.deleteRoleHierarchy(999999L))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("999999");
+            verify(roleHierarchyRepository, never()).delete(any());
         }
     }
 
@@ -865,28 +878,53 @@ class RoleHierarchyServiceTest {
     class EdgeCases {
 
         @Test
-        @DisplayName("should handle empty hierarchy string gracefully in create")
-        void shouldHandleEmptyString() {
-            RoleHierarchyEntity entity = buildEntity(null, "", "Empty", false);
-            stubNoDuplicateHierarchyString();
-            stubNoActiveHierarchies();
-            stubSaveReturnsInput();
+        @DisplayName("a hierarchy without a relation is refused with its reason, nothing saved")
+        void shouldRefuseEmptyString() {
+            for (String hierarchy : new String[]{null, "", "   ", "ROLE_A"}) {
+                RoleHierarchyEntity entity = buildEntity(null, hierarchy, "Empty", false);
 
-            // Empty string passes validation (no roles to check)
-            RoleHierarchyEntity result = service.createRoleHierarchy(entity);
-            assertThat(result).isNotNull();
+                assertThatThrownBy(() -> service.createRoleHierarchy(entity))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining("at least one relation");
+            }
+            verify(roleHierarchyRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("should handle whitespace-only hierarchy string")
-        void shouldHandleWhitespaceString() {
-            RoleHierarchyEntity entity = buildEntity(null, "   ", "Whitespace", false);
-            stubNoDuplicateHierarchyString();
-            stubNoActiveHierarchies();
-            stubSaveReturnsInput();
+        @DisplayName("a hierarchy without a description, or one longer than its column, is refused")
+        void shouldRefuseTheDescription() {
+            assertThatThrownBy(() -> service.createRoleHierarchy(buildEntity(null, "ROLE_A > ROLE_B", "  ", false)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Hierarchy description is required");
+            assertThatThrownBy(() -> service.createRoleHierarchy(
+                    buildEntity(null, "ROLE_A > ROLE_B", "d".repeat(256), false)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("at most 255 characters");
+            verify(roleHierarchyRepository, never()).save(any());
+        }
 
-            RoleHierarchyEntity result = service.createRoleHierarchy(entity);
-            assertThat(result).isNotNull();
+        @Test
+        @DisplayName("a hierarchy is checked for a role above ROLE_ADMIN before it is saved, even switched off")
+        void shouldAskTheGuardBeforeSaving() {
+            RoleHierarchyEntity entity = buildEntity(null, "ROLE_USER > ROLE_ADMIN", "Up", false);
+            stubNoDuplicateHierarchyString();
+            when(roleRepository.findAll()).thenReturn(List.of(buildRole("ROLE_USER"), buildRole("ROLE_ADMIN")));
+            doThrow(new IllegalArgumentException("No role can be placed above ROLE_ADMIN"))
+                    .when(lastAdministratorGuard).refuseRolesAboveAdministrator("ROLE_USER > ROLE_ADMIN");
+
+            assertThatThrownBy(() -> service.createRoleHierarchy(entity))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("above ROLE_ADMIN");
+            verify(roleHierarchyRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("a relation above ROLE_ADMIN kept from before is left out of the hierarchy the console runs on")
+        void shouldLeaveOutARelationAboveTheAdministrator() {
+            assertThat(RoleHierarchyService.withoutRolesAboveAdministrator(
+                    "ROLE_ADMIN > ROLE_DEV\nROLE_USER > ROLE_ADMIN\nROLE_DEV > ROLE_USER\nROLE_X > admin"))
+                    .isEqualTo("ROLE_ADMIN > ROLE_DEV\nROLE_DEV > ROLE_USER");
+            assertThat(RoleHierarchyService.withoutRolesAboveAdministrator("")).isEmpty();
         }
 
         @Test
