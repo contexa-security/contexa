@@ -19,8 +19,15 @@ dependencies {
     compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
-    api 'org.springframework.ai:spring-ai-advisors-vector-store'
-    api 'org.springframework.ai:spring-ai-rag'
+    // Both bring spring-ai-client-chat -> mcp-json-jackson2 -> json-schema-validator -> jackson-dataformat-yaml. Contexa
+    // reads no YAML (the schema validator loads its YAML mapper only for YAML input), and the codec on the class path
+    // makes Spring MVC offer application/yaml to the application, so it stays out.
+    api('org.springframework.ai:spring-ai-advisors-vector-store') {
+        exclude group: 'com.fasterxml.jackson.dataformat', module: 'jackson-dataformat-yaml'
+    }
+    api('org.springframework.ai:spring-ai-rag') {
+        exclude group: 'com.fasterxml.jackson.dataformat', module: 'jackson-dataformat-yaml'
+    }
 
 
 

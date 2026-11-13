@@ -33,6 +33,7 @@ import io.contexa.autoconfigure.core.llm.runtime.SpringLlmRuntimeCatalog;
 import io.contexa.autoconfigure.core.llm.runtime.SpringModelServerResolver;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.ModelServerGateProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.client.ThinkingGenerationAdvisor;
@@ -179,9 +180,14 @@ public class CoreLLMTieredAutoConfiguration {
     public TieredLayerModelVerifier tieredLayerModelVerifier(
             DynamicModelRegistry contexaDynamicModelRegistry,
             TieredLLMProperties tieredLLMProperties,
-            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
+            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel,
+            ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
+        // OBSERVE and DISABLED run no layer: the start says nothing of layer models no request reaches
         return new TieredLayerModelVerifier(contexaDynamicModelRegistry, tieredLLMProperties,
-                primaryChatModel::getIfAvailable);
+                primaryChatModel::getIfAvailable, () -> {
+                    SecurityZeroTrustProperties zeroTrust = securityZeroTrustProperties.getIfAvailable();
+                    return zeroTrust == null || zeroTrust.allowsLlmAnalysis();
+                });
     }
 
     @Bean(name = "contexaPrimaryChatModel", defaultCandidate = false)

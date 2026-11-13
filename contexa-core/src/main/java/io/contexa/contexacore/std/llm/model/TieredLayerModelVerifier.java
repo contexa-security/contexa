@@ -21,6 +21,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -35,17 +36,31 @@ public class TieredLayerModelVerifier implements SmartInitializingSingleton {
     private final DynamicModelRegistry registry;
     private final TieredLLMProperties properties;
     private final Supplier<ChatModel> primaryChatModel;
+    private final BooleanSupplier layersAnalyse;
 
     /** @param primaryChatModel gives the model a layer falls back to, or null when there is none */
     public TieredLayerModelVerifier(DynamicModelRegistry registry, TieredLLMProperties properties,
                                     Supplier<ChatModel> primaryChatModel) {
+        this(registry, properties, primaryChatModel, () -> true);
+    }
+
+    /**
+     * @param layersAnalyse whether the zero trust mode sends requests to the layers (SHADOW, ENFORCE); OBSERVE and
+     *                      DISABLED run no layer, so a layer model that cannot be made is no error there (mall D1, D2)
+     */
+    public TieredLayerModelVerifier(DynamicModelRegistry registry, TieredLLMProperties properties,
+                                    Supplier<ChatModel> primaryChatModel, BooleanSupplier layersAnalyse) {
         this.registry = registry;
         this.properties = properties;
         this.primaryChatModel = primaryChatModel;
+        this.layersAnalyse = layersAnalyse != null ? layersAnalyse : () -> true;
     }
 
     @Override
     public void afterSingletonsInstantiated() {
+        if (!layersAnalyse.getAsBoolean()) {
+            return;
+        }
         verify(1);
         verify(2);
     }

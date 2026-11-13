@@ -50,9 +50,10 @@ public class StepUpOptionsStoreAutoConfiguration {
         @Bean(name = "contexaStepUpOptionsStore")
         @ConditionalOnMissingBean(StepUpOptionsStore.class)
         @ConditionalOnBean(StringRedisTemplate.class)
-        public StepUpOptionsStore stepUpOptionsStore(StringRedisTemplate redis,
+        public StepUpOptionsStore stepUpOptionsStore(ObjectProvider<StringRedisTemplate> redis,
                 @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings) {
-            return new RedisStepUpOptionsStore(contexaStrings.getIfAvailable(() -> redis));
+            // the application's template only when Contexa's own is missing (a lazy host's template is not made for nothing)
+            return new RedisStepUpOptionsStore(contexaStrings.getIfAvailable(redis::getObject));
         }
     }
 

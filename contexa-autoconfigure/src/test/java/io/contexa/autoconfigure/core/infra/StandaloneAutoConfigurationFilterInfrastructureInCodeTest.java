@@ -23,6 +23,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
 import org.springframework.beans.factory.annotation.AnnotatedGenericBeanDefinition;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -51,7 +52,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * An application says in two ways that it uses Redis or Kafka itself: with a connection property, or in its code. One that builds its
  * factories in code, or takes Spring Boot's template with the default address, gives no property. Switched on in Contexa's default
  * standalone mode it keeps the auto-configuration its beans come from (PR-185: such an application did not start, or started and
- * received none of its messages), and an application that uses neither still gets none of it.
+ * received none of its messages), and an application that uses no Redis still gets none of Spring Boot's Redis support. Spring Boot's
+ * Kafka support stays in every case: nothing of Contexa's standalone mode uses Kafka.
  */
 class StandaloneAutoConfigurationFilterInfrastructureInCodeTest {
 
@@ -64,11 +66,14 @@ class StandaloneAutoConfigurationFilterInfrastructureInCodeTest {
             "io.contexa.contexaidentity.config.ZeroTrustRedisConfig"
     };
 
-    /** The application keeps its Redis, Contexa's own Redis stays out of the standalone mode. */
-    private static final boolean[] ITS_REDIS = {true, true, true, false, false, false};
+    /**
+     * The application keeps its Redis, Contexa's own Redis stays out of the standalone mode. Spring Boot's Kafka support (the fourth) stays
+     * whatever the code says: nothing of Contexa's standalone mode uses Kafka, so leaving it out only took the application's beans.
+     */
+    private static final boolean[] ITS_REDIS = {true, true, true, true, false, false};
     private static final boolean[] ITS_KAFKA = {false, false, false, true, false, false};
     private static final boolean[] BOTH = {true, true, true, true, false, false};
-    private static final boolean[] NONE = {false, false, false, false, false, false};
+    private static final boolean[] NONE = {false, false, false, true, false, false};
 
     @Test
     void anApplicationThatBuildsItsKafkaFactoryInCodeKeepsSpringBootsKafkaSupport() {
@@ -107,7 +112,7 @@ class StandaloneAutoConfigurationFilterInfrastructureInCodeTest {
         assertThat(kept(applicationWith(KafkaTemplateTaken.class, RedisTemplateTaken.class))).containsExactly(BOTH);
     }
 
-    /** The client libraries alone need nothing of Spring Boot, and a name in a string is not a use. */
+    /** The client libraries alone need nothing of Spring Boot's Redis support, and a name in a string is not a use. */
     @Test
     void anApplicationThatUsesNoneOfSpringsSupportStillGetsNoneOfIt() {
         assertThat(kept(applicationWith(NoInfrastructure.class))).containsExactly(NONE);
@@ -176,8 +181,8 @@ class StandaloneAutoConfigurationFilterInfrastructureInCodeTest {
         AskedAtImportTime.kept = null;
 
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(ScanningApplication.class)) {
-            assertThat(context.getBeansOfType(KafkaListenerOnly.class)).hasSize(1);
-            assertThat(AskedAtImportTime.kept).containsExactly(ITS_KAFKA);
+            assertThat(context.getBeansOfType(RedisTemplateWhereThereIsOne.class)).hasSize(1);
+            assertThat(AskedAtImportTime.kept).containsExactly(ITS_REDIS);
         }
     }
 
@@ -253,6 +258,13 @@ class StandaloneAutoConfigurationFilterInfrastructureInCodeTest {
         }
     }
 
+    /** Takes Spring Data Redis's template where there is one, so that it is made without a Redis. */
+    static class RedisTemplateWhereThereIsOne {
+
+        @Autowired(required = false)
+        private StringRedisTemplate sessions;
+    }
+
     /** Talks to Kafka and Redis with their own clients: nothing of Spring's support for them. */
     static class ClientLibrariesOnly {
 
@@ -278,7 +290,7 @@ class StandaloneAutoConfigurationFilterInfrastructureInCodeTest {
 
     @Configuration(proxyBeanMethods = false)
     @ComponentScan(basePackageClasses = StandaloneAutoConfigurationFilterInfrastructureInCodeTest.class, useDefaultFilters = false,
-            includeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = KafkaListenerOnly.class))
+            includeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = RedisTemplateWhereThereIsOne.class))
     @Import(AskedAtImportTime.class)
     static class ScanningApplication {
     }

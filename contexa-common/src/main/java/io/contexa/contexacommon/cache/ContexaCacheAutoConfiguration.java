@@ -54,14 +54,18 @@ public class ContexaCacheAutoConfiguration {
     @ConditionalOnBean(StringRedisTemplate.class)
     static class DistributedCacheConfig {
 
+        /**
+         * The application's template is read only when Contexa's own is missing: resolved up front it was made for nothing, and a host
+         * with lazy initialisation saw its {@code stringRedisTemplate} made by Contexa.
+         */
         @Bean
         @ConditionalOnMissingBean(ContexaCacheService.class)
         public RedisContexaCacheService contexaCacheService(
                 ContexaCacheProperties properties,
-                StringRedisTemplate redisTemplate,
+                ObjectProvider<StringRedisTemplate> redisTemplate,
                 @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings,
                 @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
-            return new RedisContexaCacheService(properties, contexaStrings.getIfAvailable(() -> redisTemplate),
+            return new RedisContexaCacheService(properties, contexaStrings.getIfAvailable(redisTemplate::getObject),
                     objectMapper.getIfAvailable(ContexaCacheAutoConfiguration::ownObjectMapper));
         }
 

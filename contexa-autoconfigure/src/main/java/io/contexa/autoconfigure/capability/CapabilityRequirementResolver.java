@@ -28,6 +28,7 @@ import org.springframework.util.ClassUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 public class CapabilityRequirementResolver {
@@ -93,11 +94,13 @@ public class CapabilityRequirementResolver {
         boolean autonomousEnabled = getBoolean("contexa.autonomous.enabled", true);
         boolean ragEnabled = getBoolean("contexa.rag.enabled", true);
         boolean enterpriseEnabled = getBoolean("contexa.enterprise.enabled", false);
+        // OBSERVE and DISABLED call no model and produce no decision: what only the decisions need is not required there
+        boolean decisionsAnalysed = zeroTrustAnalyses();
 
         return switch (capability) {
             case LLM_RUNTIME -> activeWhen(capability,
                     contexaOwnedApplication || platformConfigPresent || autonomousEnabled,
-                    contexaOwnedApplication || platformConfigPresent,
+                    (contexaOwnedApplication || platformConfigPresent) && decisionsAnalysed,
                     "LLM runtime participates in AI Native decision flow");
             case EMBEDDING_RUNTIME -> activeWhen(capability,
                     ragEnabled && classPresent("org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"),
@@ -114,7 +117,7 @@ public class CapabilityRequirementResolver {
                     "security learning is part of post-authentication monitoring");
             case AUTONOMOUS_DECISION -> activeWhen(capability,
                     autonomousEnabled || hasBean("io.contexa.contexacore.autonomous.SecurityPlaneAgent"),
-                    contexaOwnedApplication || platformConfigPresent,
+                    (contexaOwnedApplication || platformConfigPresent) && decisionsAnalysed,
                     "autonomous decision plane is enabled");
             case BRIDGE -> activeWhen(capability,
                     platformConfigPresent || hasBean("io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter"),
@@ -274,6 +277,24 @@ public class CapabilityRequirementResolver {
 
     private boolean getBoolean(String key, boolean defaultValue) {
         return environment.getProperty(key, Boolean.class, defaultValue);
+    }
+
+    /**
+     * Whether the configured zero trust mode analyses requests (SHADOW, ENFORCE), read as SecurityZeroTrustProperties
+     * reads it: enabled by default, ENFORCE by default, the mode's spelling as lenient as an enum's binding. OBSERVE and
+     * DISABLED send nothing to a model, so a missing chat model or decision strategy is the state the operator chose
+     * there, not a defect to report as an error at every start (mall D1, D2).
+     */
+    private boolean zeroTrustAnalyses() {
+        if (!getBoolean("contexa.security.zerotrust.enabled", true)) {
+            return false;
+        }
+        String mode = environment.getProperty("contexa.security.zerotrust.mode");
+        if (mode == null || mode.isBlank()) {
+            return true;
+        }
+        String normalized = mode.replaceAll("[^A-Za-z0-9]", "").toUpperCase(Locale.ROOT);
+        return "SHADOW".equals(normalized) || "ENFORCE".equals(normalized);
     }
 
     /**

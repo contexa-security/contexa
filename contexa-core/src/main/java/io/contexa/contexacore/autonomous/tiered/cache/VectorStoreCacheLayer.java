@@ -28,6 +28,7 @@ import io.contexa.contexacommon.cache.ContexaCaffeine;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.rag.service.PgVectorSearchSettings;
 import io.contexa.contexacore.std.rag.service.VectorSearchScope;
+import io.contexa.contexacore.util.ErrorLogThrottle;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -47,6 +48,11 @@ public class VectorStoreCacheLayer {
 
     private final VectorStore vectorStore;
     private final TieredStrategyProperties tieredStrategyProperties;
+    /**
+     * D-40: a search that keeps failing (the embedding service or the vector store is down) fails for every decision;
+     * it is logged with its trace once per interval, as the store failure of SecurityDecisionPostProcessor is.
+     */
+    private final ErrorLogThrottle searchFailureLog = new ErrorLogThrottle(Duration.ofMinutes(1));
 
     public VectorStoreCacheLayer(VectorStore vectorStore, TieredStrategyProperties tieredStrategyProperties) {
         this.vectorStore = vectorStore;
@@ -151,8 +157,17 @@ public class VectorStoreCacheLayer {
             });
 
         } catch (Exception e) {
-            log.error("[VectorStoreCacheLayer] Error during similarity search", e);
+            logSearchFailure("Error during similarity search", e);
             throw new VectorSearchException("Vector store similarity search failed", e);
+        }
+    }
+
+    private void logSearchFailure(String what, Exception e) {
+        long notLogged = searchFailureLog.tryAcquire();
+        if (notLogged != ErrorLogThrottle.SUPPRESSED) {
+            log.error("[VectorStoreCacheLayer] {}: similarSinceLastReport={}", what, notLogged, e);
+        } else {
+            log.debug("[VectorStoreCacheLayer] {}: cause={}", what, e.toString());
         }
     }
 
@@ -189,7 +204,7 @@ public class VectorStoreCacheLayer {
         try {
             return search(request);
         } catch (Exception e) {
-            log.error("[VectorStoreCacheLayer] Fallback search failed", e);
+            logSearchFailure("Fallback search failed", e);
             throw new VectorSearchException("Vector store fallback search failed", e);
         }
     }

@@ -243,7 +243,9 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
 
     /**
      * Q-12: as the Redis repository, a CHALLENGE in force starts what is held with the time it has left, replacing what
-     * an earlier CHALLENGE left, and an answer without one adds its session to what is held.
+     * an earlier CHALLENGE left, and an answer without one adds its session to what is held. What an earlier CHALLENGE
+     * holds and outlasts the one in force (a short CHALLENGE no model decided, Q-5) is never shortened by it: the answer
+     * adds its session to it, so the sessions that did not answer the model's CHALLENGE stay stopped for its whole time.
      */
     @Override
     public void holdChallengeForOtherSessions(String userId, String contextBindingHash) {
@@ -254,7 +256,10 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         ReentrantLock lock = lockUser(userId);
         try {
             AnalysisEntry stored = liveAnalysis(userId);
-            if (stored != null && ZeroTrustAction.fromString(stored.action) == ZeroTrustAction.CHALLENGE) {
+            ChallengeHold earlier = challengeHolds.get(userId);
+            long earlierEndsAtMs = earlier != null ? challengeHolds.expiresAtMs(userId) : 0;
+            if (stored != null && ZeroTrustAction.fromString(stored.action) == ZeroTrustAction.CHALLENGE
+                    && !(earlier != null && earlierEndsAtMs > analyses.expiresAtMs(userId))) {
                 challengeHolds.put(userId, ChallengeHold.startedBy(stored.updatedAt, contextBindingHash),
                         timeLeft(analyses.expiresAtMs(userId)));
             } else {

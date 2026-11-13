@@ -185,7 +185,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
      * Q-12: starts what is held for the other sessions from the CHALLENGE in force, with the time it has left, or adds
      * a session to what is held. KEYS: analysis hash, held contexts. ARGV: hash field name of action, the plain and
      * stored CHALLENGE, the field of the decision's time and that time, the context (empty without one), the TTL to
-     * use when the CHALLENGE shows none. Returns 1 when something is held and 0 when nothing is.
+     * use when the CHALLENGE shows none. Returns 1 when something is held and 0 when nothing is. What an earlier
+     * CHALLENGE holds and outlasts the one in force (a short CHALLENGE no model decided, Q-5) is not shortened by it:
+     * the context is added to it.
      */
     private static final DefaultRedisScript<Long> HOLD_CHALLENGE_SCRIPT = new DefaultRedisScript<>("""
             local action = redis.call('HGET', KEYS[1], ARGV[1])
@@ -194,6 +196,12 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 local ttl = redis.call('PTTL', KEYS[1])
                 if ttl <= 0 then
                     ttl = tonumber(ARGV[7])
+                end
+                if redis.call('PTTL', KEYS[2]) > ttl then
+                    if context ~= '' then
+                        redis.call('HSET', KEYS[2], context, '1')
+                    end
+                    return 1
                 end
                 redis.call('DEL', KEYS[2])
                 redis.call('HSET', KEYS[2], ARGV[4], ARGV[5])

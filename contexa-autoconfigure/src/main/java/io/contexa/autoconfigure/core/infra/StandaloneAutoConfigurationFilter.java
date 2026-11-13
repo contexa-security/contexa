@@ -51,10 +51,12 @@ import java.util.stream.Stream;
  * so Spring Boot version changes or new auto-configurations are handled automatically.
  *
  * <p>Contexa-owned ({@code io.contexa.*}) infrastructure auto-configurations are always excluded in
- * standalone mode. Third-party infrastructure auto-configurations (Spring Boot, Redisson, Spring Kafka)
- * are excluded only when the host application has not configured that infrastructure itself, so a host
- * application that uses its own Redis or Kafka keeps its auto-configuration. It says so with a connection
- * property, or in its code: a class it registered or scanned names Spring's support for that infrastructure.</p>
+ * standalone mode. Third-party Redis auto-configurations (Spring Boot, Redisson) are excluded only when the
+ * host application has not configured Redis itself, so a host application that uses its own Redis keeps its
+ * auto-configuration. It says so with a connection property, or in its code: a class it registered or scanned
+ * names Spring's support for Redis. Third-party Kafka auto-configurations are never excluded: Contexa's Kafka is
+ * the distributed mode's only and nothing of the standalone mode takes a Kafka bean, so leaving them out took
+ * from the application the beans it has without Contexa and kept nothing of Contexa's apart.</p>
  *
  * <p>Spring Boot's data source auto-configuration and Spring AI's pgvector store auto-configuration are excluded,
  * in every mode and whether Contexa is switched on or not, for an application that has no database of its own:
@@ -91,23 +93,11 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
             "spring.redis.redisson.config",
             "spring.redis.redisson.file");
 
-    /**
-     * Connection keys that show the host application configured its own Kafka cluster.
-     */
-    private static final List<String> APPLICATION_KAFKA_PROPERTIES = List.of(
-            "spring.kafka.bootstrap-servers",
-            "spring.kafka.producer.bootstrap-servers",
-            "spring.kafka.consumer.bootstrap-servers",
-            "spring.kafka.admin.bootstrap-servers",
-            "spring.kafka.streams.bootstrap-servers");
-
-    /** The packages of Spring's support for Redis, the Redisson starter's included, and for Kafka, as a class file names them. */
+    /** The packages of Spring's support for Redis, the Redisson starter's included, as a class file names them. */
     private static final List<String> REDIS_SUPPORT = List.of("org/springframework/data/redis/", "org/redisson/");
-    private static final List<String> KAFKA_SUPPORT = List.of("org/springframework/kafka/");
 
-    /** What the Redis and the Kafka auto-configurations stand on: where it is not on the class path they keep out by themselves. */
+    /** What the Redis auto-configurations stand on: where it is not on the class path they keep out by themselves. */
     private static final String REDIS_OPERATIONS = "org/springframework/data/redis/core/RedisOperations.class";
-    private static final String KAFKA_TEMPLATE = "org/springframework/kafka/core/KafkaTemplate.class";
 
     /** Property names under which an application says it has a database (the host's own, not Contexa's). */
     private static final List<ConfigurationPropertyName> DATABASE_PROPERTIES = Stream.of(
@@ -182,10 +172,10 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
         if (isContexaAutoConfiguration(autoConfigurationClass)) {
             return true;
         }
-        if (redisRelated && !applicationUses(APPLICATION_REDIS_PROPERTIES, REDIS_SUPPORT)) {
-            return true;
-        }
-        return kafkaRelated && !applicationUses(APPLICATION_KAFKA_PROPERTIES, KAFKA_SUPPORT);
+        // Spring Boot's Kafka support stays as the application has it without Contexa: Contexa's own Kafka beans are the distributed
+        // mode's only and none of the standalone mode takes one of the application's, while leaving it out took the application's
+        // kafkaTemplate, factories and listener support (RC grid start-host-redisson: 19 beans of the application gone)
+        return redisRelated && !applicationUses(APPLICATION_REDIS_PROPERTIES, REDIS_SUPPORT);
     }
 
     /**
@@ -204,7 +194,7 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
     }
 
     /**
-     * Which of Spring's Redis and Kafka support the classes the application registered or scanned name. Spring asks this filter before it
+     * Which of Spring's Redis support the classes the application registered or scanned name. Spring asks this filter before it
      * reads the beans of any configuration, so each class file is read as it stands, without loading the class: a type the class takes,
      * returns, builds or annotates with is named there by its package. Nothing is read where the support is not on the class path.
      */
@@ -217,9 +207,6 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
         List<String> sought = new ArrayList<>();
         if (classLoader.getResource(REDIS_OPERATIONS) != null) {
             sought.addAll(REDIS_SUPPORT);
-        }
-        if (classLoader.getResource(KAFKA_TEMPLATE) != null) {
-            sought.addAll(KAFKA_SUPPORT);
         }
         for (String beanName : listable.getBeanDefinitionNames()) {
             if (named.size() == sought.size()) {
