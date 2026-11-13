@@ -187,9 +187,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 successStage = "markMfaVerifiedOnChallengeSuccess";
                 markMfaVerifiedOnChallengeSuccess(userId, request);
                 if (challengeFlow) {
-                    // A login MFA, in this or another session, does not answer a Zero Trust challenge; only the
-                    // step-up the challenge started releases it and is learned as normal behaviour.
                     successStage = "resetActionOnMfaSuccess";
+                    resetActionOnMfaSuccess(userId, request, factorContext, stateType, finalAuthentication);
+                } else if (answersAStoredChallenge(userId, factorContext)) {
+                    // A sign-in completed with its factors after a CHALLENGE was decided is the verification the
+                    // challenge asks for: the person signing in was asked for the code once more on the next page.
+                    // The session it opens is released as a step-up releases it; the user's other sessions stay
+                    // challenged.
+                    successStage = "releaseChallengeOnFactorSignIn";
                     resetActionOnMfaSuccess(userId, request, factorContext, stateType, finalAuthentication);
                 }
                 successStage = "recordMfaCompletionInSession";
@@ -380,7 +385,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {
 
-        if (alwaysUse && defaultTargetUrl != null) {
+        String defaultTargetUrl = defaultTargetUrl(request);
+        if (alwaysUse(request) && defaultTargetUrl != null) {
             return request.getContextPath() + defaultTargetUrl;
         }
 
@@ -395,9 +401,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         SavedRequest savedRequest = requestCache.getRequest(request, response);
         if (savedRequest != null) {
             requestCache.removeRequest(request, response);
-            String redirectUrl = savedRequest.getRedirectUrl();
-            if (isValidRedirectUrl(redirectUrl)) {
-                return redirectUrl;
+            // The page the browser asked for before it was sent to sign in, by its path: see SavedRequestTarget.
+            String askedFor = SavedRequestTarget.of(savedRequest);
+            if (askedFor != null) {
+                return askedFor;
             }
         }
 
@@ -417,6 +424,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 if (formOptions != null) {
                     return formOptions.getDefaultSuccessUrl();
                 }
+                var restOptions = mfaFlow.getPrimaryAuthenticationOptions().getRestOptions();
+                if (restOptions != null) {
+                    return restOptions.getDefaultSuccessUrl();
+                }
             }
         } catch (Exception e) {
             log.error("Failed to get DSL defaultSuccessUrl: {}", e.getMessage());
@@ -433,6 +444,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 var formOptions = mfaFlow.getPrimaryAuthenticationOptions().getFormOptions();
                 if (formOptions != null) {
                     return formOptions.isAlwaysUseDefaultSuccessUrl();
+                }
+                var restOptions = mfaFlow.getPrimaryAuthenticationOptions().getRestOptions();
+                if (restOptions != null) {
+                    return restOptions.isAlwaysUseDefaultSuccessUrl();
                 }
             }
         } catch (Exception e) {
@@ -461,33 +476,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 .filter(f -> MfaFlowTypeUtils.isMfaFlow(f.getTypeName()))
                 .findFirst()
                 .orElse(null);
-    }
-
-    private boolean isValidRedirectUrl(String url) {
-        if (url == null || url.isBlank()) {
-            return false;
-        }
-
-        if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("//")) {
-            return false;
-        }
-
-        String[] invalidPatterns = {
-                "/.well-known/",
-                "/favicon.ico",
-                "chrome-extension://",
-                "about:",
-                "data:",
-                "blob:",
-                "javascript:"
-        };
-
-        for (String pattern : invalidPatterns) {
-            if (url.contains(pattern)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     @Override
@@ -526,6 +514,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         responseData.put("authenticated", true);
         responseData.put("status", "MFA_COMPLETED");
         responseData.put("message", "Authentication completed.");
+        CsrfTokenAnswer.put(responseData, request);
         responseData.put("redirectUrl",
                 targetUrlOverride != null ? targetUrlOverride : determineTargetUrl(request, response));
         responseData.put("stateType", stateType.name());
@@ -750,6 +739,24 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             }
         } catch (Exception e) {
             safeLogError("[MFA] Failed to update SecurityContext action to {}", e, newAction);
+        }
+    }
+
+    /**
+     * Whether this sign-in answers the user's stored CHALLENGE: it went through at least one factor (a sign-in the
+     * policy let through at the password is no verification) and the decision in force is a CHALLENGE, decided before
+     * this sign-in ended. A BLOCK or an ESCALATE is never answered this way.
+     */
+    private boolean answersAStoredChallenge(String userId, FactorContext factorContext) {
+        if (actionRedisRepository == null || userId == null || userId.isBlank()
+                || factorContext.getCompletedFactors() == null || factorContext.getCompletedFactors().isEmpty()) {
+            return false;
+        }
+        try {
+            return actionRedisRepository.getActionFromHash(userId) == ZeroTrustAction.CHALLENGE;
+        } catch (RuntimeException e) {
+            safeLogError("[MFA] Could not read the decision in force for {}", e, userId);
+            return false;
         }
     }
 

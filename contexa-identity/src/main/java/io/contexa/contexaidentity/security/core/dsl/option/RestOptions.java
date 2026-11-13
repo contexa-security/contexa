@@ -68,10 +68,14 @@ public final class RestOptions extends AuthenticationProcessingOptions {
 
             if (isMfaMode) {
                 super.loginProcessingUrl(urlProvider.getPrimaryRestLoginProcessing());
+                // The same defaults as the form primary step: without them a REST primary step completed at
+                // /mfa/success, an address no page answers, and its failureUrl never reached the flow.
+                this.defaultSuccessUrl = urlProvider.getPrimaryLoginSuccess();
+                this.failureUrl = urlProvider.getPrimaryLoginFailure();
             } else {
                 super.loginProcessingUrl(urlProvider.getSingleRestLoginProcessing());
             }
-            super.order(200);
+            this.order = 200;
         }
 
         @Override

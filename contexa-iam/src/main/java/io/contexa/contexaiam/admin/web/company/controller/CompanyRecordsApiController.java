@@ -32,7 +32,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 /**
  * The admin API of company records (docs/agent OC-2): the company's integrations and administrators put the records
@@ -94,7 +93,7 @@ public class CompanyRecordsApiController {
             return invalid(new InvalidRecordsException(List.of("the records to delete are required")));
         }
         try {
-            return ResponseEntity.ok(Map.of("removed", records.delete(authentication.getName(),
+            return ResponseEntity.ok(new Removed(records.delete(authentication.getName(),
                     blank(body.tenantId()), body.kind(), body.keys())));
         } catch (InvalidRecordsException e) {
             return invalid(e);
@@ -102,8 +101,16 @@ public class CompanyRecordsApiController {
     }
 
     private static ResponseEntity<?> invalid(InvalidRecordsException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "The company records request is not valid",
-                "problems", e.problems()));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new Invalid("The company records request is not valid",
+                e.problems()));
+    }
+
+    /** The answer to a deletion: how many records it removed. */
+    public record Removed(int removed) {
+    }
+
+    /** The answer to a request the records refused, with what was wrong in it. */
+    public record Invalid(String error, List<String> problems) {
     }
 
     private static String blank(String value) {

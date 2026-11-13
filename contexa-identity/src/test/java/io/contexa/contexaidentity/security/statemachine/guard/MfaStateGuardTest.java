@@ -39,6 +39,7 @@ import org.springframework.statemachine.StateContext;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -79,10 +80,20 @@ class MfaStateGuardTest {
     // ==========================================
 
     @Test
+    @DisplayName("RetryLimitGuard: no attempt allowed stops the start, with the setting named")
+    void retryLimitGuardRefusesNoAttempt() {
+        when(mfaSettings.getMaxRetryAttempts()).thenReturn(0);
+
+        assertThatThrownBy(() -> new RetryLimitGuard(mfaSettings))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("contexa.auth.mfa.max-retry-attempts must be at least 1");
+    }
+
+    @Test
     @DisplayName("RetryLimitGuard: within retry limits returns true")
     void retryLimitGuardWithinLimit() {
-        RetryLimitGuard guard = new RetryLimitGuard(mfaSettings);
         when(mfaSettings.getMaxRetryAttempts()).thenReturn(3);
+        RetryLimitGuard guard = new RetryLimitGuard(mfaSettings);
         when(factorContext.getRetryCount()).thenReturn(2);
         when(factorContext.getCurrentProcessingFactor()).thenReturn(AuthType.PASSKEY);
         when(factorContext.getAttribute("retryCount_PASSKEY")).thenReturn(1);
@@ -95,8 +106,8 @@ class MfaStateGuardTest {
     @Test
     @DisplayName("RetryLimitGuard: total retry limit exceeded returns false")
     void retryLimitGuardTotalExceeded() {
-        RetryLimitGuard guard = new RetryLimitGuard(mfaSettings);
         when(mfaSettings.getMaxRetryAttempts()).thenReturn(3);
+        RetryLimitGuard guard = new RetryLimitGuard(mfaSettings);
         when(factorContext.getRetryCount()).thenReturn(3);
         when(factorContext.getCurrentProcessingFactor()).thenReturn(AuthType.PASSKEY);
         when(factorContext.getAttribute("retryCount_PASSKEY")).thenReturn(1);
@@ -109,8 +120,8 @@ class MfaStateGuardTest {
     @Test
     @DisplayName("RetryLimitGuard: specific factor retry limit exceeded returns false")
     void retryLimitGuardFactorExceeded() {
-        RetryLimitGuard guard = new RetryLimitGuard(mfaSettings);
         when(mfaSettings.getMaxRetryAttempts()).thenReturn(3);
+        RetryLimitGuard guard = new RetryLimitGuard(mfaSettings);
         when(factorContext.getRetryCount()).thenReturn(1);
         when(factorContext.getCurrentProcessingFactor()).thenReturn(AuthType.PASSKEY);
         when(factorContext.getAttribute("retryCount_PASSKEY")).thenReturn(3);

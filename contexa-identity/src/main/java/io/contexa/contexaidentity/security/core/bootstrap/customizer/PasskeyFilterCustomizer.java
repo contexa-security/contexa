@@ -16,6 +16,8 @@
 package io.contexa.contexaidentity.security.core.bootstrap.customizer;
 
 import io.contexa.contexacommon.enums.StateType;
+import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
+import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
@@ -28,9 +30,11 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpMethod;
+import org.springframework.lang.Nullable;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsSuccessHandler;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 import org.springframework.security.web.authentication.HttpMessageConverterAuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.ui.DefaultResourcesFilter;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -128,6 +132,20 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                                  AuthenticationFlowConfig flowConfig,
                                  ApplicationContext appContext,
                                  boolean isMfaFlow) {
+        replaceHandlers(builtChain, flowConfig, appContext, isMfaFlow, null);
+    }
+
+    /**
+     * Replace WebAuthn authentication handlers (success/failure), and give the filter the session strategy of its
+     * chain where the flow keeps its sign-in in the session.
+     *
+     * @param sessionStrategy the session strategy of the chain; {@code null} leaves the filter's own
+     */
+    public void replaceHandlers(DefaultSecurityFilterChain builtChain,
+                                 AuthenticationFlowConfig flowConfig,
+                                 ApplicationContext appContext,
+                                 boolean isMfaFlow,
+                                 @Nullable SessionAuthenticationStrategy sessionStrategy) {
 
         for (Filter filter : getFilters(builtChain)) {
             if (filter instanceof AbstractAuthenticationProcessingFilter authFilter && isWebAuthnAuth(filter)) {
@@ -151,17 +169,31 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                             failureHandler = appContext.getBean(OAuth2SingleAuthFailureHandler.class);
                         }
                     }
+                    // The passkey step's own handlers of the application, for its requests only (as the other steps).
+                    PasskeyOptions passkeyOptions = passkeyOptionsOf(flowConfig);
+                    successHandler = StepScopedSuccessHandler.of(successHandler,
+                            passkeyOptions != null ? passkeyOptions.getSuccessHandler() : null);
+                    failureHandler = StepScopedFailureHandler.of(failureHandler,
+                            passkeyOptions != null ? passkeyOptions.getFailureHandler() : null);
 
                     if (stateType != StateType.SESSION) {
                         authFilter.setSecurityContextRepository(new RequestAttributeSecurityContextRepository());
+                    } else if (sessionStrategy != null) {
+                        // Spring Security's passkey configurer builds its filter without the session strategy its other
+                        // sign-in filters get: a passkey sign-in kept the session id the browser came with, and the
+                        // limit of sessions did not count it.
+                        authFilter.setSessionAuthenticationStrategy(
+                                new PasskeySessionAuthenticationStrategy(sessionStrategy, ContexaUserStore.of(appContext)));
                     }
-                    if (successHandler != null) {
+                    if (isMfaFlow) {
                         authFilter.setAuthenticationSuccessHandler(successHandler);
                     } else {
                         // Single-factor session passkey login keeps Spring's default response; the passkey filter
-                        // builds its own provider, so the login facts are recorded in front of that handler.
-                        authFilter.setAuthenticationSuccessHandler(
-                                new LoginFactsSuccessHandler(new HttpMessageConverterAuthenticationSuccessHandler()));
+                        // builds its own provider, so the login facts are recorded in front of that handler. A passkey
+                        // sign-in alone becomes the Contexa account's first, as the MFA passkey factor does.
+                        authFilter.setAuthenticationSuccessHandler(PasskeyAuthentications.asContexaAccountFirst(
+                                successHandler != null ? successHandler
+                                        : new LoginFactsSuccessHandler(new HttpMessageConverterAuthenticationSuccessHandler())));
                     }
                     if (failureHandler != null) {
                         authFilter.setAuthenticationFailureHandler(failureHandler);
@@ -203,6 +235,16 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
         } catch (Exception e) {
             log.error("Failed to replace DefaultWebAuthnRegistrationPageGeneratingFilter with Contexa version", e);
         }
+    }
+
+    @Nullable
+    private static PasskeyOptions passkeyOptionsOf(AuthenticationFlowConfig flowConfig) {
+        for (AuthenticationStepConfig step : flowConfig.getStepConfigs()) {
+            if (step.getOption(AuthenticationStepConfig.OPTIONS_KEY) instanceof PasskeyOptions options) {
+                return options;
+            }
+        }
+        return null;
     }
 
     private boolean isWebAuthnAuth(Filter filter) {

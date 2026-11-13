@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.properties.OttUrls;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -37,6 +38,12 @@ import java.util.Objects;
 
 @Slf4j
 public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGenerationSuccessHandler {
+
+    /** Where a flow by code alone names, with the request, the page that takes its code. */
+    public static final String SUBMIT_PAGE_ATTRIBUTE = "io.contexa.ott.submitPageUrl";
+
+    /** The "code sent" address of the settings while the application has named none of its own. */
+    private static final String DEFAULT_CODE_SENT_URL = new OttUrls().getCodeSent();
 
     private final MfaStateMachineIntegrator mfaStateMachineIntegrator;
     private final AuthUrlProvider authUrlProvider;
@@ -84,26 +91,49 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
         }
 
         if ((factorContext == null || !MfaFlowTypeUtils.isMfaFlow(factorContext.getFlowTypeName()))) {
-            String email = URLEncoder.encode(usernameFromToken, StandardCharsets.UTF_8);
-            String codeSentUrl = resolveProvider(request).getOttCodeSent();
-            if (!StringUtils.hasText(codeSentUrl)) {
-                codeSentUrl = "/ott/sent";
+            // An application that named a "code sent" address of its own (contexa.auth.urls.factors.ott.code-sent) has a
+            // page there, and a sign-in by mail code alone goes to it as it always did, with the same parameters.
+            String namedCodeSentUrl = resolveProvider(request).getOttCodeSent();
+            if (StringUtils.hasText(namedCodeSentUrl) && !DEFAULT_CODE_SENT_URL.equals(namedCodeSentUrl)) {
+                response.sendRedirect(request.getContextPath() + namedCodeSentUrl
+                        + "?email=" + URLEncoder.encode(usernameFromToken, StandardCharsets.UTF_8)
+                        + "&type=code_sent"
+                        + "&flow=ott_single"
+                        + "&repository=" + sessionRepository.getRepositoryType());
+                return;
+            }
+            // Unnamed, that address is the "code sent" page of the MFA pages, which a sign-in by mail code alone does
+            // not have: it answers "not found" in such a flow. The browser goes on to the page that takes the code,
+            // which the flow does have. The name the code was asked for stays out of the address.
+            // The flow names the page with the request (its DSL's defaultSubmitPageUrl); without that the page of the
+            // settings is the one a flow by code alone has by default.
+            String submitPageUrl = request.getAttribute(SUBMIT_PAGE_ATTRIBUTE) instanceof String named ? named : null;
+            if (!StringUtils.hasText(submitPageUrl)) {
+                submitPageUrl = resolveProvider(request).getSingleOttChallenge();
+            }
+            if (!StringUtils.hasText(submitPageUrl)) {
+                submitPageUrl = "/login/ott/verify";
             }
 
-            String redirectUrl = request.getContextPath() + codeSentUrl +
-                    "?email=" + email +
-                    "&type=code_sent" +
-                    "&flow=ott_single" +
-                    "&repository=" + sessionRepository.getRepositoryType();
-
-            response.sendRedirect(redirectUrl);
+            response.sendRedirect(request.getContextPath() + submitPageUrl);
             return;
         }
 
-        log.error("OTT context mismatch: repository={}, flow={}, contextUser={}, tokenUser={}",
+        if (factorContext != null && Objects.equals(factorContext.getUsername(), usernameFromToken)
+                && factorContext.getCurrentProcessingFactor() != AuthType.MFA_OTT) {
+            // The person chose another factor (a passkey) and then asked for a code: back to the choice of factors,
+            // where the mail code can be chosen. The reason given was "user not found".
+            log.warn("OTT code requested while factor {} is selected: repository={}, flow={}",
+                    factorContext.getCurrentProcessingFactor(), sessionRepository.getRepositoryType(),
+                    factorContext.getFlowTypeName());
+            response.sendRedirect(request.getContextPath() + resolveProvider(request).getMfaSelectFactor());
+            return;
+        }
+
+        log.warn("OTT context mismatch: repository={}, flow={}, contextUser={}, tokenUser={}",
                 sessionRepository.getRepositoryType(),
-                factorContext.getFlowTypeName(),
-                factorContext.getUsername(),
+                factorContext != null ? factorContext.getFlowTypeName() : null,
+                factorContext != null ? factorContext.getUsername() : null,
                 usernameFromToken);
 
         String ottRequestUrl = resolveProvider(request).getOttRequestCodeUi();

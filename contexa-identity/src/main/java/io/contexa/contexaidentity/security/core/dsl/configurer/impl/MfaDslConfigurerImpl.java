@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexaidentity.security.utils.UrlPrefixes;
 import io.contexa.contexaidentity.security.core.asep.dsl.BaseAsepAttributes;
 import io.contexa.contexaidentity.security.core.asep.dsl.MfaAsepAttributes;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
@@ -89,6 +90,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
 
     @Override
     public MfaDslConfigurerImpl<H> urlPrefix(String urlPrefix) {
+        UrlPrefixes.validate(urlPrefix);
         this.urlPrefix = urlPrefix;
         return this;
     }
@@ -138,8 +140,15 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         Objects.requireNonNull(factorConfigurerCustomizer, authType.name() + " customizer cannot be null").customize(configurer);
         O_FACTOR factorOptions = configurer.buildConcreteOptions();
 
-        configuredSteps.removeIf(step ->
-                authType.name().equalsIgnoreCase(step.getType()) && !step.isPrimary());
+        // A second ott(...) or passkey(...) replaced the first without a word.
+        if (configuredSteps.stream().anyMatch(step -> authType.name().equalsIgnoreCase(step.getType()) && !step.isPrimary())) {
+            throw new DslConfigurationException("MFA flow configures the " + authType.name() + " factor twice: "
+                    + "give each factor once (one ott(...), one passkey(...)).");
+        }
+        if (factorOptions.isOrderSet()) {
+            log.warn("order({}) inside the {} factor of an MFA flow has no effect: the flow's place among the chains is "
+                    + "mfa.order(...)", factorOptions.getOrder(), authType.name());
+        }
 
         int stepOrder = currentStepOrderCounter++;
         AuthenticationStepConfig factorStep = new AuthenticationStepConfig(this.mfaFlowTypeName, authType.name(), stepOrder, false);
@@ -333,9 +342,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             loginPageUrl = authProps.getUrls().getPrimary().getFormLoginPage();
         }
 
-        if (StringUtils.hasText(this.urlPrefix) && !loginPageUrl.startsWith(this.urlPrefix)) {
-            loginPageUrl = this.urlPrefix + loginPageUrl;
-        }
+        loginPageUrl = UrlPrefixes.apply(this.urlPrefix, loginPageUrl);
 
         ObjectMapper objectMapper;
         try {

@@ -20,6 +20,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -28,6 +31,7 @@ import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
+import io.contexa.contexaidentity.security.handler.PrimaryAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,6 +47,8 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.web.authentication.session.SessionAuthenticationException;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -112,5 +118,39 @@ class MfaRestAuthenticationFilterTest {
         assertThat(markerAtSave.get()).isEqualTo("mfa_api");
         assertThat(MfaPendingSessionMarker.getPendingFlowTypeName(request)).isEqualTo("mfa_api");
         verify(successHandler).onAuthenticationSuccess(request, response, authentication);
+    }
+
+    @Test
+    @DisplayName("The handler is handed the session strategy of the chain for a sign-in that ends at this step")
+    void handsTheSessionStrategyOfItsChainToTheHandler() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/mfa/login");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        Authentication authentication = UsernamePasswordAuthenticationToken.authenticated("user", null, List.of());
+        SessionAuthenticationStrategy sessionStrategy = mock(SessionAuthenticationStrategy.class);
+        filter.setSessionAuthenticationStrategy(sessionStrategy);
+        AtomicReference<Object> handedOver = new AtomicReference<>();
+        doAnswer(invocation -> {
+            handedOver.set(request.getAttribute(PrimaryAuthenticationSuccessHandler.SESSION_STRATEGY_ATTRIBUTE));
+            return null;
+        }).when(successHandler).onAuthenticationSuccess(request, response, authentication);
+
+        filter.successfulAuthentication(request, response, new MockFilterChain(), authentication);
+
+        assertThat(handedOver.get()).isSameAs(sessionStrategy);
+        verify(sessionStrategy, never()).onAuthentication(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("A sign-in the session strategy refuses at the end of this step is answered as a failed sign-in")
+    void aRefusedSignInIsAnsweredAsAFailedSignIn() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/mfa/login");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        Authentication authentication = UsernamePasswordAuthenticationToken.authenticated("user", null, List.of());
+        SessionAuthenticationException refusal = new SessionAuthenticationException("Maximum sessions of 1 exceeded");
+        doThrow(refusal).when(successHandler).onAuthenticationSuccess(request, response, authentication);
+
+        filter.successfulAuthentication(request, response, new MockFilterChain(), authentication);
+
+        verify(failureHandler).onAuthenticationFailure(request, response, refusal);
     }
 }

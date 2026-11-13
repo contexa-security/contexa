@@ -31,9 +31,12 @@ import org.springframework.security.config.annotation.web.configurers.FormLoginC
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.SecurityContextRepository;
 
-import java.util.Objects;
+import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 
 public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapter<FormLoginConfigurer<HttpSecurity>> {
+
+    /** The page Spring generates and posts to when the flow names no login page. */
+    private static final String DEFAULT_LOGIN_PAGE = "/login";
 
     @Override
     public String getId() {
@@ -91,7 +94,7 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
 
         } else if (failureHandler != null) {
             configurer.failureHandler(failureHandler);
-            failureHandler.setDefaultTargetUrl(Objects.requireNonNullElse(opts.getFailureUrl(), "/login?error"));
+            failureHandler.setDefaultTargetUrl(failureAddress(opts));
         }
 
         SafeHttpFormLoginCustomizer rawLogin = opts.getRawFormLoginCustomizer();
@@ -102,6 +105,26 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
                 throw new RuntimeException("Error customizing raw form login for " + getId(), e);
             }
         }
+    }
+
+    @Override
+    protected void configureHttpSecurity(HttpSecurity http, FormOptions opts, AuthenticationFlowConfig currentFlow,
+                                         PlatformAuthenticationSuccessHandler successHandler,
+                                         PlatformAuthenticationFailureHandler failureHandler) throws Exception {
+        super.configureHttpSecurity(http, opts, currentFlow, successHandler, failureHandler);
+        if (opts.getFailureHandler() == null && failureHandler != null && opts.getLoginPage() == null) {
+            // Contexa answers the failures (the token state) and sends a page to the generated login page's error
+            // address, which that page knows only when it is told.
+            LoginPageErrorAddress.register(http, failureAddress(opts));
+        }
+    }
+
+    /** Where a failed page sign-in goes: the flow's failureUrl, else its login page with ?error, as in Spring. */
+    private static String failureAddress(FormOptions opts) {
+        if (opts.getFailureUrl() != null) {
+            return opts.getFailureUrl();
+        }
+        return (opts.getLoginPage() != null ? opts.getLoginPage() : DEFAULT_LOGIN_PAGE) + "?error";
     }
 
     @Override

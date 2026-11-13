@@ -63,6 +63,19 @@ public abstract class AbstractTokenBasedSuccessHandler implements PlatformAuthen
         this.alwaysUse = alwaysUse;
     }
 
+    /** The default success address of the step being answered (see {@link StepScopedSuccessHandler}). */
+    @Nullable
+    protected final String defaultTargetUrl(HttpServletRequest request) {
+        StepScopedSuccessHandler.Settings step = StepScopedSuccessHandler.current(request);
+        return step != null ? step.defaultTargetUrl() : defaultTargetUrl;
+    }
+
+    /** Whether the step being answered always goes to its default success address. */
+    protected final boolean alwaysUse(HttpServletRequest request) {
+        StepScopedSuccessHandler.Settings step = StepScopedSuccessHandler.current(request);
+        return step != null ? step.alwaysUse() : alwaysUse;
+    }
+
     protected TokenPair createTokenPair(Authentication authentication, String deviceId,
                                         HttpServletRequest request, HttpServletResponse response) {
         if (tokenService == null) {
@@ -105,6 +118,8 @@ public abstract class AbstractTokenBasedSuccessHandler implements PlatformAuthen
                                                    HttpServletResponse response,
                                                    Authentication authentication,
                                                    @Nullable TokenTransportResult result) throws IOException {
+        StepScopedSuccessHandler.Settings step = StepScopedSuccessHandler.current(request);
+        PlatformAuthenticationSuccessHandler delegateHandler = step != null ? step.delegate() : this.delegateHandler;
         if (delegateHandler != null && !response.isCommitted()) {
             try {
                 delegateHandler.onAuthenticationSuccess(request, response, authentication, result);

@@ -152,10 +152,29 @@ class OneTimeTokenResendResponseTest {
         MockHttpServletResponse first = post(REGISTERED);
         MockHttpServletResponse refused = post(REGISTERED);
 
-        assertThat(first.getRedirectedUrl()).contains("type=code_sent");
+        // the page that takes the code, which a sign-in by code alone has; the name asked for stays out of the address
+        assertThat(first.getRedirectedUrl()).isEqualTo("/login/ott/verify");
+        assertThat(first.getRedirectedUrl()).doesNotContain(REGISTERED);
         assertThat(refused.getStatus()).isEqualTo(first.getStatus());
         assertThat(refused.getRedirectedUrl()).isEqualTo(first.getRedirectedUrl());
         verify(mail, times(1)).sendHtmlMessage(anyString(), anyString(), anyString());
+    }
+
+    /** An application with a "code sent" page of its own names its address in the settings, and is sent there as before. */
+    @Test
+    @DisplayName("a sign-in by code alone goes to the 'code sent' address the application named, with its parameters")
+    void aSingleCodeSignInGoesToTheNamedCodeSentAddress() throws Exception {
+        AuthContextProperties named = new AuthContextProperties();
+        named.getUrls().getFactors().getOtt().setCodeSent("/my/code-sent");
+        filter = new GenerateOneTimeTokenFilter(service,
+                new OneTimeTokenCreationSuccessHandler(integrator, new AuthUrlProvider(named), null, sessions));
+        filter.setRequestMatcher(request -> true);
+
+        MockHttpServletResponse first = post(REGISTERED);
+
+        assertThat(first.getStatus()).isEqualTo(302);
+        assertThat(first.getRedirectedUrl()).isEqualTo("/my/code-sent?email=" + encoded(REGISTERED)
+                + "&type=code_sent&flow=ott_single&repository=memory");
     }
 
     @Test

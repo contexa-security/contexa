@@ -39,6 +39,7 @@ import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.zerotrust.ContexaOwnedSignInListener;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexaidentity.security.core.bootstrap.WebSecurityConfigurationDependencyInjector;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
@@ -118,10 +119,15 @@ public class IdentitySecurityCoreContexaOwnedConfiguration {
             AuthContextProperties authContextProperties,
             IBlockedUserRecorder contexaBlockedUserRecorder,
             @Autowired(required = false) CentralAuditFacade contexaCentralAuditFacade,
-            @Autowired(required = false) SecurityContextDataStore securityContextDataStore) {
-        return new UnifiedAuthenticationFailureHandler(contexaAuthResponseWriter, contexaMfaStateMachineIntegrator,
+            @Autowired(required = false) SecurityContextDataStore securityContextDataStore,
+            ObjectProvider<MfaFlowUrlRegistry> mfaFlowUrlRegistry) {
+        UnifiedAuthenticationFailureHandler handler = new UnifiedAuthenticationFailureHandler(
+                contexaAuthResponseWriter, contexaMfaStateMachineIntegrator,
                 contexaMfaSessionRepository, actionRedisRepository, authContextProperties.getMfa(),
                 contexaBlockedUserRecorder, contexaCentralAuditFacade, securityContextDataStore);
+        // a failed password step goes back to the sign-in page of its own flow
+        handler.setFlowUrlRegistry(mfaFlowUrlRegistry.getIfAvailable());
+        return handler;
     }
 
     @Bean(name = "contexaMfaFactorProcessingSuccessHandler")

@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -76,6 +77,9 @@ public class MfaFlowUrlRegistry {
             flowProvider.setMfaPageConfig(mfaPageConfig);
         }
 
+        // The flow's own addresses (its DSL, its URL prefix) are checked as the shared ones are at startup.
+        flowProvider.validateConfiguration();
+
         String key = flowTypeName.toLowerCase(Locale.ROOT);
         flowProviders.put(key, flowProvider);
         return flowProvider;
@@ -93,6 +97,14 @@ public class MfaFlowUrlRegistry {
                 .sorted(Map.Entry.comparingByKey())
                 .map(flow -> flow.getValue().getPrimaryLoginPage())
                 .findFirst();
+    }
+
+    /** The provider of the only MFA flow, or empty when there is none or more than one. */
+    public Optional<AuthUrlProvider> onlyFlowProvider() {
+        List<AuthUrlProvider> flows = flowProviders.values().stream()
+                .filter(AuthUrlProvider::hasPrimaryAuthentication)
+                .toList();
+        return flows.size() == 1 ? Optional.of(flows.get(0)) : Optional.empty();
     }
 
     public AuthUrlProvider getProvider(String flowTypeName) {

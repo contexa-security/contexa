@@ -16,11 +16,14 @@
 package io.contexa.contexaidentity.security.handler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import io.contexa.contexacommon.enums.StateType;
@@ -58,6 +61,8 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.session.SessionAuthenticationException;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 
 class PrimaryAuthenticationSuccessHandlerTest {
 
@@ -167,5 +172,66 @@ class PrimaryAuthenticationSuccessHandlerTest {
         assertThat(MfaPendingSessionMarker.getPendingFlowTypeName(request)).isEqualTo("mfa");
         verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_FORBIDDEN),
                 eq("AUTHENTICATION_BLOCKED"), anyString(), anyString(), anyMap());
+    }
+
+    @Test
+    @DisplayName("A sign-in that ends at the first step gets the session strategy of its chain")
+    void aSignInThatEndsAtTheFirstStepGetsTheSessionStrategyOfItsChain() throws Exception {
+        when(mfaPolicyProvider.evaluateInitialMfaRequirement(factorContext)).thenReturn(MfaDecision.noMfaRequired());
+        SessionAuthenticationStrategy sessionStrategy = mock(SessionAuthenticationStrategy.class);
+        request.setAttribute(PrimaryAuthenticationSuccessHandler.SESSION_STRATEGY_ATTRIBUTE, sessionStrategy);
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        verify(sessionStrategy).onAuthentication(authentication, request, response);
+        assertThat(MfaPendingSessionMarker.getPendingFlowTypeName(request)).isNull();
+    }
+
+    @Test
+    @DisplayName("A sign-in that reaches MFA_NOT_REQUIRED through the state machine gets the session strategy too")
+    void theOtherWayToTheEndOfTheFirstStepGetsTheSessionStrategyToo() throws Exception {
+        MfaDecision decision = MfaDecision.builder()
+                .required(false)
+                .type(MfaDecision.DecisionType.CHALLENGED)
+                .reason("policy evaluated without required factors")
+                .build();
+        when(mfaPolicyProvider.evaluateInitialMfaRequirement(factorContext)).thenReturn(decision);
+        when(stateMachineIntegrator.sendEvent(eq(MfaEvent.MFA_NOT_REQUIRED), any(FactorContext.class),
+                any(HttpServletRequest.class))).thenAnswer(invocation -> {
+                    factorContext.changeState(MfaState.MFA_NOT_REQUIRED);
+                    return true;
+                });
+        SessionAuthenticationStrategy sessionStrategy = mock(SessionAuthenticationStrategy.class);
+        request.setAttribute(PrimaryAuthenticationSuccessHandler.SESSION_STRATEGY_ATTRIBUTE, sessionStrategy);
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        verify(sessionStrategy).onAuthentication(authentication, request, response);
+    }
+
+    @Test
+    @DisplayName("A sign-in that does not end at the first step is left to the filter of its last factor")
+    void aSignInThatDoesNotEndHereIsNotGivenTheSessionStrategy() throws Exception {
+        when(mfaPolicyProvider.evaluateInitialMfaRequirement(factorContext)).thenReturn(MfaDecision.blocked("risk"));
+        SessionAuthenticationStrategy sessionStrategy = mock(SessionAuthenticationStrategy.class);
+        request.setAttribute(PrimaryAuthenticationSuccessHandler.SESSION_STRATEGY_ATTRIBUTE, sessionStrategy);
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        verify(sessionStrategy, never()).onAuthentication(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("A refusal of the session strategy leaves as it is, with the sign-in not kept")
+    void aRefusalOfTheSessionStrategyLeavesTheSignInUnkept() {
+        when(mfaPolicyProvider.evaluateInitialMfaRequirement(factorContext)).thenReturn(MfaDecision.noMfaRequired());
+        SessionAuthenticationStrategy sessionStrategy = mock(SessionAuthenticationStrategy.class);
+        SessionAuthenticationException refusal = new SessionAuthenticationException("Maximum sessions of 1 exceeded");
+        doThrow(refusal).when(sessionStrategy).onAuthentication(any(), any(), any());
+        request.setAttribute(PrimaryAuthenticationSuccessHandler.SESSION_STRATEGY_ATTRIBUTE, sessionStrategy);
+
+        assertThatThrownBy(() -> handler.onAuthenticationSuccess(request, response, authentication)).isSameAs(refusal);
+
+        assertThat(MfaPendingSessionMarker.getPendingFlowTypeName(request)).isEqualTo("mfa");
     }
 }

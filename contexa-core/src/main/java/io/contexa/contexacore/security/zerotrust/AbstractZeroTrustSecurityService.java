@@ -334,7 +334,9 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
                     adjustedAuthorities,
                     trustScore,
                     threatScore,
-                    action
+                    action,
+                    // the name the authentication had: the replacement would work one out from the principal alone
+                    auth.getName()
             );
             // The details hold the login facts recorded at sign-in; without them every later request of the
             // session would lose its login method, MFA state and authentication time.

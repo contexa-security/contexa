@@ -20,6 +20,8 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.SessionIdGenerationException;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.handler.PrimaryAuthenticationSuccessHandler;
+import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker;
@@ -41,6 +43,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.web.authentication.session.SessionAuthenticationException;
 import org.springframework.security.crypto.keygen.BytesKeyGenerator;
 import org.springframework.security.crypto.keygen.KeyGenerators;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -138,8 +141,16 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
                 log.error("State mismatch! FactorContext: {}, StateMachine: {} for session: {}",
                         factorContext.getCurrentState(), actualState, factorContext.getMfaSessionId());
             }
+            // A sign-in that ends at this step is kept by the handler: it applies the session strategy of this chain,
+            // which is none unless the flow keeps its sign-in in the session.
+            request.setAttribute(PrimaryAuthenticationSuccessHandler.SESSION_STRATEGY_ATTRIBUTE, sessionStrategy);
             successHandler.onAuthenticationSuccess(request, response, authentication);
 
+        } catch (SessionAuthenticationException refused) {
+            // The session strategy refused a sign-in that ended at this step (the limit of sessions): a failed
+            // sign-in as it is, and no failure of the state machine.
+            cleanupFailedSession(mfaSessionId, request, response);
+            unsuccessfulAuthentication(request, response, refused);
         } catch (Exception e) {
             log.error("Failed to initialize unified State Machine for Form MFA session: {}", mfaSessionId, e);
 
@@ -228,6 +239,9 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
                 sessionRepository.getRepositoryType(),
                 failed.getMessage());
 
+        // nothing of the flow exists after a failed password step, so the request carries the flow's name to the handler
+        request.setAttribute(UnifiedAuthenticationFailureHandler.FAILED_FLOW_TYPE_NAME_ATTRIBUTE,
+                (this.flowTypeName != null) ? this.flowTypeName : MfaFlowTypeUtils.getBaseMfaTypeName());
         failureHandler.onAuthenticationFailure(request, response, failed);
     }
 

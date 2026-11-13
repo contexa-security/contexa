@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.admin.web.agent.controller;
 
+import io.contexa.contexaiam.admin.web.agent.dto.LatestAgentDecisions;
+import io.contexa.contexaiam.admin.web.agent.dto.ActiveDelegationCounts;
 import io.contexa.contexacore.autonomous.agent.AgentRegistration;
 import io.contexa.contexacore.autonomous.agent.AgentRegistrationSource;
 import io.contexa.contexacore.autonomous.agent.AgentRegistry;
@@ -52,8 +54,6 @@ import java.util.function.Predicate;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * The console's agent screens (A1-6): the list (AM-1) and one agent (AM-2). They show the registry's values as they
@@ -154,13 +154,13 @@ public class AgentAdminController {
      * docs/agent A5-2 (AM-1): how many delegations of people hold for each agent now, by agent ID; empty when they
      * cannot be read.
      */
-    private Map<String, Integer> activeDelegations() {
-        Map<String, Integer> active = new HashMap<>();
+    private ActiveDelegationCounts activeDelegations() {
+        ActiveDelegationCounts active = new ActiveDelegationCounts();
         try {
             Instant now = clock.instant();
             for (AgentDelegation delegation : delegationService.list(null, null, null, ACTIVE_DELEGATION_SCAN)) {
                 if (delegation.validAt(now)) {
-                    active.merge(delegation.agentId(), 1, Integer::sum);
+                    active.count(delegation.agentId());
                 }
             }
         } catch (RuntimeException e) {
@@ -170,15 +170,15 @@ public class AgentAdminController {
     }
 
     /** Each agent's latest decision, by agent ID; empty without an audit store or when it cannot be read. */
-    private Map<String, String> latestDecisions() {
-        Map<String, String> latest = new HashMap<>();
+    private LatestAgentDecisions latestDecisions() {
+        LatestAgentDecisions latest = new LatestAgentDecisions();
         if (decisionRecords == null) {
             return latest;
         }
         try {
             for (AuditLog record : decisionRecords
                     .findTop500ByAgentIdIsNotNullAndEventCategoryOrderByTimestampDesc(SECURITY_DECISION)) {
-                latest.putIfAbsent(record.getAgentId(), record.getDecision());
+                latest.meet(record.getAgentId(), record.getDecision());
             }
         } catch (RuntimeException e) {
             log.error("The agents' latest decisions could not be read", e);

@@ -37,6 +37,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -48,6 +49,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
 import org.springframework.core.Ordered;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.FilterChainProxy;
@@ -66,6 +68,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -448,6 +451,39 @@ class SecurityFilterChainRegistrarTest {
             registrar.registerSecurityFilterChains(List.of(fc), applicationContext);
 
             verify(beanFactory).registerBeanDefinition(eq("contexaFORMSecurityFilterChain1"), any(BeanDefinition.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("A form login of Spring Security beside an MFA flow")
+    class FormLoginBesideAnMfaFlowTests {
+
+        @Test
+        @DisplayName("is taken out of the chain before the chain is built")
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        void isTakenOutOfAnMfaChain() throws Exception {
+            FlowContext fc = createMockFlowContext("mfa", 0, List.of());
+            when(fc.http().getConfigurer(FormLoginConfigurer.class)).thenReturn(mock(FormLoginConfigurer.class));
+            when(fc.http().build()).thenReturn(new DefaultSecurityFilterChain(AnyRequestMatcher.INSTANCE, List.of()));
+
+            registrar.buildAndRegisterFilters(fc, applicationContext);
+
+            InOrder order = inOrder(fc.http());
+            order.verify(fc.http()).removeConfigurer((Class) FormLoginConfigurer.class);
+            order.verify(fc.http()).build();
+        }
+
+        @Test
+        @DisplayName("stays in the chain of a flow that asks for no factors")
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        void staysInAChainWithoutFactors() throws Exception {
+            FlowContext fc = createMockFlowContext("rest", 0, List.of());
+            when(fc.http().getConfigurer(FormLoginConfigurer.class)).thenReturn(mock(FormLoginConfigurer.class));
+            when(fc.http().build()).thenReturn(new DefaultSecurityFilterChain(AnyRequestMatcher.INSTANCE, List.of()));
+
+            registrar.buildAndRegisterFilters(fc, applicationContext);
+
+            verify(fc.http(), never()).removeConfigurer((Class) FormLoginConfigurer.class);
         }
     }
 

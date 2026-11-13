@@ -81,6 +81,8 @@ class MfaStateMachineConfigurationTest {
     @BeforeEach
     void setUp() throws Exception {
         allFactorsCompletedGuard = new AllFactorsCompletedGuard(mfaPolicyProvider);
+        // the guard refuses a limit below 1 when it is made; the tests that count attempts give their own
+        when(mfaSettings.getMaxRetryAttempts()).thenReturn(5);
         retryLimitGuard = new RetryLimitGuard(mfaSettings);
 
         MfaStateMachineConfiguration configuration = new MfaStateMachineConfiguration(

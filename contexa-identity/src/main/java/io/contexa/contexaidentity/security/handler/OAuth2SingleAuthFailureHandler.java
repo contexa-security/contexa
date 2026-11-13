@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import org.springframework.security.authentication.CredentialsExpiredException;
 import io.contexa.contexacommon.security.LocalCredentialsVerifier;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
@@ -32,6 +33,9 @@ import java.util.Map;
 
 @Slf4j
 public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHandler {
+
+    /** Where a failed page sign-in goes when its step names no failure address: the sign-in page with the error. */
+    private static final String DEFAULT_FAILURE_URL = "/login?error";
 
     private final LoginPolicyHandler loginPolicyHandler;
 
@@ -57,6 +61,11 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
             log.error("Response already committed for authentication failure");
             return;
         }
+        if (exception instanceof CredentialsExpiredException) {
+            ExpiredPasswordAnswer.write(request, response, responseWriter,
+                    ExpiredPasswordAnswer.accountOf(exception, request.getParameter("username")), isApiRequest(request));
+            return;
+        }
 
 
         // The same words whatever refused the sign-in, as in the MFA flow: the reason would tell who has an account.
@@ -79,6 +88,26 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
         if (response.isCommitted()) {
             return;
         }
+        if (!isApiRequest(request)) {
+            // A page form is sent back to the step's failure address, as in the session state; the JSON answer was
+            // shown to the person as it was.
+            String failureUrl = failureUrl(request);
+            response.sendRedirect(request.getContextPath() + (failureUrl != null ? failureUrl : DEFAULT_FAILURE_URL));
+            return;
+        }
         writeErrorResponse(request, response, errorCode, errorMessage, responseData);
+    }
+
+    private static boolean isApiRequest(HttpServletRequest request) {
+        String acceptHeader = request.getHeader("Accept");
+        if (acceptHeader != null && acceptHeader.contains("application/json")) {
+            return true;
+        }
+        String contentType = request.getContentType();
+        if (contentType != null && contentType.contains("application/json")) {
+            return true;
+        }
+        String requestURI = request.getRequestURI();
+        return requestURI != null && requestURI.contains("/api/");
     }
 }

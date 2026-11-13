@@ -19,6 +19,7 @@ import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcess
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
+import io.contexa.contexaidentity.security.utils.UrlPrefixes;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaPageConfig;
@@ -55,10 +56,7 @@ public class AuthUrlProvider {
     }
 
     private String applyPrefix(String url) {
-        if (urlPrefix != null && url != null && !url.startsWith(urlPrefix)) {
-            return urlPrefix + url;
-        }
-        return url;
+        return UrlPrefixes.apply(urlPrefix, url);
     }
 
     public void setPrimaryAuthenticationOptions(@Nullable PrimaryAuthenticationOptions primaryAuthOptions) {
@@ -121,6 +119,22 @@ public class AuthUrlProvider {
             return applyPrefix(primaryAuthOptions.getFailureUrl());
         }
         return applyPrefix(properties.getUrls().getPrimary().getLoginFailure());
+    }
+
+    /**
+     * The address the application named for a failed password step of this flow, in its DSL ({@code failureUrl}) or in
+     * its settings, or {@code null} when it named none. Unnamed, the options carry a default of the library
+     * ({@code /login?error}, {@code /mfa/login?error}), which is a page an MFA flow does not have of its own.
+     */
+    @Nullable
+    public String getNamedPrimaryLoginFailure() {
+        String named = primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getFailureUrl())
+                ? primaryAuthOptions.getFailureUrl()
+                : properties.getUrls().getPrimary().getLoginFailure();
+        if (!StringUtils.hasText(named) || "/login?error".equals(named) || "/mfa/login?error".equals(named)) {
+            return null;
+        }
+        return applyPrefix(named);
     }
 
     public String getPrimaryLoginSuccess() {
@@ -423,7 +437,11 @@ public class AuthUrlProvider {
         addPath(paths, getPrimaryLoginPage());
         addPath(paths, getPrimaryFormLoginProcessing());
         addPath(paths, getPrimaryRestLoginProcessing());
-        addPath(paths, getPrimaryLoginFailure());
+        // A flow's failed password step goes to the address its application named, otherwise to its sign-in page
+        // (above). The library's unnamed default (/login?error) is the single form sign-in's path: taken as the
+        // flow's own, a token-scoped MFA chain took /login away from the form flow behind it. The shared provider,
+        // which describes no flow, keeps it, so a session with a pending MFA can still start a single sign-in.
+        addPath(paths, hasPrimaryAuthentication() ? getNamedPrimaryLoginFailure() : getPrimaryLoginFailure());
         addPath(paths, getLogoutPage());
         addPath(paths, getLogoutProcessingUrl());
         addPath(paths, getMfaSelectFactor());
@@ -524,7 +542,8 @@ public class AuthUrlProvider {
                 "status", getMfaStatus(),
                 "requestOttCode", getMfaRequestOttCode(),
                 "config", getMfaConfig(),
-                "logout", getLogoutProcessingUrl()
+                "logout", getLogoutProcessingUrl(),
+                "refresh", getRefreshUrl()
         ));
 
         if (urlPrefix != null) {
@@ -532,6 +551,37 @@ public class AuthUrlProvider {
         }
 
         return urls;
+    }
+
+    /**
+     * The addresses of {@link #getAllUiPageUrls()} as a browser under the given context path requests them. The SDK
+     * sends its requests to these values as they are, so a page of an application deployed under a context path
+     * needs them with it.
+     */
+    public Map<String, Object> getAllUiPageUrls(@Nullable String contextPath) {
+        Map<String, Object> urls = getAllUiPageUrls();
+        return StringUtils.hasText(contextPath) ? withContextPath(urls, contextPath) : urls;
+    }
+
+    private static Map<String, Object> withContextPath(Map<?, ?> urls, String contextPath) {
+        Map<String, Object> withPath = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : urls.entrySet()) {
+            String key = String.valueOf(entry.getKey());
+            Object value = entry.getValue();
+            if (value instanceof Map<?, ?> nested) {
+                withPath.put(key, withContextPath(nested, contextPath));
+            } else if (value instanceof String address && !"urlPrefix".equals(key) && address.startsWith("/")) {
+                withPath.put(key, contextPath + address);
+            } else {
+                withPath.put(key, value);
+            }
+        }
+        return withPath;
+    }
+
+    /** The token refresh address of this flow: the configured one, under the flow's URL prefix when it has one. */
+    public String getRefreshUrl() {
+        return applyPrefix(properties.getInternal().getRefreshUri());
     }
 
     @PostConstruct
@@ -575,14 +625,14 @@ public class AuthUrlProvider {
         addUrlWithContext(urlToContexts, getMfaConfig(), "Mfa.config");
         addUrlWithContext(urlToContexts, getPasskeyAssertionOptions(), "Passkey.assertionOptions");
 
-        Set<String> allowedDuplicates = Set.of(
-                "/login",
-                "/mfa/login",
-                "/home",
-                "/loginForm"
-        );
+        // The addresses the single sign-ins and the token refresh take requests at: one of them on the address of an
+        // MFA endpoint took that endpoint's requests (a refresh at /api/login, a select-factor at /mfa/cancel).
+        addUrlWithContext(urlToContexts, getSingleFormLoginProcessing(), "Single.formLoginProcessing");
+        addUrlWithContext(urlToContexts, getSingleRestLoginProcessing(), "Single.restLoginProcessing");
+        addUrlWithContext(urlToContexts, getSingleOttLoginProcessing(), "Single.ott.loginProcessing");
+        addUrlWithContext(urlToContexts, getSinglePasskeyLoginProcessing(), "Single.passkey.loginProcessing");
+        addUrlWithContext(urlToContexts, getRefreshUrl(), "Internal.refreshUri");
 
-        List<String> problematicDuplicates = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : urlToContexts.entrySet()) {
             String url = entry.getKey();
             List<String> contexts = entry.getValue();
@@ -592,12 +642,13 @@ public class AuthUrlProvider {
                 continue;
             }
 
-            if (contexts.size() > 1) {
-
-                if (!allowedDuplicates.contains(url)) {
-                    problematicDuplicates.add(url + " (used by: " + String.join(", ", contexts) + ")");
-                } else {
-                }
+            // An address that takes requests can be one endpoint only: shared, one of the two took the other's
+            // requests and its feature was gone without a word. Pages may share an address, and the sign-in page is
+            // also where its form posts.
+            if (contexts.size() > 1 && contexts.stream().anyMatch(context -> !PAGE_CONTEXTS.contains(context))
+                    && PAGE_AND_ITS_FORM.stream().noneMatch(pair -> pair.containsAll(contexts))) {
+                errors.add("URL is used by more than one endpoint: " + url + " (" + String.join(", ", contexts)
+                        + "). Give each its own address.");
             }
         }
 
@@ -619,6 +670,18 @@ public class AuthUrlProvider {
         }
 
     }
+
+    /** The entries of {@link #validateConfiguration()} that are pages only: they may share an address. */
+    private static final Set<String> PAGE_CONTEXTS = Set.of(
+            "Primary.formLoginPage", "Primary.loginFailure", "Primary.loginSuccess", "Primary.logoutPage",
+            "Mfa.success", "Mfa.failure", "Ott.requestCodeUi", "Ott.codeSent", "Ott.challengeUi",
+            "Ott.defaultFailure", "Ott.singleOttRequestEmail", "Ott.singleOttChallenge", "Ott.singleOttSent",
+            "Passkey.challengeUi", "RecoveryCode.challengeUi");
+
+    /** A page and the form it posts may be one address: a GET shows the page, a POST takes it. */
+    private static final List<Set<String>> PAGE_AND_ITS_FORM = List.of(
+            Set.of("Primary.formLoginPage", "Primary.formLoginProcessing"),
+            Set.of("Ott.singleOttRequestEmail", "Single.ott.loginProcessing"));
 
     private void addUrlWithContext(Map<String, List<String>> map, String url, String context) {
         if (url == null) return;

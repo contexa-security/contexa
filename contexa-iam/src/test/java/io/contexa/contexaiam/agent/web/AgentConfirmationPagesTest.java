@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.agent.web;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
@@ -44,7 +46,6 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.agent.service.AgentContainmentAdminService;
-import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -480,8 +481,9 @@ class AgentConfirmationPagesTest {
         assertThat(notices.store().forRecipient("alice", 10)).hasSize(3);
         assertThat(store.forRecipient("alice", 10)).hasSize(3);
         assertThat(last.getHeaders().getFirst("Retry-After")).isNotBlank();
-        assertThat(last.getBody()).asInstanceOf(InstanceOfAssertFactories.map(String.class, Object.class))
-                .containsEntry("error", "AGENT_CALL_LIMIT").containsEntry("scope", "DELEGATION")
+        // as the answer is written: the members of the gate's answer to a call
+        Map<String, Object> written = new ObjectMapper().convertValue(last.getBody(), new TypeReference<Map<String, Object>>() { });
+        assertThat(written).containsKeys("message", "path").containsEntry("error", "AGENT_CALL_LIMIT").containsEntry("scope", "DELEGATION")
                 .containsEntry("limit", 3).containsKey("retryAfterSeconds");
 
         // Waiting for the confirmations it holds costs the agent nothing.

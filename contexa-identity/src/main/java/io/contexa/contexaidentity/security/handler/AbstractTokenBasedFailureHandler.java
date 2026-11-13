@@ -56,6 +56,8 @@ public abstract class AbstractTokenBasedFailureHandler implements PlatformAuthen
                                                    @Nullable FactorContext factorContext,
                                                    PlatformAuthenticationFailureHandler.FailureType failureType,
                                                    Map<String, Object> errorDetails) {
+        StepScopedFailureHandler.Settings step = StepScopedFailureHandler.current(request);
+        PlatformAuthenticationFailureHandler delegateHandler = step != null ? step.delegate() : this.delegateHandler;
         if (delegateHandler != null && !response.isCommitted()) {
             try {
                 delegateHandler.onAuthenticationFailure(request, response, exception,
@@ -66,6 +68,13 @@ public abstract class AbstractTokenBasedFailureHandler implements PlatformAuthen
             }
         }
         return false;
+    }
+
+    /** The failure address the step being answered was given, or {@code null} when it was given none. */
+    @Nullable
+    protected final String failureUrl(HttpServletRequest request) {
+        StepScopedFailureHandler.Settings step = StepScopedFailureHandler.current(request);
+        return step != null ? step.failureUrl() : null;
     }
 
     protected String extractClientIp(HttpServletRequest request) {

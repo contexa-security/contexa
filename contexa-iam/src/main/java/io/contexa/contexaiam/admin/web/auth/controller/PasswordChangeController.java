@@ -20,11 +20,13 @@ import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordChangeService;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -43,8 +45,15 @@ public class PasswordChangeController {
     }
 
     @GetMapping(ContexaConsolePaths.PASSWORD_CHANGE)
-    public String showPasswordChangeForm(@RequestParam String username, Model model) {
-        model.addAttribute("username", username);
+    public String showPasswordChangeForm(@RequestParam(required = false) String username, HttpSession session,
+                                         Model model) {
+        // A sign-in refused for an expired password names the account in the session, not in the address.
+        String account = StringUtils.hasText(username) ? username
+                : (String) session.getAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE);
+        if (!StringUtils.hasText(account)) {
+            return "redirect:/contexa/admin/login";
+        }
+        model.addAttribute("username", account);
         model.addAttribute("policy", passwordPolicyService.getCurrentPolicy());
         return "contexa/password-change";
     }
@@ -62,10 +71,14 @@ public class PasswordChangeController {
                     SessionFingerprintUtil.extractClientIp(request));
         } catch (PasswordChangeService.PasswordChangeException e) {
             ra.addFlashAttribute("errorMessage", msg(e.getMessageKey(), e.getMessageArgs()));
-            ra.addAttribute("username", username);
+            request.getSession(true).setAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE, username);
             return "redirect:" + ContexaConsolePaths.PASSWORD_CHANGE;
         }
 
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.removeAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE);
+        }
         ra.addFlashAttribute("message", msg("msg.password.change.success"));
         return "redirect:/contexa/admin/login";
     }

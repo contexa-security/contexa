@@ -69,6 +69,25 @@ public class AuthContextProperties {
     @Data
     public static class OttSettings {
         private boolean failOnEmailError = true;
+
+        /**
+         * The mails of a sign-in being sent at one time, each by a thread of Contexa's own, and so the most threads a mail
+         * server that does not answer can hold. The request that asked for a mail waits for it no longer than
+         * {@code emailSendWaitSeconds}.
+         */
+        private int emailMaxConcurrentSends = 64;
+
+        /** The seconds a request waits for its mail before it fails as an undelivered mail does; below one it is one. */
+        private int emailSendWaitSeconds = 5;
+
+        /**
+         * The limit in seconds of the connect, the read and the write of the SMTP conversation. Zero, the default, sets
+         * none: the mail of a sign-in goes out with the application's own mail settings, as its other mail does. A value
+         * is written into the application's mail sender where its settings
+         * ({@code spring.mail.properties.mail.smtp.*timeout}) name none, so it bounds every other mail sent with that
+         * sender as well, and a mail server that takes longer to answer then fails the mail.
+         */
+        private int emailSmtpTimeoutSeconds = 0;
     }
 
 }

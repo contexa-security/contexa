@@ -67,17 +67,19 @@ public class IdentityServiceAutoConfiguration {
     @Bean(name = "contexaEmailService")
     @ConditionalOnMissingBean
     public EmailService emailService(ObjectProvider<JavaMailSender> mailSender, Environment environment,
-                                     ObjectProvider<SslBundles> sslBundles) {
-        JavaMailSender application = mailSender.getIfUnique();
-        if (application != null || ContexaOperatingProfile.resolve(environment).ownership() != SecurityOwnershipMode.CONTEXA_OWNED) {
-            // the application's one sender; none, or several of them where the application signs its users in: Contexa then does
-            // not send mail with the application's sender
-            return new EmailService(application);
+                                     ObjectProvider<SslBundles> sslBundles, AuthContextProperties mailLimits) {
+        // the application's one sender; none, or several of them where the application signs its users in: Contexa then does
+        // not send mail with the application's sender
+        JavaMailSender sender = mailSender.getIfUnique();
+        if (sender == null && ContexaOperatingProfile.resolve(environment).ownership() == SecurityOwnershipMode.CONTEXA_OWNED) {
+            // Contexa signs the users in, and the administrator reaches the console by the code it mails: that must not depend on how
+            // many senders the application keeps. None or several of them, and Contexa builds a sender of its own from spring.mail.*,
+            // which only the service holds; the application's beans are not touched.
+            sender = ContexaMailSenders.fromSettings(environment, sslBundles);
         }
-        // Contexa signs the users in, and the administrator reaches the console by the code it mails: that must not depend on how
-        // many senders the application keeps. None or several of them, and Contexa builds a sender of its own from spring.mail.*,
-        // which only the service holds; the application's beans are not touched.
-        return new EmailService(ContexaMailSenders.fromSettings(environment, sslBundles));
+        AuthContextProperties.OttSettings ott = mailLimits.getOtt();
+        return new EmailService(sender, ott.getEmailMaxConcurrentSends(), ott.getEmailSendWaitSeconds(),
+                ott.getEmailSmtpTimeoutSeconds());
     }
 
     // Held in a bean that is not a OneTimeTokenService, and not stood aside for the application's own service: the one-time token login of

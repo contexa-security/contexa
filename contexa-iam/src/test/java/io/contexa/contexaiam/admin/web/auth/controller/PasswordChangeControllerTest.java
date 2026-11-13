@@ -18,6 +18,7 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexacommon.entity.PasswordPolicy;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.MfaPendingSession;
 import io.contexa.contexacommon.security.UserPasswordChangedEvent;
@@ -136,6 +137,26 @@ class PasswordChangeControllerTest {
                     .andExpect(model().attribute("username", "testuser"))
                     .andExpect(model().attribute("policy", policy));
         }
+
+        @Test
+        @DisplayName("the account a refused sign-in named in the session, without a name in the address")
+        void nameFromTheSession() throws Exception {
+            when(passwordPolicyService.getCurrentPolicy()).thenReturn(new PasswordPolicy());
+            MockHttpSession session = new MockHttpSession();
+            session.setAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE, "expired-user");
+
+            mockMvc.perform(get("/contexa/password-change").param("expired", "true").session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(model().attribute("username", "expired-user"));
+        }
+
+        @Test
+        @DisplayName("without a name anywhere the page is the sign-in")
+        void noNameGoesToTheSignIn() throws Exception {
+            mockMvc.perform(get("/contexa/password-change").param("expired", "true"))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl("/contexa/admin/login"));
+        }
     }
 
     @Nested
@@ -143,7 +164,7 @@ class PasswordChangeControllerTest {
     class ProcessChange {
 
         @Test
-        @DisplayName("a name with characters of its own stays one parameter of the address it is sent back to")
+        @DisplayName("a name with characters of its own goes back to the page whole, in the session and not in the address")
         void nameInTheAddressIsEncoded() throws Exception {
             doThrow(new PasswordChangeService.PasswordChangeException("msg.password.change.current.incorrect"))
                     .when(passwordChangeService)
@@ -155,7 +176,8 @@ class PasswordChangeControllerTest {
                             .param("newPassword", "newpass")
                             .param("confirmPassword", "newpass"))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/contexa/password-change?username=a+b%26admin%3D1"));
+                    .andExpect(redirectedUrl("/contexa/password-change"))
+                    .andExpect(request().sessionAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE, "a b&admin=1"));
         }
 
         @Test
@@ -171,7 +193,8 @@ class PasswordChangeControllerTest {
                             .param("newPassword", "newpass")
                             .param("confirmPassword", "newpass"))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/contexa/password-change?username=none"))
+                    .andExpect(redirectedUrl("/contexa/password-change"))
+                    .andExpect(request().sessionAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE, "none"))
                     .andExpect(flash().attribute("errorMessage", "msg.password.change.user.not.found"));
         }
 
@@ -188,7 +211,8 @@ class PasswordChangeControllerTest {
                             .param("newPassword", "newpass")
                             .param("confirmPassword", "newpass"))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/contexa/password-change?username=testuser"))
+                    .andExpect(redirectedUrl("/contexa/password-change"))
+                    .andExpect(request().sessionAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE, "testuser"))
                     .andExpect(flash().attribute("errorMessage", "msg.password.change.current.incorrect"));
         }
 
@@ -205,7 +229,8 @@ class PasswordChangeControllerTest {
                             .param("newPassword", "newpass")
                             .param("confirmPassword", "diffpass"))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/contexa/password-change?username=testuser"))
+                    .andExpect(redirectedUrl("/contexa/password-change"))
+                    .andExpect(request().sessionAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE, "testuser"))
                     .andExpect(flash().attribute("errorMessage", "msg.password.change.mismatch"));
         }
 
@@ -222,7 +247,8 @@ class PasswordChangeControllerTest {
                             .param("newPassword", "weak")
                             .param("confirmPassword", "weak"))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/contexa/password-change?username=testuser"))
+                    .andExpect(redirectedUrl("/contexa/password-change"))
+                    .andExpect(request().sessionAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE, "testuser"))
                     .andExpect(flash().attribute("errorMessage", "msg.password.change.policy.violation"));
         }
 
@@ -239,7 +265,8 @@ class PasswordChangeControllerTest {
                             .param("newPassword", "validpass")
                             .param("confirmPassword", "validpass"))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/contexa/password-change?username=testuser"))
+                    .andExpect(redirectedUrl("/contexa/password-change"))
+                    .andExpect(request().sessionAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE, "testuser"))
                     .andExpect(flash().attribute("errorMessage", "msg.password.change.reused"));
         }
 
@@ -320,7 +347,9 @@ class PasswordChangeControllerTest {
             MvcResult wrong = post("wrong");
             assertThat(refused.getResponse().getStatus()).isEqualTo(wrong.getResponse().getStatus()).isEqualTo(302);
             assertThat(refused.getResponse().getRedirectedUrl()).isEqualTo(wrong.getResponse().getRedirectedUrl())
-                    .isEqualTo("/contexa/password-change?username=alice");
+                    .isEqualTo("/contexa/password-change");
+            assertThat(refused.getRequest().getSession().getAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE))
+                    .isEqualTo(wrong.getRequest().getSession().getAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE)).isEqualTo("alice");
             Map<String, Object> flash = refused.getFlashMap();
             assertThat(flash).isEqualTo(wrong.getFlashMap())
                     .containsEntry("errorMessage", "msg.password.change.current.incorrect");

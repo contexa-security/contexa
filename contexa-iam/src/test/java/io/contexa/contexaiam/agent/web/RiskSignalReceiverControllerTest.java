@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.agent.web;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.signal.RiskSignalReceiver;
@@ -47,9 +48,11 @@ class RiskSignalReceiverControllerTest {
         RiskSignalReceiverController controller = new RiskSignalReceiverController(verifier,
                 new RiskSignalReceiver(actions, null, subjectId -> RiskSignalReceiver.userOf(subjectId, null), null));
 
-        ResponseEntity<Map<String, String>> refused = controller.receive("forged");
+        ResponseEntity<RiskSignalReceiverController.DeliveryError> refused = controller.receive("forged");
         assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(refused.getBody()).containsEntry("err", "invalid_key");
+        // the members of RFC 8935 push delivery, as the answer is written
+        assertThat(new ObjectMapper().convertValue(refused.getBody(), Map.class)).containsEntry("err", "invalid_key")
+                .containsKey("description").hasSize(2);
         assertThat(actions.getCurrentAction("alice")).isEqualTo(ZeroTrustAction.ALLOW);
 
         assertThat(controller.receive("good").getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);

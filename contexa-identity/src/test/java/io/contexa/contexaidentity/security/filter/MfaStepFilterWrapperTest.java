@@ -24,6 +24,7 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorIdentifier;
 import io.contexa.contexaidentity.security.core.validator.ValidationResult;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
+import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
@@ -32,6 +33,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -39,7 +41,9 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import io.contexa.contexaidentity.security.core.validator.MfaContextValidator;
@@ -75,6 +79,10 @@ class MfaStepFilterWrapperTest {
     private FilterChain filterChain;
     @Mock
     private FactorContext factorContext;
+    @Mock
+    private ObjectProvider<UnifiedAuthenticationFailureHandler> factorFailureHandlers;
+    @Mock
+    private UnifiedAuthenticationFailureHandler factorFailureHandler;
 
     private MfaStepFilterWrapper filter;
 
@@ -84,6 +92,8 @@ class MfaStepFilterWrapperTest {
         when(mfaSettings.getMinimumDelayMs()).thenReturn(0L);
         when(applicationContext.getBean(MfaStateMachineIntegrator.class)).thenReturn(stateMachineIntegrator);
         when(applicationContext.getBean(MfaSessionRepository.class)).thenReturn(sessionRepository);
+        when(applicationContext.getBeanProvider(UnifiedAuthenticationFailureHandler.class)).thenReturn(factorFailureHandlers);
+        when(factorFailureHandlers.getObject()).thenReturn(factorFailureHandler);
 
         filter = new MfaStepFilterWrapper(
                 configuredFactorFilterProvider, mfaFactorProcessingMatcher,
@@ -142,7 +152,10 @@ class MfaStepFilterWrapperTest {
         }
 
         verify(stateMachineIntegrator).sendEvent(MfaEvent.SESSION_TIMEOUT, factorContext, request);
-        verify(response).sendError(HttpServletResponse.SC_FORBIDDEN, "MFA session expired");
+        // answered in the form of the flow's other answers, with a code the client can tell apart
+        verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_FORBIDDEN),
+                eq("MFA_SESSION_EXPIRED"), anyString(), any(), anyMap());
+        verify(response, never()).sendError(anyInt(), anyString());
     }
 
     @Test
@@ -171,7 +184,9 @@ class MfaStepFilterWrapperTest {
         }
 
         verify(stateMachineIntegrator).sendEvent(MfaEvent.RETRY_LIMIT_EXCEEDED, factorContext, request);
-        verify(response).sendError(HttpServletResponse.SC_FORBIDDEN, "Maximum verification attempts exceeded");
+        verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_FORBIDDEN),
+                eq("MFA_RETRY_LIMIT_EXCEEDED"), anyString(), any(), anyMap());
+        verify(response, never()).sendError(anyInt(), anyString());
     }
 
     @Test
@@ -202,7 +217,66 @@ class MfaStepFilterWrapperTest {
             filter.doFilterInternal(request, response, filterChain);
         }
 
-        verify(delegateFilter).doFilter(request, response, filterChain);
+        // the chain handed over is the wrapper's own, which answers a request the factor filter passes on
+        verify(delegateFilter).doFilter(eq(request), eq(response), any(FilterChain.class));
+        verify(factorFailureHandler, never()).onAuthenticationFailure(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("A request the factor filter passes on, because it carries no credential, is a failed attempt and goes no further")
+    void aRequestTheFactorFilterPassesOnIsAFailedAttempt() throws Exception {
+        Filter delegateFilter = readyToSubmit();
+        // what a filter does that finds no code in the request
+        doAnswer(passedOn -> {
+            passedOn.<FilterChain>getArgument(2).doFilter(request, response);
+            return null;
+        }).when(delegateFilter).doFilter(any(), any(), any());
+
+        submit();
+
+        verify(factorFailureHandler).onAuthenticationFailure(eq(request), eq(response), any(BadCredentialsException.class));
+        verify(filterChain, never()).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("A submission whose request id is on record already is told to retry and is not verified a second time")
+    void aSubmissionWithARequestIdOnRecordIsNotVerifiedAgain() throws Exception {
+        Filter delegateFilter = readyToSubmit();
+        when(stateMachineIntegrator.isDuplicateRequest(request)).thenReturn(true);
+        when(stateMachineIntegrator.getBusyRetryAfterMs(request)).thenReturn(1_000L);
+        when(stateMachineIntegrator.getBusyRetryReason(request)).thenReturn("VERIFICATION_RUNNING");
+
+        submit();
+
+        verify(stateMachineIntegrator).markVerificationRunning(request);
+        verify(delegateFilter, never()).doFilter(any(), any(), any());
+        verify(responseWriter).writeErrorResponse(eq(response), eq(429), eq("MFA_BUSY_RETRY"), anyString(), any(), anyMap());
+    }
+
+    /** A flow that waits for its mail code, and the factor filter the submission is handed to. */
+    private Filter readyToSubmit() {
+        when(mfaFactorProcessingMatcher.matches(request)).thenReturn(true);
+        when(request.getAttribute("io.contexa.mfa.FactorContext")).thenReturn(factorContext);
+        when(factorContext.getMfaSessionId()).thenReturn("session-1");
+        when(factorContext.getCurrentState()).thenReturn(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION);
+        when(factorContext.getFlowTypeName()).thenReturn("standard");
+        when(factorContext.getCurrentStepId()).thenReturn("step-1");
+        when(factorContext.getCurrentProcessingFactor()).thenReturn(AuthType.MFA_OTT);
+        when(factorContext.getAttemptCount(AuthType.MFA_OTT)).thenReturn(0);
+        when(factorContext.getAttribute("challengeInitiatedAt")).thenReturn(null);
+        when(mfaSettings.isRetryAllowed(0)).thenReturn(true);
+        when(stateMachineIntegrator.sendEvent(MfaEvent.SUBMIT_FACTOR_CREDENTIAL, factorContext, request)).thenReturn(true);
+        Filter delegateFilter = mock(Filter.class);
+        when(configuredFactorFilterProvider.getFilter(FactorIdentifier.of("standard", "step-1"))).thenReturn(delegateFilter);
+        return delegateFilter;
+    }
+
+    private void submit() throws Exception {
+        try (MockedStatic<MfaContextValidator> validator = mockStatic(MfaContextValidator.class)) {
+            validator.when(() -> MfaContextValidator.validateFactorProcessingContext(factorContext))
+                    .thenReturn(new ValidationResult());
+            filter.doFilterInternal(request, response, filterChain);
+        }
     }
 
     @Test
@@ -229,6 +303,8 @@ class MfaStepFilterWrapperTest {
             filter.doFilterInternal(request, response, filterChain);
         }
 
-        verify(response).sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid state for factor verification");
+        verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_BAD_REQUEST),
+                eq("MFA_INVALID_STATE"), anyString(), any(), anyMap());
+        verify(response, never()).sendError(anyInt(), anyString());
     }
 }

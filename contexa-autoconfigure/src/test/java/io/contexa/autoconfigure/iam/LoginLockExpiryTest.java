@@ -94,8 +94,9 @@ class LoginLockExpiryTest {
         failTimes(MAX_FAILED_ATTEMPTS);
 
         assertThat(locked()).isTrue();
+        // The database keeps microseconds and rounds the nanoseconds of the lock's end: up to half a microsecond later.
         assertThat(lockExpiresAt()).isBetween(LocalDateTime.now().plusMinutes(LOCKOUT_MINUTES - 1),
-                LocalDateTime.now().plusMinutes(LOCKOUT_MINUTES));
+                LocalDateTime.now().plusMinutes(LOCKOUT_MINUTES).plus(1, ChronoUnit.MICROS));
     }
 
     @Test

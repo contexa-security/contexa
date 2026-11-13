@@ -22,6 +22,7 @@ import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -29,6 +30,7 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 
+@Slf4j
 public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfigurer<T, HttpSecurity>>
         extends AbstractAuthenticationAdapter<FormOptions> {
 
@@ -46,6 +48,16 @@ public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfig
         T configurer = createConfigurer();
         StateType stateType = resolveStateType(http, currentFlow);
         ApplicationContext applicationContext = http.getSharedObject(PlatformContext.class).applicationContext();
+
+        if (http.getConfigurer(configurer.getClass()) != null) {
+            // Spring Security keeps one configurer of a kind: the one of this flow takes the place of the one applied
+            // before it, which is the application's own formLogin(...) in the global customizer. Its settings were
+            // dropped without a word, so the start says where they belong.
+            log.warn("Flow '{}': the form login written in the global customizer (http.formLogin(...)) is replaced by "
+                            + "this flow's own, and its settings are not used. Write them in the flow: "
+                            + "form(form -> form.loginPage(...).failureUrl(...)) or form.rawFormLogin(...).",
+                    currentFlow != null ? currentFlow.getTypeName() : "?");
+        }
 
         http.with(configurer, config -> {
             configureFormAuthentication(config, opts, successHandler, failureHandler);

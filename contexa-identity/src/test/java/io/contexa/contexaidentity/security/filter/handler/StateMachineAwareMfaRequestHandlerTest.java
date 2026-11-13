@@ -39,6 +39,7 @@ import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,6 +92,8 @@ class StateMachineAwareMfaRequestHandlerTest {
                 UsernamePasswordAuthenticationToken.authenticated("user", null, List.of()),
                 MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION, "mfa");
         context.setCurrentProcessingFactor(AuthType.MFA_PASSKEY);
+        // What the start of the flow records: the factors this flow offers the user.
+        context.setAttribute("availableFactors", new LinkedHashSet<>(List.of(AuthType.MFA_OTT, AuthType.MFA_PASSKEY)));
         when(stateMachineIntegrator.loadFactorContextFromRequest(any(HttpServletRequest.class))).thenReturn(context);
 
         // Model the state machine transitions of the factor switch.
@@ -200,6 +203,26 @@ class StateMachineAwareMfaRequestHandlerTest {
         assertThat(MfaPasskeyRegistrationIntent.consume(request, MFA_SESSION_ID)).isFalse();
     }
 
+    @Test
+    @DisplayName("A name that is no factor of the flow is refused before the flow is moved, so the challenge in progress stays")
+    void aNameThatIsNoFactorOfTheFlowLeavesTheChallengeInProgress() throws Exception {
+        for (String name : List.of("MFA_TOTP", "OTT", "PASSWORD")) {
+            MockHttpServletRequest request = selectFactorRequest();
+            request.setParameter("factorType", name);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+
+            handler.handleRequest(MfaRequestType.FACTOR_SELECTION, request, response, context, new MockFilterChain());
+
+            verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_BAD_REQUEST),
+                    eq("FACTOR_SELECTION_REJECTED"), anyString(), anyString(), anyMap());
+        }
+
+        verify(stateMachineIntegrator, never())
+                .sendEvent(eq(MfaEvent.MFA_REQUIRED_SELECT_FACTOR), eq(context), any(HttpServletRequest.class));
+        assertThat(context.getCurrentState()).isEqualTo(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION);
+        assertThat(context.getCurrentProcessingFactor()).isEqualTo(AuthType.MFA_PASSKEY);
+    }
+
     private MockHttpServletRequest selectFactorRequest() {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/mfa/select-factor");
         request.addHeader("Accept", "application/json");
@@ -211,5 +234,24 @@ class StateMachineAwareMfaRequestHandlerTest {
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
         verify(responseWriter).writeSuccessResponse(eq(response), captor.capture(), eq(HttpServletResponse.SC_OK));
         return (Map<String, Object>) captor.getValue();
+    }
+
+    @Test
+    @DisplayName("A cancel is answered and the flow released in the request itself, with no task that waits")
+    void aCancelReleasesTheFlowInTheRequestItself() throws Exception {
+        when(stateMachineIntegrator.sendEvent(eq(MfaEvent.USER_ABORTED_MFA), eq(context), any(HttpServletRequest.class)))
+                .thenAnswer(invocation -> {
+                    context.changeState(MfaState.MFA_CANCELLED);
+                    return true;
+                });
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/mfa/cancel");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        handler.handleRequest(MfaRequestType.CANCEL_MFA, request, response, context, new MockFilterChain());
+
+        InOrder order = inOrder(responseWriter, stateMachineIntegrator);
+        order.verify(responseWriter).writeSuccessResponse(eq(response), anyMap(), eq(HttpServletResponse.SC_OK));
+        order.verify(stateMachineIntegrator).releaseStateMachine(MFA_SESSION_ID);
+        verify(applicationContext, never()).getBean(eq("contexaTaskExecutor"), any(Class.class));
     }
 }

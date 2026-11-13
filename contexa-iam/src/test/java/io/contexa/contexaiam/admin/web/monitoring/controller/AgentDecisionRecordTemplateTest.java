@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.controller;
 
+import io.contexa.contexaiam.admin.web.agent.dto.LatestAgentDecisions;
+import io.contexa.contexaiam.admin.web.monitoring.dto.DecisionRecordIntegrity;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
@@ -57,7 +59,9 @@ class AgentDecisionRecordTemplateTest {
                 "totalCount", 1L, "authSuccess", 0L, "authFailure", 0L, "securityDecision", 1L, "userBlocked", 0L,
                 "mfaVerified", 0L));
         variables.put("adminOverride", 0L);
-        variables.put("integrity", Map.of(7L, "MISMATCH"));
+        DecisionRecordIntegrity integrity = new DecisionRecordIntegrity();
+        integrity.found(7L, "MISMATCH");
+        variables.put("integrity", integrity);
 
         String korean = render("contexa/admin/security-monitor", "/contexa/admin/security-monitor", Locale.KOREAN,
                 variables);
@@ -102,7 +106,7 @@ class AgentDecisionRecordTemplateTest {
         AgentView agent = AgentView.of(registry.find(null, "report-agent").orElseThrow());
 
         String list = render("contexa/admin/agents", "/contexa/admin/agents", Locale.KOREAN, Map.of(
-                "agents", List.of(agent), "latestDecisions", Map.of("report-agent", "BLOCK"), "currentFilter", "all",
+                "agents", List.of(agent), "latestDecisions", latestDecisions("report-agent", "BLOCK"), "currentFilter", "all",
                 "provisioningAvailable", false));
         assertThat(list).contains("최근 판단", ">BLOCK<");
 
@@ -114,6 +118,12 @@ class AgentDecisionRecordTemplateTest {
                 "agent", agent, "learningControllable", false, "learningQuarantined", false, "delegations", List.of(),
                 "provisioningAvailable", false, "decisions", List.of())))
                 .contains("이 에이전트의 판정 기록이 아직 없습니다.");
+    }
+
+    private static LatestAgentDecisions latestDecisions(String agentId, String decision) {
+        LatestAgentDecisions latest = new LatestAgentDecisions();
+        latest.meet(agentId, decision);
+        return latest;
     }
 
     private static AuditLog agentDecision() {

@@ -42,8 +42,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
-import java.util.concurrent.Executor;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -289,10 +289,38 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         }
     }
 
+    /** Whether the name is a factor, and one this flow offers the user: the two things the selection itself refuses. */
+    private static boolean isOfferedFactor(FactorContext context, String selectedFactor) {
+        try {
+            return context.isFactorAvailable(AuthType.valueOf(selectedFactor.toUpperCase(Locale.ROOT)));
+        } catch (IllegalArgumentException noSuchFactor) {
+            return false;
+        }
+    }
+
     private void handleFactorSelection(HttpServletRequest request, HttpServletResponse response,
                                        FactorContext context) throws IOException {
         if ("GET".equalsIgnoreCase(request.getMethod())) {
             handleFactorSelectionInfo(request, response, context);
+            return;
+        }
+
+        // What was asked for is checked before the flow is moved to the selection state. Moved first, a request that names
+        // no factor, or one this flow does not offer, took the challenge in progress away with it: the code already mailed
+        // was then refused, and asking for another one did not bring the flow back.
+        JsonNode jsonBody = readJsonBody(request);
+        String selectedFactor = extractAndValidateSelectedFactor(request, response, context, jsonBody);
+        if (selectedFactor == null) return;
+
+        if (!isOfferedFactor(context, selectedFactor)) {
+            handleFactorSelectionFailure(request, response, context);
+            return;
+        }
+
+        if (context.getCompletedFactors() != null && context.getCompletedFactors().stream()
+                .anyMatch(step -> selectedFactor.equalsIgnoreCase(step.getType()))) {
+            handleInvalidStateError(request, response, context, "FACTOR_ALREADY_COMPLETED",
+                    "This authentication method has already been used. Please select a different method.");
             return;
         }
 
@@ -303,17 +331,6 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 handleFactorSelectionFailure(request, response, context);
                 return;
             }
-        }
-
-        JsonNode jsonBody = readJsonBody(request);
-        String selectedFactor = extractAndValidateSelectedFactor(request, response, context, jsonBody);
-        if (selectedFactor == null) return;
-
-        if (context.getCompletedFactors() != null && context.getCompletedFactors().stream()
-                .anyMatch(step -> selectedFactor.equalsIgnoreCase(step.getType()))) {
-            handleInvalidStateError(request, response, context, "FACTOR_ALREADY_COMPLETED",
-                    "This authentication method has already been used. Please select a different method.");
-            return;
         }
 
         if (sendFactorSelectionEvent(context, request, selectedFactor)) {
@@ -438,7 +455,11 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
             responseWriter.writeSuccessResponse(response, cancelResponse, HttpServletResponse.SC_OK);
 
-            scheduleStateMachineCleanup(sessionId);
+            // The cancelled flow is released here, once the answer is written. It was handed to the shared executor
+            // with a five second sleep in front: beyond the executor's threads and queue the task ran on the request
+            // thread, so a cancel was answered after five seconds, and the executor's other work waited behind it.
+            // A later request of the flow is answered the same with the flow released as with it still stored.
+            stateMachineIntegrator.releaseStateMachine(sessionId);
         } else {
             handleInvalidStateError(request, response, context, "CANCELLATION_FAILED",
                     "MFA cancellation failed.");
@@ -687,18 +708,5 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         } catch (Exception e) {
             log.error("Failed to cleanup terminal session: {}", sessionId, e);
         }
-    }
-
-    private void scheduleStateMachineCleanup(String sessionId) {
-
-        applicationContext.getBean("contexaTaskExecutor", Executor.class)
-                .execute(() -> {
-                    try {
-                        Thread.sleep(5000);
-                        stateMachineIntegrator.releaseStateMachine(sessionId);
-                    } catch (Exception e) {
-                        log.error("Error during State Machine cleanup for session: {}", sessionId, e);
-                    }
-                });
     }
 }

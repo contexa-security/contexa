@@ -471,7 +471,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                      data-msg-max-attempts="{{i18nOttVerifyMaxAttempts}}"
                      data-msg-remaining="{{i18nOttVerifyRemaining}}"
                      data-msg-verifying="{{i18nOttVerifyVerifying}}"
-                     data-msg-verify="{{i18nOttVerifyButton}}">
+                     data-msg-verify="{{i18nOttVerifyButton}}"
+                     data-msg-ended="{{i18nOttVerifyEnded}}"
+                     data-msg-busy="{{i18nOttVerifyBusy}}"
+                     data-sign-in-url="{{signInPageUrl}}">
                     <h1>{{i18nOttVerifyTitle}}</h1>
                     <p class="description">{{i18nOttVerifyDescription}}</p>
 
@@ -517,6 +520,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const msgRemaining = containerEl.dataset.msgRemaining;
                             const msgVerifying = containerEl.dataset.msgVerifying;
                             const msgVerify = containerEl.dataset.msgVerify;
+                            const msgEnded = containerEl.dataset.msgEnded;
+                            const msgBusy = containerEl.dataset.msgBusy;
+                            const signInUrl = containerEl.dataset.signInUrl;
 
                             const verifyForm = document.getElementById('ott-verify-form');
                             const resendForm = document.getElementById('resend-form');
@@ -567,15 +573,40 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                         window.location.href = result.redirectUrl;
                                     }
                                 } catch (error) {
-                                    console.error('OTT verification failed:', error);
+                                    const answer = error.response || {};
+                                    const reason = answer.error || answer.errorCode;
 
-                                    if (error.response && error.response.blockMfaFailed) {
-                                        window.location.href = error.response.redirectUrl || '/zero-trust/blocked';
+                                    if (answer.blockMfaFailed) {
+                                        window.location.href = answer.redirectUrl || '{{contextPath}}/contexa/zero-trust/blocked';
+                                        return;
+                                    }
+                                    if (reason === 'MFA_RETRY_LIMIT_EXCEEDED') {
+                                        disableVerificationForm();
+                                        return;
+                                    }
+                                    if (reason === 'MFA_BUSY_RETRY' || error.status === 429) {
+                                        errorMsgEl.textContent = msgBusy;
+                                        errorMsgEl.style.display = 'block';
+                                        verifyButton.disabled = false;
+                                        verifyButton.textContent = msgVerify;
+                                        return;
+                                    }
+                                    // Only a wrong code is an attempt. Anything else (the time ran out, the sign-in
+                                    // ended or belongs elsewhere) says so and goes on where the server says.
+                                    if (reason !== 'MFA_FACTOR_VERIFICATION_FAILED' && !(error.status === 401 && !reason)) {
+                                        errorMsgEl.textContent = answer.message || msgEnded;
+                                        errorMsgEl.style.display = 'block';
+                                        codeInput.disabled = true;
+                                        verifyButton.disabled = true;
+                                        resendButton.disabled = true;
+                                        setTimeout(() => {
+                                            window.location.href = answer.redirectUrl || signInUrl;
+                                        }, 1500);
                                         return;
                                     }
 
-                                    if (error.response && error.response.attemptsMade != null) {
-                                        currentAttempts = error.response.attemptsMade;
+                                    if (answer.attemptsMade != null) {
+                                        currentAttempts = answer.attemptsMade;
                                     } else {
                                         currentAttempts++;
                                     }
@@ -689,7 +720,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             </head>
             <body>
                 <div class="container">
-                    <div class="icon">🔐</div>
+                    <div class="icon">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"/><circle cx="16.5" cy="7.5" r=".5" fill="#667eea"/>
+                        </svg>
+                    </div>
                     <h1>{{i18nPasskeyTitle}}</h1>
                     <p class="description">{{i18nPasskeyDescription}}</p>
 
@@ -758,7 +793,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     }
                                 } catch (error) {
                                     console.error('Passkey authentication failed:', error);
-                                    window.location.href = '{{contextPath}}{{failureUrl}}?error=' + encodeURIComponent(error.message || 'Unknown error');
+                                    // The browser's own sentence is no message for the person and does not belong in the address.
+                                    window.location.href = '{{contextPath}}{{failureUrl}}?error=passkey_failed';
                                 }
                             });
 
@@ -1116,7 +1152,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             </head>
             <body>
                 <div class="container">
-                    <div class="icon">❌</div>
+                    <div class="icon">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#e53e3e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/>
+                        </svg>
+                    </div>
                     <h1>{{i18nFailureTitle}}</h1>
                     <p class="error-message">{{errorMessage}}</p>
 
@@ -1216,6 +1256,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             if (formOpts != null) {
                 return formOpts.hasExplicitCustomLoginPage();
             }
+        }
+        if (primaryOpts != null && primaryOpts.isRestLogin()) {
+            // restLogin has no option that names a page of the application: Contexa's page is always the one.
+            // Compared with the prefixed default, the unprefixed address read as such a page and no page was made.
+            return false;
         }
         String defaultLoginPage = authUrlProvider.getDefaultPrimaryLoginPage();
         return StringUtils.hasText(loginPage) && !loginPage.equals(defaultLoginPage);
@@ -1492,7 +1537,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .render();
 
         PrintWriter writer = response.getWriter();
-        writer.write(injectMfaConfig(html));
+        writer.write(injectMfaConfig(html, request));
         writer.flush();
 
     }
@@ -1609,7 +1654,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         </div>
                     </div>
 
-                    <script src="/js/contexa-mfa-sdk.js"></script>
+                    <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
                     <script>
                         document.addEventListener('DOMContentLoaded', function() {
                             const container = document.querySelector('.container');
@@ -1653,13 +1698,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 try {
                                     const result = await mfa.apiClient.loginForm(username, password);
 
-                                    console.log('[DEBUG] Server response:', JSON.stringify(result, null, 2));
-                                    console.log('[DEBUG] result.status:', result.status);
-                                    console.log('[DEBUG] result.redirectUrl:', result.redirectUrl);
-
                                     if (result.status === 'MFA_COMPLETED') {
                                         showMessage('success', msgSuccessRedirect);
-                                        const redirectUrl = result.redirectUrl || '/';
+                                        const redirectUrl = result.redirectUrl || '{{contextPath}}/';
                                         setTimeout(() => {
                                             window.location.href = redirectUrl;
                                         }, 500);
@@ -1674,6 +1715,16 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                         showMessage('success', result.message || msgSuccess);
                                     }
                                 } catch (error) {
+                                    const refused = error.response || {};
+                                    if ((refused.error === 'CREDENTIALS_EXPIRED' || refused.errorCode === 'CREDENTIALS_EXPIRED')
+                                            && refused.nextStepUrl) {
+                                        // The password is right and has expired: on to the page that changes it.
+                                        showMessage('error', error.message);
+                                        setTimeout(() => {
+                                            window.location.href = refused.nextStepUrl;
+                                        }, 800);
+                                        return;
+                                    }
                                     if (error.response && error.response.blocked === true) {
                                         const supportContact = error.response.supportContact || 'Administrator';
                                         showMessage('error', error.message, 'Contact: ' + supportContact);
@@ -1717,8 +1768,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 tokenPersistence
         );
 
-        html = html.replace("/mfa/select-factor", authUrlProvider.getMfaSelectFactor());
-        writer.write(injectMfaConfig(html));
+        html = html.replace("/mfa/select-factor", request.getContextPath() + authUrlProvider.getMfaSelectFactor())
+                .replace("{{contextPath}}", request.getContextPath());
+        writer.write(injectMfaConfig(html, request));
         writer.flush();
 
     }
@@ -1835,7 +1887,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         </div>
                     </div>
 
-                    <script src="/js/contexa-mfa-sdk.js"></script>
+                    <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
                     <script>
                         document.addEventListener('DOMContentLoaded', function() {
                             const container = document.querySelector('.container');
@@ -1879,13 +1931,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 try {
                                     const result = await mfa.apiClient.login(username, password);
 
-                                    console.log('[DEBUG] Server response:', JSON.stringify(result, null, 2));
-                                    console.log('[DEBUG] result.status:', result.status);
-                                    console.log('[DEBUG] result.redirectUrl:', result.redirectUrl);
-
                                     if (result.status === 'MFA_COMPLETED') {
                                         showMessage('success', msgSuccessRedirect);
-                                        const redirectUrl = result.redirectUrl || '/';
+                                        const redirectUrl = result.redirectUrl || '{{contextPath}}/';
                                         setTimeout(() => {
                                             window.location.href = redirectUrl;
                                         }, 500);
@@ -1900,6 +1948,16 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                         showMessage('success', result.message || msgSuccess);
                                     }
                                 } catch (error) {
+                                    const refused = error.response || {};
+                                    if ((refused.error === 'CREDENTIALS_EXPIRED' || refused.errorCode === 'CREDENTIALS_EXPIRED')
+                                            && refused.nextStepUrl) {
+                                        // The password is right and has expired: on to the page that changes it.
+                                        showMessage('error', error.message);
+                                        setTimeout(() => {
+                                            window.location.href = refused.nextStepUrl;
+                                        }, 800);
+                                        return;
+                                    }
                                     if (error.response && error.response.blocked === true) {
                                         const supportContact = error.response.supportContact || 'Administrator';
                                         showMessage('error', error.message, 'Contact: ' + supportContact);
@@ -1943,8 +2001,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 tokenPersistence
         );
 
-        html = html.replace("/mfa/select-factor", authUrlProvider.getMfaSelectFactor());
-        writer.write(injectMfaConfig(html));
+        html = html.replace("/mfa/select-factor", request.getContextPath() + authUrlProvider.getMfaSelectFactor())
+                .replace("{{contextPath}}", request.getContextPath());
+        writer.write(injectMfaConfig(html, request));
         writer.flush();
 
     }
@@ -2019,7 +2078,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .render();
 
         PrintWriter writer = response.getWriter();
-        writer.write(injectMfaConfig(html));
+        writer.write(injectMfaConfig(html, request));
         writer.flush();
 
     }
@@ -2073,13 +2132,16 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("i18nOttVerifyMaxAttempts", msg(request, "mfa.ott.verify.max.attempts", "Maximum verification attempts exceeded. Please contact your administrator."))
                 .withValue("i18nOttVerifyRemaining", msg(request, "mfa.ott.verify.remaining", " attempt(s) remaining out of "))
                 .withValue("i18nOttVerifyVerifying", msg(request, "mfa.ott.verify.verifying", "Verifying..."))
+                .withValue("i18nOttVerifyEnded", msg(request, "mfa.ott.verify.ended", "This sign-in has ended. You will be taken to sign in again."))
+                .withValue("i18nOttVerifyBusy", msg(request, "mfa.ott.verify.busy", "The code is still being checked. Try again in a moment."))
+                .withValue("signInPageUrl", contextPath + authUrlProvider.getPrimaryLoginPage())
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("resendHiddenInputs", resendHiddenInputs)
                 .withRawHtml("selectFactorLink", buildSelectFactorLink(request, contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
                 .render();
 
         PrintWriter writer = response.getWriter();
-        writer.write(injectMfaConfig(html));
+        writer.write(injectMfaConfig(html, request));
         writer.flush();
 
     }
@@ -2127,7 +2189,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .render();
 
         PrintWriter writer = response.getWriter();
-        writer.write(injectMfaConfig(html));
+        writer.write(injectMfaConfig(html, request));
         writer.flush();
 
     }
@@ -2138,8 +2200,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String contextPath = request.getContextPath();
 
         String errorMessage = request.getParameter("error");
-        String displayMessage = StringUtils.hasText(errorMessage)
-                ? errorMessage : msg(request, "mfa.failure.default.message", "Authentication failed.");
+        String displayMessage;
+        if ("passkey_failed".equals(errorMessage)) {
+            displayMessage = msg(request, "mfa.failure.passkey.message",
+                    "The passkey could not be used. Try again, or choose another way to sign in.");
+        } else {
+            displayMessage = StringUtils.hasText(errorMessage)
+                    ? errorMessage : msg(request, "mfa.failure.default.message", "Authentication failed.");
+        }
 
         String selectFactorUrl = extractSelectFactorUrl();
         String fullRetryUrl = contextPath + selectFactorUrl;
@@ -2153,7 +2221,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .render();
 
         PrintWriter writer = response.getWriter();
-        writer.write(injectMfaConfig(html));
+        writer.write(injectMfaConfig(html, request));
         writer.flush();
 
     }
@@ -2178,9 +2246,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private String injectMfaConfig(String html) {
+    private String injectMfaConfig(String html, HttpServletRequest request) {
         try {
-            Map<String, Object> config = authUrlProvider.getAllUiPageUrls();
+            // The SDK sends its requests to these addresses as they are: with the application's context path.
+            Map<String, Object> config = authUrlProvider.getAllUiPageUrls(request.getContextPath());
             String json = OBJECT_MAPPER.writeValueAsString(config);
             String script = "<script>window.__MFA_CONFIG__=" + json + ";</script>";
             return html.replace("</head>", script + "\n</head>");

@@ -30,6 +30,7 @@ import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import jakarta.annotation.PostConstruct;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
@@ -47,6 +48,8 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     protected final MfaPolicyEvaluator policyEvaluator;
     protected final PlatformConfig platformConfig;
     private final Map<String, AuthenticationFlowConfig> cachedMfaFlowConfigs = new ConcurrentHashMap<>();
+    /** Set while the provider a flow names is being asked: what it asks of this provider in turn is answered here. */
+    private static final ThreadLocal<Boolean> ASKING_THE_FLOWS_PROVIDER = new ThreadLocal<>();
 
     public DefaultMfaPolicyProvider(
             UserRepository userRepository,
@@ -79,9 +82,41 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         }
     }
 
+    /**
+     * The provider the flow's DSL names for itself ({@code mfa(mfa -> mfa.policyProvider(...))}), or {@code null} where
+     * it names none, or names this one. The DSL took the provider and nothing asked it: every decision of every flow
+     * came from the provider bean. A flow that names one is decided by it.
+     *
+     * <p>{@code null} too while that provider is being asked: one written around the provider bean (ask it, then
+     * tighten the answer) gets the bean's own answer, and is not handed its own question again.
+     */
+    @Nullable
+    protected MfaPolicyProvider providerOfFlow(@Nullable String flowTypeName) {
+        if (flowTypeName == null || ASKING_THE_FLOWS_PROVIDER.get() != null) {
+            return null;
+        }
+        AuthenticationFlowConfig flow = cachedMfaFlowConfigs.get(flowTypeName.toLowerCase(Locale.ROOT));
+        MfaPolicyProvider named = flow != null ? flow.getMfaPolicyProvider() : null;
+        return named != null && named != this ? named : null;
+    }
+
+    /** Asks the provider a flow names, with what it asks of this provider in turn answered by this provider itself. */
+    protected <T> T askFlowsProvider(Supplier<T> question) {
+        ASKING_THE_FLOWS_PROVIDER.set(Boolean.TRUE);
+        try {
+            return question.get();
+        } finally {
+            ASKING_THE_FLOWS_PROVIDER.remove();
+        }
+    }
+
     @Override
     public MfaDecision evaluateInitialMfaRequirement(FactorContext ctx) {
         Assert.notNull(ctx, "FactorContext cannot be null.");
+        MfaPolicyProvider ofFlow = providerOfFlow(ctx.getFlowTypeName());
+        if (ofFlow != null) {
+            return askFlowsProvider(() -> ofFlow.evaluateInitialMfaRequirement(ctx));
+        }
         return evaluatePolicy(ctx);
     }
 
@@ -93,6 +128,11 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     public boolean isFactorAvailableForUser(String username, AuthType factorType, FactorContext ctx) {
         Assert.hasText(username, "Username cannot be empty.");
         Assert.notNull(factorType, "FactorType cannot be null.");
+
+        MfaPolicyProvider ofFlow = ctx != null ? providerOfFlow(ctx.getFlowTypeName()) : null;
+        if (ofFlow != null) {
+            return askFlowsProvider(() -> ofFlow.isFactorAvailableForUser(username, factorType, ctx));
+        }
 
         if (ctx != null) {
             Set<AuthType> availableFactors = ctx.getAvailableFactors();
@@ -114,6 +154,10 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
     @Override
     public long getRequiredFactorCount(String userId, String flowType) {
+        MfaPolicyProvider ofFlow = providerOfFlow(flowType);
+        if (ofFlow != null) {
+            return askFlowsProvider(() -> ofFlow.getRequiredFactorCount(userId, flowType));
+        }
         AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig(flowType);
         if (mfaFlowConfig == null) {
             return 1;
@@ -173,6 +217,11 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     @Override
     public NextFactorDecision evaluateNextFactor(FactorContext ctx) {
         Assert.notNull(ctx, "FactorContext cannot be null.");
+
+        MfaPolicyProvider ofFlow = providerOfFlow(ctx.getFlowTypeName());
+        if (ofFlow != null) {
+            return askFlowsProvider(() -> ofFlow.evaluateNextFactor(ctx));
+        }
 
         AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig(ctx.getFlowTypeName());
         if (mfaFlowConfig == null) {
