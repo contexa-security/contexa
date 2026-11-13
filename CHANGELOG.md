@@ -596,6 +596,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **A code asked for again inside the resend interval says so.** The button waits and the page says how many seconds are
   left; before, nothing was mailed and nothing was said.
 - **The password change page lists the maximum length and the reuse rule** of the policy in force.
+- **The code of an MFA step is the six digits its page asks for.** It was a 36-character value under a page that asked for
+  six digits. The six digits are stored under the step's user and looked up only with that user, so the same digits of two
+  users do not meet and a code of another user is neither found nor spent; the step limits the attempts as before. A
+  sign-in by a code alone (no user known when it is entered) keeps the long code.
 - **Each sign-in is held to its own flow, step and address, and a sign-in setting that cannot work stops the start.** A login
   of one flow (a form flow, or an MFA flow that asks for fewer factors) no longer counts as a login of another MFA flow under
   the same state: the login names the flow that completed it, and an MFA chain takes only logins that meet its flow. The

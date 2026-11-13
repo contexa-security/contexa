@@ -519,6 +519,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             <label for="token">{{i18nOttVerifyCodeLabel}}</label>
                             <input type="text" id="token" name="token"
                                    class="form-control"
+                                   inputmode="numeric"
+                                   autocomplete="one-time-code"
                                    required
                                    autofocus>
                         </div>

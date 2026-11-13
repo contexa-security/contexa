@@ -20,6 +20,8 @@ import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.handler.OneTimeTokenCreationSuccessHandler;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.filter.OneTimeTokenAddressRefusalFilter;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
@@ -30,6 +32,7 @@ import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationProvider;
+import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationToken;
 import org.springframework.security.authentication.ott.OneTimeTokenService;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -100,6 +103,19 @@ public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticatio
                         MfaStateMachineIntegrator flows = appContext.getBeanProvider(MfaStateMachineIntegrator.class).getIfAvailable();
                         return flows != null ? flows.loadFactorContextFromRequest(request) : null;
                     }))
+                    // The code of an MFA step is kept under the step's user (MfaCodes): the user goes along with the code
+                    .authenticationConverter(request -> {
+                        String code = request.getParameter("token");
+                        if (code == null || code.isBlank()) {
+                            return null;
+                        }
+                        MfaStateMachineIntegrator flows = appContext.getBeanProvider(MfaStateMachineIntegrator.class).getIfAvailable();
+                        FactorContext step = flows != null ? flows.loadFactorContextFromRequest(request) : null;
+                        return step != null && MfaFlowTypeUtils.isMfaFlow(step.getFlowTypeName())
+                                && step.getUsername() != null && !step.getUsername().isBlank()
+                                ? OneTimeTokenAuthenticationToken.unauthenticated(step.getUsername(), code.trim())
+                                : OneTimeTokenAuthenticationToken.unauthenticated(code.trim());
+                    })
                     // Spring's provider takes the account the code names as it is: the store refuses a locked or disabled one
                     .authenticationProvider(new LoginFactsAuthenticationProvider(new OneTimeTokenAuthenticationProvider(
                             oneTimeTokenService, new AccountStateCheckingUserDetailsService(userDetailsService))));
