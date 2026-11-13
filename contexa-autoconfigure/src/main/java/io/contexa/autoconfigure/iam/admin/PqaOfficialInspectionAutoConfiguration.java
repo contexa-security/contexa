@@ -151,9 +151,11 @@ import io.contexa.contexaiam.admin.promptquality.official.process.JdbcPromptQual
 import io.contexa.contexaiam.admin.promptquality.official.process.NoOpPromptQualityProcessRunService;
 import io.contexa.contexaiam.admin.promptquality.official.process.PromptQualityProcessRunService;
 import io.contexa.contexaiam.admin.promptquality.official.state.DefaultPromptQualityStateCatalog;
+import io.contexa.contexaiam.admin.promptquality.official.state.LocalizedPromptQualityStateCatalog;
 import io.contexa.contexaiam.admin.promptquality.official.state.PromptQualityStateCatalog;
 import io.contexa.contexaiam.admin.promptquality.official.web.PromptQualityAssurancePageController;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -403,6 +405,21 @@ public class PqaOfficialInspectionAutoConfiguration {
     @ConditionalOnMissingBean(PromptQualityStateCatalog.class)
     public PromptQualityStateCatalog pqaPromptQualityStateCatalog() {
         return new DefaultPromptQualityStateCatalog();
+    }
+
+    /**
+     * Every state catalog answers in the language of the screen: the labels and next actions a catalog holds in one
+     * language (the enterprise catalog's table) are taken from the messages of the current locale by dimension and code.
+     */
+    @Bean
+    public static BeanPostProcessor contexaPqaStateCatalogLocalizer(ObjectProvider<PromptQualityMessageResolver> messages) {
+        return new BeanPostProcessor() {
+            @Override
+            public Object postProcessAfterInitialization(Object bean, String beanName) {
+                return bean instanceof PromptQualityStateCatalog catalog
+                        ? LocalizedPromptQualityStateCatalog.of(catalog, messages::getIfAvailable) : bean;
+            }
+        };
     }
 
     @Bean(name = "contexaPqaPromptQualityProcessRunService")

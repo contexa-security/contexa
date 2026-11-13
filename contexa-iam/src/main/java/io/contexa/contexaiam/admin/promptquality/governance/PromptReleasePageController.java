@@ -3,6 +3,7 @@ package io.contexa.contexaiam.admin.promptquality.governance;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleElementState;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
 import org.springframework.context.MessageSource;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,6 +36,8 @@ public class PromptReleasePageController {
             PromptReleaseScreen.EXECUTIONS.stream().map(status -> "promptRelease.execution." + status),
             PromptReleaseScreen.STAGES.stream().map(stage -> "promptRelease.stage." + stage),
             PromptBundleHashes.ELEMENT_IDS.stream().map(id -> "promptRelease.element." + id),
+            Stream.of(PromptBundleElementState.values()).map(state -> "promptRelease.elementState." + state.name()),
+            PromptReleaseScreen.ELEMENT_DETAILS.stream().map(detail -> "promptRelease.elementDetail." + detail),
             Stream.of("state.unknown", "common.loading", "common.empty", "common.error", "common.notFound",
                     "common.yes", "common.no", "gate.ready", "gate.blocked", "gate.none", "gate.unavailable",
                     "gate.applied", "gate.refused", "build.present", "build.absent", "build.hashDiffers",
