@@ -75,6 +75,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Arrays;
+import org.springframework.context.event.EventListener;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -275,13 +277,11 @@ class PolicyCenterWriteTransactionTest {
     }
 
     @Test
-    @DisplayName("the migration at the start of the application that fails ends quietly, without a failed commit")
-    void theMigrationAtTheStartThatFails() throws Exception {
-        when(policies.findAllWithDetails()).thenThrow(new IllegalStateException("The expressions cannot be read"));
-
-        console.getBean(PolicyCenterCommandService.class).autoMigratePolicyExpressions();
-
-        verify(connection, never()).commit();
+    @DisplayName("D41: the start of the application rewrites no policy expression")
+    void theStartRewritesNoExpression() {
+        assertThat(Arrays.stream(PolicyCenterCommandService.class.getMethods())
+                .filter(method -> method.isAnnotationPresent(EventListener.class)))
+                .isEmpty();
     }
 
     @Test

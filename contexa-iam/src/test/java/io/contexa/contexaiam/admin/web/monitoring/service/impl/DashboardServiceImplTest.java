@@ -208,7 +208,7 @@ class DashboardServiceImplTest {
         when(policyRepository.calculateAverageConfidenceScoreForAIPolicies()).thenReturn(0.75);
         when(policyRepository.findTop5ByOrderByCreatedAtDesc()).thenReturn(Collections.emptyList());
         when(roleHierarchyRepository.existsByIsActiveTrue()).thenReturn(true);
-        when(policyValidationService.validateAll()).thenReturn(
+        when(policyValidationService.validateAllForDashboard()).thenReturn(
                 new FullValidationReport(0, "HEALTHY", List.of(), List.of()));
         when(policyCombiningProperties.getCombiningAlgorithm()).thenReturn(
                 CombiningAlgorithm.FIRST_APPLICABLE);

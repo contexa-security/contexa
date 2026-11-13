@@ -96,42 +96,13 @@ class ResourceAdminControllerTest {
     class PageWorkbench {
 
         @Test
-        @DisplayName("keeps existing view and model names")
+        @DisplayName("D03: the old workbench address sends the administrator to the resources tab of the policy center")
         void resourceWorkbenchPage() throws Exception {
-            ManagedResource resource = ManagedResource.builder()
-                    .id(1L)
-                    .resourceIdentifier("/api/orders")
-                    .resourceType(ManagedResource.ResourceType.URL)
-                    .friendlyName("Orders")
-                    .status(ManagedResource.Status.NEEDS_DEFINITION)
-                    .build();
-            when(resourceRegistryService.findResources(any(), any()))
-                    .thenReturn(new PageImpl<>(List.of(resource), PageRequest.of(0, 10), 1));
-            when(resourceRegistryService.getAllServiceOwners()).thenReturn(Set.of("billing"));
+            mockMvc.perform(get("/contexa/admin/workbench/resources"))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(view().name("redirect:/contexa/admin/policy-center?tab=resources"));
 
-            MvcResult result = mockMvc.perform(get("/contexa/admin/workbench/resources"))
-                    .andExpect(status().isOk())
-                    .andExpect(view().name("contexa/admin/resource-workbench"))
-                    .andExpect(model().attribute("activePage", "policy-center"))
-                    .andReturn();
-
-            assertThat(result.getModelAndView().getModel()).containsKeys("resourcePage", "serviceOwners", "criteria");
-            assertThat(result.getModelAndView().getModel().get("serviceOwners")).isEqualTo(Set.of("billing"));
-            assertThat(result.getModelAndView().getModel().get("criteria")).isNotNull();
-
-            Page<?> resourcePage =
-                    (Page<?>) result.getModelAndView().getModel().get("resourcePage");
-            Object resourceView = resourcePage.getContent().get(0);
-            Object resourceType = resourceView.getClass().getMethod("getResourceType").invoke(resourceView);
-            Object status = resourceView.getClass().getMethod("getStatus").invoke(resourceView);
-            assertThat(resourceType.getClass().getName())
-                    .startsWith("io.contexa.contexaiam.admin.web.metadata.dto");
-            assertThat(status.getClass().getName())
-                    .startsWith("io.contexa.contexaiam.admin.web.metadata.dto");
-            assertThat(resourceType.toString()).isEqualTo("URL");
-            assertThat(resourceType.getClass().getMethod("name").invoke(resourceType)).isEqualTo("URL");
-            assertThat(status.toString()).isEqualTo("NEEDS_DEFINITION");
-            assertThat(status.getClass().getMethod("name").invoke(status)).isEqualTo("NEEDS_DEFINITION");
+            Mockito.verifyNoInteractions(resourceRegistryService);
         }
     }
 
@@ -251,9 +222,12 @@ class ResourceAdminControllerTest {
         @Test
         @DisplayName("restore keeps response JSON")
         void restoreResource() throws Exception {
+            when(managedResourceRepository.findById(1L)).thenReturn(Optional.of(ManagedResource.builder()
+                    .id(1L).status(ManagedResource.Status.EXCLUDED).build()));
+
             mockMvc.perform(post("/contexa/admin/workbench/resources/1/restore"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.message").value("Resource restored to management"))
+                    .andExpect(jsonPath("$.message").value("msg.resource.restored"))
                     .andExpect(jsonPath("$.resourceId").value(1))
                     .andExpect(jsonPath("$.newStatus").value("NEEDS_DEFINITION"));
 
@@ -283,7 +257,7 @@ class ResourceAdminControllerTest {
 
             String viewName = controller.updateManagementStatus(1L, dto, redirectAttributes);
 
-            assertThat(viewName).isEqualTo("redirect:/contexa/admin/workbench/resources");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/policy-center?tab=resources");
             assertThat(redirectAttributes.getFlashAttributes()).containsKey("message");
         }
 
@@ -298,7 +272,7 @@ class ResourceAdminControllerTest {
 
             String viewName = controller.updateManagementStatus(1L, dto, redirectAttributes);
 
-            assertThat(viewName).isEqualTo("redirect:/contexa/admin/workbench/resources");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/policy-center?tab=resources");
             assertThat(redirectAttributes.getFlashAttributes()).containsKey("errorMessage");
         }
 
@@ -311,19 +285,34 @@ class ResourceAdminControllerTest {
 
             String viewName = controller.refreshResources(redirectAttributes);
 
-            assertThat(viewName).isEqualTo("redirect:/contexa/admin/workbench/resources");
+            assertThat(viewName).isEqualTo("redirect:/contexa/admin/policy-center?tab=resources");
             assertThat(redirectAttributes.getFlashAttributes()).containsKey("errorMessage");
         }
 
         @Test
         @DisplayName("restore returns bad request on exception")
         void restoreException() throws Exception {
+            when(managedResourceRepository.findById(1L)).thenReturn(Optional.of(ManagedResource.builder()
+                    .id(1L).status(ManagedResource.Status.EXCLUDED).build()));
             doThrow(new RuntimeException("restore failed"))
                     .when(resourceRegistryService).updateResourceManagementStatus(eq(1L), any());
 
             mockMvc.perform(post("/contexa/admin/workbench/resources/1/restore"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.message").value("The action could not be completed. See the server log."));
+        }
+
+        @Test
+        @DisplayName("D58: restoring a resource that is not excluded is refused with the reason, its status kept")
+        void restoreOfAConnectedResourceIsRefused() throws Exception {
+            when(managedResourceRepository.findById(1L)).thenReturn(Optional.of(ManagedResource.builder()
+                    .id(1L).status(ManagedResource.Status.POLICY_CONNECTED).build()));
+
+            mockMvc.perform(post("/contexa/admin/workbench/resources/1/restore"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("msg.resource.restore.invalid.status"));
+
+            Mockito.verify(resourceRegistryService, Mockito.never()).updateResourceManagementStatus(any(), any());
         }
 
         @Test

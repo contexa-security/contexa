@@ -338,6 +338,139 @@ class DefaultPolicyServiceTest {
     }
 
     @Nested
+    @DisplayName("D67: values longer than their columns are refused before the database")
+    class FieldLengths {
+
+        private PolicyDto form(String name, String target, String condition) {
+            return PolicyDto.builder()
+                    .name(name)
+                    .effect(Policy.Effect.ALLOW)
+                    .targets(new ArrayList<>(List.of(TargetDto.builder().targetType("URL").targetIdentifier(target)
+                            .httpMethod("ALL").build())))
+                    .rules(new ArrayList<>(List.of(new RuleDto("rule", new ArrayList<>(List.of(new ConditionDto(
+                            condition, PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE)))))))
+                    .build();
+        }
+
+        @Test
+        @DisplayName("a name, a target or a condition one character too long is refused, and nothing is written")
+        void tooLongValuesAreRefused() {
+            String ok = "hasRole('USER')";
+            for (PolicyDto dto : List.of(
+                    form("n".repeat(256), "/x", ok),
+                    form("p", "/" + "x".repeat(255), ok),
+                    form("p", "/x", "hasRole('USER') and '" + "x".repeat(2040) + "' != ''"))) {
+                assertThatThrownBy(() -> policyService.createPolicy(dto))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage("msg.input.too.long");
+            }
+            PolicyDto longReason = form("p", "/x", ok);
+            longReason.setChangeReason("r".repeat(1025));
+            assertThatThrownBy(() -> policyService.createPolicy(longReason)).hasMessage("msg.input.too.long");
+            verify(policyRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("an edit is checked the same way, after the policy is found, and a blank name is refused")
+        void anEditIsCheckedTheSameWay() {
+            Policy existing = createPolicyWithCondition(12L, "existing", "hasRole('USER')");
+            when(policyRepository.findByIdWithDetails(12L)).thenReturn(Optional.of(existing));
+            PolicyDto blankName = form("   ", "/x", "hasRole('USER')");
+            blankName.setId(12L);
+            PolicyDto longDescription = form("p", "/x", "hasRole('USER')");
+            longDescription.setId(12L);
+            longDescription.setDescription("d".repeat(256));
+
+            assertThatThrownBy(() -> policyService.updatePolicy(blankName)).hasMessage("msg.input.required");
+            assertThatThrownBy(() -> policyService.updatePolicy(longDescription)).hasMessage("msg.input.too.long");
+            verify(policyVersionService, never()).createVersion(any(), any(), any());
+            verify(policyRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("values at their limits are kept, without the blanks around the name and the target")
+        void valuesAtTheirLimitsAreKept() {
+            PolicyDto dto = form("  " + "n".repeat(255) + "  ", " /" + "x".repeat(254) + " ", "hasRole('USER')");
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            Policy saved = policyService.createPolicy(dto);
+
+            assertThat(saved.getName()).hasSize(255);
+            assertThat(saved.getTargets().iterator().next().getTargetIdentifier()).hasSize(255).startsWith("/");
+        }
+    }
+
+    @Nested
+    @DisplayName("D46: the seed policies that guard the console")
+    class SeedPolicies {
+
+        @Test
+        @DisplayName("deleting or rejecting policy 1 or 2 is refused with the reason, and nothing is removed")
+        void removalIsRefused() {
+            for (long id : new long[] {1L, 2L}) {
+                Policy policy = createPolicyWithCondition(id, "seed-" + id, "hasRole('ADMIN')");
+                when(policyRepository.findByIdWithDetails(id)).thenReturn(Optional.of(policy));
+
+                assertThatThrownBy(() -> policyService.deletePolicy(id, "reason"))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessage("msg.policy.seed.removal.refused");
+                assertThatThrownBy(() -> policyService.rejectPolicy(id, "admin"))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessage("msg.policy.seed.removal.refused");
+            }
+            verify(policyRepository, never()).deleteById(any());
+            verify(policyRepository, never()).save(any());
+            verify(authorizationManager, never()).reload();
+        }
+
+        @Test
+        @DisplayName("an edit that widens policy 2 to every signed-in user is refused before anything is written")
+        void wideningEditIsRefused() {
+            PolicyDto dto = PolicyDto.builder()
+                    .name("ALLOW_CONTEXA_ADMIN_ADMINISTRATORS")
+                    .effect(Policy.Effect.ALLOW)
+                    .targets(List.of(TargetDto.builder().targetType("URL").targetIdentifier("/contexa/admin/**")
+                            .httpMethod("ALL").build()))
+                    .rules(List.of(new RuleDto("widened", List.of(new ConditionDto("isAuthenticated()",
+                            PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE)))))
+                    .build();
+            dto.setId(2L);
+            when(policyRepository.findByIdWithDetails(2L)).thenReturn(Optional.of(
+                    createPolicyWithCondition(2L, "ALLOW_CONTEXA_ADMIN_ADMINISTRATORS", "hasRole('ADMIN')")));
+
+            assertThatThrownBy(() -> policyService.updatePolicy(dto))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("msg.policy.seed.admin.change.refused");
+            verify(policyVersionService, never()).createVersion(any(), any(), any());
+            verify(policyRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("an edit that keeps policy 2 to administrators, narrowed with and, is saved")
+        void narrowingEditIsSaved() {
+            PolicyDto dto = PolicyDto.builder()
+                    .name("ALLOW_CONTEXA_ADMIN_ADMINISTRATORS")
+                    .effect(Policy.Effect.ALLOW)
+                    .targets(List.of(TargetDto.builder().targetType("URL").targetIdentifier("/contexa/admin/**")
+                            .httpMethod("ALL").build()))
+                    .rules(List.of(new RuleDto("narrowed", List.of(new ConditionDto(
+                            "hasRole('ADMIN') and isFullyAuthenticated()",
+                            PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE)))))
+                    .build();
+            dto.setId(2L);
+            Policy existing = createPolicyWithCondition(2L, "ALLOW_CONTEXA_ADMIN_ADMINISTRATORS", "hasRole('ADMIN')");
+            existing.setTargets(new HashSet<>());
+            existing.setRules(new HashSet<>());
+            when(policyRepository.findByIdWithDetails(2L)).thenReturn(Optional.of(existing));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            policyService.updatePolicy(dto);
+
+            verify(policyRepository).save(existing);
+        }
+    }
+
+    @Nested
     @DisplayName("Permission synchronization")
     class PermissionSynchronization {
 
@@ -591,6 +724,7 @@ class DefaultPolicyServiceTest {
             PolicyDto dto = createPolicyDtoWithCondition("rce-policy",
                     "''.getClass().forName('java.lang.Runtime') != null");
             dto.setId(7L);
+            when(policyRepository.findByIdWithDetails(7L)).thenReturn(Optional.of(createPolicyEntity(7L, "rce-policy")));
 
             assertThatThrownBy(() -> policyService.updatePolicy(dto))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -735,13 +869,13 @@ class DefaultPolicyServiceTest {
         @Test
         @DisplayName("should reject AI-generated policy and deactivate")
         void shouldRejectAndDeactivate() {
-            Policy policy = createPolicyEntity(1L, "ai-policy");
+            Policy policy = createPolicyEntity(101L, "ai-policy");
             policy.setSource(Policy.PolicySource.AI_GENERATED);
             policy.setApprovalStatus(Policy.ApprovalStatus.PENDING);
-            when(policyRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(policy));
+            when(policyRepository.findByIdWithDetails(101L)).thenReturn(Optional.of(policy));
             when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            policyService.rejectPolicy(1L, "admin");
+            policyService.rejectPolicy(101L, "admin");
 
             assertThat(policy.getApprovalStatus()).isEqualTo(Policy.ApprovalStatus.REJECTED);
             assertThat(policy.getIsActive()).isFalse();
@@ -751,11 +885,11 @@ class DefaultPolicyServiceTest {
         @Test
         @DisplayName("should throw when already rejected")
         void shouldThrowWhenAlreadyRejected() {
-            Policy policy = createPolicyEntity(1L, "policy");
+            Policy policy = createPolicyEntity(101L, "policy");
             policy.setApprovalStatus(Policy.ApprovalStatus.REJECTED);
-            when(policyRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(policy));
+            when(policyRepository.findByIdWithDetails(101L)).thenReturn(Optional.of(policy));
 
-            assertThatThrownBy(() -> policyService.rejectPolicy(1L, "admin"))
+            assertThatThrownBy(() -> policyService.rejectPolicy(101L, "admin"))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("msg.policy.already.rejected");
         }

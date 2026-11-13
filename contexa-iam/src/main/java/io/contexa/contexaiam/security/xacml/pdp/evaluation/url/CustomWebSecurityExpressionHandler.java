@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.url;
 
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyFunctions;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionSandbox;
@@ -74,6 +75,7 @@ public class CustomWebSecurityExpressionHandler extends DefaultHttpSecurityExpre
 
         StandardEvaluationContext ctx = new StandardEvaluationContext(root);
         PolicyExpressionSandbox.apply(ctx);
+        PolicyFunctions.register(ctx);
 
         ctx.setVariable("ai", root);
 

@@ -29,12 +29,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface PolicyService {
     List<Policy> getAllPolicies();
     Page<Policy> searchPolicies(String keyword, Pageable pageable);
     Page<Policy> searchPolicies(String keyword, Policy.ApprovalStatus approvalStatus, Boolean activeFilter, Pageable pageable);
     Policy findById(Long id);
+
+    /** The policy with its targets and rules, or empty when there is none: a lookup that throws nothing. */
+    Optional<Policy> findPolicy(Long id);
+
     Policy createPolicy(PolicyDto policyDto);
     void updatePolicy(PolicyDto policyDto);
     void deletePolicy(Long id);

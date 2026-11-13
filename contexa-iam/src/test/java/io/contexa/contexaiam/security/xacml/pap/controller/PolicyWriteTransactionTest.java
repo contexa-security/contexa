@@ -132,7 +132,8 @@ class PolicyWriteTransactionTest {
 
         String view = console.getBean(PolicyController.class).updatePolicy(9L, new PolicyDto(), flash);
 
-        assertThat(view).isEqualTo(LIST);
+        // D01: back to the policy's screen, which sends a policy that is not there on to the list with the reason.
+        assertThat(view).isEqualTo("redirect:/contexa/admin/policies/9");
         assertThat(flash.getFlashAttributes()).doesNotContainKey("message");
         assertThat(String.valueOf(flash.getFlashAttributes().get("errorMessage"))).contains("9");
         verify(policies, never()).save(any());

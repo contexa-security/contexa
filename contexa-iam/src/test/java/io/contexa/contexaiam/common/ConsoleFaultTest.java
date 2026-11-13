@@ -26,10 +26,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 
+import java.sql.SQLException;
 import java.util.List;
+import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 
@@ -136,5 +140,46 @@ class ConsoleFaultTest {
         assertThat(event.getLevel()).isEqualTo(Level.ERROR);
         assertThat(event.getFormattedMessage()).isEqualTo("The console could not delete role 5");
         assertThat(event.getThrowableProxy().getMessage()).isEqualTo(SQL);
+    }
+
+    @Test
+    @DisplayName("D60: a change another administrator saved first is a refusal told in the administrator's language")
+    void aConcurrentChangeIsARefusalInTheAdministratorsLanguage() {
+        RuntimeException lost = new ObjectOptimisticLockingFailureException("Policy", 7L);
+
+        assertThat(ConsoleFault.isRefusal(lost)).isTrue();
+        assertThat(ConsoleFault.isConcurrentChange(lost)).isTrue();
+        LocaleContextHolder.setLocale(Locale.KOREAN);
+        try {
+            assertThat(ConsoleFault.textOf(lost)).isEqualTo("다른 관리자가 먼저 "
+                    + "이 항목을 바꿨습니다. 다시 연 뒤 "
+                    + "한 번 더 변경해 주세요.");
+            LocaleContextHolder.setLocale(Locale.ENGLISH);
+            assertThat(ConsoleFault.textOf(lost))
+                    .isEqualTo("Another administrator changed this record first. Open it again and make the change once more.");
+        } finally {
+            LocaleContextHolder.resetLocaleContext();
+        }
+    }
+
+    @Test
+    @DisplayName("D60: a unique key taken (a form sent twice) is a refusal, logged as a warning, not a fault")
+    void aTakenUniqueKeyIsARefusalLoggedAsAWarning() {
+        DataIntegrityViolationException taken = new DataIntegrityViolationException(SQL,
+                new SQLException("duplicate key value violates unique constraint", "23505"));
+        DataIntegrityViolationException otherConstraint = new DataIntegrityViolationException(SQL,
+                new SQLException("null value in column", "23502"));
+
+        LocaleContextHolder.setLocale(Locale.ENGLISH);
+        try {
+            assertThat(ConsoleFault.report(taken, logger, "create user u-1"))
+                    .isEqualTo("A record with the same value already exists.");
+        } finally {
+            LocaleContextHolder.resetLocaleContext();
+        }
+        assertThat(ConsoleFault.isDuplicate(otherConstraint)).isFalse();
+        assertThat(ConsoleFault.textOf(otherConstraint)).isEqualTo(ConsoleFault.MESSAGE);
+        assertThat(logged.list).hasSize(1);
+        assertThat(logged.list.get(0).getLevel()).isEqualTo(Level.WARN);
     }
 }

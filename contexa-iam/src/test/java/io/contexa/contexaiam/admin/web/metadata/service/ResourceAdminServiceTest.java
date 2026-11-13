@@ -33,6 +33,11 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
 import java.util.*;
+import java.util.Optional;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.assertj.core.api.Assertions;
+import org.mockito.Mockito;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -144,13 +149,31 @@ class ResourceAdminServiceTest {
     }
 
     @Test
-    @DisplayName("restoreResource should set status to NEEDS_DEFINITION")
+    @DisplayName("restoreResource should set an excluded resource to NEEDS_DEFINITION")
     void restoreResource() {
+        when(managedResourceRepository.findById(1L)).thenReturn(Optional.of(
+                ManagedResource.builder().id(1L).status(ManagedResource.Status.EXCLUDED).build()));
+
         ResourceStatusResponse res = service.restoreResource(1L);
 
         assertThat(res.resourceId()).isEqualTo(1L);
         assertThat(res.newStatus()).isEqualTo("NEEDS_DEFINITION");
         verify(resourceRegistryService).updateResourceManagementStatus(eq(1L), any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ManagedResource.Status.class, names = "EXCLUDED",
+            mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("D58: restoreResource refuses a resource that is not excluded and leaves its status")
+    void restoreRefusesAResourceThatIsNotExcluded(ManagedResource.Status status) {
+        when(managedResourceRepository.findById(1L)).thenReturn(Optional.of(
+                ManagedResource.builder().id(1L).status(status).build()));
+
+        Assertions.assertThatThrownBy(() -> service.restoreResource(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("msg.resource.restore.invalid.status");
+        Mockito.verify(resourceRegistryService, Mockito.never())
+                .updateResourceManagementStatus(any(), any());
     }
 
     @Test
