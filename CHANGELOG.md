@@ -486,20 +486,14 @@ The format is based on Keep a Changelog and the project follows semantic version
   moment. A process now says in Redis that it lives, every 5 seconds, and its claims pass to the next one within 15 seconds of
   its last word, whatever the host name and the PID. Tries on an event another owner holds are spread over half a minute.
 - **A wrong password at the application now reaches the decision.** Under `HOST_OWNED` Contexa heard nothing of a failed
-  sign-in, so the decision on the sign-in after it, and on the calls after that, read no failure. Contexa now listens to
-  Spring Security's failure events and keeps a failure for the decisions alone: neither the lock of an account nor the limit
+  sign-in, so the decisions on the calls after it read no failure. Contexa now listens to Spring Security's failure
+  events and keeps a failure for the decisions alone: neither the lock of an account nor the limit
   of an address counts it, and the application's authentication is only read. An authentication manager that publishes no
   events, such as a `ProviderManager` built by hand, leaves the count unknown, and the prompt says so instead of zero. What
   a store keeps of failed sign-ins now has limits, the same in memory and in Redis: 10,000 names and addresses, the latest
   200 failures of each, names of up to 256 characters, all gone with their window. Past the first limit the keys written
   the longest ago go, and for a window a name without a record reads as unknown, not as no failures. Every spelling of a
   name counts as one person.
-- **A sign-in after a run of wrong passwords no longer reads as any other sign-in.** Under `HOST_OWNED` the model decided the
-  application's sign-in without what a protected call of the same request tells it: the signals the application states on
-  the request, the authorities of the account, the failures on record and the bridge's stamps. A sign-in now carries all of
-  them, through the same code as a protected call, and its decision is bound to the session the client presents next.
-  `ZeroTrustEventPublisher.publishAuthenticationSuccess` now takes the authentication and the request. A sign-in stays out
-  of what a role's usual work is compared with and learned from: the POST of a form is no work of the role.
 - **A sign-in no longer wipes the failures of its address.** A password that was right took the address's count back, so
   whoever held one account of their own could try any number of others from that address. The address now keeps its count
   until its window ends; the count of each account is reset as before. Behind a shared address a public NAT counts everyone's
@@ -513,7 +507,8 @@ The format is based on Keep a Changelog and the project follows semantic version
   CHALLENGE that stopped only the refresh entry point now stop `/oauth2/token` too. A disabled account's token ends at
   once; a locked one goes on until it expires, as a session does. **Check:** a role that lives only in the claims of your
   identity provider's token no longer counts for a user with an account here: give it to the account. A
-  `OAuth2TokenCustomizer` of your own replaces Contexa's, so `/oauth2/token` then checks nothing at a refresh.
+  `OAuth2TokenCustomizer` of your own runs after Contexa's checks and keeps them; only a bean named
+  `contexaTokenCustomizer` replaces Contexa's, and `/oauth2/token` then checks nothing at a refresh.
 - **A new password ends what the old one opened.** A password changed on the password page, or by an administrator in the
   console, left the sessions and the tokens of the account running, so a thief stayed in after the owner changed it. Once
   the change has committed the sessions of the account end, the one that changed it too, and so do its tokens, those an
@@ -613,7 +608,7 @@ The format is based on Keep a Changelog and the project follows semantic version
   is now remembered only for a client that already has a session or for a browser asking for a page (`Accept` names
   `text/html`), so sign-in still returns a person to the page they asked for. A `RequestCache` the application
   declares, or one of another kind, is left as it is. Anonymous traffic that sends a browser's `Accept` header still
-  opens a session per request, as on any session-based sign-in (PR-204).
+  opens a session per request, as on any session-based sign-in.
 
 - **Contexa's screens find their texts in an application whose only message source goes by another name.** With one
   `MessageSource` bean under a name other than `messageSource` and no `messages` bundle of its own, the application
@@ -621,22 +616,22 @@ The format is based on Keep a Changelog and the project follows semantic version
   in `NoSuchMessageException` (creating a user in the console showed a failure after the user had been stored).
   Contexa's bundle now stands behind the context's own source in that case too. No `MessageSource` bean is added and
   the application's own source is not touched; the sign-in, MFA and passkey registration pages take their texts from
-  the application context rather than from a `MessageSource` looked up by type (PR-190).
+  the application context rather than from a `MessageSource` looked up by type.
 
 - **A stopped embedding service is reported once a minute, not with a stack trace for every decision.** While a
   decision could not be stored for learning, each one wrote `Failed to store ... document` with its full trace. The
   first failure is still written with its trace; after that at most one a minute, with the number left out in between
-  (`similarSinceLastReport`). The others stand at DEBUG without a trace (PR-186).
+  (`similarSinceLastReport`). The others stand at DEBUG without a trace.
 
 - **A request thread no longer does Contexa's own work when Contexa falls behind.** Under load three pieces of that work
   ran on the application's request threads. The session record of a request answered by the decision in force was made
   by the asking thread when the recording line was full; a full line now drops the record and counts it, told once and
-  then a line a minute (the line holds 2,000 a thread, was 1,000) (PR-187). Audit records went through the shared
+  then a line a minute (the line holds 2,000 a thread, was 1,000). Audit records went through the shared
   executor, which hands the work back to the caller when it is full, so request threads wrote them to Contexa's
   database; they are now written by four threads of the listener's own behind a line of 2,000, and a record more than
   that is counted and stands in the `AUDIT_RECORDS_NOT_WRITTEN` record of the audit log (`outcome = AUDIT_LINE_FULL`,
-  written at most once a minute while the line stays full) (PR-188). And a user with no analysis yet cost two more trips
-  to Redis on every request; the last-verified record is now read in the same trip as the rest (PR-189). Decisions are
+  written at most once a minute while the line stays full). And a user with no analysis yet cost two more trips
+  to Redis on every request; the last-verified record is now read in the same trip as the rest. Decisions are
   unchanged.
 
 - **Contexa's own repositories run against the schema it installs.** Running every repository on a real PostgreSQL found
@@ -908,22 +903,23 @@ The format is based on Keep a Changelog and the project follows semantic version
   `global(...)`: its `loginPage`, `failureUrl` and the rest were dropped without a word. The behaviour is the
   same, and the start now logs a warning that names the flow and says to write the settings in the flow
   (`form(form -> form.loginPage(...))` or `form.rawFormLogin(...)`).
-- **A mail server that answers slowly no longer stops every sign-in.** The mail of a sign-in is sent on the thread of
+- **A mail server that answers slowly no longer stops every sign-in.** The mail of a sign-in was sent on the thread of
   the request that asked for it, and JavaMail waits without end where no timeout is set. With a mail server that greeted
   one connection a second, 400 requests for a code at once held every request thread: 89 were answered and 311 got no
-  answer in 90 seconds, and the application did not answer its health check for the whole of that time. At most
-  `contexa.auth.ott.email-max-concurrent-sends` (64) mails are now being sent at one time, a request beyond them waiting
-  `contexa.auth.ott.email-send-wait-seconds` (5) for a place and then failing as an undelivered mail does (in Contexa's MFA flows
-  `503 OTT_CODE_NOT_SENT`, as above). The mail itself goes out with the application's own mail
-  settings. A limit of time on the steps of the SMTP conversation is set only on request, with
-  `contexa.auth.ott.email-smtp-timeout-seconds` (0, none): the mail sender is the application's, so a value is written
-  into that sender where `spring.mail.properties.mail.smtp.*timeout` names none and bounds the application's other mail
-  too. A first form of this fix set ten seconds by default; a mail server that answered after twelve then failed the
-  code it had delivered before (500 after ten seconds), so the default is none. **Check:** against the mail server that
-  greets one connection a second all 400 requests are answered (79 mailed as the server takes them, 321 refused after
-  their wait for a place) and the health check fails for the first four seconds only; a mail server that answers after
-  twelve seconds delivers the code after twelve seconds; on a mail server that keeps up 1000 accounts sign in at once
-  as before.
+  answer in 90 seconds, and the application did not answer its health check for the whole of that time. The mail is now
+  sent on Contexa's own mail threads, as the entry on a mail server that does not answer says: at most
+  `contexa.auth.ott.email-max-concurrent-sends` (64) mails are being sent at one time and 32 more wait for a thread, a
+  mail past them is refused at once, and the request waits for its mail, waiting or being sent,
+  `contexa.auth.ott.email-send-wait-seconds` (5) at most and then fails as an undelivered mail does (in Contexa's MFA
+  flows `503 OTT_CODE_NOT_SENT`, as above); a mail whose request gave up while it waited for a thread is not sent. The
+  mail itself goes out with the application's own mail settings. A limit of time on the steps of the SMTP conversation
+  is set only on request, with `contexa.auth.ott.email-smtp-timeout-seconds` (0, none): the mail sender is the
+  application's, so a value is written into that sender where `spring.mail.properties.mail.smtp.*timeout` names none
+  and bounds the application's other mail too. A first form of this fix set ten seconds by default; a mail server that
+  answered after twelve then failed the code it had delivered before (500 after ten seconds), so the default is none.
+  **Check:** more code mails at one moment than the mail threads and the 32 places behind them are refused at once,
+  and a mail the server takes longer than the wait to accept is answered as not sent though the server may still
+  deliver it.
 - **A code request with no code in it counts as a failed attempt instead of stopping the sign-in.** The submission was
   put on record before the request was looked at, and a request with a missing, empty or blank `token` was then passed
   on by the code filter: the answer was 404, the flow waited for a verification that never ran, the right code got 429
@@ -961,6 +957,16 @@ The format is based on Keep a Changelog and the project follows semantic version
   logged an error and fell back to the model's default options, and the call ran without its runtime model, sampling and
   answer limit (`numPredict`) and with the thinking on. The constant is now read as a static field, and a thinking that cannot
   be turned off is logged as a warning while the rest of the options are kept. A setup that names no pattern was not affected.
+
+- **An application with a Spring AI Ollama model of its own starts beside Contexa.** With an Ollama embedding model bean of
+  the application's and Contexa's Ollama address set, the start stopped with `Duplicate embedding runtime selector`: the
+  model id of every Ollama bean, Contexa's own included, was read from the application's `spring.ai.ollama.*.options.model`,
+  so both got the same id, and the same held for the chat models. Contexa's own model beans (`contexaOllamaChatModel`,
+  `contexaSharedOllamaEmbeddingModel`, `contexaDedicatedOllamaEmbeddingModel`) now answer to the model they run, from
+  `contexa.llm.chat.ollama.model` and `contexa.llm.embedding.ollama.model` or Contexa's defaults (`qwen3:8b`,
+  `mxbai-embed-large`), and a model id the application's bean and Contexa's both run is no ambiguity: Contexa's bean
+  answers to it, the application's to its own name. Two beans of the application that answer to one model id still stop
+  the start.
 
 - **A repeated name or an empty element in the authorities of a header or a request attribute no longer loses the request's
   bridge.** `HeaderAuthBridge` and `RequestAttributeAuthBridge` read the comma-separated authorities with
@@ -1116,8 +1122,6 @@ The format is based on Keep a Changelog and the project follows semantic version
   model's cost, although a protected method did not. Nothing is analysed or kept for the session in these modes now.
 - **The first requests after a start are decided.** The agent started after the web server had opened, and an event of that
   moment was dropped, so the first user passed without a decision. It now starts before the server opens.
-- **A sign-in's decision is found by its request.** Its observation, audit and sealed rows had no `request_id` or
-  `correlation_id`; they now carry the event id, as a protected call's rows do.
 - **The console's policy list reads a page.** Each opening read every policy into memory and cut the page there
   (`HHH90003004`).
 - **A user of Contexa no longer gets a second row.** Where Contexa owns the sign-in the bridge made a copy `brg_<hash>` of
@@ -1289,7 +1293,7 @@ The format is based on Keep a Changelog and the project follows semantic version
   analyses however many sessions it opens, and a person's queued call that a decision in force answers is not analysed
   again: calls that waited behind a decision cost that decision and not one each.
 - **While the analysis is behind, a sensitive resource does not go without a decision.** Behind means as many analyses
-  in progress as `security.plane.llm-executor.backpressure-queue-threshold` (96). A call to a resource declared
+  in progress as `contexa.security.plane.llm-executor.backpressure-queue-threshold` (96). A call to a resource declared
   `importance = SENSITIVE`, or whose sensitivity is `HIGH`, `CONFIDENTIAL`, `RESTRICTED` or the like, with no decision in
   force asks for its analysis, waits three seconds for the verdict and is then refused with a CHALLENGE that is not
   stored. Any other resource passes as it did, and nothing changes while the analysis keeps up.
@@ -1337,6 +1341,109 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Changed
 
+- **The starter no longer brings Spring Security: an application that turns Contexa on declares it.** The starter carried
+  `spring-boot-starter-security`, and Spring Boot secures an application once Spring Security's configuration support is
+  on its class path, so adding the dependency alone changed the application. It now carries the OAuth2 libraries without
+  `spring-security-config`, adding it changes nothing in an application, and the build checks that it stays so.
+  `@EnableAISecurity` without Spring Security on the class path stops the start with
+  `Add org.springframework.boot:spring-boot-starter-security to this application.` Under `HOST_OWNED` an application
+  with neither a `SecurityFilterChain` nor users of its own (a `UserDetailsService`, an `AuthenticationProvider` or an
+  `AuthenticationManager`) now stops the start too, where it was told at ERROR: Spring Boot's default chain would ask
+  every request for a sign-in nobody can complete. **Check:** an application that had Spring Security only through the
+  starter adds `org.springframework.boot:spring-boot-starter-security` to its build before the upgrade.
+- **Only `@EnableAISecurity` turns Contexa on, and a mode and an ownership that disagree stop the start.** Contexa was
+  taken as on whenever `contexa.ai.security.mode` had a value, which the application's own settings can give too: with
+  the annotation missing, switched off with `contexa.enabled=false`, or staying off because Contexa's database was down,
+  every auto-configuration of Contexa took part and the start ended on a missing bean (`contexaIpAccessFilter`).
+  Contexa is now on only where the annotation switched it on, and a mode an operator sets in `contexa.ai.security.mode`
+  outranks the one the annotation declares. `SANDBOX` goes with `HOST_OWNED` and `FULL` with `CONTEXA_OWNED`: a
+  `contexa.bridge.ownership` that says the other, or a value that is none of the choices, stops the start with the
+  reason, and a value is read as Spring binds it (`contexa-owned` no longer starts half configured). Where Contexa owns
+  the sign-in, an application that declares a security chain of its own is refused at the start; it was warned, and its
+  chains never ran, so what they protected was open. Where Contexa owns the sign-in, an application whose
+  `spring.datasource.url` names a database of its own keeps it: Contexa's database no longer takes its place by an
+  implicit default. `SecurityZeroTrustProperties.SecurityMode` is now `EnforcementMode`; the setting keys are unchanged.
+  **Check:** remove `contexa.bridge.ownership` where it only repeated the mode, or make it agree; an application under
+  `mode = FULL` with chains of its own uses `@EnableAISecurity` without `mode = FULL` to keep its sign-in, or removes
+  those chains.
+- **Settings under Contexa's former names are no longer read.** An earlier version still took a key under the name it
+  had before `contexa.*`, with an ERROR at the start (`Contexa legacy property ...`). Those names are the application's
+  now and Contexa no longer takes them as its own: `spring.auth.*` (now `contexa.auth.*`); `security.router.*`,
+  `security.coldpath.*`, `security.stepup.*`, `security.event.*`, `security.kafka.*`, `security.pipeline.*`,
+  `security.plane.*`, `security.redis.*`, `security.session.*` and `security.zerotrust.*` (now under `contexa.security.`);
+  `spring.ai.security.tiered.*` (now `contexa.security.tiered.*`), `spring.ai.security.mapping.*` (now
+  `contexa.security.mapping.*`) and the other `spring.ai.security.*` (now `contexa.security.tiered.llm.*`);
+  `spring.ai.vectorstore.pgvector.*` (now `contexa.vectorstore.pgvector.*`); and `security.mfa.session.storage-type`
+  (now `contexa.auth.mfa.session-storage-type`). Contexa's vector store is bound from `contexa.vectorstore.pgvector.*`
+  alone, and only its size still falls back to `spring.ai.vectorstore.pgvector.dimensions` where Contexa's key names
+  none, so the other `spring.ai.vectorstore.pgvector.*` keys stay with a store of the application's. Contexa also no
+  longer sets these values outside `contexa.*`: the Lettuce metrics and the Prometheus exemplars turned off
+  (`management.metrics.enable.lettuce`, `management.prometheus.metrics.export.exemplars.enabled`), Spring AI's image,
+  moderation, speech and transcription models set to `none` where a model provider was selected, and the
+  `spring.ai.vectorstore.pgvector.*` defaults. **Check:** before the upgrade, rename every key of the settings that
+  starts with one of the former names; the start of the earlier version names each of them at ERROR.
+- **Contexa no longer chooses the application's embedding model.** An earlier version put OpenAI's
+  `text-embedding-3-small` and 1024 dimensions on Spring AI's keys (`spring.ai.openai.embedding.options.model` and
+  `.dimensions`), which changed the embeddings of an application that named none. Nothing is written there now:
+  Contexa's vector store takes the size of the model in use, and a new database gets a table of that size. With no
+  provider named, OpenAI is assumed only where the application has Spring AI's OpenAI embedding model, Ollama
+  otherwise. A model whose vectors do not fit the store, a table of another size and an HNSW index over more than 2,000
+  dimensions stop the start with what to do. **Check:** a vector store an earlier version made with OpenAI keeps its
+  vectors when the application sets `spring.ai.openai.embedding.options.model=text-embedding-3-small` and
+  `spring.ai.openai.embedding.options.dimensions=1024`; without them the start stops and names the two.
+- **Contexa turns on none of Spring's application-wide switches, and its beans are named `contexa...`.**
+  `@EnableScheduling`, `@EnableAsync`, `@EnableCaching`, `@EnableKafka`, `@EnableMethodSecurity`, `@EnableJpaAuditing`
+  and `@EnableAspectJAutoProxy` are gone from Contexa: its schedules, asynchronous work, caches, `@PreAuthorize`, JPA
+  auditing and aspects are applied to Contexa's own classes only, so the application's own annotations of these kinds
+  stay as dormant as the application left them, and `spring.aop.auto=false` holds again. Every `@Scheduled` of Contexa
+  runs on `contexaTaskScheduler`, every `@Async` on `contexaTaskExecutor`, and its caches use `contexaCacheManager`, so
+  none shares the application's pool or a cache of the same name. Every `@Bean` of Contexa has a name that starts with
+  `contexa` (a name of the framework, such as `dataSource`, `messageSource` or `passwordEncoder`, is kept only where
+  Contexa gives way to a bean of that type of the application's, or overrides a bean method of Spring), and Contexa's
+  JSON mapper, model mapper, executors, Redis templates, Kafka template and factories, OpenTelemetry, `ChatModel`,
+  `EmbeddingModel`, `ChatClient.Builder` and `VectorStore` are no candidates for injection by type and carry no
+  `@Primary`, so the application's own of those types stay.
+  **Check:** an application whose `@Scheduled`, `@Async`, `@Cacheable` or `@PreAuthorize` ran only once Contexa was
+  added declares the `@Enable...` it needs; code that took a bean of Contexa's by its former name, or one of these types
+  from Contexa by type, takes its own.
+- **Contexa's SQL scripts and message bundles moved under names of its own.** `db/schema.sql` and the `db/data*.sql`
+  scripts are now in `META-INF/contexa/db/`, and the bundles `i18n/messages` and `i18n/core-verification-messages` in
+  `contexa/i18n/`. An application's own `db/schema.sql` or `i18n/messages` met Contexa's on the class path: its own
+  scripts read Contexa's file, and the first bundle of the name decided which texts the console found. **Check:** a
+  migration, a script setting or a message source of the application that named Contexa's files at their former place
+  (`classpath:db/schema.sql`, `i18n/messages`) names `classpath:META-INF/contexa/db/schema.sql` or
+  `contexa/i18n/messages`.
+- **Under `HOST_OWNED` the application's own passkey sign-in no longer finds Contexa's passkey stores.** Contexa's stores
+  were beans of Spring Security's types, so an application's own `webAuthn()` took them and stored its passkeys in
+  Contexa's tables. They are now held by a bean of no shared type (`contexaPasskeyStores`), where Contexa's step-up
+  keeps its passkeys as before; `contexa.bridge.step-up.share-application-passkeys=true` lets the step-up use the
+  passkeys the application keeps in repositories of its own, one of each type. Where Contexa owns the sign-in the
+  stores stay beans. **Check:** an application whose own `webAuthn()` relied on Contexa's stores declares repositories
+  of its own; the passkeys it stored before are in `ctxa_user_entities` and `ctxa_user_credentials`.
+- **A person's sign-in is no longer sent to the model's analysis.** A sign-in asked the model before the person had asked
+  for any resource: under load the sign-ins were the decisions the model could not keep up with, and the first sign-in
+  of a person with nothing on record ended in a CHALLENGE that asked the person's next calls to verify (78 of 100
+  protected calls of people who had completed MFA were answered 401 in a load test of 1,000 people). The first call to a
+  protected resource is now the person's first decision, where Contexa owns the sign-in and where the application owns
+  it. The event of a sign-in still carries what a protected call of the same request carries (the signals the
+  application states on the request, the authorities of the account, the failures on record and the bridge's stamps)
+  and still reaches the other listeners: the bridge meets the person, and the agent registry sees an agent that signs
+  in. A second factor and a failed sign-in go on to the analysis as before, and a call from a changed context keeps its
+  own limit. `ZeroTrustEventPublisher.publishAuthenticationSuccess` now takes the authentication and the request.
+  **Check:** a sign-in makes no decision and no model call; the first protected call after it does.
+- **Contexa's OpenTelemetry export is off by default, and Contexa brings fewer libraries into an application.**
+  `contexa.opentelemetry.enabled` is `false` (it was `true`): on, Contexa builds an OpenTelemetry SDK, registers it as
+  the JVM's global instance, installs a shutdown hook and exports spans to `contexa.opentelemetry.exporter-endpoint`
+  (`http://localhost:4317`), which an application with an OpenTelemetry of its own must not meet unless it asks for it.
+  The OpenTelemetry SDK, its OTLP exporter and its Reactor instrumentation are no longer brought along, so Spring Boot's
+  OpenTelemetry does not start in an application that did not ask for it, and `micrometer-tracing-bridge-brave` is
+  gone, so the application's log lines keep their format. Nor are resilience4j (its Spring Boot 3 starter, circuit
+  breaker, retry, bulkhead and time limiter), GeoIP2, Commons Math 3, `jackson-module-jsonSchema` and
+  `nd4j-native-platform` brought along any more: Contexa's code used none of them. **Check:** to keep Contexa's spans,
+  set `contexa.opentelemetry.enabled=true` and declare `io.opentelemetry:opentelemetry-sdk` and
+  `io.opentelemetry:opentelemetry-exporter-otlp`; an application that used one of these libraries, or Brave's tracing,
+  only because Contexa brought it declares it.
+
 - **An application's request no longer waits for Contexa's database for the copy of its user.** Contexa's own accounts get no lookup; an
   application's user is synchronised at the sign-in, kept for `contexa.bridge.sync.min-refresh-interval-seconds`, and a changed fact off the request.
 - **An application's request no longer waits for the agent registry to find out whether its account is an approved agent.** The approved agents in
@@ -1358,6 +1465,12 @@ The format is based on Keep a Changelog and the project follows semantic version
   (`contexa-timer-*`, two threads), instead of `reactor-http-nio-*` and `parallel-*` (as many threads as cores each, shared with
   the application's WebClient and reactive code); a step of a sign-in waits on the request's own deadline. Both start with the
   first call and end when the application closes. A model configured under `spring.ai.*` keeps the HTTP client Spring AI gives it.
+- **Contexa no longer works on the JVM's common pool.** The upkeep of every cache of Contexa (eviction, expiry, removal
+  listeners) ran on `ForkJoinPool.commonPool()`, as Caffeine does unless it is given an executor, and Contexa's blocking
+  background work ran there and on Reactor's `Schedulers.boundedElastic()`: a call to a slow model held a thread that
+  serves the application's own parallel streams, `CompletableFuture`s and reactive work. Each now runs on daemon threads of
+  Contexa's own that exist only while there is work: `contexa-cache-maintenance-*` (two), `contexa-background-*` and
+  `contexa-blocking-*`.
 
 - **ASEP is registered by one auto-configuration.** The `contexa-identity` module listed an auto-configuration of
   its own, `io.contexa.contexaidentity.security.core.asep.autoconfigure.AsepAutoConfiguration`, next to
@@ -1375,7 +1488,7 @@ The format is based on Keep a Changelog and the project follows semantic version
   times, and the system and user prompt were counted again as one text. The numbers are the same (a test keeps the plain count and
   compares); the estimate is observation only.
 - **A request that repeats an analysis already in line takes no second place in the line.** A request answered by the
-  decision that waits ahead of it costs that decision and no turn of its own (PR-82), yet each took a place, up to eight for a
+  decision that waits ahead of it costs that decision and no turn of its own, yet each took a place, up to eight for a
   user, and a burst of new users filled the line (3,276 places at 1 GB) with requests that were then skipped, so that the first
   decisions of other sessions were turned away: 3,575 events were left unanalysed with a remote model and 8,734 with a local one. A
   request of a session in line is now kept in its session at once, and the places go to the first decisions of other sessions.
@@ -1388,8 +1501,8 @@ The format is based on Keep a Changelog and the project follows semantic version
   does not run waits in the line in its order, with its budget not started.
 - **The session record of a request answered by the decision in force is made off the thread of the request.** About 36 of the
   70 Redis commands of a protected call were this record, which only feeds the decisions that come later. It is made by eight
-  threads, one session always on the same one so that its records keep their order; a line that is full is no lost record, the
-  thread that asks makes it.
+  threads, one session always on the same one so that its records keep their order; a line that is full drops the record and
+  counts it, as said under Fixed, and the thread that asks never makes it.
 
 - **Contexa's thread pools give back the threads they have no work for, and the analysis actors are 64 instead of 256.** The core
   threads of a `ThreadPoolTaskExecutor`, and of a fixed pool, stay for ever: after a load of 1,000 people Contexa still held 576
@@ -1422,7 +1535,7 @@ The format is based on Keep a Changelog and the project follows semantic version
   moves the database under a database lock, the others wait and find it moved), but a node of the earlier version
   cannot run against a moved database: stop every node of the earlier version before the first node of this version
   starts, and keep a backup as for any upgrade.
-- `spring.ai.vectorstore.pgvector.table-name` and `contexa.rag.etl.vector-table-name` default to `ctxa_vector_store`; a
+- `contexa.vectorstore.pgvector.table-name` and `contexa.rag.etl.vector-table-name` default to `ctxa_vector_store`; a
   configuration that names `vector_store` explicitly points at a table Contexa no longer creates.
 - **A failed Layer 2 call no longer ends in a BLOCK.** With `contexa.security.tiered.layer2.allow-escalate-final-action`
   off (the default) a model error or a time-out at Layer 2 ends as `layer2.escalate-fallback-action` (CHALLENGE by
@@ -1485,6 +1598,7 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **An attempt during a lock no longer moves the lock's end**: trying a locked account, even with the right password,
   pushed `lock_expires_at` back, so that anyone could keep the account locked. The count of failures still starts over
   when the lock has run out.
+
 ### Fixed
 
 - **OAuth2 tokens: the second sign-in of a user no longer fails.** Spring Authorization Server reads the type of its
