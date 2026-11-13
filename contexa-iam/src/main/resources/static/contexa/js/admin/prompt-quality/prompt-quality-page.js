@@ -172,7 +172,8 @@ const HANGUL = /[\u3131-\u318e\uac00-\ud7a3]/;
 
 /**
  * The tone of one word. An English word must equal a keyword, so "inactive" is not "active" and "unblocked" is not
- * "blocked". A Korean word takes its longest keyword prefix, so "만료예정" is expiring (reverify), not expired.
+ * "blocked". A Korean word takes its longest keyword prefix, so the Korean word for expiring is reverify, not the
+ * expired it begins with.
  */
 function wordTone(word) {
     let best = null;
