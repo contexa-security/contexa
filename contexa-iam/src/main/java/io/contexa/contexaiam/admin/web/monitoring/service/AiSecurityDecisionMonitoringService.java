@@ -37,6 +37,7 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.ReadinessSum
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RuntimeModeSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.StandardMetrics;
 import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.context.support.StaticMessageSource;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -199,7 +200,7 @@ public class AiSecurityDecisionMonitoringService {
                 p95Latency(data.window().from(), data.window().to()),
                 currentSession(data),
                 sessionSummaries(8),
-                readinessBlockers(data));
+                readinessBlockers(data, LocaleContextHolder.getLocale()));
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -498,7 +499,7 @@ public class AiSecurityDecisionMonitoringService {
     }
     private String topBlockersJson(SnapshotData data) {
         try {
-            return OBJECT_MAPPER.writeValueAsString(readinessBlockers(data));
+            return OBJECT_MAPPER.writeValueAsString(readinessBlockers(data, null));
         } catch (JsonProcessingException ex) {
             return "[]";
         }
@@ -539,7 +540,7 @@ public class AiSecurityDecisionMonitoringService {
         payload.put("llmModel", firstBreakdownKey(data.llm().modelBreakdown()));
         payload.put("promptTemplateVersion", firstBreakdownKey(data.llm().promptTemplateBreakdown()));
         payload.put("policyVersion", currentPolicyVersion());
-        payload.put("topBlockers", readinessBlockers(data));
+        payload.put("topBlockers", readinessBlockers(data, null));
         payload.put("llmDecisionCount", data.llm().totalDecisionCount());
         payload.put("failureRate", metricNumber(data.metrics().failureRate()));
         payload.put("timeoutRate", metricNumber(data.metrics().timeoutRate()));
@@ -554,16 +555,16 @@ public class AiSecurityDecisionMonitoringService {
         }
     }
 
-    private List<ReadinessBlocker> readinessBlockers(SnapshotData data) {
+    private List<ReadinessBlocker> readinessBlockers(SnapshotData data, Locale locale) {
         List<ReadinessBlocker> blockers = new ArrayList<>();
         long llmDecisionCount = data.llm().totalDecisionCount();
         if (llmDecisionCount <= 0) {
             blockers.add(new ReadinessBlocker(
                     "NO_LLM_DECISION",
-                    "No AI decision data",
+                    blockerText(locale, "NO_LLM_DECISION", "title", "No AI decision data"),
                     "0",
-                    "1 or more",
-                    "Verify that Protectable requests reach AI decision logging."));
+                    blockerText(locale, "NO_LLM_DECISION", "required", "1 or more"),
+                    blockerText(locale, "NO_LLM_DECISION", "action", "Verify that Protectable requests reach AI decision logging.")));
             return blockers;
         }
         MetricValue failureMetric = data.metrics().failureRate();
@@ -571,21 +572,21 @@ public class AiSecurityDecisionMonitoringService {
         if (failureMetric != null && failureMetric.value() != null && failureRate > 0.10d) {
             blockers.add(new ReadinessBlocker(
                     "FAILURE",
-                    "AI analysis failure rate is high",
+                    blockerText(locale, "FAILURE", "title", "AI analysis failure rate is high"),
                     percentText(failureRate),
-                    "10% or less",
-                    "Fix timeout, parser failure, and model unavailable causes first."));
+                    blockerText(locale, "FAILURE", "required", "10% or less"),
+                    blockerText(locale, "FAILURE", "action", "Fix timeout, parser failure, and model unavailable causes first.")));
         }
-        addFailureBlocker(blockers, "TIMEOUT", data.llm().timeoutCount(), data.llm().timeoutRate(),
+        addFailureBlocker(blockers, locale, "TIMEOUT", data.llm().timeoutCount(), data.llm().timeoutRate(),
                 "AI analysis timed out",
                 "Inspect OpenAI latency, network, prompt size, and timeout settings before switching modes.");
-        addFailureBlocker(blockers, "PARSER_FAILURE", data.llm().parserFailureCount(), data.llm().parserFailureRate(),
+        addFailureBlocker(blockers, locale, "PARSER_FAILURE", data.llm().parserFailureCount(), data.llm().parserFailureRate(),
                 "AI response parsing failed",
                 "Check the decision prompt contract, response schema, and parser logs.");
-        addFailureBlocker(blockers, "MODEL_UNAVAILABLE", data.llm().modelUnavailableCount(), data.llm().modelUnavailableRate(),
+        addFailureBlocker(blockers, locale, "MODEL_UNAVAILABLE", data.llm().modelUnavailableCount(), data.llm().modelUnavailableRate(),
                 "AI model was unavailable",
                 "Check provider/model configuration and runtime LLM client availability.");
-        addFailureBlocker(blockers, "TECHNICAL_FALLBACK", data.llm().technicalFallbackCount(), data.llm().technicalFallbackRate(),
+        addFailureBlocker(blockers, locale, "TECHNICAL_FALLBACK", data.llm().technicalFallbackCount(), data.llm().technicalFallbackRate(),
                 "Technical fallback was used",
                 "Remove fallback causes before trusting transition recommendations.");
         return blockers;
@@ -593,6 +594,7 @@ public class AiSecurityDecisionMonitoringService {
 
     private void addFailureBlocker(
             List<ReadinessBlocker> blockers,
+            Locale locale,
             String key,
             long count,
             double rate,
@@ -603,10 +605,10 @@ public class AiSecurityDecisionMonitoringService {
         }
         blockers.add(new ReadinessBlocker(
                 key,
-                title,
+                blockerText(locale, key, "title", title),
                 count + " / " + percentText(rate),
                 "0",
-                action));
+                blockerText(locale, key, "action", action)));
     }
 
     private LocalDateTime currentSessionStart(LocalDateTime fallbackNow) {
@@ -1380,6 +1382,35 @@ public class AiSecurityDecisionMonitoringService {
 
     private double ratio(long numerator, long denominator) {
         return denominator <= 0 ? 0.0d : (double) numerator / denominator;
+    }
+
+    /**
+     * A readiness blocker text in the given language. Archived summaries pass no locale and keep the English text,
+     * so a stored record does not depend on who happened to close the session. The title is
+     * {@code admin.aiMonitor.blocker.<key>}, the other parts {@code admin.aiMonitor.blocker.<key>.<part>}, with the
+     * blocker key in the camel case of the message files (NO_LLM_DECISION is noLlmDecision).
+     */
+    private String blockerText(Locale locale, String blockerKey, String part, String english) {
+        if (locale == null) {
+            return english;
+        }
+        String base = "admin.aiMonitor.blocker." + camelCase(blockerKey);
+        String key = "title".equals(part) ? base : base + "." + part;
+        return messageSource.getMessage(key, null, english, locale);
+    }
+
+    private static String camelCase(String constantName) {
+        StringBuilder name = new StringBuilder(constantName.length());
+        boolean upperNext = false;
+        for (char c : constantName.toLowerCase(Locale.ROOT).toCharArray()) {
+            if (c == '_') {
+                upperNext = true;
+            } else {
+                name.append(upperNext ? Character.toUpperCase(c) : c);
+                upperNext = false;
+            }
+        }
+        return name.toString();
     }
 
     private String message(Locale locale, String key) {

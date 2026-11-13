@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <th:block th:fragment="head(pageTitle)">
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=${pageTitle})}"></th:block>
     <link rel="stylesheet" th:href="@{/contexa/css/admin/prompt-inspection/prompt-inspection.css}">

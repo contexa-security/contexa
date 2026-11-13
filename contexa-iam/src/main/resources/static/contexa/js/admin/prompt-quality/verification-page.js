@@ -7135,7 +7135,8 @@ function formatCapturedAt(value) {
     if (Number.isNaN(date.getTime())) {
         return text(value);
     }
-    return date.toLocaleString('ko-KR', {
+    // The console language (html lang), not a fixed Korean format.
+    return date.toLocaleString(document.documentElement.lang || undefined, {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',

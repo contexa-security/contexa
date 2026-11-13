@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.menu.management.title})}"></head>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.menu.management.title})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{contexa/fragments/header :: header}"></div>
@@ -120,7 +120,7 @@
                                           th:text="${menu.menuType}">CORE</span>
                                 </td>
                                 <td class="py-4 px-6 text-center">
-                                    <span th:if="${menu.roles.isEmpty()}" class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2);">ALL</span>
+                                    <span th:if="${menu.roles.isEmpty()}" class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2);" th:text="#{admin.menu.roles.all}">ALL</span>
                                     <div th:if="${!menu.roles.isEmpty()}" style="display:flex;gap:0.25rem;flex-wrap:wrap;justify-content:center;">
                                         <span th:each="role : ${menu.roles}" class="text-xs px-1.5 py-0.5 rounded menu-role-badge" style="background:rgba(99,102,241,0.1);color:#818cf8;border:1px solid rgba(99,102,241,0.2);" th:data-role="${role.roleName}" th:text="${role.roleName}">ROLE</span>
                                     </div>
@@ -187,7 +187,7 @@
                 <div>
                     <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;" th:text="#{admin.menu.management.field.parent}">Parent Menu</label>
                     <select id="menu-parent" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;">
-                        <option value="">-- None (Top Level) --</option>
+                        <option value="" th:text="#{admin.menu.parent.none}">-- None (Top Level) --</option>
                         <th:block th:each="m : ${menus}">
                             <option th:if="${m.parentId == null}" th:value="${m.id}" th:text="${m.name.startsWith('menu.') ? #messages.msg(m.name) : m.name}"></option>
                         </th:block>

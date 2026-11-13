@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.users.detail.title})}">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.users.detail.title})}"></th:block>
 </head>
 <body class="flex flex-col min-h-screen font-sans">
 
@@ -33,7 +33,7 @@
                 <span id="serverMsg" th:if="${message}" th:text="${message}"></span>
                 <span id="serverErr" th:if="${errorMessage}" th:text="${errorMessage}"></span>
             </div>
-            <form id="userForm" th:action="${user.id != null ? '/contexa/admin/users/' + user.id : '/contexa/admin/users'}" method="post" th:object="${user}" class="space-y-6">
+            <form id="userForm" th:action="${user.id != null} ? @{/contexa/admin/users/{id}(id=${user.id})} : @{/contexa/admin/users}" method="post" th:object="${user}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${user.id != null}" />
 
                 <div class="space-y-4">

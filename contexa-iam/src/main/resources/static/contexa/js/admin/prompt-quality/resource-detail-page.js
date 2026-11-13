@@ -522,7 +522,8 @@ function formatProcessTime(value) {
     if (Number.isNaN(date.getTime())) {
         return raw;
     }
-    return date.toLocaleString();
+    // The console language (html lang), not the browser language.
+    return date.toLocaleString(document.documentElement.lang || undefined);
 }
 
 function validRoute(value) {

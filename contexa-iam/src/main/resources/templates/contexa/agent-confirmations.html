@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{agent.confirmations.title})}"></head>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{agent.confirmations.title})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans" style="background: #050810;">
 
 <div class="flex justify-center p-4 sm:p-8">
@@ -76,7 +76,7 @@
                     <div style="color: #94a3b8;" th:text="${n.message}"></div>
                     <div class="text-xs mt-1" style="color: #64748b;">
                         <span th:text="${#temporals.format(n.createdAt, 'yyyy-MM-dd HH:mm')}"></span>
-                        <a th:if="${n.link != null and (#strings.startsWith(n.link, '/') or #strings.startsWith(n.link, 'https://') or #strings.startsWith(n.link, 'http://'))}" th:href="${n.link}" class="ml-2" style="color: #818cf8;"
+                        <a th:if="${n.link != null and (#strings.startsWith(n.link, '/') or #strings.startsWith(n.link, 'https://') or #strings.startsWith(n.link, 'http://'))}" th:href="${#strings.startsWith(n.link, '/')} ? @{${n.link}} : ${n.link}" class="ml-2" style="color: #818cf8;"
                            th:text="#{agent.confirmations.open}">Open</a>
                     </div>
                 </li>

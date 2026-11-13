@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html th:lang="${#locale.language}" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="description" content="">
     <meta name="author" content="">
-    <title>Please sign in</title>
+    <title th:text="#{admin.login.heading}">Please sign in</title>
     <link rel="icon" href="data:,">
-    <link href="/contexa/css/main.css" rel="stylesheet" />
+    <link th:href="@{/contexa/css/main.css}" href="/contexa/css/main.css" rel="stylesheet" />
     <style>
         * {
             box-sizing: border-box;

@@ -1,5 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
-    var path = window.location.pathname;
+    // Paths are compared without the servlet context path: the menu map below and the links name console paths.
+    var withinApp = window.ContexaConsole ? window.ContexaConsole.pathWithinApp : function(value) { return value; };
+    var path = withinApp(window.location.pathname);
 
     document.querySelectorAll('.main-menu-item.has-submenu').forEach(function(item) {
         var panel = item.querySelector('.submenu-panel');
@@ -77,6 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.querySelectorAll('.submenu-link').forEach(function(link) {
         var href = link.getAttribute('href');
+        href = href ? withinApp(href) : href;
         if (href && (path === href || path.startsWith(href + '/'))) {
             link.classList.add('active');
         }

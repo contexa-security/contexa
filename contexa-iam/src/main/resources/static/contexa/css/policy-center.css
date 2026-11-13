@@ -68,6 +68,14 @@
     box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
 }
 
+/* The filter row of the resource tab: label and field pairs on one row, two columns on a narrow screen. */
+.pc-resource-filter-grid {
+    display: grid;
+    grid-template-columns: auto 0.7fr auto 0.7fr auto 1.5fr auto auto;
+    gap: 10px;
+    align-items: center;
+}
+
 .pc-tab-btn .tab-count {
     font-size: 0.75rem;
     font-weight: 700;
@@ -1665,12 +1673,19 @@
         flex-wrap: wrap;
     }
 
+    /* Two tabs a row, and a name wraps inside its tab instead of running over the next one. */
     .pc-tab-btn {
-        flex: 1;
+        flex: 1 1 calc(50% - 0.375rem);
         justify-content: center;
         min-width: 0;
         padding: 0.625rem 0.75rem;
         font-size: 0.8125rem;
+        white-space: normal;
+        text-align: center;
+    }
+
+    .pc-resource-filter-grid {
+        grid-template-columns: auto minmax(0, 1fr);
     }
 
     .pc-subtab-nav {

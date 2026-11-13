@@ -2475,3 +2475,9 @@ aside + main {
 main {
     min-width: 0;
 }
+
+/* The search row of the list screens: on a narrow screen the field keeps a readable width and the buttons move
+   to the next row instead of squeezing the field to a few letters. */
+.console-search-form > .relative.flex-1 {
+    min-width: 12rem;
+}
