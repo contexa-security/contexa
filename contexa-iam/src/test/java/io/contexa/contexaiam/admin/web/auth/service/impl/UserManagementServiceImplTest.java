@@ -327,8 +327,57 @@ class UserManagementServiceImplTest {
     // =========================================================================
 
     @Nested
+    @DisplayName("creating a user")
+    class CreateUser {
+
+        @Test
+        @DisplayName("the console's lock is taken before the name is looked up, so a creation a moment before is found")
+        void theLockComesFirst() {
+            UserDto dto = buildUserDto(null, "carol", "Carol");
+            dto.setPassword("a password of the policy");
+            when(passwordEncoder.encode(any())).thenReturn("encoded");
+
+            service.createUser(dto);
+
+            InOrder order = inOrder(lastAdministratorGuard, userRepository);
+            order.verify(lastAdministratorGuard).serializeChanges();
+            order.verify(userRepository).findByUsername("carol");
+            order.verify(userRepository).save(any(Users.class));
+        }
+
+        @Test
+        @DisplayName("an email address another user has is refused with its reason, nothing saved")
+        void anEmailAddressTaken() {
+            UserDto dto = buildUserDto(null, "dave", "Dave");
+            dto.setEmail("shared@example.com");
+            dto.setPassword("a password of the policy");
+            when(userRepository.existsByEmail("shared@example.com")).thenReturn(true);
+
+            assertThatThrownBy(() -> service.createUser(dto))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("shared@example.com is already used by another user");
+            verify(userRepository, never()).save(any());
+        }
+    }
+
+    @Nested
     @DisplayName("modifyUser")
     class ModifyUser {
+
+        @Test
+        @DisplayName("an email address another user has is refused on an edit too; the user's own is not")
+        void anEmailAddressTakenOnAnEdit() {
+            Users user = buildUser(1L, "alice", "Alice");
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+            UserDto dto = buildUserDto(1L, "alice", "Alice");
+            dto.setEmail("bob@example.com");
+            when(userRepository.existsByEmailAndIdNot("bob@example.com", 1L)).thenReturn(true);
+
+            assertThatThrownBy(() -> service.modifyUser(dto))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("bob@example.com is already used by another user");
+            verify(userRepository, never()).save(any());
+        }
 
         @Test
         @DisplayName("should update user name and mfaEnabled")

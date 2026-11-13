@@ -147,6 +147,10 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
             put = {@CachePut(value = "roles", key = "#result.id")}
     )
     public Role createRole(Role role, List<Long> permissionIds) {
+        // First in the transaction: the console's lock (LastAdministratorGuard.serializeChanges). A creation of the same
+        // name that came a moment before is committed by the time this one has the lock, and is found below; the unique
+        // constraint of the table stays the last defense, for a write that does not come through the console.
+        lastAdministratorGuard.serializeChanges();
         role.setRoleName(newRoleName(role.getRoleName(), null));
         role.setRoleDesc(ConsoleInput.optional(messageSource, "crud.field.role.description", role.getRoleDesc(),
                 DESCRIPTION_LENGTH));
@@ -164,8 +168,8 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
 
         Role saved;
         try {
-            // Flushed here, so a role of the same name that another administrator saved a moment before is refused
-            // with its reason, not with the constraint of the table.
+            // Flushed here, so that a constraint of the table, should a write from outside the console meet this one,
+            // is told with its reason.
             saved = roleRepository.save(role);
             roleRepository.flush();
         } catch (DataIntegrityViolationException e) {

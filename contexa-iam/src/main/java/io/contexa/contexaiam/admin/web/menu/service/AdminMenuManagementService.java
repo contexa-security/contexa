@@ -125,6 +125,9 @@ public class AdminMenuManagementService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public AdminMenuActionResponse createMenu(AdminMenuSaveRequest request) {
+        // First in the transaction: the console's lock, the rows of the roles (LastAdministratorGuard.serializeChanges).
+        // A menu of the same data page created a moment before is committed by the time this one has it, and is found.
+        roleRepository.findAllForUpdate();
         String name = ConsoleInput.required(messageSource, "crud.field.menu.name", request.getName(), NAME_LENGTH);
         requireOwnName(name);
         String icon = request.valueOrDefault("icon", "");
@@ -152,6 +155,7 @@ public class AdminMenuManagementService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public AdminMenuActionResponse updateMenu(Long id, AdminMenuSaveRequest request) {
+        roleRepository.findAllForUpdate();
         Optional<AdminMenu> existingMenu = adminMenuService.getMenuById(id);
         if (existingMenu.isEmpty()) {
             return AdminMenuActionResponse.error(msg("msg.menu.not.found"));

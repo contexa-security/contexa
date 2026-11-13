@@ -45,7 +45,7 @@ class OrdinaryFlowLogLevelContractTest {
     static {
         DEBUG.put("UserManagementServiceImpl.java", List.of(
                 "[UserManagementService.modifyUser] findByIdWithGroupsRolesAndPermissions",
-                "[UserManagementService.getUser] findByIdWithGroupsRolesAndPermissions"));
+                "[UserManagementService.findUser] findByIdWithGroupsRolesAndPermissions"));
         DEBUG.put("AccessCenterService.java", List.of("[AccessCenterController] findByIdWithGroupsRolesAndPermissions"));
         DEBUG.put("DefaultMfaPolicyEvaluator.java", List.of("[DefaultMfaPolicyEvaluator] findByUsernameWithGroupsRolesAndPermissions"));
         DEBUG.put("SecurityPlaneAgent.java", List.of("Agent {} is already running", "[SecurityPlaneAgent] Event {} already processed"));

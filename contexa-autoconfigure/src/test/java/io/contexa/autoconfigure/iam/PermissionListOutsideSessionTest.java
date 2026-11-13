@@ -22,6 +22,7 @@ import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexaiam.admin.web.auth.controller.PermissionController;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.impl.PermissionServiceImpl;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
@@ -54,6 +55,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.ConcurrentModel;
+import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
@@ -244,7 +246,7 @@ class PermissionListOutsideSessionTest {
                                             ManagedResourceRepository managedResourceRepository,
                                             PolicyRepository policyRepository) {
             return new PermissionServiceImpl(permissionRepository, managedResourceRepository, policyRepository,
-                    messageSource());
+                    messageSource(), mock(LastAdministratorGuard.class));
         }
 
         @Bean
