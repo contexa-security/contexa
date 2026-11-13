@@ -3,7 +3,7 @@
  * SDK's fetch and sees the answer after a token renewal).
  *
  * Context path: the console scripts name their addresses as console paths (/contexa/...), without the servlet context
- * path. ContexaConsole.url() puts the context path of <meta name="contexa-context-path"> in front, and every fetch of
+ * path. ContexaConsole.url() puts the context path (taken from this script's own address) in front, and every fetch of
  * a same-origin root-relative address goes through it, so a deployment under a context path reaches the same handlers.
  *
  * Zero Trust decisions: when a decision stops a request of a page script, the page goes to the screen of the decision
@@ -37,8 +37,34 @@
         return element ? element.getAttribute('content') : null;
     }
 
-    // "@{/}" renders "/" or "/ctx/"; a ";jsessionid=..." suffix is not part of the path.
-    var contextPath = String(meta('contexa-context-path') || '/').split(';')[0].split('?')[0].replace(/\/+$/, '');
+    var SCRIPT_PATH = '/contexa/js/console-net.js';
+
+    /**
+     * The context path, read from this script's own address (rendered with @{/contexa/js/console-net.js}): "" or
+     * "/ctx". A link to "/" is no source for it, because a host may rewrite that one link (contexa-site sends "/" to its
+     * language home, "/ko/") while it leaves every console path as it is.
+     */
+    function scriptContextPath() {
+        var script = document.currentScript;
+        if (!script || String(script.getAttribute('src') || '').indexOf(SCRIPT_PATH) < 0) {
+            script = document.querySelector('script[src*="' + SCRIPT_PATH + '"]');
+        }
+        if (!script) {
+            return '';
+        }
+        var path;
+        try {
+            path = new URL(script.getAttribute('src'), global.location.href).pathname;
+        } catch (e) {
+            return '';
+        }
+        // A ";jsessionid=..." suffix is not part of the path.
+        path = path.split(';')[0];
+        var at = path.lastIndexOf(SCRIPT_PATH);
+        return at > 0 ? path.slice(0, at).replace(/\/+$/, '') : '';
+    }
+
+    var contextPath = scriptContextPath();
 
     function text(name, fallback) {
         var value = meta('contexa-net-' + name);
