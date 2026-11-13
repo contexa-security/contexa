@@ -188,7 +188,8 @@ class ConsoleOutputEscapingTest {
 
         assertThat(screen).contains(
                 "<strong>${escapeHtml(role)}</strong><br/>${escapeHtml(desc)}",
-                "'<option value=\"' + escapeHtml(role.roleName) + '\">' + escapeHtml(displayText) + '</option>'",
+                "'<option value=\"' + escapeHtml(role.roleName) + '\" title=\"' + escapeHtml(role.roleDesc) + '\">'",
+                "+ escapeHtml(role.roleName) + '</option>'",
                 "document.createTextNode(message)");
         assertThat(screen).doesNotContain("(icons[type] || icons.info) + message");
     }

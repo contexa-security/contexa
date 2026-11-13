@@ -89,6 +89,26 @@ class LastAdministratorGuardRolesTest {
     }
 
     @Test
+    @DisplayName("a hierarchy that places a role above ROLE_ADMIN is refused with the roles it would make administrators")
+    void aRoleAboveTheAdministratorIsRefused() {
+        assertThatThrownBy(() -> guard.refuseRolesAboveAdministrator("ROLE_ADMIN > ROLE_SUPERVISOR\nROLE_USER > ROLE_ADMIN"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("above ROLE_ADMIN").hasMessageContaining("ROLE_USER");
+        // Through another role as well: the user role reaches ROLE_ADMIN by the supervisor.
+        assertThatThrownBy(() -> guard.refuseRolesAboveAdministrator("ROLE_USER > ROLE_SUPERVISOR\nROLE_SUPERVISOR > ROLE_ADMIN"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ROLE_SUPERVISOR, ROLE_USER");
+    }
+
+    @Test
+    @DisplayName("a hierarchy below ROLE_ADMIN, or none, goes on")
+    void aHierarchyBelowTheAdministratorGoesOn() {
+        guard.refuseRolesAboveAdministrator("ROLE_ADMIN > ROLE_SUPERVISOR\nROLE_SUPERVISOR > ROLE_USER");
+        guard.refuseRolesAboveAdministrator("");
+        guard.refuseRolesAboveAdministrator(null);
+    }
+
+    @Test
     @DisplayName("the lock is the rows of the roles")
     void theLockIsTheRoles() {
         guard.serializeChanges();

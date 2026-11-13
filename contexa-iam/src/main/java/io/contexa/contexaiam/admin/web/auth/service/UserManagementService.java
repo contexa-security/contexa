@@ -21,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface UserManagementService {
 
@@ -29,6 +30,10 @@ public interface UserManagementService {
     List<UserListDto> getUsers();
     Page<UserListDto> getUsers(String keyword, Pageable pageable);
     UserDto getUser(Long id);
+
+    /** The user with its groups, roles and permissions, or empty when there is none: for a caller that must not throw. */
+    Optional<UserDto> findUser(Long id);
+
     void deleteUser(Long idx);
 
     /**

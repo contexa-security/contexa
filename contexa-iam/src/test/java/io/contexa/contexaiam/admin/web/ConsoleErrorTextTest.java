@@ -548,7 +548,7 @@ class ConsoleErrorTextTest {
         doThrow(fault()).when(users).modifyUser(any());
         doThrow(fault()).when(users).createUser(any());
         doThrow(fault()).when(users).deleteUser(any());
-        when(users.getUser(any())).thenThrow(fault());
+        when(users.findUser(any())).thenThrow(fault());
         RedirectAttributesModelMap update = flash();
         ConcurrentModel create = new ConcurrentModel();
         RedirectAttributesModelMap delete = flash();

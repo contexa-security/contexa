@@ -25,4 +25,5 @@ public class UserListDto {
     private boolean mfaEnabled;
     private int groupCount;
     private int roleCount;
+    private int permissionCount;
 }

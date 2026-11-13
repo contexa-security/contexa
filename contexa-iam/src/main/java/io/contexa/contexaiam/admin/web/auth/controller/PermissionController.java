@@ -77,23 +77,36 @@ public class PermissionController {
 
     @GetMapping("/register")
     public String registerPermissionForm(Model model) {
-        model.addAttribute("permission", new PermissionDto());
+        // A refused registration comes back here with what was typed.
+        if (!(model.getAttribute("permission") instanceof PermissionDto)) {
+            model.addAttribute("permission", new PermissionDto());
+        }
 
         return "contexa/admin/permissiondetails";
     }
 
     @PostMapping
     public String createPermission(@ModelAttribute("permission") PermissionDto permissionDto, RedirectAttributes ra) {
-        Permission permission = modelMapper.map(permissionDto, Permission.class);
-        permissionService.createPermission(permission);
-        ra.addFlashAttribute("message", msg("msg.permission.created", permission.getName()));
-        return "redirect:/contexa/admin/permissions";
+        try {
+            Permission permission = modelMapper.map(permissionDto, Permission.class);
+            permissionService.createPermission(permission);
+            ra.addFlashAttribute("message", msg("msg.permission.created", permission.getName()));
+            return "redirect:/contexa/admin/permissions";
+        } catch (Exception e) {
+            ra.addFlashAttribute("errorMessage", textOf(e, "create permission " + permissionDto.getName()));
+            ra.addFlashAttribute("permission", permissionDto);
+            return "redirect:/contexa/admin/permissions/register";
+        }
     }
 
     @GetMapping("/{id}")
-    public String permissionDetails(@PathVariable Long id, Model model) {
-        Permission permission = permissionService.getPermission(id)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid permission ID: " + id));
+    public String permissionDetails(@PathVariable Long id, Model model, RedirectAttributes ra) {
+        Permission permission = permissionService.getPermission(id).orElse(null);
+        if (permission == null) {
+            log.warn("[PermissionManagement] No permission with ID {}", id);
+            ra.addFlashAttribute("errorMessage", msg("msg.permission.not.found.id", String.valueOf(id)));
+            return "redirect:/contexa/admin/permissions";
+        }
 
         PermissionDto permissionDto = convertToDto(permission);
         model.addAttribute("permission", permissionDto);
@@ -104,9 +117,22 @@ public class PermissionController {
     @PostMapping("/{id}/edit")
     public String updatePermission(@PathVariable Long id, @ModelAttribute("permission") PermissionDto permissionDto,
                                    RedirectAttributes ra) {
-        Permission permission = permissionService.updatePermission(id, permissionDto);
-        ra.addFlashAttribute("message", msg("msg.permission.updated", permission.getName()));
-        return "redirect:/contexa/admin/permissions";
+        try {
+            Permission permission = permissionService.updatePermission(id, permissionDto);
+            ra.addFlashAttribute("message", msg("msg.permission.updated", permission.getName()));
+            return "redirect:/contexa/admin/permissions";
+        } catch (Exception e) {
+            ra.addFlashAttribute("errorMessage", textOf(e, "update permission " + id));
+            return "redirect:/contexa/admin/permissions/" + id;
+        }
+    }
+
+    /** What the administrator is told of a failed change: a refusal is logged as one, a fault with its stack. */
+    private String textOf(Exception failure, String doing) {
+        if (ConsoleFault.isRefusal(failure)) {
+            log.warn("[PermissionManagement] Could not {}: {}", doing, failure.getMessage());
+        }
+        return ConsoleFault.textOf(failure, log, doing);
     }
 
     private void addCommonAttributesToModel(Model model) {
@@ -126,10 +152,10 @@ public class PermissionController {
     public String deletePermission(@PathVariable Long id, RedirectAttributes ra) {
         try {
             permissionService.deletePermission(id);
-            ra.addFlashAttribute("message", msg("msg.permission.deleted", id));
+            ra.addFlashAttribute("message", msg("msg.permission.deleted", String.valueOf(id)));
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", msg("msg.permission.delete.error",
-                    ConsoleFault.textOf(e, log, "delete permission " + id)));
+                    textOf(e, "delete permission " + id)));
         }
         return "redirect:/contexa/admin/permissions";
     }

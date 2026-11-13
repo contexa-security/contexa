@@ -42,15 +42,15 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 /**
- * An edit of a role, a group or the role hierarchy that would take the console's last administrator is answered with a
- * 409 and the reason on the page the person came from, as a change of a user is: the controllers that catch the
- * exceptions of a form let this one through.
+ * An edit of a role, a group or the role hierarchy that would take the console's last administrator goes back, by a
+ * redirect, to the page it came from with the reason, as a change of a user does: the address left is not the one of
+ * the request that was refused, so reloading the page does not send it again.
  */
 @ExtendWith(I18nTestSupport.EnglishLocale.class)
 class LastAdministratorScreensTest {
@@ -83,60 +83,66 @@ class LastAdministratorScreensTest {
     }
 
     @Test
-    @DisplayName("deleting the role of the last administrator answers 409 with the reason on the list of roles")
+    @DisplayName("deleting the role of the last administrator goes back to the list of roles with the reason")
     void deletingARole() throws Exception {
         doThrow(REFUSAL).when(roleService).deleteRole(5L);
 
         roles.perform(post("/contexa/admin/roles/delete/5"))
-                .andExpect(status().isConflict())
-                .andExpect(view().name("contexa/admin/roles"))
-                .andExpect(model().attribute("errorMessage", "no administrator left"));
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/contexa/admin/roles"))
+                .andExpect(flash().attribute("errorMessage", "no administrator left"));
     }
 
     @Test
-    @DisplayName("renaming the role of the last administrator answers 409 with the reason on the list of roles")
+    @DisplayName("renaming the role of the last administrator goes back to the role with the reason")
     void renamingARole() throws Exception {
         doThrow(REFUSAL).when(roleService).updateRole(any(), any());
 
         roles.perform(post("/contexa/admin/roles/5/edit").param("roleName", "ROLE_ROOT"))
-                .andExpect(status().isConflict())
-                .andExpect(model().attribute("errorMessage", "no administrator left"));
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/contexa/admin/roles/5"))
+                .andExpect(flash().attribute("errorMessage", "no administrator left"));
     }
 
     @Test
-    @DisplayName("taking the role from the group of the last administrator answers 409 with the reason on the list of groups")
+    @DisplayName("taking the role from the group of the last administrator goes back to the list of groups with the reason")
     void changingAGroup() throws Exception {
         doThrow(REFUSAL).when(groupService).updateGroup(any(), any());
 
         groups.perform(post("/contexa/admin/groups/3/edit").param("name", "ops"))
-                .andExpect(status().isConflict())
-                .andExpect(view().name("contexa/admin/groups"))
-                .andExpect(model().attribute("errorMessage", "no administrator left"));
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/contexa/admin/groups"))
+                .andExpect(flash().attribute("errorMessage", "no administrator left"));
     }
 
     @Test
-    @DisplayName("deleting the group of the last administrator answers 409 with the reason on the list of groups")
+    @DisplayName("deleting the group of the last administrator goes back to the list of groups with the reason")
     void deletingAGroup() throws Exception {
         doThrow(REFUSAL).when(groupService).deleteGroup(3L);
 
         groups.perform(post("/contexa/admin/groups/delete/3"))
-                .andExpect(status().isConflict())
-                .andExpect(model().attribute("errorMessage", "no administrator left"));
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/contexa/admin/groups"))
+                .andExpect(flash().attribute("errorMessage", "no administrator left"));
     }
 
     @Test
-    @DisplayName("rewriting, deleting or switching off the hierarchy of the last administrator answers 409 with the reason")
+    @DisplayName("rewriting, deleting or switching off the hierarchy of the last administrator says why, by a redirect")
     void changingTheHierarchy() throws Exception {
         doThrow(REFUSAL).when(hierarchyService).updateRoleHierarchy(any());
         doThrow(REFUSAL).when(hierarchyService).deleteRoleHierarchy(2L);
         doThrow(REFUSAL).when(hierarchyService).activateRoleHierarchy(2L);
 
-        for (String path : List.of("/contexa/admin/role-hierarchies/2/edit", "/contexa/admin/role-hierarchies/delete/2",
+        hierarchies.perform(post("/contexa/admin/role-hierarchies/2/edit"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/contexa/admin/role-hierarchies/2"))
+                .andExpect(flash().attribute("error", "no administrator left"));
+        for (String path : List.of("/contexa/admin/role-hierarchies/delete/2",
                 "/contexa/admin/role-hierarchies/2/activate")) {
             hierarchies.perform(post(path))
-                    .andExpect(status().isConflict())
-                    .andExpect(view().name("contexa/admin/role-hierarchies"))
-                    .andExpect(model().attribute("error", "no administrator left"));
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl("/contexa/admin/role-hierarchies"))
+                    .andExpect(flash().attribute("error", "no administrator left"));
         }
     }
 

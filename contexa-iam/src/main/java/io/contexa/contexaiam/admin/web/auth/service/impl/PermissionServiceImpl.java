@@ -22,6 +22,7 @@ import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
 import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPolicyResponse;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
+import io.contexa.contexaiam.common.ConsoleInput;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
@@ -33,6 +34,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +52,13 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
     private final PolicyRepository policyRepository;
     private final MessageSource messageSource;
 
+    /** The lengths of the columns of a permission. */
+    private static final int NAME_LENGTH = 255;
+    private static final int TEXT_LENGTH = 255;
+    private static final int DESCRIPTION_LENGTH = 1024;
+    private static final int TYPE_LENGTH = 100;
+    private static final int CONDITION_LENGTH = 2048;
+
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
@@ -61,10 +70,35 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
     )
     @Override
     public Permission createPermission(Permission permission) {
+        permission.setName(ConsoleInput.required(messageSource, "crud.field.permission.name", permission.getName(),
+                NAME_LENGTH));
+        checkFields(permission);
         if (permissionRepository.findByName(permission.getName()).isPresent()) {
             throw new IllegalArgumentException(msg("msg.permission.name.duplicate", permission.getName()));
         }
-        return permissionRepository.save(permission);
+        try {
+            // Flushed here, so a permission of the same name that another administrator saved a moment before is
+            // refused with its reason, not with the constraint of the table.
+            Permission saved = permissionRepository.save(permission);
+            permissionRepository.flush();
+            return saved;
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalArgumentException(msg("msg.permission.name.duplicate", permission.getName()), e);
+        }
+    }
+
+    /** The fields of a permission other than its name, each within its column. */
+    private void checkFields(Permission permission) {
+        permission.setFriendlyName(ConsoleInput.optional(messageSource, "crud.field.permission.friendly.name",
+                permission.getFriendlyName(), TEXT_LENGTH));
+        permission.setDescription(ConsoleInput.optional(messageSource, "crud.field.permission.description",
+                permission.getDescription(), DESCRIPTION_LENGTH));
+        permission.setTargetType(ConsoleInput.optional(messageSource, "crud.field.permission.target.type",
+                permission.getTargetType(), TYPE_LENGTH));
+        permission.setActionType(ConsoleInput.optional(messageSource, "crud.field.permission.action.type",
+                permission.getActionType(), TYPE_LENGTH));
+        permission.setConditionExpression(ConsoleInput.optional(messageSource, "crud.field.permission.condition",
+                permission.getConditionExpression(), CONDITION_LENGTH));
     }
 
     @Cacheable(value = "permissions", key = "#id")
@@ -120,13 +154,14 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
     public void deletePermission(Long id) {
         authoritiesChanged();
         long roleCount = permissionRepository.countRoleAssignments(id);
+        Permission permission = permissionRepository.findById(id).orElse(null);
         if (roleCount > 0) {
-            throw new IllegalStateException(
-                    "Cannot delete: permission is assigned to " + roleCount + " role(s)");
+            throw new IllegalStateException(msg("msg.permission.delete.assigned",
+                    permission != null ? permission.getName() : String.valueOf(id), roleCount));
         }
-
-        Permission permission = permissionRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Permission not found: " + id));
+        if (permission == null) {
+            throw new IllegalArgumentException(msg("msg.permission.not.found.id", String.valueOf(id)));
+        }
 
         // Counted before anything is changed, so a refusal leaves nothing behind. The database refuses the deletion of a
         // permission that roles were given to groups or accounts with, with a constraint nobody can read; it stays the
@@ -158,16 +193,32 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
     public Permission updatePermission(Long id, PermissionDto permissionDto) {
         authoritiesChanged();
         Permission permission = permissionRepository.findWithManagedResourceById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Permission not found: " + id));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.permission.not.found.id", String.valueOf(id))));
 
-        permission.setName(permissionDto.getName());
+        String name = ConsoleInput.required(messageSource, "crud.field.permission.name", permissionDto.getName(),
+                NAME_LENGTH);
+        if (!name.equals(permission.getName())) {
+            permissionRepository.findByName(name)
+                    .filter(other -> !id.equals(other.getId()))
+                    .ifPresent(other -> {
+                        throw new IllegalArgumentException(msg("msg.permission.name.duplicate", name));
+                    });
+        }
+        permission.setName(name);
         permission.setFriendlyName(permissionDto.getFriendlyName());
         permission.setDescription(permissionDto.getDescription());
         permission.setTargetType(permissionDto.getTargetType());
         permission.setActionType(permissionDto.getActionType());
         permission.setConditionExpression(permissionDto.getConditionExpression());
+        checkFields(permission);
 
-        return permissionRepository.save(permission);
+        try {
+            Permission saved = permissionRepository.save(permission);
+            permissionRepository.flush();
+            return saved;
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalArgumentException(msg("msg.permission.name.duplicate", name), e);
+        }
     }
 
     @Cacheable(value = "permissionsByName", key = "#name")

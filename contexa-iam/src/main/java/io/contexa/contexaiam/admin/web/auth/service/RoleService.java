@@ -25,6 +25,10 @@ import java.util.Optional;
 
 public interface RoleService {
     Role getRole(long id);
+
+    /** The role with its permissions, or empty when there is none: for a caller that must not throw to say so. */
+    Optional<Role> findRole(long id);
+
     List<Role> getRoles();
     List<Role> getRolesWithoutExpression();
     Page<Role> searchRoles(String keyword, Pageable pageable);
