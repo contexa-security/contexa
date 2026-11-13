@@ -338,6 +338,87 @@ class DefaultPolicyServiceTest {
     }
 
     @Nested
+    @DisplayName("D42: a role's automatic policy that loses targets keeps the permissions and their resources")
+    class AutomaticPolicyTargets {
+
+        private ManagedResource connected(String identifier) {
+            return ManagedResource.builder().resourceIdentifier(identifier)
+                    .resourceType(ManagedResource.ResourceType.URL)
+                    .status(ManagedResource.Status.POLICY_CONNECTED).build();
+        }
+
+        private Policy automaticPolicy(long id, String... identifiers) {
+            Policy policy = createPolicyWithCondition(id, "AUTO_POLICY_FOR_ROLE_SALES",
+                    "hasAuthority('ROLE_SALES') and (hasAuthority('URL_A'))");
+            policy.setTargets(new HashSet<>());
+            policy.setRules(new HashSet<>(policy.getRules()));
+            for (String identifier : identifiers) {
+                policy.addTarget(PolicyTarget.builder().targetType("URL").targetIdentifier(identifier)
+                        .httpMethod("GET").build());
+            }
+            return policy;
+        }
+
+        @Test
+        @DisplayName("the last permission removed: the policy is gone, the permission stays, the resource is PERMISSION_CREATED")
+        void theLastPermissionRemoved() {
+            ManagedResource resource = connected("/rc/a");
+            when(policyRepository.findByIdWithDetails(41L)).thenReturn(Optional.of(automaticPolicy(41L, "/rc/a")));
+            when(managedResourceRepository.findByResourceIdentifier("/rc/a")).thenReturn(Optional.of(resource));
+
+            policyService.deleteAutomaticPolicy(41L, "Auto-cleanup");
+
+            verify(policyRepository).deleteById(41L);
+            verify(permissionRepository, never()).deleteAllByIds(any());
+            verify(permissionRepository, never()).saveAll(any());
+            assertThat(resource.getStatus()).isEqualTo(ManagedResource.Status.PERMISSION_CREATED);
+            verify(managedResourceRepository).save(resource);
+        }
+
+        @Test
+        @DisplayName("one of several permissions removed: the policy stays, the resource it left is PERMISSION_CREATED")
+        void oneOfSeveralPermissionsRemoved() {
+            ManagedResource kept = connected("/rc/a");
+            ManagedResource left = connected("/rc/b");
+            Policy existing = automaticPolicy(42L, "/rc/a", "/rc/b");
+            when(policyRepository.findByIdWithDetails(42L)).thenReturn(Optional.of(existing));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(managedResourceRepository.findByResourceIdentifier("/rc/a")).thenReturn(Optional.of(kept));
+            when(managedResourceRepository.findByResourceIdentifier("/rc/b")).thenReturn(Optional.of(left));
+            PolicyDto dto = PolicyDto.builder()
+                    .name("AUTO_POLICY_FOR_ROLE_SALES")
+                    .effect(Policy.Effect.ALLOW)
+                    .targets(new ArrayList<>(List.of(TargetDto.builder().targetType("URL").targetIdentifier("/rc/a")
+                            .httpMethod("GET").build())))
+                    .rules(new ArrayList<>(List.of(new RuleDto("rule", new ArrayList<>(List.of(new ConditionDto(
+                            "hasAuthority('ROLE_SALES') and (hasAuthority('URL_A'))",
+                            PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE)))))))
+                    .build();
+            dto.setId(42L);
+
+            policyService.updatePolicy(dto);
+
+            verify(policyRepository, never()).deleteById(any());
+            verify(permissionRepository, never()).deleteAllByIds(any());
+            assertThat(left.getStatus()).isEqualTo(ManagedResource.Status.PERMISSION_CREATED);
+            assertThat(kept.getStatus()).isEqualTo(ManagedResource.Status.POLICY_CONNECTED);
+        }
+
+        @Test
+        @DisplayName("a resource another policy still targets stays POLICY_CONNECTED")
+        void aResourceAnotherPolicyTargetsStaysConnected() {
+            ManagedResource resource = connected("/rc/a");
+            when(policyRepository.findByIdWithDetails(43L)).thenReturn(Optional.of(automaticPolicy(43L, "/rc/a")));
+            when(policyRepository.countOtherPoliciesForTarget("URL", "/rc/a", 43L)).thenReturn(1L);
+            when(managedResourceRepository.findByResourceIdentifier("/rc/a")).thenReturn(Optional.of(resource));
+
+            policyService.deleteAutomaticPolicy(43L, "Auto-cleanup");
+
+            assertThat(resource.getStatus()).isEqualTo(ManagedResource.Status.POLICY_CONNECTED);
+        }
+    }
+
+    @Nested
     @DisplayName("D67: values longer than their columns are refused before the database")
     class FieldLengths {
 

@@ -195,7 +195,8 @@ class PolicySynchronizationServiceTest {
         new PolicySynchronizationService(policyRepository, roleRepository, policyService)
                 .handleRolePermissionsChange(new RolePermissionsChangedEvent(7L));
 
-        verify(policyService).deletePolicy(eq(41L), anyString());
+        verify(policyService).deleteAutomaticPolicy(eq(41L), anyString());
+        verify(policyService, never()).deletePolicy(any(), any());
         verify(policyService, never()).updatePolicy(any(PolicyDto.class));
         verify(policyService, never()).createPolicy(any(PolicyDto.class));
     }

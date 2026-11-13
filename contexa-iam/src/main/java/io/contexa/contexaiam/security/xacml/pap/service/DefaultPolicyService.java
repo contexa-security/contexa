@@ -167,15 +167,67 @@ public class DefaultPolicyService implements PolicyService {
         policyVersionService.createVersion(existingPolicy,
                 PolicyVersion.ChangeType.UPDATED, policyDto.getChangeReason());
 
+        Set<TargetKey> targetedBefore = targetKeys(existingPolicy);
         updateEntityFromDto(existingPolicy, policyDto);
         validateConflicts(existingPolicy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
         Policy updatedPolicy = policyRepository.save(existingPolicy);
+        targetedBefore.removeAll(targetKeys(existingPolicy));
+        releaseResources(targetedBefore, policyDto.getId());
 
         publishPolicyChangedEvent(updatedPolicy);
         auditPolicyChange(AuditEventCategory.POLICY_UPDATED, updatedPolicy);
 
         reloadAuthorizationSystem();
+    }
+
+    @Override
+    public void deleteAutomaticPolicy(Long id, String changeReason) {
+        Policy policy = policyRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new IllegalArgumentException(i18n("msg.policy.not.found", id)));
+        refuseSeedRemoval(policy);
+        Set<TargetKey> targeted = targetKeys(policy);
+
+        auditPolicyChange(AuditEventCategory.POLICY_DELETED, policy);
+        policyVersionService.deleteByPolicyId(id);
+        policyRepository.deleteById(id);
+        releaseResources(targeted, id);
+
+        eventBus.publish(new PolicyChangedEvent(id, new HashSet<>()));
+        reloadAuthorizationSystem();
+    }
+
+    /**
+     * D42: a resource that the policy no longer targets and no other policy targets is no longer connected to a
+     * policy; its permission and the link to it stay, so it goes back to PERMISSION_CREATED.
+     */
+    private void releaseResources(Set<TargetKey> released, Long policyId) {
+        for (TargetKey target : released) {
+            if (policyRepository.countOtherPoliciesForTarget(target.type(), target.identifier(), policyId) > 0) {
+                continue;
+            }
+            managedResourceRepository.findByResourceIdentifier(target.identifier())
+                    .filter(resource -> resource.getStatus() == ManagedResource.Status.POLICY_CONNECTED)
+                    .filter(resource -> resource.getResourceType() != null
+                            && resource.getResourceType().name().equals(target.type()))
+                    .ifPresent(resource -> {
+                        resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
+                        managedResourceRepository.save(resource);
+                        log.info("Resource no policy targets any more is back to PERMISSION_CREATED. resource={}",
+                                resource.getResourceIdentifier());
+                    });
+        }
+    }
+
+    private static Set<TargetKey> targetKeys(Policy policy) {
+        Set<TargetKey> keys = new HashSet<>();
+        for (PolicyTarget target : policy.getTargets()) {
+            keys.add(new TargetKey(target.getTargetType(), target.getTargetIdentifier()));
+        }
+        return keys;
+    }
+
+    private record TargetKey(String type, String identifier) {
     }
 
     private void publishPolicyChangedEvent(Policy policy) {
@@ -418,10 +470,13 @@ public class DefaultPolicyService implements PolicyService {
         }
 
         Policy existingPolicy = findById(policyId);
+        Set<TargetKey> targetedBefore = targetKeys(existingPolicy);
         updateEntityFromDto(existingPolicy, snapshotDto);
         validateConflicts(existingPolicy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
         Policy savedPolicy = policyRepository.save(existingPolicy);
+        targetedBefore.removeAll(targetKeys(existingPolicy));
+        releaseResources(targetedBefore, policyId);
 
         policyVersionService.createVersion(savedPolicy,
                 PolicyVersion.ChangeType.ROLLBACK, rollbackReason);

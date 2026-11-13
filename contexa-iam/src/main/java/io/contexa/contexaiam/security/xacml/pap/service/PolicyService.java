@@ -44,6 +44,13 @@ public interface PolicyService {
     void updatePolicy(PolicyDto policyDto);
     void deletePolicy(Long id);
     void deletePolicy(Long id, String changeReason);
+
+    /**
+     * Deletes a role's automatic policy that has nothing left to target (D42), keeping the permissions and their links
+     * to the resources: a resource no other policy targets goes back from POLICY_CONNECTED to PERMISSION_CREATED.
+     * Deleting a role keeps the cleanup of {@link #deletePolicy(Long, String)}.
+     */
+    void deleteAutomaticPolicy(Long id, String changeReason);
     void synchronizePolicyForPermission(Permission permission);
     void approvePolicy(Long id, String approver);
     void rejectPolicy(Long id, String rejector);
