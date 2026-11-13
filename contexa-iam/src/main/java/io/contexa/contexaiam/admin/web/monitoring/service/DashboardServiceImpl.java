@@ -249,7 +249,8 @@ public class DashboardServiceImpl implements DashboardService {
 
     private PolicyHealthDto buildPolicyHealth() {
         try {
-            FullValidationReport report = policyValidationService.validateAll();
+            // D65: kept between loads until the policies change, instead of comparing all of them on every load.
+            FullValidationReport report = policyValidationService.validateAllForDashboard();
             return new PolicyHealthDto(
                     report.healthStatus(),
                     report.conflicts().size(),

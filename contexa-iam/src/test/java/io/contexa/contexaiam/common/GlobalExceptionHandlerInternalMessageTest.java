@@ -18,22 +18,20 @@ package io.contexa.contexaiam.common;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import io.contexa.contexaiam.admin.web.metadata.controller.ResourceAdminController;
-import io.contexa.contexaiam.admin.web.metadata.service.ResourceAdminService;
-import io.contexa.contexaiam.repository.ManagedResourceRepository;
-import io.contexa.contexaiam.resource.service.ResourceRegistryService;
-import io.contexa.contexaiam.testsupport.I18nTestSupport;
+import io.contexa.contexacommon.entity.ManagedResource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
@@ -54,6 +52,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 class GlobalExceptionHandlerInternalMessageTest {
 
+    /**
+     * A filter of the resource status read with the JDK's lookup of the enum constant, as the resource screens read it.
+     * The old workbench address that read it is a redirect to the policy center now (D03).
+     */
+    @RestController
+    static class StatusFilter {
+
+        @GetMapping("/status-filter")
+        String filter(@RequestParam String status) {
+            return ManagedResource.Status.valueOf(status).name();
+        }
+    }
+
     private final ListAppender<ILoggingEvent> logged = new ListAppender<>();
     private final Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
@@ -71,14 +82,11 @@ class GlobalExceptionHandlerInternalMessageTest {
     @Test
     @DisplayName("a status filter that is no constant of the status does not answer with the enum's class")
     void anEnumLookupDoesNotAnswerWithTheClass() throws Exception {
-        ResourceAdminService service = new ResourceAdminService(mock(ResourceRegistryService.class),
-                mock(ManagedResourceRepository.class), I18nTestSupport.englishMessageSource());
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(new ResourceAdminController(service))
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new StatusFilter())
                 .setControllerAdvice(new GlobalExceptionHandler())
-                .setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver())
                 .build();
 
-        MvcResult result = mvc.perform(get("/contexa/admin/workbench/resources").param("status", "BOGUS"))
+        MvcResult result = mvc.perform(get("/status-filter").param("status", "BOGUS"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.errorCode").value("INVALID_ARGUMENT"))

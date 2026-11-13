@@ -16,6 +16,8 @@
 package io.contexa.contexaiam.security.xacml.pap.service;
 
 import java.util.Locale;
+import java.util.Optional;
+import io.contexa.contexaiam.common.ConsoleInput;
 import io.contexa.contexaiam.common.event.dto.PolicyChangedEvent;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.domain.dto.ConditionDto;
@@ -98,6 +100,13 @@ public class DefaultPolicyService implements PolicyService {
 
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\(" + SpelLiteral.PATTERN + "\\)");
 
+    /** The columns of a policy's name, description, target and rule description (ctxa_policy, ctxa_policy_target). */
+    public static final int TEXT_MAX = 255;
+    /** ctxa_policy_condition.condition_expression */
+    public static final int CONDITION_MAX = 2048;
+    /** ctxa_policy_version.change_reason */
+    public static final int CHANGE_REASON_MAX = 1024;
+
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<Policy> getAllPolicies() {
@@ -126,6 +135,12 @@ public class DefaultPolicyService implements PolicyService {
     }
 
     @Override
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public Optional<Policy> findPolicy(Long id) {
+        return id == null ? Optional.empty() : policyRepository.findByIdWithDetails(id);
+    }
+
+    @Override
     public Policy createPolicy(PolicyDto policyDto) {
         validateInput(policyDto);
         Policy policy = convertDtoToEntity(policyDto);
@@ -145,20 +160,74 @@ public class DefaultPolicyService implements PolicyService {
 
     @Override
     public void updatePolicy(PolicyDto policyDto) {
-        validateConditionExpressions(policyDto);
         Policy existingPolicy = findById(policyDto.getId());
+        checkFormValues(policyDto);
+        validateConditionExpressions(policyDto);
+        refuseSeedChange(policyDto.getId(), policyDto);
         policyVersionService.createVersion(existingPolicy,
                 PolicyVersion.ChangeType.UPDATED, policyDto.getChangeReason());
 
+        Set<TargetKey> targetedBefore = targetKeys(existingPolicy);
         updateEntityFromDto(existingPolicy, policyDto);
         validateConflicts(existingPolicy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
         Policy updatedPolicy = policyRepository.save(existingPolicy);
+        targetedBefore.removeAll(targetKeys(existingPolicy));
+        releaseResources(targetedBefore, policyDto.getId());
 
         publishPolicyChangedEvent(updatedPolicy);
         auditPolicyChange(AuditEventCategory.POLICY_UPDATED, updatedPolicy);
 
         reloadAuthorizationSystem();
+    }
+
+    @Override
+    public void deleteAutomaticPolicy(Long id, String changeReason) {
+        Policy policy = policyRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new IllegalArgumentException(i18n("msg.policy.not.found", id)));
+        refuseSeedRemoval(policy);
+        Set<TargetKey> targeted = targetKeys(policy);
+
+        auditPolicyChange(AuditEventCategory.POLICY_DELETED, policy);
+        policyVersionService.deleteByPolicyId(id);
+        policyRepository.deleteById(id);
+        releaseResources(targeted, id);
+
+        eventBus.publish(new PolicyChangedEvent(id, new HashSet<>()));
+        reloadAuthorizationSystem();
+    }
+
+    /**
+     * D42: a resource that the policy no longer targets and no other policy targets is no longer connected to a
+     * policy; its permission and the link to it stay, so it goes back to PERMISSION_CREATED.
+     */
+    private void releaseResources(Set<TargetKey> released, Long policyId) {
+        for (TargetKey target : released) {
+            if (policyRepository.countOtherPoliciesForTarget(target.type(), target.identifier(), policyId) > 0) {
+                continue;
+            }
+            managedResourceRepository.findByResourceIdentifier(target.identifier())
+                    .filter(resource -> resource.getStatus() == ManagedResource.Status.POLICY_CONNECTED)
+                    .filter(resource -> resource.getResourceType() != null
+                            && resource.getResourceType().name().equals(target.type()))
+                    .ifPresent(resource -> {
+                        resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
+                        managedResourceRepository.save(resource);
+                        log.info("Resource no policy targets any more is back to PERMISSION_CREATED. resource={}",
+                                resource.getResourceIdentifier());
+                    });
+        }
+    }
+
+    private static Set<TargetKey> targetKeys(Policy policy) {
+        Set<TargetKey> keys = new HashSet<>();
+        for (PolicyTarget target : policy.getTargets()) {
+            keys.add(new TargetKey(target.getTargetType(), target.getTargetIdentifier()));
+        }
+        return keys;
+    }
+
+    private record TargetKey(String type, String identifier) {
     }
 
     private void publishPolicyChangedEvent(Policy policy) {
@@ -194,7 +263,8 @@ public class DefaultPolicyService implements PolicyService {
 
         PolicyDto policyDto = PolicyDto.builder()
                 .name(policyName)
-                .description(String.format("Auto-generated policy for permission '%s'", permission.getFriendlyName()))
+                // D31: the permission name, not its friendly name, which may be in another language than the sentence.
+                .description(String.format("Auto-generated policy for permission '%s'", permission.getName()))
                 .effect(Policy.Effect.ALLOW)
                 .priority(500) 
                 .targets(List.of(TargetDto.builder()
@@ -241,6 +311,7 @@ public class DefaultPolicyService implements PolicyService {
     public void deletePolicy(Long id, String changeReason) {
         Policy policy = policyRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new IllegalArgumentException(i18n("msg.policy.not.found", id)));
+        refuseSeedRemoval(policy);
 
         // Cleanup: revert resources and delete auto-created permissions
         cleanupResourcesForPolicy(policy, id);
@@ -352,6 +423,7 @@ public class DefaultPolicyService implements PolicyService {
     @Override
     public void rejectPolicy(Long id, String rejector) {
         Policy policy = findById(id);
+        refuseSeedRemoval(policy);
         if (policy.getApprovalStatus() == Policy.ApprovalStatus.REJECTED) {
             throw new IllegalStateException(i18n("msg.policy.already.rejected"));
         }
@@ -387,15 +459,24 @@ public class DefaultPolicyService implements PolicyService {
                 .orElseThrow(() -> new IllegalStateException(
                         i18n("msg.policy.version.deserialize.failed", versionNumber)));
         validateConditionExpressions(snapshotDto);
+        refuseSeedChange(policyId, snapshotDto);
 
         String rollbackReason = i18n("msg.policy.version.rollback.reason",
                 versionNumber, reason != null ? ": " + reason : "");
+        if (reason != null && rollbackReason.length() > CHANGE_REASON_MAX) {
+            // D67: the reason typed, refused by the room the version's text leaves it in the column.
+            ConsoleInput.unchanged(messageSource, "policy.field.change.reason", reason,
+                    CHANGE_REASON_MAX - (rollbackReason.length() - reason.length()));
+        }
 
         Policy existingPolicy = findById(policyId);
+        Set<TargetKey> targetedBefore = targetKeys(existingPolicy);
         updateEntityFromDto(existingPolicy, snapshotDto);
         validateConflicts(existingPolicy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
         Policy savedPolicy = policyRepository.save(existingPolicy);
+        targetedBefore.removeAll(targetKeys(existingPolicy));
+        releaseResources(targetedBefore, policyId);
 
         policyVersionService.createVersion(savedPolicy,
                 PolicyVersion.ChangeType.ROLLBACK, rollbackReason);
@@ -457,7 +538,46 @@ public class DefaultPolicyService implements PolicyService {
         if (dto.getTargets() == null || dto.getTargets().isEmpty()) {
             throw new IllegalArgumentException(i18n("msg.policy.validation.target.required"));
         }
+        checkFormValues(dto);
         validateConditionExpressions(dto);
+    }
+
+    /**
+     * D67: the values of a policy form against the columns they are kept in, refused with the field and its limit
+     * instead of the database's constraint. Names, descriptions and targets are kept without the blanks around them.
+     */
+    private void checkFormValues(PolicyDto dto) {
+        dto.setName(ConsoleInput.required(messageSource, "policy.field.name", dto.getName(), TEXT_MAX));
+        dto.setDescription(ConsoleInput.optional(messageSource, "policy.field.description", dto.getDescription(),
+                TEXT_MAX));
+        dto.setChangeReason(ConsoleInput.optional(messageSource, "policy.field.change.reason", dto.getChangeReason(),
+                CHANGE_REASON_MAX));
+        if (dto.getTargets() != null) {
+            for (TargetDto target : dto.getTargets()) {
+                if (target != null) {
+                    target.setTargetIdentifier(ConsoleInput.required(messageSource, "policy.field.target.identifier",
+                            target.getTargetIdentifier(), TEXT_MAX));
+                }
+            }
+        }
+        if (dto.getRules() == null) {
+            return;
+        }
+        for (RuleDto rule : dto.getRules()) {
+            if (rule == null) {
+                continue;
+            }
+            rule.setDescription(ConsoleInput.optional(messageSource, "policy.field.rule.description",
+                    rule.getDescription(), TEXT_MAX));
+            if (rule.getConditions() != null) {
+                for (ConditionDto condition : rule.getConditions()) {
+                    if (condition != null) {
+                        ConsoleInput.unchanged(messageSource, "policy.field.condition", condition.getExpression(),
+                                CONDITION_MAX);
+                    }
+                }
+            }
+        }
     }
 
     private void validateConditionExpressions(PolicyDto dto) {
@@ -488,6 +608,22 @@ public class DefaultPolicyService implements PolicyService {
         } catch (UnsafePolicyExpressionException e) {
             throw new IllegalArgumentException(i18n(e.getMessageKey(), e.getReason()), e);
         }
+    }
+
+    /** D46: the seed policy that opens the sign-in page and the one that keeps the admin area stay in force. */
+    private void refuseSeedRemoval(Policy policy) {
+        SeedPolicyGuard.refuseRemoval(policy.getId()).ifPresent(key -> {
+            log.warn("Removal of seed policy refused. policyId={}, name={}", policy.getId(), policy.getName());
+            throw new IllegalStateException(i18n(key, policy.getId(), policy.getName()));
+        });
+    }
+
+    /** D46: an edit that would widen what a seed policy lets through is refused. */
+    private void refuseSeedChange(Long policyId, PolicyDto dto) {
+        SeedPolicyGuard.refuseChange(policyId, dto).ifPresent(key -> {
+            log.warn("Widening edit of seed policy refused. policyId={}", policyId);
+            throw new IllegalStateException(i18n(key, policyId));
+        });
     }
 
     private void validateConflicts(Policy policy) {
@@ -534,13 +670,16 @@ public class DefaultPolicyService implements PolicyService {
         }
     }
 
+    /** Reloads the policies of this node and of the others once the change has committed (D61). */
     private void reloadAuthorizationSystem() {
-        policyRetrievalPoint.clearUrlPoliciesCache();
-        policyRetrievalPoint.clearMethodPoliciesCache();
-        authorizationManager.reload();
-        if (policyReloadBroadcaster != null) {
-            policyReloadBroadcaster.broadcastReload();
-        }
+        PolicyReloadAfterCommit.schedule(() -> {
+            policyRetrievalPoint.clearUrlPoliciesCache();
+            policyRetrievalPoint.clearMethodPoliciesCache();
+            authorizationManager.reload();
+            if (policyReloadBroadcaster != null) {
+                policyReloadBroadcaster.broadcastReload();
+            }
+        });
     }
 
     private Policy convertDtoToEntity(PolicyDto dto) {

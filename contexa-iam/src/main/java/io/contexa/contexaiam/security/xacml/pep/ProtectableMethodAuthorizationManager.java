@@ -63,9 +63,7 @@ public class ProtectableMethodAuthorizationManager {
         // One entry per policy; null marks a NotApplicable DENY policy.
         List<AuthorizationDecision> decisions = new ArrayList<>();
         for (int index = 0; index < plan.policyExpressions().size(); index++) {
-            boolean conditionSatisfied = ExpressionUtils.evaluateAsBoolean(
-                    plan.policyExpressions().get(index), context);
-            AuthorizationDecision decision = PolicyCombiningEvaluator.applyEffect(effectOf(plan, index), conditionSatisfied);
+            AuthorizationDecision decision = evaluate(plan, index, context, mi);
             decisions.add(decision);
             trace.add(toEvaluation(plan, index, decision));
         }
@@ -82,6 +80,26 @@ public class ProtectableMethodAuthorizationManager {
 
         if (!finalDecision.isGranted()) {
             throw new AuthorizationDeniedException("Access is denied by method policies: " + immutableTrace);
+        }
+    }
+
+    /**
+     * D68: a condition that cannot be evaluated denies the call, whatever the effect of its policy, instead of failing
+     * it with a server error; every other failure is left to propagate.
+     */
+    private AuthorizationDecision evaluate(MethodPolicyPlan plan, int index, EvaluationContext context,
+                                           MethodInvocation mi) {
+        try {
+            boolean conditionSatisfied = ExpressionUtils.evaluateAsBoolean(plan.policyExpressions().get(index), context);
+            return PolicyCombiningEvaluator.applyEffect(effectOf(plan, index), conditionSatisfied);
+        } catch (RuntimeException e) {
+            if (!PolicyConditionFailure.isConditionFailure(e)) {
+                throw e;
+            }
+            Long policyId = plan.policyMetadata().isEmpty() ? null : plan.policyMetadata().get(index).policyId();
+            log.error("Method policy condition failed to evaluate, the call is denied. policyId={}, method={}",
+                    policyId, mi.getMethod() != null ? mi.getMethod().getName() : "unknown", e);
+            return new AuthorizationDecision(false);
         }
     }
 

@@ -27,6 +27,9 @@ import io.contexa.contexaiam.admin.web.center.dto.PolicyCenterDtos.*;
 import io.contexa.contexaiam.admin.web.center.dto.PolicyCenterPolicyRequest;
 import io.contexa.contexaiam.admin.web.center.dto.QuickPolicyRequest;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
+import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
+import io.contexa.contexaiam.domain.entity.policy.PolicyVersion;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
@@ -359,6 +362,81 @@ class PolicyCenterCommandServiceTest {
             assertThat(res.deleted()).isEqualTo(1);
             verify(permissionRepository).deleteAllByIds(List.of(1L));
         }
+
+        @Test
+        @DisplayName("D40: a permission still linked, granted or named by a policy is kept, and no grant goes with it")
+        void permissionsInUseAreKept() {
+            ManagedResource resource = ManagedResource.builder().id(9L).build();
+            Permission linked = Permission.builder().id(1L).name("URL_LINKED").autoCreated(true)
+                    .managedResource(resource).build();
+            Permission granted = Permission.builder().id(2L).name("URL_GRANTED").autoCreated(true).build();
+            Permission grantedToAGroup = Permission.builder().id(3L).name("URL_GROUP").autoCreated(true).build();
+            Permission named = Permission.builder().id(4L).name("METHOD_NAMED").autoCreated(true).build();
+            Permission unused = Permission.builder().id(5L).name("URL_UNUSED").autoCreated(true).build();
+            when(permissionRepository.findAll()).thenReturn(List.of(linked, granted, grantedToAGroup, named, unused));
+            when(permissionRepository.countRoleAssignments(2L)).thenReturn(1L);
+            when(permissionRepository.countGroupAssignments(3L)).thenReturn(1L);
+            when(policyRepository.findAllWithDetails())
+                    .thenReturn(List.of(policyWith("P", "hasAuthority('METHOD_NAMED')")));
+
+            PolicyCleanupResponse res = service.cleanupOldAutoCreatedPermissions();
+
+            assertThat(res.success()).isTrue();
+            assertThat(res.deleted()).isEqualTo(1);
+            assertThat(res.message()).isEqualTo("msg.policy.cleanup.kept");
+            verify(permissionRepository).deleteAllByIds(List.of(5L));
+            verify(permissionRepository, never()).saveAll(any());
+            assertThat(linked.getManagedResource()).isSameAs(resource);
+        }
+    }
+
+    @Nested
+    @DisplayName("migratePolicyExpressionsToCrud")
+    class Migration {
+
+        @Test
+        @DisplayName("D41: an unknown authority is kept, the policy gets a version first, and role policies are left")
+        void unknownAuthorityIsKeptAndTheChangeIsVersioned() {
+            Policy manual = policyWith("MANUAL",
+                    "hasAuthority('URL_KNOWN') or hasAuthority('METHOD_NOT_A_PERMISSION')");
+            Policy rolePolicy = policyWith("AUTO_POLICY_FOR_ROLE_X",
+                    "hasAuthority('ROLE_X') and (hasAuthority('URL_KNOWN'))");
+            when(policyRepository.findAllWithDetails()).thenReturn(List.of(manual, rolePolicy));
+            ManagedResource get = ManagedResource.builder().httpMethod(ManagedResource.HttpMethod.GET).build();
+            when(permissionRepository.findByName("URL_KNOWN"))
+                    .thenReturn(Optional.of(Permission.builder().name("URL_KNOWN").managedResource(get).build()));
+            when(permissionRepository.findByName("METHOD_NOT_A_PERMISSION")).thenReturn(Optional.empty());
+            List<String> versioned = new ArrayList<>();
+            doAnswer(inv -> {
+                versioned.add(expressionOf(inv.getArgument(0)));
+                return null;
+            }).when(policyVersionService).createVersion(any(), any(), any());
+
+            PolicyMigrationResponse res = service.migratePolicyExpressionsToCrud();
+
+            assertThat(res.success()).isTrue();
+            assertThat(res.migrated()).isEqualTo(1);
+            assertThat(expressionOf(manual))
+                    .isEqualTo("hasAuthority('READ') or hasAuthority('METHOD_NOT_A_PERMISSION')");
+            assertThat(expressionOf(rolePolicy)).isEqualTo("hasAuthority('ROLE_X') and (hasAuthority('URL_KNOWN'))");
+            assertThat(versioned)
+                    .containsExactly("hasAuthority('URL_KNOWN') or hasAuthority('METHOD_NOT_A_PERMISSION')");
+            verify(policyVersionService).createVersion(manual, PolicyVersion.ChangeType.UPDATED,
+                    "msg.policy.migration.version.reason");
+            verify(authorizationManager).reload();
+        }
+    }
+
+    private static Policy policyWith(String name, String expression) {
+        Policy policy = Policy.builder().id((long) name.hashCode()).name(name).effect(Policy.Effect.ALLOW).build();
+        PolicyRule rule = PolicyRule.builder().build();
+        rule.addCondition(PolicyCondition.builder().expression(expression).build());
+        policy.addRule(rule);
+        return policy;
+    }
+
+    private static String expressionOf(Policy policy) {
+        return policy.getRules().iterator().next().getConditions().iterator().next().getExpression();
     }
 
     @Nested

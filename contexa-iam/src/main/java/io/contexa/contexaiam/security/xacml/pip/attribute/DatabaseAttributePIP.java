@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pip.attribute;
 
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyFunctions;
 import java.util.Locale;
 import com.fasterxml.jackson.core.type.TypeReference;
 import io.contexa.contexacommon.cache.ContexaCacheService;
@@ -35,7 +36,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
-
+
 @Slf4j
 @RequiredArgsConstructor
 public class DatabaseAttributePIP implements AttributeInformationPoint {
@@ -234,9 +235,7 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
     }
 
     private boolean isBusinessHours(LocalDateTime time) {
-        int hour = time.getHour();
-        int dayOfWeek = time.getDayOfWeek().getValue();
-        return dayOfWeek <= 5 && hour >= 9 && hour <= 18; 
+        return PolicyFunctions.isBusinessHours(time);
     }
 
     private double calculateSecurityScore(Map<String, Object> attributes) {

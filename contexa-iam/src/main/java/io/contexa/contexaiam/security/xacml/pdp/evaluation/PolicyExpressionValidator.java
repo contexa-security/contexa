@@ -23,6 +23,7 @@ import org.springframework.expression.spel.SpelNode;
 import org.springframework.expression.spel.ast.Assign;
 import org.springframework.expression.spel.ast.BeanReference;
 import org.springframework.expression.spel.ast.ConstructorReference;
+import org.springframework.expression.spel.ast.FunctionReference;
 import org.springframework.expression.spel.ast.Indexer;
 import org.springframework.expression.spel.ast.MethodReference;
 import org.springframework.expression.spel.ast.PropertyOrFieldReference;
@@ -176,6 +177,11 @@ public final class PolicyExpressionValidator {
         if (node instanceof Assign) {
             return "Assignment is not permitted";
         }
+        if (node instanceof FunctionReference) {
+            String name = functionName(node);
+            return PolicyFunctions.isRegistered(name)
+                    ? null : "Function is not available: #" + name + " (available: " + PolicyFunctions.names() + ")";
+        }
         if (node instanceof MethodReference method && PolicyExpressionSandbox.isDeniedMethodName(method.getName())) {
             return "Method is not permitted: " + method.getName();
         }
@@ -191,5 +197,13 @@ public final class PolicyExpressionValidator {
             }
         }
         return null;
+    }
+
+    /** The name of a function call, read from its AST text "#name(args)". */
+    private static String functionName(SpelNode node) {
+        String ast = node.toStringAST();
+        int start = ast.startsWith("#") ? 1 : 0;
+        int paren = ast.indexOf('(');
+        return paren > start ? ast.substring(start, paren) : ast.substring(start);
     }
 }

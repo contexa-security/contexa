@@ -34,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -129,23 +130,160 @@ public class PolicyDuplicateDetector {
     }
 
     /**
+     * D65: the duplicates of every active policy among the others, exactly as {@link #detect(Policy, List)} gives them
+     * for each active policy in turn, in the same order. The signatures, target keys and conditions of each policy are
+     * worked out once instead of once per pair, and a policy is compared only with the active policies that can be a
+     * duplicate of it: the same signature (exact), the same normalized signature (semantic), or, with the same effect,
+     * a target of its own (subset) or the identifier of one (role hierarchy). Those are the only ways a pair is
+     * reported, so the result is the one of comparing every pair.
+     */
+    public List<DuplicatePolicyDto> detectAll(List<Policy> policies) {
+        List<Facts> facts = new ArrayList<>(policies.size());
+        Map<String, List<Integer>> bySignature = new HashMap<>();
+        Map<String, List<Integer>> byNormalizedSignature = new HashMap<>();
+        Map<Policy.Effect, Map<String, List<Integer>>> byTarget = new HashMap<>();
+        Map<Policy.Effect, Map<String, List<Integer>>> byIdentifier = new HashMap<>();
+        for (int index = 0; index < policies.size(); index++) {
+            Policy policy = policies.get(index);
+            Facts policyFacts = new Facts(policy);
+            facts.add(policyFacts);
+            if (!policy.getIsActive()) {
+                continue;
+            }
+            put(bySignature, policyFacts.signature, index);
+            put(byNormalizedSignature, policyFacts.normalizedSignature, index);
+            Map<String, List<Integer>> targets = byTarget.computeIfAbsent(policy.getEffect(), e -> new HashMap<>());
+            Map<String, List<Integer>> identifiers =
+                    byIdentifier.computeIfAbsent(policy.getEffect(), e -> new HashMap<>());
+            for (String target : policyFacts.targetKeys) {
+                put(targets, target, index);
+                String identifier = identifierOf(target);
+                if (identifier != null) {
+                    put(identifiers, identifier, index);
+                }
+            }
+        }
+
+        Map<String, Set<String>> reachable = new HashMap<>();
+        List<DuplicatePolicyDto> duplicates = new ArrayList<>();
+        for (int index = 0; index < policies.size(); index++) {
+            Policy candidate = policies.get(index);
+            if (!candidate.getIsActive()) {
+                continue;
+            }
+            Facts candidateFacts = facts.get(index);
+            TreeSet<Integer> others = new TreeSet<>();
+            others.addAll(bySignature.getOrDefault(candidateFacts.signature, List.of()));
+            others.addAll(byNormalizedSignature.getOrDefault(candidateFacts.normalizedSignature, List.of()));
+            Map<String, List<Integer>> sameEffectTargets = byTarget.getOrDefault(candidate.getEffect(), Map.of());
+            Map<String, List<Integer>> sameEffectIdentifiers =
+                    byIdentifier.getOrDefault(candidate.getEffect(), Map.of());
+            for (String target : candidateFacts.targetKeys) {
+                others.addAll(sameEffectTargets.getOrDefault(target, List.of()));
+                String identifier = identifierOf(target);
+                if (identifier != null) {
+                    others.addAll(sameEffectIdentifiers.getOrDefault(identifier, List.of()));
+                }
+            }
+            for (int other : others) {
+                Policy existing = policies.get(other);
+                if (isSamePolicy(candidate, existing)) {
+                    continue;
+                }
+                DuplicatePolicyDto duplicate = compare(candidate, candidateFacts, existing, facts.get(other),
+                        role -> reachable.computeIfAbsent(role, this::reachableFrom));
+                if (duplicate != null) {
+                    duplicates.add(duplicate);
+                }
+            }
+        }
+        return duplicates;
+    }
+
+    /** The comparison of {@link #detect(Policy, List)} for one pair, on facts worked out beforehand. */
+    private DuplicatePolicyDto compare(Policy candidate, Facts candidateFacts, Policy existing, Facts existingFacts,
+                                       Function<String, Set<String>> reachable) {
+        if (candidateFacts.signature.equals(existingFacts.signature)) {
+            return new DuplicatePolicyDto(msg("msg.policy.duplicate.exact"), List.of(existing.getId()),
+                    candidateFacts.signature, DuplicateType.EXACT);
+        }
+        if (candidateFacts.normalizedSignature.equals(existingFacts.normalizedSignature)) {
+            return new DuplicatePolicyDto(msg("msg.policy.duplicate.semantic"), List.of(existing.getId()),
+                    candidateFacts.normalizedSignature, DuplicateType.SEMANTIC);
+        }
+        if (candidate.getEffect() != existing.getEffect()) {
+            return null;
+        }
+        if (existingFacts.targetKeys.containsAll(candidateFacts.targetKeys) && !candidateFacts.targetKeys.isEmpty()
+                && existingFacts.normalizedConditions.containsAll(candidateFacts.normalizedConditions)
+                && !candidateFacts.normalizedConditions.isEmpty()) {
+            return new DuplicatePolicyDto(msg("msg.policy.duplicate.subset"), List.of(existing.getId()),
+                    existingFacts.signature, DuplicateType.SUBSET);
+        }
+        if (hasOverlappingTargets(candidateFacts.targetKeys, existingFacts.targetKeys)) {
+            String subsumptionReason = checkHierarchySubsumption(candidateFacts.roles, existingFacts.roles, existing,
+                    reachable);
+            if (subsumptionReason != null) {
+                return new DuplicatePolicyDto(subsumptionReason, List.of(existing.getId()), existingFacts.signature,
+                        DuplicateType.HIERARCHY_SUBSUME);
+            }
+        }
+        return null;
+    }
+
+    /** What the comparisons read of a policy, worked out once. */
+    private final class Facts {
+
+        final String signature;
+        final String normalizedSignature;
+        final Set<String> targetKeys;
+        final Set<String> normalizedConditions;
+        final Set<String> roles;
+
+        Facts(Policy policy) {
+            this.signature = buildSignature(policy);
+            this.normalizedSignature = buildNormalizedSignature(policy);
+            this.targetKeys = extractTargetKeys(policy);
+            this.normalizedConditions = extractNormalizedConditions(policy);
+            this.roles = extractRolesFromPolicy(policy);
+        }
+    }
+
+    /** The part of a target key that {@link #hasOverlappingTargets} compares besides the whole key. */
+    private static String identifierOf(String targetKey) {
+        String[] parts = targetKey.split(":");
+        return parts.length >= 2 ? parts[1] : null;
+    }
+
+    private static void put(Map<String, List<Integer>> map, String key, int policy) {
+        List<Integer> policies = map.computeIfAbsent(key, k -> new ArrayList<>());
+        if (policies.isEmpty() || policies.get(policies.size() - 1) != policy) {
+            policies.add(policy);
+        }
+    }
+
+    private Set<String> reachableFrom(String role) {
+        return roleHierarchy.getReachableGrantedAuthorities(List.of(new SimpleGrantedAuthority(role))).stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toSet());
+    }
+
+    /**
      * Check if the candidate policy's roles are already covered by the existing policy
      * through role hierarchy. e.g., existing has hasRole(USER), candidate has hasRole(ADMIN),
      * and ADMIN > USER -> ADMIN already inherits USER's access, so candidate is redundant.
      */
     private String checkHierarchySubsumption(Policy candidate, Policy existing) {
-        Set<String> candidateRoles = extractRolesFromPolicy(candidate);
-        Set<String> existingRoles = extractRolesFromPolicy(existing);
+        return checkHierarchySubsumption(extractRolesFromPolicy(candidate), extractRolesFromPolicy(existing), existing,
+                this::reachableFrom);
+    }
 
+    private String checkHierarchySubsumption(Set<String> candidateRoles, Set<String> existingRoles, Policy existing,
+                                             Function<String, Set<String>> reachable) {
         if (candidateRoles.isEmpty() || existingRoles.isEmpty()) return null;
 
         for (String candidateRole : candidateRoles) {
-            Collection<? extends GrantedAuthority> reachable =
-                    roleHierarchy.getReachableGrantedAuthorities(
-                            List.of(new SimpleGrantedAuthority(candidateRole)));
-            Set<String> reachableNames = reachable.stream()
-                    .map(GrantedAuthority::getAuthority)
-                    .collect(Collectors.toSet());
+            Set<String> reachableNames = reachable.apply(candidateRole);
 
             if (reachableNames.containsAll(existingRoles)) {
                 String existingRoleStr = String.join(", ", existingRoles);

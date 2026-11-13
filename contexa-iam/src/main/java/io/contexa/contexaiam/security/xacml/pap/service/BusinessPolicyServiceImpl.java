@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.common.ConsoleInput;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import io.contexa.contexaiam.domain.entity.SecuritySpel;
@@ -149,6 +150,11 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
 
         translateAndApplyDtoToPolicy(existingPolicy, dto);
         validateConditionExpressions(existingPolicy);
+        // D46: an edit that would widen what a seed policy lets through is refused, as on the policy form.
+        SeedPolicyGuard.refuseChange(existingPolicy).ifPresent(key -> {
+            log.warn("Widening edit of seed policy refused. policyId={}", policyId);
+            throw new IllegalStateException(i18n(key, policyId));
+        });
         validateConflicts(existingPolicy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
 
@@ -163,15 +169,36 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         this.policyReloadBroadcaster = policyReloadBroadcaster;
     }
 
-    /** Reloads the policies of this node and, in the distributed mode, of the others, as the policy service does. */
+    /**
+     * Reloads the policies of this node and, in the distributed mode, of the others, as the policy service does: once
+     * the change has committed (D61).
+     */
     private void reloadAuthorization() {
-        authorizationManager.reload();
-        if (policyReloadBroadcaster != null) {
-            policyReloadBroadcaster.broadcastReload();
+        PolicyReloadAfterCommit.schedule(() -> {
+            authorizationManager.reload();
+            if (policyReloadBroadcaster != null) {
+                policyReloadBroadcaster.broadcastReload();
+            }
+        });
+    }
+
+    /**
+     * D67: the values of a quick or business policy against their columns, refused with the field and its limit instead
+     * of the database's constraint, as on the policy form.
+     */
+    private void checkFormValues(BusinessPolicyDto dto) {
+        dto.setPolicyName(ConsoleInput.required(messageSource, "policy.field.name", dto.getPolicyName(),
+                DefaultPolicyService.TEXT_MAX));
+        dto.setDescription(ConsoleInput.optional(messageSource, "policy.field.description", dto.getDescription(),
+                DefaultPolicyService.TEXT_MAX));
+        if ("MANUAL".equals(dto.getSourceType())) {
+            dto.setManualTargetIdentifier(ConsoleInput.optional(messageSource, "policy.field.target.identifier",
+                    dto.getManualTargetIdentifier(), DefaultPolicyService.TEXT_MAX));
         }
     }
 
     private void translateAndApplyDtoToPolicy(Policy policy, BusinessPolicyDto dto) {
+        checkFormValues(dto);
         policy.setName(dto.getPolicyName());
         policy.setDescription(dto.getDescription());
         policy.setEffect(dto.getEffect());

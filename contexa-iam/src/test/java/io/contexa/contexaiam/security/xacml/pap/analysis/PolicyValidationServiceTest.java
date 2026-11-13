@@ -18,8 +18,15 @@ package io.contexa.contexaiam.security.xacml.pap.analysis;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import io.contexa.contexaiam.domain.dto.ConditionDto;
+import io.contexa.contexaiam.domain.dto.PolicyDto;
+import io.contexa.contexaiam.domain.dto.RuleDto;
+import io.contexa.contexaiam.domain.dto.TargetDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto;
@@ -28,6 +35,7 @@ import io.contexa.contexaiam.security.xacml.pap.dto.FullValidationReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto.Severity;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyValidationReport;
+import io.contexa.contexaiam.security.xacml.prp.PolicyGeneration;
 import java.util.List;
 import java.util.Locale;
 import org.junit.jupiter.api.BeforeEach;
@@ -165,8 +173,8 @@ class PolicyValidationServiceTest {
         void noConflicts() {
             Policy p = buildPolicy(1L, "safe");
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(p));
-            when(conflictAnalyzer.analyze(any(), any())).thenReturn(List.of());
-            when(duplicateDetector.detect(any(), any())).thenReturn(List.of());
+            when(conflictAnalyzer.analyzeAll(any())).thenReturn(List.of());
+            when(duplicateDetector.detectAll(any())).thenReturn(List.of());
 
             FullValidationReport report = service.validateAll();
 
@@ -178,10 +186,10 @@ class PolicyValidationServiceTest {
         void criticalHealth() {
             Policy p = buildPolicy(1L, "conflict");
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(p));
-            when(conflictAnalyzer.analyze(any(), any())).thenReturn(List.of(
+            when(conflictAnalyzer.analyzeAll(any())).thenReturn(List.of(
                     new PolicyConflictDto(1L, "conflict", 2L, "other",
                             "Exact match", Severity.CRITICAL)));
-            when(duplicateDetector.detect(any(), any())).thenReturn(List.of());
+            when(duplicateDetector.detectAll(any())).thenReturn(List.of());
 
             FullValidationReport report = service.validateAll();
 
@@ -193,10 +201,10 @@ class PolicyValidationServiceTest {
         void warningHealth() {
             Policy p = buildPolicy(1L, "warn");
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(p));
-            when(conflictAnalyzer.analyze(any(), any())).thenReturn(List.of(
+            when(conflictAnalyzer.analyzeAll(any())).thenReturn(List.of(
                     new PolicyConflictDto(1L, "warn", 2L, "other",
                             "Wildcard", Severity.HIGH)));
-            when(duplicateDetector.detect(any(), any())).thenReturn(List.of());
+            when(duplicateDetector.detectAll(any())).thenReturn(List.of());
 
             FullValidationReport report = service.validateAll();
 
@@ -211,11 +219,10 @@ class PolicyValidationServiceTest {
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(p1, p2));
 
             // p1 분석 시 p2와 충돌, p2 분석 시 p1과 충돌 (대칭)
-            when(conflictAnalyzer.analyze(eq(p1), any())).thenReturn(List.of(
-                    new PolicyConflictDto(1L, "p1", 2L, "p2", "conflict", Severity.HIGH)));
-            when(conflictAnalyzer.analyze(eq(p2), any())).thenReturn(List.of(
+            when(conflictAnalyzer.analyzeAll(List.of(p1, p2))).thenReturn(List.of(
+                    new PolicyConflictDto(1L, "p1", 2L, "p2", "conflict", Severity.HIGH),
                     new PolicyConflictDto(2L, "p2", 1L, "p1", "conflict", Severity.HIGH)));
-            when(duplicateDetector.detect(any(), any())).thenReturn(List.of());
+            when(duplicateDetector.detectAll(any())).thenReturn(List.of());
 
             FullValidationReport report = service.validateAll();
 
@@ -232,6 +239,65 @@ class PolicyValidationServiceTest {
             FullValidationReport report = service.validateAll();
 
             assertThat(report.conflicts()).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("D26: what creating a policy needs")
+    class RequiredFields {
+
+        @Test
+        @DisplayName("an empty policy form lacks a name, an effect and a target")
+        void anEmptyFormLacksItsRequiredFields() {
+            List<String> missing = service.missingForCreation(PolicyDto.builder().build());
+
+            assertThat(missing).containsExactly("msg.policy.validation.name.required",
+                    "msg.policy.validation.effect.required", "msg.policy.validation.target.required");
+            PolicyValidationReport report = PolicyValidationService.blockedFor(missing);
+            assertThat(report.canCreate()).isFalse();
+            assertThat(report.blockedReason()).contains("msg.policy.validation.name.required");
+        }
+
+        @Test
+        @DisplayName("a condition the validator refuses is named too, and a complete form lacks nothing")
+        void aRefusedConditionIsNamed() {
+            PolicyDto dto = PolicyDto.builder().name("p").effect(Policy.Effect.ALLOW)
+                    .targets(List.of(TargetDto.builder().targetType("URL").targetIdentifier("/x").build()))
+                    .rules(List.of(new RuleDto("r", List.of(new ConditionDto("#notAFunction()",
+                            PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE)))))
+                    .build();
+
+            assertThat(service.missingForCreation(dto)).hasSize(1);
+            dto.getRules().get(0).getConditions().get(0).setExpression("hasRole('USER')");
+            assertThat(service.missingForCreation(dto)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("a quick policy needs a name, an effect and something chosen")
+        void aQuickPolicyNeedsSomethingChosen() {
+            assertThat(service.missingForQuickCreation(null, Policy.Effect.ALLOW, false)).containsExactly(
+                    "msg.policy.validation.name.required", "msg.policy.validation.select.required");
+            assertThat(service.missingForQuickCreation("q", Policy.Effect.ALLOW, true)).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("D65: the dashboard report")
+    class DashboardReport {
+
+        @Test
+        @DisplayName("is worked out once until the policies are reloaded, then again")
+        void isKeptUntilThePoliciesAreReloaded() {
+            when(policyRepository.findAllWithDetails()).thenReturn(List.of(buildPolicy(1L, "p")));
+
+            FullValidationReport first = service.validateAllForDashboard();
+            FullValidationReport second = service.validateAllForDashboard();
+            PolicyGeneration.advance();
+            FullValidationReport third = service.validateAllForDashboard();
+
+            assertThat(second).isSameAs(first);
+            assertThat(third).isNotSameAs(first);
+            verify(policyRepository, times(2)).findAllWithDetails();
         }
     }
 }

@@ -338,6 +338,220 @@ class DefaultPolicyServiceTest {
     }
 
     @Nested
+    @DisplayName("D42: a role's automatic policy that loses targets keeps the permissions and their resources")
+    class AutomaticPolicyTargets {
+
+        private ManagedResource connected(String identifier) {
+            return ManagedResource.builder().resourceIdentifier(identifier)
+                    .resourceType(ManagedResource.ResourceType.URL)
+                    .status(ManagedResource.Status.POLICY_CONNECTED).build();
+        }
+
+        private Policy automaticPolicy(long id, String... identifiers) {
+            Policy policy = createPolicyWithCondition(id, "AUTO_POLICY_FOR_ROLE_SALES",
+                    "hasAuthority('ROLE_SALES') and (hasAuthority('URL_A'))");
+            policy.setTargets(new HashSet<>());
+            policy.setRules(new HashSet<>(policy.getRules()));
+            for (String identifier : identifiers) {
+                policy.addTarget(PolicyTarget.builder().targetType("URL").targetIdentifier(identifier)
+                        .httpMethod("GET").build());
+            }
+            return policy;
+        }
+
+        @Test
+        @DisplayName("the last permission removed: the policy is gone, the permission stays, the resource is PERMISSION_CREATED")
+        void theLastPermissionRemoved() {
+            ManagedResource resource = connected("/rc/a");
+            when(policyRepository.findByIdWithDetails(41L)).thenReturn(Optional.of(automaticPolicy(41L, "/rc/a")));
+            when(managedResourceRepository.findByResourceIdentifier("/rc/a")).thenReturn(Optional.of(resource));
+
+            policyService.deleteAutomaticPolicy(41L, "Auto-cleanup");
+
+            verify(policyRepository).deleteById(41L);
+            verify(permissionRepository, never()).deleteAllByIds(any());
+            verify(permissionRepository, never()).saveAll(any());
+            assertThat(resource.getStatus()).isEqualTo(ManagedResource.Status.PERMISSION_CREATED);
+            verify(managedResourceRepository).save(resource);
+        }
+
+        @Test
+        @DisplayName("one of several permissions removed: the policy stays, the resource it left is PERMISSION_CREATED")
+        void oneOfSeveralPermissionsRemoved() {
+            ManagedResource kept = connected("/rc/a");
+            ManagedResource left = connected("/rc/b");
+            Policy existing = automaticPolicy(42L, "/rc/a", "/rc/b");
+            when(policyRepository.findByIdWithDetails(42L)).thenReturn(Optional.of(existing));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(managedResourceRepository.findByResourceIdentifier("/rc/a")).thenReturn(Optional.of(kept));
+            when(managedResourceRepository.findByResourceIdentifier("/rc/b")).thenReturn(Optional.of(left));
+            PolicyDto dto = PolicyDto.builder()
+                    .name("AUTO_POLICY_FOR_ROLE_SALES")
+                    .effect(Policy.Effect.ALLOW)
+                    .targets(new ArrayList<>(List.of(TargetDto.builder().targetType("URL").targetIdentifier("/rc/a")
+                            .httpMethod("GET").build())))
+                    .rules(new ArrayList<>(List.of(new RuleDto("rule", new ArrayList<>(List.of(new ConditionDto(
+                            "hasAuthority('ROLE_SALES') and (hasAuthority('URL_A'))",
+                            PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE)))))))
+                    .build();
+            dto.setId(42L);
+
+            policyService.updatePolicy(dto);
+
+            verify(policyRepository, never()).deleteById(any());
+            verify(permissionRepository, never()).deleteAllByIds(any());
+            assertThat(left.getStatus()).isEqualTo(ManagedResource.Status.PERMISSION_CREATED);
+            assertThat(kept.getStatus()).isEqualTo(ManagedResource.Status.POLICY_CONNECTED);
+        }
+
+        @Test
+        @DisplayName("a resource another policy still targets stays POLICY_CONNECTED")
+        void aResourceAnotherPolicyTargetsStaysConnected() {
+            ManagedResource resource = connected("/rc/a");
+            when(policyRepository.findByIdWithDetails(43L)).thenReturn(Optional.of(automaticPolicy(43L, "/rc/a")));
+            when(policyRepository.countOtherPoliciesForTarget("URL", "/rc/a", 43L)).thenReturn(1L);
+            when(managedResourceRepository.findByResourceIdentifier("/rc/a")).thenReturn(Optional.of(resource));
+
+            policyService.deleteAutomaticPolicy(43L, "Auto-cleanup");
+
+            assertThat(resource.getStatus()).isEqualTo(ManagedResource.Status.POLICY_CONNECTED);
+        }
+    }
+
+    @Nested
+    @DisplayName("D67: values longer than their columns are refused before the database")
+    class FieldLengths {
+
+        private PolicyDto form(String name, String target, String condition) {
+            return PolicyDto.builder()
+                    .name(name)
+                    .effect(Policy.Effect.ALLOW)
+                    .targets(new ArrayList<>(List.of(TargetDto.builder().targetType("URL").targetIdentifier(target)
+                            .httpMethod("ALL").build())))
+                    .rules(new ArrayList<>(List.of(new RuleDto("rule", new ArrayList<>(List.of(new ConditionDto(
+                            condition, PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE)))))))
+                    .build();
+        }
+
+        @Test
+        @DisplayName("a name, a target or a condition one character too long is refused, and nothing is written")
+        void tooLongValuesAreRefused() {
+            String ok = "hasRole('USER')";
+            for (PolicyDto dto : List.of(
+                    form("n".repeat(256), "/x", ok),
+                    form("p", "/" + "x".repeat(255), ok),
+                    form("p", "/x", "hasRole('USER') and '" + "x".repeat(2040) + "' != ''"))) {
+                assertThatThrownBy(() -> policyService.createPolicy(dto))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage("msg.input.too.long");
+            }
+            PolicyDto longReason = form("p", "/x", ok);
+            longReason.setChangeReason("r".repeat(1025));
+            assertThatThrownBy(() -> policyService.createPolicy(longReason)).hasMessage("msg.input.too.long");
+            verify(policyRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("an edit is checked the same way, after the policy is found, and a blank name is refused")
+        void anEditIsCheckedTheSameWay() {
+            Policy existing = createPolicyWithCondition(12L, "existing", "hasRole('USER')");
+            when(policyRepository.findByIdWithDetails(12L)).thenReturn(Optional.of(existing));
+            PolicyDto blankName = form("   ", "/x", "hasRole('USER')");
+            blankName.setId(12L);
+            PolicyDto longDescription = form("p", "/x", "hasRole('USER')");
+            longDescription.setId(12L);
+            longDescription.setDescription("d".repeat(256));
+
+            assertThatThrownBy(() -> policyService.updatePolicy(blankName)).hasMessage("msg.input.required");
+            assertThatThrownBy(() -> policyService.updatePolicy(longDescription)).hasMessage("msg.input.too.long");
+            verify(policyVersionService, never()).createVersion(any(), any(), any());
+            verify(policyRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("values at their limits are kept, without the blanks around the name and the target")
+        void valuesAtTheirLimitsAreKept() {
+            PolicyDto dto = form("  " + "n".repeat(255) + "  ", " /" + "x".repeat(254) + " ", "hasRole('USER')");
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            Policy saved = policyService.createPolicy(dto);
+
+            assertThat(saved.getName()).hasSize(255);
+            assertThat(saved.getTargets().iterator().next().getTargetIdentifier()).hasSize(255).startsWith("/");
+        }
+    }
+
+    @Nested
+    @DisplayName("D46: the seed policies that guard the console")
+    class SeedPolicies {
+
+        @Test
+        @DisplayName("deleting or rejecting policy 1 or 2 is refused with the reason, and nothing is removed")
+        void removalIsRefused() {
+            for (long id : new long[] {1L, 2L}) {
+                Policy policy = createPolicyWithCondition(id, "seed-" + id, "hasRole('ADMIN')");
+                when(policyRepository.findByIdWithDetails(id)).thenReturn(Optional.of(policy));
+
+                assertThatThrownBy(() -> policyService.deletePolicy(id, "reason"))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessage("msg.policy.seed.removal.refused");
+                assertThatThrownBy(() -> policyService.rejectPolicy(id, "admin"))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessage("msg.policy.seed.removal.refused");
+            }
+            verify(policyRepository, never()).deleteById(any());
+            verify(policyRepository, never()).save(any());
+            verify(authorizationManager, never()).reload();
+        }
+
+        @Test
+        @DisplayName("an edit that widens policy 2 to every signed-in user is refused before anything is written")
+        void wideningEditIsRefused() {
+            PolicyDto dto = PolicyDto.builder()
+                    .name("ALLOW_CONTEXA_ADMIN_ADMINISTRATORS")
+                    .effect(Policy.Effect.ALLOW)
+                    .targets(List.of(TargetDto.builder().targetType("URL").targetIdentifier("/contexa/admin/**")
+                            .httpMethod("ALL").build()))
+                    .rules(List.of(new RuleDto("widened", List.of(new ConditionDto("isAuthenticated()",
+                            PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE)))))
+                    .build();
+            dto.setId(2L);
+            when(policyRepository.findByIdWithDetails(2L)).thenReturn(Optional.of(
+                    createPolicyWithCondition(2L, "ALLOW_CONTEXA_ADMIN_ADMINISTRATORS", "hasRole('ADMIN')")));
+
+            assertThatThrownBy(() -> policyService.updatePolicy(dto))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("msg.policy.seed.admin.change.refused");
+            verify(policyVersionService, never()).createVersion(any(), any(), any());
+            verify(policyRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("an edit that keeps policy 2 to administrators, narrowed with and, is saved")
+        void narrowingEditIsSaved() {
+            PolicyDto dto = PolicyDto.builder()
+                    .name("ALLOW_CONTEXA_ADMIN_ADMINISTRATORS")
+                    .effect(Policy.Effect.ALLOW)
+                    .targets(List.of(TargetDto.builder().targetType("URL").targetIdentifier("/contexa/admin/**")
+                            .httpMethod("ALL").build()))
+                    .rules(List.of(new RuleDto("narrowed", List.of(new ConditionDto(
+                            "hasRole('ADMIN') and isFullyAuthenticated()",
+                            PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE)))))
+                    .build();
+            dto.setId(2L);
+            Policy existing = createPolicyWithCondition(2L, "ALLOW_CONTEXA_ADMIN_ADMINISTRATORS", "hasRole('ADMIN')");
+            existing.setTargets(new HashSet<>());
+            existing.setRules(new HashSet<>());
+            when(policyRepository.findByIdWithDetails(2L)).thenReturn(Optional.of(existing));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            policyService.updatePolicy(dto);
+
+            verify(policyRepository).save(existing);
+        }
+    }
+
+    @Nested
     @DisplayName("Permission synchronization")
     class PermissionSynchronization {
 
@@ -347,7 +561,7 @@ class DefaultPolicyServiceTest {
             // given
             Permission permission = mock(Permission.class);
             when(permission.getName()).thenReturn("CREATE_ORDER");
-            when(permission.getFriendlyName()).thenReturn("Create Order");
+            when(permission.getFriendlyName()).thenReturn("주문 등록");
 
             ManagedResource resource = mock(ManagedResource.class);
             when(resource.getResourceType()).thenReturn(ManagedResource.ResourceType.URL);
@@ -365,8 +579,11 @@ class DefaultPolicyServiceTest {
             // when
             policyService.synchronizePolicyForPermission(permission);
 
-            // then
-            verify(policyRepository).save(any(Policy.class));
+            // then: D31, the description names the permission, not its friendly name in another language
+            ArgumentCaptor<Policy> saved = ArgumentCaptor.forClass(Policy.class);
+            verify(policyRepository).save(saved.capture());
+            assertThat(saved.getValue().getDescription())
+                    .isEqualTo("Auto-generated policy for permission 'CREATE_ORDER'");
         }
 
         @Test
@@ -591,6 +808,7 @@ class DefaultPolicyServiceTest {
             PolicyDto dto = createPolicyDtoWithCondition("rce-policy",
                     "''.getClass().forName('java.lang.Runtime') != null");
             dto.setId(7L);
+            when(policyRepository.findByIdWithDetails(7L)).thenReturn(Optional.of(createPolicyEntity(7L, "rce-policy")));
 
             assertThatThrownBy(() -> policyService.updatePolicy(dto))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -735,13 +953,13 @@ class DefaultPolicyServiceTest {
         @Test
         @DisplayName("should reject AI-generated policy and deactivate")
         void shouldRejectAndDeactivate() {
-            Policy policy = createPolicyEntity(1L, "ai-policy");
+            Policy policy = createPolicyEntity(101L, "ai-policy");
             policy.setSource(Policy.PolicySource.AI_GENERATED);
             policy.setApprovalStatus(Policy.ApprovalStatus.PENDING);
-            when(policyRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(policy));
+            when(policyRepository.findByIdWithDetails(101L)).thenReturn(Optional.of(policy));
             when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            policyService.rejectPolicy(1L, "admin");
+            policyService.rejectPolicy(101L, "admin");
 
             assertThat(policy.getApprovalStatus()).isEqualTo(Policy.ApprovalStatus.REJECTED);
             assertThat(policy.getIsActive()).isFalse();
@@ -751,11 +969,11 @@ class DefaultPolicyServiceTest {
         @Test
         @DisplayName("should throw when already rejected")
         void shouldThrowWhenAlreadyRejected() {
-            Policy policy = createPolicyEntity(1L, "policy");
+            Policy policy = createPolicyEntity(101L, "policy");
             policy.setApprovalStatus(Policy.ApprovalStatus.REJECTED);
-            when(policyRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(policy));
+            when(policyRepository.findByIdWithDetails(101L)).thenReturn(Optional.of(policy));
 
-            assertThatThrownBy(() -> policyService.rejectPolicy(1L, "admin"))
+            assertThatThrownBy(() -> policyService.rejectPolicy(101L, "admin"))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("msg.policy.already.rejected");
         }

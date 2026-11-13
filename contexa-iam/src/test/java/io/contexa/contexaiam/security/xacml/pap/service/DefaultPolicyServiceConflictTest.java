@@ -300,10 +300,10 @@ class DefaultPolicyServiceConflictTest {
         @Test
         @DisplayName("정책 삭제 후 리로드 신호를 브로드캐스트함")
         void deletePolicyBroadcasts() {
-            Policy policy = Policy.builder().id(1L).name("broadcast-test").effect(Policy.Effect.ALLOW).priority(100).isActive(true).build();
-            when(policyRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(policy));
+            Policy policy = Policy.builder().id(101L).name("broadcast-test").effect(Policy.Effect.ALLOW).priority(100).isActive(true).build();
+            when(policyRepository.findByIdWithDetails(101L)).thenReturn(Optional.of(policy));
 
-            service.deletePolicy(1L);
+            service.deletePolicy(101L);
 
             verify(policyReloadBroadcaster).broadcastReload();
         }

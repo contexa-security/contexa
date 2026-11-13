@@ -112,8 +112,10 @@ import java.lang.reflect.Type;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import io.contexa.contexaiam.common.GlobalExceptionHandler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -609,21 +611,16 @@ class PolicyCenterControllerTest {
         }
 
         @Test
-        @DisplayName("should return zero counts on error")
-        void error() {
+        @DisplayName("D75: a store that cannot be read is answered with 500, not with zero counts")
+        void error() throws Exception {
             when(roleService.getRoles()).thenThrow(new RuntimeException("DB error"));
 
-            ResponseEntity<PolicySystemStatsResponse> response = controller.getSystemStats();
-
-            assertThat(response.getStatusCode().value()).isEqualTo(200);
-            PolicySystemStatsResponse stats = response.getBody();
-            assertThat(stats).isNotNull();
-            assertThat(stats.roleCount()).isEqualTo(0L);
-            assertThat(stats.permissionCount()).isEqualTo(0L);
-            assertThat(stats.conditionCount()).isEqualTo(0L);
-            assertThat(stats.policyCount()).isEqualTo(0L);
-            assertThat(stats.resourceTotal()).isNull();
-            assertThat(stats.resourceNeedsDefinition()).isNull();
+            assertThatThrownBy(() -> controller.getSystemStats()).hasMessage("DB error");
+            MockMvcBuilders.standaloneSetup(controller)
+                    .setControllerAdvice(new GlobalExceptionHandler()).build()
+                    .perform(get("/contexa/admin/policy-center/api/stats"))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.roleCount").doesNotExist());
         }
     }
 
@@ -652,14 +649,15 @@ class PolicyCenterControllerTest {
         }
 
         @Test
-        @DisplayName("should return empty list on error")
-        void error() {
+        @DisplayName("D75: a store that cannot be read is answered with 500, not with an empty list")
+        void error() throws Exception {
             when(policyService.getAllPolicies()).thenThrow(new RuntimeException("DB error"));
 
-            ResponseEntity<List<PolicySummaryDto>> response = controller.getPolicySummaries();
-
-            assertThat(response.getStatusCode().value()).isEqualTo(200);
-            assertThat(response.getBody()).isEmpty();
+            assertThatThrownBy(() -> controller.getPolicySummaries()).hasMessage("DB error");
+            MockMvcBuilders.standaloneSetup(controller)
+                    .setControllerAdvice(new GlobalExceptionHandler()).build()
+                    .perform(get("/contexa/admin/policy-center/api/policy-summaries"))
+                    .andExpect(status().isInternalServerError());
         }
 
         @Test

@@ -104,6 +104,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
+import io.contexa.contexacommon.entity.ManagedResource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -214,8 +216,12 @@ class ConsoleErrorTextTest {
     @DisplayName("the resource workbench API: a refusal says why, a fault is a 400 that says the action could not be completed")
     void theResourceWorkbenchApi() {
         ResourceRegistryService registry = mock(ResourceRegistryService.class);
+        ManagedResourceRepository resources = mock(ManagedResourceRepository.class);
+        // Restoring takes an excluded resource back (D58): the fault comes from the registry after that check.
+        when(resources.findById(1L)).thenReturn(Optional.of(ManagedResource
+                .builder().id(1L).status(ManagedResource.Status.EXCLUDED).build()));
         ResourceAdminController controller = new ResourceAdminController(
-                new ResourceAdminService(registry, mock(ManagedResourceRepository.class), messages));
+                new ResourceAdminService(registry, resources, messages));
 
         doThrow(new IllegalArgumentException(REFUSAL)).when(registry).defineResourceAsPermission(any(), any());
         ResponseEntity<ResourceDefineResponse> refused = controller.defineResourceAsPermissionApi(1L,
