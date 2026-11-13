@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" th:lang="${#locale.language}">
-<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.permissions.title})}"></th:block></head>
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{menu.iam.permissions})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{contexa/fragments/header :: header}"></div>
@@ -13,7 +13,7 @@
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
             <div class="mb-8 flex flex-col sm:flex-row justify-between items-center">
                 <div class="text-center sm:text-left mb-4 sm:mb-0">
-                    <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.permissions.title}">Permission List</h1>
+                    <h1 class="text-3xl font-bold text-gradient" th:text="#{menu.iam.permissions}">Permission List</h1>
                     <p class="text-dark-muted mt-1" th:text="#{admin.permissions.subtitle}">Define and manage detailed permissions.</p>
                 </div>
                 <a th:href="@{/contexa/admin/permissions/register}"

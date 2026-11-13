@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
-    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle='IAM Dashboard')}"></th:block>
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{menu.dashboard})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <style>
         body { background-color: #02040a !important; background: linear-gradient(180deg, #02040a 0%, #050b1a 50%, #0a1128 100%) !important; background-attachment: fixed !important; color: white !important; }

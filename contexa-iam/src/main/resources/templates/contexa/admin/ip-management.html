@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" th:lang="${#locale.language}">
-<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.ip.title})}"></th:block></head>
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{menu.security.ip})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{contexa/fragments/header :: header}"></div>
@@ -12,7 +12,7 @@
     <main class="flex-1 p-6 md:p-10">
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
             <div class="mb-8 text-center sm:text-left">
-                <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.ip.title}">IP Access Management</h1>
+                <h1 class="text-3xl font-bold text-gradient" th:text="#{menu.security.ip}">IP Access Management</h1>
             </div>
 
             <div class="grid grid-cols-3 gap-3 mb-6">
