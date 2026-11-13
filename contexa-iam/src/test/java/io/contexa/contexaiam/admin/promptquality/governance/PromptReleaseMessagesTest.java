@@ -44,6 +44,20 @@ class PromptReleaseMessagesTest {
     }
 
     /**
+     * IAM-D29: the compare screen describes a bundle element in the page language by its code and state; the manifest's
+     * own description (the frozen text of the bundle) is not drawn.
+     */
+    @Test
+    void theCompareScreenDescribesElementsByCodeAndState() throws IOException {
+        String script = read("static/contexa/js/admin/prompt-release/compare-page.js");
+
+        assertThat(script).contains("promptRelease.elementDetail.").contains("promptRelease.elementState.")
+                .doesNotContain("candidate?.detail").doesNotContain("base?.detail");
+        assertThat(PromptReleasePageController.SCRIPT_KEYS).contains("promptRelease.elementDetail.B3.PRESENT",
+                "promptRelease.elementState.ABSENT");
+    }
+
+    /**
      * N-GOV-3: the detail and compare screens show, next to 'covered / required', the families the bundle requires
      * and the ones the evaluation left uncovered, from the gate evidence, in one message of both languages.
      */

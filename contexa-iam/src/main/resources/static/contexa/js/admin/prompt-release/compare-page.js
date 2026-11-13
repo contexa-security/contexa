@@ -44,8 +44,25 @@ function options(select, versions, chosen) {
         selected: version === chosen})));
 }
 
+function stateText(state) {
+    const key = `promptRelease.elementState.${state}`;
+    const text = t(key);
+    return text === key ? state : text;
+}
+
 function sideCell(side) {
-    return side ? `${side.state} ${shortHash(side.hash)}` : '-';
+    return side ? `${stateText(side.state)} ${shortHash(side.hash)}` : '-';
+}
+
+// What an element covers, in the page language by its code and state. The manifest's own description is the frozen
+// text of the bundle and stays in the record; it is not drawn here, so the page does not mix languages.
+function elementText(id, side) {
+    if (!side) {
+        return '-';
+    }
+    const key = `promptRelease.elementDetail.${id}.${side.state}`;
+    const text = t(key);
+    return text === key ? stateText(side.state) : text;
 }
 
 function elementRow(element) {
@@ -55,7 +72,8 @@ function elementRow(element) {
         el('td', {class: 'pi-code', title: element.candidate?.hash || '', text: sideCell(element.candidate)}),
         el('td', {}, el('span', {class: `pi-chip pi-chip-${element.changed ? 'unverifiable' : 'neutral'}`,
             text: t(element.changed ? 'promptRelease.compare.changed' : 'promptRelease.compare.same')})),
-        el('td', {title: element.base?.detail || '', text: element.candidate?.detail || '-'})
+        el('td', {title: element.base ? elementText(element.id, element.base) : '',
+            text: elementText(element.id, element.candidate)})
     ]);
 }
 
