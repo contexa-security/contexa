@@ -6,6 +6,7 @@
 package io.contexa.springbootstartercontexa;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.testsupport.TestStores;
 import io.contexa.contexacommon.annotation.EnableAISecurity;
 import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
@@ -626,9 +627,10 @@ class UserCopyOffTheRequestPathPostgresIntegrationTest {
         }
 
         static TestDatabase create() throws Exception {
-            String configured = System.getenv("CONTEXA_TEST_DB_URL");
-            String username = System.getenv().getOrDefault("CONTEXA_TEST_DB_USERNAME", "contexa_test");
-            String password = System.getenv().getOrDefault("CONTEXA_TEST_DB_PASSWORD", "contexa_test");
+            TestStores.Database store = TestStores.database();
+            String configured = store.url();
+            String username = store.username();
+            String password = store.password();
             String base = configured.substring(0, configured.lastIndexOf('/') + 1);
             String name = "contexa_copy_" + UUID.randomUUID().toString().replace("-", "");
             TestDatabase database = new TestDatabase(base + "postgres", base + name, base + name + "_host", name,

@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Caffeine's builder with the maintenance of the cache (eviction, expiry, removal listeners) on a pool of Contexa's own.
  * <p>
- * Caffeine runs that work on {@code ForkJoinPool.commonPool()} unless it is told otherwise, and that pool belongs to the whole JVM:
+ * Caffeine runs that work on the common fork-join pool unless it is told otherwise, and that pool belongs to the whole JVM:
  * it serves the application's own parallel streams and {@code CompletableFuture}s. A cache of Contexa that grows or expires must not
  * take a thread of it. The pool holds threads only while there is work, and only daemon ones, so it costs an idle application nothing
  * and never keeps its JVM alive. Every cache of Contexa is built through this method.

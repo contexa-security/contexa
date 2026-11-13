@@ -6,6 +6,7 @@
 package io.contexa.springbootstartercontexa;
 
 import com.zaxxer.hikari.HikariDataSource;
+import io.contexa.contexacore.testsupport.TestStores;
 import io.contexa.autoconfigure.core.scope.ContexaPackages;
 import io.contexa.contexacommon.annotation.EnableAISecurity;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
@@ -346,8 +347,8 @@ class ContexaPoolAndThreadNamesIntegrationTest {
         if (distributed) {
             settings.addAll(List.of(
                     "contexa.infrastructure.mode=distributed",
-                    "spring.data.redis.host=" + System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "127.0.0.1"),
-                    "spring.data.redis.port=" + environment("CONTEXA_TEST_REDIS_PORT"),
+                    "spring.data.redis.host=" + TestStores.redis().host(),
+                    "spring.data.redis.port=" + TestStores.redis().port(),
                     "spring.kafka.bootstrap-servers=127.0.0.1:1"));
         } else {
             settings.add("contexa.infrastructure.mode=standalone");

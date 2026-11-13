@@ -80,7 +80,10 @@ class ProtectableCallWithoutAUserContexaOwnedIntegrationTest {
                 "spring.datasource.username=" + user, "spring.datasource.password=" + password,
                 "contexa.datasource.url=" + database(CONTEXA_DATABASE),
                 "contexa.datasource.username=" + user, "contexa.datasource.password=" + password,
-                "contexa.security.zerotrust.mode=DISABLED"));
+                "contexa.security.zerotrust.mode=DISABLED",
+                // the call has to reach the method: a path no policy names asks for a sign-in on a new installation, which would
+                // answer before the method is ever called
+                "contexa.policy.no-matching-url-policy-decision=PERMIT"));
         application = new SpringApplicationBuilder(ContexaOwnedApplication.class)
                 .web(WebApplicationType.SERVLET)
                 .properties(properties.toArray(new String[0]))

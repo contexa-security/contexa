@@ -21,14 +21,23 @@ import io.contexa.contexaidentity.controller.MfaConfigController;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
+import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/** The MFA SDK's endpoint, only where Contexa owns the sign-in. */
+/** The MFA SDK's endpoint and the magic-link handler, only where Contexa owns the sign-in. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnOwnership(SecurityOwnershipMode.CONTEXA_OWNED)
 public class IdentityServiceContexaOwnedConfiguration {
+
+    // Only where Contexa signs the users in: the one-time token login of an application that signs its own users in takes its
+    // OneTimeTokenGenerationSuccessHandler by type, and does not start with two of them (with none of its own it would take this one).
+    @Bean(name = "contexaMagicLinkHandler")
+    @ConditionalOnMissingBean
+    public MagicLinkHandler magicLinkHandler() {
+        return new MagicLinkHandler();
+    }
 
     /** The MFA SDK's endpoint, outside Contexa's own path space ({@code /api/mfa/config}): only where Contexa owns the sign-in and its MFA flows. */
     @Bean(name = "contexaMfaConfigController")

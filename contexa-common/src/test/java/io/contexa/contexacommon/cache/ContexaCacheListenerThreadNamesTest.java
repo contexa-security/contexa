@@ -55,7 +55,10 @@ class ContexaCacheListenerThreadNamesTest {
     void theInvalidationsAreHandledOnContexasThreads() throws Exception {
         int port = Integer.parseInt(System.getenv("CONTEXA_TEST_REDIS_PORT"));
         assertThat(port).as("not the Redis a developer runs for themselves").isNotEqualTo(6379);
-        String host = System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "127.0.0.1");
+        // contexa-common sits below the module of TestStores, so it keeps TestStores' rule here: the port must be set (the class runs
+        // only then), and the host is the loopback address when it is not
+        String named = System.getenv("CONTEXA_TEST_REDIS_HOST");
+        String host = named == null || named.isBlank() ? "127.0.0.1" : named;
         connections = new LettuceConnectionFactory(new RedisStandaloneConfiguration(host, port));
         connections.afterPropertiesSet();
         StringRedisTemplate template = new StringRedisTemplate(connections);

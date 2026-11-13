@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.config;
 
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.testsupport.TestStores;
 import io.lettuce.core.resource.ClientResources;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -42,11 +43,11 @@ class ZeroTrustRedisThreadNamesTest {
 
     @Test
     void contexasOwnRedisClientStartsThreadsNamedForContexa() throws Exception {
-        int port = Integer.parseInt(System.getenv("CONTEXA_TEST_REDIS_PORT"));
-        assertThat(port).as("not the Redis a developer runs for themselves").isNotEqualTo(6379);
+        TestStores.Redis store = TestStores.redis();
+        assertThat(store.port()).as("not the Redis a developer runs for themselves").isNotEqualTo(6379);
         RedisProperties redis = new RedisProperties();
-        redis.setHost(System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "127.0.0.1"));
-        redis.setPort(port);
+        redis.setHost(store.host());
+        redis.setPort(store.port());
         ZeroTrustRedisConfig config = new ZeroTrustRedisConfig(new SecurityZeroTrustProperties(), redis);
 
         Set<Thread> before = Collections.newSetFromMap(new IdentityHashMap<>());

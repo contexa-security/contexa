@@ -35,6 +35,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     compileOnly 'org.springframework.boot:spring-boot-starter-data-redis'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // the tests find their Redis and database through TestStores, as every module's do (TestStoreFallbackGuardTest)
+    testImplementation(testFixtures(project(':contexa-core')))
 
     testImplementation 'org.springframework.boot:spring-boot-starter-security'
     testImplementation 'org.springframework.security:spring-security-test'

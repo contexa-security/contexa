@@ -19,7 +19,6 @@ import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.ssl.SslBundles;
 import org.springframework.core.env.Environment;
-import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.contexacommon.operating.ContexaOperatingProfile;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
@@ -29,7 +28,6 @@ import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
-import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
 import io.contexa.contexaidentity.security.zerotrust.stepup.InMemoryStepUpOptionsStore;
 import io.contexa.contexaidentity.security.zerotrust.stepup.StepUpOptionsStore;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -104,15 +102,6 @@ public class IdentityServiceAutoConfiguration {
                 stepUpOptionsStore.getIfAvailable(InMemoryStepUpOptionsStore::new));
         service.setUserStore(() -> ContexaUserStore.forSignIn(beanFactory));
         return new ContexaOneTimeTokens(service);
-    }
-
-    // Only where Contexa signs the users in: the one-time token login of an application that signs its own users in takes its
-    // OneTimeTokenGenerationSuccessHandler by type, and does not start with two of them (with none of its own it would take this one).
-    @Bean(name = "contexaMagicLinkHandler")
-    @ConditionalOnMissingBean
-    @ConditionalOnOwnership(SecurityOwnershipMode.CONTEXA_OWNED)
-    public MagicLinkHandler magicLinkHandler() {
-        return new MagicLinkHandler();
     }
 
 }

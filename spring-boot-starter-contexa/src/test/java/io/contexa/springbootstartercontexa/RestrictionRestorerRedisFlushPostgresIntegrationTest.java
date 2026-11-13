@@ -5,6 +5,7 @@
  */
 package io.contexa.springbootstartercontexa;
 
+import io.contexa.contexacore.testsupport.TestStores;
 import io.contexa.contexacommon.annotation.EnableAISecurity;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
@@ -582,13 +583,13 @@ class RestrictionRestorerRedisFlushPostgresIntegrationTest {
         }
 
         static RedisServer connect() {
-            int port = Integer.parseInt(System.getenv("CONTEXA_TEST_REDIS_PORT").trim());
-            assertThat(port).as("CONTEXA_TEST_REDIS_PORT: a test that empties Redis never runs on the usual port").isNotEqualTo(6379);
-            LettuceConnectionFactory factory = new LettuceConnectionFactory(new RedisStandaloneConfiguration("127.0.0.1", port));
+            // a test that empties its Redis: TestStores refuses the port a developer's own Redis listens on
+            TestStores.Redis store = TestStores.disposableRedis();
+            LettuceConnectionFactory factory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(store.host(), store.port()));
             factory.afterPropertiesSet();
             StringRedisTemplate strings = new StringRedisTemplate(factory);
             strings.afterPropertiesSet();
-            RedisServer server = new RedisServer(factory, strings, port);
+            RedisServer server = new RedisServer(factory, strings, store.port());
             server.flushAll();
             return server;
         }
@@ -643,9 +644,10 @@ class RestrictionRestorerRedisFlushPostgresIntegrationTest {
         }
 
         static TestDatabase create() throws Exception {
-            String configured = System.getenv("CONTEXA_TEST_DB_URL");
-            String username = System.getenv().getOrDefault("CONTEXA_TEST_DB_USERNAME", "contexa_test");
-            String password = System.getenv().getOrDefault("CONTEXA_TEST_DB_PASSWORD", "contexa_test");
+            TestStores.Database store = TestStores.database();
+            String configured = store.url();
+            String username = store.username();
+            String password = store.password();
             String base = configured.substring(0, configured.lastIndexOf('/') + 1);
             String name = "contexa_restorer_" + UUID.randomUUID().toString().replace("-", "");
             TestDatabase database = new TestDatabase(base + "postgres", base + name, base + name + "_host", name,
