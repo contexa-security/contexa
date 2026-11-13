@@ -32,6 +32,8 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
@@ -323,5 +325,46 @@ class ContexaCapabilityAutoConfigurationTest {
                             .singleElement()
                             .satisfies(result -> assertThat(result.status()).isEqualTo(CapabilityStatus.ACTIVE));
                 });
+    }
+
+    /**
+     * mall D1, D2: OBSERVE and DISABLED call no model and produce no decision, yet a start without a chat model printed
+     * llm-runtime and autonomous-decision as errors, the second one advising the DISABLED that was already set.
+     */
+    @Test
+    @DisplayName("OBSERVE and DISABLED do not require the chat model or the decision strategy; SHADOW still does")
+    void modesThatAnalyseNothingDoNotRequireTheDecisionPlane(CapturedOutput output) {
+        ApplicationContextRunner withoutStrategy = contextRunner
+                .withBean(SecurityPlaneAgent.class, () -> mock(SecurityPlaneAgent.class))
+                .withBean(SynchronousProtectableDecisionService.class, () -> mock(SynchronousProtectableDecisionService.class))
+                .withPropertyValues(
+                        "spring.application.name=contexa-site",
+                        "contexa.capability.mode=warn");
+
+        for (String mode : List.of("OBSERVE", "disabled")) {
+            withoutStrategy.withPropertyValues("contexa.security.zerotrust.mode=" + mode).run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context.getBean(ContexaCapabilityRegistry.class).lastResults())
+                        .filteredOn(result -> result.capability() == ContexaCapability.AUTONOMOUS_DECISION
+                                || result.capability() == ContexaCapability.LLM_RUNTIME)
+                        .hasSize(2)
+                        .allSatisfy(result -> {
+                            assertThat(result.required()).isFalse();
+                            assertThat(result.status()).isEqualTo(CapabilityStatus.DEGRADED);
+                        });
+                assertThat(output.getOut())
+                        .doesNotContain("[ContexaCapability] autonomous-decision")
+                        .doesNotContain("[ContexaCapability] llm-runtime");
+            });
+        }
+
+        withoutStrategy.withPropertyValues("contexa.security.zerotrust.mode=SHADOW").run(context ->
+                assertThat(context.getBean(ContexaCapabilityRegistry.class).lastResults())
+                        .filteredOn(result -> result.capability() == ContexaCapability.AUTONOMOUS_DECISION)
+                        .singleElement()
+                        .satisfies(result -> {
+                            assertThat(result.required()).isTrue();
+                            assertThat(result.status()).isEqualTo(CapabilityStatus.INACTIVE_UNEXPECTED);
+                        }));
     }
 }

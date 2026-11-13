@@ -15,8 +15,14 @@
  */
 package io.contexa.contexacore.std.rag.service;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
+import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -235,5 +241,47 @@ class UnifiedVectorServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unsafe vector filter key");
         verify(cacheLayer, never()).similaritySearch(any(SearchRequest.class));
+    }
+
+    /**
+     * D-40 (grid ctx-embed-down, new-embed-down): while the embedding service is down every decision's search fails.
+     * Each search still fails to its caller, but the host's log gets the trace once per interval from each layer, not
+     * once per search.
+     */
+    @Test
+    @DisplayName("searches failing while the embedding service is down are logged once per interval, not per search")
+    void searchSimilar_logsARepeatedFailureOncePerInterval() {
+        TieredStrategyProperties tiered = new TieredStrategyProperties();
+        tiered.getVectorCache().setEnabled(true);
+        VectorStoreCacheLayer realCacheLayer = new VectorStoreCacheLayer(vectorStore, tiered);
+        realCacheLayer.init();
+        UnifiedVectorService unifiedVectorService =
+                new UnifiedVectorService(new PgVectorStoreProperties(), realCacheLayer, vectorStore);
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
+                .thenThrow(new RuntimeException("I/O error on POST request for \"http://127.0.0.1:1/api/embed\""));
+        Logger serviceLogger = (Logger) LoggerFactory.getLogger(UnifiedVectorService.class);
+        Logger cacheLogger = (Logger) LoggerFactory.getLogger(VectorStoreCacheLayer.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        serviceLogger.addAppender(appender);
+        cacheLogger.addAppender(appender);
+        try {
+            for (int search = 0; search < 3; search++) {
+                String query = "query-" + search;
+                assertThatThrownBy(() -> unifiedVectorService.searchSimilar(query))
+                        .isInstanceOf(VectorOperations.VectorStoreException.class);
+            }
+        } finally {
+            serviceLogger.detachAppender(appender);
+            cacheLogger.detachAppender(appender);
+        }
+
+        verify(vectorStore, times(3)).similaritySearch(any(SearchRequest.class));
+        List<String> errors = appender.list.stream()
+                .filter(event -> event.getLevel() == Level.ERROR)
+                .map(ILoggingEvent::getLoggerName)
+                .toList();
+        assertThat(errors).containsExactlyInAnyOrder(
+                UnifiedVectorService.class.getName(), VectorStoreCacheLayer.class.getName());
     }
 }

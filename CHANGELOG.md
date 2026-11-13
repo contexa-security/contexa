@@ -8,6 +8,13 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **An answered CHALLENGE no longer shortens what a model's CHALLENGE holds for the other sessions.** When one session
+  answered the second step while a short CHALLENGE no model decided (the technical fallback of 60 seconds) was in force,
+  the hold that keeps the sessions which did not answer stopped was replaced by that short one: about a minute later a
+  session that never answered, or a new sign-in, was served while the model's CHALLENGE still had most of its 30 minutes.
+  An earlier hold that outlasts the CHALLENGE in force is now kept, and the answering session is added to it (in memory
+  and in Redis).
+
 - **Where Contexa owns the sign-in (FULL), Contexa's sign-in reads Contexa's own user store, whatever user stores the
   application declares.** With exactly one store of the application's (or one marked `@Primary`) the form, code, passkey
   and REST sign-ins read that store: its user with the right password got HTTP 500 and Contexa's administrator, who is
@@ -580,6 +587,24 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **Contexa no longer makes an application's lazy `stringRedisTemplate`.** Contexa uses its own Redis template and takes
+  the application's only when its own is missing, but asked for it up front, so an application with lazy initialisation
+  had its `stringRedisTemplate` made at the start by Contexa. It is now read only when Contexa's own is missing.
+- **A vector store or embedding service that keeps failing is logged once a minute, not at every decision.** With the
+  embedding service down, every decision wrote the same failure with its stack three times (`UnifiedVectorService`,
+  `VectorStoreCacheLayer`, `AbstractTieredStrategy`), about 3,000 lines for 13 decisions. Each place now logs it with its
+  trace once a minute and with the count of the ones it left out, as the post-processor already did; the audit record of
+  each failed search stays.
+- **OBSERVE and DISABLED no longer report a missing model or decision plane as an error.** These modes call no model
+  and make no decision, yet every start wrote `ContexaAutoConfigurationIntegrityVerifier ... status=INACTIVE_UNEXPECTED`
+  for the LLM runtime and the autonomous decision plane, and `TieredLayerModelVerifier` wrote that the layer models
+  cannot be used; in DISABLED the advice was to set the mode to DISABLED. Both now check only where requests are
+  analysed (SHADOW, ENFORCE), and `contexa.capability.required.*` still decides where it is set.
+- **Contexa no longer brings a YAML codec to the application.** Spring AI's chat client brought
+  `jackson-dataformat-yaml` through its JSON schema validator, and Spring MVC then offered `application/yaml` to the
+  application's clients. Contexa reads no YAML; the codec is excluded where Contexa's core takes Spring AI. An
+  application that adds a Spring AI provider starter itself may bring it back.
+
 - **Two of the application's AI models that run the same model no longer stop its start.** When two of the application's
   chat or embedding beans ran one model id (two clients of one provider with other keys, for example), Contexa stopped the
   start with `Duplicate chat runtime selector '<model>'`, although the application starts with them alone. The start goes
@@ -859,7 +884,12 @@ The format is based on Keep a Changelog and the project follows semantic version
   (`org.springframework.kafka`), Spring Data Redis (`org.springframework.data.redis`) or Redisson (`org.redisson`), the
   auto-configurations of that infrastructure stay; the other one's are still left out. **Limit:** only the classes
   Spring scanned or was given are read, not the ones they import; an application whose only use is there, or that
-  relies on a dependency alone with the default address, still says it with a connection property.
+  relies on a dependency alone with the default address, still says it with a connection property. Spring Boot's
+  Kafka auto-configurations are no longer left out at all: Contexa's starter brings no Kafka, its own Kafka beans are
+  the distributed mode's only, and an application that had Spring for Apache Kafka without a property or a class naming
+  it lost its `kafkaTemplate`, factories and listener support (19 beans). Only Contexa's own Kafka auto-configuration
+  stays out in standalone mode. **Check:** an application with Spring for Apache Kafka on its class path now gets
+  Spring Boot's Kafka beans in standalone mode, as it does without Contexa.
 
 - **A WebFlux application's functional routes are refused before Contexa touches its database.** Contexa runs on the
   servlet stack and never maps a `RouterFunction` of WebFlux, so it ends such a start with

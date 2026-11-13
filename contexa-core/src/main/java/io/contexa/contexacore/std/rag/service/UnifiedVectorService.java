@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
 import io.contexa.contexacore.std.rag.properties.VectorStoreRetryProperties;
+import io.contexa.contexacore.util.ErrorLogThrottle;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.ContentFormatter;
 import org.springframework.ai.document.DefaultContentFormatter;
@@ -35,6 +36,7 @@ import io.contexa.contexacore.std.rag.service.VectorOperations.VectorStoreExcept
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -46,6 +48,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -74,6 +77,11 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
     private volatile Supplier<String> embeddingModelSource;
     private volatile String embeddingModel;
     private volatile boolean embeddingModelResolved;
+    /**
+     * D-40: an operation that keeps failing (the embedding service or the vector store is down) fails for every
+     * decision; each kind is logged with its trace once per interval, with how many were not logged in between.
+     */
+    private final Map<String, ErrorLogThrottle> failureLogs = new ConcurrentHashMap<>();
 
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     /**
@@ -88,6 +96,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
     private static final int DEFAULT_VECTOR_BUSY_RETRY_ATTEMPTS = 5;
     private static final long DEFAULT_VECTOR_BUSY_INITIAL_BACKOFF_MS = 250L;
     private static final long DEFAULT_VECTOR_BUSY_MAX_BACKOFF_MS = 2_000L;
+    private static final Duration FAILURE_LOG_INTERVAL = Duration.ofMinutes(1);
     private static final int VECTOR_BUSY_RETRY_ATTEMPTS = Math.max(1,
             Integer.getInteger("contexa.vector.busy-retry-attempts", DEFAULT_VECTOR_BUSY_RETRY_ATTEMPTS));
 
@@ -347,7 +356,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
             try {
                 return executeWithinTimeout(operation, timeoutMs, operationLabel);
             } catch (VectorStoreCacheLayer.VectorSearchException vectorSearchException) {
-                log.error("[UnifiedVectorService] {} failed", operationLabel, vectorSearchException);
+                logFailure(operationLabel, vectorSearchException);
                 VectorStoreException mapped = new VectorStoreException(failureMessage, vectorSearchException);
                 if (!isRetryableBusyFailure(vectorSearchException) || attempt >= VECTOR_BUSY_RETRY_ATTEMPTS - 1) {
                     throw mapped;
@@ -355,7 +364,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
                 lastFailure = mapped;
                 registerBusyRetry(attempt + 1, vectorSearchException, operationLabel);
             } catch (RuntimeException runtimeException) {
-                log.error("[UnifiedVectorService] {} failed", operationLabel, runtimeException);
+                logFailure(operationLabel, runtimeException);
                 VectorStoreException mapped = runtimeException instanceof VectorStoreException vectorStoreException
                         ? vectorStoreException
                         : new VectorStoreException(failureMessage, runtimeException);
@@ -367,6 +376,17 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
             }
         }
         throw lastFailure != null ? lastFailure : new VectorStoreException(failureMessage);
+    }
+
+    private void logFailure(String operationLabel, RuntimeException failure) {
+        long notLogged = failureLogs
+                .computeIfAbsent(operationLabel, label -> new ErrorLogThrottle(FAILURE_LOG_INTERVAL))
+                .tryAcquire();
+        if (notLogged != ErrorLogThrottle.SUPPRESSED) {
+            log.error("[UnifiedVectorService] {} failed: similarSinceLastReport={}", operationLabel, notLogged, failure);
+        } else {
+            log.debug("[UnifiedVectorService] {} failed: cause={}", operationLabel, failure.toString());
+        }
     }
 
     @Override

@@ -1069,12 +1069,13 @@ public class CoreAutonomousAutoConfiguration {
         @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
         public ZeroTrustActionRedisRepository zeroTrustActionRedisRepository(
                 @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
-                StringRedisTemplate stringRedisTemplate,
+                ObjectProvider<StringRedisTemplate> stringRedisTemplate,
                 ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties,
                 @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings,
                 ObjectProvider<IBlockedUserRecorder> blockedUserRecorder) {
+            // the application's template only when Contexa's own is missing (a lazy host's template is not made for nothing)
             ZeroTrustActionRedisRepository repository = new ZeroTrustActionRedisRepository(redisTemplate,
-                    contexaStrings.getIfAvailable(() -> stringRedisTemplate));
+                    contexaStrings.getIfAvailable(stringRedisTemplate::getObject));
             securityZeroTrustProperties.ifAvailable(properties -> repository.setAllowValidity(properties.getAllowValidity()));
             // Resolved at the read: the recorder needs this repository.
             repository.setBlockRecord(userId -> {
@@ -1087,9 +1088,9 @@ public class CoreAutonomousAutoConfiguration {
         @Bean(name = "contexaRedisProtectableRapidReentryRepository")
         @ConditionalOnMissingBean(ProtectableRapidReentryRepository.class)
         public RedisProtectableRapidReentryRepository redisProtectableRapidReentryRepository(
-                StringRedisTemplate stringRedisTemplate,
+                ObjectProvider<StringRedisTemplate> stringRedisTemplate,
                 @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings) {
-            return new RedisProtectableRapidReentryRepository(contexaStrings.getIfAvailable(() -> stringRedisTemplate));
+            return new RedisProtectableRapidReentryRepository(contexaStrings.getIfAvailable(stringRedisTemplate::getObject));
         }
 
         @Bean(name = "contexaRedisThreatScoreUtil")

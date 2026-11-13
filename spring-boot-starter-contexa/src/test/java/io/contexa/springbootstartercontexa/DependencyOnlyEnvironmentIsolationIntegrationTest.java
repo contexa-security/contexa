@@ -110,9 +110,10 @@ class DependencyOnlyEnvironmentIsolationIntegrationTest {
                 CONTEXA_REDIS, CONTEXA_STATE_MACHINE_REDIS);
 
         Map<String, Boolean> withoutHostInfrastructure = filter(candidates, Map.of());
+        // Spring Boot's Kafka support stays: nothing of Contexa's standalone mode uses Kafka
         assertThat(withoutHostInfrastructure).containsEntry(BOOT_REDIS, false)
                 .containsEntry(BOOT_REDIS_REACTIVE, false)
-                .containsEntry(BOOT_KAFKA, false)
+                .containsEntry(BOOT_KAFKA, true)
                 .containsEntry(CONTEXA_REDIS, false)
                 .containsEntry(CONTEXA_STATE_MACHINE_REDIS, false);
 

@@ -71,6 +71,9 @@ class TechnicalChallengeStoreTest {
 
         /** The action of the user is in force a little before the time and gone a little after it. */
         void assertLasts(String user, Duration time);
+
+        /** What is held for the sessions that did not answer still stops the given one a little after the time. */
+        void assertHeldBeyond(String user, Duration time, String context);
     }
 
     private static Store inMemory() {
@@ -90,6 +93,12 @@ class TechnicalChallengeStoreTest {
                 assertThat(repository.getActionFromHash(user)).as("after its time").isNull();
                 assertThat(repository.getCurrentAction(user, CONTEXT)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
             }
+
+            @Override
+            public void assertHeldBeyond(String user, Duration time, String context) {
+                clock.advance(time.plusSeconds(5));
+                assertThat(repository.getCurrentAction(user, context)).isEqualTo(ZeroTrustAction.CHALLENGE);
+            }
         };
     }
 
@@ -106,6 +115,13 @@ class TechnicalChallengeStoreTest {
             public void assertLasts(String user, Duration time) {
                 Long left = strings.getExpire(ZeroTrustRedisKeys.autonomousActionAnalysis(user), TimeUnit.MILLISECONDS);
                 assertThat(left).isBetween(time.minusSeconds(5).toMillis(), time.toMillis());
+            }
+
+            @Override
+            public void assertHeldBeyond(String user, Duration time, String context) {
+                Long left = strings.getExpire(ZeroTrustRedisKeys.autonomousChallengeHold(user), TimeUnit.MILLISECONDS);
+                assertThat(left).isGreaterThan(time.plusSeconds(5).toMillis());
+                assertThat(repository.getCurrentAction(user, context)).isEqualTo(ZeroTrustAction.CHALLENGE);
             }
         };
     }
@@ -439,5 +455,38 @@ class TechnicalChallengeStoreTest {
     @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
     void redisAnApprovedOverrideTakesTheMarkWithIt() {
         assertAnApprovedOverrideTakesTheMarkWithIt(redis());
+    }
+
+    /*
+     * RC X5 (m10 S5 round 2, 11-12): the model challenged a person; a session that answered went on, its next request
+     * got a CHALLENGE no model decided, and another session answered that one. What the model's CHALLENGE held for the
+     * sessions that never answered was then cut to the short one's time, and a new sign-in went on a minute later.
+     */
+    private static void assertAnAnswerUnderItNeverShortensWhatTheModelsChallengeHolds(Store store) {
+        ZeroTrustActionRepository repository = store.repository();
+        String user = user();
+        String secondContext = "context-hash-b";
+        assertWrite(repository, user, ZeroTrustAction.CHALLENGE, modelDecided(), FinalActionWrite.APPLIED);
+        repository.holdChallengeForOtherSessions(user, CONTEXT);
+        repository.saveActionWithPrevious(user, ZeroTrustAction.ALLOW, CONTEXT);
+        assertWrite(repository, user, ZeroTrustAction.CHALLENGE, technical(), FinalActionWrite.APPLIED);
+
+        repository.holdChallengeForOtherSessions(user, secondContext);
+        repository.saveActionWithPrevious(user, ZeroTrustAction.ALLOW, secondContext);
+
+        assertThat(repository.getCurrentAction(user, secondContext)).isEqualTo(ZeroTrustAction.ALLOW);
+        store.assertHeldBeyond(user, ZeroTrustActionRepository.TECHNICAL_CHALLENGE_TTL, "context-new-sign-in");
+        repository.removeAllUserData(user);
+    }
+
+    @Test
+    void inMemoryAnAnswerUnderItNeverShortensWhatTheModelsChallengeHolds() {
+        assertAnAnswerUnderItNeverShortensWhatTheModelsChallengeHolds(inMemory());
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisAnAnswerUnderItNeverShortensWhatTheModelsChallengeHolds() {
+        assertAnAnswerUnderItNeverShortensWhatTheModelsChallengeHolds(redis());
     }
 }

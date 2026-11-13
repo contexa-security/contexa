@@ -186,6 +186,22 @@ class TieredLayerModelTest {
         assertThat(errors()).hasSize(2).allSatisfy(line -> assertThat(line).contains("no chat model"));
     }
 
+    /**
+     * mall D1, D2: OBSERVE and DISABLED send no request to a layer, so an application without a chat model printed two
+     * error lines at every start for a state its operator chose.
+     */
+    @Test
+    @DisplayName("a zero trust mode that runs no layer says nothing of the layer models, even without any chat model")
+    void aModeThatRunsNoLayerSaysNothing() {
+        new TieredLayerModelVerifier(registry(null), properties, () -> null, () -> false).afterSingletonsInstantiated();
+
+        assertThat(errors()).isEmpty();
+
+        new TieredLayerModelVerifier(registry(null), properties, () -> null, () -> true).afterSingletonsInstantiated();
+
+        assertThat(errors()).hasSize(2);
+    }
+
     @Test
     @DisplayName("the start says nothing when both layer models are made, and when none is set")
     void madeOrUnsetLayerModelsAreNotTold() {

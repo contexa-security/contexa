@@ -70,14 +70,17 @@ class StandaloneAutoConfigurationFilterTest {
         }
 
         @Test
-        @DisplayName("Should exclude Kafka auto-configuration in standalone mode")
+        @DisplayName("Should exclude Contexa's Kafka auto-configuration and keep Spring Boot's in standalone mode")
         void shouldExcludeKafka() {
             StandaloneAutoConfigurationFilter filter = createActiveFilter("standalone");
-            String[] classes = {"org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration"};
+            String[] classes = {
+                    "io.contexa.autoconfigure.core.scope.ContexaScopedKafkaAutoConfiguration",
+                    "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration"
+            };
 
             boolean[] result = filter.match(classes, metadata);
 
-            assertThat(result[0]).isFalse();
+            assertThat(result).containsExactly(false, true);
         }
 
         @Test
@@ -160,7 +163,7 @@ class StandaloneAutoConfigurationFilterTest {
         @DisplayName("Should handle case-insensitive pattern matching")
         void shouldMatchCaseInsensitive() {
             StandaloneAutoConfigurationFilter filter = createActiveFilter("standalone");
-            String[] classes = {"com.example.REDIS_Configuration", "com.example.KafkaProducer"};
+            String[] classes = {"com.example.REDIS_Configuration", "io.contexa.example.KAFKAProducer"};
 
             boolean[] result = filter.match(classes, metadata);
 
@@ -322,7 +325,7 @@ class StandaloneAutoConfigurationFilterTest {
 
             boolean[] result = filter.match(infrastructureClasses, metadata);
 
-            assertThat(result).containsExactly(true, true, true, false, false, false);
+            assertThat(result).containsExactly(true, true, true, true, false, false);
         }
 
         @Test
@@ -356,17 +359,39 @@ class StandaloneAutoConfigurationFilterTest {
 
             boolean[] result = filter.match(infrastructureClasses, metadata);
 
-            assertThat(result).containsExactly(true, true, true, false, false, false);
+            assertThat(result).containsExactly(true, true, true, true, false, false);
         }
 
         @Test
-        @DisplayName("Should exclude Redis/Kafka auto-configurations when the host configured neither")
+        @DisplayName("Should exclude Redis auto-configurations and keep Spring Boot's Kafka when the host configured neither")
         void shouldExcludeInfrastructureWithoutHostConfiguration() {
             StandaloneAutoConfigurationFilter filter = createActiveStandaloneFilter();
 
             boolean[] result = filter.match(infrastructureClasses, metadata);
 
-            assertThat(result).containsExactly(false, false, false, false, false, false);
+            assertThat(result).containsExactly(false, false, false, true, false, false);
+        }
+
+        /**
+         * RC grid start-host-redisson: the application has Spring for Apache Kafka on its class path, its own Redis settings, and
+         * neither a Kafka setting nor a class that names Kafka. Without Contexa Spring Boot made its kafkaTemplate, factories, admin and
+         * listener support; switched on in the standalone mode they were gone (19 beans), although nothing of Contexa's standalone
+         * mode uses Kafka. They stay, and Contexa's own Kafka auto-configuration stays out.
+         */
+        @Test
+        @DisplayName("Should keep Spring Boot's Kafka support for an application that only has the Kafka library")
+        void shouldKeepBootKafkaForAnApplicationThatOnlyHasTheLibrary() {
+            StandaloneAutoConfigurationFilter filter = createActiveStandaloneFilter(
+                    "spring.data.redis.host", "127.0.0.1", "spring.data.redis.port", "6379");
+            String[] classes = {
+                    "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration",
+                    "org.springframework.boot.actuate.autoconfigure.metrics.KafkaMetricsAutoConfiguration",
+                    "io.contexa.autoconfigure.core.scope.ContexaScopedKafkaAutoConfiguration"
+            };
+
+            boolean[] result = filter.match(classes, metadata);
+
+            assertThat(result).containsExactly(true, true, false);
         }
     }
 }

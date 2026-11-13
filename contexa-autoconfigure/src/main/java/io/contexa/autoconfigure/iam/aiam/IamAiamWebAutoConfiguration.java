@@ -96,10 +96,11 @@ public class IamAiamWebAutoConfiguration {
 
         @Bean(name = "contexaRedisBlockMfaStateStore")
         @ConditionalOnMissingBean(BlockMfaStateStore.class)
-        public RedisBlockMfaStateStore redisBlockMfaStateStore(StringRedisTemplate stringRedisTemplate,
+        public RedisBlockMfaStateStore redisBlockMfaStateStore(ObjectProvider<StringRedisTemplate> stringRedisTemplate,
                                                                @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings,
                                                                ZeroTrustActionRepository actionRepository) {
-            return new RedisBlockMfaStateStore(contexaStrings.getIfAvailable(() -> stringRedisTemplate), actionRepository);
+            // the application's template only when Contexa's own is missing (a lazy host's template is not made for nothing)
+            return new RedisBlockMfaStateStore(contexaStrings.getIfAvailable(stringRedisTemplate::getObject), actionRepository);
         }
     }
 

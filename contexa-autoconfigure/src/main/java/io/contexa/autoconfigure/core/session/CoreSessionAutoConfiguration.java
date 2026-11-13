@@ -62,10 +62,11 @@ public class CoreSessionAutoConfiguration {
         @Primary
         @ConditionalOnMissingBean(MfaSessionRepository.class)
         public MfaSessionRepository mfaSessionRepository(
-                StringRedisTemplate redisTemplate,
+                ObjectProvider<StringRedisTemplate> redisTemplate,
                 @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings,
                 AuthContextProperties properties) {
-            StringRedisTemplate strings = contexaStrings.getIfAvailable(() -> redisTemplate);
+            // the application's template only when Contexa's own is missing (a lazy host's template is not made for nothing)
+            StringRedisTemplate strings = contexaStrings.getIfAvailable(redisTemplate::getObject);
             RedisMfaRepository repository = new RedisMfaRepository(
                     strings,
                     new RedisSessionIdGenerator(strings),

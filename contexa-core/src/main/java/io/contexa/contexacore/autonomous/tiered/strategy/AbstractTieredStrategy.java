@@ -179,6 +179,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     private final ErrorLogThrottle missingUserIdRagSearchLog = new ErrorLogThrottle(MISSING_USER_ID_LOG_INTERVAL);
     private final ErrorLogThrottle missingUserIdPastRecordLog = new ErrorLogThrottle(MISSING_USER_ID_LOG_INTERVAL);
     private final ErrorLogThrottle missingUserIdBaselineLog = new ErrorLogThrottle(MISSING_USER_ID_LOG_INTERVAL);
+    /**
+     * D-40: a context search that keeps failing (the embedding service or the vector store is down) fails for every
+     * decision; each decision's audit keeps VECTOR_STORE_SEARCH_FAILED, the log keeps the trace once per interval.
+     */
+    private final ErrorLogThrottle vectorSearchFailureLog = new ErrorLogThrottle(Duration.ofMinutes(1));
     private static final Cache<String, SecurityDecisionStandardPromptTemplate.SessionContext> ESCALATION_SESSION_CACHE =
             ContexaCaffeine.newBuilder()
                     .maximumSize(1000)
@@ -1035,7 +1040,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 cause = cause.getCause();
             }
             Exception targetException = cause instanceof Exception ? (Exception) cause : new RuntimeException(cause);
-            log.error("[{}] Vector store context search failed", getLayerName(), targetException);
+            long notLogged = vectorSearchFailureLog.tryAcquire();
+            if (notLogged != ErrorLogThrottle.SUPPRESSED) {
+                log.error("[{}] Vector store context search failed: similarSinceLastReport={}", getLayerName(),
+                        notLogged, targetException);
+            } else {
+                log.debug("[{}] Vector store context search failed: cause={}", getLayerName(), targetException.toString());
+            }
             markRagRetrievalUnavailable(event, requestedTopK, targetException);
             capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
                     "VECTOR_STORE_SEARCH_FAILED", targetException);
