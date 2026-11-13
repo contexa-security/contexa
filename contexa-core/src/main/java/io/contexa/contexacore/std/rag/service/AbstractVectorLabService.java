@@ -73,14 +73,9 @@ public abstract class AbstractVectorLabService implements VectorOperations {
             postProcessDocument(processedDocument, OperationType.STORE);
             long duration = System.currentTimeMillis() - startTime;
             if (vectorStoreMetrics != null) {
+                // The operation is the whole record of a store. An extra generic event of a type the metrics do not
+                // define made the metrics refuse it, and the stored document was then reported as a failed store.
                 vectorStoreMetrics.recordOperation(getLabName(), OperationType.STORE, 1, duration);
-
-                Map<String, Object> eventMetadata = new HashMap<>();
-                eventMetadata.put("lab_name", getLabName());
-                eventMetadata.put("operation_type", OperationType.STORE.name());
-                eventMetadata.put("document_count", 1);
-                eventMetadata.put("duration", duration);
-                vectorStoreMetrics.recordEvent("vector_store_operation", eventMetadata);
             }
 
         } catch (Exception e) {

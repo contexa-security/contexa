@@ -55,7 +55,9 @@ public class ZeroTrustSsePublisher {
                     .data("{\"status\":\"connected\",\"userId\":\"" + userId
                             + "\",\"timestamp\":" + System.currentTimeMillis() + "}"));
         } catch (IOException e) {
-            log.error("[ZeroTrustSsePublisher] Failed to send connection event: userId={}", userId, e);
+            // The client left before the first event: its emitter is dropped at once.
+            log.debug("[ZeroTrustSsePublisher] Client closed the stream before the connection event: userId={}", userId);
+            emitters.remove(emitter);
         }
 
         return emitter;
@@ -98,6 +100,9 @@ public class ZeroTrustSsePublisher {
                         .name(eventType)
                         .data(eventData));
             } catch (IOException e) {
+                // A client that left the page: drop its emitter. The failed write is answered on the async dispatch
+                // by ZeroTrustSseController, so it is not logged here as a failure either.
+                log.debug("[ZeroTrustSsePublisher] Dropping closed subscriber stream: userId={}, event={}", userId, eventType);
                 deadEmitters.add(emitter);
             }
         }

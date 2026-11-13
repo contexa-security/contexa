@@ -27,13 +27,11 @@ import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
 import io.contexa.contexaiam.domain.dto.AiGeneratedPolicyDraftDto;
-import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 @Slf4j
 public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGenerationRequest, PolicyResponse> {
@@ -92,15 +90,8 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                         return response;
                     }
                 })
-                .doOnError(error -> {
-                    if (error instanceof Throwable) {
-                        log.error("[DIAGNOSIS] AI policy diagnosis generation failed: {}", error.getMessage(), error);
-                    }
-                })
-                .onErrorResume(error -> {
-                    log.error("AI policy async generation failed", error);
-                    return Mono.just(createFallbackPolicyResponse(request.getNaturalLanguageQuery()));
-                });
+                // A failed generation stays a failure: a made-up policy would reach the caller as a success.
+                .doOnError(error -> log.error("[DIAGNOSIS] AI policy generation failed: {}", error.getMessage(), error));
     }
 
     private Flux<String> processRequestAsyncStream(PolicyGenerationRequest request) {
@@ -210,23 +201,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
             log.error("Streaming chunk cleanup failed: {}", e.getMessage());
             return chunk;
         }
-    }
-
-    private PolicyResponse createFallbackPolicyResponse(String naturalLanguageQuery) {
-        log.error("Generating fallback PolicyResponse: {}", naturalLanguageQuery);
-
-        PolicyResponse fallbackResponse = new PolicyResponse();
-
-        BusinessPolicyDto fallbackPolicy = new BusinessPolicyDto();
-        fallbackPolicy.setPolicyName("AI Generated Policy (Fallback)");
-        fallbackPolicy.setDescription("Request: " + (naturalLanguageQuery != null ? naturalLanguageQuery : "Unknown"));
-
-        fallbackResponse.setPolicyData(fallbackPolicy);
-        fallbackResponse.setRoleIdToNameMap(Map.of());
-        fallbackResponse.setPermissionIdToNameMap(Map.of());
-        fallbackResponse.setConditionIdToNameMap(Map.of());
-
-        return fallbackResponse;
     }
 
 }

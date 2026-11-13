@@ -10,6 +10,7 @@ import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceP
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.util.StringUtils;
 
@@ -85,6 +86,12 @@ public final class OfficialRunLightweightEvidenceReader {
                     this::mapLightweightEvidence,
                     packageId);
             return pkg == null ? evidenceService.findDetail(packageId) : toDetail(pkg);
+        }
+        catch (EmptyResultDataAccessException exception) {
+            // No package under this id: a request for one that does not exist (or no id at all) is a refusal, not a
+            // fault. The full lookup answers it as not found.
+            log.warn("[PQA-OFFICIAL-DETAIL] No sealed evidence package for the requested id; packageId={}", packageId);
+            return evidenceService.findDetail(packageId);
         }
         catch (DataAccessException exception) {
             log.error("[PQA-OFFICIAL-DETAIL] Lightweight evidence lookup failed; falling back to full evidence detail. packageId={}",

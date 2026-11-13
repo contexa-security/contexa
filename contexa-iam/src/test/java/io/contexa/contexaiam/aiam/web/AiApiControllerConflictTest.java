@@ -54,7 +54,7 @@ class AiApiControllerConflictTest {
         when(streaming.process(any(), eq(processor), eq(PolicyResponse.class)))
                 .thenReturn(Mono.error(new StrategicOperationConflictException("Strategic operation conflict: strategy-x")));
 
-        ResponseEntity<PolicyResponse> response = controller.generatePolicyFromText(item()).block();
+        ResponseEntity<Object> response = controller.generatePolicyFromText(item()).block();
 
         assertThat(response).isNotNull();
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
@@ -65,7 +65,7 @@ class AiApiControllerConflictTest {
         when(streaming.process(any(), eq(processor), eq(PolicyResponse.class)))
                 .thenReturn(Mono.error(new AIOperationException("Async strategic operation failed: strategy-x")));
 
-        ResponseEntity<PolicyResponse> response = controller.generatePolicyFromText(item()).block();
+        ResponseEntity<Object> response = controller.generatePolicyFromText(item()).block();
 
         assertThat(response).isNotNull();
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);

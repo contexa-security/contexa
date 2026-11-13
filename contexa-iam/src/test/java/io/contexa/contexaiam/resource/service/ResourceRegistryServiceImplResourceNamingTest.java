@@ -25,6 +25,7 @@ import io.contexa.contexaiam.aiam.protocol.response.ResourceNamingSuggestionResp
 import io.contexa.contexaiam.properties.IamAdminProperties;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.resource.scanner.ResourceScanner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,15 +34,18 @@ import org.mockito.ArgumentMatchers;
 import org.springframework.context.support.StaticMessageSource;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -193,4 +197,99 @@ class ResourceRegistryServiceImplResourceNamingTest {
         assertThat(resource.getDescription()).isEqualTo("AI suggestion unavailable");
         verify(managedResourceRepository).saveAll(List.of(resource));
     }
+
+    /**
+     * IAM-D20: a refresh registers the discovered resources at once, under their scanner names, and does not wait for
+     * the model. The naming runs after the refresh, and names the resources still awaiting definition.
+     */
+    @Test
+    @DisplayName("A refresh registers new resources at once and names them in the background")
+    @SuppressWarnings("unchecked")
+    void refreshRegistersAtOnceAndNamesInTheBackground() {
+        List<Runnable> scheduled = new ArrayList<>();
+        ManagedResource discovered = ManagedResource.builder()
+                .resourceIdentifier("/contexa/admin/users")
+                .resourceType(ManagedResource.ResourceType.URL)
+                .friendlyName("listUsers")
+                .description("URL: [GET] /contexa/admin/users")
+                .build();
+        ResourceScanner scanner = () -> List.of(discovered);
+        ResourceRegistryServiceImpl refreshing = new ResourceRegistryServiceImpl(List.of(scanner),
+                managedResourceRepository, mock(PermissionCatalogService.class), aiNativeProcessor,
+                mock(AutoConditionTemplateService.class), mock(PolicyRepository.class), new IamAdminProperties(),
+                new StaticMessageSource(), scheduled::add);
+        when(managedResourceRepository.saveAll(anyList())).thenAnswer(invocation -> {
+            List<ManagedResource> saved = invocation.getArgument(0);
+            saved.forEach(resource -> resource.setId(7L));
+            return saved;
+        });
+
+        refreshing.refreshAndSynchronizeResources();
+
+        verify(managedResourceRepository).saveAll(List.of(discovered));
+        verify(aiNativeProcessor, never()).process(any(), any());
+        assertThat(scheduled).hasSize(1);
+
+        ManagedResource stored = copyOf(discovered);
+        when(managedResourceRepository.findAllById(List.of(7L))).thenReturn(List.of(stored), List.of(copyOf(stored)));
+        when(aiNativeProcessor.process(ArgumentMatchers.<AIRequest<ResourceNamingContext>>any(), eq(ResourceNamingSuggestionResponse.class)))
+                .thenReturn(Mono.just(suggestion("/contexa/admin/users", "User Accounts")));
+        ArgumentCaptor<List<ManagedResource>> named = ArgumentCaptor.forClass(List.class);
+
+        scheduled.get(0).run();
+
+        verify(managedResourceRepository, times(2)).saveAll(named.capture());
+        assertThat(named.getValue()).singleElement()
+                .extracting(ManagedResource::getFriendlyName).isEqualTo("User Accounts");
+    }
+
+    /** IAM-D20: a resource an administrator defined while the model was answering keeps the administrator's values. */
+    @Test
+    @DisplayName("A resource changed while the model answers keeps its current values")
+    @SuppressWarnings("unchecked")
+    void aResourceChangedWhileTheModelAnswersIsNotOverwritten() {
+        ManagedResource read = ManagedResource.builder()
+                .id(9L)
+                .resourceIdentifier("/contexa/admin/groups")
+                .resourceType(ManagedResource.ResourceType.URL)
+                .friendlyName("listGroups")
+                .description("URL: [GET] /contexa/admin/groups")
+                .build();
+        ManagedResource defined = copyOf(read);
+        defined.setFriendlyName("Group directory");
+        defined.setStatus(ManagedResource.Status.PERMISSION_CREATED);
+        when(managedResourceRepository.findAllById(List.of(9L))).thenReturn(List.of(read), List.of(defined));
+        when(aiNativeProcessor.process(ArgumentMatchers.<AIRequest<ResourceNamingContext>>any(), eq(ResourceNamingSuggestionResponse.class)))
+                .thenReturn(Mono.just(suggestion("/contexa/admin/groups", "Groups")));
+        ArgumentCaptor<List<ManagedResource>> saved = ArgumentCaptor.forClass(List.class);
+
+        service.nameRegisteredResources(List.of(9L));
+
+        verify(managedResourceRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).isEmpty();
+        assertThat(defined.getFriendlyName()).isEqualTo("Group directory");
+    }
+
+    private static ManagedResource copyOf(ManagedResource source) {
+        return ManagedResource.builder()
+                .id(source.getId() == null ? 7L : source.getId())
+                .resourceIdentifier(source.getResourceIdentifier())
+                .resourceType(source.getResourceType())
+                .friendlyName(source.getFriendlyName())
+                .description(source.getDescription())
+                .status(source.getStatus())
+                .build();
+    }
+
+    private static ResourceNamingSuggestionResponse suggestion(String identifier, String friendlyName) {
+        return new ResourceNamingSuggestionResponse(
+                List.of(ResourceNamingSuggestionResponse.ResourceNamingSuggestion.builder()
+                        .identifier(identifier)
+                        .friendlyName(friendlyName)
+                        .description(friendlyName + " records.")
+                        .confidence(0.9)
+                        .build()),
+                List.of());
+    }
+
 }

@@ -109,8 +109,12 @@ class PromptReleaseConsoleTest {
         PromptBundleRollbackService.Execution execution = new PromptBundleRollbackService.Execution("RBX-1", V2, V1,
                 "operator-a", "leak", true, PromptBundleRollbackService.AWAITING_APPROVAL, AT, null, null);
         when(rollbacks.executions(SCOPE, KEY, V2)).thenReturn(List.of(execution));
+        PromptBundleRollbackService.Readiness readiness = new PromptBundleRollbackService.Readiness(false,
+                List.of(new PromptBundleRollbackService.TargetReadiness(V1, true, true)));
+        when(rollbacks.readiness(SCOPE, KEY, V2, List.of(V1))).thenReturn(readiness);
 
         PromptReleaseConsole.BundleDetail detail = console.detail(SCOPE, KEY, V2).orElseThrow();
+        assertThat(detail.rollbackReadiness()).isEqualTo(readiness);
 
         assertThat(detail.bundle().state()).isEqualTo("SHADOW");
         assertThat(detail.manifest().bundleHash()).isEqualTo(v2.bundleHash());

@@ -93,9 +93,9 @@ public final class OfficialVerificationExecutionLedger extends AbstractPromptQua
             return OfficialVerificationExecutionStatus.empty(packageId);
         }
         return evidencePreflight.findByPackageId(packageId.trim())
-                .filter(evidencePackage -> StringUtils.hasText(evidencePackage.getTenantId()))
                 .map(evidencePackage -> executionLockService.status(
-                        evidencePackage.getTenantId(), evidencePackage.getPackageId()))
+                        SealedEvidencePackage.tenantOrDefault(evidencePackage.getTenantId()),
+                        evidencePackage.getPackageId()))
                 .orElseGet(() -> OfficialVerificationExecutionStatus.empty(packageId));
     }
 
@@ -104,9 +104,9 @@ public final class OfficialVerificationExecutionLedger extends AbstractPromptQua
             return status(packageId);
         }
         return evidencePreflight.findByPackageId(packageId.trim())
-                .filter(evidencePackage -> StringUtils.hasText(evidencePackage.getTenantId()))
                 .map(evidencePackage -> executionLockService.status(
-                        evidencePackage.getTenantId(), evidencePackage.getPackageId(), aggregateRunId.trim()))
+                        SealedEvidencePackage.tenantOrDefault(evidencePackage.getTenantId()),
+                        evidencePackage.getPackageId(), aggregateRunId.trim()))
                 .orElseGet(() -> OfficialVerificationExecutionStatus.empty(packageId));
     }
 

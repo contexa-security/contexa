@@ -28,8 +28,11 @@ public class PromptBundleRollbackApiController {
 
     @PostMapping("/rollback")
     public ResponseEntity<PromptBundleRollbackService.Result> rollback(
-            @RequestBody PromptBundleRollbackService.Request request, Authentication authentication) {
+            @RequestBody(required = false) PromptBundleRollbackService.Request request, Authentication authentication) {
         PromptBundleRollbackService.Result result = rollbackService.rollback(request, authentication.getName());
+        if (PromptBundleRollbackService.INCOMPLETE.equals(result.status())) {
+            return ResponseEntity.badRequest().body(result);
+        }
         return PromptBundleRollbackService.REFUSED.equals(result.status())
                 ? ResponseEntity.unprocessableEntity().body(result) : ResponseEntity.ok(result);
     }

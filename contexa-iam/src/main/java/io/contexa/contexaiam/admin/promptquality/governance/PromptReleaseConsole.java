@@ -72,10 +72,14 @@ public class PromptReleaseConsole {
                            List<String> declaredModelProfiles) {
     }
 
-    /** One bundle's detail: the list row, its manifest (null outside this build), the gate and its rollbacks. */
+    /**
+     * One bundle's detail: the list row, its manifest (null outside this build), the gate, its rollbacks, and whether a
+     * rollback of it can pass the source and target conditions (the screen offers the rollback only then).
+     */
     public record BundleDetail(BundleRow bundle, Manifest manifest,
                                PromptGovernanceReleaseGateService.ReleaseGateAssessment gate,
-                               List<PromptBundleRollbackService.Execution> rollbacks) {
+                               List<PromptBundleRollbackService.Execution> rollbacks,
+                               PromptBundleRollbackService.Readiness rollbackReadiness) {
     }
 
     /** One element (B1 to B11) of one side of a comparison. */
@@ -125,8 +129,11 @@ public class PromptReleaseConsole {
             return Optional.empty();
         }
         PromptGovernanceReleaseGateService.ReleaseGateAssessment assessment = assess(scope, promptKey, bundleVersion);
-        return Optional.of(new BundleDetail(row(release.get(), assessment), manifest(promptKey, bundleVersion),
-                assessment, rollbacks.executions(scope, promptKey, bundleVersion)));
+        Manifest manifest = manifest(promptKey, bundleVersion);
+        return Optional.of(new BundleDetail(row(release.get(), assessment), manifest,
+                assessment, rollbacks.executions(scope, promptKey, bundleVersion),
+                rollbacks.readiness(scope, promptKey, bundleVersion,
+                        manifest == null ? List.of() : manifest.rollbackTargets())));
     }
 
     public Comparison compare(String registryScope, String promptKey, String base, String candidate, Instant from,
