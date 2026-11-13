@@ -20,6 +20,7 @@ import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 
@@ -57,13 +58,32 @@ class ProtectableRefusalFilterTest {
 
     @Test
     void aCallWithoutAUserTheInterceptorRefusedIsAnswered401() throws Exception {
+        AccessDeniedException refusal = ProtectableRefusalFilter.markRefusal(request,
+                ProtectableRefusalFilter.withoutUser("no user"));
+
+        filter.doFilter(request, response, throwing(dispatched(refusal)));
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.isCommitted()).isTrue();
+    }
+
+    /** An application's handling answers it as a denial; a chain's translation finds the missing authentication in it. */
+    @Test
+    void theRefusalOfACallWithoutAUserIsADenialThatCarriesTheMissingAuthentication() {
+        assertThat(ProtectableRefusalFilter.withoutUser("no user"))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("no user")
+                .hasCauseInstanceOf(AuthenticationCredentialsNotFoundException.class);
+    }
+
+    @Test
+    void aMissingAuthenticationTheMethodPoliciesRefusedIsAnswered401() throws Exception {
         AuthenticationCredentialsNotFoundException refusal = ProtectableRefusalFilter.markRefusal(request,
                 new AuthenticationCredentialsNotFoundException("no user"));
 
         filter.doFilter(request, response, throwing(dispatched(refusal)));
 
         assertThat(response.getStatus()).isEqualTo(401);
-        assertThat(response.isCommitted()).isTrue();
     }
 
     @Test

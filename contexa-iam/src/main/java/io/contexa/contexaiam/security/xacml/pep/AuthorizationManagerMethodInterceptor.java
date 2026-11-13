@@ -40,7 +40,6 @@ import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.core.annotation.AnnotationUtils;
-import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import io.contexa.contexacommon.security.ConsoleSession;
@@ -390,14 +389,16 @@ public class AuthorizationManagerMethodInterceptor
 
     /**
      * The user the call is decided for. A mode that decides on users (SHADOW, ENFORCE) refuses a call without one, as
-     * before. A mode that decides on nobody (OBSERVE, DISABLED) leaves the call as the application made it: it goes on as
-     * a signed-in user's call does there, and the method policies decide on what the context holds, a visitor or nobody.
+     * before: with an access denial that carries the missing authentication, so that an application's own exception
+     * handling answers it as the denial it is, not as an unknown failure. A mode that decides on nobody (OBSERVE,
+     * DISABLED) leaves the call as the application made it: it goes on as a signed-in user's call does there, and the
+     * method policies decide on what the context holds, a visitor or nobody.
      */
     private Authentication getAuthentication() {
         Authentication authentication = this.securityContextHolderStrategy.get().getContext().getAuthentication();
         boolean isAnonymous = this.authenticationTrustResolver.isAnonymous(authentication);
         if ((authentication == null || isAnonymous) && isLlmAnalysisAllowed()) {
-            throw ProtectableRefusalFilter.markRefusal(currentRequest(), new AuthenticationCredentialsNotFoundException(
+            throw ProtectableRefusalFilter.markRefusal(currentRequest(), ProtectableRefusalFilter.withoutUser(
                     "Authentication is anonymousUser or was not found in the SecurityContext"));
         }
         return authentication;

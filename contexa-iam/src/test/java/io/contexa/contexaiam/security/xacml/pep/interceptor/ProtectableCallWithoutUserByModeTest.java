@@ -38,6 +38,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.aop.Pointcut;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authorization.AuthorizationDeniedException;
@@ -212,7 +213,8 @@ class ProtectableCallWithoutUserByModeTest {
 
         Throwable refused = catchThrowable(() -> interceptor(mode).invoke(call));
 
-        assertThat(refused).isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+        assertThat(refused).isInstanceOf(AccessDeniedException.class)
+                .hasCauseInstanceOf(AuthenticationCredentialsNotFoundException.class);
         verify(call, never()).proceed();
         verifyNoInteractions(policies, decisions, events);
         assertThat(marked()).as("marked for a path no chain covers").isSameAs(refused);
@@ -223,7 +225,8 @@ class ProtectableCallWithoutUserByModeTest {
     void aRequestWithNoUserStaysRefusedWhereTheModeDecides(EnforcementMode mode) throws Throwable {
         Throwable refused = catchThrowable(() -> interceptor(mode).invoke(call));
 
-        assertThat(refused).isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+        assertThat(refused).isInstanceOf(AccessDeniedException.class)
+                .hasCauseInstanceOf(AuthenticationCredentialsNotFoundException.class);
         verify(call, never()).proceed();
         verifyNoInteractions(policies, decisions, events);
         assertThat(marked()).isSameAs(refused);
@@ -236,7 +239,8 @@ class ProtectableCallWithoutUserByModeTest {
         signedIn(visitor());
 
         assertThatThrownBy(() -> interceptor(EnforcementMode.ENFORCE).invoke(call))
-                .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+                .isInstanceOf(AccessDeniedException.class)
+                .hasCauseInstanceOf(AuthenticationCredentialsNotFoundException.class);
 
         verify(call, never()).proceed();
     }

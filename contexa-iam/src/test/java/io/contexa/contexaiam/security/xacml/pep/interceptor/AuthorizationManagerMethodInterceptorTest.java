@@ -42,6 +42,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.aop.Pointcut;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.authorization.method.AuthorizationInterceptorsOrder;
@@ -141,7 +142,7 @@ class AuthorizationManagerMethodInterceptorTest {
         }
 
         @Test
-        @DisplayName("Should throw AuthenticationCredentialsNotFoundException when a request has no authentication")
+        @DisplayName("Should deny, carrying AuthenticationCredentialsNotFoundException, when a request has no authentication")
         void shouldThrowWhenNoAuthentication() {
             SecurityContext emptyContext = mock(SecurityContext.class);
             when(emptyContext.getAuthentication()).thenReturn(null);
@@ -150,7 +151,8 @@ class AuthorizationManagerMethodInterceptorTest {
 
             try {
                 assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
-                        .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+                        .isInstanceOf(AccessDeniedException.class)
+                        .hasCauseInstanceOf(AuthenticationCredentialsNotFoundException.class);
             } finally {
                 RequestContextHolder.resetRequestAttributes();
             }
