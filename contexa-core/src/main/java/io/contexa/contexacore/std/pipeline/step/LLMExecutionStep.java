@@ -234,6 +234,11 @@ public class LLMExecutionStep implements PipelineStep {
                                 context.addMetadata("entityExecutionSucceeded", false);
                                 context.addMetadata("structuredOutputComplete", false);
                                 context.addMetadata("structuredOutputFailureCategory", categorizeFailure(error).name());
+                                if (ModelServerSignals.isUnreachable(error) || ModelServerSignals.isTimeLimit(error)) {
+                                    // The model was not reached, or the call used up its time: asking it again in the raw
+                                    // form meets the same server and waits as long again.
+                                    return Mono.error(error);
+                                }
                                 if (!structuredOutputPolicy.allowsRawFallback()) {
                                     log.error("[PIPELINE-STEP] Structured output execution failed and raw fallback is forbidden. Request: {}",
                                             request.getRequestId(), error);

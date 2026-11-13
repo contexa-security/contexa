@@ -100,23 +100,14 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         } catch (Exception e) {
             log.error("Vector store request storage failed (streaming)", e);
         }
+        // A failed stream stays a failure: the streaming service sends it as an error event with its cause, not as a
+        // text chunk the screen reads like part of the answer.
         return Flux.defer(() -> {
-            try {
-                PolicyGenerationRequest enrichedRequest = enrichRequest(request, true);
-                return orchestrator.executeStream(enrichedRequest, PipelineConfiguration.createStreamPipelineConfig())
-                        .map(this::cleanStreamingChunk)
-                        .concatWith(Mono.just("[DONE]"))
-                        .doOnError(error -> {
-                            log.error("Streaming error occurred", error);
-                        })
-                        .onErrorResume(error -> {
-                            log.error("Streaming failed, returning error message", error);
-                            return Flux.just("ERROR: AI service connection failed: " + error.getMessage(), "[DONE]");
-                        });
-            } catch (Exception e) {
-                log.error("AI streaming initialization failed", e);
-                return Flux.just("ERROR: Streaming initialization failed: " + e.getMessage(), "[DONE]");
-            }
+            PolicyGenerationRequest enrichedRequest = enrichRequest(request, true);
+            return orchestrator.executeStream(enrichedRequest, PipelineConfiguration.createStreamPipelineConfig())
+                    .map(this::cleanStreamingChunk)
+                    .concatWith(Mono.just("[DONE]"))
+                    .doOnError(error -> log.error("[DIAGNOSIS] AI policy generation stream failed: {}", error.getMessage(), error));
         });
     }
 

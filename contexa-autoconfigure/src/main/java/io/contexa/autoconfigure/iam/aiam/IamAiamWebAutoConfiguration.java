@@ -37,6 +37,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -54,8 +55,9 @@ public class IamAiamWebAutoConfiguration {
     @ConditionalOnMissingBean
     public AiApiController aiApiController(
             AICoreOperations<PolicyContext> contexaAiNativeProcessor,
-            StandardStreamingService streamingService) {
-        return new AiApiController(contexaAiNativeProcessor, streamingService);
+            StandardStreamingService streamingService,
+            ObjectProvider<MessageSource> messageSource) {
+        return new AiApiController(contexaAiNativeProcessor, streamingService, messageSource.getIfAvailable());
     }
 
     @Bean(name = "contexaZeroTrustSseController")

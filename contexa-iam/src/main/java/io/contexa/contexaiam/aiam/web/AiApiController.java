@@ -15,19 +15,24 @@
  */
 package io.contexa.contexaiam.aiam.web;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.exception.StrategicOperationConflictException;
+import io.contexa.contexacore.std.llm.gate.ModelServerSignals;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.pipeline.PipelineFailurePolicy;
+import io.contexa.contexacore.std.streaming.DefaultStandardStreamingService;
 import io.contexa.contexacore.std.streaming.StandardStreamingService;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -41,32 +46,75 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.net.ConnectException;
-import java.net.UnknownHostException;
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeoutException;
 
 @RestController
 @RequestMapping("/contexa/admin/api/ai/policies")
-@RequiredArgsConstructor
 @Slf4j
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AiApiController {
 
+    private static final ObjectMapper JSON = new ObjectMapper();
+    /** The message key of a stream failure: this prefix and the code of the failure. */
+    static final String STREAM_ERROR_MESSAGE_PREFIX = "aiPolicy.generation.error.";
+
     private final AICoreOperations<PolicyContext> aiNativeProcessor;
     private final StandardStreamingService streamingService;
+    private final MessageSource messageSource;
 
+    public AiApiController(AICoreOperations<PolicyContext> aiNativeProcessor, StandardStreamingService streamingService) {
+        this(aiNativeProcessor, streamingService, null);
+    }
+
+    public AiApiController(AICoreOperations<PolicyContext> aiNativeProcessor, StandardStreamingService streamingService,
+                           MessageSource messageSource) {
+        this.aiNativeProcessor = aiNativeProcessor;
+        this.streamingService = streamingService;
+        this.messageSource = messageSource;
+    }
+
+    /**
+     * Streams the generation. A failure ends the stream with one error event ({"code", "message"}), its message in the
+     * language of the screen, so that the policy center can say why (the model server cannot be reached, it did not
+     * answer in time, ...).
+     */
     @PostMapping(value = "/generate/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> generatePolicyFromTextStream(@RequestBody PolicyGenerationItem request) {
 
+        Locale locale = LocaleContextHolder.getLocale();
         String naturalLanguageQuery = request.naturalLanguageQuery();
         if (naturalLanguageQuery == null || naturalLanguageQuery.trim().isEmpty()) {
-            return streamingService.errorStream("VALIDATION_ERROR", "naturalLanguageQuery is required");
+            return streamingService.errorStream("VALIDATION_ERROR", "naturalLanguageQuery is required")
+                    .map(event -> inPageLanguage(event, locale));
         }
 
         PolicyGenerationRequest aiRequest = createPolicyRequest(request, new TemplateType("PolicyGenerationStreaming"), new DiagnosisType("PolicyGeneration"));
-        return streamingService.stream(aiRequest, aiNativeProcessor);
+        return streamingService.stream(aiRequest, aiNativeProcessor).map(event -> inPageLanguage(event, locale));
+    }
+
+    /** The error event with the message of its code in the screen's language; any other event as it is. */
+    @SuppressWarnings("unchecked")
+    private ServerSentEvent<String> inPageLanguage(ServerSentEvent<String> event, Locale locale) {
+        if (messageSource == null || !DefaultStandardStreamingService.ERROR_EVENT.equals(event.event())
+                || event.data() == null) {
+            return event;
+        }
+        try {
+            Map<String, Object> failure = JSON.readValue(event.data(), Map.class);
+            String code = String.valueOf(failure.get("code"));
+            String message = messageSource.getMessage(STREAM_ERROR_MESSAGE_PREFIX + code, null, null, locale);
+            if (message == null) {
+                return event;
+            }
+            return ServerSentEvent.<String>builder()
+                    .event(DefaultStandardStreamingService.ERROR_EVENT)
+                    .data(JSON.writeValueAsString(Map.of("code", code, "message", message)))
+                    .build();
+        } catch (JsonProcessingException unreadable) {
+            return event;
+        }
     }
 
     /** The model server cannot be reached (connection refused, unknown host). */
@@ -129,11 +177,11 @@ public class AiApiController {
             return failure(HttpStatus.CONFLICT, "AI_GENERATION_RUNNING", "An identical request is already running.");
         }
         log.error("Policy generation failed", error);
-        if (causedBy(error, TimeoutException.class)) {
-            return failure(HttpStatus.GATEWAY_TIMEOUT, MODEL_TIMEOUT, "The AI model did not answer in time.");
-        }
-        if (causedBy(error, ConnectException.class) || causedBy(error, UnknownHostException.class)) {
+        if (ModelServerSignals.isUnreachable(error)) {
             return failure(HttpStatus.SERVICE_UNAVAILABLE, MODEL_UNREACHABLE, "The AI model server cannot be reached.");
+        }
+        if (ModelServerSignals.isTimeLimit(error)) {
+            return failure(HttpStatus.GATEWAY_TIMEOUT, MODEL_TIMEOUT, "The AI model did not answer in time.");
         }
         return failure(HttpStatus.INTERNAL_SERVER_ERROR, GENERATION_FAILED, "The policy could not be generated.");
     }
@@ -142,18 +190,6 @@ public class AiApiController {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, message);
         problem.setProperty("code", code);
         return ResponseEntity.status(status).body(problem);
-    }
-
-    private static boolean causedBy(Throwable error, Class<? extends Throwable> type) {
-        for (Throwable current = error; current != null; current = current.getCause()) {
-            if (type.isInstance(current)) {
-                return true;
-            }
-            if (current.getCause() == current) {
-                return false;
-            }
-        }
-        return false;
     }
 
     private PolicyGenerationRequest createPolicyRequest(PolicyGenerationItem request,TemplateType templateType, DiagnosisType diagnosisType) {

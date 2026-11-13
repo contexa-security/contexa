@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.aiam.web;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.streaming.StandardStreamingService;
@@ -9,14 +10,20 @@ import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.client.ResourceAccessException;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.net.ConnectException;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -99,6 +106,32 @@ class AiApiControllerTest {
 
         assertThat(answer.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(code(answer)).isEqualTo(AiApiController.GENERATION_FAILED);
+    }
+
+    /**
+     * IAM-D62: the stream the policy center reads ends a failure with its error event, whose message is said in the
+     * language of the screen by its code.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void aStreamFailureIsAnErrorEventInTheScreensLanguage() throws Exception {
+        StaticMessageSource messages = new StaticMessageSource();
+        messages.addMessage("aiPolicy.generation.error.AI_MODEL_UNREACHABLE", Locale.KOREAN, "AI 모델 서버에 연결할 수 없습니다.");
+        AiApiController localized = new AiApiController(processor, streaming, messages);
+        when(streaming.stream(any(), eq(processor))).thenReturn(Flux.just(ServerSentEvent.<String>builder()
+                .event("error").data("{\"code\":\"AI_MODEL_UNREACHABLE\",\"message\":\"The AI model server cannot be reached.\"}")
+                .build()));
+        LocaleContextHolder.setLocale(Locale.KOREAN);
+        try {
+            List<ServerSentEvent<String>> events = localized.generatePolicyFromTextStream(item).collectList().block();
+
+            assertThat(events).singleElement().extracting(ServerSentEvent::event).isEqualTo("error");
+            Map<String, Object> failure = new ObjectMapper().readValue(events.get(0).data(), Map.class);
+            assertThat(failure).containsEntry("code", "AI_MODEL_UNREACHABLE")
+                    .containsEntry("message", "AI 모델 서버에 연결할 수 없습니다.");
+        } finally {
+            LocaleContextHolder.resetLocaleContext();
+        }
     }
 
     private static Object code(ResponseEntity<Object> answer) {

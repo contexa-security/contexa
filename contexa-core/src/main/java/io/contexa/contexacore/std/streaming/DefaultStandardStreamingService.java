@@ -22,7 +22,9 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacore.exception.AIOperationException;
+import io.contexa.contexacore.exception.StrategicOperationConflictException;
 import io.contexa.contexacore.infra.ContexaReactorResources;
+import io.contexa.contexacore.std.llm.gate.ModelServerSignals;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingContext;
@@ -48,7 +50,10 @@ import java.util.concurrent.TimeoutException;
 public class DefaultStandardStreamingService implements StandardStreamingService {
 
     private static final String DONE_MARKER = "[DONE]";
-    private static final String ERROR_PREFIX = "ERROR: ";
+    /** The name of the SSE event that carries a failure. */
+    public static final String ERROR_EVENT = "error";
+    /** The code of a failure whose model server could not be reached. */
+    public static final String MODEL_UNREACHABLE = "AI_MODEL_UNREACHABLE";
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(5);
 
     private final StreamingProperties streamingProperties;
@@ -88,10 +93,15 @@ public class DefaultStandardStreamingService implements StandardStreamingService
         return pipelineOrchestrator.execute(request, responseType);
     }
 
+    /**
+     * A failure is an SSE event named {@value #ERROR_EVENT} whose data is {"code": ..., "message": ...}: a client tells
+     * it from the answer by its name, not by a text prefix that a chunk of the answer could also start with.
+     */
     @Override
     public Flux<ServerSentEvent<String>> errorStream(String errorCode, String message) {
         return Flux.just(ServerSentEvent.<String>builder()
-                .data(ERROR_PREFIX + buildErrorJson(errorCode, message))
+                .event(ERROR_EVENT)
+                .data(buildErrorJson(errorCode, message))
                 .build());
     }
 
@@ -182,7 +192,18 @@ public class DefaultStandardStreamingService implements StandardStreamingService
         String errorCode;
         String errorMessage;
 
-        if (error instanceof AIOperationException) {
+        // The cause first: an unreachable model server or a time limit reads the same through any wrapping.
+        if (ModelServerSignals.isUnreachable(error)) {
+            errorCode = MODEL_UNREACHABLE;
+            errorMessage = "The AI model server cannot be reached.";
+        } else if (ModelServerSignals.isTimeLimit(error)) {
+            errorCode = "TIMEOUT";
+            errorMessage = "The AI model did not answer in time.";
+        } else if (error instanceof StrategicOperationConflictException
+                || error.getCause() instanceof StrategicOperationConflictException) {
+            errorCode = "AI_GENERATION_RUNNING";
+            errorMessage = "An identical request is already running.";
+        } else if (error instanceof AIOperationException) {
             errorCode = "AI_OPERATION_ERROR";
             errorMessage = error.getMessage();
         } else if (error instanceof TimeoutException) {
@@ -202,15 +223,12 @@ public class DefaultStandardStreamingService implements StandardStreamingService
     private String buildErrorJson(String errorCode, String errorMessage) {
         try {
             Map<String, Object> errorMap = Map.of(
-                    "error", Map.of(
-                            "code", errorCode != null ? errorCode : "UNKNOWN",
-                            "message", errorMessage != null ? errorMessage : "Unknown error"
-                    )
-            );
+                    "code", errorCode != null ? errorCode : "UNKNOWN",
+                    "message", errorMessage != null ? errorMessage : "Unknown error");
             return objectMapper.writeValueAsString(errorMap);
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize error JSON", e);
-            return "{\"error\":{\"code\":\"SERIALIZATION_ERROR\",\"message\":\"Failed to serialize error\"}}";
+            return "{\"code\":\"SERIALIZATION_ERROR\",\"message\":\"Failed to serialize error\"}";
         }
     }
 }
