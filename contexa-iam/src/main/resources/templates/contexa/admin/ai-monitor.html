@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
-    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.aiMonitor.title})}"></th:block>
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{menu.aiMonitor.__${section}__})}"></th:block>
     <link rel="stylesheet" th:href="@{/contexa/css/policy-center.css}" />
     <style>
         .ai-monitor-layout { display:grid; gap:1rem; }
@@ -83,7 +83,7 @@
              th:data-label-ended-at="#{admin.aiMonitor.table.endedAt}">
             <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div>
-                    <h1 class="text-2xl font-bold" style="color:#e2e8f0" th:text="#{admin.aiMonitor.title}">AI Security Monitor</h1>
+                    <h1 class="text-2xl font-bold" style="color:#e2e8f0" th:text="#{menu.aiMonitor.__${section}__}">AI Security Monitor</h1>
                     <p class="text-sm mt-1" style="color:#94a3b8" th:text="#{admin.aiMonitor.subtitle}">AI decision quality and operations</p>
                 </div>
                 <span id="ai-monitor-range" class="text-xs" style="color:#64748b"></span>
