@@ -55,6 +55,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
+import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.util.List;
 
@@ -175,7 +176,7 @@ class PermissionListOutsideSessionTest {
     void theDetailsOpenWithAGuardedResource() {
         Model model = new ConcurrentModel();
 
-        String view = controller.permissionDetails(guardingId, model);
+        String view = controller.permissionDetails(guardingId, model, new RedirectAttributesModelMap());
 
         assertThat(view).isEqualTo("contexa/admin/permissiondetails");
         PermissionDto shown = (PermissionDto) model.getAttribute("permission");
@@ -188,7 +189,7 @@ class PermissionListOutsideSessionTest {
     void theDetailsOpenWithoutAResource() {
         Model model = new ConcurrentModel();
 
-        controller.permissionDetails(plainId, model);
+        controller.permissionDetails(plainId, model, new RedirectAttributesModelMap());
 
         assertThat(((PermissionDto) model.getAttribute("permission")).getLinkedResourceId()).isNull();
     }
