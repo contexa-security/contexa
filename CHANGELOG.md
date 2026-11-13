@@ -526,6 +526,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A client that keeps no cookie no longer fills the heap with sessions on Contexa's sign-in chain.** Every anonymous
+  request to a protected address was remembered for the return after sign-in, and remembering it opened a new HTTP
+  session. A client without cookies (a script, a probe, a crawler of an API) left one session per request, each living
+  until the session timeout; under steady anonymous traffic the application ran out of heap and stopped. The request
+  is now remembered only for a client that already has a session or for a browser asking for a page (`Accept` names
+  `text/html`), so sign-in still returns a person to the page they asked for. A `RequestCache` the application
+  declares, or one of another kind, is left as it is. Anonymous traffic that sends a browser's `Accept` header still
+  opens a session per request, as on any session-based sign-in (PR-204).
+
 - **Contexa's screens find their texts in an application whose only message source goes by another name.** With one
   `MessageSource` bean under a name other than `messageSource` and no `messages` bundle of its own, the application
   kept the context's empty source, Contexa's bundle was attached to nothing, and every text of Contexa's screens ended

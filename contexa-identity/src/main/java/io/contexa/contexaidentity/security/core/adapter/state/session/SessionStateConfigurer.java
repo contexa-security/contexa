@@ -21,6 +21,8 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.savedrequest.RequestCache;
 
 public class SessionStateConfigurer extends AbstractHttpConfigurer<SessionStateConfigurer, HttpSecurity> {
 
@@ -35,6 +37,12 @@ public class SessionStateConfigurer extends AbstractHttpConfigurer<SessionStateC
         http.sessionManagement(session -> session
                 .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::changeSessionId)
         );
+        RequestCache requestCache = http.getSharedObject(RequestCache.class);
+        // Only the session cache the chain got by default is narrowed: one the application declared stays its own.
+        if (requestCache instanceof HttpSessionRequestCache
+                && appContext.getBeanNamesForType(RequestCache.class).length == 0) {
+            http.setSharedObject(RequestCache.class, new NavigationRequestCache(requestCache));
+        }
     }
 
     @Override
