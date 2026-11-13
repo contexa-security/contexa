@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.controller;
 
+import io.contexa.contexaiam.security.xacml.pep.AuthorizationAuditReason;
 import io.contexa.contexaiam.admin.web.monitoring.dto.DecisionRecordIntegrity;
 import java.util.Locale;
 import io.contexa.contexacommon.entity.AuditLog;
@@ -213,6 +214,8 @@ public class SecurityMonitorController {
         }
 
         model.addAttribute("log", auditLog);
+        // D29: an authorization reason is a code, shown in the language of the screen; any other reason as stored.
+        model.addAttribute("reason", AuthorizationAuditReason.describe(auditLog.getReason()));
         // docs/agent A5-5: an agent's decision shows the delegation it ran under, as the delegation record states it.
         model.addAttribute("delegation", delegationOf(auditLog));
         // docs/agent A5-6: whether the decision record is as it was sealed.
