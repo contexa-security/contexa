@@ -211,7 +211,8 @@ public class DefaultPolicyService implements PolicyService {
 
         PolicyDto policyDto = PolicyDto.builder()
                 .name(policyName)
-                .description(String.format("Auto-generated policy for permission '%s'", permission.getFriendlyName()))
+                // D31: the permission name, not its friendly name, which may be in another language than the sentence.
+                .description(String.format("Auto-generated policy for permission '%s'", permission.getName()))
                 .effect(Policy.Effect.ALLOW)
                 .priority(500) 
                 .targets(List.of(TargetDto.builder()

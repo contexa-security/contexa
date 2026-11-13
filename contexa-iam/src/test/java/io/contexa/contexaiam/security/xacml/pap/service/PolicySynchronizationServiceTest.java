@@ -137,6 +137,24 @@ class PolicySynchronizationServiceTest {
     }
 
     @Test
+    @DisplayName("D31: the automatic policy names the role, not its description in another language")
+    void theDescriptionNamesTheRoleNotItsDescription() {
+        when(policyRepository.findByName(anyString())).thenReturn(Optional.empty());
+        Role role = role("ROLE_USER", "READ", true);
+        role.setRoleDesc("일반 사용자 역할");
+        when(roleRepository.findByIdWithPermissionsAndResources(7L)).thenReturn(Optional.of(role));
+
+        new PolicySynchronizationService(policyRepository, roleRepository, policyService)
+                .handleRolePermissionsChange(new RolePermissionsChangedEvent(7L));
+
+        ArgumentCaptor<PolicyDto> captor = ArgumentCaptor.forClass(PolicyDto.class);
+        verify(policyService).createPolicy(captor.capture());
+        assertThat(captor.getValue().getName()).isEqualTo("AUTO_POLICY_FOR_ROLE_USER");
+        assertThat(captor.getValue().getDescription()).isEqualTo("Auto-synchronized policy for role 'ROLE_USER'");
+        assertThat(captor.getValue().getRules().get(0).getDescription()).isEqualTo("Auto-sync rule for ROLE_USER");
+    }
+
+    @Test
     @DisplayName("a role that starts with ROLE_ is asked for by its name, as before")
     void aRoleWithThePrefixIsAskedForByItsName() {
         when(policyRepository.findByName(anyString())).thenReturn(Optional.empty());

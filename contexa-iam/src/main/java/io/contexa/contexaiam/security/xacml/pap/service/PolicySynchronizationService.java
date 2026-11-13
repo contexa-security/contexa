@@ -120,7 +120,8 @@ public class PolicySynchronizationService {
 
         PolicyDto policyDto = PolicyDto.builder()
                 .name(policyName)
-                .description(String.format("Auto-synchronized policy for role '%s'", role.getRoleDesc()))
+                // D31: the role name, not its description: a description in another language would mix with the sentence.
+                .description(String.format("Auto-synchronized policy for role '%s'", role.getRoleName()))
                 .effect(Policy.Effect.ALLOW)
                 .priority(500) 
                 .targets(targetDtos)

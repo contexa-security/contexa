@@ -480,7 +480,7 @@ class DefaultPolicyServiceTest {
             // given
             Permission permission = mock(Permission.class);
             when(permission.getName()).thenReturn("CREATE_ORDER");
-            when(permission.getFriendlyName()).thenReturn("Create Order");
+            when(permission.getFriendlyName()).thenReturn("주문 등록");
 
             ManagedResource resource = mock(ManagedResource.class);
             when(resource.getResourceType()).thenReturn(ManagedResource.ResourceType.URL);
@@ -498,8 +498,11 @@ class DefaultPolicyServiceTest {
             // when
             policyService.synchronizePolicyForPermission(permission);
 
-            // then
-            verify(policyRepository).save(any(Policy.class));
+            // then: D31, the description names the permission, not its friendly name in another language
+            ArgumentCaptor<Policy> saved = ArgumentCaptor.forClass(Policy.class);
+            verify(policyRepository).save(saved.capture());
+            assertThat(saved.getValue().getDescription())
+                    .isEqualTo("Auto-generated policy for permission 'CREATE_ORDER'");
         }
 
         @Test
