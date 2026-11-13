@@ -60,11 +60,11 @@ class AiApiControllerTest {
         ResponseEntity<Object> answer = controller.generatePolicyFromText(item).block();
 
         assertThat(answer.getStatusCode()).isEqualTo(HttpStatus.OK);
-        AiApiController.GeneratedPolicy body = (AiApiController.GeneratedPolicy) answer.getBody();
+        GeneratedPolicy body = (GeneratedPolicy) answer.getBody();
         assertThat(body.policyData().getPolicyName()).isEqualTo("Auditors read reports");
         assertThat(body.reasoning()).isEqualTo("Auditors need read access.");
         assertThat(body.timestamp()).isAfterOrEqualTo(before);
-        assertThat(AiApiController.GeneratedPolicy.class.getRecordComponents())
+        assertThat(GeneratedPolicy.class.getRecordComponents())
                 .extracting(component -> component.getName())
                 .doesNotContain("metadata", "allMetadata");
         ArgumentCaptor<AIRequest> request = ArgumentCaptor.forClass(AIRequest.class);

@@ -242,6 +242,7 @@ class ZeroTrustPageControllerTest {
         String script = new ClassPathResource("static/contexa/js/zero-trust/analysis-pending.js")
                 .getContentAsString(StandardCharsets.UTF_8);
 
-        assertThat(script).contains("window.location.href = returnUrl;").doesNotContain("decodeURIComponent");
+        // consoleUrl adds the context path a root-relative address lacks and leaves one that has it, decoding nothing
+        assertThat(script).contains("window.location.href = consoleUrl(returnUrl);").doesNotContain("decodeURIComponent");
     }
 }

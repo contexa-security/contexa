@@ -15,8 +15,6 @@
  */
 package io.contexa.contexaiam.aiam.web;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.exception.StrategicOperationConflictException;
@@ -29,7 +27,6 @@ import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
-import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -48,7 +45,6 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.Locale;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/contexa/admin/api/ai/policies")
@@ -56,9 +52,7 @@ import java.util.Map;
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AiApiController {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
     /** The message key of a stream failure: this prefix and the code of the failure. */
-    static final String STREAM_ERROR_MESSAGE_PREFIX = "aiPolicy.generation.error.";
 
     private final AICoreOperations<PolicyContext> aiNativeProcessor;
     private final StandardStreamingService streamingService;
@@ -87,34 +81,11 @@ public class AiApiController {
         String naturalLanguageQuery = request.naturalLanguageQuery();
         if (naturalLanguageQuery == null || naturalLanguageQuery.trim().isEmpty()) {
             return streamingService.errorStream("VALIDATION_ERROR", "naturalLanguageQuery is required")
-                    .map(event -> inPageLanguage(event, locale));
+                    .map(event -> PolicyStreamErrors.inPageLanguage(event, messageSource, locale));
         }
 
         PolicyGenerationRequest aiRequest = createPolicyRequest(request, new TemplateType("PolicyGenerationStreaming"), new DiagnosisType("PolicyGeneration"));
-        return streamingService.stream(aiRequest, aiNativeProcessor).map(event -> inPageLanguage(event, locale));
-    }
-
-    /** The error event with the message of its code in the screen's language; any other event as it is. */
-    @SuppressWarnings("unchecked")
-    private ServerSentEvent<String> inPageLanguage(ServerSentEvent<String> event, Locale locale) {
-        if (messageSource == null || !DefaultStandardStreamingService.ERROR_EVENT.equals(event.event())
-                || event.data() == null) {
-            return event;
-        }
-        try {
-            Map<String, Object> failure = JSON.readValue(event.data(), Map.class);
-            String code = String.valueOf(failure.get("code"));
-            String message = messageSource.getMessage(STREAM_ERROR_MESSAGE_PREFIX + code, null, null, locale);
-            if (message == null) {
-                return event;
-            }
-            return ServerSentEvent.<String>builder()
-                    .event(DefaultStandardStreamingService.ERROR_EVENT)
-                    .data(JSON.writeValueAsString(Map.of("code", code, "message", message)))
-                    .build();
-        } catch (JsonProcessingException unreadable) {
-            return event;
-        }
+        return streamingService.stream(aiRequest, aiNativeProcessor).map(event -> PolicyStreamErrors.inPageLanguage(event, messageSource, locale));
     }
 
     /** The model server cannot be reached (connection refused, unknown host). */
@@ -125,15 +96,6 @@ public class AiApiController {
     public static final String NO_POLICY = "AI_NO_POLICY_GENERATED";
     /** Any other failure of the generation. */
     public static final String GENERATION_FAILED = "AI_GENERATION_FAILED";
-
-    /**
-     * What the caller receives for a generated policy: the policy, the names of the ids it uses, the model's reasoning,
-     * and the server time of the answer. The prompt and model details the pipeline records stay on the server.
-     */
-    public record GeneratedPolicy(BusinessPolicyDto policyData, Map<String, String> roleIdToNameMap,
-                                  Map<String, String> permissionIdToNameMap, Map<String, String> conditionIdToNameMap,
-                                  String reasoning, LocalDateTime timestamp) {
-    }
 
     /**
      * Generates a policy. A failed generation answers with an error status and the reason (model unreachable, timed
