@@ -124,9 +124,9 @@
                                 </td>
                                 <td class="table-cell-top resource-inputs-cell">
                                     <div class="input-container">
-                                        <input type="text" name="friendlyName" th:value="${res.friendlyName}"
+                                        <input type="text" name="friendlyName" maxlength="255" th:value="${res.friendlyName}"
                                                class="modern-input font-semibold mb-3" th:placeholder="#{admin.policy.center.resource.name.placeholder}" required>
-                                        <textarea name="description" class="modern-input" rows="2"
+                                        <textarea name="description" maxlength="1024" class="modern-input" rows="2"
                                                   th:placeholder="#{admin.policy.center.resource.desc.placeholder}" th:text="${res.description}"></textarea>
                                     </div>
                                 </td>
@@ -369,11 +369,11 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
                                 <label class="manual-form-label" th:text="#{admin.policy.center.create.quick.policy.name}">Policy Name</label>
-                                <input type="text" class="modern-input" id="qp-policy-name" th:placeholder="#{admin.policy.center.create.quick.policy.name.placeholder}">
+                                <input type="text" class="modern-input" id="qp-policy-name" maxlength="255" th:placeholder="#{admin.policy.center.create.quick.policy.name.placeholder}">
                             </div>
                             <div>
                                 <label class="manual-form-label" th:text="#{admin.policy.center.create.quick.policy.desc}">Description</label>
-                                <input type="text" class="modern-input" id="qp-policy-desc" th:placeholder="#{admin.policy.center.create.quick.policy.desc.placeholder}">
+                                <input type="text" class="modern-input" id="qp-policy-desc" maxlength="255" th:placeholder="#{admin.policy.center.create.quick.policy.desc.placeholder}">
                             </div>
                             <div>
                                 <label class="manual-form-label" th:text="#{admin.policy.center.create.quick.policy.effect}">Effect</label>
@@ -402,11 +402,11 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 <div>
                                     <label class="manual-form-label" th:text="#{admin.policy.center.create.manual.policy.name}">Policy Name (unique)</label>
-                                    <input type="text" th:field="*{name}" class="modern-input" required />
+                                    <input type="text" th:field="*{name}" maxlength="255" class="modern-input" required />
                                 </div>
                                 <div>
                                     <label class="manual-form-label" th:text="#{admin.policy.center.create.manual.policy.desc}">Description</label>
-                                    <input type="text" th:field="*{description}" class="modern-input" />
+                                    <input type="text" th:field="*{description}" maxlength="255" class="modern-input" />
                                 </div>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -440,7 +440,7 @@
                                         </select>
                                     </div>
                                     <div class="col-span-6">
-                                        <input type="text" th:field="*{targets[__${stat.index}__].targetIdentifier}" class="modern-input" th:placeholder="#{admin.policy.center.create.manual.target.ph}" placeholder="/contexa/admin/** or com.example.*" required />
+                                        <input type="text" th:field="*{targets[__${stat.index}__].targetIdentifier}" maxlength="255" class="modern-input" th:placeholder="#{admin.policy.center.create.manual.target.ph}" placeholder="/contexa/admin/** or com.example.*" required />
                                     </div>
                                     <input type="hidden" th:field="*{targets[__${stat.index}__].targetOrder}" />
                                     <input type="hidden" th:field="*{targets[__${stat.index}__].sourceType}" />
@@ -460,7 +460,7 @@
                                     <h3 class="font-semibold" style="color: #e2e8f0;" th:text="'Rule #' + ${ruleStat.index + 1}"></h3>
                                     <div>
                                         <label class="manual-form-label" th:text="#{admin.policy.center.create.manual.rule.desc}">Rule Description</label>
-                                        <input type="text" th:field="*{rules[__${ruleStat.index}__].description}" class="modern-input" />
+                                        <input type="text" th:field="*{rules[__${ruleStat.index}__].description}" maxlength="255" class="modern-input" />
                                     </div>
                                     <div>
                                         <label class="manual-form-label" th:text="#{admin.policy.center.create.manual.conditions}">Conditions (Conditions - combined with AND within Rule)</label>
@@ -473,7 +473,7 @@
                                                     </select>
                                                 </div>
                                                 <div class="col-span-8">
-                                                    <input type="text" th:field="*{rules[__${ruleStat.index}__].conditions[__${condStat.index}__].expression}"
+                                                    <input type="text" th:field="*{rules[__${ruleStat.index}__].conditions[__${condStat.index}__].expression}" maxlength="2048"
                                                            class="modern-input font-mono text-sm" th:placeholder="#{admin.policy.center.create.manual.spel.ph}" placeholder="SpEL expression" />
                                                 </div>
                                                 <div class="col-span-1 text-center">
@@ -543,11 +543,11 @@
                         <div class="modern-card p-6" style="margin-bottom:1rem;">
                             <div style="margin-bottom:1rem;">
                                 <label class="ai-field-label" th:text="#{admin.policy.center.create.ai.name.ph}">Policy Name</label>
-                                <input type="text" id="ai-card-name" class="ai-card-title-input" style="font-size:1.25rem;font-weight:700;" th:placeholder="#{admin.policy.center.create.ai.name.ph}" />
+                                <input type="text" id="ai-card-name" maxlength="255" class="ai-card-title-input" style="font-size:1.25rem;font-weight:700;" th:placeholder="#{admin.policy.center.create.ai.name.ph}" />
                             </div>
                             <div style="margin-bottom:1rem;">
                                 <label class="ai-field-label" th:text="#{admin.policy.center.create.ai.desc.ph}">Description</label>
-                                <textarea id="ai-card-description" class="ai-card-desc" rows="2" th:placeholder="#{admin.policy.center.create.ai.desc.ph}"></textarea>
+                                <textarea id="ai-card-description" maxlength="255" class="ai-card-desc" rows="2" th:placeholder="#{admin.policy.center.create.ai.desc.ph}"></textarea>
                             </div>
                             <div style="display:flex;align-items:center;gap:1.5rem;">
                                 <div>
@@ -594,7 +594,7 @@
                             </div>
                         </div>
 
-                        <div class="hidden" id="ai-card-spel-section"><input type="text" id="ai-card-spel" /></div>
+                        <div class="hidden" id="ai-card-spel-section"><input type="text" id="ai-card-spel" maxlength="2048" /></div>
                         <div class="hidden" id="ai-policy-card"></div>
 
                         <div class="modern-card p-4" id="ai-analysis-card" style="margin-bottom:1rem;">
@@ -992,7 +992,7 @@
                     </h3>
                     <div class="mb-4">
                         <label class="block text-sm font-medium mb-2" style="color:#cbd5e1;" th:text="#{msg.policy.version.change.reason}">Change Reason</label>
-                        <textarea id="delete-reason-input" rows="3" class="modern-input w-full" required th:placeholder="#{msg.policy.version.change.reason.required}"></textarea>
+                        <textarea id="delete-reason-input" maxlength="1024" rows="3" class="modern-input w-full" required th:placeholder="#{msg.policy.version.change.reason.required}"></textarea>
                     </div>
                     <div class="flex justify-end gap-3">
                         <button type="button" onclick="PolicyCenter.DeleteModal.close()" class="modern-btn-secondary" th:text="#{common.cancel}">Cancel</button>
@@ -1099,7 +1099,7 @@
         <div class="space-y-4">
             <div>
                 <label class="block text-sm font-medium mb-1" style="color:#cbd5e1;" th:text="#{policy.center.manual.target.identifier}">Resource Path</label>
-                <input type="text" id="mt-identifier" class="modern-input w-full" th:placeholder="#{policy.center.manual.target.identifier.placeholder}" />
+                <input type="text" id="mt-identifier" maxlength="255" class="modern-input w-full" th:placeholder="#{policy.center.manual.target.identifier.placeholder}" />
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -1232,6 +1232,13 @@
      th:data-batch-status-skipped="#{policy.center.batch.status.skipped}"
      th:data-batch-status-error="#{policy.center.batch.status.error}"
      th:data-reset-confirm="#{policy.center.reset.confirm}"
+     th:data-stats-load-failed="#{policy.center.js.stats.load.failed}"
+     th:data-ai-items-load-failed="#{policy.center.js.ai.items.load.failed}"
+     th:data-ai-items-check-failed="#{policy.center.js.ai.items.check.failed}"
+     th:data-conflict-check-failed="#{policy.center.js.conflict.check.failed}"
+     th:data-health-check-failed="#{policy.center.js.health.check.failed}"
+     th:data-validation-unavailable-confirm="#{policy.center.js.validation.unavailable.confirm}"
+     th:data-simulation-failed="#{policy.center.js.simulation.failed}"
      th:data-refresh-failed="#{policy.center.js.refresh.failed}"
      th:data-refresh-error="#{policy.center.js.refresh.error}"
      th:data-progress-collect="#{policy.center.js.progress.collect}"

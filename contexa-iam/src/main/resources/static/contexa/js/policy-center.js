@@ -1181,7 +1181,12 @@ const PolicyCenter = {
                 }
             } catch (valErr) {
                 console.error('Pre-creation validation error', valErr);
-                showToast(PolicyCenter._i18n('validationChecking', 'Validation check failed'), 'warning');
+                // The check could not run: the person decides, with the reason, instead of creating as if it had passed.
+                if (!window.confirm(PolicyCenter._i18n('validationUnavailableConfirm',
+                        'The conflict check could not run ({0}). Save the policy without it?').replace('{0}', valErr.message || ''))) {
+                    PolicyCenter.setLoading(btn, false);
+                    return;
+                }
             }
 
             try {
@@ -1268,7 +1273,7 @@ const PolicyCenter = {
             block.innerHTML =
                 '<div class="col-span-3"><select name="targets[' + idx + '].targetType" onchange="PolicyCenter.Manual.toggleHttpMethod(this)" class="modern-select"><option value="URL">URL</option><option value="METHOD">METHOD</option></select></div>' +
                 '<div class="col-span-2"><select name="targets[' + idx + '].httpMethod" class="http-method-select modern-select"><option value="ALL">ALL</option><option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option></select></div>' +
-                '<div class="col-span-6"><input type="text" name="targets[' + idx + '].targetIdentifier" class="modern-input" placeholder="/contexa/admin/** or com.example.*" required /></div>' +
+                '<div class="col-span-6"><input type="text" name="targets[' + idx + '].targetIdentifier" class="modern-input" maxlength="255" placeholder="/contexa/admin/** or com.example.*" required /></div>' +
                 '<input type="hidden" name="targets[' + idx + '].targetOrder" value="0" />' +
                 '<input type="hidden" name="targets[' + idx + '].sourceType" value="RESOURCE" />' +
                 '<div class="col-span-1 text-center"><button type="button" onclick="PolicyCenter.Manual.removeElement(this, \'.target-block\')" class="remove-btn">&times;</button></div>';
@@ -1284,7 +1289,7 @@ const PolicyCenter = {
             block.innerHTML =
                 '<button type="button" onclick="PolicyCenter.Manual.removeRule(this)" class="remove-btn">&times;</button>' +
                 '<h3 class="font-semibold" style="color: #e2e8f0;">' + PolicyCenter._i18n('ruleLabel', 'Rule #') + (idx + 1) + '</h3>' +
-                '<div><label class="manual-form-label">' + PolicyCenter._i18n('ruleDescLabel', 'Rule Description') + '</label><input type="text" name="rules[' + idx + '].description" class="modern-input" /></div>' +
+                '<div><label class="manual-form-label">' + PolicyCenter._i18n('ruleDescLabel', 'Rule Description') + '</label><input type="text" name="rules[' + idx + '].description" maxlength="255" class="modern-input" /></div>' +
                 '<div><label class="manual-form-label">' + PolicyCenter._i18n('conditionsLabel', 'Conditions (AND)') + '</label><div class="conditions-list space-y-2 mt-2"></div>' +
                 '<button type="button" onclick="PolicyCenter.Manual.addCondition(this)" class="add-btn mt-2"><i class="fas fa-plus"></i> ' + PolicyCenter._i18n('addCondition', 'Add Condition') + '</button></div>';
             container.appendChild(block);
@@ -1299,7 +1304,7 @@ const PolicyCenter = {
             block.className = 'condition-block grid grid-cols-12 gap-2 items-center';
             block.innerHTML =
                 '<div class="col-span-3"><select name="rules[' + ruleIdx + '].conditions[' + condIdx + '].authorizationPhase" class="modern-select text-sm"><option value="PRE_AUTHORIZE">' + PolicyCenter._i18n('preAuthorize', 'Pre-Authorize') + '</option><option value="POST_AUTHORIZE">' + PolicyCenter._i18n('postAuthorize', 'Post-Authorize') + '</option></select></div>' +
-                '<div class="col-span-8"><input type="text" name="rules[' + ruleIdx + '].conditions[' + condIdx + '].expression" class="modern-input font-mono text-sm" placeholder="SpEL expression" /></div>' +
+                '<div class="col-span-8"><input type="text" name="rules[' + ruleIdx + '].conditions[' + condIdx + '].expression" maxlength="2048" class="modern-input font-mono text-sm" placeholder="SpEL expression" /></div>' +
                 '<div class="col-span-1 text-center"><button type="button" onclick="PolicyCenter.Manual.removeElement(this, \'.condition-block\')" class="remove-btn">&times;</button></div>';
             condList.appendChild(block);
         },
@@ -1409,6 +1414,10 @@ const PolicyCenter = {
                 }
             } catch (valErr) {
                 console.error('Pre-creation validation error', valErr);
+                if (!window.confirm(PolicyCenter._i18n('validationUnavailableConfirm',
+                        'The conflict check could not run ({0}). Save the policy without it?').replace('{0}', valErr.message || ''))) {
+                    return false;
+                }
             }
             form.removeAttribute('onsubmit');
             form.submit();
@@ -1435,10 +1444,9 @@ const PolicyCenter = {
         },
 
         async loadContextDashboard() {
+            const el = (id) => document.getElementById(id);
             try {
-                const resp = await fetch('/contexa/admin/policy-center/api/stats');
-                const stats = await resp.json();
-                const el = (id) => document.getElementById(id);
+                const stats = (await PolicyCenter.fetchJson('/contexa/admin/policy-center/api/stats')) || {};
                 el('ai-stat-roles-count').textContent = stats.roleCount || 0;
                 el('ai-stat-perms-count').textContent = stats.permissionCount || 0;
                 el('ai-stat-conditions-count').textContent = stats.conditionCount || 0;
@@ -1456,6 +1464,11 @@ const PolicyCenter = {
                 }
             } catch (e) {
                 console.error('Failed to load system stats', e);
+                // A store that cannot be read is not "0 of everything".
+                ['ai-stat-roles-count', 'ai-stat-perms-count', 'ai-stat-conditions-count', 'ai-stat-policies-count',
+                    'ai-stat-resource-total', 'ai-stat-resource-unprotected', 'ai-stat-resource-connected',
+                    'ai-stat-resource-needs-def'].forEach(id => { if (el(id)) el(id).textContent = '-'; });
+                showToast(PolicyCenter._i18n('statsLoadFailed', 'System statistics could not be loaded:') + ' ' + e.message, 'error');
             }
         },
 
@@ -1512,6 +1525,12 @@ const PolicyCenter = {
                 };
             } catch (e) {
                 console.error('Failed to collect available items', e);
+                // Without the catalog the AI would name roles and permissions nothing can check against.
+                showToast(PolicyCenter._i18n('aiItemsLoadFailed', 'Roles, permissions and conditions could not be loaded:') + ' ' + e.message, 'error');
+                btn.disabled = false;
+                cancelBtn.classList.add('hidden');
+                progress.classList.add('hidden');
+                return;
             }
 
             const requestPayload = { naturalLanguageQuery: query, availableItems: availableItems };
@@ -1695,6 +1714,7 @@ const PolicyCenter = {
                 } else { validatedData.conditions = {}; }
             } catch (e) {
                 console.error('Validation fallback:', e);
+                showToast(PolicyCenter._i18n('aiItemsCheckFailed', 'The AI result could not be checked against the existing items:') + ' ' + e.message, 'warning');
                 if (!Array.isArray(validatedData.roleIds)) validatedData.roleIds = [];
                 if (!Array.isArray(validatedData.permissionIds)) validatedData.permissionIds = [];
                 if (!validatedData.conditions || typeof validatedData.conditions !== 'object') validatedData.conditions = {};
@@ -1959,8 +1979,7 @@ const PolicyCenter = {
 
             try {
                 if (!this._cachedPolicySummaries) {
-                    const resp = await fetch('/contexa/admin/policy-center/api/policy-summaries');
-                    this._cachedPolicySummaries = await resp.json();
+                    this._cachedPolicySummaries = (await PolicyCenter.fetchJson('/contexa/admin/policy-center/api/policy-summaries')) || [];
                 }
 
                 const summaries = this._cachedPolicySummaries;
@@ -1977,6 +1996,7 @@ const PolicyCenter = {
                 }
             } catch (e) {
                 console.error('Failed to check conflicts', e);
+                showToast(PolicyCenter._i18n('conflictCheckFailed', 'Policy name conflicts could not be checked:') + ' ' + e.message, 'warning');
             }
 
             if (conflicts.length === 0) {
@@ -2439,10 +2459,9 @@ PolicyCenter.Validation = {
         const btn = document.getElementById('policy-health-check-btn');
         if (btn) PolicyCenter.setLoading(btn, true);
 
-        fetch('/contexa/admin/policy-center/api/validation-report', {
+        PolicyCenter.fetchJson('/contexa/admin/policy-center/api/validation-report', {
             headers: { [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken() }
         })
-        .then(r => r.json())
         .then(report => {
             PolicyCenter.ConflictDetailModal._lastReport = report;
             this.renderHealthBanner(report);
@@ -2452,6 +2471,7 @@ PolicyCenter.Validation = {
         .catch(err => {
             console.error('Health check failed', err);
             if (btn) PolicyCenter.setLoading(btn, false);
+            showToast(PolicyCenter._i18n('healthCheckFailed', 'Policy health check failed:') + ' ' + err.message, 'error');
         });
     },
 
@@ -2575,87 +2595,59 @@ PolicyCenter.Validation = {
         return 'LOW';
     },
 
+    // The checks reject with the server's reason when they cannot answer: a check that did not run is not
+    // reported as passed, and an analysis that failed is not drawn as an empty result (IAM-D75).
     async validateQuickPolicy(quickRequest) {
-        try {
-            const response = await fetch('/contexa/admin/policy-center/api/validate-quick', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
-                },
-                body: JSON.stringify(quickRequest)
-            });
-            return await response.json();
-        } catch (err) {
-            console.error('Quick validation failed', err);
-            return { conflicts: [], duplicates: [], canCreate: true, blockedReason: null };
-        }
+        return PolicyCenter.fetchJson('/contexa/admin/policy-center/api/validate-quick', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
+            },
+            body: JSON.stringify(quickRequest)
+        });
     },
 
     async analyzeImpact(policyDto) {
-        try {
-            const response = await fetch('/contexa/admin/policy-center/api/impact-analysis', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
-                },
-                body: JSON.stringify(policyDto)
-            });
-            return await response.json();
-        } catch (err) {
-            console.error('Impact analysis failed', err);
-            return { affectedUserCount: 0, affectedUsers: [], affectedResources: [], accessChangeSummary: { gained: 0, lost: 0, changed: 0, unchanged: 0 } };
-        }
+        return PolicyCenter.fetchJson('/contexa/admin/policy-center/api/impact-analysis', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
+            },
+            body: JSON.stringify(policyDto)
+        });
     },
 
     async simulate(candidatePolicy, testCases) {
-        try {
-            const response = await fetch('/contexa/admin/policy-center/api/simulate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
-                },
-                body: JSON.stringify({ candidatePolicy: candidatePolicy, testCases: testCases })
-            });
-            return await response.json();
-        } catch (err) {
-            console.error('Simulation failed', err);
-            return { results: [], summary: { unchanged: 0, allowToDeny: 0, denyToAllow: 0, otherChanges: 0 } };
-        }
+        return PolicyCenter.fetchJson('/contexa/admin/policy-center/api/simulate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
+            },
+            body: JSON.stringify({ candidatePolicy: candidatePolicy, testCases: testCases })
+        });
     },
 
     async getMatrix(resourceFilter, roleFilter) {
-        try {
-            const params = new URLSearchParams();
-            if (resourceFilter) params.append('resourceFilter', resourceFilter);
-            if (roleFilter) params.append('roleFilter', roleFilter);
-            const response = await fetch('/contexa/admin/policy-center/api/matrix?' + params.toString(), {
-                headers: { [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken() }
-            });
-            return await response.json();
-        } catch (err) {
-            console.error('Matrix load failed', err);
-            return { resources: [], roles: [], cells: [], conflictCells: [] };
-        }
+        const params = new URLSearchParams();
+        if (resourceFilter) params.append('resourceFilter', resourceFilter);
+        if (roleFilter) params.append('roleFilter', roleFilter);
+        return PolicyCenter.fetchJson('/contexa/admin/policy-center/api/matrix?' + params.toString(), {
+            headers: { [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken() }
+        });
     },
 
     async validateBeforeCreate(policyDto) {
-        try {
-            const response = await fetch('/contexa/admin/policy-center/api/validate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
-                },
-                body: JSON.stringify(policyDto)
-            });
-            return await response.json();
-        } catch (err) {
-            console.error('Validation failed', err);
-            return { conflicts: [], duplicates: [], canCreate: true, blockedReason: null };
-        }
+        return PolicyCenter.fetchJson('/contexa/admin/policy-center/api/validate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
+            },
+            body: JSON.stringify(policyDto)
+        });
     }
 };
 
@@ -2825,10 +2817,18 @@ PolicyCenter.SimulatorUI = {
         var btn = document.getElementById('sim-run-btn');
         PolicyCenter.setLoading(btn, true);
 
-        var report = await PolicyCenter.Validation.simulate(null, cases);
+        var resultsDiv = document.getElementById('sim-results');
+        var report;
+        try {
+            report = await PolicyCenter.Validation.simulate(null, cases);
+        } catch (e) {
+            PolicyCenter.setLoading(btn, false);
+            resultsDiv.classList.add('hidden');
+            showToast(PolicyCenter._i18n('simulationFailed', 'Simulation failed:') + ' ' + e.message, 'error');
+            return;
+        }
         PolicyCenter.setLoading(btn, false);
 
-        var resultsDiv = document.getElementById('sim-results');
         resultsDiv.classList.remove('hidden');
 
         var allowCount = 0, denyCount = 0, defaultCount = 0;
@@ -2886,9 +2886,15 @@ PolicyCenter.MatrixUI = {
         var container = document.getElementById('matrix-container');
         container.innerHTML = '<p class="text-sm p-6" style="color:#64748b;"><i class="fas fa-spinner fa-spin mr-1"></i> ' + PolicyCenter._i18n('loading', 'Loading...') + '</p>';
 
-        var report = await PolicyCenter.Validation.getMatrix(resourceFilter, roleFilter);
+        var report;
+        try {
+            report = (await PolicyCenter.Validation.getMatrix(resourceFilter, roleFilter)) || {};
+        } catch (e) {
+            container.innerHTML = PolicyCenter.loadFailedHtml(e);
+            return;
+        }
 
-        if (!report.resources.length || !report.roles.length) {
+        if (!(report.resources || []).length || !(report.roles || []).length) {
             container.innerHTML = '<p class="text-sm p-6" style="color:#64748b;">' + PolicyCenter._i18n('matrixNoData', 'No data matching the filter.') + '</p>';
             return;
         }
