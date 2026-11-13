@@ -585,6 +585,27 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **Each sign-in is held to its own flow, step and address, and a sign-in setting that cannot work stops the start.** A login
+  of one flow (a form flow, or an MFA flow that asks for fewer factors) no longer counts as a login of another MFA flow under
+  the same state: the login names the flow that completed it, and an MFA chain takes only logins that meet its flow. The
+  application's handlers and a step's default addresses are kept per flow and step instead of on shared beans, so the last
+  flow registered no longer answers for every flow; a REST primary step completes at its own success address. A `urlPrefix`
+  is checked as a path and compared at path boundaries (`/a` no longer covers `/api/...`); `/api/mfa/config` answers for the
+  flow of the request (`?flow=`, or the only MFA flow); an expired password answers a script with `CREDENTIALS_EXPIRED`.
+  **Check:** these now stop the start with the setting named: two address settings for different requests with one value,
+  an address option without a leading slash, `formLogin` together with `restLogin`, a factor written twice, `rawFormLogin`
+  on an MFA primary step, a token-state flow with `RESOURCE_SERVER`, `max-retry-attempts` below 1, a token lifetime of 0
+  or less; `authorizeHttpRequests` in `rawHttp` says to use `global`.
+
+- **Spring Security's passkey and code sign-in written in `global(...)` no longer sign a person in to an MFA chain whose
+  flow lacks that factor.** `webAuthn()` and `oneTimeTokenLogin()` of the global customizer were added to every chain, so
+  in an MFA chain without a passkey (or one-time code) factor they signed a person in with that one factor alone. They are
+  taken out of such a chain before it is built, with a warning; where the flow has the factor, the factor configures them
+  as before. **Check:** written in the `rawHttp` of an MFA step they stop the start. A sign-in completed with at least one
+  factor now releases a CHALLENGE for the session it opens (the user's other sessions stay challenged; ESCALATE and BLOCK
+  are left as they are), and where the application has no MFA flow a page request under a CHALLENGE goes to a notice that
+  offers the sign-out instead of the JSON refusal (an API still gets 401).
+
 - **A client that keeps no cookie no longer fills the heap with sessions on Contexa's sign-in chain.** Every anonymous
   request to a protected address was remembered for the return after sign-in, and remembering it opened a new HTTP
   session. A client without cookies (a script, a probe, a crawler of an API) left one session per request, each living
@@ -650,6 +671,17 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **A protected method called without a signed-in user runs under `OBSERVE` and `DISABLED`, as without Contexa.** These modes
   decide on nobody; the method policies of the console still apply, and `SHADOW` and `ENFORCE` refuse the call as before.
 
+- **The refusal of a protected method called without a signed-in user is an access denial, so the application's own exception
+  handling answers it as one.** Under `SHADOW` and `ENFORCE` the call is refused with an `AccessDeniedException` whose cause is
+  the `AuthenticationCredentialsNotFoundException` that was thrown before; a chain's exception translation finds that cause and
+  sends the visitor to its entry point as it did. An application whose `@ControllerAdvice` answered every other exception with
+  500 now answers this refusal as the denial it is (JHipster's anonymous registration: 500 before, 403 now). **Check:** an
+  `@ExceptionHandler(AuthenticationCredentialsNotFoundException.class)` of the application no longer sees this refusal; handle
+  `AccessDeniedException` (and read its cause) instead.
+
+- **The block of a deleted account no longer comes back.** When an account is deleted, the block records still in force under
+  its name are closed (by `SYSTEM`, reason `ACCOUNT_DELETED`), so a later account made with the same name does not inherit them.
+
 - **A refused protected call on a path no Spring Security chain covers is a 401 or 403, no longer a 500.** Contexa answers only
   its own refusal there; the application's exceptions, its handlers' answers and a response already sent stay as they are.
 
@@ -673,8 +705,8 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 - **A code mail no longer holds the request for a mail server that does not answer.** A mail server that took the connection and
   kept silent held the request that asked for the code as long as it pleased (80 to 110 seconds were measured), and on a server
-  with few request threads the application's other requests waited behind it. Contexa now sends on mail threads of its own (eight,
-  with 32 mails waiting) and the request waits five seconds at most; while every mail thread is held, a new code mail is refused
+  with few request threads the application's other requests waited behind it. Contexa now sends on mail threads of its own
+  (`contexa.auth.ott.email-max-concurrent-sends`, 64 by default, with 32 mails waiting) and the request waits five seconds at most; while every mail thread is held, a new code mail is refused
   at once, with the answer of a code that could not be sent. The sender Contexa builds itself from `spring.mail.*` gets a limit
   where the settings name none (5 seconds to connect, 10 for an answer, 10 to write); a limit the settings name, zero included,
   and the application's own sender are left as they are. **Check:** a mail the server takes more than five seconds to accept is
@@ -876,19 +908,13 @@ The format is based on Keep a Changelog and the project follows semantic version
   `global(...)`: its `loginPage`, `failureUrl` and the rest were dropped without a word. The behaviour is the
   same, and the start now logs a warning that names the flow and says to write the settings in the flow
   (`form(form -> form.loginPage(...))` or `form.rawFormLogin(...)`).
-- **An application with a user store of its own signs its accounts in at Contexa's form sign-in.** When the
-  application has exactly one `UserDetailsService`, that store serves the sign-in Contexa owns, and its accounts are
-  whatever `UserDetails` it returns. Contexa's password provider took every account for one of its own and failed on
-  such an account with a class cast: 500 at every sign-in. The account now signs in as it is. **Check:** an
-  application with an `InMemoryUserDetailsManager` bean and a form flow with the session state signs its user in
-  (302, and the application sees the user's name); before, 500.
 - **A mail server that answers slowly no longer stops every sign-in.** The mail of a sign-in is sent on the thread of
   the request that asked for it, and JavaMail waits without end where no timeout is set. With a mail server that greeted
   one connection a second, 400 requests for a code at once held every request thread: 89 were answered and 311 got no
   answer in 90 seconds, and the application did not answer its health check for the whole of that time. At most
   `contexa.auth.ott.email-max-concurrent-sends` (64) mails are now being sent at one time, a request beyond them waiting
-  `contexa.auth.ott.email-send-wait-seconds` (5) for a place and then failing as an undelivered mail does (500 with
-  `contexa.auth.ott.fail-on-email-error=true`, the default). The mail itself goes out with the application's own mail
+  `contexa.auth.ott.email-send-wait-seconds` (5) for a place and then failing as an undelivered mail does (in Contexa's MFA flows
+  `503 OTT_CODE_NOT_SENT`, as above). The mail itself goes out with the application's own mail
   settings. A limit of time on the steps of the SMTP conversation is set only on request, with
   `contexa.auth.ott.email-smtp-timeout-seconds` (0, none): the mail sender is the application's, so a value is written
   into that sender where `spring.mail.properties.mail.smtp.*timeout` names none and bounds the application's other mail
