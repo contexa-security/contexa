@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.system.settings.title})}"></head>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.system.settings.title})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans">
 <link rel="stylesheet" th:href="@{/contexa/css/system-settings.css}" />
 <div th:insert="~{contexa/fragments/header :: header}"></div>

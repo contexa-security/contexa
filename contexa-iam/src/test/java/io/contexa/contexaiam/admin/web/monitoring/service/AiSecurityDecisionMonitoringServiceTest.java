@@ -10,9 +10,12 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FailureSumma
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LlmDecisionSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitoringResetRequest;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitoringResetResponse;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.ReadinessBlocker;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 
@@ -20,6 +23,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -67,6 +71,30 @@ class AiSecurityDecisionMonitoringServiceTest {
         assertThat(summary.explicitFailureBreakdown()).extracting("key")
                 .containsExactlyInAnyOrder("TIMEOUT", "MODEL_UNAVAILABLE");
         assertThat(summary.explicitFailureBreakdown()).extracting("count").doesNotContain(0L);
+    }
+
+    @Test
+    void readinessBlockersFollowTheRequestLanguageAndArchivesKeepEnglish() {
+        StaticMessageSource messages = new StaticMessageSource();
+        messages.addMessage("admin.aiMonitor.blocker.timeout", Locale.KOREAN, "AI 분석 시간 초과");
+        messages.addMessage("admin.aiMonitor.blocker.timeout.action", Locale.KOREAN, "시간 제한을 점검");
+        AiSecurityDecisionMonitoringService localized = new AiSecurityDecisionMonitoringService(
+                () -> jdbcTemplate, new SecurityZeroTrustProperties(), messages);
+        LocaleContextHolder.setLocale(Locale.KOREAN);
+        try {
+            ReadinessBlocker timeout = localized.readiness("day").blockers().stream()
+                    .filter(blocker -> "TIMEOUT".equals(blocker.key()))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(timeout.title()).isEqualTo("AI 분석 시간 초과");
+            assertThat(timeout.action()).isEqualTo("시간 제한을 점검");
+
+            MonitoringResetResponse response = localized.resetMonitoring(
+                    new MonitoringResetRequest("language check", "RESET"), "admin");
+            assertThat(response.archivedSummary().topBlockersJson()).contains("AI analysis timed out");
+        } finally {
+            LocaleContextHolder.resetLocaleContext();
+        }
     }
 
     @Test

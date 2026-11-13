@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
     <th:block th:replace="~{contexa/admin/prompt-quality/fragments :: head(${pageTitle})}"></th:block>
     <link rel="stylesheet" th:href="@{/contexa/css/admin/prompt-quality/prompt-quality-dashboard.css}">

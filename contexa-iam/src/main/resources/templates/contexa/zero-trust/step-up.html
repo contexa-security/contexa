@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{zerotrust.stepup.page.title})}"></head>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{zerotrust.stepup.page.title})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans" style="background: #050810;">
 <!--
   The verification-only step-up when the application owns sign-in (HOST_OWNED). The application's sign-in, session

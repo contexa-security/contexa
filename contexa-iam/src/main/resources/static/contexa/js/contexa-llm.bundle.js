@@ -16,7 +16,7 @@
     'use strict';
 
     /**
-     * Bundled i18n strings. Auto-selected by navigator.language; caller can still
+     * Bundled i18n strings. Auto-selected by the page language (then navigator.language); caller can still
      * override any key by passing an explicit options.xxxText to the SDK.
      */
     const __ContexaLlmI18n = (function() {
@@ -44,7 +44,10 @@
                 errorPrefix: '오류'
             }
         };
-        const lang = ((typeof navigator !== 'undefined' && navigator.language) || 'en')
+        // The console language (html lang, set from the session locale) wins over the browser language.
+        const pageLang = typeof document !== 'undefined' && document.documentElement
+                ? document.documentElement.lang : '';
+        const lang = (pageLang || (typeof navigator !== 'undefined' && navigator.language) || 'en')
                 .slice(0, 2).toLowerCase();
         return messages[lang] || messages.en;
     })();

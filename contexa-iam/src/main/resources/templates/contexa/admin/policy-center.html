@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle='Policy Center')}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
@@ -49,12 +49,12 @@
 
                 <form th:action="@{/contexa/admin/policy-center}" method="get" th:object="${criteria}" class="filter-container mb-8">
                     <input type="hidden" name="tab" value="create" />
-                    <div class="flex gap-2 justify-end mb-4">
+                    <div class="flex flex-wrap gap-2 justify-end mb-4">
                         <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.refreshResources(this)"><i class="fas fa-sync-alt"></i> <span th:text="#{admin.policy.center.resource.refresh}">Refresh Resources</span></button>
                         <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.ManualTarget.open()" style="border-color: rgba(129,140,248,0.5);"><i class="fas fa-pen-fancy"></i> <span th:text="#{policy.center.manual.target.btn}">Direct Resource Entry</span></button>
                         <button type="button" class="modern-btn-refresh" onclick="PolicyCenter.MultiSelect.resetPolicyStatus()" style="border-color: rgba(239,68,68,0.6);color:#fca5a5;font-weight:600;"><i class="fas fa-undo-alt"></i> <span th:text="#{policy.center.multi.reset.policy}">Reset Policy</span></button>
                     </div>
-                    <div style="display:grid;grid-template-columns:auto 0.7fr auto 0.7fr auto 1.5fr auto auto;gap:10px;align-items:center;">
+                    <div class="pc-resource-filter-grid">
                         <span class="text-xs" style="color:#94a3b8;white-space:nowrap;" th:text="#{admin.policy.center.resource.service.owner}">Service Owner</span>
                         <select id="serviceOwner" th:field="*{serviceOwner}" class="modern-select" th:aria-label="#{admin.policy.center.resource.service.owner}">
                             <option value="" th:text="#{admin.policy.center.resource.status.all}">All</option>
@@ -329,7 +329,7 @@
                         <div class="qp-panel" id="qp-role-panel">
                             <div class="qp-panel-header">
                                 <h4 class="qp-panel-title"><i class="fas fa-user-shield"></i> <span th:text="#{admin.policy.center.create.quick.roles}">Roles</span></h4>
-                                <span class="qp-panel-count" id="qp-role-count">0 selected</span>
+                                <span class="qp-panel-count" id="qp-role-count" th:text="|0#{policy.center.js.selected.suffix}|">0 selected</span>
                             </div>
                             <div class="qp-search-box">
                                 <i class="fas fa-search"></i>
@@ -350,11 +350,11 @@
                             </div>
                             <div id="qp-crud-list" style="padding:1rem;">
                                 <div id="qp-crud-auto" style="margin-bottom:1rem;">
-                                    <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:0.5rem;font-weight:600;">Resource CRUD (Auto)</div>
+                                    <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:0.5rem;font-weight:600;" th:text="#{policy.center.resource.crud.auto}">Resource CRUD (Auto)</div>
                                     <div id="qp-crud-auto-items" style="display:flex;gap:0.5rem;flex-wrap:wrap;"></div>
                                 </div>
                                 <div id="qp-crud-manual" style="display:none;">
-                                    <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:0.5rem;font-weight:600;">Additional</div>
+                                    <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:0.5rem;font-weight:600;" th:text="#{policy.center.resource.crud.additional}">Additional</div>
                                     <div id="qp-crud-manual-items"></div>
                                 </div>
                                 <div class="pc-empty" id="qp-crud-empty"><i class="fas fa-info-circle"></i><p th:text="#{admin.policy.center.qp.crud.empty}">Select a resource to see CRUD permissions.</p></div>
@@ -1231,6 +1231,20 @@
      th:data-batch-status-created="#{policy.center.batch.status.created}"
      th:data-batch-status-skipped="#{policy.center.batch.status.skipped}"
      th:data-batch-status-error="#{policy.center.batch.status.error}"
+     th:data-reset-confirm="#{policy.center.reset.confirm}"
+     th:data-refresh-failed="#{policy.center.js.refresh.failed}"
+     th:data-refresh-error="#{policy.center.js.refresh.error}"
+     th:data-progress-collect="#{policy.center.js.progress.collect}"
+     th:data-progress-analyze="#{policy.center.js.progress.analyze}"
+     th:data-progress-send="#{policy.center.js.progress.send}"
+     th:data-progress-build="#{policy.center.js.progress.build}"
+     th:data-progress-complete="#{policy.center.js.progress.complete}"
+     th:data-ai-initial-loading="#{policy.center.js.ai.initial.loading}"
+     th:data-ai-analysis-complete="#{policy.center.js.ai.analysis.complete}"
+     th:data-ai-generating-result="#{policy.center.js.ai.generating.result}"
+     th:data-ai-final-complete="#{policy.center.js.ai.final.complete}"
+     th:data-approval-blocked="#{policy.center.js.approval.blocked}"
+     th:data-no-details="#{policy.center.js.no.details}"
      th:data-reset-select-policy-connected="#{policy.center.reset.select.policy.connected}"
      th:data-reset-uncheck-needs-def="#{policy.center.reset.uncheck.needs.def}"
      th:data-reset-only-policy-connected="#{policy.center.reset.only.policy.connected}"
@@ -1264,7 +1278,7 @@
         </div>
         <div id="br-body" style="flex:1;overflow-y:auto;padding:1rem 1.5rem;"></div>
         <div style="padding:1rem 1.5rem;border-top:1px solid rgba(71,85,105,0.3);text-align:right;">
-            <a href="/contexa/admin/policy-center?tab=list" class="modern-btn-primary" style="text-decoration:none;">
+            <a th:href="@{/contexa/admin/policy-center(tab='list')}" href="/contexa/admin/policy-center?tab=list" class="modern-btn-primary" style="text-decoration:none;">
                 <i class="fas fa-list mr-1"></i> <span th:text="#{admin.policy.center.tab.list}">Policy List</span>
             </a>
         </div>
@@ -1364,7 +1378,7 @@
             <!-- 진행률 수치 및 로고 -->
             <div class="flex justify-between w-full mb-4 px-1">
                 <span id="loading-progress-text" class="text-xs font-semibold text-indigo-400">0%</span>
-                <span class="text-[10px] text-slate-500 tracking-wider uppercase">Contexa Security Engine</span>
+                <span class="text-[10px] text-slate-500 tracking-wider uppercase" th:text="#{policy.center.security.engine}">Contexa Security Engine</span>
             </div>
             
             <!-- 동적 가이드 서브텍스트 -->

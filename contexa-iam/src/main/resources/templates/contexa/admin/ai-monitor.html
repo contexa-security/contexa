@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.aiMonitor.title})}"></th:block>
     <link rel="stylesheet" th:href="@{/contexa/css/policy-center.css}" />
@@ -89,10 +89,10 @@
             </nav>
             <div class="ai-monitor-toolbar">
                 <span class="ai-monitor-muted" th:text="#{admin.aiMonitor.period}">Period</span>
-                <a th:href="${pagePath + '?period=day'}" class="ai-monitor-tab" th:classappend="${period == 'day'} ? ' active' : ''" th:text="#{admin.aiMonitor.period.day}">Day</a>
-                <a th:href="${pagePath + '?period=week'}" class="ai-monitor-tab" th:classappend="${period == 'week'} ? ' active' : ''" th:text="#{admin.aiMonitor.period.week}">Week</a>
-                <a th:href="${pagePath + '?period=month'}" class="ai-monitor-tab" th:classappend="${period == 'month'} ? ' active' : ''" th:text="#{admin.aiMonitor.period.month}">Month</a>
-                <a th:href="${pagePath + '?period=year'}" class="ai-monitor-tab" th:classappend="${period == 'year'} ? ' active' : ''" th:text="#{admin.aiMonitor.period.year}">Year</a>
+                <a th:href="@{${pagePath}(period='day')}" class="ai-monitor-tab" th:classappend="${period == 'day'} ? ' active' : ''" th:text="#{admin.aiMonitor.period.day}">Day</a>
+                <a th:href="@{${pagePath}(period='week')}" class="ai-monitor-tab" th:classappend="${period == 'week'} ? ' active' : ''" th:text="#{admin.aiMonitor.period.week}">Week</a>
+                <a th:href="@{${pagePath}(period='month')}" class="ai-monitor-tab" th:classappend="${period == 'month'} ? ' active' : ''" th:text="#{admin.aiMonitor.period.month}">Month</a>
+                <a th:href="@{${pagePath}(period='year')}" class="ai-monitor-tab" th:classappend="${period == 'year'} ? ' active' : ''" th:text="#{admin.aiMonitor.period.year}">Year</a>
                 <a class="ai-monitor-button" id="ai-monitor-export" href="#" th:text="#{admin.aiMonitor.export}">Export CSV</a>
             </div>
             <div id="ai-monitor-status" class="ai-monitor-band"><div class="ai-monitor-band-title" th:text="#{admin.aiMonitor.status.loading}">Loading</div></div>

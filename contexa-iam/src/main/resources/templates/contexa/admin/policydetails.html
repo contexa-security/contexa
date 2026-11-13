@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.policy.detail.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
@@ -28,7 +28,7 @@
                 </a>
             </div>
 
-            <form id="policy-edit-form" th:action="${policy.id != null ? '/contexa/admin/policies/' + policy.id + '/edit' : '/contexa/admin/policies'}" method="post" th:object="${policy}" class="space-y-6" onsubmit="return PolicyDetailValidation.validateAndSubmit(event)">
+            <form id="policy-edit-form" th:action="${policy.id != null} ? @{/contexa/admin/policies/{id}/edit(id=${policy.id})} : @{/contexa/admin/policies}" method="post" th:object="${policy}" class="space-y-6" onsubmit="return PolicyDetailValidation.validateAndSubmit(event)">
                 <input type="hidden" th:field="*{id}" th:if="${policy.id != null}" />
 
                 <div class="modern-card p-6 space-y-4">

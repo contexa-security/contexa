@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html th:lang="${#locale.language}" xmlns:th="http://www.thymeleaf.org">
 <th:block th:fragment="head-elements (pageTitle)">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -71,6 +71,13 @@
         <meta th:if="${contexaRefreshUrl != null}" name="contexa-refresh-url" th:content="${contexaRefreshUrl}" />
         <script th:src="${contexaSdkUrl}"></script>
     </th:block>
+
+    <!--/* After the SDK: the console's fetch puts the context path in front of console paths and answers a Zero Trust
+           decision that stops a page script's request (console-net.js). */-->
+    <meta name="contexa-context-path" th:content="@{/}" />
+    <meta name="contexa-net-offline" th:content="#{console.net.offline}" />
+    <meta name="contexa-net-failed" th:content="#{console.net.failed}" />
+    <script th:src="@{/contexa/js/console-net.js}"></script>
 
     <style>
         .admin-sidebar * {

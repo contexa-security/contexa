@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.groups.title})}"></head>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.groups.title})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{contexa/fragments/header :: header}"></div>
@@ -23,7 +23,7 @@
                 </a>
             </div>
 
-            <form th:action="@{/contexa/admin/groups}" method="get" class="mb-6 flex gap-3">
+            <form th:action="@{/contexa/admin/groups}" method="get" class="mb-6 flex flex-wrap gap-3 console-search-form">
                 <div class="relative flex-1">
                     <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2" style="color:#64748b;"></i>
                     <input type="text" name="keyword" th:value="${keyword}"

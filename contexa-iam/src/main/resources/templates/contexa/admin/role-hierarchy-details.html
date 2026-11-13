@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.role.hierarchy.detail.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
@@ -95,7 +95,8 @@
                                 <i class="fas fa-arrow-down"></i> <span th:text="#{admin.role.hierarchy.detail.drop.hint}">Drop here to add as parent role</span>
                             </div>
                             <div id="mermaid-container" style="width: 100%; height: 100%;">
-                                <div id="mermaid-diagram" class="mermaid">
+                                <div id="mermaid-diagram" class="mermaid"
+                                     th:text="|graph TD; A[#{admin.role.hierarchy.visual.placeholder}]|">
                                     graph TD
                                     A[Set role relations to see visualization here]
                                 </div>
