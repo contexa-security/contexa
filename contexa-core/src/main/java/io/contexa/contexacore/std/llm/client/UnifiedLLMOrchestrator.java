@@ -24,6 +24,7 @@ import io.contexa.contexacore.properties.SecurityPlaneProperties.LlmProviderThro
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.gate.CallKind;
+import io.contexa.contexacore.std.llm.gate.ModelCallScope;
 import io.contexa.contexacore.std.llm.gate.ModelCallTimer;
 import io.contexa.contexacore.std.llm.gate.ModelServerBusyException;
 import io.contexa.contexacore.std.llm.gate.ModelServerGate;
@@ -702,7 +703,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         if (timeoutMs <= 0L) {
             return callProviderDirectly(providerCall);
         }
-        Future<T> future = PROVIDER_CALL_EXECUTOR.submit(providerCall);
+        // The call runs as a model call of Contexa: a model client's own retry stops at once for an unreachable server.
+        Future<T> future = PROVIDER_CALL_EXECUTOR.submit(() -> ModelCallScope.call(providerCall));
         try {
             return future.get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {
@@ -719,7 +721,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
     private <T> T callProviderDirectly(Callable<T> providerCall) {
         try {
-            return providerCall.call();
+            return ModelCallScope.call(providerCall);
         } catch (RuntimeException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -1658,6 +1660,10 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     }
 
     private boolean isRetryableProviderFailure(Throwable throwable) {
+        if (ModelServerSignals.isUnreachable(throwable)) {
+            // The server could not be reached at all: sent again within seconds it meets the same closed port.
+            return false;
+        }
         Throwable current = throwable;
         while (current != null) {
             if (isA(current, NON_TRANSIENT_AI_EXCEPTION)) {

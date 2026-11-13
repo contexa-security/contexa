@@ -73,12 +73,13 @@ public class PipelineOrchestrator {
             AIRequest<T> request,
             PipelineConfiguration config) {
 
+        // The failure stays a failure of the stream: the streaming service answers it with an error event and its code,
+        // instead of a text chunk that reads like part of the answer.
         return selectExecutor(request, config)
                 .flatMapMany(executor -> executor.executeStream(request, config))
                 .doOnError(error ->
                         log.error("[Orchestrator] Streaming failed: {} - {}",
-                                request.getRequestId(), error.getMessage(), error))
-                .onErrorResume(error -> Flux.just("ERROR: " + error.getMessage()));
+                                request.getRequestId(), error.getMessage(), error));
     }
 
     private <T extends DomainContext> Mono<PipelineExecutor> selectExecutor(

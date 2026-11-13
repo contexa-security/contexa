@@ -69,6 +69,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -406,6 +407,20 @@ public class CoreLLMTieredAutoConfiguration {
                 + "If the dependency is already present, verify that the corresponding API key or base URL is actually set. "
                 + "After a ChatModel bean is available, you may optionally control CONTEXA selection with "
                 + "contexa.llm.selection.chat.* and contexa.llm.bindings.chat.*.";
+    }
+
+    /**
+     * A model call of Contexa does not wait through the model client's retry for a server that cannot be reached: a
+     * stopped model server ends the call in seconds instead of minutes. The retry settings themselves are not changed.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = {"org.springframework.retry.support.RetryTemplate", "org.springframework.ai.retry.RetryUtils"})
+    public static class ModelCallRetryConfiguration {
+
+        @Bean
+        public static BeanPostProcessor contexaModelCallRetryListenerRegistrar() {
+            return new ModelCallRetryListenerRegistrar();
+        }
     }
 
     @Configuration

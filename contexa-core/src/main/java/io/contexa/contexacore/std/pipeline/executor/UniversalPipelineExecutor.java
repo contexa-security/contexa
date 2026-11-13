@@ -121,7 +121,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                     if (configuration.hasStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)) {
                         return llmExecutionStep.executeStreaming(request, ctx);
                     }
-                    return Flux.just("ERROR: LLM_EXECUTION step is disabled");
+                    return Flux.error(new IllegalStateException("The LLM_EXECUTION step of the pipeline is disabled"));
                 })
                 .doOnError(error ->
                         log.error("[{}] Streaming failed: {} - {}",

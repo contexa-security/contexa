@@ -41,7 +41,8 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
                 .doOnSuccess(this::validateResult)
                 .onErrorResume(error -> {
                     log.error("ASYNC strategy execution failed", error);
-                    return Mono.error(new AIOperationException("Pipeline returned unexpected response type"));
+                    // The failure keeps its cause, so that the caller can tell an unreachable model from a bad answer.
+                    return Mono.error(new AIOperationException("Strategy execution failed: " + error.getMessage(), error));
                 });
     }
 

@@ -1479,6 +1479,8 @@ const PolicyCenter = {
             }
 
             const requestPayload = { naturalLanguageQuery: query, availableItems: availableItems };
+            // A failed stream says its cause once: the server's error event gives it in the page language.
+            let streamFailureShown = false;
 
             try {
                 if (typeof ContexaLLM !== 'undefined' && ContexaLLM.analyzeStreaming) {
@@ -1499,6 +1501,7 @@ const PolicyCenter = {
                                 this.handleAIComplete(response, query);
                             },
                             onError: (error) => {
+                                streamFailureShown = true;
                                 showToast(PolicyCenter._i18n('aiGenerateError', 'AI policy generation failed: ') + (error.message || error), 'error');
                             }
                         }
@@ -1514,6 +1517,14 @@ const PolicyCenter = {
                         body: JSON.stringify(requestPayload)
                     });
                     const text = await response.text();
+                    const failure = text.match(/event:\s*error\s*\r?\ndata:\s*(.*)/);
+                    if (failure) {
+                        let detail = {};
+                        try { detail = JSON.parse(failure[1]); } catch (parseErr) { detail = { message: failure[1] }; }
+                        streamFailureShown = true;
+                        showToast(PolicyCenter._i18n('aiGenerateError', 'AI policy generation failed: ') + (detail.message || detail.code), 'error');
+                        return;
+                    }
                     const jsonMatch = text.match(/###FINAL_RESPONSE###([\s\S]*)/);
                     if (jsonMatch) {
                         try {
@@ -1529,7 +1540,9 @@ const PolicyCenter = {
                     }
                 }
             } catch (e) {
-                showToast(PolicyCenter._i18n('aiGenerateError', 'AI policy generation failed: ') + e.message, 'error');
+                if (!streamFailureShown) {
+                    showToast(PolicyCenter._i18n('aiGenerateError', 'AI policy generation failed: ') + e.message, 'error');
+                }
             } finally {
                 btn.disabled = false;
                 cancelBtn.classList.add('hidden');
