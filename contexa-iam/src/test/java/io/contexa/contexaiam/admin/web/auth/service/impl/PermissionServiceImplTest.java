@@ -19,6 +19,7 @@ import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.testsupport.I18nTestSupport;
@@ -58,6 +59,9 @@ class PermissionServiceImplTest {
 
     @Mock
     private PolicyRepository policyRepository;
+
+    @Mock
+    private LastAdministratorGuard lastAdministratorGuard;
 
     @InjectMocks
     private PermissionServiceImpl service;

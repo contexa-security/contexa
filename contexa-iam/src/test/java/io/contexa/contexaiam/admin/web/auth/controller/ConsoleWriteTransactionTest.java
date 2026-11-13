@@ -129,7 +129,7 @@ class ConsoleWriteTransactionTest {
         console.registerBean("groupService", GroupService.class, () -> groupService);
         PermissionServiceImpl permissionService = new PermissionServiceImpl(permissions,
                 mock(ManagedResourceRepository.class), mock(PolicyRepository.class),
-                messages);
+                messages, guard);
         console.registerBean("permissionService", PermissionService.class, () -> permissionService);
         UserManagementServiceImpl userService = new UserManagementServiceImpl(users, groups, roles,
                 mock(PasswordEncoder.class), mock(ModelMapper.class), mock(CentralAuditFacade.class), passwordPolicy,

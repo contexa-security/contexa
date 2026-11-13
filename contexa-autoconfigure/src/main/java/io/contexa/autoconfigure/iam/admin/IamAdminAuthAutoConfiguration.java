@@ -224,9 +224,10 @@ public class IamAdminAuthAutoConfiguration {
             PermissionRepository permissionRepository,
             ManagedResourceRepository managedResourceRepository,
             PolicyRepository policyRepository,
-            MessageSource messageSource) {
-        return new PermissionServiceImpl(
-                permissionRepository, managedResourceRepository, policyRepository, messageSource);
+            MessageSource messageSource,
+            LastAdministratorGuard contexaLastAdministratorGuard) {
+        return new PermissionServiceImpl(permissionRepository, managedResourceRepository, policyRepository,
+                messageSource, contexaLastAdministratorGuard);
     }
 
     @Bean(name = "contexaRoleHierarchyService")

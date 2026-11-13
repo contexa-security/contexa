@@ -114,11 +114,18 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
     public void createUser(UserDto userDto) {
+        // First in the transaction: the console's lock (LastAdministratorGuard.serializeChanges). A creation of the same
+        // name that came a moment before is committed by the time this one has the lock, and is found below; the unique
+        // constraint of the table stays the last defense, for a write that does not come through the console.
+        lastAdministratorGuard.serializeChanges();
         userDto.setUsername(ConsoleInput.required(messageSource, "crud.field.user.username", userDto.getUsername(),
                 USERNAME_LENGTH));
         checkProfile(userDto);
         if (userRepository.findByUsername(userDto.getUsername()).isPresent()) {
             throw new IllegalArgumentException(msg("msg.user.username.exists", userDto.getUsername()));
+        }
+        if (userDto.getEmail() != null && userRepository.existsByEmail(userDto.getEmail())) {
+            throw new IllegalArgumentException(msg("msg.user.email.exists", userDto.getEmail()));
         }
 
         if (!StringUtils.hasText(userDto.getPassword())) {
@@ -207,6 +214,9 @@ public class UserManagementServiceImpl implements UserManagementService {
                 .orElseThrow(() -> new IllegalArgumentException(
                         msg("msg.user.not.found.id", String.valueOf(userDto.getId()))));
         checkProfile(userDto);
+        if (userDto.getEmail() != null && userRepository.existsByEmailAndIdNot(userDto.getEmail(), users.getId())) {
+            throw new IllegalArgumentException(msg("msg.user.email.exists", userDto.getEmail()));
+        }
 
         boolean disabled = users.isEnabled() && !userDto.isEnabled();
         boolean passwordChanged = StringUtils.hasText(userDto.getPassword());

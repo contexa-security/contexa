@@ -98,6 +98,10 @@ public class RoleHierarchyService extends AccountAuthoritiesService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public RoleHierarchyEntity createRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
+        // First in the transaction: the console's lock (LastAdministratorGuard.serializeChanges). A creation of the same
+        // name that came a moment before is committed by the time this one has the lock, and is found below; the unique
+        // constraint of the table stays the last defense, for a write that does not come through the console.
+        lastAdministratorGuard.serializeChanges();
         authoritiesChanged();
         String hierarchyString = requiredHierarchy(roleHierarchyEntity.getHierarchyString());
         roleHierarchyEntity.setHierarchyString(hierarchyString);

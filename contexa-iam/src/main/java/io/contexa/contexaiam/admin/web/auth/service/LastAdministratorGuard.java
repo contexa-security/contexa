@@ -84,6 +84,11 @@ public class LastAdministratorGuard {
      * Takes the lock every change of who may administer the console goes through, until the end of the transaction: the
      * rows of the roles. A change that waits here reads, once it has the lock, what the change before it left. Call it
      * before anything else is read in the transaction, since what was read earlier is not read again.
+     * <p>
+     * The creations of users, roles, groups, permissions and role hierarchies take it too: two creations of the same name
+     * at the same moment would both find the name free and the second would meet the unique constraint of the table.
+     * The lock is the database's, held until the transaction ends with its commit, so the second creation reads the
+     * first one's row on every node of the console, and is refused with its reason.
      */
     public void serializeChanges() {
         roles.findAllForUpdate();

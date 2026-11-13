@@ -21,6 +21,7 @@ import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
 import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPolicyResponse;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.common.ConsoleInput;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
@@ -51,6 +52,7 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
     private final ManagedResourceRepository managedResourceRepository;
     private final PolicyRepository policyRepository;
     private final MessageSource messageSource;
+    private final LastAdministratorGuard lastAdministratorGuard;
 
     /** The lengths of the columns of a permission. */
     private static final int NAME_LENGTH = 255;
@@ -70,6 +72,10 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
     )
     @Override
     public Permission createPermission(Permission permission) {
+        // First in the transaction: the console's lock (LastAdministratorGuard.serializeChanges). A creation of the same
+        // name that came a moment before is committed by the time this one has the lock, and is found below; the unique
+        // constraint of the table stays the last defense, for a write that does not come through the console.
+        lastAdministratorGuard.serializeChanges();
         permission.setName(ConsoleInput.required(messageSource, "crud.field.permission.name", permission.getName(),
                 NAME_LENGTH));
         checkFields(permission);
@@ -77,8 +83,8 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
             throw new IllegalArgumentException(msg("msg.permission.name.duplicate", permission.getName()));
         }
         try {
-            // Flushed here, so a permission of the same name that another administrator saved a moment before is
-            // refused with its reason, not with the constraint of the table.
+            // Flushed here, so that a constraint of the table, should a write from outside the console meet this one,
+            // is told with its reason.
             Permission saved = permissionRepository.save(permission);
             permissionRepository.flush();
             return saved;
@@ -191,6 +197,8 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
     @Transactional(transactionManager = "contexaTransactionManager")
     @Override
     public Permission updatePermission(Long id, PermissionDto permissionDto) {
+        // First in the transaction, as a creation: a rename to a name another rename takes at the same moment is found.
+        lastAdministratorGuard.serializeChanges();
         authoritiesChanged();
         Permission permission = permissionRepository.findWithManagedResourceById(id)
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.permission.not.found.id", String.valueOf(id))));
