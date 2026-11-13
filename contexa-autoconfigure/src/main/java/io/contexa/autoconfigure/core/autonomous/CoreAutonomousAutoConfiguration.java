@@ -1207,9 +1207,17 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public StandaloneLearningStateWarning standaloneLearningStateWarning(
             ObjectProvider<BaselineDataStore> baselineDataStore,
-            ObjectProvider<SecurityContextDataStore> securityContextDataStore) {
-        return new StandaloneLearningStateWarning(baselineDataStore::getIfAvailable,
-                securityContextDataStore::getIfAvailable);
+            ObjectProvider<SecurityContextDataStore> securityContextDataStore,
+            ObjectProvider<SecurityZeroTrustProperties> zeroTrust) {
+        // B-3: OBSERVE and DISABLED learn nothing, so nothing is lost on restart and the start has nothing to say
+        return new StandaloneLearningStateWarning(() -> analyses(zeroTrust) ? baselineDataStore.getIfAvailable() : null,
+                () -> analyses(zeroTrust) ? securityContextDataStore.getIfAvailable() : null);
+    }
+
+    /** Whether Contexa analyses requests (SHADOW, ENFORCE): only then is anything learned or any decision in force. */
+    private static boolean analyses(ObjectProvider<SecurityZeroTrustProperties> zeroTrust) {
+        SecurityZeroTrustProperties properties = zeroTrust.getIfAvailable();
+        return properties == null || properties.allowsLlmAnalysis();
     }
 
     /**
@@ -1229,8 +1237,10 @@ public class CoreAutonomousAutoConfiguration {
     @Bean(name = "contexaStandaloneEnforcementStateWarning")
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public StandaloneEnforcementStateWarning standaloneEnforcementStateWarning(
-            ObjectProvider<ZeroTrustActionRepository> actionRepository) {
-        return new StandaloneEnforcementStateWarning(actionRepository::getIfAvailable);
+            ObjectProvider<ZeroTrustActionRepository> actionRepository,
+            ObjectProvider<SecurityZeroTrustProperties> zeroTrust) {
+        // B-3: OBSERVE and DISABLED hold no decision, so a restart ends none and the start has nothing to say
+        return new StandaloneEnforcementStateWarning(() -> analyses(zeroTrust) ? actionRepository.getIfAvailable() : null);
     }
 
     /**

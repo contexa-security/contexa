@@ -21,6 +21,8 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -51,6 +53,25 @@ class StandaloneEnforcementStateWarningTest {
                 .contains("ctxa_blocked_user").contains("written again");
         assertThat(output).as("not the statement that a restart ends every BLOCK")
                 .doesNotContain("a BLOCK and a CHALLENGE end with the server");
+    }
+
+    @Test
+    @DisplayName("OBSERVE and DISABLED hold no decision, so the start says nothing of a restart; SHADOW and ENFORCE do")
+    void onlyTheModesThatDecideWarn(CapturedOutput output) {
+        for (SecurityZeroTrustProperties.EnforcementMode mode : SecurityZeroTrustProperties.EnforcementMode.values()) {
+            SecurityZeroTrustProperties zeroTrust = new SecurityZeroTrustProperties();
+            zeroTrust.setMode(mode);
+            StaticListableBeanFactory beans = new StaticListableBeanFactory();
+            beans.addBean("repository", new InMemoryZeroTrustActionRepository(0));
+            beans.addBean("zeroTrust", zeroTrust);
+            int before = output.getOut().split(WARNING, -1).length;
+
+            new CoreAutonomousAutoConfiguration().standaloneEnforcementStateWarning(beans.getBeanProvider(ZeroTrustActionRepository.class),
+                    beans.getBeanProvider(SecurityZeroTrustProperties.class)).afterSingletonsInstantiated();
+
+            int written = output.getOut().split(WARNING, -1).length - before;
+            assertThat(written).as(mode.name()).isEqualTo(mode.allowsLlmAnalysis() ? 1 : 0);
+        }
     }
 
     @Test

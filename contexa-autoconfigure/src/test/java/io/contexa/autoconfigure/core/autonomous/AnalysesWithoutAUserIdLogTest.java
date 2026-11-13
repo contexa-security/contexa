@@ -74,7 +74,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * An analysis whose event names no user skips its RAG search, so records of one account never reach the decision of
- * another. The skip is the same for every such request; its ERROR line is written for the first one and then at most
+ * another. The skip is the same for every such request; its INFO line is written for the first one and then at most
  * once per interval with the number of skips that were not written. The strategy is the one Contexa's auto-configuration
  * creates, in a Spring context; the vector store and the model are stand-ins, so the search is seen as it is asked.
  */
@@ -83,7 +83,7 @@ class AnalysesWithoutAUserIdLogTest {
     private static final String RAG_SEARCH_SKIPPED = "userId missing - skipping RAG search for account isolation";
     private static final String PAST_RECORD_LOOKUP_SKIPPED =
             "userId missing - skipping the past record lookup for account isolation";
-    private static final String BASELINE_SKIPPED = "[SYSTEM_ERROR] userId is null - authentication system failure";
+    private static final String BASELINE_SKIPPED = "userId is null - the personal baseline is not read";
     private static final Duration REPORT_INTERVAL = Duration.ofMinutes(5);
     private static final String[] NO_USER = {null, "", "unknown"};
 
@@ -111,7 +111,7 @@ class AnalysesWithoutAUserIdLogTest {
             PromptContextAuditRecorder audit = context.getBean(PromptContextAuditRecorder.class);
 
             List<SecurityEvent> withoutAUser = new ArrayList<>();
-            List<String> errors = errorsDuring(() -> {
+            List<String> notes = infoLinesDuring(() -> {
                 for (int index = 0; index < 20; index++) {
                     SecurityEvent event = event("no-user-" + index, NO_USER[index % NO_USER.length]);
                     strategy.analyzeWithContext(event);
@@ -119,7 +119,7 @@ class AnalysesWithoutAUserIdLogTest {
                 }
             });
 
-            assertThat(errors).filteredOn(line -> line.contains(RAG_SEARCH_SKIPPED)).hasSize(1);
+            assertThat(notes).filteredOn(line -> line.contains(RAG_SEARCH_SKIPPED)).hasSize(1);
             verify(vectors, never()).searchSimilar(any(SearchRequest.class));
             assertThat(withoutAUser).allSatisfy(event -> assertThat(event.getMetadata())
                     .containsEntry("ragAbsenceReason", "USER_ID_MISSING")
@@ -138,7 +138,7 @@ class AnalysesWithoutAUserIdLogTest {
             PromptContextAuditRecorder audit = context.getBean(PromptContextAuditRecorder.class);
 
             List<SecurityEvent> named = new ArrayList<>();
-            List<String> errors = errorsDuring(() -> {
+            List<String> notes = infoLinesDuring(() -> {
                 for (int index = 0; index < 5; index++) {
                     SecurityEvent event = event("alice-" + index, "alice");
                     strategy.analyzeWithContext(event);
@@ -146,7 +146,7 @@ class AnalysesWithoutAUserIdLogTest {
                 }
             });
 
-            assertThat(errors).noneMatch(line -> line.contains("userId missing"));
+            assertThat(notes).noneMatch(line -> line.contains("userId missing"));
             verify(vectors, atLeastOnce()).searchSimilar(any(SearchRequest.class));
             assertThat(named).allSatisfy(event -> assertThat(event.getMetadata().get("ragAbsenceReason"))
                     .isNotEqualTo("USER_ID_MISSING"));
@@ -164,7 +164,7 @@ class AnalysesWithoutAUserIdLogTest {
             ReflectionTestUtils.setField(strategy, AbstractTieredStrategy.class, "missingUserIdRagSearchLog",
                     new ErrorLogThrottle(REPORT_INTERVAL, now::get), ErrorLogThrottle.class);
 
-            List<String> errors = errorsDuring(() -> {
+            List<String> notes = infoLinesDuring(() -> {
                 for (int index = 0; index < 20; index++) {
                     strategy.analyzeWithContext(event("first-" + index, "unknown"));
                 }
@@ -172,7 +172,7 @@ class AnalysesWithoutAUserIdLogTest {
                 strategy.analyzeWithContext(event("after-the-interval", "unknown"));
             });
 
-            List<String> written = errors.stream().filter(line -> line.contains(RAG_SEARCH_SKIPPED)).toList();
+            List<String> written = notes.stream().filter(line -> line.contains(RAG_SEARCH_SKIPPED)).toList();
             assertThat(written).hasSize(2);
             assertThat(written.get(0)).contains("similarSinceLastReport=0");
             assertThat(written.get(1)).contains("similarSinceLastReport=19");
@@ -189,7 +189,7 @@ class AnalysesWithoutAUserIdLogTest {
             when(template.promptBundle(any(SecurityEvent.class))).thenReturn(SecurityDecisionPromptBundles.V20);
 
             List<SecurityEvent> withoutAUser = new ArrayList<>();
-            List<String> errors = errorsDuring(() -> {
+            List<String> notes = infoLinesDuring(() -> {
                 for (int index = 0; index < 20; index++) {
                     SecurityEvent event = event("v20-no-user-" + index, NO_USER[index % NO_USER.length]);
                     strategy.analyzeWithContext(event);
@@ -197,8 +197,8 @@ class AnalysesWithoutAUserIdLogTest {
                 }
             });
 
-            assertThat(errors).filteredOn(line -> line.contains(PAST_RECORD_LOOKUP_SKIPPED)).hasSize(1);
-            assertThat(errors).noneMatch(line -> line.contains(RAG_SEARCH_SKIPPED));
+            assertThat(notes).filteredOn(line -> line.contains(PAST_RECORD_LOOKUP_SKIPPED)).hasSize(1);
+            assertThat(notes).noneMatch(line -> line.contains(RAG_SEARCH_SKIPPED));
             verify(vectors, never()).pastRecordQuery();
             assertThat(withoutAUser).allSatisfy(event -> assertThat(event.getMetadata())
                     .containsEntry("ragAbsenceReason", "USER_ID_MISSING"));
@@ -217,7 +217,7 @@ class AnalysesWithoutAUserIdLogTest {
             BaselineLearningService baselines = context.getBean(BaselineLearningService.class);
 
             List<SecurityEvent> withoutAUser = new ArrayList<>();
-            List<String> errors = errorsDuring(() -> {
+            List<String> notes = infoLinesDuring(() -> {
                 for (int index = 0; index < 20; index++) {
                     SecurityEvent event = event("null-user-" + index, null);
                     strategy.analyzeWithContext(event);
@@ -225,8 +225,8 @@ class AnalysesWithoutAUserIdLogTest {
                 }
             });
 
-            assertThat(errors).filteredOn(line -> line.contains(BASELINE_SKIPPED)).hasSize(1);
-            assertThat(errors).filteredOn(line -> line.contains(BASELINE_SKIPPED))
+            assertThat(notes).filteredOn(line -> line.contains(BASELINE_SKIPPED)).hasSize(1);
+            assertThat(notes).filteredOn(line -> line.contains(BASELINE_SKIPPED))
                     .allSatisfy(line -> assertThat(line).contains("similarSinceLastReport=0"));
             verify(baselines, never()).getPersonalBaseline(any(String.class), any(SecurityEvent.class));
             assertThat(withoutAUser).allSatisfy(event -> assertThat(event.getMetadata())
@@ -243,7 +243,7 @@ class AnalysesWithoutAUserIdLogTest {
             ReflectionTestUtils.setField(strategy, AbstractTieredStrategy.class, "missingUserIdBaselineLog",
                     new ErrorLogThrottle(REPORT_INTERVAL, now::get), ErrorLogThrottle.class);
 
-            List<String> errors = errorsDuring(() -> {
+            List<String> notes = infoLinesDuring(() -> {
                 for (int index = 0; index < 20; index++) {
                     strategy.analyzeWithContext(event("first-" + index, null));
                 }
@@ -251,7 +251,7 @@ class AnalysesWithoutAUserIdLogTest {
                 strategy.analyzeWithContext(event("after-the-interval", null));
             });
 
-            List<String> written = errors.stream().filter(line -> line.contains(BASELINE_SKIPPED)).toList();
+            List<String> written = notes.stream().filter(line -> line.contains(BASELINE_SKIPPED)).toList();
             assertThat(written).hasSize(2);
             assertThat(written.get(0)).contains("similarSinceLastReport=0");
             assertThat(written.get(1)).contains("similarSinceLastReport=19");
@@ -265,13 +265,13 @@ class AnalysesWithoutAUserIdLogTest {
             Layer1ContextualStrategy strategy = context.getBean(Layer1ContextualStrategy.class);
             BaselineLearningService baselines = context.getBean(BaselineLearningService.class);
 
-            List<String> errors = errorsDuring(() -> {
+            List<String> notes = infoLinesDuring(() -> {
                 for (int index = 0; index < 5; index++) {
                     strategy.analyzeWithContext(event("named-" + index, "alice"));
                 }
             });
 
-            assertThat(errors).noneMatch(line -> line.contains(BASELINE_SKIPPED));
+            assertThat(notes).noneMatch(line -> line.contains(BASELINE_SKIPPED));
             verify(baselines, atLeastOnce()).getPersonalBaseline(any(String.class), any(SecurityEvent.class));
         });
     }
@@ -296,8 +296,30 @@ class AnalysesWithoutAUserIdLogTest {
                 .build();
     }
 
-    /** The ERROR lines the tiered strategies write while the work runs, on whichever thread writes them. */
-    private static List<String> errorsDuring(Runnable work) {
+    @Test
+    @DisplayName("An analysis without a user writes no ERROR and no WARN in the application's log")
+    void analysesWithoutAUserWriteNoErrorOrWarning() {
+        contextRunner.run(context -> {
+            Layer1ContextualStrategy strategy = context.getBean(Layer1ContextualStrategy.class);
+            List<String> alarms = new ArrayList<>();
+            Runnable work = () -> {
+                for (int index = 0; index < 6; index++) {
+                    strategy.analyzeWithContext(event("alarm-" + index, NO_USER[index % NO_USER.length]));
+                }
+            };
+            alarms.addAll(linesDuring(Level.ERROR, work));
+            alarms.addAll(linesDuring(Level.WARN, work));
+
+            assertThat(alarms).noneMatch(line -> line.contains("userId missing") || line.contains("userId is null"));
+        });
+    }
+
+    /** The INFO lines the tiered strategies write while the work runs, on whichever thread writes them. */
+    private static List<String> infoLinesDuring(Runnable work) {
+        return linesDuring(Level.INFO, work);
+    }
+
+    private static List<String> linesDuring(Level level, Runnable work) {
         Logger logger = (Logger) LoggerFactory.getLogger(AbstractTieredStrategy.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
@@ -308,7 +330,7 @@ class AnalysesWithoutAUserIdLogTest {
             logger.detachAppender(appender);
         }
         return appender.list.stream()
-                .filter(line -> line.getLevel() == Level.ERROR)
+                .filter(line -> line.getLevel() == level)
                 .map(ILoggingEvent::getFormattedMessage)
                 .toList();
     }

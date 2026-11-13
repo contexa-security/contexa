@@ -58,7 +58,7 @@ class ContexaCoexistenceContractTest {
             "ContexaOwnedDataSourceAutoConfiguration#dataSource",       // the application's data source, when Contexa owns the application
             "CoreDataAutoConfiguration#jdbcTemplate",                   // the same
             "CoreDataAutoConfiguration#transactionTemplate",            // the same
-            "IamI18nAutoConfiguration#localeResolver",                  // Spring MVC's name; the language of the application
+            "IamI18nAutoConfiguration#localeResolver",                  // Spring MVC's name; the language of the application (CONTEXA_OWNED only)
             "IamI18nAutoConfiguration#messageSource",                   // the application context's name for its messages
             "IdentityOAuth2AutoConfiguration#authorizationServerSettings",
             "IdentityOAuth2AutoConfiguration#jwkSource",

@@ -21,13 +21,12 @@ import java.util.Locale;
 import java.util.Set;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.beans.factory.config.SingletonBeanRegistry;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.web.WebProperties;
 import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.HierarchicalMessageSource;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
@@ -38,18 +37,18 @@ import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import org.springframework.web.servlet.i18n.AcceptHeaderLocaleResolver;
-import org.springframework.web.servlet.i18n.FixedLocaleResolver;
+import org.springframework.web.servlet.handler.MappedInterceptor;
 import org.springframework.web.servlet.i18n.SessionLocaleResolver;
 
 /**
  * The language of Contexa's screens and their texts.
  * <p>
  * When Contexa owns sign-in (CONTEXA_OWNED) it resolves the language of the whole application. When the application
- * owns sign-in (HOST_OWNED) it does not touch how the application resolves its own language: Contexa's resolver and
- * its {@code ?lang=} switch serve only the screens under {@code /contexa/}. In both, the texts of Contexa's screens
- * are found even when the application has a message bundle of its own (the application's source keeps its texts first,
- * Contexa's bundle stands behind it).
+ * owns sign-in (HOST_OWNED) Contexa adds no language resolver: the application keeps the one it has (Spring Boot's, by
+ * default) for all its requests, and only the requests of the screens under {@code /contexa/} are given the screens'
+ * resolver and its {@code ?lang=} switch, one request at a time. In both, the texts of Contexa's screens are found even
+ * when the application has a message bundle of its own (the application's source keeps its texts first, Contexa's
+ * bundle stands behind it).
  */
 @AutoConfiguration(before = WebMvcAutoConfiguration.class)
 public class IamI18nAutoConfiguration {
@@ -159,15 +158,24 @@ public class IamI18nAutoConfiguration {
         }
     }
 
-    /** HOST_OWNED: the application's own language resolution stays; Contexa serves its screens only. */
+    /**
+     * HOST_OWNED: the application's language resolver stays the application's, under Spring MVC's name and of the class
+     * the application gave it (Spring Boot's, made after this configuration, when the application defines none); Contexa
+     * serves its screens only.
+     */
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnOwnership(SecurityOwnershipMode.HOST_OWNED)
     static class HostOwned {
 
+        /**
+         * The screens' own language, for their requests only, when the application defines no language resolver of its
+         * own. A resolver the application defines serves the screens as well, as it always did.
+         */
         @Bean
-        @ConditionalOnMissingBean
-        LocaleResolver localeResolver(ObjectProvider<WebProperties> web) {
-            return new ScreensLocaleResolver(screensResolver(), applicationResolver(web.getIfAvailable(WebProperties::new)));
+        @ConditionalOnMissingBean(LocaleResolver.class)
+        MappedInterceptor contexaScreensLanguage(ApplicationContext context) {
+            return new MappedInterceptor(new String[]{ScreensLanguageInterceptor.SCREENS + "**"},
+                    new ScreensLanguageInterceptor(screensResolver(), context));
         }
 
         @Bean
@@ -176,19 +184,9 @@ public class IamI18nAutoConfiguration {
                 @Override
                 public void addInterceptors(InterceptorRegistry registry) {
                     registry.addInterceptor(new ScreensLocaleChangeInterceptor())
-                            .addPathPatterns(ScreensLocaleResolver.SCREENS + "**");
+                            .addPathPatterns(ScreensLanguageInterceptor.SCREENS + "**");
                 }
             };
-        }
-
-        /** What Spring Boot gives the application when nothing else is defined (spring.web.locale and its resolver). */
-        private static LocaleResolver applicationResolver(WebProperties web) {
-            if (web.getLocaleResolver() == WebProperties.LocaleResolver.FIXED) {
-                return new FixedLocaleResolver(web.getLocale());
-            }
-            AcceptHeaderLocaleResolver resolver = new AcceptHeaderLocaleResolver();
-            resolver.setDefaultLocale(web.getLocale());
-            return resolver;
         }
     }
 
@@ -196,7 +194,7 @@ public class IamI18nAutoConfiguration {
      * The language a person chose (?lang=) for the rest of the session; before a choice, the browser's when the screens
      * have it (Korean, English), Korean otherwise. The sign-in pages ask the same resolver, so the two do not differ.
      */
-    private static LocaleResolver screensResolver() {
+    private static SessionLocaleResolver screensResolver() {
         SessionLocaleResolver resolver = new SessionLocaleResolver();
         resolver.setDefaultLocaleFunction(request -> {
             Locale browser = request.getLocale();

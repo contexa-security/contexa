@@ -344,13 +344,24 @@ class SpringLlmRuntimeCatalogTest {
     }
 
     @Test
-    void twoBeansOfTheApplicationThatAnswerToOneModelIdStillStopTheStart() {
+    void twoBeansOfTheApplicationThatRunOneModelStartAndAreFoundByTheirNames() {
         SpringLlmRuntimeCatalog catalog = catalogWith(new String[0], new String[]{"ollamaEmbeddingModel", "otherOllamaEmbeddingModel"},
                 new MockEnvironment().withProperty("spring.ai.ollama.embedding.options.model", "nomic-embed-text"), new ContexaProperties());
 
-        assertThatThrownBy(catalog::getEmbeddingBindings)
+        assertThat(catalog.getEmbeddingBindings()).hasSize(2);
+        assertThat(catalog.findEmbeddingBinding("ollamaEmbeddingModel").orElseThrow().getBeanName()).isEqualTo("ollamaEmbeddingModel");
+        assertThat(catalog.findEmbeddingBinding("otherOllamaEmbeddingModel").orElseThrow().getBeanName()).isEqualTo("otherOllamaEmbeddingModel");
+    }
+
+    @Test
+    void contexaAskedForAModelTwoBeansOfTheApplicationRunStopsWithTheReason() {
+        SpringLlmRuntimeCatalog catalog = catalogWith(new String[0], new String[]{"ollamaEmbeddingModel", "otherOllamaEmbeddingModel"},
+                new MockEnvironment().withProperty("spring.ai.ollama.embedding.options.model", "nomic-embed-text"), new ContexaProperties());
+
+        assertThatThrownBy(() -> catalog.findEmbeddingBinding("nomic-embed-text"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Duplicate embedding runtime selector 'nomic-embed-text'");
+                .hasMessageContaining("Duplicate embedding runtime selector 'nomic-embed-text'")
+                .hasMessageContaining("Name the one Contexa uses by its bean name or its runtime id");
     }
 
     private static final class OllamaRuntimeStub {

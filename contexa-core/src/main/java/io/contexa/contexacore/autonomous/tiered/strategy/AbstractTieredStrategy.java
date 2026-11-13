@@ -543,7 +543,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         } else if (userId == null) {
             long notLogged = missingUserIdBaselineLog.tryAcquire();
             if (notLogged != ErrorLogThrottle.SUPPRESSED) {
-                log.error("[{}][SYSTEM_ERROR] userId is null - authentication system failure, "
+                log.info("[{}] userId is null - the personal baseline is not read, "
                         + "similarSinceLastReport={}", getLayerName(), notLogged);
             }
             analysis.setBaselineEstablished(false);
@@ -895,7 +895,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             if (userId == null || userId.isEmpty() || "unknown".equals(userId)) {
                 long notLogged = missingUserIdRagSearchLog.tryAcquire();
                 if (notLogged != ErrorLogThrottle.SUPPRESSED) {
-                    log.error("[{}] userId missing - skipping RAG search for account isolation, "
+                    // the event names no user: the search is refused by design and the audit keeps the reason, so this is
+                    // no error of the application's sign-in (an application may sign people in under a principal with no name)
+                    log.info("[{}] userId missing - skipping RAG search for account isolation, "
                             + "similarSinceLastReport={}", getLayerName(), notLogged);
                 }
                 capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
@@ -1137,7 +1139,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (userId == null || userId.isEmpty() || "unknown".equals(userId)) {
             long notLogged = missingUserIdPastRecordLog.tryAcquire();
             if (notLogged != ErrorLogThrottle.SUPPRESSED) {
-                log.error("[{}] userId missing - skipping the past record lookup for account isolation, "
+                log.info("[{}] userId missing - skipping the past record lookup for account isolation, "
                         + "similarSinceLastReport={}", getLayerName(), notLogged);
             }
             capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK, "USER_ID_MISSING", null);

@@ -25,6 +25,7 @@ import org.springframework.util.ClassUtils;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Predicate;
 
 /**
  * Keeps the user Spring Boot makes for an application secured by Boot's defaults (PR-5).
@@ -35,9 +36,11 @@ import java.util.Locale;
  * names it. This source names it, with the name Boot itself defaults to: the password stays generated and Boot's line at
  * the start stays the same.</p>
  *
- * <p>It stays silent where the user is not the application's way of signing in: when Contexa owns the sign-in, and when the
- * application's settings configure OAuth2 or SAML, which is what Boot's class check stands for. An application that signs
- * in through OAuth2 with beans of its own, and no such settings, keeps a user nobody knows the password of.</p>
+ * <p>It stays silent where the user is not the application's way of signing in: when Contexa owns the sign-in, when SAML is
+ * on the class path (Contexa brings none, so the SAML classes are the application's, and Boot alone makes no user there,
+ * B-24), and when the application's settings configure OAuth2 or SAML, which is what Boot's class check stands for. An
+ * application that signs in through OAuth2 with beans of its own, and no such settings, keeps Boot's user, whose generated
+ * password Boot writes at the start.</p>
  *
  * <p>The answer is read at each lookup, because environment post-processors run before {@code @EnableAISecurity} is
  * processed. Only the one name is answered, so a lookup of anything else costs nothing and a lookup cannot recurse.</p>
@@ -49,13 +52,22 @@ final class BootDefaultUserPropertySource extends PropertySource<Object> {
     private static final String USER_NAME = "spring.security.user.name";
     private static final String BOOT_DEFAULT_NAME = "user";
     private static final String HTTP_SECURITY = "org.springframework.security.config.annotation.web.builders.HttpSecurity";
+    /** One of the classes of Boot's check; Contexa brings no SAML, so where it is present the application brought it. */
+    private static final String SAML_REGISTRATIONS =
+            "org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrationRepository";
     private static final List<String> OWN_SIGN_IN_PREFIXES = List.of("spring.security.oauth2.", "spring.security.saml2.");
 
     private volatile Environment environment;
+    private final Predicate<String> classPresent;
 
     BootDefaultUserPropertySource(Environment environment) {
+        this(environment, name -> ClassUtils.isPresent(name, BootDefaultUserPropertySource.class.getClassLoader()));
+    }
+
+    BootDefaultUserPropertySource(Environment environment, Predicate<String> classPresent) {
         super(SOURCE_NAME, new Object());
         this.environment = environment;
+        this.classPresent = classPresent;
     }
 
     void bindTo(Environment environment) {
@@ -68,7 +80,8 @@ final class BootDefaultUserPropertySource extends PropertySource<Object> {
     }
 
     private boolean bootsUserIsTheSignIn() {
-        return ClassUtils.isPresent(HTTP_SECURITY, getClass().getClassLoader())
+        return classPresent.test(HTTP_SECURITY)
+                && !classPresent.test(SAML_REGISTRATIONS)
                 && environment instanceof ConfigurableEnvironment configurable
                 && !contexaOwnsTheSignIn(configurable)
                 && !applicationNamesItsOwnSignIn(configurable);

@@ -28,6 +28,7 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.env.MapPropertySource;
+import org.springframework.core.env.StandardEnvironment;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 
@@ -97,6 +98,18 @@ class BootDefaultUserTest {
     void anApplicationThatKeepsItsSignInKeepsTheUser() {
         withContexa.withInitializer(context -> activated(context, "HOST_OWNED"))
                 .run(context -> assertThat(context.getBean(UserDetailsService.class).loadUserByUsername("user")).isNotNull());
+    }
+
+    @Test
+    @DisplayName("an application with SAML on its class path makes no user, as without Contexa (B-24)")
+    void anApplicationWithSamlMakesNoUser() {
+        String saml = "org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrationRepository";
+        StandardEnvironment environment = new StandardEnvironment();
+
+        assertThat(new BootDefaultUserPropertySource(environment, name -> true).getProperty("spring.security.user.name"))
+                .as("SAML brought by the application, whose registrations are beans and not settings").isNull();
+        assertThat(new BootDefaultUserPropertySource(environment, name -> !name.equals(saml)).getProperty("spring.security.user.name"))
+                .as("the same application without SAML keeps Boot's user").isEqualTo("user");
     }
 
     @Test
