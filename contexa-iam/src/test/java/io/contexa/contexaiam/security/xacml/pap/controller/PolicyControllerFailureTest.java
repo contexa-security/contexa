@@ -123,6 +123,19 @@ class PolicyControllerFailureTest {
     }
 
     @Test
+    @DisplayName("N-2: a policy without rules opens with an empty rule to fill in, not with a server error")
+    void aPolicyWithoutRulesOpens() {
+        Policy stored = Policy.builder().id(9L).name("no rules").effect(Policy.Effect.ALLOW).build();
+        when(policies.findPolicy(9L)).thenReturn(Optional.of(stored));
+        ExtendedModelMap model = new ExtendedModelMap();
+
+        String view = controller.detailForm(9L, model, new RedirectAttributesModelMap());
+
+        assertThat(view).isEqualTo("contexa/admin/policydetails");
+        assertThat(((PolicyDto) model.getAttribute("policy")).getRules()).hasSize(1);
+    }
+
+    @Test
     @DisplayName("a fault of the server is logged as an error with its stack, and told in general words")
     void aFaultIsLoggedAsAnError() {
         doThrow(new RuntimeException("connection reset")).when(policies).updatePolicy(any());

@@ -216,7 +216,8 @@ public class PolicyController {
             ruleDto.setConditions(conditionDtos);
 
             return ruleDto;
-        }).toList());
+        // N-2: a list the screen can add its empty rule to; a policy without rules failed here with a server error.
+        }).collect(Collectors.toList()));
 
         return dto;
     }
