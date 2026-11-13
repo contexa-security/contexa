@@ -246,6 +246,7 @@ class AdminMenuControllerTest {
         @Test
         @DisplayName("create keeps string request contract and id response")
         void createMenu() throws Exception {
+            when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(AdminMenu.builder().id(1L).name("Top").build()));
             when(adminMenuService.saveMenu(any())).thenAnswer(invocation -> {
                 AdminMenu menu = invocation.getArgument(0);
                 menu.setId(99L);

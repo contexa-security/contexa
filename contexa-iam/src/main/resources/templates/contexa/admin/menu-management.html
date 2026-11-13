@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.menu.management.title})}"></head>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.menu.management.title})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{contexa/fragments/header :: header}"></div>
@@ -120,7 +120,7 @@
                                           th:text="${menu.menuType}">CORE</span>
                                 </td>
                                 <td class="py-4 px-6 text-center">
-                                    <span th:if="${menu.roles.isEmpty()}" class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2);">ALL</span>
+                                    <span th:if="${menu.roles.isEmpty()}" class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2);" th:text="#{admin.menu.roles.all}">ALL</span>
                                     <div th:if="${!menu.roles.isEmpty()}" style="display:flex;gap:0.25rem;flex-wrap:wrap;justify-content:center;">
                                         <span th:each="role : ${menu.roles}" class="text-xs px-1.5 py-0.5 rounded menu-role-badge" style="background:rgba(99,102,241,0.1);color:#818cf8;border:1px solid rgba(99,102,241,0.2);" th:data-role="${role.roleName}" th:text="${role.roleName}">ROLE</span>
                                     </div>
@@ -176,18 +176,18 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;" th:text="#{admin.menu.management.field.name}">Menu Name</label>
-                    <input type="text" id="menu-name" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" th:placeholder="#{admin.menu.management.name.placeholder}" />
+                    <input type="text" id="menu-name" maxlength="100" required class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" th:placeholder="#{admin.menu.management.name.placeholder}" />
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;">URL</label>
-                    <input type="text" id="menu-url" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" placeholder="/contexa/admin/users" />
+                    <input type="text" id="menu-url" maxlength="255" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" placeholder="/contexa/admin/users" />
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;" th:text="#{admin.menu.management.field.parent}">Parent Menu</label>
                     <select id="menu-parent" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;">
-                        <option value="">-- None (Top Level) --</option>
+                        <option value="" th:text="#{admin.menu.parent.none}">-- None (Top Level) --</option>
                         <th:block th:each="m : ${menus}">
                             <option th:if="${m.parentId == null}" th:value="${m.id}" th:text="${m.name.startsWith('menu.') ? #messages.msg(m.name) : m.name}"></option>
                         </th:block>
@@ -209,7 +209,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1.5" style="color:#cbd5e1;" th:text="#{admin.menu.management.data.page}">Data Page</label>
-                    <input type="text" id="menu-datapage" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" placeholder="users" />
+                    <input type="text" id="menu-datapage" maxlength="50" class="w-full py-2.5 px-3 rounded-lg text-sm" style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;" placeholder="users" />
                 </div>
             </div>
             <div>
@@ -278,7 +278,8 @@
 </div>
 
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
-<div id="menu-i18n" style="display:none" th:data-add="#{admin.menu.management.add}" th:data-edit="#{admin.menu.management.field.edit}"></div>
+<div id="menu-i18n" style="display:none" th:data-add="#{admin.menu.management.add}" th:data-edit="#{admin.menu.management.field.edit}"
+     th:data-failed="#{admin.menu.management.js.failed}" th:data-name-required="#{admin.menu.management.js.name.required}"></div>
 <script th:src="@{/contexa/js/toast.js}"></script>
 <script>
 var MenuMgmt = {
@@ -289,12 +290,22 @@ var MenuMgmt = {
     _handleError: function(err) {
         console.error('[MenuMgmt] Request failed:', err);
         if (typeof showToast === 'function') {
-            showToast('Operation failed: ' + (err.message || 'Unknown error'), 'error');
+            var failed = document.getElementById('menu-i18n').dataset.failed || '{0}';
+            showToast(failed.replace('{0}', err.message || ''), 'error');
         }
     },
+    // A refusal of the server comes with its reason in the body; that is what the administrator is shown.
     _checkResponse: function(r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r;
+        if (r.ok) return r;
+        return r.json().catch(function() { return {}; }).then(function(body) {
+            throw new Error((body && body.error) || ('HTTP ' + r.status));
+        });
+    },
+    // The name and data page of a built-in menu are kept by the server, so they are not offered for change.
+    _lockSystemFields: function(name) {
+        var system = !!name && name.indexOf('menu.') === 0;
+        document.getElementById('menu-name').readOnly = system;
+        document.getElementById('menu-datapage').readOnly = system;
     },
 
     openCreateModal: function() {
@@ -315,6 +326,7 @@ var MenuMgmt = {
         document.getElementById('icon-name').textContent = '';
         document.getElementById('icon-picker').style.display = 'none';
         document.getElementById('menu-enabled').checked = true;
+        this._lockSystemFields('');
         this._showModal('menu-modal');
     },
 
@@ -323,10 +335,12 @@ var MenuMgmt = {
         fetch('/contexa/admin/menu-management/api/' + id, {
             headers: { [this._csrfHeader()]: this._csrfToken() }
         })
-        .then(function(r) { return MenuMgmt._checkResponse(r).json(); })
+        .then(MenuMgmt._checkResponse)
+        .then(function(r) { return r.json(); })
         .then(function(m) {
             document.getElementById('menu-edit-id').value = m.id;
             document.getElementById('menu-name').value = m.name || '';
+            MenuMgmt._lockSystemFields(m.name);
             document.getElementById('menu-url').value = m.url || '';
             var parentSel = document.getElementById('menu-parent');
             parentSel.value = m.parentId != null ? String(m.parentId) : '';
@@ -354,6 +368,14 @@ var MenuMgmt = {
 
     saveMenu: function() {
         var id = document.getElementById('menu-edit-id').value;
+        var nameInput = document.getElementById('menu-name');
+        if (!nameInput.value.trim()) {
+            if (typeof showToast === 'function') {
+                showToast(document.getElementById('menu-i18n').dataset.nameRequired || '', 'error');
+            }
+            nameInput.focus();
+            return;
+        }
         var data = {
             name: document.getElementById('menu-name').value,
             url: document.getElementById('menu-url').value || null,

@@ -66,7 +66,9 @@ public class PromptContextAuditForwardingService implements PromptContextAuditRe
         if (!StringUtils.hasText(correlationId)) {
             return;
         }
-        repository.findByCorrelationId(correlationId.trim()).ifPresent(existing -> {
+        // Every analysis attempt of one event keeps a record of its own under the event's correlation id (the audit id
+        // differs per attempt), so the runtime telemetry of this attempt goes to the newest of them.
+        repository.findTopByCorrelationIdOrderByIdDesc(correlationId.trim()).ifPresent(existing -> {
             PromptContextAuditPayload current = readPayload(existing.getPayloadJson());
             PromptContextAuditPayload enriched = payloadMapper.enrich(current, event);
             updateAndDispatch(existing, enriched);

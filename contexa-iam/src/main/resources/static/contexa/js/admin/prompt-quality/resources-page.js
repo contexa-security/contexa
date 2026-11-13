@@ -1,6 +1,7 @@
 import { $, appPath, escapeHtml, ensureArray, rawText, text } from '../verification-ui-common.js';
 import { badge, bootSummaryPage } from './prompt-quality-page.js';
 import { t } from './prompt-quality-i18n.js';
+import { promptQualityApiRoot, promptQualityRouteRoot } from './prompt-quality-api.js';
 import { focusHighlightedRow, targetRefMatches, targetRefToken } from './prompt-quality-target-ref.js';
 
 const CRITICALITY_TONE = {
@@ -22,8 +23,8 @@ const METHOD_COLORS = {
 };
 
 const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD']);
-const API_BASE = appPath('/admin/api/enterprise/prompt-quality');
-const PAGE_BASE = appPath('/admin/enterprise/prompt-quality');
+const API_BASE = appPath(promptQualityApiRoot());
+const PAGE_BASE = appPath(promptQualityRouteRoot());
 
 const RESOURCE_PAGE_SIZE = 10;
 

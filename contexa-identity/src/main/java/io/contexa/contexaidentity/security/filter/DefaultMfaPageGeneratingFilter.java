@@ -32,7 +32,6 @@ import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -44,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.MessageSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.lang.Nullable;
@@ -54,7 +54,7 @@ import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.servlet.i18n.SessionLocaleResolver;
+import org.springframework.web.util.HtmlUtils;
 
 
 @Slf4j
@@ -68,26 +68,45 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     private final boolean mailConfigured;
     private final boolean failOnEmailError;
     private MessageSource messageSource;
+    private SignInPageLocale locale = new SignInPageLocale(null);
     private JdbcTemplate jdbcTemplate;
 
     public void setMessageSource(MessageSource messageSource) {
         this.messageSource = messageSource;
     }
 
+    /** Where the application's locale resolver is found, so that these pages speak the language of the screens after them. */
+    public void setLocaleSource(ApplicationContext context) {
+        this.locale = new SignInPageLocale(context);
+    }
+
     public void setJdbcTemplate(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    private Locale resolveLocale(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
-        if (session != null) {
-            Object locale = session.getAttribute(SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME);
-            if (locale instanceof Locale) {
-                return (Locale) locale;
-            }
+    /** Development and tests: the code pages say the code is in the server's log as well (contexa.auth.ott.code-to-console). */
+    private boolean codeToConsole;
+
+    public void setCodeToConsole(boolean codeToConsole) {
+        this.codeToConsole = codeToConsole;
+    }
+
+    private String devNotice(HttpServletRequest request) {
+        if (!codeToConsole) {
+            return "";
         }
-        Locale requestLocale = request.getLocale();
-        return requestLocale != null ? requestLocale : Locale.KOREAN;
+        return "<p class=\"description\" style=\"color:#b45309; font-weight:600;\">"
+                + HtmlUtils.htmlEscape(msg(request, "mfa.ott.dev.console.notice",
+                "Development: the code is also written to the server's console log, on the line [OTT] Sign-in code."))
+                + "</p>";
+    }
+
+    private Locale resolveLocale(HttpServletRequest request) {
+        return locale.resolve(request);
+    }
+
+    private String htmlLang(HttpServletRequest request) {
+        return SignInPageLocale.htmlLang(resolveLocale(request));
     }
 
     private String msg(HttpServletRequest request, String code, String defaultMsg) {
@@ -309,6 +328,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 <div class="container">
                     <h1>{{i18nOttRequestTitle}}</h1>
                     <p class="description">{{i18nOttRequestDescription}}</p>
+                    {{devNotice}}
                     {{errorMessage}}
                     <form id="ott-request-form" method="post" action="{{ottRequestUrl}}">
                         {{usernameInput}}
@@ -323,6 +343,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
                     {{selectFactorLink}}
                 </div>
+                <script>
+                    // The page that takes the code tells, from this time, how long a new code has to wait.
+                    document.getElementById('ott-request-form').addEventListener('submit', function () {
+                        try { sessionStorage.setItem('contexa.ott.requestedAt', String(Date.now())); } catch (e) { /* the wait is not shown */ }
+                    });
+                </script>
             </body>
             </html>
             """;
@@ -474,9 +500,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                      data-msg-verify="{{i18nOttVerifyButton}}"
                      data-msg-ended="{{i18nOttVerifyEnded}}"
                      data-msg-busy="{{i18nOttVerifyBusy}}"
+                     data-msg-resend-wait="{{i18nOttResendWait}}"
+                     data-resend-seconds="{{resendSeconds}}"
                      data-sign-in-url="{{signInPageUrl}}">
                     <h1>{{i18nOttVerifyTitle}}</h1>
                     <p class="description">{{i18nOttVerifyDescription}}</p>
+                    {{devNotice}}
 
                     <div class="user-info">
                         <div class="label">{{i18nOttVerifyAccountLabel}}</div>
@@ -490,6 +519,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             <label for="token">{{i18nOttVerifyCodeLabel}}</label>
                             <input type="text" id="token" name="token"
                                    class="form-control"
+                                   inputmode="numeric"
+                                   autocomplete="one-time-code"
                                    required
                                    autofocus>
                         </div>
@@ -507,6 +538,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             {{i18nOttResendButton}}
                         </button>
                     </form>
+                    <div id="resend-notice" class="description" style="display:none; margin-top: 12px;"></div>
             
                     <!-- Progressive Enhancement: JavaScript SDK support -->
                     <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
@@ -531,7 +563,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const codeInput = document.getElementById('token');
                             const errorMsgEl = document.getElementById('error-message');
 
+                            let resendLocked = false;
+
                             function disableVerificationForm() {
+                                resendLocked = true;
                                 codeInput.disabled = true;
                                 verifyButton.disabled = true;
                                 verifyButton.textContent = msgVerify;
@@ -539,6 +574,31 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 errorMsgEl.textContent = msgMaxAttempts;
                                 errorMsgEl.style.display = 'block';
                             }
+
+                            // A code goes to one address once in the resend interval; asked again sooner, nothing is
+                            // mailed. The button waits for the interval and says so, instead of seeming to work.
+                            const REQUESTED_AT = 'contexa.ott.requestedAt';
+                            const resendSeconds = parseInt(containerEl.dataset.resendSeconds || '0', 10);
+                            const resendNotice = document.getElementById('resend-notice');
+                            function waitForResend() {
+                                let requestedAt = 0;
+                                try { requestedAt = parseInt(sessionStorage.getItem(REQUESTED_AT) || '0', 10); } catch (e) { /* the wait is not shown */ }
+                                const left = Math.ceil((requestedAt + resendSeconds * 1000 - Date.now()) / 1000);
+                                if (resendSeconds > 0 && requestedAt > 0 && left > 0) {
+                                    resendButton.disabled = true;
+                                    resendNotice.textContent = containerEl.dataset.msgResendWait
+                                            .replace('{0}', String(resendSeconds)).replace('{1}', String(left));
+                                    resendNotice.style.display = 'block';
+                                    setTimeout(waitForResend, 1000);
+                                } else {
+                                    resendButton.disabled = resendLocked;
+                                    resendNotice.style.display = 'none';
+                                }
+                            }
+                            resendForm.addEventListener('submit', () => {
+                                try { sessionStorage.setItem(REQUESTED_AT, String(Date.now())); } catch (e) { /* the wait is not shown */ }
+                            });
+                            waitForResend();
 
                             if (currentAttempts > 0) {
                                 var remaining = maxAttempts - currentAttempts;
@@ -1551,6 +1611,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
+        // The console sends a person here after a password change, the old sign-in ended.
+        boolean passwordChanged = request.getParameter("passwordChanged") != null;
 
         String csrfToken = getCsrfToken(request);
         String csrfHeaderName = getCsrfHeaderName(request);
@@ -1566,10 +1628,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String footerText = msg(request, "mfa.login.footer", "Multi-factor authentication (MFA) will proceed after login.");
         String errorInputText = msg(request, "mfa.login.error.input", "Please enter username and password.");
         String errorFailedText = msg(request, "mfa.login.error.failed", "Login failed: Please check your username or password.");
+        String expiredText = msg(request, "password.change.subtitle", "Your password has expired. Please set a new password.");
         String successText = msg(request, "mfa.login.success", "Login successful!");
         String successRedirectText = msg(request, "mfa.login.success.redirect", "Login successful! Redirecting to home...");
         String successMfaText = msg(request, "mfa.login.success.mfa", "Login successful! Proceeding with multi-factor authentication...");
         String logoutMsgText = msg(request, "mfa.login.logout.message", "You have been logged out.");
+        String passwordChangedText = msg(request, "msg.password.change.success",
+                "Your password has been changed. Sign in with the new password.");
 
         String html = """
                 <!DOCTYPE html>
@@ -1633,6 +1698,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 <body>
                     <div class="container"
                          data-msg-error-input="%s"
+                         data-msg-error-failed="%s"
+                         data-msg-expired="%s"
                          data-msg-success-redirect="%s"
                          data-msg-success-mfa="%s"
                          data-msg-success="%s">
@@ -1663,6 +1730,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const spinner = document.getElementById('spinner');
                             const formFooter = document.getElementById('form-footer');
                             const msgErrorInput = container.dataset.msgErrorInput;
+                            const msgErrorFailed = container.dataset.msgErrorFailed;
+                            const msgExpired = container.dataset.msgExpired;
                             const msgSuccessRedirect = container.dataset.msgSuccessRedirect;
                             const msgSuccessMfa = container.dataset.msgSuccessMfa;
                             const msgSuccess = container.dataset.msgSuccess;
@@ -1716,10 +1785,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     }
                                 } catch (error) {
                                     const refused = error.response || {};
+                                    // the page says it in its own language: the answer carries its code, and its text is the server's
+                                    const said = (refused.error === 'PRIMARY_AUTH_FAILED' || refused.errorCode === 'PRIMARY_AUTH_FAILED')
+                                            ? msgErrorFailed : error.message;
                                     if ((refused.error === 'CREDENTIALS_EXPIRED' || refused.errorCode === 'CREDENTIALS_EXPIRED')
                                             && refused.nextStepUrl) {
                                         // The password is right and has expired: on to the page that changes it.
-                                        showMessage('error', error.message);
+                                        showMessage('error', msgExpired);
                                         setTimeout(() => {
                                             window.location.href = refused.nextStepUrl;
                                         }, 800);
@@ -1727,11 +1799,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     }
                                     if (error.response && error.response.blocked === true) {
                                         const supportContact = error.response.supportContact || 'Administrator';
-                                        showMessage('error', error.message, 'Contact: ' + supportContact);
+                                        showMessage('error', said, 'Contact: ' + supportContact);
                                         formFooter.style.display = 'none';
                                         loginButton.disabled = true;
                                     } else {
-                                        showMessage('error', error.message);
+                                        showMessage('error', said);
                                         loginButton.disabled = false;
                                         spinner.classList.remove('active');
                                     }
@@ -1753,13 +1825,16 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfParameterName,
                 pageTitle,
                 errorInputText,
+                errorFailedText,
+                expiredText,
                 successRedirectText,
                 successMfaText,
                 successText,
                 loginTitle,
                 loginDesc,
                 errorMessage != null ? "<div class=\"message error\">" + errorFailedText + "</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">" + logoutMsgText + "</div>" : "",
+                logoutMessage != null ? "<div class=\"message success\">" + logoutMsgText + "</div>"
+                        : passwordChanged ? "<div class=\"message success\">" + passwordChangedText + "</div>" : "",
                 usernamePh,
                 passwordPh,
                 submitText,
@@ -1784,6 +1859,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
+        // The console sends a person here after a password change, the old sign-in ended.
+        boolean passwordChanged = request.getParameter("passwordChanged") != null;
 
         String csrfToken = getCsrfToken(request);
         String csrfHeaderName = getCsrfHeaderName(request);
@@ -1799,10 +1876,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String footerText = msg(request, "mfa.login.footer", "Multi-factor authentication (MFA) will proceed after login.");
         String errorInputText = msg(request, "mfa.login.error.input", "Please enter username and password.");
         String errorFailedText = msg(request, "mfa.login.error.failed", "Login failed: Please check your username or password.");
+        String expiredText = msg(request, "password.change.subtitle", "Your password has expired. Please set a new password.");
         String successText = msg(request, "mfa.login.success", "Login successful!");
         String successRedirectText = msg(request, "mfa.login.success.redirect", "Login successful! Redirecting to home...");
         String successMfaText = msg(request, "mfa.login.success.mfa", "Login successful! Proceeding with multi-factor authentication...");
         String logoutMsgText = msg(request, "mfa.login.logout.message", "You have been logged out.");
+        String passwordChangedText = msg(request, "msg.password.change.success",
+                "Your password has been changed. Sign in with the new password.");
 
         String html = """
                 <!DOCTYPE html>
@@ -1866,6 +1946,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 <body>
                     <div class="container"
                          data-msg-error-input="%s"
+                         data-msg-error-failed="%s"
+                         data-msg-expired="%s"
                          data-msg-success-redirect="%s"
                          data-msg-success-mfa="%s"
                          data-msg-success="%s">
@@ -1896,6 +1978,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const spinner = document.getElementById('spinner');
                             const formFooter = document.getElementById('form-footer');
                             const msgErrorInput = container.dataset.msgErrorInput;
+                            const msgErrorFailed = container.dataset.msgErrorFailed;
+                            const msgExpired = container.dataset.msgExpired;
                             const msgSuccessRedirect = container.dataset.msgSuccessRedirect;
                             const msgSuccessMfa = container.dataset.msgSuccessMfa;
                             const msgSuccess = container.dataset.msgSuccess;
@@ -1949,10 +2033,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     }
                                 } catch (error) {
                                     const refused = error.response || {};
+                                    // the page says it in its own language: the answer carries its code, and its text is the server's
+                                    const said = (refused.error === 'PRIMARY_AUTH_FAILED' || refused.errorCode === 'PRIMARY_AUTH_FAILED')
+                                            ? msgErrorFailed : error.message;
                                     if ((refused.error === 'CREDENTIALS_EXPIRED' || refused.errorCode === 'CREDENTIALS_EXPIRED')
                                             && refused.nextStepUrl) {
                                         // The password is right and has expired: on to the page that changes it.
-                                        showMessage('error', error.message);
+                                        showMessage('error', msgExpired);
                                         setTimeout(() => {
                                             window.location.href = refused.nextStepUrl;
                                         }, 800);
@@ -1960,11 +2047,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     }
                                     if (error.response && error.response.blocked === true) {
                                         const supportContact = error.response.supportContact || 'Administrator';
-                                        showMessage('error', error.message, 'Contact: ' + supportContact);
+                                        showMessage('error', said, 'Contact: ' + supportContact);
                                         formFooter.style.display = 'none';
                                         loginButton.disabled = true;
                                     } else {
-                                        showMessage('error', error.message);
+                                        showMessage('error', said);
                                         loginButton.disabled = false;
                                         spinner.classList.remove('active');
                                     }
@@ -1986,13 +2073,16 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfParameterName,
                 pageTitle,
                 errorInputText,
+                errorFailedText,
+                expiredText,
                 successRedirectText,
                 successMfaText,
                 successText,
                 loginTitle,
                 loginDesc,
                 errorMessage != null ? "<div class=\"message error\">" + errorFailedText + "</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">" + logoutMsgText + "</div>" : "",
+                logoutMessage != null ? "<div class=\"message success\">" + logoutMsgText + "</div>"
+                        : passwordChanged ? "<div class=\"message success\">" + passwordChangedText + "</div>" : "",
                 usernamePh,
                 passwordPh,
                 submitText,
@@ -2062,6 +2152,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         }
 
         String html = MfaHtmlTemplates.fromTemplate(OTT_REQUEST_TEMPLATE)
+                .withRawHtml("devNotice", devNotice(request))
                 .withValue("contextPath", contextPath)
                 .withValue("ottRequestUrl", fullOttRequestUrl)
                 .withValue("csrfToken", getCsrfToken(request))
@@ -2113,6 +2204,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         }
 
         String html = MfaHtmlTemplates.fromTemplate(OTT_VERIFY_TEMPLATE)
+                .withRawHtml("devNotice", devNotice(request))
                 .withValue("contextPath", contextPath)
                 .withValue("username", username)
                 .withValue("ottVerifyUrl", fullOttVerifyUrl)
@@ -2129,6 +2221,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("i18nOttVerifyCodeLabel", msg(request, "mfa.ott.verify.code.label", "Authentication Code"))
                 .withValue("i18nOttVerifyButton", msg(request, "mfa.ott.verify.button", "Verify"))
                 .withValue("i18nOttResendButton", msg(request, "mfa.ott.resend.button", "Resend Code"))
+                .withValue("i18nOttResendWait", msg(request, "mfa.ott.resend.wait",
+                        "A code is mailed to the same address once in {0} seconds. You can ask again in {1} seconds."))
+                .withValue("resendSeconds", String.valueOf(mfaSettings.getEmailResendIntervalSeconds()))
                 .withValue("i18nOttVerifyMaxAttempts", msg(request, "mfa.ott.verify.max.attempts", "Maximum verification attempts exceeded. Please contact your administrator."))
                 .withValue("i18nOttVerifyRemaining", msg(request, "mfa.ott.verify.remaining", " attempt(s) remaining out of "))
                 .withValue("i18nOttVerifyVerifying", msg(request, "mfa.ott.verify.verifying", "Verifying..."))
@@ -2246,7 +2341,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private String injectMfaConfig(String html, HttpServletRequest request) {
+    private String injectMfaConfig(String page, HttpServletRequest request) {
+        // the pages are written with lang="en": they say the language they are written in
+        String html = page.replace("<html lang=\"en\">", "<html lang=\"" + htmlLang(request) + "\">");
         try {
             // The SDK sends its requests to these addresses as they are: with the application's context path.
             Map<String, Object> config = authUrlProvider.getAllUiPageUrls(request.getContextPath());

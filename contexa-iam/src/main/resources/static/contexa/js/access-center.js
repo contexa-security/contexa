@@ -61,21 +61,19 @@ const AccessCenter = {
         else if (tab === 'roles') this.Roles.init();
     },
 
+    // The shared console call (console-net.js): the context path, a Zero Trust challenge, and the server's reason
+    // (or a sentence saying the server could not be reached) as the message of the error.
     async fetchJson(url, options) {
-        try {
-            const resp = await fetch(url, options);
-            if (!resp.ok) {
-                const text = await resp.text();
-                throw new Error(text || ('HTTP ' + resp.status));
-            }
-            const contentType = resp.headers.get('content-type') || '';
-            if (contentType.includes('application/json')) {
-                return await resp.json();
-            }
-            return null;
-        } catch (e) {
-            throw e;
+        if (window.ContexaConsole) {
+            return window.ContexaConsole.fetchJson(url, options);
         }
+        const resp = await fetch(url, options);
+        if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error(text || ('HTTP ' + resp.status));
+        }
+        const contentType = resp.headers.get('content-type') || '';
+        return contentType.includes('application/json') ? resp.json() : null;
     },
 
     Users: {
@@ -144,15 +142,10 @@ const AccessCenter = {
             listEl.querySelectorAll('.ac-list-item').forEach(item => {
                 item.addEventListener('click', () => this.selectUser(item.dataset.userId));
             });
-            console.log('[AccessCenter.Users.renderUserList] rendered count=', users.length,
-                'selectedUserId=', this.selectedUserId,
-                'ids=', users.map(u => u.id));
         },
 
         async selectUser(userId) {
             const targetId = String(userId);
-            console.log('[AccessCenter.Users.selectUser] called userId=', userId,
-                'previousSelected=', this.selectedUserId);
             this.selectedUserId = targetId;
 
             const allItems = document.querySelectorAll('#ac-user-list .ac-list-item');
@@ -163,8 +156,6 @@ const AccessCenter = {
                 el.classList.toggle('selected', matched);
                 if (matched) matchedIds.push(itemId);
             });
-            console.log('[AccessCenter.Users.selectUser] selection result totalItems=', allItems.length,
-                'matchedCount=', matchedIds.length, 'matchedIds=', matchedIds);
             if (matchedIds.length > 1) {
                 console.warn('[AccessCenter.Users.selectUser] multi-select detected for targetId=', targetId,
                     'matchedIds=', matchedIds);
@@ -634,19 +625,13 @@ const AccessCenter = {
             listEl.querySelectorAll('.ac-list-item').forEach(item => {
                 item.addEventListener('click', () => this.selectGroup(item.dataset.groupId));
             });
-            console.log('[AccessCenter.Groups.filterAndRender] rendered count=', groups.length,
-                'selectedGroupId=', this.selectedGroupId,
-                'ids=', groups.map(g => g.id));
         },
 
         async selectGroup(groupId) {
             const targetId = String(groupId);
-            console.log('[AccessCenter.Groups.selectGroup] called groupId=', groupId,
-                'previousSelected=', this.selectedGroupId);
             this.selectedGroupId = targetId;
             this.filterAndRender();
             const matchedCount = document.querySelectorAll('#ac-group-list .ac-list-item.selected').length;
-            console.log('[AccessCenter.Groups.selectGroup] selection result matchedCount=', matchedCount);
             if (matchedCount > 1) {
                 console.warn('[AccessCenter.Groups.selectGroup] multi-select detected for targetId=', targetId);
             }
@@ -962,19 +947,13 @@ const AccessCenter = {
             listEl.querySelectorAll('.ac-list-item').forEach(item => {
                 item.addEventListener('click', () => this.selectRole(item.dataset.roleId));
             });
-            console.log('[AccessCenter.Roles.filterAndRender] rendered count=', roles.length,
-                'selectedRoleId=', this.selectedRoleId,
-                'ids=', roles.map(r => r.id));
         },
 
         async selectRole(roleId) {
             const targetId = String(roleId);
-            console.log('[AccessCenter.Roles.selectRole] called roleId=', roleId,
-                'previousSelected=', this.selectedRoleId);
             this.selectedRoleId = targetId;
             this.filterAndRender();
             const matchedCount = document.querySelectorAll('#ac-role-list .ac-list-item.selected').length;
-            console.log('[AccessCenter.Roles.selectRole] selection result matchedCount=', matchedCount);
             if (matchedCount > 1) {
                 console.warn('[AccessCenter.Roles.selectRole] multi-select detected for targetId=', targetId);
             }

@@ -176,38 +176,26 @@ public class PolicyCenterController {
 
     // ==================== AI Wizard API ====================
 
+    // D75: a read that fails is not answered as empty data (no roles, no policies) with 200. It reaches the global
+    // exception handler, which logs it and answers with its error status, so the screen tells a failure from an
+    // empty store.
     @GetMapping("/api/stats")
     @ResponseBody
     public ResponseEntity<PolicySystemStatsResponse> getSystemStats() {
-        try {
-            return ResponseEntity.ok(policyCenterQueryService.getSystemStats());
-        } catch (Exception e) {
-            log.error("Failed to load system stats", e);
-            return ResponseEntity.ok(PolicySystemStatsResponse.basic(0L, 0L, 0L, 0L));
-        }
+        return ResponseEntity.ok(policyCenterQueryService.getSystemStats());
     }
 
     @GetMapping("/api/policy-summaries")
     @ResponseBody
     public ResponseEntity<List<PolicySummaryDto>> getPolicySummaries() {
-        try {
-            return ResponseEntity.ok(policyCenterQueryService.getPolicySummaries());
-        } catch (Exception e) {
-            log.error("Failed to load policy summaries", e);
-            return ResponseEntity.ok(Collections.emptyList());
-        }
+        return ResponseEntity.ok(policyCenterQueryService.getPolicySummaries());
     }
 
     @GetMapping("/api/conditions")
     @ResponseBody
     public ResponseEntity<List<ConditionTemplateDto>> getConditions(
             @RequestParam(required = false) String keyword) {
-        try {
-            return ResponseEntity.ok(policyCenterQueryService.getConditions(keyword));
-        } catch (Exception e) {
-            log.error("Failed to load conditions", e);
-            return ResponseEntity.ok(Collections.emptyList());
-        }
+        return ResponseEntity.ok(policyCenterQueryService.getConditions(keyword));
     }
 
     // ==================== SpEL Permissions API ====================
@@ -216,12 +204,7 @@ public class PolicyCenterController {
     @ResponseBody
     public ResponseEntity<List<PolicySpelPermissionResponse>> getSpelPermissions(
             @RequestParam(required = false) String keyword) {
-        try {
-            return ResponseEntity.ok(policyCenterQueryService.getSpelPermissions(keyword));
-        } catch (Exception e) {
-            log.error("Failed to load SpEL permissions", e);
-            return ResponseEntity.ok(Collections.emptyList());
-        }
+        return ResponseEntity.ok(policyCenterQueryService.getSpelPermissions(keyword));
     }
 
     // ==================== Manual Mode ====================
@@ -242,13 +225,7 @@ public class PolicyCenterController {
     @GetMapping("/api/validation-report")
     @ResponseBody
     public ResponseEntity<PolicyFullValidationResponse> getValidationReport() {
-        try {
-            return ResponseEntity.ok(policyCenterAnalysisService.getValidationReport());
-        } catch (Exception e) {
-            log.error("Failed to generate validation report", e);
-            return ResponseEntity.ok(new PolicyFullValidationResponse(
-                    0, "UNKNOWN", List.of(), List.of()));
-        }
+        return ResponseEntity.ok(policyCenterAnalysisService.getValidationReport());
     }
 
     @PostMapping("/api/validate")
@@ -258,7 +235,7 @@ public class PolicyCenterController {
         try {
             return ResponseEntity.ok(policyCenterAnalysisService.validatePolicy(request));
         } catch (Exception e) {
-            log.error("Failed to validate policy", e);
+            ConsoleFault.report(e, log, "validate a policy");
             return ResponseEntity.badRequest().body(new PolicyValidationResponse(
                     List.of(), List.of(), false, ConsoleFault.textOf(e)));
         }
@@ -271,7 +248,7 @@ public class PolicyCenterController {
         try {
             return ResponseEntity.ok(policyCenterAnalysisService.validateQuickPolicy(request));
         } catch (Exception e) {
-            log.error("Failed to validate quick policy", e);
+            ConsoleFault.report(e, log, "validate a quick policy");
             return ResponseEntity.badRequest().body(new PolicyValidationResponse(
                     List.of(), List.of(), false, ConsoleFault.textOf(e)));
         }
@@ -285,7 +262,7 @@ public class PolicyCenterController {
         try {
             return ResponseEntity.ok(policyCenterAnalysisService.validateAIPolicy(policyId));
         } catch (Exception e) {
-            log.error("Failed to validate AI policy {}", policyId, e);
+            ConsoleFault.report(e, log, "validate AI policy " + policyId);
             return ResponseEntity.ok(new PolicyAiValidationResponse(
                     List.of(), false, ConsoleFault.textOf(e)));
         }

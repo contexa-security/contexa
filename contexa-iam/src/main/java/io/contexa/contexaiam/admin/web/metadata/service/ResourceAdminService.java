@@ -118,7 +118,7 @@ public class ResourceAdminService {
                         perm.getFriendlyName()
                 ));
             } catch (Exception e) {
-                log.error("Batch define failed for resource ID: {}", resourceId, e);
+                ConsoleFault.report(e, log, "define a permission for resource " + resourceId);
                 results.add(ResourceBatchDefineResult.error(resourceId, ConsoleFault.textOf(e)));
             }
         }
@@ -127,11 +127,19 @@ public class ResourceAdminService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public ResourceStatusResponse restoreResource(Long id) {
+        // D58: restoring takes an excluded resource back into management, as excluding is refused for a resource that
+        // has a permission or a policy. Run on any other, it reset a defined or connected resource to "needs
+        // definition" while its permission and policies stayed.
+        ManagedResource resource = managedResourceRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException(message("msg.resource.not.found.id", String.valueOf(id))));
+        if (resource.getStatus() != ManagedResource.Status.EXCLUDED) {
+            throw new IllegalStateException(message("msg.resource.restore.invalid.status", resource.getStatus()));
+        }
         ResourceManagementDto dto = new ResourceManagementDto();
         dto.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
         resourceRegistryService.updateResourceManagementStatus(id, dto);
         return new ResourceStatusResponse(
-                "Resource restored to management",
+                message("msg.resource.restored"),
                 id,
                 "NEEDS_DEFINITION"
         );

@@ -19,12 +19,11 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.MessageSource;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.servlet.i18n.SessionLocaleResolver;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -35,6 +34,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
 
     private String loginPageUrl = "/api/login";
     private MessageSource messageSource;
+    private SignInPageLocale locale = new SignInPageLocale(null);
 
     public DefaultRestLoginPageGeneratingFilter(String loginPageUrl) {
         this.loginPageUrl = loginPageUrl;
@@ -44,16 +44,13 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
         this.messageSource = messageSource;
     }
 
+    /** Where the application's locale resolver is found, so that this page speaks the language of the screens after it. */
+    public void setLocaleSource(ApplicationContext context) {
+        this.locale = new SignInPageLocale(context);
+    }
+
     private Locale resolveLocale(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
-        if (session != null) {
-            Object locale = session.getAttribute(SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME);
-            if (locale instanceof Locale) {
-                return (Locale) locale;
-            }
-        }
-        Locale requestLocale = request.getLocale();
-        return requestLocale != null ? requestLocale : Locale.KOREAN;
+        return locale.resolve(request);
     }
 
     private String msg(HttpServletRequest request, String code, String defaultMsg) {
@@ -245,7 +242,9 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                                             }, 800);
                                             return;
                                         }
-                                        throw new Error(errorData.message || msgErrorGeneric);
+                                        // the page says it in its own language: the answer carries its code, and its text is the server's
+                                        const refusedHere = errorData.error === 'PRIMARY_AUTH_FAILED' || errorData.errorCode === 'PRIMARY_AUTH_FAILED';
+                                        throw new Error(refusedHere ? msgErrorFailed : (errorData.message || msgErrorGeneric));
                                     }
 
                                     const result = await response.json();
@@ -296,7 +295,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                 request.getContextPath()
         );
 
-        writer.write(html);
+        writer.write(html.replace("<html lang=\"en\">", "<html lang=\"" + SignInPageLocale.htmlLang(resolveLocale(request)) + "\">"));
         writer.flush();
 
     }

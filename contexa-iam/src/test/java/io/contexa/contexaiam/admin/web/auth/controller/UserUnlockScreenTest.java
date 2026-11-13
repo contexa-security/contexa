@@ -33,6 +33,7 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -69,7 +70,7 @@ class UserUnlockScreenTest {
         user.setId(5L);
         user.setUsername("alice");
         user.setAccountLocked(locked);
-        when(users.getUser(5L)).thenReturn(user);
+        when(users.findUser(5L)).thenReturn(Optional.of(user));
         return mvc.perform(get("/contexa/admin/users/5").locale(Locale.ENGLISH)).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
     }

@@ -580,6 +580,21 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **The sign-in pages and the screens after them speak one language.** The pages Contexa writes for the sign-in ask the
+  application's `LocaleResolver`, and say their language in `<html lang>`; before a choice the console follows the browser
+  (Korean or English, Korean otherwise). A refused sign-in and an expired password are told in the page's language instead of
+  the server's English text, and so are the rules a new password breaks.
+- **A password change to the password in use is refused** when the policy keeps any history: it changed nothing but started
+  the expiry again.
+- **The console's new-user form starts with the account enabled.** Left off, the new user was refused as if the password
+  were wrong.
+- **A code asked for again inside the resend interval says so.** The button waits and the page says how many seconds are
+  left; before, nothing was mailed and nothing was said.
+- **The password change page lists the maximum length and the reuse rule** of the policy in force.
+- **The code of an MFA step is the six digits its page asks for.** It was a 36-character value under a page that asked for
+  six digits. The six digits are stored under the step's user and looked up only with that user, so the same digits of two
+  users do not meet and a code of another user is neither found nor spent; the step limits the attempts as before. A
+  sign-in by a code alone (no user known when it is entered) keeps the long code.
 - **Each sign-in is held to its own flow, step and address, and a sign-in setting that cannot work stops the start.** A login
   of one flow (a form flow, or an MFA flow that asks for fewer factors) no longer counts as a login of another MFA flow under
   the same state: the login names the flow that completed it, and an MFA chain takes only logins that meet its flow. The
@@ -1324,6 +1339,17 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Added
 
+- **A first start can be signed in to without any setting.** On a database without user accounts the sample accounts
+  (`admin`, `manager`, `developer`, `user`, `finance`, password `1111`) are added, and the start log says so with where to
+  sign in and where to change the password. `contexa.iam.seed.accounts.enabled` is now true by default; the accounts are
+  added only to a database without accounts (their group rows name the user ids 1 to 5) and not when
+  `contexa.iam.seed.admin.password` is set. Their addresses are `@localhost`, so no code is mailed to a real domain.
+  **Check:** set `contexa.iam.seed.accounts.enabled=false` where a known password must not exist even on a new database.
+- **One-time codes in development need no mail server.** With a `local`, `dev`, `development` or `test` profile, or without a
+  mail server, a code is written to the log as well (`[OTT] Sign-in code for ...`), the code pages say so, and a mail that
+  fails is no failed sign-in. `contexa.auth.ott.code-to-console` decides it explicitly. A production start mails codes only.
+- **The mail server of the codes is checked at the start.** Once the application is ready Contexa connects to it once and
+  logs either the server the codes go through or the reason and the settings to give.
 - **An application can run without passkeys by excluding webauthn4j.** With `exclude group: 'com.webauthn4j'` the
   application starts, the start log says passkeys are off, the MFA flows go on with their other factors, the step-up
   page offers no passkey, and Spring MVC no longer takes in the CBOR converter that webauthn4j's codec brought with it

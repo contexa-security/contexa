@@ -38,27 +38,33 @@ import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.resource.scanner.ResourceScanner;
 import io.contexa.contexaiam.resource.util.ResourceTargetKey;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
-@RequiredArgsConstructor
 public class ResourceRegistryServiceImpl implements ResourceRegistryService {
+
+    /** Resources the model names in one request. */
+    static final int NAMING_BATCH_SIZE = 100;
 
     private final List<ResourceScanner> scanners;
     private final ManagedResourceRepository managedResourceRepository;
@@ -68,6 +74,52 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     private final PolicyRepository policyRepository;
     private final IamAdminProperties iamAdminProperties;
     private final MessageSource messageSource;
+    private final Executor namingExecutor;
+
+    public ResourceRegistryServiceImpl(List<ResourceScanner> scanners,
+                                       ManagedResourceRepository managedResourceRepository,
+                                       PermissionCatalogService permissionCatalogService,
+                                       AICoreOperations<ResourceNamingContext> aiNativeProcessor,
+                                       AutoConditionTemplateService autoConditionTemplateService,
+                                       PolicyRepository policyRepository,
+                                       IamAdminProperties iamAdminProperties,
+                                       MessageSource messageSource) {
+        this(scanners, managedResourceRepository, permissionCatalogService, aiNativeProcessor,
+                autoConditionTemplateService, policyRepository, iamAdminProperties, messageSource,
+                defaultNamingExecutor());
+    }
+
+    public ResourceRegistryServiceImpl(List<ResourceScanner> scanners,
+                                       ManagedResourceRepository managedResourceRepository,
+                                       PermissionCatalogService permissionCatalogService,
+                                       AICoreOperations<ResourceNamingContext> aiNativeProcessor,
+                                       AutoConditionTemplateService autoConditionTemplateService,
+                                       PolicyRepository policyRepository,
+                                       IamAdminProperties iamAdminProperties,
+                                       MessageSource messageSource,
+                                       Executor namingExecutor) {
+        this.scanners = scanners;
+        this.managedResourceRepository = managedResourceRepository;
+        this.permissionCatalogService = permissionCatalogService;
+        this.aiNativeProcessor = aiNativeProcessor;
+        this.autoConditionTemplateService = autoConditionTemplateService;
+        this.policyRepository = policyRepository;
+        this.iamAdminProperties = iamAdminProperties;
+        this.messageSource = messageSource;
+        this.namingExecutor = Objects.requireNonNull(namingExecutor, "namingExecutor");
+    }
+
+    /**
+     * One daemon thread names discovered resources, one refresh after another: a refresh answers once the resources are
+     * registered, and two refreshes never ask the model to name the same resources at the same time.
+     */
+    private static Executor defaultNamingExecutor() {
+        return Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "contexa-resource-naming");
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -111,9 +163,14 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         }
 
         if (!newResources.isEmpty()) {
-            int batchSize = 100;
-            List<List<ManagedResource>> resourceBatches = Batches.of(newResources, batchSize);
-            resourceBatches.forEach(this::processResourceBatch);
+            // New resources are registered now, under the scanner's names (or fallback names). The model names them
+            // after this refresh commits, so the request does not wait for the model.
+            newResources.forEach(this::applyFallback);
+            List<ManagedResource> registered = managedResourceRepository.saveAll(newResources);
+            scheduleNaming(registered == null ? List.of() : registered.stream()
+                    .map(ManagedResource::getId)
+                    .filter(Objects::nonNull)
+                    .toList());
         }
         if (iamAdminProperties.getConditionTemplates().isEnabled()) {
             autoConditionTemplateService.generateConditionTemplates();
@@ -142,6 +199,57 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         }
     }
 
+    /** Names the registered resources in the background once the refresh that registered them has committed. */
+    private void scheduleNaming(List<Long> resourceIds) {
+        if (resourceIds.isEmpty()) {
+            return;
+        }
+        Runnable naming = () -> nameRegisteredResources(resourceIds);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    submitNaming(naming, resourceIds.size());
+                }
+            });
+        } else {
+            submitNaming(naming, resourceIds.size());
+        }
+    }
+
+    private void submitNaming(Runnable naming, int count) {
+        try {
+            namingExecutor.execute(naming);
+            log.info("Resource naming scheduled in the background for {} new resources", count);
+        } catch (RejectedExecutionException e) {
+            log.warn("Resource naming could not be scheduled; {} new resources keep their registered names", count);
+        }
+    }
+
+    /**
+     * Names resources a refresh registered, batch by batch. Only resources still awaiting definition are named; one an
+     * administrator defined, edited or excluded meanwhile is left as it is.
+     */
+    void nameRegisteredResources(List<Long> resourceIds) {
+        for (List<Long> ids : Batches.of(resourceIds, NAMING_BATCH_SIZE)) {
+            try {
+                List<ManagedResource> batch = managedResourceRepository.findAllById(ids).stream()
+                        .filter(resource -> resource.getStatus() == ManagedResource.Status.NEEDS_DEFINITION)
+                        .toList();
+                processResourceBatch(batch);
+            } catch (StrategicOperationConflictException e) {
+                log.warn("An identical resource naming request is already running; it names these {} resources",
+                        ids.size());
+            } catch (RuntimeException e) {
+                log.error("Background resource naming failed; {} resources keep their registered names", ids.size(), e);
+            }
+        }
+    }
+
+    /**
+     * Names one batch with the model and saves it. A stored resource is read again after the model answers and named
+     * only if nobody changed it meanwhile, so that an administrator's definition is never replaced by a late answer.
+     */
     public void processResourceBatch(List<ManagedResource> batch) {
 
         if (batch == null || batch.isEmpty()) {
@@ -212,7 +320,8 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                 }
             }
 
-            for (ManagedResource resource : batch) {
+            List<ManagedResource> targets = unchangedSince(batch);
+            for (ManagedResource resource : targets) {
                 ResourceNameSuggestion suggestion = suggestionsMap.get(resource.getResourceIdentifier());
 
                 if (suggestion != null) {
@@ -224,7 +333,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                 }
             }
 
-            managedResourceRepository.saveAll(batch);
+            managedResourceRepository.saveAll(targets);
 
         } catch (StrategicOperationConflictException e) {
             // An identical naming request is already running and writes the real names: these resources are neither
@@ -232,9 +341,38 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             throw e;
         } catch (Exception e) {
             log.error("AI suggestion processing failed, saving with defaults", e);
-            batch.forEach(this::applyFallback);
-            managedResourceRepository.saveAll(batch);
+            List<ManagedResource> targets = unchangedSince(batch);
+            targets.forEach(this::applyFallback);
+            managedResourceRepository.saveAll(targets);
         }
+    }
+
+    /**
+     * The resources of a batch as stored now, for those nobody changed since the batch was read (same status, name and
+     * description). A resource not stored yet has no other writer and is used as given.
+     */
+    private List<ManagedResource> unchangedSince(List<ManagedResource> batch) {
+        List<Long> ids = batch.stream().map(ManagedResource::getId).filter(Objects::nonNull).toList();
+        Map<Long, ManagedResource> stored = ids.isEmpty() ? Map.of()
+                : managedResourceRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(ManagedResource::getId, Function.identity(), (first, ignored) -> first));
+        List<ManagedResource> targets = new ArrayList<>();
+        for (ManagedResource resource : batch) {
+            if (resource.getId() == null) {
+                targets.add(resource);
+                continue;
+            }
+            ManagedResource current = stored.get(resource.getId());
+            if (current != null && current.getStatus() == resource.getStatus()
+                    && Objects.equals(current.getFriendlyName(), resource.getFriendlyName())
+                    && Objects.equals(current.getDescription(), resource.getDescription())) {
+                targets.add(current);
+            } else {
+                log.debug("Resource '{}' changed while it was being named; its current values are kept",
+                        resource.getResourceIdentifier());
+            }
+        }
+        return targets;
     }
 
     private Map<String, String> toResourceNamingInput(ManagedResource resource) {
@@ -321,7 +459,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     @Transactional(transactionManager = "contexaTransactionManager")
     public void excludeResourceFromManagement(Long resourceId) {
         ManagedResource resource = managedResourceRepository.findById(resourceId)
-                .orElseThrow(() -> new IllegalArgumentException(msg("msg.resource.not.found.id", resourceId)));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.resource.not.found.id", String.valueOf(resourceId))));
         if (resource.getStatus() != ManagedResource.Status.NEEDS_DEFINITION) {
             throw new IllegalStateException(msg("msg.resource.exclude.invalid.status", resource.getStatus()));
         }

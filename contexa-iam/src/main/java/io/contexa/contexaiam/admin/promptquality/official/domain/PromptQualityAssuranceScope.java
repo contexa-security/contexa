@@ -1,5 +1,7 @@
 package io.contexa.contexaiam.admin.promptquality.official.domain;
 
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
+
 public record PromptQualityAssuranceScope(
         String tenantId,
         String resourceUrl,
@@ -9,7 +11,8 @@ public record PromptQualityAssuranceScope(
         String modelProfile,
         String verifierVersion) {
 
-    public static final String DEFAULT_TENANT_ID = "default";
+    /** The same default tenant a sealed evidence package is sealed and read with. */
+    public static final String DEFAULT_TENANT_ID = SealedEvidencePackage.DEFAULT_TENANT_ID;
     public static final String DEFAULT_HTTP_METHOD = "GET";
     public static final String DEFAULT_PROMPT_CONTRACT_VERSION = "official-prompt-contract-v1";
     public static final String DEFAULT_MODEL_PROFILE = "default-model-profile";

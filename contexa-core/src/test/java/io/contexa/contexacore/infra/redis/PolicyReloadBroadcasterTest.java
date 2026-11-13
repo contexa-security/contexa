@@ -169,6 +169,36 @@ class PolicyReloadBroadcasterTest {
 
             assertThat(callCount.get()).isEqualTo(3);
         }
+
+        /** IAM-D80: the console's caches of an instance follow the signal another instance sends. */
+        @Test
+        @DisplayName("a remote signal runs every listener after the reload, a failing one does not stop the others")
+        void remoteSignalRunsTheListeners() {
+            StringBuilder order = new StringBuilder();
+            PolicyReloadBroadcaster broadcaster = new PolicyReloadBroadcaster(redissonClient, () -> order.append("reload,"));
+            broadcaster.addReloadListener(() -> { throw new IllegalStateException("cache down"); });
+            broadcaster.addReloadListener(() -> order.append("ip-rules,"));
+            broadcaster.addReloadListener(null);
+
+            capturedListener.onMessage("ch", "POLICY_RELOAD:remote-id");
+
+            assertThat(order).hasToString("reload,ip-rules,");
+        }
+
+        @Test
+        @DisplayName("the instance's own signal runs no listener")
+        void ownSignalRunsNoListener() {
+            AtomicInteger listened = new AtomicInteger();
+            PolicyReloadBroadcaster broadcaster = new PolicyReloadBroadcaster(redissonClient, () -> { });
+            broadcaster.addReloadListener(listened::incrementAndGet);
+
+            broadcaster.broadcastReload();
+            ArgumentCaptor<String> sent = ArgumentCaptor.forClass(String.class);
+            verify(topic).publishAsync(sent.capture());
+            capturedListener.onMessage("ch", sent.getValue());
+
+            assertThat(listened).hasValue(0);
+        }
     }
 
     // ── 3. 등록 ─────────────────────────────────────────────────

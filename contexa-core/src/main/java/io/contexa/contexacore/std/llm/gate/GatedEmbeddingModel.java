@@ -89,7 +89,7 @@ public final class GatedEmbeddingModel implements EmbeddingModel {
     private <T> T gated(Supplier<T> call) {
         ModelServerGate gate = gates != null ? gates.gateFor(delegate, CallKind.EMBEDDING) : null;
         if (gate == null) {
-            return call.get();
+            return inScope(call);
         }
         ModelCallTimer timer = ModelCallTimer.current();
         ModelServerGate.Permit permit;
@@ -101,7 +101,7 @@ public final class GatedEmbeddingModel implements EmbeddingModel {
                     interrupted);
         }
         try (permit) {
-            return permit.scope(call::get).call();
+            return permit.scope(() -> inScope(call)).call();
         } catch (RuntimeException failure) {
             if (ModelServerSignals.isOverload(failure)) {
                 permit.overloaded();
@@ -110,6 +110,18 @@ public final class GatedEmbeddingModel implements EmbeddingModel {
         } catch (Exception unreachable) {
             // The embedding call throws no checked exception.
             throw new IllegalStateException(unreachable);
+        }
+    }
+
+    /** The embedding runs as a model call of Contexa: the client's own retry stops at once for an unreachable server. */
+    private static <T> T inScope(Supplier<T> call) {
+        try {
+            return ModelCallScope.call(call::get);
+        } catch (RuntimeException failure) {
+            throw failure;
+        } catch (Exception unexpected) {
+            // The embedding call throws no checked exception.
+            throw new IllegalStateException(unexpected);
         }
     }
 }

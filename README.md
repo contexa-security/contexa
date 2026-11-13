@@ -182,6 +182,12 @@ public class OrderService {
 
 A signed-in user (a Spring `Authentication`) is needed when the method is called under `SHADOW` and `ENFORCE`; without one the call is refused with an `AccessDeniedException`. Run the application, call the method as a signed-in user, and look for `[IamSeedData] OSS schema provenance verified.` in the startup log. With Spring Boot Actuator, `GET /actuator/contexacapabilities` shows which parts are ready. Details: [Getting started](https://docs.ctxa.ai/en/get-started.html).
 
+### First sign-in and one-time codes (where Contexa provides the sign-in)
+
+- **First sign-in:** a first start on a database without user accounts adds sample accounts (`admin`, `manager`, `developer`, `user`, `finance`, all with the password `1111`) and says so in the start log. Sign in at `/contexa/admin/login` as `admin` / `1111` and change the password with "Change password" in the console header.
+- **Development:** with a `local`, `dev`, `development` or `test` profile, or without a mail server, the one-time code of the second step is written to the start log as `[OTT] Sign-in code for ...`, and the code pages say so. Nothing has to be set up. The local mail inbox (Mailpit) the CLI prepares receives the same code (SMTP `127.0.0.1:51025`, mails at http://127.0.0.1:58025).
+- **Production:** start without those profiles and set `spring.mail.*` to your mail server (host, port, username, password, and `spring.mail.properties.mail.smtp.auth` / `starttls.enable` as it asks). Codes then go by mail only. The start log says `One-time sign-in codes are mailed through host:port`, or what is wrong and what to set. `contexa.auth.ott.code-to-console=false` makes sure no code is written to the log.
+
 ## Choose the modes
 
 Three independent settings decide how Contexa runs:

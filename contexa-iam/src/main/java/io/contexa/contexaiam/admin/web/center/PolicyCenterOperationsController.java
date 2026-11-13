@@ -54,17 +54,12 @@ public class PolicyCenterOperationsController {
 
     // ==================== Policy Simulation API ====================
 
+    // D75: a read or an analysis that fails reaches the global exception handler, which logs it and answers with its
+    // error status, instead of 200 with empty results.
     @PostMapping("/api/simulate")
     @ResponseBody
     public ResponseEntity<PolicySimulationResponse> simulate(@RequestBody PolicySimulationRequest request) {
-        try {
-            return ResponseEntity.ok(policyCenterAnalysisService.simulate(request));
-        } catch (Exception e) {
-            log.error("Failed to simulate policy", e);
-            return ResponseEntity.ok(new PolicySimulationResponse(
-                    List.of(),
-                    new PolicySimulationResponse.SimulationSummary(0, 0, 0, 0)));
-        }
+        return ResponseEntity.ok(policyCenterAnalysisService.simulate(request));
     }
 
     // ==================== Reset Resource Policy Status API ====================
@@ -122,7 +117,7 @@ public class PolicyCenterOperationsController {
             PolicyImpactResponse response = policyCenterAnalysisService.analyzeImpact(request);
             return ResponseEntity.<PolicyApiResponse>ok(response);
         } catch (Exception e) {
-            log.error("Failed to analyze policy impact", e);
+            ConsoleFault.report(e, log, "analyze the impact of a policy");
             return ResponseEntity.internalServerError()
                     .body(new PolicyErrorResponse(msg("msg.policy.impact.failed", e.getMessage())));
         }
@@ -133,12 +128,7 @@ public class PolicyCenterOperationsController {
     @GetMapping("/api/{policyId}/versions")
     @ResponseBody
     public ResponseEntity<List<PolicyVersionSummaryResponse>> getVersions(@PathVariable Long policyId) {
-        try {
-            return ResponseEntity.ok(policyCenterQueryService.getVersions(policyId));
-        } catch (Exception e) {
-            log.error("Failed to load versions for policy {}", policyId, e);
-            return ResponseEntity.ok(List.of());
-        }
+        return ResponseEntity.ok(policyCenterQueryService.getVersions(policyId));
     }
 
     @GetMapping("/api/{policyId}/versions/{versionNumber}")
@@ -148,7 +138,7 @@ public class PolicyCenterOperationsController {
         try {
             return ResponseEntity.ok(policyCenterQueryService.getVersionSnapshot(policyId, versionNumber));
         } catch (Exception e) {
-            log.error("Failed to load version snapshot for policy {}, version {}", policyId, versionNumber, e);
+            ConsoleFault.report(e, log, "load version " + versionNumber + " of policy " + policyId);
             return ResponseEntity.badRequest().body(new PolicyVersionSnapshotResponse(
                     null,
                     null,
@@ -178,12 +168,7 @@ public class PolicyCenterOperationsController {
             @PathVariable Long policyId,
             @RequestParam int v1,
             @RequestParam int v2) {
-        try {
-            return ResponseEntity.ok(policyCenterQueryService.compareVersions(policyId, v1, v2));
-        } catch (Exception e) {
-            log.error("Failed to compare versions for policy {}", policyId, e);
-            return ResponseEntity.ok(List.of());
-        }
+        return ResponseEntity.ok(policyCenterQueryService.compareVersions(policyId, v1, v2));
     }
 
     // ==================== Policy Matrix API ====================
@@ -193,12 +178,6 @@ public class PolicyCenterOperationsController {
     public ResponseEntity<PolicyMatrixResponse> getMatrix(
             @RequestParam(required = false) String resourceFilter,
             @RequestParam(required = false) String roleFilter) {
-        try {
-            return ResponseEntity.ok(policyCenterAnalysisService.getMatrix(resourceFilter, roleFilter));
-        } catch (Exception e) {
-            log.error("Failed to generate policy matrix", e);
-            return ResponseEntity.ok(new PolicyMatrixResponse(
-                    List.of(), List.of(), List.of(), List.of(), 0, 1, 0));
-        }
+        return ResponseEntity.ok(policyCenterAnalysisService.getMatrix(resourceFilter, roleFilter));
     }
 }

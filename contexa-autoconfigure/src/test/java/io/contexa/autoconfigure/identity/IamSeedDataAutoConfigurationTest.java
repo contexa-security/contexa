@@ -52,8 +52,8 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("Q-32: the sample accounts are seeded only when contexa.iam.seed.accounts.enabled is true")
-    void sampleAccountsAreSeededOnlyWhenAskedFor() throws Exception {
+    @DisplayName("The sample accounts are seeded by default and left out when contexa.iam.seed.accounts.enabled is false")
+    void sampleAccountsAreSeededUnlessTurnedOff() throws Exception {
         String data = new ClassPathResource("META-INF/contexa/db/data.sql").getContentAsString(StandardCharsets.UTF_8);
         ClassPathResource accounts = new ClassPathResource(IamSeedDataAutoConfiguration.ACCOUNT_SEED_LOCATION);
         String accountRows = accounts.exists() ? accounts.getContentAsString(StandardCharsets.UTF_8) : "";
@@ -61,10 +61,18 @@ class IamSeedDataAutoConfigurationTest {
         assertThat(data).doesNotContain("INSERT INTO CTXA_USERS").doesNotContain("INSERT INTO CTXA_USER_GROUPS");
         assertThat(accountRows).contains("INSERT INTO CTXA_USERS").contains("INSERT INTO CTXA_USER_GROUPS");
         assertThat(IamSeedDataAutoConfiguration.seedLocations(new MockEnvironment()))
+                .hasSize(IamSeedDataAutoConfiguration.SEED_LOCATIONS.length + 1)
+                .endsWith(IamSeedDataAutoConfiguration.ACCOUNT_SEED_LOCATION);
+        assertThat(IamSeedDataAutoConfiguration.seedLocations(new MockEnvironment()
+                .withProperty(IamSeedDataAutoConfiguration.ACCOUNT_SEED_PROPERTY, "false")))
+                .containsExactly(IamSeedDataAutoConfiguration.SEED_LOCATIONS);
+        // a configured administrator is not replaced by the sample one, unless the sample accounts are asked for
+        assertThat(IamSeedDataAutoConfiguration.seedLocations(new MockEnvironment()
+                .withProperty(IamSeedDataAutoConfiguration.ADMIN_PASSWORD_PROPERTY, "Kp7mVx2qRt9wZb4n")))
                 .containsExactly(IamSeedDataAutoConfiguration.SEED_LOCATIONS);
         assertThat(IamSeedDataAutoConfiguration.seedLocations(new MockEnvironment()
+                .withProperty(IamSeedDataAutoConfiguration.ADMIN_PASSWORD_PROPERTY, "Kp7mVx2qRt9wZb4n")
                 .withProperty(IamSeedDataAutoConfiguration.ACCOUNT_SEED_PROPERTY, "true")))
-                .hasSize(IamSeedDataAutoConfiguration.SEED_LOCATIONS.length + 1)
                 .endsWith(IamSeedDataAutoConfiguration.ACCOUNT_SEED_LOCATION);
     }
 

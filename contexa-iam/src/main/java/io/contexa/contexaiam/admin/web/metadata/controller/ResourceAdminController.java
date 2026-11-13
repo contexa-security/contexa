@@ -20,19 +20,13 @@ import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceBa
 import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceDefineResponse;
 import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceManagementForm;
 import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceMetadataForm;
-import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceSearchForm;
 import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceStatusResponse;
-import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceWorkbenchPageModel;
 import io.contexa.contexaiam.admin.web.metadata.service.ResourceAdminService;
 import io.contexa.contexaiam.common.ConsoleFault;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -52,21 +46,17 @@ import java.util.List;
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class ResourceAdminController {
 
+    static final String POLICY_CENTER_RESOURCES = "redirect:/contexa/admin/policy-center?tab=resources";
+
     private final ResourceAdminService resourceAdminService;
 
+    /**
+     * The resource workbench is the resources tab of the policy center now and has no template of its own: the
+     * address sends the administrator there instead of failing with a missing template (D03).
+     */
     @GetMapping
-    public String resourceWorkbenchPage(
-            @ModelAttribute("criteria") ResourceSearchForm criteria,
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
-            Model model) {
-
-        model.addAttribute("activePage", "policy-center");
-        ResourceWorkbenchPageModel pageModel = resourceAdminService.getWorkbenchPage(criteria, pageable);
-
-        model.addAttribute("resourcePage", pageModel.resourcePage());
-        model.addAttribute("serviceOwners", pageModel.serviceOwners());
-        model.addAttribute("criteria", pageModel.criteria());
-        return "contexa/admin/resource-workbench";
+    public String resourceWorkbenchPage() {
+        return POLICY_CENTER_RESOURCES;
     }
 
     @PostMapping("/refresh")
@@ -78,7 +68,7 @@ public class ResourceAdminController {
             ra.addFlashAttribute("errorMessage", resourceAdminService.message("msg.resource.refresh.error",
                     ConsoleFault.textOf(e, log, "refresh the resources")));
         }
-        return "redirect:/contexa/admin/workbench/resources";
+        return POLICY_CENTER_RESOURCES;
     }
 
     @PostMapping("/{id}/define")
@@ -89,7 +79,7 @@ public class ResourceAdminController {
         try {
             return ResponseEntity.ok(resourceAdminService.defineResourceAsPermission(id, metadataForm));
         } catch (Exception e) {
-            log.error("Permission definition API failed for resource ID: {}", id, e);
+            ConsoleFault.report(e, log, "define a permission for resource " + id);
             return ResponseEntity.badRequest().body(ResourceDefineResponse.error(ConsoleFault.textOf(e)));
         }
     }
@@ -111,7 +101,11 @@ public class ResourceAdminController {
         try {
             return ResponseEntity.ok(resourceAdminService.restoreResource(id));
         } catch (Exception e) {
-            log.error("Resource restore failed for ID: {}", id, e);
+            if (ConsoleFault.isRefusal(e)) {
+                log.warn("Resource restore refused. id={}, reason={}", id, e.getMessage());
+            } else {
+                log.error("Resource restore failed for ID: {}", id, e);
+            }
             return ResponseEntity.badRequest().body(ResourceStatusResponse.error(ConsoleFault.textOf(e)));
         }
     }
@@ -122,7 +116,11 @@ public class ResourceAdminController {
         try {
             return ResponseEntity.ok(resourceAdminService.excludeResource(id));
         } catch (Exception e) {
-            log.error("Resource exclude failed for ID: {}", id, e);
+            if (ConsoleFault.isRefusal(e)) {
+                log.warn("Resource exclude refused. id={}, reason={}", id, e.getMessage());
+            } else {
+                log.error("Resource exclude failed for ID: {}", id, e);
+            }
             return ResponseEntity.badRequest().body(ResourceStatusResponse.error(ConsoleFault.textOf(e)));
         }
     }
@@ -134,11 +132,11 @@ public class ResourceAdminController {
             RedirectAttributes ra) {
         try {
             resourceAdminService.updateManagementStatus(id, managementForm);
-            ra.addFlashAttribute("message", resourceAdminService.message("msg.resource.status.changed", id));
+            ra.addFlashAttribute("message", resourceAdminService.message("msg.resource.status.changed", String.valueOf(id)));
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", resourceAdminService.message("msg.resource.status.change.error",
                     ConsoleFault.textOf(e, log, "change the management status of resource " + id)));
         }
-        return "redirect:/contexa/admin/workbench/resources";
+        return POLICY_CENTER_RESOURCES;
     }
 }

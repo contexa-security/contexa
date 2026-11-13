@@ -6,6 +6,7 @@ package io.contexa.contexaiam.admin.web.monitoring.controller;
 
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FailureSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LlmDecisionSummary;
+import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitoringResetResponse;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.NamedCount;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.OperationsSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.OverviewSummary;
@@ -20,7 +21,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.util.List;
 import java.util.Locale;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -93,7 +97,29 @@ class AiMonitorControllerTest {
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new AiMonitorController(service)).build();
         mvc.perform(post("/contexa/admin/api/ai-monitor/reset").principal(admin())
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(AiMonitorController.RESET_CONFIRMATION_MISMATCH))
+                .andExpect(jsonPath("$.required").value(AiSecurityDecisionMonitoringService.RESET_CONFIRMATION_TEXT));
+        // IAM-D43: a wrong word names the reason, so the screen can say it in its language.
+        mvc.perform(post("/contexa/admin/api/ai-monitor/reset").principal(admin())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"confirmationText\":\"reset now\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(AiMonitorController.RESET_CONFIRMATION_MISMATCH));
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void theConfirmedResetAnswersWithTheArchivedSession() throws Exception {
+        AiSecurityDecisionMonitoringService service = mock(AiSecurityDecisionMonitoringService.class);
+        when(service.resetMonitoring(any(), eq("admin"))).thenReturn(
+                new MonitoringResetResponse("session-1", "2026-11-13 09:00:00", "2026-11-13 10:00:00", 4L, null, null));
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new AiMonitorController(service)).build();
+
+        mvc.perform(post("/contexa/admin/api/ai-monitor/reset").principal(admin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmationText\":\"RESET\",\"reason\":\"new window\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sessionId").value("session-1"));
     }
 
     @Test

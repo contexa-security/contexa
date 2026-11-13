@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.agents.detail.title})}"></head>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.agents.detail.title})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{contexa/fragments/header :: header}"></div>
@@ -190,7 +190,7 @@
                     <input type="hidden" name="tenant" th:value="${agent.tenantId}">
                     <div style="flex:1;min-width:12rem;">
                         <label class="learning-label" for="newSponsor" th:text="#{admin.agents.manage.sponsor}">New sponsor</label>
-                        <input id="newSponsor" type="text" name="sponsorId" required class="learning-input">
+                        <input id="newSponsor" type="text" name="sponsorId" required maxlength="255" class="learning-input">
                     </div>
                     <button type="submit" class="learning-button" style="background:#4f46e5;"
                             th:text="#{admin.agents.manage.sponsor.submit}">Transfer</button>

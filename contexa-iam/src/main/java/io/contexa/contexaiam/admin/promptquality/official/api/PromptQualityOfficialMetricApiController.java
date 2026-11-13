@@ -5,7 +5,11 @@ import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunFailu
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageDetail;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageSummary;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePackageDetail;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,7 +21,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
+@Slf4j
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-quality/verification/runtime-runs/package")
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
@@ -90,5 +96,13 @@ public class PromptQualityOfficialMetricApiController {
             @RequestParam(required = false) String aggregateRunId) {
         return views.reverifyOptionsPayload(
                 runDetailService.findPackageDetail(packageId, aggregateRunId));
+    }
+
+    /** A package or run that does not exist is a 404, as on the other official verification endpoints. */
+    @ExceptionHandler(NoSuchElementException.class)
+    public ResponseEntity<ProblemDetail> packageNotFound(NoSuchElementException exception) {
+        log.warn("[PQA-OFFICIAL-NOT-FOUND] {}", exception.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 }

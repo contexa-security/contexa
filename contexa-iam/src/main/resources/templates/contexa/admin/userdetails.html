@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.users.detail.title})}">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.users.detail.title})}"></th:block>
 </head>
 <body class="flex flex-col min-h-screen font-sans">
 
@@ -33,7 +33,7 @@
                 <span id="serverMsg" th:if="${message}" th:text="${message}"></span>
                 <span id="serverErr" th:if="${errorMessage}" th:text="${errorMessage}"></span>
             </div>
-            <form id="userForm" th:action="${user.id != null ? '/contexa/admin/users/' + user.id : '/contexa/admin/users'}" method="post" th:object="${user}" class="space-y-6">
+            <form id="userForm" th:action="${user.id != null} ? @{/contexa/admin/users/{id}(id=${user.id})} : @{/contexa/admin/users}" method="post" th:object="${user}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${user.id != null}" />
 
                 <div class="space-y-4">
@@ -46,7 +46,7 @@
                         <label for="username" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-envelope mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.users.detail.username}">Username (Email)</span>
                         </label>
-                        <input type="email" id="username" th:field="*{username}"
+                        <input type="email" id="username" th:field="*{username}" maxlength="100"
                                class="detail-input"
                                th:readonly="${user.id != null}"
                                placeholder="user@example.com" />
@@ -56,7 +56,7 @@
                         <label for="name" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-user mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.users.detail.name}">Name</span>
                         </label>
-                        <input type="text" id="name" th:field="*{name}"
+                        <input type="text" id="name" th:field="*{name}" maxlength="100"
                                class="detail-input"
                                required
                                th:placeholder="#{admin.users.detail.name.placeholder}" placeholder="User name" />
@@ -106,7 +106,7 @@
                         <label for="email" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-at mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.users.detail.email}">Email</span>
                         </label>
-                        <input type="email" id="email" th:field="*{email}"
+                        <input type="email" id="email" th:field="*{email}" maxlength="255"
                                class="detail-input"
                                placeholder="user@example.com" />
                     </div>
@@ -116,21 +116,21 @@
                             <label for="phone" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                                 <i class="fas fa-phone mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.users.detail.phone}">Phone</span>
                             </label>
-                            <input type="text" id="phone" th:field="*{phone}"
+                            <input type="text" id="phone" th:field="*{phone}" maxlength="20"
                                    class="detail-input" placeholder="010-1234-5678" />
                         </div>
                         <div>
                             <label for="department" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                                 <i class="fas fa-building mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.users.detail.department}">Department</span>
                             </label>
-                            <input type="text" id="department" th:field="*{department}"
+                            <input type="text" id="department" th:field="*{department}" maxlength="100"
                                    class="detail-input" th:placeholder="#{admin.users.detail.department.placeholder}" placeholder="Development" />
                         </div>
                         <div>
                             <label for="position" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                                 <i class="fas fa-briefcase mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.users.detail.position}">Position</span>
                             </label>
-                            <input type="text" id="position" th:field="*{position}"
+                            <input type="text" id="position" th:field="*{position}" maxlength="100"
                                    class="detail-input" th:placeholder="#{admin.users.detail.position.placeholder}" placeholder="Senior" />
                         </div>
                     </div>

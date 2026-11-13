@@ -17,11 +17,15 @@ import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerifica
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceReverifyResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,6 +33,11 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class PromptQualityOfficialConsoleApiControllerTest {
 
@@ -242,4 +251,42 @@ class PromptQualityOfficialConsoleApiControllerTest {
                 "reverify"
         );
     }
+
+    /** IAM-D14: a package that does not exist is a 404 on the metric endpoints, as on the other official endpoints. */
+    @Test
+    void anUnknownPackageIsANotFoundOnTheMetricEndpoints() throws Exception {
+        when(runDetailService.findPackageDetail("missing", null))
+                .thenThrow(new NoSuchElementException("Official run package not found: missing"));
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(metricController).build();
+
+        mvc.perform(get("/contexa/admin/api/prompt-quality/verification/runtime-runs/package/missing/metric-families"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Official run package not found: missing"));
+        mvc.perform(get("/contexa/admin/api/prompt-quality/verification/runtime-runs/package/missing/metrics/prompt"))
+                .andExpect(status().isNotFound());
+    }
+
+    /**
+     * IAM-D27: without enterprise there is no overlay store. The overlay reads as read-only, and a save or a removal is
+     * refused (409) with the reason, never answered as if it had been stored.
+     */
+    @Test
+    void resourceOverlaysAreReadOnlyWithoutEnterprise() throws Exception {
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PromptQualityOfficialResourceApiController(views)).build();
+        String overlay = "/contexa/admin/api/prompt-quality/resources/res-1/overlay";
+
+        mvc.perform(get(overlay))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.present").value(false))
+                .andExpect(jsonPath("$.editable").value(false))
+                .andExpect(jsonPath("$.state").value("OSS_READ_ONLY"));
+        mvc.perform(post(overlay).contentType(MediaType.APPLICATION_JSON).content("{\"criticality\":\"HIGH\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("OSS_READ_ONLY"))
+                .andExpect(jsonPath("$.message").isNotEmpty());
+        mvc.perform(delete(overlay))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("OSS_READ_ONLY"));
+    }
+
 }

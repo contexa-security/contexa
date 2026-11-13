@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.security.monitor.detail.page.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
@@ -97,7 +97,8 @@
                               th:text="${log.decision}"></span>
                         <span th:if="${log.outcome != null}" class="text-sm" style="color: #94a3b8;" th:text="${'(' + log.outcome + ')'}"></span>
                     </div>
-                    <div th:if="${log.reason != null}" class="text-sm" style="color: #cbd5e1; line-height: 1.7;" th:text="${log.reason}"></div>
+                    <div th:if="${reason != null}" class="text-sm" style="color: #cbd5e1; line-height: 1.7;" th:text="#{__${reason.key}__(${reason.argument})}"></div>
+                    <div th:if="${reason == null and log.reason != null}" class="text-sm" style="color: #cbd5e1; line-height: 1.7;" th:text="${log.reason}"></div>
                     <!-- docs/agent A5-5 (AM-5): the decision record fields, as recorded -->
                     <dl class="text-sm mt-4" style="color: #94a3b8;">
                         <div th:if="${log.riskState != null}"><dt class="inline" th:text="#{admin.security.monitor.detail.risk.state}">Risk facts cited</dt>:

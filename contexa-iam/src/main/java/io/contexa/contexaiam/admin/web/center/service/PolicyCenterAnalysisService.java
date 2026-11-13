@@ -50,11 +50,25 @@ public class PolicyCenterAnalysisService {
         return PolicyFullValidationResponse.from(policyValidationService.validateAll());
     }
 
+    /** D26: a candidate that lacks what creating it needs is answered as not creatable, with what it lacks. */
     public PolicyValidationResponse validatePolicy(PolicyCenterPolicyRequest request) {
-        return PolicyValidationResponse.from(policyService.validateBeforeCreate(request.toPolicyDto()));
+        PolicyDto policyDto = request.toPolicyDto();
+        List<String> missing = policyValidationService.missingForCreation(policyDto);
+        if (!missing.isEmpty()) {
+            return PolicyValidationResponse.from(PolicyValidationService.blockedFor(missing));
+        }
+        return PolicyValidationResponse.from(policyService.validateBeforeCreate(policyDto));
     }
 
     public PolicyValidationResponse validateQuickPolicy(QuickPolicyRequest request) {
+        boolean anythingChosen = request.getSpelId() != null
+                || (request.getRoleIds() != null && !request.getRoleIds().isEmpty())
+                || (request.getPermissionIds() != null && !request.getPermissionIds().isEmpty());
+        List<String> missing = policyValidationService.missingForQuickCreation(
+                request.getPolicyName(), request.getEffect(), anythingChosen);
+        if (!missing.isEmpty()) {
+            return PolicyValidationResponse.from(PolicyValidationService.blockedFor(missing));
+        }
         PolicyDto policyDto = PolicyDto.builder()
                 .name(request.getPolicyName())
                 .description(request.getDescription())

@@ -19,10 +19,13 @@ bootSummaryPage(null, async (root) => {
         return;
     }
 
-    await Promise.all([
+    const [, editable] = await Promise.all([
         loadResourceMeta(root, tenantId, resourceId, sourceResourceUrl, httpMethod),
         loadOverlay(root, tenantId, resourceId, sourceResourceUrl, httpMethod)
     ]);
+    if (editable === false) {
+        showReadOnly(root);
+    }
 
     const form = $(root, '[data-pqa-overlay-form]');
     if (form) {
@@ -113,6 +116,9 @@ async function loadOverlay(root, tenantId, resourceId, sourceResourceUrl, httpMe
         const payload = await getJson(
                 promptQualityApiPath(`/resources/${encodeURIComponent(resourceId)}/overlay`)
                 + `?${query.toString()}`);
+        if (payload && payload.editable === false) {
+            return false;
+        }
         if (payload && payload.present && payload.overlay) {
             applyOverlayToForm(root, payload.overlay);
             setStatus(root, 'info',
@@ -128,6 +134,27 @@ async function loadOverlay(root, tenantId, resourceId, sourceResourceUrl, httpMe
     catch (error) {
         setStatus(root, 'error', t('enterprise.pqa.resourceOverlayEdit.status.loadFailed'), publicError(error));
     }
+    return true;
+}
+
+/**
+ * Without an overlay store (OSS without enterprise) the overlay cannot be saved or removed: the form and the delete
+ * button are turned off and the page says why, instead of offering a save that stores nothing.
+ */
+function showReadOnly(root) {
+    const form = $(root, '[data-pqa-overlay-form]');
+    if (form) {
+        Array.from(form.elements).forEach(element => {
+            element.disabled = true;
+        });
+    }
+    const deleteButton = $(root, '[data-pqa-overlay-delete]');
+    if (deleteButton) {
+        deleteButton.disabled = true;
+    }
+    setStatus(root, 'info',
+            t('enterprise.pqa.resourceOverlayEdit.readOnly.title'),
+            t('enterprise.pqa.resourceOverlayEdit.readOnly.detail'));
 }
 
 function applyOverlayToForm(root, overlay) {
@@ -201,9 +228,13 @@ async function saveOverlay(root, tenantId, resourceId, sourceResourceUrl, httpMe
             t('enterprise.pqa.resourceOverlayEdit.status.saving.title'),
             t('enterprise.pqa.resourceOverlayEdit.status.saving.detail'));
     try {
-        await postJson(
+        const answer = await postJson(
                 promptQualityApiPath(`/resources/${encodeURIComponent(resourceId)}/overlay`),
                 { ...body, tenantId, sourceResourceUrl, httpMethod });
+        if (answer && answer.state === 'OSS_READ_ONLY') {
+            showReadOnly(root);
+            return;
+        }
         setStatus(root, 'success',
                 t('enterprise.pqa.resourceOverlayEdit.status.saved.title'),
                 t('enterprise.pqa.resourceOverlayEdit.status.saved.detail'));

@@ -27,21 +27,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.servlet.support.RequestContextUtils;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.ArrayList;
@@ -90,26 +88,44 @@ public class RoleController {
 
 	@GetMapping("/register")
 	public String registerRoleForm(Model model) {
-		RoleDto roleDto = new RoleDto();
-		roleDto.setEnabled(true);
+		// A refused registration comes back here with what was typed.
+		RoleDto roleDto = model.getAttribute("role") instanceof RoleDto typed ? typed : null;
+		if (roleDto == null) {
+			roleDto = new RoleDto();
+			roleDto.setEnabled(true);
+		}
 		model.addAttribute("role", roleDto);
 		model.addAttribute("permissionList", permissionService.getAllPermissions());
-		model.addAttribute("selectedPermissionIds", new ArrayList<Long>());
+		model.addAttribute("selectedPermissionIds",
+				roleDto.getPermissionIds() != null ? roleDto.getPermissionIds() : new ArrayList<Long>());
 		return "contexa/admin/rolesdetails";
 	}
 
 	@PostMapping
 	@Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
 	public String createRole(@ModelAttribute("role") RoleDto roleDto, RedirectAttributes ra) {
-		Role role = modelMapper.map(roleDto, Role.class);
-		roleService.createRole(role, roleDto.getPermissionIds());
-		ra.addFlashAttribute("message", msg("msg.role.created"));
-		return "redirect:/contexa/admin/roles";
+		try {
+			Role role = modelMapper.map(roleDto, Role.class);
+			roleService.createRole(role, roleDto.getPermissionIds());
+			ra.addFlashAttribute("message", msg("msg.role.created"));
+			return "redirect:/contexa/admin/roles";
+		} catch (Exception e) {
+			ra.addFlashAttribute("errorMessage", textOf(e, "create role " + roleDto.getRoleName()));
+			ra.addFlashAttribute("role", roleDto);
+			return "redirect:/contexa/admin/roles/register";
+		}
 	}
 
 	@GetMapping("/{id}")
-	public String getRoleDetails(@PathVariable Long id, Model model) {
-		Role role = roleService.getRole(id);
+	public String getRoleDetails(@PathVariable Long id, Model model, RedirectAttributes ra) {
+		// Looked up without an exception: one thrown through the service would mark this read-only transaction for
+		// rollback, and its commit would end the request with a server error.
+		Role role = roleService.findRole(id).orElse(null);
+		if (role == null) {
+			log.warn("[RoleManagement] No role with ID {}", id);
+			ra.addFlashAttribute("errorMessage", msg("msg.role.not.found.id", String.valueOf(id)));
+			return "redirect:/contexa/admin/roles";
+		}
 		RoleDto roleDto = modelMapper.map(role, RoleDto.class);
 		List<Long> selectedPermissionIds = role.getRolePermissions().stream().map(rp -> rp.getPermission().getId()).toList();
 
@@ -126,11 +142,16 @@ public class RoleController {
 	@PostMapping("/{id}/edit")
 	@Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
 	public String updateRole(@PathVariable Long id, @ModelAttribute("role") RoleDto roleDto, RedirectAttributes ra) {
-		roleDto.setId(id);
-		Role role = modelMapper.map(roleDto, Role.class);
-		roleService.updateRole(role, roleDto.getPermissionIds());
-		ra.addFlashAttribute("message", msg("msg.role.updated"));
-		return "redirect:/contexa/admin/roles";
+		try {
+			roleDto.setId(id);
+			Role role = modelMapper.map(roleDto, Role.class);
+			roleService.updateRole(role, roleDto.getPermissionIds());
+			ra.addFlashAttribute("message", msg("msg.role.updated"));
+			return "redirect:/contexa/admin/roles";
+		} catch (Exception e) {
+			ra.addFlashAttribute("errorMessage", textOf(e, "update role " + id));
+			return "redirect:/contexa/admin/roles/" + id;
+		}
 	}
 
 	@GetMapping("/api/{id}/affected-policies")
@@ -147,25 +168,29 @@ public class RoleController {
 		try {
 			roleService.deleteRole(id);
 			ra.addFlashAttribute("message", msg("msg.role.deleted"));
-		} catch (LastAdministratorException e) {
-			throw e;
 		} catch (Exception e) {
-			ra.addFlashAttribute("errorMessage", ConsoleFault.textOf(e, log, "delete role " + id));
+			ra.addFlashAttribute("errorMessage", textOf(e, "delete role " + id));
 		}
 		return "redirect:/contexa/admin/roles";
 	}
 
 	/**
-	 * A change of a role that would take the console's last active administrator is refused with a 409: nothing of it was
-	 * kept (the refusal rolls the transaction back), and the list of roles says why.
+	 * A change of a role that would take the console's last active administrator, thrown past the handlers above, goes
+	 * back to the list of roles with the reason: nothing of it was kept (the refusal rolls the transaction back), and the
+	 * address left is the list's, not the one of the request that was refused.
 	 */
 	@ExceptionHandler(LastAdministratorException.class)
-	public ModelAndView lastAdministrator(LastAdministratorException refusal) {
-		Model model = new ConcurrentModel();
-		String view = getRoles(null, PageRequest.of(0, 15, Sort.by(Sort.Direction.DESC, "id")), model);
-		ModelAndView page = new ModelAndView(view, model.asMap());
-		page.setStatus(HttpStatus.CONFLICT);
-		page.addObject("errorMessage", refusal.getMessage());
-		return page;
+	public String lastAdministrator(LastAdministratorException refusal, HttpServletRequest request) {
+		log.warn("[RoleManagement] {}", refusal.getMessage());
+		RequestContextUtils.getOutputFlashMap(request).put("errorMessage", refusal.getMessage());
+		return "redirect:/contexa/admin/roles";
+	}
+
+	/** What the administrator is told of a failed change: a refusal is logged as one, a fault with its stack. */
+	private String textOf(Exception failure, String doing) {
+		if (ConsoleFault.isRefusal(failure)) {
+			log.warn("[RoleManagement] Could not {}: {}", doing, failure.getMessage());
+		}
+		return ConsoleFault.textOf(failure, log, doing);
 	}
 }

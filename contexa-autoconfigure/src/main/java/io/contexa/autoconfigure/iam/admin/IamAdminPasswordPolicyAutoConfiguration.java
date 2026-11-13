@@ -54,8 +54,13 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     public PasswordPolicyService passwordPolicyService(
             PasswordPolicyRepository passwordPolicyRepository,
             PasswordHistoryRepository passwordHistoryRepository,
-            BeanFactory beanFactory) {
-        return new PasswordPolicyService(passwordPolicyRepository, passwordHistoryRepository, ContexaOwnBeans.passwordEncoder(beanFactory));
+            BeanFactory beanFactory,
+            ObjectProvider<MessageSource> messageSource) {
+        PasswordPolicyService service = new PasswordPolicyService(passwordPolicyRepository, passwordHistoryRepository,
+                ContexaOwnBeans.passwordEncoder(beanFactory));
+        // the reasons a password is refused, in the language of the person who chose it
+        service.setMessageSource(messageSource.getIfAvailable());
+        return service;
     }
 
     @Bean(name = "contexaPasswordPolicyController")
@@ -142,7 +147,7 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     @ConditionalOnMissingBean
     public AuditLogRetentionScheduler auditLogRetentionScheduler(
             AuditLogRepository auditLogRepository,
-            SystemSettingsService contexaSystemSettingsService) {
-        return new AuditLogRetentionScheduler(auditLogRepository, contexaSystemSettingsService);
+            SystemRuntimeSettingsService contexaSystemRuntimeSettingsService) {
+        return new AuditLogRetentionScheduler(auditLogRepository, contexaSystemRuntimeSettingsService);
     }
 }

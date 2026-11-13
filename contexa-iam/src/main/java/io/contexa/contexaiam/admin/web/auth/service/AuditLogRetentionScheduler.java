@@ -32,13 +32,13 @@ import java.time.LocalDateTime;
 public class AuditLogRetentionScheduler {
 
     private final AuditLogRepository auditLogRepository;
-    private final SystemSettingsService systemSettingsService;
+    private final SystemRuntimeSettingsService systemRuntimeSettingsService;
 
     @Scheduled(scheduler = "contexaTaskScheduler", cron = "0 0 2 * * *")
     @SchedulerLock(name = "auditLogRetentionCleanup", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     @Transactional(transactionManager = "contexaTransactionManager")
     public void cleanupExpiredAuditLogs() {
-        int retentionDays = systemSettingsService.getSettings().getAuditLogRetentionDays();
+        int retentionDays = systemRuntimeSettingsService.getSettings().getAuditLogRetentionDays();
         if (retentionDays <= 0) {
             return;
         }

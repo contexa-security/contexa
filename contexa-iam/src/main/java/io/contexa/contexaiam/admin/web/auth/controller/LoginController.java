@@ -19,6 +19,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.function.Supplier;
 
@@ -30,6 +31,9 @@ public class LoginController {
 
     /** Where it posts when the application owns sign-in (HOST_OWNED): the console's own chain. */
     public static final String HOST_OWNED_LOGIN_PROCESSING_URL = "/contexa/admin/login";
+
+    /** The flag a changed password comes with, so the sign-in it leads to says the password was changed. */
+    public static final String PASSWORD_CHANGED_PARAMETER = "passwordChanged";
 
     private final String loginProcessingUrl;
     private final Supplier<String> signInPage;
@@ -52,11 +56,15 @@ public class LoginController {
     }
 
     @GetMapping("/contexa/admin/login")
-    public String registerPage(Model model) {
+    public String registerPage(@RequestParam(name = PASSWORD_CHANGED_PARAMETER, required = false) String passwordChanged,
+                               Model model) {
         String page = signInPage.get();
         if (StringUtils.hasText(page)) {
-            return "redirect:" + page;
+            // The sign-in page is another page: the flag goes along, where a flash attribute would be spent on the way.
+            return "redirect:" + page + (passwordChanged != null
+                    ? (page.contains("?") ? "&" : "?") + PASSWORD_CHANGED_PARAMETER : "");
         }
+        model.addAttribute("passwordChanged", passwordChanged != null);
         model.addAttribute("adminLoginProcessingUrl", loginProcessingUrl);
         return "contexa/admin/login";
     }

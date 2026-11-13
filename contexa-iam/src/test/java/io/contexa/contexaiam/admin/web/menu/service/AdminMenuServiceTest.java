@@ -213,10 +213,16 @@ class AdminMenuServiceTest {
     @DisplayName("deleteMenu should delete children and parent")
     void deleteMenu() {
         AdminMenuService service = new AdminMenuService(menuRepository, menuQueryCache, false, false);
+        AdminMenu child = AdminMenu.builder().id(11L).name("Child").parentId(10L).build();
+        AdminMenu grandchild = AdminMenu.builder().id(12L).name("Grandchild").parentId(11L).build();
+        when(menuRepository.findByParentIdOrderByMenuOrderAsc(10L)).thenReturn(List.of(child));
+        when(menuRepository.findByParentIdOrderByMenuOrderAsc(11L)).thenReturn(List.of(grandchild));
+        when(menuRepository.findByParentIdOrderByMenuOrderAsc(12L)).thenReturn(List.of());
 
         service.deleteMenu(10L);
 
-        verify(menuRepository).deleteByParentId(10L);
+        // Every level goes, the deepest first, so no submenu is left pointing at a parent that is gone.
+        verify(menuRepository).deleteAll(List.of(grandchild, child));
         verify(menuRepository).deleteById(10L);
         verify(menuQueryCache).invalidate();
     }

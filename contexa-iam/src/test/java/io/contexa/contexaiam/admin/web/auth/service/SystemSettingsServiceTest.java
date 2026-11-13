@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
@@ -22,6 +23,7 @@ import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,16 @@ class SystemSettingsServiceTest {
 
     @InjectMocks
     private SystemSettingsService service;
+
+    /** The roles a default role may be: the form lists the enabled roles without an expression. */
+    @BeforeEach
+    void assignableRoles() {
+        lenient().when(roleRepository.findAllRolesWithoutExpression()).thenReturn(List.of(
+                Role.builder().roleName("ROLE_USER").build(),
+                Role.builder().roleName("ROLE_MEMBER").build(),
+                Role.builder().roleName("ROLE_ADMIN").build(),
+                Role.builder().roleName("ROLE_RETIRED").enabled(false).build()));
+    }
 
     @Nested
     @DisplayName("getSettings")
@@ -99,7 +111,6 @@ class SystemSettingsServiceTest {
             form.setAuditLogRetentionDays(30);
             form.setDefaultRole("ROLE_MEMBER");
             form.setPolicyCombiningAlgorithm("DENY_OVERRIDES");
-            form.setRegistrationEnabled(true);
 
             service.updateSettings(form);
 
@@ -111,7 +122,6 @@ class SystemSettingsServiceTest {
             assertThat(newSettings.getAuditLogRetentionDays()).isEqualTo(30);
             assertThat(newSettings.getDefaultRole()).isEqualTo("ROLE_MEMBER");
             assertThat(newSettings.getPolicyCombiningAlgorithm()).isEqualTo("DENY_OVERRIDES");
-            assertThat(newSettings.isRegistrationEnabled()).isTrue();
             assertThat(newSettings.getMvcResourceScannerBasePackages()).isEqualTo("io.contexa.contexaiam.\nio.contexa.contexaiamenterprise.");
         }
 
@@ -128,7 +138,6 @@ class SystemSettingsServiceTest {
             form.setAuditLogRetentionDays(90);
             form.setDefaultRole("ROLE_ADMIN");
             form.setPolicyCombiningAlgorithm("PERMIT_OVERRIDES");
-            form.setRegistrationEnabled(false);
 
             service.updateSettings(form);
 
@@ -136,7 +145,6 @@ class SystemSettingsServiceTest {
             assertThat(existing.getAuditLogRetentionDays()).isEqualTo(90);
             assertThat(existing.getDefaultRole()).isEqualTo("ROLE_ADMIN");
             assertThat(existing.getPolicyCombiningAlgorithm()).isEqualTo("PERMIT_OVERRIDES");
-            assertThat(existing.isRegistrationEnabled()).isFalse();
             assertThat(existing.getNoMatchingUrlPolicyDecision()).as("the form's default").isEqualTo("AUTHENTICATED");
             assertThat(existing.getMissingMethodPolicyDecision()).isEqualTo("PERMIT");
         }
@@ -486,6 +494,41 @@ class SystemSettingsServiceTest {
             }
             verify(repository, never()).save(any(SystemSettings.class));
         }
+
+        /** IAM-D69: every refusal names the value in the administrator's language, and nothing is kept. */
+        @Test
+        @DisplayName("refuses a default role new users could not be given, and every value it may not take")
+        void refusesWhatTheSettingsMayNotTake() {
+            SystemSettingsForm unknownRole = validForm();
+            unknownRole.setDefaultRole("ROLE_NOPE");
+            SystemSettingsForm disabledRole = validForm();
+            disabledRole.setDefaultRole("ROLE_RETIRED");
+            SystemSettingsForm noRole = validForm();
+            noRole.setDefaultRole(" ");
+            SystemSettingsForm tooLong = validForm();
+            tooLong.setAuditLogRetentionDays(3651);
+            SystemSettingsForm negative = validForm();
+            negative.setAuditLogRetentionDays(-1);
+            SystemSettingsForm loudMode = validForm();
+            loudMode.setSecurityZeroTrustMode("LOUD");
+            SystemSettingsForm majority = validForm();
+            majority.setPolicyCombiningAlgorithm("MAJORITY");
+
+            assertRefused(unknownRole, "admin.system.settings.refused.role");
+            assertRefused(disabledRole, "admin.system.settings.refused.role");
+            assertRefused(noRole, "admin.system.settings.refused.required");
+            assertRefused(tooLong, "admin.system.settings.refused.range");
+            assertRefused(negative, "admin.system.settings.refused.range");
+            assertRefused(loudMode, "admin.system.settings.refused.choice");
+            assertRefused(majority, "admin.system.settings.refused.choice");
+            verify(repository, never()).save(any(SystemSettings.class));
+        }
+
+        private void assertRefused(SystemSettingsForm form, String messageKey) {
+            assertThatThrownBy(() -> service.updateSettings(form))
+                    .isInstanceOf(SystemSettingsService.SettingRefusedException.class)
+                    .extracting("messageKey").isEqualTo(messageKey);
+        }
     }
 
     private SystemSettingsForm validForm() {
@@ -493,7 +536,6 @@ class SystemSettingsServiceTest {
         form.setAuditLogRetentionDays(90);
         form.setDefaultRole("ROLE_USER");
         form.setPolicyCombiningAlgorithm("FIRST_APPLICABLE");
-        form.setRegistrationEnabled(false);
         form.setMvcResourceScannerBasePackages("io.contexa.contexaiam, io.contexa.contexaiamenterprise");
         return form;
     }

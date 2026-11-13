@@ -105,7 +105,7 @@ public class AccessCenterController {
         } catch (LastAdministratorException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(new AccessActionResponse(false, e.getMessage()));
         } catch (Exception e) {
-            log.error("Failed to update user groups", e);
+            ConsoleFault.report(e, log, "update the groups of user " + userId);
             return ResponseEntity.badRequest().body(new AccessActionResponse(false, ConsoleFault.textOf(e)));
         }
     }
@@ -120,7 +120,7 @@ public class AccessCenterController {
         } catch (LastAdministratorException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(new AccessActionResponse(false, e.getMessage()));
         } catch (Exception e) {
-            log.error("Failed to update user direct roles", e);
+            ConsoleFault.report(e, log, "update the roles of user " + userId);
             return ResponseEntity.badRequest().body(new AccessActionResponse(false, ConsoleFault.textOf(e)));
         }
     }
@@ -152,7 +152,7 @@ public class AccessCenterController {
         } catch (LastAdministratorException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(new AccessActionResponse(false, e.getMessage()));
         } catch (Exception e) {
-            log.error("Failed to update group roles", e);
+            ConsoleFault.report(e, log, "update the roles of group " + groupId);
             return ResponseEntity.badRequest().body(new AccessActionResponse(false, ConsoleFault.textOf(e)));
         }
     }
@@ -169,7 +169,7 @@ public class AccessCenterController {
         try {
             return ResponseEntity.ok(accessCenterService.getRoleDetail(roleId));
         } catch (IllegalArgumentException e) {
-            log.warn("Access center role detail not found: {}", roleId, e);
+            log.warn("Access center role detail not found: {}, reason={}", roleId, e.getMessage());
             return ResponseEntity.notFound().build();
         }
     }
@@ -182,7 +182,7 @@ public class AccessCenterController {
         try {
             return ResponseEntity.ok(accessCenterService.updateRolePermissions(roleId, request));
         } catch (Exception e) {
-            log.error("Failed to update role permissions", e);
+            ConsoleFault.report(e, log, "update the permissions of role " + roleId);
             return ResponseEntity.badRequest().body(new AccessActionResponse(false, ConsoleFault.textOf(e)));
         }
     }

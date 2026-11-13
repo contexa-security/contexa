@@ -46,7 +46,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -254,11 +253,16 @@ public class AgentAdminController {
         try {
             AgentProvisioning.Credentials credentials = provisioning.register(new AgentProvisioning.Registration(
                     blank(tenant), agentId, displayName, agentType, sponsorId, blank(clientId), words(scopes), ownToken,
-                    actsForPeople, tokenLifetimeMinutes != null ? Duration.ofMinutes(tokenLifetimeMinutes) : null,
+                    actsForPeople, AgentProvisioning.tokenLifetimeOfMinutes(tokenLifetimeMinutes),
                     account, words(accountGroups)), currentAdmin());
             return credentials(credentials, model, response);
         } catch (RuntimeException e) {
-            log.error("[AgentAdmin] Agent registration failed: agentId={}", agentId, e);
+            // A refusal (a value the registration may not take) is no fault of the console: no stack for it.
+            if (ConsoleFault.isRefusal(e)) {
+                log.warn("[AgentAdmin] Agent registration refused: agentId={}: {}", agentId, e.getMessage());
+            } else {
+                log.error("[AgentAdmin] Agent registration failed: agentId={}", agentId, e);
+            }
             model.addAttribute("provisioningAvailable", provisioning.available());
             model.addAttribute("errorMessage", messageSource.getMessage("admin.agents.register.failed",
                     new Object[]{ConsoleFault.textOf(e)}, LocaleContextHolder.getLocale()));
@@ -336,7 +340,11 @@ public class AgentAdminController {
 
     private String manageFailed(String agentId, String tenant, RuntimeException e,
                                 RedirectAttributes redirectAttributes) {
-        log.error("[AgentAdmin] Agent management failed: agentId={}", agentId, e);
+        if (ConsoleFault.isRefusal(e)) {
+            log.warn("[AgentAdmin] Agent management refused: agentId={}: {}", agentId, e.getMessage());
+        } else {
+            log.error("[AgentAdmin] Agent management failed: agentId={}", agentId, e);
+        }
         redirectAttributes.addFlashAttribute("errorMessage", messageSource.getMessage("admin.agents.manage.failed",
                 new Object[]{ConsoleFault.textOf(e)}, LocaleContextHolder.getLocale()));
         return toDetail(agentId, tenant, redirectAttributes);

@@ -83,7 +83,8 @@ class MfaCodeMailOutageIntegrationTest {
     private static final String ADDRESS = "admin@mail-outage.test";
     private static final String CODE_PAGE = "/mfa/challenge/ott";
     private static final String NOT_SENT_MESSAGE = "The code could not be sent. Please try again in a moment.";
-    private static final Pattern CODE = Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+    // the six digits of an MFA step, or the long code of a sign-in by a code alone
+    private static final Pattern CODE = Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|(?<![0-9])[0-9]{6}(?![0-9])");
     private static final Pattern CSRF_META = Pattern.compile("<meta name=\"_csrf\" content=\"([^\"]+)\"");
     private static final Pattern CSRF_INPUT = Pattern.compile("name=\"_csrf\"[^>]*value=\"([^\"]+)\"");
     private static final ObjectMapper JSON = new ObjectMapper();

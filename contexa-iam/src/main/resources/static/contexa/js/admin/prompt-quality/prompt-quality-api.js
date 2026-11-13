@@ -13,6 +13,20 @@ export function promptQualityApiRoot(scope = document) {
     return value.replace(/\/+$/, '');
 }
 
+/**
+ * The page's route root (data-pqa-route-root of the page or its status panel). The page contract always gives it, so a
+ * missing root is an error and never an enterprise default: an OSS page would otherwise link to enterprise screens.
+ */
+export function promptQualityRouteRoot(scope = document) {
+    const scopedElement = scope?.dataset?.pqaRouteRoot ? scope : scope?.querySelector?.('[data-pqa-route-root]');
+    const element = scopedElement || document.querySelector('[data-pqa-route-root]');
+    const value = String(element?.dataset?.pqaRouteRoot || '').trim();
+    if (!value || !value.startsWith('/')) {
+        throw new Error('Prompt-quality route root page contract is required.');
+    }
+    return value.replace(/\/+$/, '');
+}
+
 export function promptQualityApiPath(relativePath = '', scope = document) {
     const suffix = String(relativePath || '').trim();
     if (!suffix) {

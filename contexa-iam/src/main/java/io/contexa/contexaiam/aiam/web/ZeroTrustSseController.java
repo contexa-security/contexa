@@ -18,18 +18,22 @@ package io.contexa.contexaiam.aiam.web;
 import io.contexa.contexaiam.aiam.web.dto.ZeroTrustDtos.ZeroTrustSseStatusResponse;
 import io.contexa.contexaiam.aiam.event.ZeroTrustSsePublisher;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.security.Principal;
 
 /**
  * SSE subscription endpoint for Zero Trust analysis notifications.
  */
+@Slf4j
 @RestController
 @RequestMapping("/contexa/admin/api/aiam/sse/zero-trust")
 @RequiredArgsConstructor
@@ -41,6 +45,16 @@ public class ZeroTrustSseController {
     public SseEmitter subscribe(Principal principal) {
         String userId = principal != null ? principal.getName() : "anonymous";
         return ssePublisher.addEmitter(userId);
+    }
+
+    /**
+     * A client that left the page (tab closed, navigated away) breaks its stream, and the next write to it fails. The
+     * container hands that failure back to this endpoint on the async dispatch. It is the normal end of a subscription,
+     * not a server error: the publisher has already dropped the emitter, and nothing more is written.
+     */
+    @ExceptionHandler(IOException.class)
+    public void clientDisconnected(IOException exception) {
+        log.debug("[ZeroTrustSse] Subscriber stream closed by the client: {}", exception.getMessage());
     }
 
     @GetMapping("/status")

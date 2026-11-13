@@ -144,6 +144,79 @@ class EmailOneTimeTokenServiceTest {
         );
     }
 
+    /** The code of an MFA step: six digits, stored under its user, found only with that user. */
+    @Test
+    @DisplayName("an MFA step gets a six-digit code that only the step's user can spend, once")
+    void anMfaStepGetsASixDigitCodeOfItsUser() {
+        when(emailService.isMailSenderConfigured()).thenReturn(true);
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+        jdbcTemplate.update("INSERT INTO ctxa_users(username, email) VALUES(?, ?)", "other", "other@contexa.io");
+
+        OneTimeToken code = service.generate(new MfaCodeRequest("testuser", null));
+
+        assertThat(code.getTokenValue()).matches("\\d{6}");
+        verify(emailService).sendHtmlMessage(eq("user@contexa.io"), anyString(), contains(code.getTokenValue()));
+        // the digits are no key of the store: they alone find nothing
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ctxa_one_time_tokens WHERE token_value = ?",
+                Integer.class, code.getTokenValue())).isZero();
+        assertThatThrownBy(() -> service.consume(OneTimeTokenAuthenticationToken.unauthenticated(code.getTokenValue())))
+                .isInstanceOf(InvalidOneTimeTokenException.class);
+        assertThatThrownBy(() -> service.consume(OneTimeTokenAuthenticationToken.unauthenticated("other", code.getTokenValue())))
+                .isInstanceOf(InvalidOneTimeTokenException.class);
+
+        OneTimeToken spent = service.consume(OneTimeTokenAuthenticationToken.unauthenticated("testuser", code.getTokenValue()));
+        assertThat(spent.getUsername()).isEqualTo("testuser");
+        assertThatThrownBy(() -> service.consume(OneTimeTokenAuthenticationToken.unauthenticated("testuser", code.getTokenValue())))
+                .isInstanceOf(InvalidOneTimeTokenException.class);
+    }
+
+    @Test
+    @DisplayName("a code outside an MFA step stays long, and is held to the step's user when one is named")
+    void aCodeOutsideAnMfaStepStaysLong() {
+        when(emailService.isMailSenderConfigured()).thenReturn(true);
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+
+        OneTimeToken code = service.generate(new GenerateOneTimeTokenRequest("testuser"));
+
+        assertThat(code.getTokenValue()).hasSizeGreaterThan(MfaCodes.DIGITS).doesNotMatch("\\d{6}");
+        assertThatThrownBy(() -> service.consume(OneTimeTokenAuthenticationToken.unauthenticated("other", code.getTokenValue())))
+                .isInstanceOf(InvalidOneTimeTokenException.class);
+    }
+
+    /** Development and tests: the code is in the log, so a mail server that fails or is absent stops no sign-in. */
+    @Test
+    @DisplayName("with the code to the console, a failing or absent mail server still gives the code, written to the log")
+    void theCodeToTheConsoleOutlivesTheMailServer() {
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+        service.setCodeToConsole(true);
+        Logger logger = (Logger) LoggerFactory.getLogger(EmailOneTimeTokenService.class);
+        ListAppender<ILoggingEvent> events = new ListAppender<>();
+        events.start();
+        logger.addAppender(events);
+        OneTimeToken failingMail;
+        try {
+            when(emailService.isMailSenderConfigured()).thenReturn(true);
+            doThrow(new IllegalStateException("no password specified"))
+                    .when(emailService).sendHtmlMessage(anyString(), anyString(), anyString());
+            failingMail = service.generate(new GenerateOneTimeTokenRequest("testuser"));
+        } finally {
+            logger.detachAppender(events);
+        }
+
+        assertThat(failingMail.getTokenValue()).isNotEmpty();
+        assertThat(events.list).anyMatch(event -> event.getFormattedMessage().contains(failingMail.getTokenValue()));
+
+        jdbcTemplate.update("INSERT INTO ctxa_users(username, email) VALUES(?, ?)", "second", "second@contexa.io");
+        when(emailService.isMailSenderConfigured()).thenReturn(false);
+        assertThat(service.generate(new GenerateOneTimeTokenRequest("second")).getTokenValue()).isNotEmpty();
+    }
+
     /** Anyone may ask in any name: a name with no row is no event of the log, or asking would fill it. */
     @Test
     @DisplayName("a name with no account leaves nothing in the log")

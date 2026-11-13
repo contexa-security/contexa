@@ -126,6 +126,29 @@ public class EmailService implements DisposableBean {
         return this.mailSender != null;
     }
 
+    /** The mail server the codes go through, host:port, when the sender tells it; null otherwise. */
+    public String serverAddress() {
+        return mailSender instanceof JavaMailSenderImpl configured && configured.getHost() != null
+                ? configured.getHost() + ":" + (configured.getPort() > 0 ? configured.getPort() : 25) : null;
+    }
+
+    /**
+     * Connects to the mail server and signs in as a mail would, then leaves.
+     *
+     * @return why it failed, or null when the server took the connection (or the sender cannot be asked)
+     */
+    public Exception checkServer() {
+        if (!(mailSender instanceof JavaMailSenderImpl configured)) {
+            return null;
+        }
+        try {
+            configured.testConnection();
+            return null;
+        } catch (Exception e) {
+            return e;
+        }
+    }
+
     public void sendHtmlMessage(String to, String subject, String htmlBody) {
         MimeMessage message;
         try {

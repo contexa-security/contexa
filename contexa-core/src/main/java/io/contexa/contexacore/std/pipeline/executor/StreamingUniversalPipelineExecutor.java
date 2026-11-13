@@ -114,7 +114,8 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
                         log.error("Streaming pipeline error", error);
                         sink.tryEmitError(error);
                     })
-                    .subscribe();
+                    // The failure went to the stream above; the run itself has nothing more to do with it.
+                    .subscribe(ignored -> { }, ignored -> { });
 
             return sink.asFlux()
                     .doOnCancel(disposable::dispose);

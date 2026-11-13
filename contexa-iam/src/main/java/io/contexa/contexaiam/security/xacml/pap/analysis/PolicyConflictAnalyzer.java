@@ -29,8 +29,11 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.util.AntPathMatcher;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -84,6 +87,58 @@ public class PolicyConflictAnalyzer {
                             existing.getId(), existing.getName(),
                             buildConflictDescription(overlap, candidatePolicy.getEffect(), existing.getEffect()),
                             severity));
+                }
+            }
+        }
+        return conflicts;
+    }
+
+    /**
+     * D65: the conflicts of every active policy with the others, exactly as {@link #analyze(Policy, List)} gives them
+     * for each active policy in turn, in the same order. Comparing every policy with every other one made the dashboard
+     * take eleven seconds with two thousand policies. Each policy's targets are read once, and a policy is compared
+     * only with the active policies of another effect whose targets can overlap its own (see {@link OverlapIndex}).
+     */
+    public List<PolicyConflictDto> analyzeAll(List<Policy> policies) {
+        List<Set<TargetSignature>> targets = new ArrayList<>(policies.size());
+        Map<Policy.Effect, OverlapIndex> byEffect = new HashMap<>();
+        for (int index = 0; index < policies.size(); index++) {
+            Policy policy = policies.get(index);
+            Set<TargetSignature> policyTargets = extractTargetSignatures(policy);
+            targets.add(policyTargets);
+            if (policy.getIsActive()) {
+                byEffect.computeIfAbsent(policy.getEffect(), effect -> new OverlapIndex()).add(index, policyTargets);
+            }
+        }
+
+        List<PolicyConflictDto> conflicts = new ArrayList<>();
+        for (int index = 0; index < policies.size(); index++) {
+            Policy candidatePolicy = policies.get(index);
+            if (!candidatePolicy.getIsActive()) {
+                continue;
+            }
+            Set<TargetSignature> candidateTargets = targets.get(index);
+            if (candidateTargets.isEmpty()) {
+                continue;
+            }
+            TreeSet<Integer> others = new TreeSet<>();
+            byEffect.forEach((effect, overlapIndex) -> {
+                // Only a policy of another effect is reported as a conflict.
+                if (candidatePolicy.getEffect() != effect) {
+                    overlapIndex.collect(candidateTargets, others);
+                }
+            });
+            for (int other : others) {
+                Policy existing = policies.get(other);
+                if (isSamePolicy(candidatePolicy, existing)) {
+                    continue;
+                }
+                for (TargetOverlap overlap : findTargetOverlaps(candidateTargets, targets.get(other))) {
+                    conflicts.add(new PolicyConflictDto(
+                            candidatePolicy.getId(), candidatePolicy.getName(),
+                            existing.getId(), existing.getName(),
+                            buildConflictDescription(overlap, candidatePolicy.getEffect(), existing.getEffect()),
+                            classifySeverity(overlap)));
                 }
             }
         }
@@ -251,6 +306,107 @@ public class PolicyConflictAnalyzer {
     }
 
     private record TargetSignature(String targetType, String identifier, String httpMethod) {
+    }
+
+    /**
+     * The targets of the policies of one effect, kept so that a target finds every target it can overlap without
+     * looking at the others. A target of another type overlaps only one of its type with the same identifier. Two URL
+     * patterns overlap ({@link #findTargetOverlaps}) only when one matches the other or they share two leading literal
+     * segments and both have a wildcard. A match needs the literal segments a pattern starts with to be the first
+     * segments of the other, so the literal prefixes of the two (the segments before the first one with *, ? or {) are
+     * one a prefix of the other: a pattern is found under every prefix of its literal prefix, and by its first two
+     * segments when it has a wildcard. What this finds is checked by the same comparison as before.
+     */
+    private static final class OverlapIndex {
+
+        private final Map<String, List<Integer>> sameIdentifier = new HashMap<>();
+        private final Map<String, List<Integer>> literalPrefix = new HashMap<>();
+        private final Map<String, List<Integer>> underPrefix = new HashMap<>();
+        private final Map<String, List<Integer>> leadingSegments = new HashMap<>();
+
+        void add(int policy, Set<TargetSignature> targets) {
+            for (TargetSignature target : targets) {
+                if (!"URL".equals(target.targetType)) {
+                    put(sameIdentifier, target.targetType + '\u0000' + target.identifier, policy);
+                    continue;
+                }
+                List<String> prefix = literalPrefix(target.identifier);
+                put(literalPrefix, key(prefix, prefix.size()), policy);
+                for (int length = 0; length <= prefix.size(); length++) {
+                    put(underPrefix, key(prefix, length), policy);
+                }
+                String leading = leadingSegments(target.identifier);
+                if (leading != null) {
+                    put(leadingSegments, leading, policy);
+                }
+            }
+        }
+
+        /** Adds the policies whose targets can overlap one of the candidate's targets. */
+        void collect(Set<TargetSignature> candidateTargets, Set<Integer> into) {
+            for (TargetSignature target : candidateTargets) {
+                if (!"URL".equals(target.targetType)) {
+                    into.addAll(sameIdentifier.getOrDefault(target.targetType + '\u0000' + target.identifier, List.of()));
+                    continue;
+                }
+                List<String> prefix = literalPrefix(target.identifier);
+                into.addAll(underPrefix.getOrDefault(key(prefix, prefix.size()), List.of()));
+                for (int length = 0; length < prefix.size(); length++) {
+                    into.addAll(literalPrefix.getOrDefault(key(prefix, length), List.of()));
+                }
+                String leading = leadingSegments(target.identifier);
+                if (leading != null) {
+                    into.addAll(leadingSegments.getOrDefault(leading, List.of()));
+                }
+            }
+        }
+
+        private static void put(Map<String, List<Integer>> map, String key, int policy) {
+            List<Integer> policies = map.computeIfAbsent(key, k -> new ArrayList<>());
+            if (policies.isEmpty() || policies.get(policies.size() - 1) != policy) {
+                policies.add(policy);
+            }
+        }
+
+        /** The segments before the first one with a wildcard, as the path matcher splits a pattern (no empty ones). */
+        private static List<String> literalPrefix(String identifier) {
+            List<String> prefix = new ArrayList<>();
+            for (String segment : identifier.split("/")) {
+                if (segment.isEmpty()) {
+                    continue;
+                }
+                if (segment.indexOf('*') >= 0 || segment.indexOf('?') >= 0 || segment.indexOf('{') >= 0) {
+                    break;
+                }
+                prefix.add(segment);
+            }
+            return prefix;
+        }
+
+        /** The first two segments of a pattern with a wildcard, when neither has one: the shared prefix it can have. */
+        private static String leadingSegments(String identifier) {
+            if (identifier.indexOf('*') < 0 && identifier.indexOf('{') < 0) {
+                return null;
+            }
+            List<String> segments = new ArrayList<>(2);
+            for (String segment : identifier.split("/")) {
+                if (segment.isEmpty()) {
+                    continue;
+                }
+                if (segment.contains("*") || segment.contains("{")) {
+                    return null;
+                }
+                segments.add(segment);
+                if (segments.size() == 2) {
+                    return key(segments, 2);
+                }
+            }
+            return null;
+        }
+
+        private static String key(List<String> segments, int length) {
+            return String.join("/", segments.subList(0, length));
+        }
     }
 
     private record TargetOverlap(TargetSignature candidate, TargetSignature existing, OverlapType type) {

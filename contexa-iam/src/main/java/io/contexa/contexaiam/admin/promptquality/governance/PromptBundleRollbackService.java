@@ -35,6 +35,8 @@ public class PromptBundleRollbackService {
     public static final String AWAITING_APPROVAL = "AWAITING_APPROVAL";
     public static final String APPROVED = "APPROVED";
     public static final String REFUSED = "REFUSED";
+    /** A request that lacks what a rollback needs: nothing is checked or recorded. */
+    public static final String INCOMPLETE = "INCOMPLETE";
     public static final String NOT_APPLICABLE = "NOT_APPLICABLE";
     /** W7-14: how many executions of a bundle the version screen lists. */
     private static final int EXECUTION_LIMIT = 20;
@@ -73,15 +75,48 @@ public class PromptBundleRollbackService {
     public record Result(String executionKey, String status, Conditions conditions, List<String> refusals) {
     }
 
+    /** One declared target as the rollback check reads it: in this build and registered in the scope. */
+    public record TargetReadiness(String version, boolean inBuild, boolean registered) {
+    }
+
+    /**
+     * What the version screen needs before it offers a rollback: whether the bundle executes in the scope, and which of
+     * its declared targets the rollback check would accept. It is read with the same conditions {@link #rollback} checks.
+     */
+    public record Readiness(boolean sourceExecuting, List<TargetReadiness> targets) {
+
+        /** Whether a rollback of this bundle can pass the source and target conditions at all. */
+        public boolean runnable() {
+            return sourceExecuting && targets.stream().anyMatch(target -> target.inBuild() && target.registered());
+        }
+    }
+
+    public Readiness readiness(String scope, String key, String version, List<String> declaredTargets) {
+        boolean executing = executing(registryStatus(scope, key, version));
+        List<TargetReadiness> targets = new ArrayList<>();
+        for (String target : declaredTargets == null ? List.<String>of() : declaredTargets) {
+            targets.add(new TargetReadiness(target, catalog.find(key, target).isPresent(),
+                    registryStatus(scope, key, target) != null));
+        }
+        return new Readiness(executing, List.copyOf(targets));
+    }
+
+    private static boolean executing(String status) {
+        return status != null && (PromptBundleState.is(status, PromptBundleState.ACTIVE)
+                || PromptBundleState.is(status, PromptBundleState.CANARY));
+    }
+
     public Result rollback(Request request, String actor) {
-        Objects.requireNonNull(request, "request");
+        List<String> missing = missingFields(request);
+        if (!missing.isEmpty()) {
+            log.warn("[PromptRollback] Rollback request refused: missing {}", missing);
+            return new Result(null, INCOMPLETE, null, missing);
+        }
         String scope = request.registryScope();
         String key = request.promptKey();
         PromptBundleManifest source = catalog.find(key, request.fromVersion()).orElse(null);
         PromptBundleManifest target = catalog.find(key, request.toVersion()).orElse(null);
-        String sourceStatus = registryStatus(scope, key, request.fromVersion());
-        boolean sourceExecuting = sourceStatus != null && (PromptBundleState.is(sourceStatus, PromptBundleState.ACTIVE)
-                || PromptBundleState.is(sourceStatus, PromptBundleState.CANARY));
+        boolean sourceExecuting = executing(registryStatus(scope, key, request.fromVersion()));
         String policySet = policySets == null ? NOT_APPLICABLE
                 : policySets.policySetExists(scope, key, request.toVersion()) ? "PRESENT" : "MISSING";
         Conditions conditions = new Conditions(sourceExecuting, target != null,
@@ -125,6 +160,27 @@ public class PromptBundleRollbackService {
         String status = request.emergency() ? AWAITING_APPROVAL : EXECUTED;
         record(executionKey, request, actor, status, conditions, List.of(), superseded, now);
         return new Result(executionKey, status, conditions, List.of());
+    }
+
+    /** The values a rollback cannot be checked without, named as the refusal codes the screen reads. */
+    static List<String> missingFields(Request request) {
+        List<String> missing = new ArrayList<>();
+        if (request == null) {
+            missing.add("REQUEST_REQUIRED");
+            return missing;
+        }
+        requireText(missing, request.registryScope(), "REGISTRY_SCOPE_REQUIRED");
+        requireText(missing, request.promptKey(), "PROMPT_KEY_REQUIRED");
+        requireText(missing, request.fromVersion(), "FROM_VERSION_REQUIRED");
+        requireText(missing, request.toVersion(), "TO_VERSION_REQUIRED");
+        requireText(missing, request.reason(), "REASON_REQUIRED");
+        return missing;
+    }
+
+    private static void requireText(List<String> missing, String value, String code) {
+        if (value == null || value.isBlank()) {
+            missing.add(code);
+        }
     }
 
     /** A second operator approves an emergency stop after it ran; the operator who ran it cannot. */

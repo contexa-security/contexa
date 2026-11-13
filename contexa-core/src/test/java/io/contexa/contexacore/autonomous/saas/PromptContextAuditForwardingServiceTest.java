@@ -93,6 +93,38 @@ class PromptContextAuditForwardingServiceTest {
     }
 
     @Test
+    void enrichUpdatesTheNewestRecordOfACorrelationThatSeveralAttemptsShare() throws Exception {
+        SecurityEvent event = SecurityEvent.builder().eventId("evt-003-again-2").build();
+        PromptContextAuditPayload current = PromptContextAuditPayload.builder()
+                .auditId("audit-003-again-2")
+                .correlationId("corr-003")
+                .build();
+        PromptContextAuditPayload enriched = PromptContextAuditPayload.builder()
+                .auditId("audit-003-again-2")
+                .correlationId("corr-003")
+                .tenantExternalRef("tenant-acme")
+                .build();
+        PromptContextAuditForwardingOutboxRecord newest = PromptContextAuditForwardingOutboxRecord.builder()
+                .id(23L)
+                .auditId("audit-003-again-2")
+                .correlationId("corr-003")
+                .payloadJson("{\"auditId\":\"audit-003-again-2\"}")
+                .build();
+        when(payloadMapper.resolveCorrelationId(event)).thenReturn(" corr-003 ");
+        when(repository.findTopByCorrelationIdOrderByIdDesc("corr-003")).thenReturn(Optional.of(newest));
+        when(objectMapper.readValue("{\"auditId\":\"audit-003-again-2\"}", PromptContextAuditPayload.class)).thenReturn(current);
+        when(payloadMapper.enrich(current, event)).thenReturn(enriched);
+        when(objectMapper.writeValueAsString(enriched)).thenReturn("{\"auditId\":\"audit-003-again-2\",\"tenant\":\"acme\"}");
+
+        service.enrich(event);
+
+        verify(repository).saveAndFlush(newest);
+        assertThat(newest.getPayloadJson()).isEqualTo("{\"auditId\":\"audit-003-again-2\",\"tenant\":\"acme\"}");
+        assertThat(newest.getStatus()).isEqualTo(PromptContextAuditForwardingOutboxRecord.STATUS_PENDING);
+        verify(dispatcher).dispatch(23L);
+    }
+
+    @Test
     void captureDispatchesExistingAuditWithoutSaving() throws Exception {
         SecurityEvent event = SecurityEvent.builder().eventId("evt-001").build();
         AuthorizedPromptContext authorizedPromptContext = new AuthorizedPromptContext(List.of(), 1, 0, 1, "THREAT_RUNTIME_CONTEXT", List.of());

@@ -19,6 +19,7 @@ import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.step.ContextRetrievalStep;
@@ -36,6 +37,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class UniversalPipelineExecutorTest {
 
@@ -60,6 +62,28 @@ class UniversalPipelineExecutorTest {
                 .block();
 
         assertThat(step.executions.get()).isZero();
+    }
+
+/**
+     * IAM-D20: when the model gave nothing usable, postprocessing leaves no result of the requested type. The pipeline
+     * then fails with that reason, instead of a null that Reactor turns into a NullPointerException.
+     */
+    @Test
+    void aPipelineWithoutAResultOfTheRequestedTypeFailsWithTheReason() {
+        UniversalPipelineExecutor executor = new TestPipelineExecutor(null);
+        AIRequest<TestContext> request = new AIRequest<>(
+                new TestContext(),
+                new TemplateType("standard"),
+                new DiagnosisType("general"));
+
+        assertThatThrownBy(() -> executor.execute(request, PipelineConfiguration.builder().build(), TestResponse.class)
+                .block())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Pipeline produced no TestResponse")
+                .hasMessageContaining("no result");
+    }
+
+    private static final class TestResponse extends AIResponse {
     }
 
     private static final class TestPipelineExecutor extends UniversalPipelineExecutor {

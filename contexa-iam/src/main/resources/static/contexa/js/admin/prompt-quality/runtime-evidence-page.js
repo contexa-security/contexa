@@ -1,12 +1,13 @@
 import { $, appPath, escapeHtml, ensureArray, rawText } from '../verification-ui-common.js';
-import { getJson, publicError } from './prompt-quality-api.js';
+import { getJson, promptQualityApiRoot as pageApiRoot, promptQualityRouteRoot as pageRouteRoot, publicError }
+    from './prompt-quality-api.js';
 import { badge, setStatus } from './prompt-quality-page.js';
 import { ensureBundle, t } from './prompt-quality-i18n.js';
 import { showActionTooltip } from './prompt-quality-ui.js';
 
 const root = document.querySelector('[data-pqa-page="runtime-evidence"]');
 function promptQualityApiRoot() {
-    return rawText(root?.dataset?.pqaApiRoot) || '/admin/api/enterprise/prompt-quality';
+    return pageApiRoot(root || document);
 }
 
 function promptQualityApiPath(path) {
@@ -16,7 +17,7 @@ function promptQualityApiPath(path) {
 }
 
 function promptQualityRouteRoot() {
-    return rawText(root?.dataset?.pqaRouteRoot) || '/admin/enterprise/prompt-quality';
+    return pageRouteRoot(root || document);
 }
 
 function promptQualityRoutePath(path) {
@@ -433,7 +434,8 @@ function formatCapturedAt(value) {
     if (Number.isNaN(date.getTime())) {
         return displayValue(value);
     }
-    return date.toLocaleString('ko-KR', {
+    // The console language (html lang), not a fixed Korean format.
+    return date.toLocaleString(document.documentElement.lang || undefined, {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',

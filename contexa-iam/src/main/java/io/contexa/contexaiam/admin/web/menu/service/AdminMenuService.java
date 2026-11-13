@@ -24,9 +24,16 @@ import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuIcon;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuUrl;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -39,6 +46,7 @@ public class AdminMenuService {
     private final AdminMenuQueryCache menuQueryCache;
     private final boolean enterpriseEnabled;
     private final boolean saasEnabled;
+    private volatile Runnable menusChanged = () -> { };
 
     public AdminMenuService(AdminMenuRepository menuRepository,
                             AdminMenuQueryCache menuQueryCache,
@@ -48,6 +56,32 @@ public class AdminMenuService {
         this.menuQueryCache = menuQueryCache;
         this.enterpriseEnabled = enterpriseEnabled;
         this.saasEnabled = saasEnabled;
+    }
+
+    /**
+     * Sets what runs once a change of the menus made here is committed, as the announcement to the other nodes: each
+     * node keeps the menus in its own cache.
+     */
+    public void onMenusChanged(Runnable hook) {
+        this.menusChanged = hook != null ? hook : () -> { };
+    }
+
+    /**
+     * Drops the cached menus once more when the change is committed (a request in between reads what is not yet
+     * committed), then announces the change to the other nodes.
+     */
+    private void menusChangedHere() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    menuQueryCache.invalidate();
+                    menusChanged.run();
+                }
+            });
+        } else {
+            menusChanged.run();
+        }
     }
 
     /**
@@ -63,8 +97,8 @@ public class AdminMenuService {
             Long securityId = createMenu("menu.nav.security", null, svgEye(), null, 5, "CORE", "security");
             Long agentsId = createMenu("menu.nav.agents", null, svgAgents(), null, 6, "CORE", "agents");
             Long aiMonitorId = createMenu("menu.nav.aiMonitor", null, svgAiMonitor(), null, 7, "CORE", "ai-monitor");
-            Long enterpriseId = createMenu("menu.nav.enterprise", null, svgBuilding(), null, 8, "ENTERPRISE", "enterprise");
-            Long saasId = createMenu("menu.nav.saas", null, svgCloud(), null, 9, "SAAS", "saas");
+            Long enterpriseId = createMenu("menu.nav.enterprise", null, svgBuilding(), null, 9, "ENTERPRISE", "enterprise");
+            Long saasId = createMenu("menu.nav.saas", null, svgCloud(), null, 10, "SAAS", "saas");
 
             createMenu("menu.policy.center", "/contexa/admin/policy-center", "", policyId, 1, "CORE", "policy-center");
             createMenu("menu.access.center", "/contexa/admin/access-center", "", accessId, 1, "CORE", "access-center");
@@ -150,12 +184,14 @@ public class AdminMenuService {
         if (!enterpriseEnabled || !saasEnabled) {
             return;
         }
-        Long saasId = ensureMenu("menu.nav.saas", null, svgCloud(), null, 8, "SAAS", "saas");
+        // After the prompt quality group (8, data-menu.sql) and the enterprise group (9): each top menu has its own order.
+        Long saasId = ensureMenu("menu.nav.saas", null, svgCloud(), null, 10, "SAAS", "saas");
         ensureMenu("menu.saas.learning", "/contexa/admin/saas/learning/overview", "", saasId, 6, "SAAS", "saas-learning-overview");
     }
 
     private void ensureAiMonitorMenus() {
-        Long aiMonitorId = ensureMenu("menu.nav.aiMonitor", null, svgAiMonitor(), null, 6, "CORE", "ai-monitor");
+        // After the agents (6), as data-menu.sql places it: the same order would leave the two in the order the rows come.
+        Long aiMonitorId = ensureMenu("menu.nav.aiMonitor", null, svgAiMonitor(), null, 7, "CORE", "ai-monitor");
         ensureMenu("menu.aiMonitor.overview", "/contexa/admin/ai-monitor", "", aiMonitorId, 1, "CORE", "ai-monitor-overview");
         ensureMenu("menu.aiMonitor.llm", "/contexa/admin/ai-monitor/llm", "", aiMonitorId, 2, "CORE", "ai-monitor-llm");
         ensureMenu("menu.aiMonitor.failures", "/contexa/admin/ai-monitor/failures", "", aiMonitorId, 3, "CORE", "ai-monitor-failures");
@@ -251,14 +287,47 @@ public class AdminMenuService {
     public AdminMenu saveMenu(AdminMenu menu) {
         AdminMenu saved = menuRepository.save(menu);
         menuQueryCache.invalidate();
+        menusChangedHere();
         return saved;
     }
 
+    /**
+     * Deletes the menu with its submenus, down to the last level: a submenu left behind would point at a parent that is
+     * no longer there and be shown nowhere.
+     */
     @Transactional(transactionManager = "contexaTransactionManager")
     public void deleteMenu(Long id) {
-        menuRepository.deleteByParentId(id);
+        List<AdminMenu> descendants = new ArrayList<>(getDescendants(id));
+        // The deepest first, so no menu is deleted before the ones under it.
+        Collections.reverse(descendants);
+        menuRepository.deleteAll(descendants);
         menuRepository.deleteById(id);
         menuQueryCache.invalidate();
+        menusChangedHere();
+    }
+
+    /** The submenus of the menu, of every level, the nearer ones first. */
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public List<AdminMenu> getDescendants(Long id) {
+        List<AdminMenu> descendants = new ArrayList<>();
+        Set<Long> seen = new HashSet<>();
+        seen.add(id);
+        Deque<Long> parents = new ArrayDeque<>(List.of(id));
+        while (!parents.isEmpty()) {
+            for (AdminMenu child : menuRepository.findByParentIdOrderByMenuOrderAsc(parents.poll())) {
+                if (child.getId() != null && seen.add(child.getId())) {
+                    descendants.add(child);
+                    parents.add(child.getId());
+                }
+            }
+        }
+        return descendants;
+    }
+
+    /** The menus under the data page, the key the seed finds a menu by. */
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public List<AdminMenu> getMenusByDataPage(String dataPage) {
+        return menuRepository.findAllByDataPageOrderByIdAsc(dataPage);
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -267,6 +336,7 @@ public class AdminMenuService {
             menu.setMenuOrder(newOrder);
             menuRepository.save(menu);
             menuQueryCache.invalidate();
+            menusChangedHere();
         });
     }
 
@@ -276,6 +346,7 @@ public class AdminMenuService {
             menu.setEnabled(!menu.isEnabled());
             menuRepository.save(menu);
             menuQueryCache.invalidate();
+            menusChangedHere();
         });
     }
 
@@ -288,6 +359,7 @@ public class AdminMenuService {
             }
             menuRepository.save(menu);
             menuQueryCache.invalidate();
+            menusChangedHere();
         });
     }
 

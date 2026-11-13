@@ -43,6 +43,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -177,6 +180,37 @@ class PasswordPolicyControllerTest {
                         && policy.getLockoutDurationMinutes() == 20
                         && policy.getPasswordExpiryDays() == 30
                         && policy.getHistoryCount() == 5));
+    }
+
+    /** IAM-D23: a value that is not a whole number is a refusal that names the value, not a general error page. */
+    @Test
+    @DisplayName("updatePolicy refuses a value that is not a whole number, and keeps nothing")
+    void refusesAValueThatIsNotAWholeNumber() throws Exception {
+        for (String value : new String[] {"abc", "2147483648"}) {
+            mockMvc.perform(post("/contexa/admin/password-policy")
+                            .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                            .param("minLength", value)
+                            .param("maxLength", "80"))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl("/contexa/admin/password-policy"))
+                    .andExpect(flash().attribute("errorMessage", "msg.password.policy.update.error"));
+        }
+        verify(passwordPolicyService, never()).updatePolicy(any());
+    }
+
+    @Test
+    @DisplayName("updatePolicy says why the service refused the policy")
+    void saysWhyThePolicyWasRefused() throws Exception {
+        doThrow(new PasswordPolicyService.PolicyRefusedException("common.validation.min.length.exceeds.max", null))
+                .when(passwordPolicyService).updatePolicy(any());
+
+        mockMvc.perform(post("/contexa/admin/password-policy")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("minLength", "20")
+                        .param("maxLength", "10"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("errorMessage", "msg.password.policy.update.error"));
+        verify(messageSource).getMessage(eq("common.validation.min.length.exceeds.max"), any(), any(Locale.class));
     }
 
     private PasswordPolicy samplePolicy() {

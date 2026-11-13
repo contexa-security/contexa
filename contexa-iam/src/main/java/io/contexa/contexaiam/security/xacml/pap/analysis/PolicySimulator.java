@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.analysis;
 
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyFunctions;
 import io.contexa.contexacommon.entity.*;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.authority.PermissionAuthority;
@@ -274,6 +275,7 @@ public class PolicySimulator {
         root.setPermissionEvaluator(new DenyAllPermissionEvaluator());
         StandardEvaluationContext context = new StandardEvaluationContext(root);
         PolicyExpressionSandbox.apply(context);
+        PolicyFunctions.register(context);
         context.getMethodResolvers().add(0, SIMULATED_AI_RESOLVER);
         context.setVariable("ai", SIMULATED_AI_ASSESSMENT);
         try {

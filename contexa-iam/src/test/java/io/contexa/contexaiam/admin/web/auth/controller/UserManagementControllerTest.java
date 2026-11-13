@@ -22,9 +22,9 @@ import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 import io.contexa.contexacommon.entity.Group;
@@ -52,6 +52,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -153,7 +154,7 @@ class UserManagementControllerTest {
             userDto.setSelectedGroupIds(List.of(10L, 20L));
             List<Role> roles = List.of(new Role());
             List<Group> groups = List.of(new Group());
-            when(userManagementService.getUser(1L)).thenReturn(userDto);
+            when(userManagementService.findUser(1L)).thenReturn(Optional.of(userDto));
             when(roleService.getRolesWithoutExpression()).thenReturn(roles);
             when(groupService.getAllGroups()).thenReturn(groups);
             RedirectAttributes ra = new RedirectAttributesModelMap();
@@ -173,7 +174,7 @@ class UserManagementControllerTest {
             Model model = new ConcurrentModel();
             UserDto userDto = UserDto.builder().id(1L).build();
             userDto.setSelectedGroupIds(null);
-            when(userManagementService.getUser(1L)).thenReturn(userDto);
+            when(userManagementService.findUser(1L)).thenReturn(Optional.of(userDto));
             when(roleService.getRolesWithoutExpression()).thenReturn(List.of());
             when(groupService.getAllGroups()).thenReturn(List.of());
             RedirectAttributes ra = new RedirectAttributesModelMap();
@@ -185,16 +186,17 @@ class UserManagementControllerTest {
         }
 
         @Test
-        @DisplayName("should redirect with error when user cannot be loaded")
+        @DisplayName("a user who is not there goes back to the list and says so, looked up without an exception")
         void loadError() {
             Model model = new ConcurrentModel();
             RedirectAttributes ra = new RedirectAttributesModelMap();
-            when(userManagementService.getUser(999L)).thenThrow(new IllegalArgumentException("Not found"));
+            when(userManagementService.findUser(999999L)).thenReturn(Optional.empty());
 
-            String view = controller.getUser(999L, model, ra);
+            String view = controller.getUser(999999L, model, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/users");
-            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Not found");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("999999");
+            verify(userManagementService, never()).getUser(any());
         }
     }
 
@@ -338,26 +340,27 @@ class UserManagementControllerTest {
         }
 
         @Test
-        @DisplayName("a change of a user that takes the last active administrator answers 409 with the reason")
-        void anUpdateIsAConflict() throws Exception {
+        @DisplayName("a change of a user that takes the last active administrator goes back to the user with the reason")
+        void anUpdateIsRefused() throws Exception {
             doThrow(new LastAdministratorException("no administrator left"))
                     .when(userManagementService).modifyUser(any());
 
             mvc().perform(post("/contexa/admin/users/1").param("username", "root").param("enabled", "false"))
-                    .andExpect(status().isConflict())
-                    .andExpect(view().name("contexa/admin/users"))
-                    .andExpect(model().attribute("errorMessage", "no administrator left"));
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl("/contexa/admin/users/1"))
+                    .andExpect(flash().attribute("errorMessage", "no administrator left"));
         }
 
         @Test
-        @DisplayName("so does its deletion")
-        void aDeletionIsAConflict() throws Exception {
+        @DisplayName("its deletion goes back to the list with the reason, not left on the address of the deletion")
+        void aDeletionIsRefused() throws Exception {
             doThrow(new LastAdministratorException("no administrator left"))
                     .when(userManagementService).deleteUser(1L);
 
             mvc().perform(post("/contexa/admin/users/delete/1"))
-                    .andExpect(status().isConflict())
-                    .andExpect(model().attribute("errorMessage", "no administrator left"));
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl("/contexa/admin/users"))
+                    .andExpect(flash().attribute("errorMessage", "no administrator left"));
         }
     }
 }

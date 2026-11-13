@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.roles.detail.title})}">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.roles.detail.title})}"></th:block>
 </head>
 <body class="flex flex-col min-h-screen font-sans">
 
@@ -19,7 +19,7 @@
                 <h2 class="text-3xl font-bold text-gradient" th:text="${role.id != null} ? #{admin.roles.detail.edit.title} : #{admin.roles.detail.create.title}">Role Details</h2>
             </div>
 
-            <form th:action="${role.id != null ? '/contexa/admin/roles/' + role.id + '/edit' : '/contexa/admin/roles'}" method="post" th:object="${role}" class="space-y-6">
+            <form th:action="${role.id != null} ? @{/contexa/admin/roles/{id}/edit(id=${role.id})} : @{/contexa/admin/roles}" method="post" th:object="${role}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${role.id != null}" />
 
                 <div class="space-y-4">
@@ -32,7 +32,7 @@
                         <label for="roleName" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-tag mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.roles.detail.name}">Role Name (unique, e.g. ADMIN)</span>
                         </label>
-                        <input type="text" id="roleName" th:field="*{roleName}"
+                        <input type="text" id="roleName" th:field="*{roleName}" maxlength="100"
                                class="detail-input font-mono"
                                placeholder="ROLE_USER" required />
                     </div>
@@ -41,7 +41,7 @@
                         <label for="roleDesc" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-align-left mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.roles.detail.description}">Description</span>
                         </label>
-                        <input type="text" id="roleDesc" th:field="*{roleDesc}"
+                        <input type="text" id="roleDesc" th:field="*{roleDesc}" maxlength="500"
                                class="detail-input"
                                th:placeholder="#{admin.roles.detail.description.placeholder}" placeholder="Enter role description" />
                     </div>

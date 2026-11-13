@@ -35,9 +35,11 @@ import io.contexa.contexacommon.security.UserAccountDeletedEvent;
 import io.contexa.contexacommon.security.UserAccountDisabledEvent;
 import io.contexa.contexacommon.security.UserAuthoritiesChangedEvent;
 import io.contexa.contexacommon.security.UserPasswordChangedEvent;
+import io.contexa.contexaiam.admin.web.agent.service.AgentSponsorship;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
+import io.contexa.contexaiam.common.ConsoleInput;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -78,16 +80,59 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final BridgeUserProfileRepository bridgeUserProfileRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final LastAdministratorGuard lastAdministratorGuard;
+    private AgentSponsorship agentSponsorship;
+
+    /** IAM-D57: an account that sponsors agents in service is not deleted; null where agents are not registered. */
+    public void setAgentSponsorship(AgentSponsorship agentSponsorship) {
+        this.agentSponsorship = agentSponsorship;
+    }
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
 
+    /** The lengths of the columns of a user. */
+    private static final int USERNAME_LENGTH = 100;
+    private static final int NAME_LENGTH = 100;
+    private static final int EMAIL_LENGTH = 255;
+    private static final int PHONE_LENGTH = 20;
+    private static final int DEPARTMENT_LENGTH = 100;
+    private static final int POSITION_LENGTH = 100;
+    private static final int LOCALE_LENGTH = 10;
+    private static final int TIMEZONE_LENGTH = 50;
+
+    /** The fields of a user's profile, each within its column; a blank optional one is kept as none. */
+    private void checkProfile(UserDto userDto) {
+        userDto.setName(ConsoleInput.required(messageSource, "crud.field.user.name", userDto.getName(), NAME_LENGTH));
+        userDto.setEmail(ConsoleInput.optional(messageSource, "crud.field.user.email", userDto.getEmail(),
+                EMAIL_LENGTH));
+        userDto.setPhone(ConsoleInput.optional(messageSource, "crud.field.user.phone", userDto.getPhone(),
+                PHONE_LENGTH));
+        userDto.setDepartment(ConsoleInput.optional(messageSource, "crud.field.user.department",
+                userDto.getDepartment(), DEPARTMENT_LENGTH));
+        userDto.setPosition(ConsoleInput.optional(messageSource, "crud.field.user.position", userDto.getPosition(),
+                POSITION_LENGTH));
+        userDto.setLocale(ConsoleInput.optional(messageSource, "crud.field.user.locale", userDto.getLocale(),
+                LOCALE_LENGTH));
+        userDto.setTimezone(ConsoleInput.optional(messageSource, "crud.field.user.timezone", userDto.getTimezone(),
+                TIMEZONE_LENGTH));
+    }
+
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
     public void createUser(UserDto userDto) {
+        // First in the transaction: the console's lock (LastAdministratorGuard.serializeChanges). A creation of the same
+        // name that came a moment before is committed by the time this one has the lock, and is found below; the unique
+        // constraint of the table stays the last defense, for a write that does not come through the console.
+        lastAdministratorGuard.serializeChanges();
+        userDto.setUsername(ConsoleInput.required(messageSource, "crud.field.user.username", userDto.getUsername(),
+                USERNAME_LENGTH));
+        checkProfile(userDto);
         if (userRepository.findByUsername(userDto.getUsername()).isPresent()) {
             throw new IllegalArgumentException(msg("msg.user.username.exists", userDto.getUsername()));
+        }
+        if (userDto.getEmail() != null && userRepository.existsByEmail(userDto.getEmail())) {
+            throw new IllegalArgumentException(msg("msg.user.email.exists", userDto.getEmail()));
         }
 
         if (!StringUtils.hasText(userDto.getPassword())) {
@@ -119,7 +164,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         for (Long groupId : desiredGroupIds) {
             Group group = groupRepository.findById(groupId)
-                    .orElseThrow(() -> new IllegalArgumentException(msg("msg.group.not.found.id", groupId)));
+                    .orElseThrow(() -> new IllegalArgumentException(msg("msg.group.not.found.id", String.valueOf(groupId))));
             UserGroup userGroup = UserGroup.builder()
                     .user(users)
                     .group(group)
@@ -173,7 +218,12 @@ public class UserManagementServiceImpl implements UserManagementService {
         lastAdministratorGuard.serializeChanges();
         log.debug("[UserManagementService.modifyUser] findByIdWithGroupsRolesAndPermissions id={}", userDto.getId());
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(userDto.getId())
-                .orElseThrow(() -> new IllegalArgumentException(msg("msg.user.not.found.id", userDto.getId())));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        msg("msg.user.not.found.id", String.valueOf(userDto.getId()))));
+        checkProfile(userDto);
+        if (userDto.getEmail() != null && userRepository.existsByEmailAndIdNot(userDto.getEmail(), users.getId())) {
+            throw new IllegalArgumentException(msg("msg.user.email.exists", userDto.getEmail()));
+        }
 
         boolean disabled = users.isEnabled() && !userDto.isEnabled();
         boolean passwordChanged = StringUtils.hasText(userDto.getPassword());
@@ -217,7 +267,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                 continue;
             }
             Group group = groupRepository.findById(groupId)
-                    .orElseThrow(() -> new IllegalArgumentException(msg("msg.group.not.found.id", groupId)));
+                    .orElseThrow(() -> new IllegalArgumentException(msg("msg.group.not.found.id", String.valueOf(groupId))));
             UserGroup userGroup = UserGroup.builder()
                     .user(users)
                     .group(group)
@@ -264,9 +314,18 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 //    @Protectable
     public UserDto getUser(Long id) {
-        log.debug("[UserManagementService.getUser] findByIdWithGroupsRolesAndPermissions id={}", id);
-        Users users = userRepository.findByIdWithGroupsRolesAndPermissions(id)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + id));
+        return findUser(id).orElseThrow(() -> new IllegalArgumentException(
+                msg("msg.user.not.found.id", String.valueOf(id))));
+    }
+
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public Optional<UserDto> findUser(Long id) {
+        log.debug("[UserManagementService.findUser] findByIdWithGroupsRolesAndPermissions id={}", id);
+        return userRepository.findByIdWithGroupsRolesAndPermissions(id).map(this::toUserDto);
+    }
+
+    private UserDto toUserDto(Users users) {
         UserDto userDto = modelMapper.map(users, UserDto.class);
         List<String> roles = users.getRoleNames();
         List<String> permissions = users.getPermissionNames();
@@ -308,7 +367,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Protectable(verificationRequired = false)
     public boolean unlockUser(Long id) {
         Users user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(msg("msg.user.not.found.id", id)));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.user.not.found.id", String.valueOf(id))));
         if (userRepository.clearLock(id) == 0) {
             return false;
         }
@@ -339,6 +398,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         dto.setGroupCount(user.getUserGroups() != null ? user.getUserGroups().size() : 0);
         long roleCount = user.getRoleNames().stream().distinct().count();
         dto.setRoleCount((int) roleCount);
+        dto.setPermissionCount(user.getPermissionNames().size());
         return dto;
     }
     @Override
@@ -348,6 +408,9 @@ public class UserManagementServiceImpl implements UserManagementService {
         lastAdministratorGuard.serializeChanges();
         Optional<Users> target = userRepository.findById(id);
         target.ifPresent(lastAdministratorGuard::refuseDeletingTheLast);
+        if (agentSponsorship != null) {
+            target.map(Users::getUsername).ifPresent(agentSponsorship::refuseRemovingTheSponsor);
+        }
         try {
             String admin = "SYSTEM";
             var auth = SecurityContextHolder.getContext().getAuthentication();

@@ -35,6 +35,7 @@ import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValid
 import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyExpressionConverter;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
+import io.contexa.contexaiam.security.xacml.prp.PolicyGeneration;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
@@ -138,9 +139,10 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
             violation = expressionConverter.findLoadViolation(policy, expression);
             if (violation == null) {
                 AuthorizationManager<RequestAuthorizationContext> conditionManager = managerResolver.resolve(expression);
-                return policy.getEffect() == Policy.Effect.DENY
+                AuthorizationManager<RequestAuthorizationContext> effectManager = policy.getEffect() == Policy.Effect.DENY
                         ? new DenyEffectAuthorizationManager(conditionManager)
                         : conditionManager;
+                return new FailClosedAuthorizationManager(effectManager, policy.getId(), policy.getName());
             }
         } catch (RuntimeException e) {
             violation = "Policy expression cannot be compiled: " + e.getMessage();
@@ -307,13 +309,14 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         TrustAssessment assessment = (TrustAssessment) context.attributes().get("ai_assessment");
         if (assessment != null) {
             try {
-                reason = "AI assessment result: " + objectMapper.writeValueAsString(assessment);
+                reason = AuthorizationAuditReason.aiAssessment(objectMapper.writeValueAsString(assessment));
             } catch (JsonProcessingException e) {
-                reason = "AI assessment result serialization failed. Score: " + assessment.score();
+                reason = AuthorizationAuditReason.aiAssessmentUnreadable(assessment.score());
             }
             riskScore = 1.0 - assessment.score();
         } else {
-            reason = "Static rule matching";
+            // D29: a code the security monitor shows in the language of the screen, not an English sentence.
+            reason = AuthorizationAuditReason.STATIC_RULE;
         }
 
         if (centralAuditFacade == null) {
@@ -349,6 +352,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         policyRetrievalPoint.clearUrlPoliciesCache();
         policyRetrievalPoint.clearMethodPoliciesCache();
         initialize();
+        PolicyGeneration.advance();
     }
 
     public void setNoMatchingUrlPolicyDecision(NoPolicyDecision noMatchingUrlPolicyDecision) {
@@ -378,6 +382,30 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
             AuthorizationDecision conditionResult = condition.check(authentication, context);
             return PolicyCombiningEvaluator.applyEffect(
                     Policy.Effect.DENY, conditionResult != null && conditionResult.isGranted());
+        }
+    }
+
+    /**
+     * D68: a condition that cannot be evaluated on a request (a function no context has, a method on a missing value)
+     * denies that request instead of failing it with a server error; every other failure is left to propagate.
+     */
+    record FailClosedAuthorizationManager(AuthorizationManager<RequestAuthorizationContext> policy, Long policyId,
+                                          String policyName)
+            implements AuthorizationManager<RequestAuthorizationContext> {
+
+        @Override
+        public AuthorizationDecision check(Supplier<Authentication> authentication,
+                                           RequestAuthorizationContext context) {
+            try {
+                return policy.check(authentication, context);
+            } catch (RuntimeException e) {
+                if (!PolicyConditionFailure.isConditionFailure(e)) {
+                    throw e;
+                }
+                log.error("URL policy condition failed to evaluate, the request is denied. policyId={}, name={}, uri={}",
+                        policyId, policyName, context.getRequest().getRequestURI(), e);
+                return new AuthorizationDecision(false);
+            }
         }
     }
 }

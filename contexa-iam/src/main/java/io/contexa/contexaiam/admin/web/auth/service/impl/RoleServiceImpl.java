@@ -26,9 +26,11 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.common.ConsoleInput;
 import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.repository.PolicyRepository;
@@ -43,6 +45,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
@@ -50,6 +53,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -68,6 +72,16 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
     private final MessageSource messageSource;
     private final LastAdministratorGuard lastAdministratorGuard;
 
+    /** The lengths of the columns of a role. */
+    private static final int NAME_LENGTH = 100;
+    private static final int DESCRIPTION_LENGTH = 500;
+
+    /**
+     * What a new name of a role may be made of: no blank, no {@code >} that separates the roles of a hierarchy, and no
+     * comma, quote or parenthesis that would break a condition naming the role.
+     */
+    private static final Pattern ROLE_NAME = Pattern.compile("[^\\s>,'\"()]+");
+
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
@@ -76,7 +90,13 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
     @Cacheable(value = "roles", key = "#id")
     public Role getRole(long id) {
         return roleRepository.findByIdWithPermissions(id)
-                .orElseThrow(() -> new IllegalArgumentException(msg("msg.role.not.found.id", id)));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.role.not.found.id", String.valueOf(id))));
+    }
+
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public Optional<Role> findRole(long id) {
+        return roleRepository.findByIdWithPermissions(id);
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -127,9 +147,13 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
             put = {@CachePut(value = "roles", key = "#result.id")}
     )
     public Role createRole(Role role, List<Long> permissionIds) {
-        if (roleRepository.findByRoleName(role.getRoleName()).isPresent()) {
-            throw new IllegalArgumentException(msg("msg.role.name.duplicate", role.getRoleName()));
-        }
+        // First in the transaction: the console's lock (LastAdministratorGuard.serializeChanges). A creation of the same
+        // name that came a moment before is committed by the time this one has the lock, and is found below; the unique
+        // constraint of the table stays the last defense, for a write that does not come through the console.
+        lastAdministratorGuard.serializeChanges();
+        role.setRoleName(newRoleName(role.getRoleName(), null));
+        role.setRoleDesc(ConsoleInput.optional(messageSource, "crud.field.role.description", role.getRoleDesc(),
+                DESCRIPTION_LENGTH));
 
         if (permissionIds != null && !permissionIds.isEmpty()) {
             List<Permission> permissions = permissionRepository.findAllById(permissionIds);
@@ -142,7 +166,15 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
             role.setRolePermissions(rolePermissions);
         }
 
-        Role saved = roleRepository.save(role);
+        Role saved;
+        try {
+            // Flushed here, so that a constraint of the table, should a write from outside the console meet this one,
+            // is told with its reason.
+            saved = roleRepository.save(role);
+            roleRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalArgumentException(msg("msg.role.name.duplicate", role.getRoleName()), e);
+        }
         auditRoleChange(AuditEventCategory.ROLE_CREATED, saved);
 
         if (permissionIds != null && !permissionIds.isEmpty()) {
@@ -167,11 +199,20 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
         List<String> administrators = lastAdministratorGuard.administrators();
         authoritiesChanged();
         Role existingRole = roleRepository.findByIdWithPermissions(role.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + role.getId()));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        msg("msg.role.not.found.id", String.valueOf(role.getId()))));
 
-        existingRole.setRoleName(role.getRoleName());
-        existingRole.setRoleDesc(role.getRoleDesc());
+        String roleName = ConsoleInput.required(messageSource, "crud.field.role.name", role.getRoleName(), NAME_LENGTH);
+        if (!roleName.equals(existingRole.getRoleName())) {
+            roleName = newRoleName(roleName, existingRole.getId());
+        }
+        existingRole.setRoleName(roleName);
+        existingRole.setRoleDesc(ConsoleInput.optional(messageSource, "crud.field.role.description", role.getRoleDesc(),
+                DESCRIPTION_LENGTH));
         existingRole.setExpression(role.isExpression());
+        // Switched off, the role gives its holders nothing. The check of the last administrator below refuses switching
+        // off the role that the console's last administrator holds ROLE_ADMIN by.
+        existingRole.setEnabled(role.isEnabled());
 
         Set<Long> desiredPermissionIds = permissionIds != null ? new HashSet<>(permissionIds) : new HashSet<>();
         Set<RolePermission> currentRolePermissions = existingRole.getRolePermissions();
@@ -213,7 +254,7 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
         authoritiesChanged();
         // Check if role is referenced in any active hierarchy (exact token matching)
         Role role = roleRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + id));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.role.not.found.id", String.valueOf(id))));
         List<String> referencedIn = new ArrayList<>();
         roleHierarchyRepository.findAllByIsActiveTrue().forEach(hierarchy -> {
             String hs = hierarchy.getHierarchyString();
@@ -244,6 +285,37 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
         auditRoleChange(AuditEventCategory.ROLE_DELETED, role);
         roleRepository.deleteById(id);
         lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
+    }
+
+    /**
+     * The name a role is given, checked against every other role by the authority it gives (RoleAuthority): a name that
+     * differs from another only in case or in the {@code ROLE_} prefix gives the same authority, and one that gives
+     * {@code ROLE_ADMIN} without being that role makes its holders administrators of the console.
+     *
+     * @param ownId the role being renamed, or {@code null} for a new one
+     */
+    private String newRoleName(String requested, Long ownId) {
+        String name = ConsoleInput.required(messageSource, "crud.field.role.name", requested, NAME_LENGTH);
+        if (!ROLE_NAME.matcher(name).matches()) {
+            throw new IllegalArgumentException(msg("msg.role.name.invalid", name));
+        }
+        String authority = RoleAuthority.authorityOf(name);
+        if (ConsoleSession.ADMIN_AUTHORITY.equalsIgnoreCase(authority) && !ConsoleSession.ADMIN_AUTHORITY.equals(name)) {
+            throw new IllegalArgumentException(msg("msg.role.name.reserved", name, ConsoleSession.ADMIN_AUTHORITY));
+        }
+        String key = authority.toUpperCase(Locale.ROOT);
+        for (Role other : roleRepository.findAll()) {
+            if (other == null || !StringUtils.hasText(other.getRoleName()) || Objects.equals(other.getId(), ownId)) {
+                continue;
+            }
+            if (other.getRoleName().equals(name)) {
+                throw new IllegalArgumentException(msg("msg.role.name.duplicate", name));
+            }
+            if (RoleAuthority.authorityOf(other.getRoleName()).toUpperCase(Locale.ROOT).equals(key)) {
+                throw new IllegalArgumentException(msg("msg.role.name.same.authority", name, other.getRoleName()));
+            }
+        }
+        return name;
     }
 
     private void auditRoleChange(AuditEventCategory category, Role role) {

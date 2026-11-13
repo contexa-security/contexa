@@ -15,6 +15,10 @@
  */
 package io.contexa.contexacore.std.llm.gate;
 
+import java.net.ConnectException;
+import java.net.NoRouteToHostException;
+import java.net.PortUnreachableException;
+import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
@@ -44,6 +48,23 @@ public final class ModelServerSignals {
             String normalized = message.toLowerCase(Locale.ROOT);
             if (normalized.contains("overloaded_error") || normalized.contains("rate_limit")
                     || normalized.contains("too many requests")) {
+                return true;
+            }
+            current = current.getCause() != current ? current.getCause() : null;
+        }
+        return false;
+    }
+
+    /**
+     * Whether the model server could not be reached at all: the connection was refused, the host is unknown or there is
+     * no route to it. Sent again within seconds such a call meets the same closed port, so it is not retried; a failure
+     * after the server was reached (a 5xx, a reset, a read timeout) is not this.
+     */
+    public static boolean isUnreachable(Throwable failure) {
+        Throwable current = failure;
+        while (current != null) {
+            if (current instanceof ConnectException || current instanceof NoRouteToHostException
+                    || current instanceof UnknownHostException || current instanceof PortUnreachableException) {
                 return true;
             }
             current = current.getCause() != current ? current.getCause() : null;

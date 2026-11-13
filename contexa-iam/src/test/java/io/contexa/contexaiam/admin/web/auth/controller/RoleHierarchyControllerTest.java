@@ -235,7 +235,7 @@ class RoleHierarchyControllerTest {
             stubFormModelDependencies();
 
             Model model = new ConcurrentModel();
-            String viewName = controller.roleHierarchyDetails(1L, model);
+            String viewName = controller.roleHierarchyDetails(1L, model, new RedirectAttributesModelMap());
 
             assertThat(viewName).isEqualTo("contexa/admin/role-hierarchy-details");
             assertThat(model.getAttribute("hierarchy")).isNotNull();
@@ -253,7 +253,7 @@ class RoleHierarchyControllerTest {
             stubFormModelDependencies();
 
             Model model = new ConcurrentModel();
-            controller.roleHierarchyDetails(1L, model);
+            controller.roleHierarchyDetails(1L, model, new RedirectAttributesModelMap());
 
             RoleHierarchyDto resultDto = (RoleHierarchyDto) model.getAttribute("hierarchy");
             assertThat(resultDto.getHierarchyPairs()).hasSize(2);
@@ -265,7 +265,7 @@ class RoleHierarchyControllerTest {
             when(roleHierarchyService.getRoleHierarchy(999L)).thenReturn(Optional.empty());
 
             Model model = new ConcurrentModel();
-            String viewName = controller.roleHierarchyDetails(999L, model);
+            String viewName = controller.roleHierarchyDetails(999L, model, new RedirectAttributesModelMap());
 
             assertThat(viewName).isEqualTo("redirect:/contexa/admin/role-hierarchies");
         }
@@ -282,7 +282,7 @@ class RoleHierarchyControllerTest {
             stubFormModelDependencies();
 
             Model model = new ConcurrentModel();
-            controller.roleHierarchyDetails(1L, model);
+            controller.roleHierarchyDetails(1L, model, new RedirectAttributesModelMap());
 
             RoleHierarchyDto resultDto = (RoleHierarchyDto) model.getAttribute("hierarchy");
             assertThat(resultDto.getHierarchyPairs()).hasSize(2);
@@ -302,7 +302,7 @@ class RoleHierarchyControllerTest {
             when(roleHierarchyService.getAllRoleHierarchies()).thenReturn(List.of(current, active, inactive));
 
             Model model = new ConcurrentModel();
-            String viewName = controller.roleHierarchyDetails(1L, model);
+            String viewName = controller.roleHierarchyDetails(1L, model, new RedirectAttributesModelMap());
 
             assertThat(viewName).isEqualTo("contexa/admin/role-hierarchy-details");
             @SuppressWarnings("unchecked")

@@ -30,6 +30,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -40,6 +42,7 @@ import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.testsupport.I18nTestSupport;
 import org.mockito.Spy;
 import org.springframework.context.MessageSource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -260,7 +263,6 @@ class RoleServiceImplTest {
         void shouldCreateWithPermissions() {
             Role role = buildRole(null, "ROLE_NEW");
             Permission perm = buildPermission(1L, "READ");
-            when(roleRepository.findByRoleName("ROLE_NEW")).thenReturn(Optional.empty());
             when(permissionRepository.findAllById(List.of(1L))).thenReturn(List.of(perm));
             when(roleRepository.save(any(Role.class))).thenAnswer(inv -> {
                 Role r = inv.getArgument(0);
@@ -278,7 +280,6 @@ class RoleServiceImplTest {
         @DisplayName("should create role without permissions")
         void shouldCreateWithoutPermissions() {
             Role role = buildRole(null, "ROLE_NEW");
-            when(roleRepository.findByRoleName("ROLE_NEW")).thenReturn(Optional.empty());
             when(roleRepository.save(any(Role.class))).thenAnswer(inv -> {
                 Role r = inv.getArgument(0);
                 r.setId(1L);
@@ -295,8 +296,7 @@ class RoleServiceImplTest {
         @DisplayName("should throw when duplicate role name")
         void shouldThrowOnDuplicateName() {
             Role role = buildRole(null, "ROLE_EXISTING");
-            when(roleRepository.findByRoleName("ROLE_EXISTING"))
-                    .thenReturn(Optional.of(buildRole(1L, "ROLE_EXISTING")));
+            when(roleRepository.findAll()).thenReturn(List.of(buildRole(1L, "ROLE_EXISTING")));
 
             assertThatThrownBy(() -> service.createRole(role, null))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -307,12 +307,127 @@ class RoleServiceImplTest {
         @DisplayName("should throw when permission not found")
         void shouldThrowWhenPermNotFound() {
             Role role = buildRole(null, "ROLE_NEW");
-            when(roleRepository.findByRoleName("ROLE_NEW")).thenReturn(Optional.empty());
             when(permissionRepository.findAllById(List.of(999L))).thenReturn(Collections.emptyList());
 
             assertThatThrownBy(() -> service.createRole(role, List.of(999L)))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("permissions not found");
+        }
+    }
+
+    @Nested
+    @DisplayName("the name of a role")
+    class RoleNames {
+
+        @ParameterizedTest(name = "{0}")
+        @ValueSource(strings = {"admin", "Admin", "ADMIN", "ROLE_admin"})
+        @DisplayName("a name that gives ROLE_ADMIN without being it is refused, whatever its case or prefix")
+        void aNameThatGivesTheAdministratorAuthority(String name) {
+            assertThatThrownBy(() -> service.createRole(buildRole(null, name), null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("ROLE_ADMIN");
+            verify(roleRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("a name that differs from another role only in case or prefix is the same role")
+        void aNameOfTheSameAuthority() {
+            when(roleRepository.findAll()).thenReturn(List.of(buildRole(2L, "ROLE_USER")));
+
+            assertThatThrownBy(() -> service.createRole(buildRole(null, "user"), null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("ROLE_USER");
+            verify(roleRepository, never()).save(any());
+        }
+
+        @ParameterizedTest(name = "[{0}]")
+        @ValueSource(strings = {"", "   "})
+        @DisplayName("a blank name is refused")
+        void aBlankName(String name) {
+            assertThatThrownBy(() -> service.createRole(buildRole(null, name), null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Role name is required");
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @ValueSource(strings = {"ROLE A", "ROLE_A>ROLE_B", "ROLE_A'", "ROLE_(A)", "ROLE_A,B"})
+        @DisplayName("a name with a blank, > or a character that breaks a condition is refused")
+        void aNameThatBreaksAHierarchyOrACondition(String name) {
+            assertThatThrownBy(() -> service.createRole(buildRole(null, name), null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("cannot contain");
+        }
+
+        @Test
+        @DisplayName("a name or a description longer than its column is refused before the database")
+        void aValueLongerThanItsColumn() {
+            assertThatThrownBy(() -> service.createRole(buildRole(null, "R".repeat(101)), null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("at most 100 characters (101 entered)");
+            Role described = buildRole(null, "ROLE_NEW");
+            described.setRoleDesc("d".repeat(501));
+            assertThatThrownBy(() -> service.createRole(described, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("at most 500 characters");
+            verify(roleRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("the name is kept without the blanks around it")
+        void theNameIsTrimmed() {
+            when(roleRepository.save(any(Role.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            Role result = service.createRole(buildRole(null, "  ROLE_NEW  "), null);
+
+            assertThat(result.getRoleName()).isEqualTo("ROLE_NEW");
+        }
+
+        @Test
+        @DisplayName("a role saved by another administrator a moment before is refused by its name, not by the constraint")
+        void aRoleSavedAMomentBefore() {
+            when(roleRepository.save(any(Role.class))).thenAnswer(inv -> inv.getArgument(0));
+            doThrow(new DataIntegrityViolationException("ctxa_role_role_name_key")).when(roleRepository).flush();
+
+            assertThatThrownBy(() -> service.createRole(buildRole(null, "ROLE_NEW"), null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("already exists");
+        }
+
+        @Test
+        @DisplayName("renaming a role to the name of another is refused; keeping its own name is not")
+        void renaming() {
+            Role existing = buildRole(1L, "ROLE_OLD");
+            when(roleRepository.findByIdWithPermissions(1L)).thenReturn(Optional.of(existing));
+            when(roleRepository.findAll()).thenReturn(List.of(existing, buildRole(2L, "ROLE_USER")));
+
+            assertThatThrownBy(() -> service.updateRole(buildRole(1L, "User"), null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("ROLE_USER");
+
+            when(roleRepository.save(any(Role.class))).thenAnswer(inv -> inv.getArgument(0));
+            assertThat(service.updateRole(buildRole(1L, "ROLE_OLD"), null).getRoleName()).isEqualTo("ROLE_OLD");
+        }
+    }
+
+    @Nested
+    @DisplayName("switching a role off")
+    class SwitchingOff {
+
+        @Test
+        @DisplayName("the edit of a role keeps whether it is enabled, and the last administrator is checked after it")
+        void theEnabledFlagIsKept() {
+            Role existing = buildRole(1L, "ROLE_STAFF");
+            when(roleRepository.findByIdWithPermissions(1L)).thenReturn(Optional.of(existing));
+            when(roleRepository.save(any(Role.class))).thenAnswer(inv -> inv.getArgument(0));
+            Role edit = buildRole(1L, "ROLE_STAFF");
+            edit.setEnabled(false);
+
+            Role result = service.updateRole(edit, null);
+
+            assertThat(result.isEnabled()).isFalse();
+            InOrder order = inOrder(roleRepository, lastAdministratorGuard);
+            order.verify(roleRepository).save(existing);
+            order.verify(lastAdministratorGuard).refuseLosingEveryAdministrator(any());
         }
     }
 
