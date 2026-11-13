@@ -20,6 +20,9 @@ import io.contexa.contexacommon.entity.PasswordPolicy;
 import io.contexa.contexacommon.repository.PasswordHistoryRepository;
 import io.contexa.contexacommon.repository.PasswordPolicyRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.lang.Nullable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +38,13 @@ public class PasswordPolicyService {
     private final PasswordPolicyRepository repository;
     private final PasswordHistoryRepository passwordHistoryRepository;
     private final PasswordEncoder passwordEncoder;
+    /** The texts of the rules in the language of the request; without it they are English. */
+    @Nullable
+    private MessageSource messageSource;
+
+    public void setMessageSource(@Nullable MessageSource messageSource) {
+        this.messageSource = messageSource;
+    }
 
     /**
      * The values a policy may take, as the console's form offers them: outside them a policy is one no password can meet
@@ -135,35 +145,53 @@ public class PasswordPolicyService {
         List<String> violations = new ArrayList<>();
 
         if (password == null || password.isEmpty()) {
-            violations.add("Password must not be empty");
+            violations.add(text("password.policy.not.empty", "Password must not be empty"));
             return violations;
         }
 
         if (password.length() < policy.getMinLength()) {
-            violations.add("Password must be at least " + policy.getMinLength() + " characters");
+            violations.add(text("password.policy.min.length",
+                    "Password must be at least " + policy.getMinLength() + " characters", policy.getMinLength()));
         }
 
         if (password.length() > policy.getMaxLength()) {
-            violations.add("Password must not exceed " + policy.getMaxLength() + " characters");
+            violations.add(text("password.policy.max.length",
+                    "Password must not exceed " + policy.getMaxLength() + " characters", policy.getMaxLength()));
         }
 
         if (policy.isRequireUppercase() && !password.matches(".*[A-Z].*")) {
-            violations.add("Password must contain at least one uppercase letter");
+            violations.add(text("password.policy.uppercase", "Password must contain at least one uppercase letter"));
         }
 
         if (policy.isRequireLowercase() && !password.matches(".*[a-z].*")) {
-            violations.add("Password must contain at least one lowercase letter");
+            violations.add(text("password.policy.lowercase", "Password must contain at least one lowercase letter"));
         }
 
         if (policy.isRequireDigit() && !password.matches(".*[0-9].*")) {
-            violations.add("Password must contain at least one digit");
+            violations.add(text("password.policy.digit", "Password must contain at least one digit"));
         }
 
         if (policy.isRequireSpecialChar() && !password.matches(".*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>/?].*")) {
-            violations.add("Password must contain at least one special character");
+            violations.add(text("password.policy.special", "Password must contain at least one special character"));
         }
 
         return violations;
+    }
+
+    /** A rule's text in the language of the request; the English one without a message source. */
+    private String text(String key, String english, Object... args) {
+        return messageSource == null ? english
+                : messageSource.getMessage(key, args, english, LocaleContextHolder.getLocale());
+    }
+
+    /**
+     * Whether the new password is the one in use or one of the recent ones, when the policy keeps any (reuse prevention).
+     * The one in use counts as the newest: changed to itself, a password would only start its expiry again.
+     */
+    public boolean isPasswordReused(Long userId, @Nullable String currentPasswordHash, String rawNewPassword) {
+        if (getCurrentPolicy().getHistoryCount() <= 0) return false;
+        if (currentPasswordHash != null && passwordEncoder.matches(rawNewPassword, currentPasswordHash)) return true;
+        return isPasswordReused(userId, rawNewPassword);
     }
 
     /**

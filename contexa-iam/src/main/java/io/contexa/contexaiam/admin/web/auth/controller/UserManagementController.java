@@ -99,6 +99,9 @@ public class UserManagementController {
 	@GetMapping("/new")
 	public String showCreateForm(Model model) {
 		UserDto userDto = new UserDto();
+		// A new account can sign in unless the administrator turns it off: left off, it was refused as if its password
+		// were wrong, and nothing on the form said why.
+		userDto.setEnabled(true);
 		List<Role> roleList = roleService.getRolesWithoutExpression();
 		List<Group> groupList = groupService.getAllGroups();
 

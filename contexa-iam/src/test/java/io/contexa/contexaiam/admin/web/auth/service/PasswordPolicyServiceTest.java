@@ -28,11 +28,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -317,6 +320,44 @@ class PasswordPolicyServiceTest {
             boolean result = service.isPasswordReused(1L, "myNewPassword");
 
             assertThat(result).isFalse();
+        }
+
+        @Test
+        @DisplayName("the password in use counts as the newest: changed to itself it is refused, unless reuse is allowed")
+        void thePasswordInUseIsReused() {
+            when(repository.findAll()).thenReturn(List.of(PasswordPolicy.builder().historyCount(3).build()));
+            when(passwordHistoryRepository.findByUserIdOrderByChangedAtDesc(1L)).thenReturn(List.of());
+            when(passwordEncoder.matches("kept-password", "current-hash")).thenReturn(true);
+
+            assertThat(service.isPasswordReused(1L, "current-hash", "kept-password")).isTrue();
+            assertThat(service.isPasswordReused(1L, "current-hash", "other-password")).isFalse();
+
+            when(repository.findAll()).thenReturn(List.of(PasswordPolicy.builder().historyCount(0).build()));
+            assertThat(service.isPasswordReused(1L, "current-hash", "kept-password")).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("validatePassword with a message source")
+    class LocalizedViolations {
+
+        @Test
+        @DisplayName("the reasons are the rules' texts in the language of the request")
+        void reasonsInTheLanguageOfTheRequest() {
+            when(repository.findAll()).thenReturn(List.of(PasswordPolicy.builder()
+                    .minLength(8).maxLength(12).requireUppercase(true).requireLowercase(false).requireDigit(true).build()));
+            StaticMessageSource messages = new StaticMessageSource();
+            messages.addMessage("password.policy.min.length", Locale.KOREAN, "최소 {0}자 이상");
+            messages.addMessage("password.policy.digit", Locale.KOREAN, "숫자(0-9) 포함");
+            service.setMessageSource(messages);
+            LocaleContextHolder.setLocale(Locale.KOREAN);
+            try {
+                assertThat(service.validatePassword("Abc"))
+                        .containsExactly("최소 8자 이상", "숫자(0-9) 포함");
+            } finally {
+                LocaleContextHolder.resetLocaleContext();
+                service.setMessageSource(null);
+            }
         }
     }
 

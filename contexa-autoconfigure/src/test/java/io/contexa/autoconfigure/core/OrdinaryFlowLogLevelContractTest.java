@@ -67,7 +67,6 @@ class OrdinaryFlowLogLevelContractTest {
 
         INFO.put("NoOpSecurityActionEventPublisher.java", List.of("[NoOpActionPublisher] SOAR auto-response is disabled"));
         INFO.put("AuditLogRetentionScheduler.java", List.of("Audit log retention: deleted"));
-        INFO.put("PolicyCenterCommandService.java", List.of("[migration] Auto-migrated"));
         INFO.put("ResourceRegistryServiceImpl.java", List.of(
                 "{} resources not found in current code", "Resource status reverted to PERMISSION_CREATED"));
         INFO.put("IdentityOAuth2AutoConfiguration.java", List.of("[OAuth2] Issuer URI not configured"));

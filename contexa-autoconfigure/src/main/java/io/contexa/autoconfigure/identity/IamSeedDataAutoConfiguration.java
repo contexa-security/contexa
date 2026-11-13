@@ -107,7 +107,11 @@ public class IamSeedDataAutoConfiguration {
             "META-INF/contexa/db/data-system-settings.sql"
     };
 
-    /** Q-32: the sample accounts (one shared password) are seeded only when asked for; the rest always is. */
+    /**
+     * The sample accounts (one shared password), so that a first start can be signed in to without any setting. They are
+     * added to a database without user accounts only: their group rows name the user ids 1 to 5, which on a database in
+     * use belong to other people. {@code contexa.iam.seed.accounts.enabled=false} leaves them out.
+     */
     static final String ACCOUNT_SEED_LOCATION = "META-INF/contexa/db/data-accounts.sql";
     static final String ACCOUNT_SEED_PROPERTY = "contexa.iam.seed.accounts.enabled";
 
@@ -132,10 +136,16 @@ public class IamSeedDataAutoConfiguration {
     private static final Pattern ALTER_TABLE_ADD_COLUMN_IF_NOT_EXISTS =
             Pattern.compile("^alter table (?:if exists )?(?:only )?([\\w.\"]+) .*\\badd column if not exists\\b.*");
 
-    /** The seed files the initializer runs, in order; the sample accounts last, and only when the property is true. */
+    /**
+     * The seed files the initializer runs, in order; the sample accounts last. Without the property they come unless an
+     * administrator password is configured: that administrator is the account the configuration asked for, and the sample
+     * administrator of the same name would take its place.
+     */
     static List<String> seedLocations(Environment environment) {
         List<String> locations = new ArrayList<>(List.of(SEED_LOCATIONS));
-        if (environment.getProperty(ACCOUNT_SEED_PROPERTY, Boolean.class, false)) {
+        Boolean asked = environment.getProperty(ACCOUNT_SEED_PROPERTY, Boolean.class);
+        String adminPassword = environment.getProperty(ADMIN_PASSWORD_PROPERTY);
+        if (asked != null ? asked : adminPassword == null || adminPassword.isBlank()) {
             locations.add(ACCOUNT_SEED_LOCATION);
         }
         return List.copyOf(locations);
@@ -265,6 +275,10 @@ public class IamSeedDataAutoConfiguration {
             }
         }
         for (String location : seedLocations) {
+            if (ACCOUNT_SEED_LOCATION.equals(location) && hasUserAccounts(dataSource)) {
+                log.info("[IamSeedData] User accounts exist, so the sample accounts of {} are not added", location);
+                continue;
+            }
             Resource seed = ContexaResources.sql(location);
             if (!seed.exists()) {
                 log.warn("[IamSeedData] classpath:{} not found, skipping", location);
@@ -272,8 +286,18 @@ public class IamSeedDataAutoConfiguration {
             }
             seedPopulator(seed).execute(dataSource);
             log.info("[IamSeedData] {} executed", location);
+            if (ACCOUNT_SEED_LOCATION.equals(location)) {
+                log.warn("[IamSeedData] Sample accounts were added because no user account existed: admin (administrator), "
+                        + "manager, developer, user and finance, all with the password 1111. Sign in to the console at "
+                        + "/contexa/admin/login and change the password with \"Change password\" in the console header.");
+            }
         }
         completePqaOfficialSchemaIfNeeded(dataSource);
+    }
+
+    private static boolean hasUserAccounts(DataSource dataSource) {
+        Integer accounts = new JdbcTemplate(dataSource).queryForObject("select count(*) from ctxa_users", Integer.class);
+        return accounts != null && accounts > 0;
     }
 
     /**

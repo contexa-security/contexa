@@ -112,6 +112,10 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             );
             if (applicationContext != null) {
                 mfaPageFilter.setMessageSource(applicationContext);
+                mfaPageFilter.setLocaleSource(applicationContext);
+                // the same rule as the code service: in development the pages say where the code is
+                mfaPageFilter.setCodeToConsole(authContextProperties.getOtt().writesCodesToConsole(
+                        applicationContext.getEnvironment().getActiveProfiles(), mailConfigured));
             }
             try {
                 mfaPageFilter.setJdbcTemplate(accountStore(applicationContext));

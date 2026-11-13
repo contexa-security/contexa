@@ -85,6 +85,12 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
     private final StepUpOptionsStore claims;
     private final Duration resendInterval;
     private volatile Supplier<UserDetailsService> userStore = () -> null;
+    /** Development and tests: the code is written to the log too, and a sign-in does not wait on a mail server. */
+    private volatile boolean codeToConsole;
+
+    public void setCodeToConsole(boolean codeToConsole) {
+        this.codeToConsole = codeToConsole;
+    }
 
     /** The resend interval is then this instance's own: a distributed deployment hands in the store it shares. */
     public EmailOneTimeTokenService(EmailService emailService,
@@ -224,7 +230,17 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
                 HtmlUtils.htmlEscape(username), emailPurpose, token.getTokenValue(), tokenValidityMinutes
         );
 
+        if (codeToConsole) {
+            log.warn("[OTT] Sign-in code for {} <{}>: {} (valid {} minutes). It is written here because one-time codes go "
+                            + "to the log in development and tests (contexa.auth.ott.code-to-console); a production start "
+                            + "mails them only.",
+                    username, to, token.getTokenValue(), tokenValidityMinutes);
+        }
+
         if (!emailService.isMailSenderConfigured()) {
+            if (codeToConsole) {
+                return true;
+            }
             IllegalStateException failure = new IllegalStateException(
                     "Email sender is not configured. Please configure Spring mail properties.");
             if (failOnEmailError) {
@@ -239,6 +255,12 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
             emailService.sendHtmlMessage(to, emailSubject, htmlBody);
             return true;
         } catch (RuntimeException ex) {
+            if (codeToConsole) {
+                // the code in the log above finishes the sign-in: a mail server that is down or absent stops nothing
+                log.warn("[OTT] The code mail to {} was not sent ({}); the code written above stands for this sign-in",
+                        to, ex.toString());
+                return true;
+            }
             if (failOnEmailError) {
                 throw ex;
             }

@@ -144,6 +144,36 @@ class EmailOneTimeTokenServiceTest {
         );
     }
 
+    /** Development and tests: the code is in the log, so a mail server that fails or is absent stops no sign-in. */
+    @Test
+    @DisplayName("with the code to the console, a failing or absent mail server still gives the code, written to the log")
+    void theCodeToTheConsoleOutlivesTheMailServer() {
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+        service.setCodeToConsole(true);
+        Logger logger = (Logger) LoggerFactory.getLogger(EmailOneTimeTokenService.class);
+        ListAppender<ILoggingEvent> events = new ListAppender<>();
+        events.start();
+        logger.addAppender(events);
+        OneTimeToken failingMail;
+        try {
+            when(emailService.isMailSenderConfigured()).thenReturn(true);
+            doThrow(new IllegalStateException("no password specified"))
+                    .when(emailService).sendHtmlMessage(anyString(), anyString(), anyString());
+            failingMail = service.generate(new GenerateOneTimeTokenRequest("testuser"));
+        } finally {
+            logger.detachAppender(events);
+        }
+
+        assertThat(failingMail.getTokenValue()).isNotEmpty();
+        assertThat(events.list).anyMatch(event -> event.getFormattedMessage().contains(failingMail.getTokenValue()));
+
+        jdbcTemplate.update("INSERT INTO ctxa_users(username, email) VALUES(?, ?)", "second", "second@contexa.io");
+        when(emailService.isMailSenderConfigured()).thenReturn(false);
+        assertThat(service.generate(new GenerateOneTimeTokenRequest("second")).getTokenValue()).isNotEmpty();
+    }
+
     /** Anyone may ask in any name: a name with no row is no event of the log, or asking would fill it. */
     @Test
     @DisplayName("a name with no account leaves nothing in the log")

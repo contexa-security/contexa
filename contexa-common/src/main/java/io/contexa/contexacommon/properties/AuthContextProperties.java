@@ -20,6 +20,9 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
+import java.util.Arrays;
+import java.util.Set;
+
 @Data
 @ConfigurationProperties(prefix = "contexa.auth")
 public class AuthContextProperties {
@@ -69,6 +72,28 @@ public class AuthContextProperties {
     @Data
     public static class OttSettings {
         private boolean failOnEmailError = true;
+
+        /**
+         * Whether a one-time code is written to the log as well as mailed, so that a sign-in finishes without a mail server
+         * during development and tests; a mail that fails is then no failed sign-in. Unset, it is on when a profile named
+         * local, dev, development or test is active or no mail server is configured, and off otherwise: a production start
+         * mails the code only.
+         */
+        private Boolean codeToConsole;
+
+        /** The profiles of development and tests, in which a one-time code goes to the log as well. */
+        public static final Set<String> DEVELOPMENT_PROFILES = Set.of("local", "dev", "development", "test");
+
+        /**
+         * Whether one-time codes go to the log too: as configured, or else in development and tests (one of
+         * {@link #DEVELOPMENT_PROFILES} active) and wherever no mail server is configured, which could deliver none.
+         */
+        public boolean writesCodesToConsole(String[] activeProfiles, boolean mailConfigured) {
+            if (codeToConsole != null) {
+                return codeToConsole;
+            }
+            return !mailConfigured || Arrays.stream(activeProfiles).anyMatch(DEVELOPMENT_PROFILES::contains);
+        }
 
         /**
          * The mails of a sign-in being sent at one time, each by a thread of Contexa's own, and so the most threads a mail

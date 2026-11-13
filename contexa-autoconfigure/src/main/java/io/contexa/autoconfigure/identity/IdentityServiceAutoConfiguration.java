@@ -32,6 +32,7 @@ import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
 import io.contexa.contexaidentity.security.zerotrust.stepup.InMemoryStepUpOptionsStore;
 import io.contexa.contexaidentity.security.zerotrust.stepup.StepUpOptionsStore;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -44,6 +45,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.transaction.support.TransactionTemplate;
 
+@Slf4j
 @AutoConfiguration
 @ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnProperty(prefix = "contexa.identity.service", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -94,7 +96,8 @@ public class IdentityServiceAutoConfiguration {
             @Qualifier("contexaTransactionTemplate") TransactionTemplate transactionTemplate,
             AuthContextProperties authContextProperties,
             ObjectProvider<StepUpOptionsStore> stepUpOptionsStore,
-            BeanFactory beanFactory) {
+            BeanFactory beanFactory,
+            Environment environment) {
         EmailOneTimeTokenService service = new EmailOneTimeTokenService(
                 contexaEmailService,
                 jdbcTemplate,
@@ -103,7 +106,33 @@ public class IdentityServiceAutoConfiguration {
                 authContextProperties.getOtt().isFailOnEmailError(),
                 stepUpOptionsStore.getIfAvailable(InMemoryStepUpOptionsStore::new));
         service.setUserStore(() -> ContexaUserStore.forSignIn(beanFactory));
+        boolean toConsole = codeToConsole(authContextProperties, environment, contexaEmailService.isMailSenderConfigured());
+        service.setCodeToConsole(toConsole);
+        if (toConsole) {
+            log.warn("[Contexa] One-time sign-in codes are written to this log ({}), so a sign-in finishes without a mail "
+                            + "server; they are mailed as well where mail is configured. A production start mails them only: "
+                            + "start without these profiles and with spring.mail.* set, or set "
+                            + "contexa.auth.ott.code-to-console=false.",
+                    authContextProperties.getOtt().getCodeToConsole() != null ? "contexa.auth.ott.code-to-console=true"
+                            : contexaEmailService.isMailSenderConfigured()
+                            ? "profile " + String.join(",", environment.getActiveProfiles()) : "no mail server is configured");
+        }
         return new ContexaOneTimeTokens(service);
+    }
+
+    /** Says at the start whether the mail server of the codes works, and what to set when it does not. */
+    @Bean(name = "contexaOttMailStartupCheck")
+    @ConditionalOnMissingBean(name = "contexaOttMailStartupCheck")
+    public OttMailStartupCheck ottMailStartupCheck(EmailService contexaEmailService,
+                                                   AuthContextProperties authContextProperties,
+                                                   Environment environment) {
+        return new OttMailStartupCheck(contexaEmailService,
+                codeToConsole(authContextProperties, environment, contexaEmailService.isMailSenderConfigured()));
+    }
+
+    /** Whether one-time codes go to the log too, by the rule the sign-in pages follow as well. */
+    static boolean codeToConsole(AuthContextProperties properties, Environment environment, boolean mailConfigured) {
+        return properties.getOtt().writesCodesToConsole(environment.getActiveProfiles(), mailConfigured);
     }
 
     // Only where Contexa signs the users in: the one-time token login of an application that signs its own users in takes its
