@@ -10,7 +10,7 @@ It brings the OSS modules onto the classpath and activates the auto-configuratio
 Gradle:
 ```gradle
 dependencies {
-    implementation "ai.ctxa:spring-boot-starter-contexa:0.1.0"
+    implementation "ai.ctxa:spring-boot-starter-contexa:0.1.1"
 }
 ```
 
@@ -19,7 +19,7 @@ Maven:
 <dependency>
     <groupId>ai.ctxa</groupId>
     <artifactId>spring-boot-starter-contexa</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
 </dependency>
 ```
 
@@ -70,6 +70,6 @@ Those surfaces belong outside the OSS starter unless the relevant code exists in
 
 ## Further reading
 
-- Root repository: `D:/contexa`
+- Root repository: `https://github.com/contexa-security/contexa`
 - Public docs: `https://docs.ctxa.ai`
 - Architecture reference: `https://docs.ctxa.ai/docs/reference/architecture/overview.html`

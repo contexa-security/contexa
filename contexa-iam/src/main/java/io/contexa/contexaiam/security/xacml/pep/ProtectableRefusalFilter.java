@@ -20,6 +20,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.lang.Nullable;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -52,6 +54,15 @@ public class ProtectableRefusalFilter extends OncePerRequestFilter {
         return refusal;
     }
 
+    /**
+     * The refusal of a call without a user: an access denial, as Spring Security refuses a visitor's call to a secured
+     * method and as an application's own exception handling answers one, that carries the missing authentication as its
+     * cause. A chain's exception translation finds that cause and sends the visitor to its entry point, as it always did.
+     */
+    public static AccessDeniedException withoutUser(String reason) {
+        return new AccessDeniedException(reason, new AuthenticationCredentialsNotFoundException(reason));
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
@@ -62,10 +73,16 @@ public class ProtectableRefusalFilter extends OncePerRequestFilter {
             if (refusal == null || response.isCommitted() || !carries(failure, refusal)) {
                 throw failure;
             }
-            response.sendError(refusal instanceof AuthenticationException
+            response.sendError(missesUser(refusal)
                     ? HttpServletResponse.SC_UNAUTHORIZED
                     : HttpServletResponse.SC_FORBIDDEN);
         }
+    }
+
+    /** Whether the refusal is for a call without a user: a missing authentication, or an access denial that carries one. */
+    private static boolean missesUser(Object refusal) {
+        return refusal instanceof AuthenticationException
+                || (refusal instanceof AccessDeniedException denied && denied.getCause() instanceof AuthenticationException);
     }
 
     /** Whether the failure is the refusal or carries it among its causes, as Spring Security's translation looks there. */

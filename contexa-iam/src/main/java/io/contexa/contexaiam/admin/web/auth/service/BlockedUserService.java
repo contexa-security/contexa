@@ -42,6 +42,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -56,6 +57,10 @@ import java.util.function.BooleanSupplier;
 @Slf4j
 @RequiredArgsConstructor
 public class BlockedUserService implements IBlockedUserRecorder {
+
+    /** Who closed, and how, the record of a block whose account was deleted: no administrator did. */
+    static final String ACCOUNT_DELETION = "SYSTEM";
+    static final String ACCOUNT_DELETED = "ACCOUNT_DELETED";
 
     private final BlockedUserJpaRepository blockedUserJpaRepository;
     private final AdminOverrideService adminOverrideService;
@@ -557,6 +562,31 @@ public class BlockedUserService implements IBlockedUserRecorder {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Optional<BlockedUser> getBlockDetail(Long id) {
         return blockedUserJpaRepository.findById(id);
+    }
+
+    /**
+     * Closes what the record holds against a deleted account. The purge of the account takes its restriction from the
+     * decision store, and a record left in force would write it back there (see {@link #blocksInForce}): onto nobody, or
+     * onto a later account created with the same name. It is called after the deletion committed, so it runs in a
+     * transaction of its own.
+     */
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public int resolveBlocksOfDeletedAccount(String userId) {
+        if (!StringUtils.hasText(userId)) {
+            return 0;
+        }
+        // A block is recorded under the id of its request: the name, or the key a name that reads as an internal key is kept under.
+        Set<String> ids = new LinkedHashSet<>();
+        ids.add(userId);
+        String own = ZeroTrustUserKey.person(userId);
+        if (StringUtils.hasText(own)) {
+            ids.add(own);
+        }
+        List<BlockedUser> inForce = blockedUserJpaRepository.findByUserIdInAndStatusNot(ids, BlockedUserStatus.RESOLVED);
+        for (BlockedUser blocked : inForce) {
+            applyResolution(blocked, ACCOUNT_DELETION, ACCOUNT_DELETED, "The account was deleted");
+        }
+        return inForce.size();
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")

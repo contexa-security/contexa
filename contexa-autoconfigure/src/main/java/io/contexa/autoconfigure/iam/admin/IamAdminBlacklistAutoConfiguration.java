@@ -26,6 +26,7 @@ import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.controller.BlacklistApiController;
 import io.contexa.contexaiam.admin.web.auth.controller.BlacklistController;
+import io.contexa.contexaiam.admin.web.auth.service.BlockRecordUserStatePurgeContributor;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
@@ -65,6 +66,13 @@ public class IamAdminBlacklistAutoConfiguration {
     @ConditionalOnMissingBean(IBlockedUserRecorder.class)
     public IBlockedUserRecorder blockedUserRecorder(BlockedUserService contexaBlockedUserService) {
         return contexaBlockedUserService;
+    }
+
+    @Bean(name = "contexaBlockRecordUserStatePurgeContributor")
+    @ConditionalOnMissingBean
+    public BlockRecordUserStatePurgeContributor blockRecordUserStatePurgeContributor(
+            ObjectProvider<BlockedUserService> blockedUserService) {
+        return new BlockRecordUserStatePurgeContributor(blockedUserService);
     }
 
     @Bean(name = "contexaBlacklistController")

@@ -29,6 +29,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -172,7 +173,8 @@ class ProtectableCallWithoutUserTest {
     void aWebRequestWithNoUserStaysRefused() throws Throwable {
         inARequest();
 
-        assertThatThrownBy(() -> interceptor.invoke(call)).isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+        assertThatThrownBy(() -> interceptor.invoke(call)).isInstanceOf(AccessDeniedException.class)
+                .hasCauseInstanceOf(AuthenticationCredentialsNotFoundException.class);
 
         verify(call, never()).proceed();
     }
@@ -182,7 +184,8 @@ class ProtectableCallWithoutUserTest {
         inARequest();
         signedIn(visitor());
 
-        assertThatThrownBy(() -> interceptor.invoke(call)).isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+        assertThatThrownBy(() -> interceptor.invoke(call)).isInstanceOf(AccessDeniedException.class)
+                .hasCauseInstanceOf(AuthenticationCredentialsNotFoundException.class);
 
         verify(call, never()).proceed();
     }
@@ -192,7 +195,8 @@ class ProtectableCallWithoutUserTest {
     void anAnonymousVisitorStaysRefusedWithoutARequest() throws Throwable {
         signedIn(visitor());
 
-        assertThatThrownBy(() -> interceptor.invoke(call)).isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+        assertThatThrownBy(() -> interceptor.invoke(call)).isInstanceOf(AccessDeniedException.class)
+                .hasCauseInstanceOf(AuthenticationCredentialsNotFoundException.class);
 
         verify(call, never()).proceed();
     }

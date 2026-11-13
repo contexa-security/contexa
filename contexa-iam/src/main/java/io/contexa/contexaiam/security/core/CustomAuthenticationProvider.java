@@ -51,9 +51,9 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
                 userDetails,
                 loginPolicyService.isCredentialsExpired(loginId));
 
-        // The store is the application's own when it has exactly one (ContexaUserStore), and then the account is whatever
-        // that store returns. Taken for one of Contexa's, such an account failed here with a class cast (500 at every
-        // sign-in); it signs in as it is.
+        // The store is Contexa's own where Contexa owns the sign-in, and the application's own (when it has exactly one) where
+        // the application keeps it (ContexaUserStore.forSignIn). An account of the application's store is whatever that store
+        // returns: taken for one of Contexa's, it failed here with a class cast (500 at every sign-in); it signs in as it is.
         return UsernamePasswordAuthenticationToken.authenticated(userDetails, null, userDetails.getAuthorities());
     }
 
