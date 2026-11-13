@@ -15,7 +15,6 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.analysis;
 
-import java.util.Objects;
 
 import io.contexa.contexaiam.domain.dto.ConditionDto;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
@@ -39,7 +38,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Unified policy validation service that combines conflict and duplicate detection.
@@ -118,16 +119,9 @@ public class PolicyValidationService {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public FullValidationReport validateAll() {
         List<Policy> allPolicies = policyRepository.findAllWithDetails();
-        List<PolicyConflictDto> allConflicts = new ArrayList<>();
-        List<DuplicatePolicyDto> allDuplicates = new ArrayList<>();
-
-        for (Policy policy : allPolicies) {
-            if (!policy.getIsActive()) {
-                continue;
-            }
-            allConflicts.addAll(conflictAnalyzer.analyze(policy, allPolicies));
-            allDuplicates.addAll(duplicateDetector.detect(policy, allPolicies));
-        }
+        // D65: every active policy against the others, as one pass each instead of one pass per policy.
+        List<PolicyConflictDto> allConflicts = conflictAnalyzer.analyzeAll(allPolicies);
+        List<DuplicatePolicyDto> allDuplicates = duplicateDetector.detectAll(allPolicies);
 
         // Deduplicate symmetric conflicts (A vs B == B vs A)
         List<PolicyConflictDto> deduplicatedConflicts = deduplicateConflicts(allConflicts);
@@ -231,16 +225,24 @@ public class PolicyValidationService {
         }
     }
 
+    /**
+     * Keeps a conflict unless one kept before is the same pair the other way round (A vs B == B vs A). The pairs kept
+     * are looked up in a set instead of in the whole list for each conflict (D65); what is kept is the same.
+     */
     private List<PolicyConflictDto> deduplicateConflicts(List<PolicyConflictDto> conflicts) {
         List<PolicyConflictDto> result = new ArrayList<>();
+        Set<PolicyPair> keptReversed = new HashSet<>();
         for (PolicyConflictDto conflict : conflicts) {
-            boolean isDuplicate = result.stream().anyMatch(existing ->
-                    Objects.equals(existing.newPolicyId(), conflict.existingPolicyId())
-                            && Objects.equals(existing.existingPolicyId(), conflict.newPolicyId()));
+            boolean isDuplicate = keptReversed.contains(
+                    new PolicyPair(conflict.newPolicyId(), conflict.existingPolicyId()));
             if (!isDuplicate) {
                 result.add(conflict);
+                keptReversed.add(new PolicyPair(conflict.existingPolicyId(), conflict.newPolicyId()));
             }
         }
         return result;
+    }
+
+    private record PolicyPair(Long first, Long second) {
     }
 }
