@@ -169,6 +169,46 @@ class PromptBundleRollbackServiceTest {
                 + "order by prompt_version", String.class)).containsExactly("TARGET_NOT_IN_BUILD", "READY");
     }
 
+    /** IAM-D25: a request without what a rollback needs is refused at once, and nothing is checked or recorded. */
+    @Test
+    void anIncompleteRequestIsRefusedWithItsMissingFieldsAndNothingIsRecorded() {
+        PromptBundleRollbackService.Result empty = service.rollback(null, "operator-a");
+        PromptBundleRollbackService.Result partial = service.rollback(
+                new PromptBundleRollbackService.Request(SCOPE, KEY, " ", TO, "", false), "operator-a");
+
+        assertThat(empty.status()).isEqualTo(PromptBundleRollbackService.INCOMPLETE);
+        assertThat(empty.refusals()).containsExactly("REQUEST_REQUIRED");
+        assertThat(partial.status()).isEqualTo(PromptBundleRollbackService.INCOMPLETE);
+        assertThat(partial.refusals()).containsExactly("FROM_VERSION_REQUIRED", "REASON_REQUIRED");
+        assertThat(partial.executionKey()).isNull();
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_prompt_governance_rollback_execution",
+                Integer.class)).isZero();
+    }
+
+    /**
+     * IAM-D55: the version screen offers a rollback only when the same conditions the rollback checks would accept it:
+     * the bundle executes in the scope, and a declared target is in the build and registered.
+     */
+    @Test
+    void readinessReadsTheSourceAndTargetConditionsTheRollbackChecks() {
+        registry(FROM, "CANARY");
+        registry(TO, "DRAFT");
+
+        PromptBundleRollbackService.Readiness executing = service.readiness(SCOPE, KEY, FROM,
+                List.of(TO, "2026.01.01-v1"));
+
+        assertThat(executing.sourceExecuting()).isTrue();
+        assertThat(executing.targets()).containsExactly(
+                new PromptBundleRollbackService.TargetReadiness(TO, true, true),
+                new PromptBundleRollbackService.TargetReadiness("2026.01.01-v1", false, false));
+        assertThat(executing.runnable()).isTrue();
+
+        PromptBundleRollbackService.Readiness draft = service.readiness(SCOPE, KEY, TO, List.of(FROM));
+        assertThat(draft.sourceExecuting()).isFalse();
+        assertThat(draft.runnable()).isFalse();
+        assertThat(service.readiness(SCOPE, KEY, FROM, null).runnable()).isFalse();
+    }
+
     private void registry(String version, String status) {
         jdbc.update("""
                         insert into ctxa_prompt_governance_registry (registry_scope, prompt_key, template_key, prompt_version,

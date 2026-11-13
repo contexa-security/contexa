@@ -1,5 +1,6 @@
 import { $, appPath, escapeHtml, ensureArray, rawText } from '../verification-ui-common.js';
-import { getJson, postJson, publicError, publicErrorGuidance } from './prompt-quality-api.js';
+import { getJson, postJson, promptQualityApiRoot as pageApiRoot, promptQualityRouteRoot as pageRouteRoot, publicError,
+    publicErrorGuidance } from './prompt-quality-api.js';
 import { badge, setStatus } from './prompt-quality-page.js';
 import { renderStatusChart } from './prompt-quality-charts.js';
 import { openConfirmModal, showActionTooltip, wireTabs } from './prompt-quality-ui.js';
@@ -24,7 +25,7 @@ const PROMPT_OFFICIAL_METRICS = new Set([
     'EIR', 'CCR', 'CCSR', 'PFR', 'MTR', 'COR', 'RAP', 'RPI', 'BMA', 'USNS', 'BSR', 'PRE'
 ]);
 function promptQualityApiRoot() {
-    return rawText(root?.dataset?.pqaApiRoot) || '/admin/api/enterprise/prompt-quality';
+    return pageApiRoot(root || document);
 }
 
 function promptQualityApiPath(path) {
@@ -34,7 +35,7 @@ function promptQualityApiPath(path) {
 }
 
 function promptQualityRouteRoot() {
-    return rawText(root?.dataset?.pqaRouteRoot) || '/admin/enterprise/prompt-quality';
+    return pageRouteRoot(root || document);
 }
 
 function promptQualityRoutePath(path) {

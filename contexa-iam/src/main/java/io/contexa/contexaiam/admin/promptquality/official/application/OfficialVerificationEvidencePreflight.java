@@ -207,7 +207,11 @@ public final class OfficialVerificationEvidencePreflight extends AbstractPromptQ
                     "enterprise.pqa.runtimeVerification.preflight.inputContractInvalidWithRemediation",
                     String.join(" ", result.violations())));
         }
-        return result.packageForVerification();
+        SealedEvidencePackage prepared = result.packageForVerification();
+        // A package sealed without a tenant belongs to the deployment default tenant. The analysis copy carries it so
+        // that the execution lock, the ledger and the snapshots scope the run alike; the persisted package is unchanged.
+        prepared.setTenantId(SealedEvidencePackage.tenantOrDefault(prepared.getTenantId()));
+        return prepared;
     }
 
     private void assertSealedPromptEvidencePackage(SealedEvidencePackage evidencePackage) {

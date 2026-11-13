@@ -22,6 +22,17 @@ public class SealedEvidencePackage {
 
     public static final String SEAL_STATE_SEALED = "SEALED";
 
+    /**
+     * The tenant of a deployment that names none. A package is sealed with it when its event carries no tenant, and a
+     * package sealed earlier without a tenant is read as belonging to it, so that sealing and verification agree.
+     */
+    public static final String DEFAULT_TENANT_ID = "default";
+
+    /** The tenant a package belongs to: its own, or the deployment default when it names none. */
+    public static String tenantOrDefault(String tenantId) {
+        return tenantId == null || tenantId.isBlank() ? DEFAULT_TENANT_ID : tenantId;
+    }
+
     private Long id;
 
     private String packageId;

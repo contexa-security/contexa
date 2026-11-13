@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.official.persistence;
 
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationSnapshotCompletionRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -14,12 +15,13 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate");
     }
 
+    /** A package stored without a tenant belongs to the deployment default tenant, as it does when it is verified. */
     @Override
     public boolean sealedEvidencePackageExists(String packageId, String tenantId) {
         return count("""
                 select count(*) from ctxa_sealed_evidence_package
-                 where package_id = ? and tenant_id = ?
-                """, packageId, tenantId) > 0;
+                 where package_id = ? and coalesce(nullif(tenant_id, ''), ?) = ?
+                """, packageId, SealedEvidencePackage.DEFAULT_TENANT_ID, tenantId) > 0;
     }
 
     @Override

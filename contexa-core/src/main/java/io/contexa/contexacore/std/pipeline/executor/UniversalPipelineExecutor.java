@@ -88,10 +88,27 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
         context.addMetadata("targetResponseType", responseType);
 
         return executeStepsSequentially(request, configuration, context, responseType)
-                .map(ctx -> context.getStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, responseType))
+                .flatMap(ctx -> result(context, request, responseType))
                 .doOnError(error ->
                         log.error("[PIPELINE] Pipeline failed - Request: {} - {}",
                                 request.getRequestId(), error.getMessage(), error));
+    }
+
+    /**
+     * The response the postprocessing step left for the requested type. When the model gave nothing usable, that step
+     * leaves a fallback of another type (or nothing); the pipeline then fails with that reason instead of mapping null.
+     */
+    private static <T extends DomainContext, R extends AIResponse> Mono<R> result(
+            PipelineExecutionContext context, AIRequest<T> request, Class<R> responseType) {
+        R result = context.getStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, responseType);
+        if (result != null) {
+            return Mono.just(result);
+        }
+        Object produced = context.getStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, Object.class);
+        return Mono.error(new IllegalStateException("Pipeline produced no " + responseType.getSimpleName()
+                + " for request " + request.getRequestId() + ": postprocessing gave "
+                + (produced == null ? "no result" : produced.getClass().getSimpleName())
+                + " (the model returned no usable answer)"));
     }
 
     @Override

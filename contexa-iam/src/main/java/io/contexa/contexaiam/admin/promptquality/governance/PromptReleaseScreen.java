@@ -37,7 +37,9 @@ public final class PromptReleaseScreen {
     /** The reasons a rollback or its approval is refused (PromptBundleRollbackService). */
     public static final List<String> REFUSALS = List.of("SOURCE_NOT_EXECUTING", "TARGET_NOT_IN_BUILD",
             "TARGET_NOT_DECLARED", "VOCABULARY_INCOMPATIBLE", "TARGET_NOT_REGISTERED", "POLICY_SET_MISSING",
-            "EXECUTION_NOT_FOUND", "NOT_AWAITING_APPROVAL", "APPROVER_IS_ACTOR");
+            "EXECUTION_NOT_FOUND", "NOT_AWAITING_APPROVAL", "APPROVER_IS_ACTOR", "REQUEST_REQUIRED",
+            "REGISTRY_SCOPE_REQUIRED", "PROMPT_KEY_REQUIRED", "FROM_VERSION_REQUIRED", "TO_VERSION_REQUIRED",
+            "REASON_REQUIRED");
 
     /** The statuses a recorded rollback execution can have. */
     public static final List<String> EXECUTIONS = List.of(PromptBundleRollbackService.EXECUTED,

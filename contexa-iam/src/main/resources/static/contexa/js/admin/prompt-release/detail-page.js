@@ -14,6 +14,7 @@ const rationale = document.querySelector('[data-pr-rationale]');
 const outcome = document.querySelector('[data-pr-outcome]');
 const rollbackForm = document.querySelector('[data-pr-rollback]');
 const rollbackNote = document.querySelector('[data-pr-rollback-note]');
+let rollbackOffered = false;
 
 function fact(name, value) {
     const node = document.querySelector(`[data-pr-fact="${name}"]`);
@@ -170,13 +171,24 @@ function executionRow(execution) {
     ]);
 }
 
+/**
+ * A rollback is offered only when the server's own conditions would accept it: the bundle executes (active or canary)
+ * in the scope, and a declared target is in this build and registered in the scope. Otherwise the form stays off and
+ * says why, so that no refused execution is recorded for a rollback that cannot run.
+ */
 function renderRollback(detail) {
-    const targets = detail.manifest?.rollbackTargets || [];
+    const declared = detail.manifest?.rollbackTargets || [];
+    const readiness = detail.rollbackReadiness || {sourceExecuting: false, targets: []};
+    const runnable = (readiness.targets || []).filter((target) => target.inBuild && target.registered)
+        .map((target) => target.version);
     const select = rollbackForm.elements.toVersion;
-    select.replaceChildren(...targets.map((target) => el('option', {value: target, text: target})));
+    select.replaceChildren(...runnable.map((target) => el('option', {value: target, text: target})));
     rollbackForm.elements.reason.required = true;
-    rollbackForm.querySelector('[data-pr-rollback-run]').disabled = !targets.length;
-    rollbackNote.textContent = targets.length ? '' : t('promptRelease.rollback.noTargets');
+    rollbackOffered = Boolean(readiness.sourceExecuting) && runnable.length > 0;
+    rollbackForm.querySelector('[data-pr-rollback-run]').disabled = !rollbackOffered;
+    rollbackNote.textContent = !declared.length ? t('promptRelease.rollback.noTargets')
+        : !readiness.sourceExecuting ? t('promptRelease.rollback.notExecuting')
+            : !runnable.length ? t('promptRelease.rollback.noRunnableTargets') : '';
     fillTable(document.querySelector('[data-pr-executions]'), (detail.rollbacks || []).map(executionRow), 9);
 }
 
@@ -232,13 +244,16 @@ rollbackForm.addEventListener('submit', async (event) => {
             showOutcome(t('promptRelease.rollback.refused'), answer.body.refusals || [], 'refusal');
             await load();
             setStatus(status, t('promptRelease.rollback.refused'), 'error');
+        } else if (answer.status === 400 && answer.body) {
+            showOutcome(t('promptRelease.rollback.incomplete'), answer.body.refusals || [], 'refusal');
+            setStatus(status, t('promptRelease.rollback.incomplete'), 'error');
         } else {
             setStatus(status, t('promptRelease.common.error'), 'error');
         }
     } catch (error) {
         setStatus(status, t('promptRelease.common.error'), 'error');
     } finally {
-        button.disabled = !rollbackForm.elements.toVersion.options.length;
+        button.disabled = !rollbackForm.elements.toVersion.options.length || !rollbackOffered;
     }
 });
 

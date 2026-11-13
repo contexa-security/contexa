@@ -40,7 +40,8 @@ public class PromptReleasePageController {
                     "gate.applied", "gate.refused", "build.present", "build.absent", "build.hashDiffers",
                     "canary.percent", "canary.tenants", "canary.families", "action.transition", "action.approve",
                     "rollback.executed", "rollback.awaiting", "rollback.approved", "rollback.refused",
-                    "rollback.noTargets", "rollback.reasonRequired", "compare.changed", "compare.same",
+                    "rollback.noTargets", "rollback.reasonRequired", "rollback.notExecuting",
+                    "rollback.noRunnableTargets", "rollback.incomplete", "compare.changed", "compare.same",
                     "compare.notInBuild", "compare.cases", "compare.unpaired", "compare.noShadow",
                     "compare.decisionSeal", "compare.shadowSeal", "compare.thisBundle", "compare.otherBundle",
                     "compare.noEvaluation", "evidence.scenarioFamilies")

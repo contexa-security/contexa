@@ -139,6 +139,18 @@ class PromptReleaseActionContractTest {
                 .andExpect(jsonPath("$.refusals[0]").value("APPROVER_IS_ACTOR"));
     }
 
+    /** IAM-D25: an empty or incomplete rollback request is a 400 naming what is missing, not a 500. */
+    @Test
+    void anIncompleteRollbackIsABadRequestWithWhatIsMissing() throws Exception {
+        when(rollbacks.rollback(any(), eq("operator-a"))).thenReturn(new PromptBundleRollbackService.Result(null,
+                PromptBundleRollbackService.INCOMPLETE, null, List.of("REQUEST_REQUIRED")));
+
+        mvc.perform(post(ROOT + "/rollback").principal(operator))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value("INCOMPLETE"))
+                .andExpect(jsonPath("$.refusals[0]").value("REQUEST_REQUIRED"));
+    }
+
     private static String transitionBody(String target) {
         return "{\"registryScope\":\"PLATFORM_GLOBAL\",\"promptKey\":\"" + KEY + "\",\"promptVersion\":\"" + VERSION
                 + "\",\"targetReleaseStatus\":\"" + target + "\",\"rationale\":\"N-GOV-4 test\"}";

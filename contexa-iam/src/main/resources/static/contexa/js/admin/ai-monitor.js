@@ -14,9 +14,23 @@
     const exportLink = document.getElementById('ai-monitor-export');
     const endpoint = `/contexa/admin/api/ai-monitor/${section}`;
 
+    function consoleUrl(path) {
+        return window.ContexaConsole && typeof window.ContexaConsole.url === 'function' ? window.ContexaConsole.url(path) : path;
+    }
+
+    // A readiness recommendation is a code (INSUFFICIENT_DATA, DO_NOT_RECOMMEND, KEEP_MONITORING); the page shows it in
+    // its language from data-recommendation-* (an unknown code is shown as it is).
+    function recommendationText(code) {
+        if (!code) return '';
+        const key = 'recommendation' + String(code).toLowerCase().split('_')
+            .map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('');
+        return labels[key] || String(code);
+    }
+
     if (exportLink) {
         const exportType = section === 'overview' ? 'overview' : section;
-        exportLink.href = `/contexa/admin/api/ai-monitor/export.csv?period=${encodeURIComponent(period)}&type=${encodeURIComponent(exportType)}`;
+        // A link is not a fetch: the console's context path is put in front here (console-net.js, IAM-D63).
+        exportLink.href = consoleUrl(`/contexa/admin/api/ai-monitor/export.csv?period=${encodeURIComponent(period)}&type=${encodeURIComponent(exportType)}`);
     }
 
     fetch(`${endpoint}?period=${encodeURIComponent(period)}`, {headers: {'Accept': 'application/json'}})
@@ -125,19 +139,19 @@
         const rows = blockers.length ? blockers.map(item => `
             <div class="ai-monitor-list-row"><span><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.action)}</small></span><span>${escapeHtml(item.current)} / ${escapeHtml(item.required)}</span></div>`).join('')
             : `<div class="ai-monitor-muted">${escapeHtml(labels.labelNoData || '')}</div>`;
-        return card(labels.labelReadiness, `<span class="ai-monitor-status ${data.recommendation === 'DO_NOT_RECOMMEND' ? 'bad' : 'good'}">${escapeHtml(data.recommendation)}</span><div class="ai-monitor-list">${rows}</div>`);
+        return card(labels.labelReadiness, `<span class="ai-monitor-status ${data.recommendation === 'DO_NOT_RECOMMEND' ? 'bad' : 'good'}">${escapeHtml(recommendationText(data.recommendation))}</span><div class="ai-monitor-list">${rows}</div>`);
     }
 
     function currentSessionCard(item) {
         if (!item) return card(labels.labelCurrentSession, empty());
         return card(labels.labelCurrentSession, `<div class="ai-monitor-list">
-            ${pair(labels.labelId, item.sessionId)}${pair(labels.labelFrom, item.from)}${pair(labels.labelTo, item.to)}${pair(labels.labelLlmDecisions, item.llmDecisionCount)}${pair(labels.labelReadiness, item.recommendation)}
+            ${pair(labels.labelId, item.sessionId)}${pair(labels.labelFrom, item.from)}${pair(labels.labelTo, item.to)}${pair(labels.labelLlmDecisions, item.llmDecisionCount)}${pair(labels.labelReadiness, recommendationText(item.recommendation))}
         </div>`);
     }
 
     function previousSessionsCard(items) {
         if (!Array.isArray(items) || !items.length) return card(labels.labelPreviousSessions, `<div class="ai-monitor-muted">${escapeHtml(labels.labelNoPrevious || '')}</div>`);
-        const rows = items.map(item => `<tr><td>${escapeHtml(item.endedAt)}</td><td>${number(item.llmDecisionCount)}</td><td>${percent(item.failureRate)}</td><td>${escapeHtml(item.recommendation)}</td></tr>`).join('');
+        const rows = items.map(item => `<tr><td>${escapeHtml(item.endedAt)}</td><td>${number(item.llmDecisionCount)}</td><td>${percent(item.failureRate)}</td><td>${escapeHtml(recommendationText(item.recommendation))}</td></tr>`).join('');
         return card(labels.labelPreviousSessions, `<table class="ai-monitor-table"><thead><tr><th>${escapeHtml(labels.labelEndedAt)}</th><th>${escapeHtml(labels.labelLlmDecisions)}</th><th>${escapeHtml(labels.labelFailureRate)}</th><th>${escapeHtml(labels.labelReadiness)}</th></tr></thead><tbody>${rows}</tbody></table>`);
     }
 
@@ -145,10 +159,17 @@
         return card(labels.labelReset, `<button type="button" class="ai-monitor-button danger" id="ai-monitor-reset">${escapeHtml(labels.labelReset)}</button>`);
     }
 
+    // The second prompt names the word to type (the server's confirmation word), and a wrong word stops here, before the
+    // reason is asked. A refusal from the server is shown by its reason in the page language, not as a bare HTTP status.
     function resetMonitoring() {
         if (!window.confirm(labels.labelResetConfirm || '')) return;
-        const confirmationText = window.prompt(labels.labelResetConfirm || '', '');
+        const confirmationText = window.prompt(labels.labelResetTypeConfirm || '', '');
         if (confirmationText === null) return;
+        const required = root.dataset.resetConfirmation || '';
+        if (required && confirmationText.trim() !== required) {
+            window.alert(labels.labelResetMismatch || '');
+            return;
+        }
         const reason = window.prompt(labels.labelResetReason || '', '');
         if (reason === null) return;
         const headers = {'Accept': 'application/json', 'Content-Type': 'application/json'};
@@ -156,10 +177,28 @@
         fetch('/contexa/admin/api/ai-monitor/reset', {
             method: 'POST', headers,
             body: JSON.stringify({reason, confirmationText})
-        }).then(response => {
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return response.json();
-        }).then(() => window.location.reload()).catch(error => window.alert(`${labels.labelResetFailed || ''}${error.message}`));
+        }).then(async response => {
+            if (response.ok) return response.json();
+            const body = await response.json().catch(() => null);
+            const failure = new Error(resetFailure(response.status, body));
+            failure.explained = true;
+            throw failure;
+        }).then(() => window.location.reload())
+            .catch(error => window.alert(error.explained ? error.message : failedWith(error.message)));
+    }
+
+    // A known refusal is said by its reason in the page language; any other failure carries the server's own message
+    // (its problem detail), and the bare HTTP status only when the server sent none.
+    function resetFailure(status, body) {
+        if (body && body.code === 'RESET_CONFIRMATION_MISMATCH') return labels.labelResetMismatch || '';
+        if (status === 401 || status === 403) return labels.labelResetForbidden || '';
+        const detail = body && (body.detail || body.message);
+        return failedWith(detail || `HTTP ${status}`);
+    }
+
+    function failedWith(reason) {
+        const prefix = String(labels.labelResetFailed || '').trim();
+        return prefix ? `${prefix} ${reason}` : String(reason);
     }
 
     function metricCard(label, value) {
