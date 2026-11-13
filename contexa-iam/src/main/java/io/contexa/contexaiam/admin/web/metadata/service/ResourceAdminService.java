@@ -131,7 +131,7 @@ public class ResourceAdminService {
         // has a permission or a policy. Run on any other, it reset a defined or connected resource to "needs
         // definition" while its permission and policies stayed.
         ManagedResource resource = managedResourceRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(message("msg.resource.not.found.id", id)));
+                .orElseThrow(() -> new IllegalArgumentException(message("msg.resource.not.found.id", String.valueOf(id))));
         if (resource.getStatus() != ManagedResource.Status.EXCLUDED) {
             throw new IllegalStateException(message("msg.resource.restore.invalid.status", resource.getStatus()));
         }

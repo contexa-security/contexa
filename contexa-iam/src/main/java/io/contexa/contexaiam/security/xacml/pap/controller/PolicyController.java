@@ -242,7 +242,7 @@ public class PolicyController {
         try {
             String approver = extractCurrentUsername();
             policyService.approvePolicy(id, approver);
-            ra.addFlashAttribute("message", msg("msg.policy.approved", id));
+            ra.addFlashAttribute("message", msg("msg.policy.approved", String.valueOf(id)));
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", ConsoleFault.report(e, log, "approve policy " + id));
         }
@@ -255,7 +255,7 @@ public class PolicyController {
         try {
             String rejector = extractCurrentUsername();
             policyService.rejectPolicy(id, rejector);
-            ra.addFlashAttribute("message", msg("msg.policy.rejected", id));
+            ra.addFlashAttribute("message", msg("msg.policy.rejected", String.valueOf(id)));
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", ConsoleFault.report(e, log, "reject policy " + id));
         }

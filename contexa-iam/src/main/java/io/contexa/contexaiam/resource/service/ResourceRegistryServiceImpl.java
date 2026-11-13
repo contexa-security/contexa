@@ -459,7 +459,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     @Transactional(transactionManager = "contexaTransactionManager")
     public void excludeResourceFromManagement(Long resourceId) {
         ManagedResource resource = managedResourceRepository.findById(resourceId)
-                .orElseThrow(() -> new IllegalArgumentException(msg("msg.resource.not.found.id", resourceId)));
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.resource.not.found.id", String.valueOf(resourceId))));
         if (resource.getStatus() != ManagedResource.Status.NEEDS_DEFINITION) {
             throw new IllegalStateException(msg("msg.resource.exclude.invalid.status", resource.getStatus()));
         }

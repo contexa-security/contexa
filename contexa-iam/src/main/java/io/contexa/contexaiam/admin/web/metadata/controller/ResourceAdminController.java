@@ -132,7 +132,7 @@ public class ResourceAdminController {
             RedirectAttributes ra) {
         try {
             resourceAdminService.updateManagementStatus(id, managementForm);
-            ra.addFlashAttribute("message", resourceAdminService.message("msg.resource.status.changed", id));
+            ra.addFlashAttribute("message", resourceAdminService.message("msg.resource.status.changed", String.valueOf(id)));
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", resourceAdminService.message("msg.resource.status.change.error",
                     ConsoleFault.textOf(e, log, "change the management status of resource " + id)));
