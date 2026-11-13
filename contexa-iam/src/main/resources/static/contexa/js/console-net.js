@@ -12,8 +12,11 @@
  * - 401 with code ZERO_TRUST_CHALLENGE (a JSON request): the page goes to the challenge notice.
  * - 503 MFA_BUSY_RETRY (the challenge is being prepared by a request sent at the same moment): the request is sent
  *   again after Retry-After; the filter answers it before any handler, so nothing was done the first time.
- * - 403: the current page is asked again as a JSON request; when that answer is a challenge, the page reloads and the
- *   browser is sent to the notice.
+ * - Any other 401, and 403: the current page is asked again as a JSON request; when that answer is a challenge, the page
+ *   reloads and the browser is sent to the notice.
+ *
+ * What a page script may leave unsaid is told by a notice at the top of the page: the session ended (the page asked
+ * again no longer opens), or the server could not be reached (taken away by the next answer).
  *
  * ContexaConsole.fetchJson() is the call for page scripts that show the reason of a failure: it rejects with the
  * message of the server, or with a sentence saying the server could not be reached.
@@ -161,34 +164,75 @@
     }
 
     var nativeFetch = global.fetch;
-    var challengeProbe = null;
+    var pageProbe = null;
 
-    /** Whether the session is under a challenge: the current page asked again as a JSON request answers so. */
-    function underChallenge() {
-        if (!challengeProbe) {
-            challengeProbe = nativeFetch.call(global, global.location.href.split('#')[0], {
+    function pathOf(address) {
+        try {
+            return new URL(address, global.location.href).pathname;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /** Whether an answer asks for a verification step (a challenge, a block to resolve) rather than a sign-in. */
+    function asksVerification(body) {
+        return !!body && (body.code === CHALLENGE_CODE || body.error === BUSY_RETRY || !!body.mfaUrl);
+    }
+
+    /**
+     * The state of the session, read by asking the current page again as a JSON request: "challenge" when a verification
+     * stands in its way, "ended" when it no longer opens for want of a sign-in (a 401, or a redirect to another page),
+     * "open" otherwise. A refused request alone does not say which: a 401 or 403 may also be the answer of one handler.
+     */
+    function pageState() {
+        if (!pageProbe) {
+            pageProbe = nativeFetch.call(global, global.location.href.split('#')[0], {
                 method: 'GET',
                 credentials: 'same-origin',
                 cache: 'no-store',
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
             }).then(function (answer) {
                 if (answer.redirected && isDecisionScreen(answer.url)) {
-                    return true;
+                    return 'challenge';
+                }
+                if (answer.redirected && pathOf(answer.url) !== global.location.pathname) {
+                    return 'ended';
                 }
                 if (answer.status !== 401 && answer.status !== 503) {
-                    return false;
+                    return 'open';
                 }
                 return jsonOf(answer).then(function (body) {
-                    return !!body && (body.code === CHALLENGE_CODE || body.error === BUSY_RETRY);
+                    if (asksVerification(body)) {
+                        return 'challenge';
+                    }
+                    return answer.status === 401 ? 'ended' : 'open';
                 });
             }).catch(function () {
-                return false;
-            }).then(function (challenged) {
-                challengeProbe = null;
-                return challenged;
+                return 'open';
+            }).then(function (state) {
+                pageProbe = null;
+                return state;
             });
         }
-        return challengeProbe;
+        return pageProbe;
+    }
+
+    /**
+     * A refused request (401, or 403 as a stale CSRF token after the session ended is answered) settles by the state of
+     * the session: a verification reloads the page, which the browser follows to it; an ended session is told on the
+     * page, with a link that opens the page again and so reaches the sign-in of whatever guards it.
+     */
+    function afterRefusal(response) {
+        return pageState().then(function (state) {
+            if (state === 'challenge') {
+                return leaveFor(null);
+            }
+            if (state === 'ended') {
+                notice('session', text('session-ended', 'Your session has ended. Sign in again to go on.'),
+                    { text: text('sign-in', 'Sign in'), href: global.location.href.split('#')[0] });
+            }
+            return response;
+        });
     }
 
     function retryAfterMillis(response, body) {
@@ -219,8 +263,11 @@
                 if (body && body.code === CHALLENGE_CODE) {
                     return leaveFor(body.challengeNoticeUrl || body.mfaUrl || null);
                 }
-                return response;
+                return afterRefusal(response);
             });
+        }
+        if (response.ok) {
+            clearNotice('offline');
         }
         if (response.status === 503) {
             return jsonOf(response).then(function (body) {
@@ -235,9 +282,7 @@
             });
         }
         if (response.status === 403) {
-            return underChallenge().then(function (challenged) {
-                return challenged ? leaveFor(null) : response;
-            });
+            return afterRefusal(response);
         }
         return response;
     }
@@ -246,7 +291,52 @@
         var input = call.input instanceof Request ? call.input.clone() : call.input;
         return nativeFetch.call(global, input, call.init).then(function (response) {
             return settle(response, call, attempt);
+        }, function (error) {
+            if (call.sameOrigin && !(error && error.name === 'AbortError')) {
+                notice('offline', text('offline',
+                    'The server could not be reached. Check the network connection and try again.'), null);
+            }
+            throw error;
         });
+    }
+
+    var NOTICE_ID = 'contexa-net-notice';
+
+    /**
+     * A notice at the top of the page for what a page script may leave unsaid: the session ended, or the server could not
+     * be reached. One notice at a time, the newer replacing the older; a page script's own message stays as it is.
+     */
+    function notice(kind, message, link) {
+        if (!document.body) {
+            return;
+        }
+        var box = document.getElementById(NOTICE_ID);
+        if (!box) {
+            box = document.createElement('div');
+            box.id = NOTICE_ID;
+            box.setAttribute('role', 'alert');
+            box.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:10000;max-width:90%;'
+                + 'padding:10px 16px;border-radius:8px;background:#7f1d1d;color:#fff;font-size:14px;'
+                + 'box-shadow:0 4px 12px rgba(0,0,0,.3)';
+            document.body.appendChild(box);
+        }
+        box.setAttribute('data-kind', kind);
+        box.textContent = message;
+        if (link) {
+            var anchor = document.createElement('a');
+            anchor.href = link.href;
+            anchor.textContent = link.text;
+            anchor.style.cssText = 'margin-left:8px;color:#fff;text-decoration:underline;font-weight:600';
+            box.appendChild(anchor);
+        }
+    }
+
+    /** Takes the notice away once what it said is over (an answer arrived after the server could not be reached). */
+    function clearNotice(kind) {
+        var box = document.getElementById(NOTICE_ID);
+        if (box && box.getAttribute('data-kind') === kind) {
+            box.parentNode.removeChild(box);
+        }
     }
 
     function prepare(input, init) {

@@ -109,7 +109,7 @@ public class SealedDecisionReplayService {
     }
 
     /**
-     * What the second pass Layer2 would ask answered with one model (판정층 7절), after a first pass replay that
+     * What the second pass Layer2 would ask answered with one model (decision layer design, section 7), after a first pass replay that
      * answered ESCALATE.
      *
      * @param requestedModel the model the second pass was asked with
@@ -129,7 +129,7 @@ public class SealedDecisionReplayService {
 
     /**
      * The replay, and when it answers ESCALATE the second pass Layer2 would ask, once per given model in that order
-     * (판정층 7절: the same second pass on different models).
+     * (decision layer design, section 7: the same second pass on different models).
      */
     public Result replay(SealedEvidencePackage sealed, BaselineVector personalBaseline,
                          BaselineVector organizationBaseline, String bundleVersion, Duration timeout,

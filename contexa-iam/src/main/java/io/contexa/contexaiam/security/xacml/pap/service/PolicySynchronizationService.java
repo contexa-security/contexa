@@ -24,12 +24,17 @@ import io.contexa.contexaiam.domain.dto.RuleDto;
 import io.contexa.contexaiam.domain.dto.TargetDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
+import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +53,34 @@ public class PolicySynchronizationService {
     private final PolicyRepository policyRepository;
     private final RoleRepository roleRepository;
     private final PolicyService policyService;
+    /** The resources whose state follows the automatic policies (N-4); without it their state is left as it is. */
+    @Nullable
+    private ManagedResourceRepository managedResourceRepository;
+
+    public void setManagedResourceRepository(@Nullable ManagedResourceRepository managedResourceRepository) {
+        this.managedResourceRepository = managedResourceRepository;
+    }
+
+    /**
+     * Earlier versions left an automatic policy with no target when its role kept no permission that guards a resource:
+     * active, with a condition that is always false. It says nothing and is deleted once at the start (N-4); the role,
+     * its permissions and their resources stay.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional(transactionManager = "contexaTransactionManager")
+    public void removeAutomaticPoliciesWithoutTargets() {
+        for (Policy policy : policyRepository.findAllWithDetails()) {
+            if (policy.getName() != null && policy.getName().startsWith(AUTO_POLICY_PREFIX)
+                    && (policy.getTargets() == null || policy.getTargets().isEmpty())) {
+                log.info("An automatic policy with no target is deleted. policyId={}, name={}", policy.getId(),
+                        policy.getName());
+                policyService.deleteAutomaticPolicy(policy.getId(),
+                        "Auto-cleanup: automatic policy without a target - " + policy.getName());
+            }
+        }
+    }
+
+    private static final String AUTO_POLICY_PREFIX = "AUTO_POLICY_FOR_";
 
     /**
      * Runs once the transaction that changed the role has committed: run earlier, on another thread, it would not see
@@ -136,5 +169,25 @@ public class PolicySynchronizationService {
                 },
                 () -> policyService.createPolicy(policyDto)
         );
+        connectResources(role);
+    }
+
+    /**
+     * The resources the automatic policy now targets are connected to a policy, as when the policy center makes one
+     * (N-4): they stayed PERMISSION_CREATED. A resource the policy no longer targets is released by the update itself.
+     */
+    private void connectResources(Role role) {
+        if (managedResourceRepository == null) {
+            return;
+        }
+        role.getRolePermissions().stream()
+                .map(rp -> rp.getPermission().getManagedResource())
+                .filter(Objects::nonNull)
+                .filter(resource -> resource.getStatus() == ManagedResource.Status.PERMISSION_CREATED)
+                .distinct()
+                .forEach(resource -> {
+                    resource.setStatus(ManagedResource.Status.POLICY_CONNECTED);
+                    managedResourceRepository.save(resource);
+                });
     }
 }
