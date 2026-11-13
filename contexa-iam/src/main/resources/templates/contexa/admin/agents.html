@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
-<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.agents.title})}"></th:block></head>
+<head><th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{menu.agents.list})}"></th:block></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{contexa/fragments/header :: header}"></div>
@@ -13,7 +13,7 @@
     <main class="flex-1 p-6 md:p-10" style="min-width:0;">
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
             <div class="mb-8 text-center sm:text-left">
-                <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.agents.title}">Agents</h1>
+                <h1 class="text-3xl font-bold text-gradient" th:text="#{menu.agents.list}">Agents</h1>
                 <p class="text-dark-muted mt-1" th:text="#{admin.agents.subtitle}">Agents seen in requests and registered by identity providers</p>
             </div>
 

@@ -591,6 +591,9 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **A code asked for again inside the resend interval says so.** The button waits and the page says how many seconds are
   left; before, nothing was mailed and nothing was said.
 - **The password change page lists the maximum length and the reuse rule** of the policy in force.
+- **A console page is titled with the name of its menu entry.** The dashboard was "IAM Dashboard" on the Korean screen, the
+  group, role and permission pages were "lists" of entries named "management", the four AI security monitor tabs shared one
+  title, and the prompt-quality pages spelled their names differently from the menu.
 - **The code of an MFA step is the six digits its page asks for.** It was a 36-character value under a page that asked for
   six digits. The six digits are stored under the step's user and looked up only with that user, so the same digits of two
   users do not meet and a code of another user is neither found nor spent; the step limits the attempts as before. A
