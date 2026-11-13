@@ -21,6 +21,9 @@
                 </h1>
                 <p class="text-sm mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.subtitle}">Audit log based Zero Trust security event monitoring</p>
             </div>
+            <div th:if="${errorMessage}" class="rounded-lg p-3 mb-6 text-sm" role="alert"
+                 style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.4); color: #fca5a5;"
+                 th:text="${errorMessage}">Not found</div>
 
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
                 <a th:href="@{/contexa/admin/security-monitor(hours=${hours}, keyword=${keyword})}" class="rounded-lg p-3 text-center" style="background: rgba(30,41,59,0.6); border: 1px solid rgba(71,85,105,0.4); text-decoration: none;">

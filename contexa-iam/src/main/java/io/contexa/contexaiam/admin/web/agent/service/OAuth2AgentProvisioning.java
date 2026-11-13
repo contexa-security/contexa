@@ -21,6 +21,7 @@ import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexaiam.common.ConsoleInput;
 import io.contexa.contexacore.autonomous.agent.AgentRegistration;
 import io.contexa.contexacore.autonomous.agent.AgentRegistrationRequest;
 import io.contexa.contexacore.autonomous.agent.AgentRegistrationSource;
@@ -32,6 +33,8 @@ import io.contexa.contexacore.autonomous.service.UserEngineStatePurgeResult;
 import io.contexa.contexacore.autonomous.service.UserEngineStatePurger;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.context.MessageSource;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.lang.Nullable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
@@ -51,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 
@@ -67,7 +71,16 @@ public class OAuth2AgentProvisioning implements AgentProvisioning {
     /** The domain of an agent account's address (RFC 2606 reserved): no mail ever reaches an agent. */
     public static final String ACCOUNT_EMAIL_DOMAIN = "@agents.invalid";
 
+    /** The longest lifetime an agent's access token may be given: a day. The form offers minutes from 1. */
+    public static final Duration MAX_TOKEN_LIFETIME = Duration.ofDays(1);
+
     private static final SecureRandom RANDOM = new SecureRandom();
+    /** The lengths of the columns an agent's values are kept in: the registration, the OAuth2 client, the account. */
+    private static final int AGENT_COLUMN_LENGTH = 255;
+    private static final int CLIENT_ID_LENGTH = 100;
+    private static final int CLIENT_NAME_LENGTH = 200;
+    private static final int SCOPES_LENGTH = 1000;
+    private static final int USERNAME_LENGTH = 100;
 
     private final AgentRegistry registry;
     private final RegisteredClientRepository clients;
@@ -79,6 +92,7 @@ public class OAuth2AgentProvisioning implements AgentProvisioning {
     private final CentralAuditFacade auditFacade;
     private final Duration defaultTokenLifetime;
     private UserEngineStatePurger engineStatePurger;
+    private MessageSource messages = englishInputMessages();
 
     public OAuth2AgentProvisioning(AgentRegistry registry, RegisteredClientRepository clients,
                                    PasswordEncoder passwordEncoder, @Nullable JdbcOperations jdbc,
@@ -105,6 +119,22 @@ public class OAuth2AgentProvisioning implements AgentProvisioning {
         this.engineStatePurger = engineStatePurger;
     }
 
+    /** IAM-D67: the refusals of a value too long for its column, in the administrator's language. */
+    public void setMessageSource(@Nullable MessageSource messageSource) {
+        this.messages = messageSource != null ? messageSource : englishInputMessages();
+    }
+
+    /** The texts of the input refusals where the console's messages are not at hand. */
+    private static MessageSource englishInputMessages() {
+        Properties texts = new Properties();
+        texts.setProperty("msg.input.required", "{0} is required.");
+        texts.setProperty("msg.input.too.long", "{0} can be at most {1} characters ({2} entered).");
+        StaticMessageSource english = new StaticMessageSource();
+        english.setCommonMessages(texts);
+        english.setUseCodeAsDefaultMessage(true);
+        return english;
+    }
+
     @Override
     public boolean available() {
         return true;
@@ -116,7 +146,25 @@ public class OAuth2AgentProvisioning implements AgentProvisioning {
             throw new IllegalArgumentException("A registration is required");
         }
         String agentId = required(request.agentId(), "An agent identifier is required");
-        String sponsor = required(request.sponsorId(), "A sponsor (the person accountable for the agent) is required");
+        boolean account = Boolean.TRUE.equals(request.account());
+        // IAM-D67: a value longer than its column is refused with its field, before anything is written. The agent's
+        // account is named by the agent's ID and the client's name is the agent's name, so their columns bound them too.
+        ConsoleInput.unchanged(messages, "admin.agents.register.agent.id", agentId,
+                account ? USERNAME_LENGTH : AGENT_COLUMN_LENGTH);
+        ConsoleInput.optional(messages, "admin.agents.register.display.name", request.displayName(),
+                account ? USERNAME_LENGTH : CLIENT_NAME_LENGTH);
+        ConsoleInput.optional(messages, "admin.agents.register.agent.type", request.agentType(), AGENT_COLUMN_LENGTH);
+        ConsoleInput.optional(messages, "admin.agents.detail.tenant", request.tenantId(), AGENT_COLUMN_LENGTH);
+        ConsoleInput.optional(messages, "admin.agents.register.client.id",
+                text(request.clientId()) != null ? text(request.clientId()) : agentId + "-client", CLIENT_ID_LENGTH);
+        ConsoleInput.optional(messages, "admin.agents.register.scopes", String.join(" ", scopes(request.scopes())),
+                SCOPES_LENGTH);
+        String sponsor = sponsor(request.sponsorId());
+        if (request.tokenLifetime() != null && (request.tokenLifetime().isNegative() || request.tokenLifetime().isZero()
+                || request.tokenLifetime().compareTo(MAX_TOKEN_LIFETIME) > 0)) {
+            throw new IllegalArgumentException("The token lifetime must be from 1 to " + MAX_TOKEN_LIFETIME.toMinutes()
+                    + " minutes");
+        }
         boolean ownToken = !Boolean.FALSE.equals(request.ownToken());
         boolean actsForPeople = !Boolean.FALSE.equals(request.actsForPeople());
         if (!ownToken && !actsForPeople) {
@@ -136,7 +184,6 @@ public class OAuth2AgentProvisioning implements AgentProvisioning {
         if (userRepository != null && userRepository.findByUsername(clientId).isPresent()) {
             throw new IllegalArgumentException("An account named " + clientId + " already exists");
         }
-        boolean account = Boolean.TRUE.equals(request.account());
         List<Long> groupIds = account ? groupIds(request.accountGroups()) : List.of();
         if (account) {
             requireAccounts();
@@ -144,8 +191,7 @@ public class OAuth2AgentProvisioning implements AgentProvisioning {
                 throw new IllegalArgumentException("An account named " + agentId + " already exists");
             }
         }
-        Duration lifetime = request.tokenLifetime() != null && !request.tokenLifetime().isNegative()
-                && !request.tokenLifetime().isZero() ? request.tokenLifetime() : defaultTokenLifetime;
+        Duration lifetime = request.tokenLifetime() != null ? request.tokenLifetime() : defaultTokenLifetime;
         String secret = secret();
         Set<String> scopes = scopes(request.scopes());
         RegisteredClient.Builder client = RegisteredClient.withId(UUID.randomUUID().toString())
@@ -205,7 +251,7 @@ public class OAuth2AgentProvisioning implements AgentProvisioning {
     @Override
     public AgentRegistration transferSponsor(@Nullable String tenantId, String agentId, String sponsorId,
                                              String administrator) {
-        String sponsor = required(sponsorId, "A sponsor is required");
+        String sponsor = sponsor(sponsorId);
         AgentRegistration before = known(tenantId, agentId);
         AgentRegistration after = registry.transferSponsor(tenantId, before.agentId(), sponsor).orElseThrow();
         Map<String, Object> details = new LinkedHashMap<>();
@@ -376,6 +422,20 @@ public class OAuth2AgentProvisioning implements AgentProvisioning {
         byte[] bytes = new byte[24];
         RANDOM.nextBytes(bytes);
         return "Ag7!" + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    /**
+     * The sponsor named, refused unless it is an enabled account: the sponsor is the person told when the agent acts
+     * unusually and asked to confirm (by the account's address), and an agent nobody is accountable for is not
+     * registered. Without the accounts at hand only the name is required.
+     */
+    private String sponsor(@Nullable String sponsorId) {
+        String sponsor = required(sponsorId, "A sponsor (the person accountable for the agent) is required");
+        ConsoleInput.unchanged(messages, "admin.agents.register.sponsor", sponsor, AGENT_COLUMN_LENGTH);
+        if (userRepository != null && userRepository.findByUsername(sponsor).filter(Users::isEnabled).isEmpty()) {
+            throw new IllegalArgumentException("The sponsor " + sponsor + " is not an enabled account");
+        }
+        return sponsor;
     }
 
     private static String required(@Nullable String value, String message) {

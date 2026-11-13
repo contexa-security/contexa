@@ -43,8 +43,11 @@ public class IamAdminIpAutoConfiguration {
     @ConditionalOnMissingBean
     public IpManagementController ipManagementController(IpAccessRuleService contexaIpAccessRuleService,
                                                           MessageSource messageSource,
-                                                          CsvExportService contexaCsvExportService) {
-        return new IpManagementController(contexaIpAccessRuleService, messageSource, contexaCsvExportService);
+                                                          CsvExportService contexaCsvExportService,
+                                                          TieredStrategyProperties tieredStrategyProperties) {
+        // The change is checked against the address the IP access filter reads, with the proxies it trusts.
+        return new IpManagementController(contexaIpAccessRuleService, messageSource, contexaCsvExportService,
+                tieredStrategyProperties.getSecurity());
     }
 
     @Bean(name = "contexaIpAccessFilter")

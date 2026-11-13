@@ -101,7 +101,6 @@ public class SystemSettingsService {
         }
         existing.setMissingMethodPolicyDecision(SystemRuntimeSettingsService.parseMissingMethodPolicyDecision(
                 form.getMissingMethodPolicyDecision()).name());
-        existing.setRegistrationEnabled(form.isRegistrationEnabled());
         if (operatorChoseMode(existing, form)) {
             existing.setSecurityZeroTrustMode(
                     SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode()));
@@ -151,25 +150,122 @@ public class SystemSettingsService {
         return submitted != policyCombiningProperties.getNoMatchingUrlPolicyDecision() ? submitted : null;
     }
 
+    /**
+     * Refuses a form with a value the settings may not take, before anything is written: a value out of range, a choice
+     * not on the list, or a default role new users could not be given (one that does not exist, is disabled or is an
+     * expression role, none of which the form lists).
+     */
     private void validate(SystemSettingsForm form) {
         if (form == null) {
             throw new IllegalArgumentException("Settings form is required.");
         }
-        validateRange("auditLogRetentionDays", form.getAuditLogRetentionDays(), 0, 3650);
-        SystemRuntimeSettingsService.parseCombiningAlgorithm(form.getPolicyCombiningAlgorithm());
-        if (StringUtils.hasText(form.getNoMatchingUrlPolicyDecision())) {
-            SystemRuntimeSettingsService.parseNoPolicyDecision(
-                    "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision());
+        Bound retention = Bound.AUDIT_LOG_RETENTION_DAYS;
+        if (form.getAuditLogRetentionDays() < retention.min() || form.getAuditLogRetentionDays() > retention.max()) {
+            throw new SettingRefusedException("admin.system.settings.refused.range", retention.labelKey(),
+                    retention.min(), retention.max());
         }
-        SystemRuntimeSettingsService.parseMissingMethodPolicyDecision(form.getMissingMethodPolicyDecision());
-        SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode());
+        choice("admin.system.settings.combining.algorithm", form.getPolicyCombiningAlgorithm(),
+                () -> SystemRuntimeSettingsService.parseCombiningAlgorithm(form.getPolicyCombiningAlgorithm()));
+        // a form that names no URL decision chose none: the one in effect stays (chosenNoMatchingUrlDecision)
+        if (StringUtils.hasText(form.getNoMatchingUrlPolicyDecision())) {
+            choice("admin.system.settings.no.matching.url.decision", form.getNoMatchingUrlPolicyDecision(),
+                    () -> SystemRuntimeSettingsService.parseNoPolicyDecision(
+                            "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision()));
+        }
+        choice("admin.system.settings.missing.method.decision", form.getMissingMethodPolicyDecision(),
+                () -> SystemRuntimeSettingsService.parseMissingMethodPolicyDecision(form.getMissingMethodPolicyDecision()));
+        choice("admin.system.settings.llm.mode", form.getSecurityZeroTrustMode(),
+                () -> SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode()));
+        String defaultRole = form.getDefaultRole();
+        if (!StringUtils.hasText(defaultRole)) {
+            throw new SettingRefusedException("admin.system.settings.refused.required", "admin.system.settings.default.role");
+        }
+        boolean assignable = roleRepository.findAllRolesWithoutExpression().stream()
+                .anyMatch(role -> role.isEnabled() && defaultRole.equals(role.getRoleName()));
+        if (!assignable) {
+            throw new SettingRefusedException("admin.system.settings.refused.role", null, defaultRole);
+        }
         SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(form.getMvcResourceScannerBasePackages());
     }
 
-    private void validateRange(String field, int value, int min, int max) {
-        if (value < min || value > max) {
-            throw new IllegalArgumentException(field + " must be between " + min + " and " + max + ".");
+    private static void choice(String labelKey, String value, Runnable parse) {
+        try {
+            parse.run();
+        } catch (IllegalArgumentException notAChoice) {
+            SettingRefusedException refused = StringUtils.hasText(value)
+                    ? new SettingRefusedException("admin.system.settings.refused.choice", labelKey, value)
+                    : new SettingRefusedException("admin.system.settings.refused.required", labelKey);
+            // the log keeps what the parse said of the field and the value
+            refused.initCause(notAChoice);
+            throw refused;
         }
     }
 
+    /** A number of the settings, the label it is shown under, and the values it may take. */
+    public enum Bound {
+        AUDIT_LOG_RETENTION_DAYS("auditLogRetentionDays", "admin.system.settings.audit.retention", 0, 3650);
+
+        private final String field;
+        private final String labelKey;
+        private final int min;
+        private final int max;
+
+        Bound(String field, String labelKey, int min, int max) {
+            this.field = field;
+            this.labelKey = labelKey;
+            this.min = min;
+            this.max = max;
+        }
+
+        public String field() {
+            return field;
+        }
+
+        public String labelKey() {
+            return labelKey;
+        }
+
+        public int min() {
+            return min;
+        }
+
+        public int max() {
+            return max;
+        }
+    }
+
+    /**
+     * Settings the console refuses to keep, with the message that says why: the key, the label key of the value that is
+     * refused (null when the refusal names none) and the other arguments.
+     */
+    public static final class SettingRefusedException extends IllegalArgumentException {
+
+        private final String messageKey;
+        private final String labelKey;
+        private final Object[] messageArgs;
+
+        public SettingRefusedException(String messageKey, String labelKey, Object... messageArgs) {
+            super("System settings refused: " + messageKey + (labelKey != null ? " " + labelKey : ""));
+            this.messageKey = messageKey;
+            this.labelKey = labelKey;
+            this.messageArgs = messageArgs;
+        }
+
+        @Override
+        public String getMessage() {
+            return getCause() != null ? super.getMessage() + ": " + getCause().getMessage() : super.getMessage();
+        }
+
+        public String getMessageKey() {
+            return messageKey;
+        }
+
+        public String getLabelKey() {
+            return labelKey;
+        }
+
+        public Object[] getMessageArgs() {
+            return messageArgs.clone();
+        }
+    }
 }

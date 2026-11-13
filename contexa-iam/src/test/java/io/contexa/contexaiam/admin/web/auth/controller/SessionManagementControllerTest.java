@@ -124,6 +124,16 @@ class SessionManagementControllerTest {
         }
 
         @Test
+        @DisplayName("says the person's sign-ins ended when they did")
+        void saysTheSignInsEnded() throws Exception {
+            when(sessionManagementService.invalidateSession("sess-123")).thenReturn(true);
+
+            mockMvc.perform(post("/contexa/admin/session-management/sess-123/invalidate"))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(flash().attribute("message", "admin.session.invalidated.signins"));
+        }
+
+        @Test
         @DisplayName("should redirect with error message when invalidation fails")
         void failure() throws Exception {
             doThrow(new RuntimeException("Lock failed")).when(sessionManagementService).invalidateSession("sess-123");
@@ -148,6 +158,16 @@ class SessionManagementControllerTest {
                     .andExpect(flash().attribute("message", "admin.session.all.invalidated"));
 
             verify(sessionManagementService).invalidateAllSessionsForUser("user-1");
+        }
+
+        @Test
+        @DisplayName("says the person's sign-ins ended when they did")
+        void saysTheSignInsEnded() throws Exception {
+            when(sessionManagementService.invalidateAllSessionsForUser("user-1")).thenReturn(true);
+
+            mockMvc.perform(post("/contexa/admin/session-management/user/user-1/invalidate-all"))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(flash().attribute("message", "admin.session.all.invalidated.signins"));
         }
 
         @Test

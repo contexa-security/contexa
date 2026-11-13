@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.mockito.quality.Strictness.*;
@@ -130,6 +131,47 @@ class PasswordPolicyServiceTest {
             assertThat(result.getPasswordExpiryDays()).isEqualTo(90);
             assertThat(result.getHistoryCount()).isEqualTo(3);
             verify(repository).save(existing);
+        }
+
+        /** IAM-D23: a policy no password can meet, or one that holds no one, is refused and nothing is kept. */
+        @Test
+        @DisplayName("refuses a maximum length below the minimum, and every value outside what it may take")
+        void refusesAPolicyNoOneCanMeet() {
+            assertThatThrownBy(() -> service.updatePolicy(valid().minLength(20).maxLength(10).build()))
+                    .isInstanceOf(PasswordPolicyService.PolicyRefusedException.class)
+                    .extracting("messageKey").isEqualTo("common.validation.min.length.exceeds.max");
+            for (PasswordPolicy refused : List.of(
+                    valid().minLength(0).build(), valid().minLength(-1).build(),
+                    valid().maxLength(0).build(), valid().maxLength(513).build(),
+                    valid().maxFailedAttempts(0).build(), valid().lockoutDurationMinutes(0).build(),
+                    valid().ipMaxFailedAttempts(-1).build(), valid().ipWindowMinutes(0).build(),
+                    valid().passwordExpiryDays(-1).build(), valid().passwordExpiryDays(366).build(),
+                    valid().historyCount(-1).build(), valid().historyCount(25).build())) {
+                assertThatThrownBy(() -> service.updatePolicy(refused))
+                        .isInstanceOf(PasswordPolicyService.PolicyRefusedException.class)
+                        .extracting("messageKey").isEqualTo("admin.password.policy.refused.range");
+            }
+            verify(repository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("keeps the edges of what each value may take, and 0 where 0 turns a rule off")
+        void keepsTheEdges() {
+            when(repository.findAll()).thenReturn(List.of(PasswordPolicy.builder().build()));
+            when(repository.save(any(PasswordPolicy.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            PasswordPolicy edges = service.updatePolicy(PasswordPolicy.builder().minLength(1).maxLength(1)
+                    .maxFailedAttempts(1).lockoutDurationMinutes(1).ipMaxFailedAttempts(0).ipWindowMinutes(1)
+                    .passwordExpiryDays(0).historyCount(0).build());
+
+            assertThat(edges.getMinLength()).isEqualTo(1);
+            assertThat(edges.getIpMaxFailedAttempts()).isZero();
+            assertThat(edges.getPasswordExpiryDays()).isZero();
+        }
+
+        private PasswordPolicy.PasswordPolicyBuilder valid() {
+            return PasswordPolicy.builder().minLength(8).maxLength(128).maxFailedAttempts(5).lockoutDurationMinutes(30)
+                    .ipMaxFailedAttempts(30).ipWindowMinutes(15).passwordExpiryDays(90).historyCount(3);
         }
     }
 

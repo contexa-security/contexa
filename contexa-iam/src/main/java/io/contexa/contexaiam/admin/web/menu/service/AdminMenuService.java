@@ -24,6 +24,8 @@ import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuIcon;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuUrl;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -44,6 +46,7 @@ public class AdminMenuService {
     private final AdminMenuQueryCache menuQueryCache;
     private final boolean enterpriseEnabled;
     private final boolean saasEnabled;
+    private volatile Runnable menusChanged = () -> { };
 
     public AdminMenuService(AdminMenuRepository menuRepository,
                             AdminMenuQueryCache menuQueryCache,
@@ -53,6 +56,32 @@ public class AdminMenuService {
         this.menuQueryCache = menuQueryCache;
         this.enterpriseEnabled = enterpriseEnabled;
         this.saasEnabled = saasEnabled;
+    }
+
+    /**
+     * Sets what runs once a change of the menus made here is committed, as the announcement to the other nodes: each
+     * node keeps the menus in its own cache.
+     */
+    public void onMenusChanged(Runnable hook) {
+        this.menusChanged = hook != null ? hook : () -> { };
+    }
+
+    /**
+     * Drops the cached menus once more when the change is committed (a request in between reads what is not yet
+     * committed), then announces the change to the other nodes.
+     */
+    private void menusChangedHere() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    menuQueryCache.invalidate();
+                    menusChanged.run();
+                }
+            });
+        } else {
+            menusChanged.run();
+        }
     }
 
     /**
@@ -258,6 +287,7 @@ public class AdminMenuService {
     public AdminMenu saveMenu(AdminMenu menu) {
         AdminMenu saved = menuRepository.save(menu);
         menuQueryCache.invalidate();
+        menusChangedHere();
         return saved;
     }
 
@@ -273,6 +303,7 @@ public class AdminMenuService {
         menuRepository.deleteAll(descendants);
         menuRepository.deleteById(id);
         menuQueryCache.invalidate();
+        menusChangedHere();
     }
 
     /** The submenus of the menu, of every level, the nearer ones first. */
@@ -305,6 +336,7 @@ public class AdminMenuService {
             menu.setMenuOrder(newOrder);
             menuRepository.save(menu);
             menuQueryCache.invalidate();
+            menusChangedHere();
         });
     }
 
@@ -314,6 +346,7 @@ public class AdminMenuService {
             menu.setEnabled(!menu.isEnabled());
             menuRepository.save(menu);
             menuQueryCache.invalidate();
+            menusChangedHere();
         });
     }
 
@@ -326,6 +359,7 @@ public class AdminMenuService {
             }
             menuRepository.save(menu);
             menuQueryCache.invalidate();
+            menusChangedHere();
         });
     }
 

@@ -180,7 +180,7 @@
             </nav>
 
             <div class="mt-4 flex justify-end">
-                <a th:href="@{/contexa/admin/ip-management/export(type=${currentType})}"
+                <a th:href="@{/contexa/admin/ip-management/export(type=${currentType},keyword=${keyword})}"
                    class="px-4 py-2 rounded-md text-sm font-medium transition-all duration-300"
                    style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
                    th:text="#{admin.ip.export.csv}">CSV Download</a>

@@ -25,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.ToIntFunction;
 
 @RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -34,14 +36,84 @@ public class PasswordPolicyService {
     private final PasswordHistoryRepository passwordHistoryRepository;
     private final PasswordEncoder passwordEncoder;
 
+    /**
+     * The values a policy may take, as the console's form offers them: outside them a policy is one no password can meet
+     * (a maximum length below the minimum), or one that holds no one (no failed attempt allowed, a lock of no minutes).
+     */
+    public static final List<Bound> BOUNDS = List.of(
+            new Bound("minLength", "admin.password.policy.min.length", 1, 128, PasswordPolicy::getMinLength),
+            new Bound("maxLength", "admin.password.policy.max.length", 1, 512, PasswordPolicy::getMaxLength),
+            new Bound("maxFailedAttempts", "admin.password.policy.max.failed", 1, 100, PasswordPolicy::getMaxFailedAttempts),
+            new Bound("lockoutDurationMinutes", "admin.password.policy.lockout.duration", 1, 10080,
+                    PasswordPolicy::getLockoutDurationMinutes),
+            new Bound("ipMaxFailedAttempts", "admin.password.policy.ip.max.failed", 0, 10000,
+                    PasswordPolicy::getIpMaxFailedAttempts),
+            new Bound("ipWindowMinutes", "admin.password.policy.ip.window", 1, 1440, PasswordPolicy::getIpWindowMinutes),
+            new Bound("passwordExpiryDays", "admin.password.policy.expiry.days", 0, 365, PasswordPolicy::getPasswordExpiryDays),
+            new Bound("historyCount", "admin.password.policy.history.count", 0, 24, PasswordPolicy::getHistoryCount));
+
+    /** The value of a policy named by its form field, the label it is shown under, and the values it may take. */
+    public record Bound(String field, String labelKey, int min, int max, ToIntFunction<PasswordPolicy> value) {
+
+        public static Optional<Bound> of(String field) {
+            return BOUNDS.stream().filter(bound -> bound.field().equals(field)).findFirst();
+        }
+    }
+
+    /**
+     * A policy the console refuses to keep, with the message that says why: the key, and the label key of the value
+     * that is refused (null when the refusal names none) followed by the other arguments.
+     */
+    public static final class PolicyRefusedException extends IllegalArgumentException {
+
+        private final String messageKey;
+        private final String labelKey;
+        private final Object[] messageArgs;
+
+        public PolicyRefusedException(String messageKey, String labelKey, Object... messageArgs) {
+            super("Password policy refused: " + messageKey + (labelKey != null ? " " + labelKey : ""));
+            this.messageKey = messageKey;
+            this.labelKey = labelKey;
+            this.messageArgs = messageArgs;
+        }
+
+        public String getMessageKey() {
+            return messageKey;
+        }
+
+        public String getLabelKey() {
+            return labelKey;
+        }
+
+        public Object[] getMessageArgs() {
+            return messageArgs.clone();
+        }
+    }
+
     public PasswordPolicy getCurrentPolicy() {
         return repository.findAll().stream()
                 .findFirst()
                 .orElseGet(() -> PasswordPolicy.builder().build());
     }
 
+    /**
+     * Keeps the policy, refused when a value is outside what it may take or the maximum length is below the minimum:
+     * every password change, user registration and administrator's password setting is checked against it.
+     *
+     * @throws PolicyRefusedException when the policy is not kept
+     */
     @Transactional(transactionManager = "contexaTransactionManager")
     public PasswordPolicy updatePolicy(PasswordPolicy policy) {
+        for (Bound bound : BOUNDS) {
+            int value = bound.value().applyAsInt(policy);
+            if (value < bound.min() || value > bound.max()) {
+                throw new PolicyRefusedException("admin.password.policy.refused.range", bound.labelKey(),
+                        bound.min(), bound.max());
+            }
+        }
+        if (policy.getMaxLength() < policy.getMinLength()) {
+            throw new PolicyRefusedException("common.validation.min.length.exceeds.max", null);
+        }
         PasswordPolicy existing = getCurrentPolicy();
         existing.setMinLength(policy.getMinLength());
         existing.setMaxLength(policy.getMaxLength());

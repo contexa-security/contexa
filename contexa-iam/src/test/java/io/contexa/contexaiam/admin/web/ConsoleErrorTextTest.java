@@ -391,17 +391,17 @@ class ConsoleErrorTextTest {
         IpAccessRuleService rules = mock(IpAccessRuleService.class);
         IpManagementController controller = new IpManagementController(rules, messages, mock(CsvExportService.class));
 
-        doThrow(new IllegalArgumentException(REFUSAL)).when(rules).deleteRule(any());
+        doThrow(new IllegalArgumentException(REFUSAL)).when(rules).deleteRule(any(), any());
         RedirectAttributesModelMap refused = flash();
-        controller.deleteRule(4L, refused);
+        controller.deleteRule(4L, new MockHttpServletRequest(), refused);
         assertThat(errorMessage(refused)).contains(REFUSAL).doesNotContain(GENERAL);
 
-        doThrow(fault()).when(rules).deleteRule(any());
-        doThrow(fault()).when(rules).toggleRule(any());
+        doThrow(fault()).when(rules).deleteRule(any(), any());
+        doThrow(fault()).when(rules).toggleRule(any(), any());
         RedirectAttributesModelMap delete = flash();
         RedirectAttributesModelMap toggle = flash();
-        controller.deleteRule(4L, delete);
-        controller.toggleRule(4L, toggle);
+        controller.deleteRule(4L, new MockHttpServletRequest(), delete);
+        controller.toggleRule(4L, new MockHttpServletRequest(), toggle);
         assertGeneral(errorMessage(delete));
         assertGeneral(errorMessage(toggle));
         assertTheLogKeepsTheFault();

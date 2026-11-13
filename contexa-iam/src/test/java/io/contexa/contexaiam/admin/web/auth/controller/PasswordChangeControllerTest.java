@@ -157,6 +157,36 @@ class PasswordChangeControllerTest {
                     .andExpect(status().is3xxRedirection())
                     .andExpect(redirectedUrl("/contexa/admin/login"));
         }
+
+        @Test
+        @DisplayName("a signed-in person gets the form of the own account without a name in the address")
+        void signedInPersonWithoutAName() throws Exception {
+            when(passwordPolicyService.getCurrentPolicy()).thenReturn(new PasswordPolicy());
+            SecurityContextHolder.getContext().setAuthentication(
+                    UsernamePasswordAuthenticationToken.authenticated("signed-in", null, List.of()));
+            try {
+                mockMvc.perform(get("/contexa/password-change"))
+                        .andExpect(status().isOk())
+                        .andExpect(model().attribute("username", "signed-in"));
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
+        }
+
+        @Test
+        @DisplayName("a signed-in person is not shown the form of another account the address names")
+        void signedInPersonNamingAnotherAccount() throws Exception {
+            when(passwordPolicyService.getCurrentPolicy()).thenReturn(new PasswordPolicy());
+            SecurityContextHolder.getContext().setAuthentication(
+                    UsernamePasswordAuthenticationToken.authenticated("signed-in", null, List.of()));
+            try {
+                mockMvc.perform(get("/contexa/password-change").param("username", "admin"))
+                        .andExpect(status().isOk())
+                        .andExpect(model().attribute("username", "signed-in"));
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
+        }
     }
 
     @Nested
@@ -279,11 +309,11 @@ class PasswordChangeControllerTest {
                             .param("newPassword", "validpass")
                             .param("confirmPassword", "validpass"))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/contexa/admin/login"))
-                    .andExpect(flash().attribute("message", "msg.password.change.success"));
+                    .andExpect(redirectedUrl("/contexa/admin/login?passwordChanged"));
 
             verify(passwordChangeService).changePassword("testuser", "correct", "validpass", "validpass", "127.0.0.1");
-        }    }
+        }
+    }
 
     /**
      * What a refused request sees, with the service as it runs: the right password of an account that may not change here
@@ -437,7 +467,7 @@ class PasswordChangeControllerTest {
         private void assertChangedDespiteTheStore(MvcResult changed) {
             assertThat(changed.getResolvedException()).isNull();
             assertThat(changed.getResponse().getStatus()).isEqualTo(302);
-            assertThat(changed.getResponse().getRedirectedUrl()).isEqualTo("/contexa/admin/login");
+            assertThat(changed.getResponse().getRedirectedUrl()).isEqualTo("/contexa/admin/login?passwordChanged");
             assertThat(account.getPassword()).isEqualTo("{hash}new");
             verify(users).save(account);
         }
