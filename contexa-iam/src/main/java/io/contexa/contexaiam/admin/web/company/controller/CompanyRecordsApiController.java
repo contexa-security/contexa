@@ -49,20 +49,6 @@ public class CompanyRecordsApiController {
         this.records = records;
     }
 
-    /** One kept record. */
-    public record RecordView(String kind, String key, String subject, String target, Object record,
-                             String ingestedBy, Instant ingestedAt) {
-
-        static RecordView of(StoredCompanyRecord stored) {
-            return new RecordView(stored.kind().name(), stored.key(), stored.subject(), stored.target(),
-                    stored.record(), stored.ingestedBy(), stored.ingestedAt());
-        }
-    }
-
-    /** The records of one kind to delete, by key. */
-    public record DeleteBody(String tenantId, String kind, List<String> keys) {
-    }
-
     @GetMapping
     public ResponseEntity<?> list(@RequestParam(value = "tenantId", required = false) String tenantId,
                                   @RequestParam(value = "kind", required = false) String kind,
@@ -103,14 +89,6 @@ public class CompanyRecordsApiController {
     private static ResponseEntity<?> invalid(InvalidRecordsException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new Invalid("The company records request is not valid",
                 e.problems()));
-    }
-
-    /** The answer to a deletion: how many records it removed. */
-    public record Removed(int removed) {
-    }
-
-    /** The answer to a request the records refused, with what was wrong in it. */
-    public record Invalid(String error, List<String> problems) {
     }
 
     private static String blank(String value) {

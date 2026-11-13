@@ -12,6 +12,7 @@ import io.contexa.contexacore.repository.prompt.PromptGovernanceBudgetProfileRep
 import io.contexa.contexacore.repository.prompt.PromptGovernanceChangeRecordRepository;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceEvaluationRecordRepository;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceModelCompatibilityRepository;
+import io.contexa.contexaiam.admin.promptquality.governance.JpaPromptGovernanceStatusWriter;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceRegistryRepository;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceReleaseApprovalRepository;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceReleaseWorkflowRepository;
@@ -142,9 +143,12 @@ public class PromptGovernanceAutoConfiguration {
     public PromptBundleRollbackService promptBundleRollbackService(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
             PromptGovernanceRuntimeCacheInvalidationService runtimeCacheInvalidationService,
-            ObjectProvider<PromptPolicySetLookup> policySetLookup, @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+            ObjectProvider<PromptPolicySetLookup> policySetLookup, @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
+            ObjectProvider<PromptGovernanceRegistryRepository> registryRepository,
+            ObjectProvider<PromptGovernanceRollbackRecordRepository> rollbackRepository) {
         return new PromptBundleRollbackService(jdbcTemplate, PromptBundleCatalog.shared(), runtimeCacheInvalidationService,
-                policySetLookup.getIfAvailable(), objectMapper, Clock.systemUTC());
+                policySetLookup.getIfAvailable(), objectMapper, Clock.systemUTC(),
+                new JpaPromptGovernanceStatusWriter(registryRepository.getIfAvailable(), rollbackRepository.getIfAvailable()));
     }
 
     @Bean(name = "contexaPromptBundleRollbackApiController")

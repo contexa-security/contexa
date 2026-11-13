@@ -219,8 +219,8 @@ class AgentConfirmationPagesTest {
 
         ExtendedModelMap model = new ExtendedModelMap();
         pages.list(alice, new MockHttpServletRequest(), model);
-        assertThat((List<AgentConfirmationController.StoppedAgent>) model.get("stoppedAgents"))
-                .extracting(AgentConfirmationController.StoppedAgent::agentId, AgentConfirmationController.StoppedAgent::killSwitch)
+        assertThat((List<StoppedAgent>) model.get("stoppedAgents"))
+                .extracting(StoppedAgent::agentId, StoppedAgent::killSwitch)
                 .containsExactlyInAnyOrder(tuple("report-agent", false),
                         tuple("sync-agent", false),
                         tuple("kill-agent", true));
@@ -267,15 +267,15 @@ class AgentConfirmationPagesTest {
         assertThat(api.status(asked.confirmationId(), new TestingAuthenticationToken("alice", null),
                 new MockHttpServletRequest()).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
-        AgentConfirmationApiController.ConfirmationStatus requested =
-                (AgentConfirmationApiController.ConfirmationStatus) api.ask(
-                new AgentConfirmationApiController.ConfirmationAsk("post", "/api/exports?format=zip", null,
+        ConfirmationStatus requested =
+                (ConfirmationStatus) api.ask(
+                new ConfirmationAsk("post", "/api/exports?format=zip", null,
                         "The weekly export was moved to tonight"),
                 new TestingAuthenticationToken("alice", null), fromAgent).getBody();
         assertThat(requested.trigger()).isEqualTo(AgentConfirmation.REQUESTED);
         assertThat(store.find(requested.confirmationId())).map(AgentConfirmation::reason)
                 .contains("The weekly export was moved to tonight");
-        assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("GET", "api/no-slash", null, null),
+        assertThat(api.ask(new ConfirmationAsk("GET", "api/no-slash", null, null),
                 new TestingAuthenticationToken("alice", null), fromAgent).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
     }
@@ -318,24 +318,24 @@ class AgentConfirmationPagesTest {
         MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
 
         for (String refused : List.of("PROPFIND", "CONNECT", "FETCH-EVERYTHING-NOW", "GET /x", "POST\r\nX: y")) {
-            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk(refused, "/api/exports", null, null),
+            assertThat(api.ask(new ConfirmationAsk(refused, "/api/exports", null, null),
                     token, fromAgent).getStatusCode()).as(refused).isEqualTo(HttpStatus.BAD_REQUEST);
         }
-        assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/" + "a".repeat(2048), null,
+        assertThat(api.ask(new ConfirmationAsk("POST", "/" + "a".repeat(2048), null,
                 null), token, fromAgent).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(store.forRecipient("alice", 10)).isEmpty();
 
         List<String> accepted = List.of("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE");
         for (String method : accepted) {
-            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk(" " + method.toLowerCase(Locale.ROOT),
+            assertThat(api.ask(new ConfirmationAsk(" " + method.toLowerCase(Locale.ROOT),
                     "/api/exports", null, null), token, fromAgent).getStatusCode()).as(method)
                     .isEqualTo(HttpStatus.ACCEPTED);
         }
         assertThat(store.forRecipient("alice", 10)).extracting(AgentConfirmation::method)
                 .containsExactlyInAnyOrderElementsOf(accepted);
         String longest = "/" + "a".repeat(2047);
-        AgentConfirmationApiController.ConfirmationStatus fits = (AgentConfirmationApiController.ConfirmationStatus)
-                api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", longest, null, null), token,
+        ConfirmationStatus fits = (ConfirmationStatus)
+                api.ask(new ConfirmationAsk("POST", longest, null, null), token,
                         fromAgent).getBody();
         assertThat(store.find(fits.confirmationId())).map(AgentConfirmation::target).contains(longest);
     }
@@ -355,7 +355,7 @@ class AgentConfirmationPagesTest {
         for (int codePoint : unwritable) {
             String character = Character.toString(codePoint);
             for (String target : List.of("/api/exports" + character + "x", "/api/exports?note=a" + character + "b")) {
-                assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", target, null, null),
+                assertThat(api.ask(new ConfirmationAsk("POST", target, null, null),
                         token, fromAgent).getStatusCode()).as("U+%04X in %s", codePoint, target)
                         .isEqualTo(HttpStatus.BAD_REQUEST);
             }
@@ -363,8 +363,8 @@ class AgentConfirmationPagesTest {
         assertThat(store.forRecipient("alice", 10)).isEmpty();
 
         String escaped = "/api/exports%20x%0A%E2%80%AE?note=a%20b%E2%80%8B";
-        AgentConfirmationApiController.ConfirmationStatus asked = (AgentConfirmationApiController.ConfirmationStatus)
-                api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", escaped, null, null), token,
+        ConfirmationStatus asked = (ConfirmationStatus)
+                api.ask(new ConfirmationAsk("POST", escaped, null, null), token,
                         fromAgent).getBody();
         assertThat(store.find(asked.confirmationId())).map(AgentConfirmation::target).contains(escaped);
     }
@@ -377,12 +377,12 @@ class AgentConfirmationPagesTest {
 
         for (MockHttpServletRequest unkeepable : List.of(agentRequest("alice", "report-agent", "d".repeat(65)),
                 agentRequest("alice", "a".repeat(256), null))) {
-            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports", null, null),
+            assertThat(api.ask(new ConfirmationAsk("POST", "/api/exports", null, null),
                     token, unkeepable).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         }
         assertThat(store.forRecipient("alice", 10)).isEmpty();
 
-        assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports", null, null),
+        assertThat(api.ask(new ConfirmationAsk("POST", "/api/exports", null, null),
                 token, agentRequest("alice", "a".repeat(255), "d".repeat(64))).getStatusCode())
                 .isEqualTo(HttpStatus.ACCEPTED);
     }
@@ -431,9 +431,9 @@ class AgentConfirmationPagesTest {
         fromAgent.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, new AuthenticationStamp("alice", null,
                 null, true, null, null, null, null, null, null, List.of(), Map.of("tenantId", "tenant-a")));
 
-        AgentConfirmationApiController.ConfirmationStatus requested =
-                (AgentConfirmationApiController.ConfirmationStatus) api.ask(
-                new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports?format=zip", null, null),
+        ConfirmationStatus requested =
+                (ConfirmationStatus) api.ask(
+                new ConfirmationAsk("POST", "/api/exports?format=zip", null, null),
                 new TestingAuthenticationToken("alice", null), fromAgent).getBody();
 
         assertThat(store.find(requested.confirmationId())).hasValueSatisfying(asked -> {
@@ -469,7 +469,7 @@ class AgentConfirmationPagesTest {
         List<HttpStatusCode> answers = new ArrayList<>();
         ResponseEntity<?> last = null;
         for (int target = 1; target <= 6; target++) {
-            last = api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/export/" + target, null,
+            last = api.ask(new ConfirmationAsk("POST", "/api/export/" + target, null,
                     null), token, fromAgent);
             answers.add(last.getStatusCode());
         }
@@ -507,7 +507,7 @@ class AgentConfirmationPagesTest {
         MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
 
         for (int target = 1; target <= 3; target++) {
-            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/export/" + target,
+            assertThat(api.ask(new ConfirmationAsk("POST", "/api/export/" + target,
                     null, null), token, fromAgent).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         }
     }
@@ -527,8 +527,8 @@ class AgentConfirmationPagesTest {
         fromAgent.setContextPath("/ctx");
         fromAgent.setServerName("attacker.test");
         fromAgent.addHeader("Host", "attacker.test");
-        return ((AgentConfirmationApiController.ConfirmationStatus) api.ask(
-                new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports", null, null),
+        return ((ConfirmationStatus) api.ask(
+                new ConfirmationAsk("POST", "/api/exports", null, null),
                 new TestingAuthenticationToken("alice", null), fromAgent).getBody()).confirmationId();
     }
 
@@ -544,11 +544,11 @@ class AgentConfirmationPagesTest {
         AgentConfirmation none = service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-2",
                 "GET", "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, "req-2", null, 0L)).orElseThrow();
         AgentConfirmationApiController api = new AgentConfirmationApiController(service);
-        String unseen = ((AgentConfirmationApiController.ConfirmationStatus) api.ask(
-                new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/imports", "ab".repeat(32), null),
+        String unseen = ((ConfirmationStatus) api.ask(
+                new ConfirmationAsk("POST", "/api/imports", "ab".repeat(32), null),
                 alice, agentRequest("alice", "report-agent")).getBody()).confirmationId();
-        String bodiless = ((AgentConfirmationApiController.ConfirmationStatus) api.ask(
-                new AgentConfirmationApiController.ConfirmationAsk("DELETE", "/api/imports/7", null, null),
+        String bodiless = ((ConfirmationStatus) api.ask(
+                new ConfirmationAsk("DELETE", "/api/imports/7", null, null),
                 alice, agentRequest("alice", "report-agent")).getBody()).confirmationId();
 
         assertThat(store.find(unseen)).map(AgentConfirmation::bodyBytes).contains(AgentConfirmation.BODY_NOT_SEEN);
@@ -585,9 +585,9 @@ class AgentConfirmationPagesTest {
         AgentConfirmationApiController api = new AgentConfirmationApiController(service);
         MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
 
-        AgentConfirmationApiController.ConfirmationStatus requested =
-                (AgentConfirmationApiController.ConfirmationStatus) api.ask(
-                        new AgentConfirmationApiController.ConfirmationAsk("GET",
+        ConfirmationStatus requested =
+                (ConfirmationStatus) api.ask(
+                        new ConfirmationAsk("GET",
                                 "/api/exports?token=s3cr3t-value&format=zip", null, null),
                         new TestingAuthenticationToken("alice", null), fromAgent).getBody();
 
@@ -602,7 +602,7 @@ class AgentConfirmationPagesTest {
         String target = "/" + "a".repeat(AgentConfirmation.MAX_TARGET_LENGTH - 10) + "?token=a";
 
         assertThat(target.length()).isLessThanOrEqualTo(AgentConfirmation.MAX_TARGET_LENGTH);
-        assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("GET", target, null, null),
+        assertThat(api.ask(new ConfirmationAsk("GET", target, null, null),
                 new TestingAuthenticationToken("alice", null), agentRequest("alice", "report-agent")).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
     }

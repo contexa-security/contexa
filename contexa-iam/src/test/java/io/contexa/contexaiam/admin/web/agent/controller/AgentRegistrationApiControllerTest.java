@@ -16,9 +16,9 @@
 package io.contexa.contexaiam.admin.web.agent.controller;
 
 import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
-import io.contexa.contexaiam.admin.web.agent.controller.AgentRegistrationApiController.AgentBody;
-import io.contexa.contexaiam.admin.web.agent.controller.AgentRegistrationApiController.CredentialsView;
-import io.contexa.contexaiam.admin.web.agent.controller.AgentRegistrationApiController.RegisterBody;
+import io.contexa.contexaiam.admin.web.agent.controller.AgentBody;
+import io.contexa.contexaiam.admin.web.agent.controller.CredentialsView;
+import io.contexa.contexaiam.admin.web.agent.controller.RegisterBody;
 import io.contexa.contexaiam.admin.web.agent.dto.AgentView;
 import io.contexa.contexaiam.admin.web.agent.service.AgentProvisioning;
 import io.contexa.contexaiam.admin.web.agent.service.OAuth2AgentProvisioning;
