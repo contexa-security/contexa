@@ -40,6 +40,7 @@ import org.testcontainers.utility.DockerImageName;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
@@ -60,7 +61,10 @@ class RequestBoundDataSourceOutageTest {
 
     private static final long POOL_WAIT_MILLIS = 3000L;
     private static final Duration REQUEST_LIMIT = Duration.ofMillis(1800);
+    /** Longer than the half second within which Hikari hands out a connection it used without asking whether it lives. */
+    private static final long RESTED_MILLIS = 700L;
     private static final int PORT = freePort();
+    private static final String URL = "jdbc:postgresql://127.0.0.1:" + PORT + "/outage";
 
     private static final GenericContainer<?> POSTGRES = new GenericContainer<>(DockerImageName.parse("postgres:16-alpine"))
             .withEnv("POSTGRES_PASSWORD", "outage").withEnv("POSTGRES_DB", "outage")
@@ -96,7 +100,7 @@ class RequestBoundDataSourceOutageTest {
     @BeforeEach
     void connect() throws Exception {
         HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:postgresql://127.0.0.1:" + PORT + "/outage");
+        config.setJdbcUrl(URL);
         config.setUsername("postgres");
         config.setPassword("outage");
         config.setMaximumPoolSize(2);
@@ -119,9 +123,27 @@ class RequestBoundDataSourceOutageTest {
             POSTGRES.getDockerClient().unpauseContainerCmd(POSTGRES.getContainerId()).exec();
         } else if (!Boolean.TRUE.equals(state.getRunning())) {
             POSTGRES.getDockerClient().startContainerCmd(POSTGRES.getContainerId()).exec();
+            awaitDatabaseTakesConnections();
         }
         stores.destroy();
         pool.close();
+    }
+
+    /** A container started again takes a moment before its database takes connections, and the next test's pool asks at once. */
+    private static void awaitDatabaseTakesConnections() {
+        await().atMost(Duration.ofSeconds(40)).pollInterval(Duration.ofMillis(200)).ignoreExceptions().until(() -> {
+            try (Connection connection = DriverManager.getConnection(URL, "postgres", "outage")) {
+                return connection.isValid(1);
+            }
+        });
+    }
+
+    /**
+     * The pool's connections rest before the database goes away, as an application's do between its requests: one used
+     * within the last half second is handed out unasked, and the first request would meet that connection, not the outage.
+     */
+    private static void letTheConnectionsRest() throws InterruptedException {
+        Thread.sleep(RESTED_MILLIS);
     }
 
     private static void onARequestThread() {
@@ -165,6 +187,7 @@ class RequestBoundDataSourceOutageTest {
     @DisplayName("a stopped database costs one request about a second, the next none, and comes back by itself")
     void aStoppedDatabase() throws Exception {
         onARequestThread();
+        letTheConnectionsRest();
         stopDatabaseContainer();
 
         assertThat(took(this::connection)).as("the first request").isLessThan(REQUEST_LIMIT);
@@ -185,7 +208,8 @@ class RequestBoundDataSourceOutageTest {
 
     @Test
     @DisplayName("the engine's threads keep the pool's wait")
-    void theEngineKeepsThePoolsWait() {
+    void theEngineKeepsThePoolsWait() throws Exception {
+        letTheConnectionsRest();
         stopDatabaseContainer();
 
         Duration took = took(this::connection);
@@ -277,7 +301,7 @@ class RequestBoundDataSourceOutageTest {
     void aDatabaseThatFrozeWhileTheConnectionsRested() throws Exception {
         onARequestThread();
         // The pool asks a connection whether it lives once it rested for half a second, and waits for that answer.
-        Thread.sleep(700L);
+        letTheConnectionsRest();
         POSTGRES.getDockerClient().pauseContainerCmd(POSTGRES.getContainerId()).exec();
 
         assertThat(took(this::connection)).as("the first request").isLessThan(REQUEST_LIMIT);
