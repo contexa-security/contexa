@@ -27,7 +27,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import io.contexa.contexaiam.admin.web.center.AccessCenterController;
 import io.contexa.contexaiam.admin.web.center.PolicyCenterController;
 import io.contexa.contexaiam.admin.web.center.PolicyCenterOperationsController;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpMethod;
@@ -48,11 +48,15 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
  */
 @ControllerAdvice(assignableTypes = {AccessCenterController.class, PolicyCenterController.class,
         PolicyCenterOperationsController.class})
-@RequiredArgsConstructor
 public final class SeedTextResponseAdvice implements ResponseBodyAdvice<Object> {
 
     private final SeedTexts seedTexts;
     private final ObjectMapper objectMapper;
+
+    public SeedTextResponseAdvice(SeedTexts seedTexts, @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+        this.seedTexts = seedTexts;
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {

@@ -20,6 +20,7 @@ import io.contexa.contexaiam.admin.web.i18n.SeedTextDialect;
 import io.contexa.contexaiam.admin.web.i18n.SeedTextResponseAdvice;
 import io.contexa.contexaiam.admin.web.i18n.SeedTexts;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -44,7 +45,7 @@ public class IamAdminSeedTextAutoConfiguration {
     @Bean(name = "contexaSeedTextResponseAdvice")
     @ConditionalOnMissingBean
     public SeedTextResponseAdvice contexaSeedTextResponseAdvice(SeedTexts contexaSeedTexts,
-            ObjectProvider<ObjectMapper> objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
         return new SeedTextResponseAdvice(contexaSeedTexts,
                 objectMapper.getIfAvailable(() -> new ObjectMapper().findAndRegisterModules()));
     }

@@ -210,6 +210,7 @@ class ConsoleWriteTransactionTest {
         UserDto form = new UserDto();
         form.setUsername("alice");
         form.setName("Alice");
+        form.setEmail("alice@example.com");
         form.setPassword("short");
         form.setEnabled(true);
         RedirectAttributesModelMap flash = new RedirectAttributesModelMap();
@@ -230,6 +231,7 @@ class ConsoleWriteTransactionTest {
         UserDto form = new UserDto();
         form.setUsername("alice");
         form.setName("Alice");
+        form.setEmail("alice@example.com");
         ConcurrentModel model = new ConcurrentModel();
 
         String view = console.getBean(UserManagementController.class).createUser(form, null, model,
