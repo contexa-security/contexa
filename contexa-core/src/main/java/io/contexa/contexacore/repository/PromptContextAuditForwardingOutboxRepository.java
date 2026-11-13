@@ -29,8 +29,7 @@ public interface PromptContextAuditForwardingOutboxRepository extends JpaReposit
 
     Optional<PromptContextAuditForwardingOutboxRecord> findByAuditId(String auditId);
 
-    Optional<PromptContextAuditForwardingOutboxRecord> findByCorrelationId(String correlationId);
-
+    /** The newest record of a correlation id: each analysis attempt of an event keeps its own record under that id. */
     Optional<PromptContextAuditForwardingOutboxRecord> findTopByCorrelationIdOrderByIdDesc(String correlationId);
 
     @Query("""
