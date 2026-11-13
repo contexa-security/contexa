@@ -70,12 +70,14 @@ public class IamAdminMonitoringAutoConfiguration {
     public SecurityMonitorController securityMonitorController(AuditLogRepository auditLogRepository,
                                                                CsvExportService contexaCsvExportService,
                                                                ObjectProvider<DelegationRegistry> delegationRegistry,
-                                                               ObjectProvider<EvidenceSigner> evidenceSigner) {
+                                                               ObjectProvider<EvidenceSigner> evidenceSigner,
+                                                               MessageSource messageSource) {
         // docs/agent A5-5: the delegation an agent's decision ran under, when Contexa keeps delegations (OC-1).
         SecurityMonitorController controller = new SecurityMonitorController(auditLogRepository, contexaCsvExportService,
                 delegationRegistry.getIfAvailable());
         // docs/agent A5-6: the decision records' integrity.
         evidenceSigner.ifAvailable(controller::setEvidenceSigner);
+        controller.setMessageSource(messageSource);
         return controller;
     }
 

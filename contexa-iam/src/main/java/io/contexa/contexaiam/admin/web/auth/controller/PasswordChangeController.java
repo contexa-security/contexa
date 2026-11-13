@@ -24,6 +24,11 @@ import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.lang.Nullable;
+import org.springframework.security.authentication.AuthenticationTrustResolver;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
@@ -36,6 +41,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @RequiredArgsConstructor
 public class PasswordChangeController {
 
+    private static final AuthenticationTrustResolver TRUST_RESOLVER = new AuthenticationTrustResolverImpl();
+
     private final PasswordChangeService passwordChangeService;
     private final PasswordPolicyService passwordPolicyService;
     private final MessageSource messageSource;
@@ -44,12 +51,19 @@ public class PasswordChangeController {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
 
+    /**
+     * A signed-in person changes the password of the own account, whatever the address names: the change of another
+     * account is refused to a signed-in person (PasswordChangeService), so its form is not shown either. Without a sign-in,
+     * a sign-in refused for an expired password names the account in the session, not in the address.
+     */
     @GetMapping(ContexaConsolePaths.PASSWORD_CHANGE)
     public String showPasswordChangeForm(@RequestParam(required = false) String username, HttpSession session,
                                          Model model) {
-        // A sign-in refused for an expired password names the account in the session, not in the address.
-        String account = StringUtils.hasText(username) ? username
-                : (String) session.getAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE);
+        String account = signedInName();
+        if (account == null) {
+            account = StringUtils.hasText(username) ? username
+                    : (String) session.getAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE);
+        }
         if (!StringUtils.hasText(account)) {
             return "redirect:/contexa/admin/login";
         }
@@ -79,7 +93,16 @@ public class PasswordChangeController {
         if (session != null) {
             session.removeAttribute(ContexaConsolePaths.PASSWORD_CHANGE_USERNAME_ATTRIBUTE);
         }
-        ra.addFlashAttribute("message", msg("msg.password.change.success"));
-        return "redirect:/contexa/admin/login";
+        // The sign-in this leads to is reached through further redirects, which spend a flash attribute on the way: the
+        // flag in the address goes along to it (LoginController), and the sign-in page says the password was changed.
+        return "redirect:/contexa/admin/login?" + LoginController.PASSWORD_CHANGED_PARAMETER;
+    }
+
+    @Nullable
+    private static String signedInName() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null && authentication.isAuthenticated()
+                && !TRUST_RESOLVER.isAnonymous(authentication) && StringUtils.hasText(authentication.getName())
+                ? authentication.getName() : null;
     }
 }

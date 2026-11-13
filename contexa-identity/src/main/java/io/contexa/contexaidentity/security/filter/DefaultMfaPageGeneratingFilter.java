@@ -1551,6 +1551,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
+        // The console sends a person here after a password change, the old sign-in ended.
+        boolean passwordChanged = request.getParameter("passwordChanged") != null;
 
         String csrfToken = getCsrfToken(request);
         String csrfHeaderName = getCsrfHeaderName(request);
@@ -1570,6 +1572,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String successRedirectText = msg(request, "mfa.login.success.redirect", "Login successful! Redirecting to home...");
         String successMfaText = msg(request, "mfa.login.success.mfa", "Login successful! Proceeding with multi-factor authentication...");
         String logoutMsgText = msg(request, "mfa.login.logout.message", "You have been logged out.");
+        String passwordChangedText = msg(request, "msg.password.change.success",
+                "Your password has been changed. Sign in with the new password.");
 
         String html = """
                 <!DOCTYPE html>
@@ -1759,7 +1763,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 loginTitle,
                 loginDesc,
                 errorMessage != null ? "<div class=\"message error\">" + errorFailedText + "</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">" + logoutMsgText + "</div>" : "",
+                logoutMessage != null ? "<div class=\"message success\">" + logoutMsgText + "</div>"
+                        : passwordChanged ? "<div class=\"message success\">" + passwordChangedText + "</div>" : "",
                 usernamePh,
                 passwordPh,
                 submitText,
@@ -1784,6 +1789,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
+        // The console sends a person here after a password change, the old sign-in ended.
+        boolean passwordChanged = request.getParameter("passwordChanged") != null;
 
         String csrfToken = getCsrfToken(request);
         String csrfHeaderName = getCsrfHeaderName(request);
@@ -1803,6 +1810,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String successRedirectText = msg(request, "mfa.login.success.redirect", "Login successful! Redirecting to home...");
         String successMfaText = msg(request, "mfa.login.success.mfa", "Login successful! Proceeding with multi-factor authentication...");
         String logoutMsgText = msg(request, "mfa.login.logout.message", "You have been logged out.");
+        String passwordChangedText = msg(request, "msg.password.change.success",
+                "Your password has been changed. Sign in with the new password.");
 
         String html = """
                 <!DOCTYPE html>
@@ -1992,7 +2001,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 loginTitle,
                 loginDesc,
                 errorMessage != null ? "<div class=\"message error\">" + errorFailedText + "</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">" + logoutMsgText + "</div>" : "",
+                logoutMessage != null ? "<div class=\"message success\">" + logoutMsgText + "</div>"
+                        : passwordChanged ? "<div class=\"message success\">" + passwordChangedText + "</div>" : "",
                 usernamePh,
                 passwordPh,
                 submitText,

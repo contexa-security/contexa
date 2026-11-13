@@ -20,12 +20,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Broadcasts policy reload signals across all application instances via Redisson RTopic.
  * When any instance modifies a policy, all instances invalidate their caches and rebuild
  * the authorization manager mappings. Uses an instance ID to skip self-sent messages.
+ *
+ * <p>What else an instance keeps in memory of the console's state (the IP access rules, the menus, the runtime
+ * settings) follows the same signal through {@link #addReloadListener}: a change of any of them is announced with
+ * {@link #broadcastReload()} as well.</p>
  */
 @Slf4j
 public class PolicyReloadBroadcaster {
@@ -35,6 +41,7 @@ public class PolicyReloadBroadcaster {
 
     private final RTopic topic;
     private final String instanceId = UUID.randomUUID().toString();
+    private final List<Runnable> listeners = new CopyOnWriteArrayList<>();
 
     public PolicyReloadBroadcaster(RedissonClient redissonClient, Runnable reloadCallback) {
         this.topic = redissonClient.getTopic(ApplicationNamespace.key(TOPIC_NAME));
@@ -50,8 +57,24 @@ public class PolicyReloadBroadcaster {
                 } catch (Exception e) {
                     log.error("Failed to process policy reload signal from remote instance", e);
                 }
+                for (Runnable listener : listeners) {
+                    try {
+                        listener.run();
+                    } catch (Exception e) {
+                        log.error("Failed to follow a reload signal from remote instance", e);
+                    }
+                }
             }
         });
+    }
+
+    /**
+     * Adds what runs on a reload signal from another instance, after the policies are reloaded.
+     */
+    public void addReloadListener(Runnable listener) {
+        if (listener != null) {
+            listeners.add(listener);
+        }
     }
 
     /**

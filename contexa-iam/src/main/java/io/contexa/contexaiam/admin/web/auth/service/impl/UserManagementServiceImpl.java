@@ -35,6 +35,7 @@ import io.contexa.contexacommon.security.UserAccountDeletedEvent;
 import io.contexa.contexacommon.security.UserAccountDisabledEvent;
 import io.contexa.contexacommon.security.UserAuthoritiesChangedEvent;
 import io.contexa.contexacommon.security.UserPasswordChangedEvent;
+import io.contexa.contexaiam.admin.web.agent.service.AgentSponsorship;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
@@ -78,6 +79,12 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final BridgeUserProfileRepository bridgeUserProfileRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final LastAdministratorGuard lastAdministratorGuard;
+    private AgentSponsorship agentSponsorship;
+
+    /** IAM-D57: an account that sponsors agents in service is not deleted; null where agents are not registered. */
+    public void setAgentSponsorship(AgentSponsorship agentSponsorship) {
+        this.agentSponsorship = agentSponsorship;
+    }
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -348,6 +355,9 @@ public class UserManagementServiceImpl implements UserManagementService {
         lastAdministratorGuard.serializeChanges();
         Optional<Users> target = userRepository.findById(id);
         target.ifPresent(lastAdministratorGuard::refuseDeletingTheLast);
+        if (agentSponsorship != null) {
+            target.map(Users::getUsername).ifPresent(agentSponsorship::refuseRemovingTheSponsor);
+        }
         try {
             String admin = "SYSTEM";
             var auth = SecurityContextHolder.getContext().getAuthentication();

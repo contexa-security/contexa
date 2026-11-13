@@ -33,6 +33,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import jakarta.servlet.http.HttpServletResponse;
@@ -40,6 +41,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.List;
 import java.util.Base64;
 import java.util.Map;
@@ -380,6 +382,21 @@ class SecurityMonitorControllerTest {
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/security-monitor");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("999");
+        }
+
+        /** IAM-D05/D06: the notice is in the administrator's language and names the ID without separators. */
+        @Test
+        @DisplayName("says in the administrator's language that the ID names no event, the ID as typed")
+        void notFoundIsSaidInTheAdministratorsLanguage() {
+            StaticMessageSource messages = new StaticMessageSource();
+            messages.addMessage("admin.security.monitor.not.found", Locale.getDefault(), "no event {0}");
+            controller.setMessageSource(messages);
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            when(auditLogRepository.findById(999999L)).thenReturn(Optional.empty());
+
+            controller.detail(999999L, new ConcurrentModel(), ra);
+
+            assertThat(ra.getFlashAttributes().get("errorMessage")).isEqualTo("no event 999999");
         }
     }
 

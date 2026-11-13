@@ -190,7 +190,7 @@
                     <input type="hidden" name="tenant" th:value="${agent.tenantId}">
                     <div style="flex:1;min-width:12rem;">
                         <label class="learning-label" for="newSponsor" th:text="#{admin.agents.manage.sponsor}">New sponsor</label>
-                        <input id="newSponsor" type="text" name="sponsorId" required class="learning-input">
+                        <input id="newSponsor" type="text" name="sponsorId" required maxlength="255" class="learning-input">
                     </div>
                     <button type="submit" class="learning-button" style="background:#4f46e5;"
                             th:text="#{admin.agents.manage.sponsor.submit}">Transfer</button>

@@ -123,6 +123,7 @@ io.contexa.autoconfigure.iam.access.AccessEvaluationAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminPasswordPolicyAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminSessionAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminIpAutoConfiguration
+io.contexa.autoconfigure.iam.admin.IamAdminClusterStateAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PromptGovernanceAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PqaOfficialInspectionAutoConfiguration
 io.contexa.autoconfigure.iam.admin.SealedEvidenceStoreAutoConfiguration

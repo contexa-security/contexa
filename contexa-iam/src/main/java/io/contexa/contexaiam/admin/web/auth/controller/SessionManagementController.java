@@ -68,7 +68,8 @@ public class SessionManagementController {
         // What a node not yet on references wrote since the last read is turned into references before it is listed.
         sessionManagementService.referenceRawSessions();
 
-        PageRequest pageable = PageRequest.of(page, PAGE_SIZE, Sort.by(Sort.Direction.DESC, "lastAccessedAt"));
+        // A page number below the first is the first page, as in every other list of the console.
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), PAGE_SIZE, Sort.by(Sort.Direction.DESC, "lastAccessedAt"));
         Page<ActiveSession> sessionPage = sessionManagementService.searchActiveSessions(keyword, pageable);
 
         long activeCount = sessionManagementService.getActiveSessionCount();
@@ -84,11 +85,11 @@ public class SessionManagementController {
         try {
             // The session is named by its reference: a row a node not yet on references wrote must be one before it is ended.
             sessionManagementService.referenceRawSessions();
-            sessionManagementService.invalidateSession(sessionId);
-            ra.addFlashAttribute("message", msg("admin.session.invalidated"));
+            boolean signInsEnded = sessionManagementService.invalidateSession(sessionId);
+            ra.addFlashAttribute("message", msg(signInsEnded ? "admin.session.invalidated.signins" : "admin.session.invalidated"));
         } catch (Exception e) {
-            log.error("[SessionManagement] Failed to invalidate session: {}", sessionId, e);
-            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.error", ConsoleFault.textOf(e)));
+            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.error",
+                    ConsoleFault.textOf(e, log, "invalidate the session " + sessionId)));
         }
         return "redirect:/contexa/admin/session-management";
     }
@@ -96,11 +97,12 @@ public class SessionManagementController {
     @PostMapping("/user/{userId}/invalidate-all")
     public String invalidateAllForUser(@PathVariable String userId, RedirectAttributes ra) {
         try {
-            sessionManagementService.invalidateAllSessionsForUser(userId);
-            ra.addFlashAttribute("message", msg("admin.session.all.invalidated"));
+            boolean signInsEnded = sessionManagementService.invalidateAllSessionsForUser(userId);
+            ra.addFlashAttribute("message", signInsEnded
+                    ? msg("admin.session.all.invalidated.signins", userId) : msg("admin.session.all.invalidated"));
         } catch (Exception e) {
-            log.error("[SessionManagement] Failed to invalidate all sessions for user: {}", userId, e);
-            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.all.error", ConsoleFault.textOf(e)));
+            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.all.error",
+                    ConsoleFault.textOf(e, log, "invalidate all sessions of " + userId)));
         }
         return "redirect:/contexa/admin/session-management";
     }

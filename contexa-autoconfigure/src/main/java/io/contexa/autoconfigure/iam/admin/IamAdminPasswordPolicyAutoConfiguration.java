@@ -142,7 +142,7 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     @ConditionalOnMissingBean
     public AuditLogRetentionScheduler auditLogRetentionScheduler(
             AuditLogRepository auditLogRepository,
-            SystemSettingsService contexaSystemSettingsService) {
-        return new AuditLogRetentionScheduler(auditLogRepository, contexaSystemSettingsService);
+            SystemRuntimeSettingsService contexaSystemRuntimeSettingsService) {
+        return new AuditLogRetentionScheduler(auditLogRepository, contexaSystemRuntimeSettingsService);
     }
 }

@@ -31,6 +31,7 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.service.UserEngineStatePurgeResult;
 import io.contexa.contexacore.autonomous.service.UserEngineStatePurger;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -75,6 +76,72 @@ class OAuth2AgentProvisioningTest {
     private final CentralAuditFacade audit = mock(CentralAuditFacade.class);
     private final OAuth2AgentProvisioning provisioning = new OAuth2AgentProvisioning(registry, clients, encoder, jdbc,
             users, userRepository, groups, audit, Duration.ofMinutes(30));
+
+    /** The sponsors the tests name are enabled accounts; a sponsor is the person told and asked (IAM-D70). */
+    @BeforeEach
+    void sponsorsAreAccounts() {
+        when(userRepository.findByUsername("carol")).thenReturn(Optional.of(Users.builder().username("carol").build()));
+        when(userRepository.findByUsername("dave")).thenReturn(Optional.of(Users.builder().username("dave").build()));
+        when(userRepository.findByUsername("erin"))
+                .thenReturn(Optional.of(Users.builder().username("erin").enabled(false).build()));
+    }
+
+    /** IAM-D57/D70: an agent nobody is accountable for is not registered, nor handed to such a sponsor. */
+    @Test
+    void aSponsorThatIsNoEnabledAccountIsRefused() {
+        assertThatThrownBy(() -> provisioning.register(registration("agent-1", "nobody", null), "admin-1"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("nobody");
+        assertThatThrownBy(() -> provisioning.register(registration("agent-1", "erin", null), "admin-1"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("erin");
+        assertThat(registry.find(null, "agent-1")).isEmpty();
+        assertThat(clients.findByClientId("agent-1-client")).isNull();
+
+        register("agent-2");
+        assertThatThrownBy(() -> provisioning.transferSponsor(null, "agent-2", "nobody", "admin-1"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(registry.find(null, "agent-2").orElseThrow().sponsorId()).isEqualTo("carol");
+    }
+
+    /** IAM-D67: a value longer than its column is refused with its field, and nothing is written. */
+    @Test
+    void aValueLongerThanItsColumnIsRefused() {
+        String longId = "a".repeat(256);
+        assertThatThrownBy(() -> provisioning.register(registration(longId, "carol", "short-client"), "admin-1"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("at most 255");
+        assertThatThrownBy(() -> provisioning.register(registration("a".repeat(94), "carol", null), "admin-1"))
+                .as("the client named after the agent").isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("at most 100");
+        assertThatThrownBy(() -> provisioning.register(new AgentProvisioning.Registration(null, "agent-1",
+                "n".repeat(201), null, "carol", null, List.of("sc.engineer"), null, null, null, null, null), "admin-1"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("at most 200");
+        assertThatThrownBy(() -> provisioning.register(new AgentProvisioning.Registration(null, "agent-1", null, null,
+                "carol", null, List.of("s".repeat(1001)), null, null, null, null, null), "admin-1"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("at most 1000");
+        assertThat(registry.find(null, "agent-1")).isEmpty();
+        assertThat(clients.findByClientId("agent-1-client")).isNull();
+
+        register("agent-2");
+        assertThatThrownBy(() -> provisioning.transferSponsor(null, "agent-2", "x".repeat(256), "admin-1"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("at most 255");
+    }
+
+    /** IAM-D70: a token lifetime of no time, of less, or of more than a day is refused, not stored. */
+    @Test
+    void aTokenLifetimeOutsideOneMinuteToADayIsRefused() {
+        for (Long minutes : List.of(0L, -1L, 1441L, 2147483648L, Long.MAX_VALUE, Long.MIN_VALUE)) {
+            assertThatThrownBy(() -> provisioning.register(new AgentProvisioning.Registration(null, "agent-1", null,
+                    null, "carol", null, List.of("sc.engineer"), null, null,
+                    AgentProvisioning.tokenLifetimeOfMinutes(minutes), null, null), "admin-1"))
+                    .as(minutes + " minutes").isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("token lifetime");
+        }
+        assertThat(clients.findByClientId("agent-1-client")).isNull();
+
+        provisioning.register(new AgentProvisioning.Registration(null, "agent-1", null, null, "carol", null,
+                List.of("sc.engineer"), null, null, AgentProvisioning.tokenLifetimeOfMinutes(1440L), null, null), "admin-1");
+        assertThat(clients.findByClientId("agent-1-client").getTokenSettings().getAccessTokenTimeToLive())
+                .isEqualTo(Duration.ofDays(1));
+    }
 
     @Test
     void anAgentIsRegisteredWithItsClientAndItsAccountAndTheSecretsAreGivenOnce() {

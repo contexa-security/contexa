@@ -20,28 +20,28 @@
             <form th:if="${provisioningAvailable}" th:action="@{/contexa/admin/agents/register}" method="post"
                   class="form-card" id="agentRegisterForm">
                 <label for="agentId" class="form-label" th:text="#{admin.agents.register.agent.id}">Agent ID</label>
-                <input id="agentId" name="agentId" type="text" required class="form-input font-mono">
+                <input id="agentId" name="agentId" type="text" maxlength="255" required class="form-input font-mono">
                 <label for="displayName" class="form-label" th:text="#{admin.agents.register.display.name}">Name</label>
-                <input id="displayName" name="displayName" type="text" class="form-input">
+                <input id="displayName" name="displayName" type="text" maxlength="200" class="form-input">
                 <label for="agentType" class="form-label" th:text="#{admin.agents.register.agent.type}">Type</label>
-                <input id="agentType" name="agentType" type="text" class="form-input">
+                <input id="agentType" name="agentType" type="text" maxlength="255" class="form-input">
                 <label for="sponsorId" class="form-label" th:text="#{admin.agents.register.sponsor}">Sponsor</label>
-                <input id="sponsorId" name="sponsorId" type="text" required class="form-input">
+                <input id="sponsorId" name="sponsorId" type="text" maxlength="255" required class="form-input">
                 <p class="form-hint" th:text="#{admin.agents.register.sponsor.hint}">The person accountable for the agent.</p>
                 <label for="tenant" class="form-label" th:text="#{admin.agents.detail.tenant}">Tenant</label>
-                <input id="tenant" name="tenant" type="text" class="form-input">
+                <input id="tenant" name="tenant" type="text" maxlength="255" class="form-input">
                 <label for="clientId" class="form-label" th:text="#{admin.agents.register.client.id}">OAuth2 client</label>
-                <input id="clientId" name="clientId" type="text" class="form-input font-mono">
+                <input id="clientId" name="clientId" type="text" maxlength="100" class="form-input font-mono">
                 <p class="form-hint" th:text="#{admin.agents.register.client.id.hint}">Empty: agent ID followed by -client.</p>
                 <label for="scopes" class="form-label" th:text="#{admin.agents.register.scopes}">Scopes</label>
-                <input id="scopes" name="scopes" type="text" class="form-input font-mono">
+                <input id="scopes" name="scopes" type="text" maxlength="1000" class="form-input font-mono">
                 <p class="form-hint" th:text="#{admin.agents.register.scopes.hint}">Separated by spaces or commas.</p>
                 <label class="form-label"><input type="checkbox" name="ownToken" value="true" checked>
                     <span th:text="#{admin.agents.register.own.token}">Own token</span></label>
                 <label class="form-label"><input type="checkbox" name="actsForPeople" value="true" checked>
                     <span th:text="#{admin.agents.register.acts.for.people}">Acts for people</span></label>
                 <label for="tokenLifetimeMinutes" class="form-label" th:text="#{admin.agents.register.token.lifetime}">Token lifetime (minutes)</label>
-                <input id="tokenLifetimeMinutes" name="tokenLifetimeMinutes" type="number" min="1" class="form-input">
+                <input id="tokenLifetimeMinutes" name="tokenLifetimeMinutes" type="number" min="1" max="1440" class="form-input">
                 <label class="form-label"><input type="checkbox" name="account" value="true">
                     <span th:text="#{admin.agents.register.account}">Own account</span></label>
                 <label for="accountGroups" class="form-label" th:text="#{admin.agents.register.account.groups}">Account groups</label>

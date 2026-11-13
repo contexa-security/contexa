@@ -31,9 +31,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.function.Function;
 
 @Slf4j
 public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoint {
@@ -112,29 +114,31 @@ public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoin
         }
 
         String factorType = request.getParameter("factor.type");
+        // Read once: with an MFA session open it is the flow's own provider, read from the session store.
+        AuthUrlProvider provider = providerOrNull(request);
 
-        if ("select".equalsIgnoreCase(factorType) || isSelectFactorRequest(request)) {
+        if ("select".equalsIgnoreCase(factorType) || isSelectFactorRequest(request, provider)) {
             return getSelectFactorPageUrl(request);
         }
 
-        if ("ott".equalsIgnoreCase(factorType) || isOttRequestPageRequest(request)) {
+        if ("ott".equalsIgnoreCase(factorType) || isOttRequestPageRequest(request, provider)) {
             return getOttRequestPageUrl(request);
         }
 
-        if ("ott-verify".equalsIgnoreCase(factorType) || isOttVerifyPageRequest(request)) {
+        if ("ott-verify".equalsIgnoreCase(factorType) || isOttVerifyPageRequest(request, provider)) {
             return getOttVerifyPageUrl(request);
         }
 
         if ("passkey".equalsIgnoreCase(factorType) || "webauthn".equalsIgnoreCase(factorType) ||
-                isPasskeyChallengeRequest(request)) {
+                isPasskeyChallengeRequest(request, provider)) {
             return getPasskeyChallengePageUrl(request);
         }
 
-        if ("configure".equalsIgnoreCase(factorType) || isConfigurePageRequest(request)) {
+        if ("configure".equalsIgnoreCase(factorType) || isConfigurePageRequest(request, provider)) {
             return getConfigurePageUrl(request);
         }
 
-        if ("failure".equalsIgnoreCase(factorType) || isFailurePageRequest(request)) {
+        if ("failure".equalsIgnoreCase(factorType) || isFailurePageRequest(request, provider)) {
             return getFailurePageUrl(request);
         }
 
@@ -199,24 +203,22 @@ public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoin
         throw new IllegalStateException("AuthUrlProvider is not available in MfaAuthenticationEntryPoint");
     }
 
-    private boolean isSelectFactorRequest(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        return uri.contains("/mfa/select-factor") ||
-                uri.contains("/select-factor");
+    /*
+     * A step page is the page itself: the address the step is served at, or the step's own name at the end of the path
+     * (a flow under a prefix serves it there). A part of a name anywhere in the address is not one: the console's
+     * "/ai-monitor/failures" is not the MFA failure page, and a person whose session ended there is sent to sign in.
+     */
+
+    private boolean isSelectFactorRequest(HttpServletRequest request, AuthUrlProvider provider) {
+        return isStepPage(request, provider, AuthUrlProvider::getMfaSelectFactor, "/mfa/select-factor");
     }
 
-    private boolean isOttRequestPageRequest(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        return uri.contains("/loginOtt") ||
-                uri.contains("/ott/request") ||
-                uri.contains("/mfa/ott/request");
+    private boolean isOttRequestPageRequest(HttpServletRequest request, AuthUrlProvider provider) {
+        return isStepPage(request, provider, AuthUrlProvider::getOttRequestCodeUi, "/loginOtt", "/ott/request");
     }
 
-    private boolean isOttVerifyPageRequest(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        return uri.contains("/ott/verify") ||
-                uri.contains("/challenge/ott") ||
-                uri.contains("/mfa/challenge/ott");
+    private boolean isOttVerifyPageRequest(HttpServletRequest request, AuthUrlProvider provider) {
+        return isStepPage(request, provider, AuthUrlProvider::getOttChallengeUi, "/ott/verify", "/mfa/challenge/ott");
     }
 
     private boolean isPasskeyRegistrationRequest(HttpServletRequest request) {
@@ -228,23 +230,49 @@ public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoin
         return uri.equals(registrationPage) || uri.startsWith(registrationPage + "/");
     }
 
-    private boolean isPasskeyChallengeRequest(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        return uri.contains("/loginPasskey") ||
-                uri.contains("/webauthn/") ||
-                uri.contains("/passkey") ||
-                uri.contains("/challenge/passkey");
+    private boolean isPasskeyChallengeRequest(HttpServletRequest request, AuthUrlProvider provider) {
+        // The WebAuthn ceremony is served under its own path segment.
+        return pathOf(request).contains("/webauthn/")
+                || isStepPage(request, provider, AuthUrlProvider::getPasskeyChallengeUi,
+                "/loginPasskey", "/mfa/challenge/passkey");
     }
 
-    private boolean isConfigurePageRequest(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        return uri.contains("/mfa/configure") ||
-                uri.contains("/configure");
+    private boolean isConfigurePageRequest(HttpServletRequest request, AuthUrlProvider provider) {
+        return isStepPage(request, provider, AuthUrlProvider::getMfaConfig, "/mfa/configure");
     }
 
-    private boolean isFailurePageRequest(HttpServletRequest request) {
+    private boolean isFailurePageRequest(HttpServletRequest request, AuthUrlProvider provider) {
+        return isStepPage(request, provider, AuthUrlProvider::getMfaFailure, "/mfa/failure");
+    }
+
+    private static boolean isStepPage(HttpServletRequest request, AuthUrlProvider provider,
+                                      Function<AuthUrlProvider, String> servedAt, String... names) {
+        String path = pathOf(request);
+        for (String name : names) {
+            if (path.endsWith(name)) {
+                return true;
+            }
+        }
+        String page = provider != null ? servedAt.apply(provider) : null;
+        if (!StringUtils.hasText(page)) {
+            return false;
+        }
+        int query = page.indexOf('?');
+        return path.equals(query >= 0 ? page.substring(0, query) : page);
+    }
+
+    private AuthUrlProvider providerOrNull(HttpServletRequest request) {
+        try {
+            return resolveProvider(request);
+        } catch (IllegalStateException notBound) {
+            return null;
+        }
+    }
+
+    /** The path within the application, as the step pages are named. */
+    private static String pathOf(HttpServletRequest request) {
         String uri = request.getRequestURI();
-        return uri.contains("/mfa/failure") ||
-                uri.contains("/failure");
+        String context = request.getContextPath();
+        return StringUtils.hasText(context) && uri.startsWith(context) ? uri.substring(context.length()) : uri;
     }
 }

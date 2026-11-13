@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacore.autonomous.service.IForceLogoutService;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
@@ -32,9 +33,11 @@ import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -105,9 +108,37 @@ class SessionManagementServiceTest {
         @Test
         @DisplayName("should call expireSession on repository")
         void success() {
-            service.invalidateSession("sess-1");
+            tracked("sess-1", "user-1");
+
+            assertThat(service.invalidateSession("sess-1")).isFalse();
 
             verify(activeSessionRepository).expireSession(ref("sess-1"));
+        }
+
+        @Test
+        @DisplayName("ends every sign-in of the session's person through the forced logout")
+        void endsTheSignInsOfItsPerson() {
+            IForceLogoutService logout = mock(IForceLogoutService.class);
+            SessionManagementService ending = new SessionManagementService(activeSessionRepository, null, () -> logout);
+            tracked("sess-1", "user-1");
+
+            assertThat(ending.invalidateSession("sess-1")).isTrue();
+
+            verify(activeSessionRepository).expireSession(ref("sess-1"));
+            verify(logout).forceLogoutByUserId(eq("user-1"), any());
+        }
+
+        @Test
+        @DisplayName("refuses a session no one tracks, and ends no sign-in for it")
+        void refusesAnUnknownSession() {
+            IForceLogoutService logout = mock(IForceLogoutService.class);
+            SessionManagementService ending = new SessionManagementService(activeSessionRepository, null, () -> logout);
+            when(activeSessionRepository.findById(ref("gone"))).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> ending.invalidateSession("gone")).isInstanceOf(NoSuchElementException.class);
+
+            verify(activeSessionRepository, never()).expireSession(any());
+            verifyNoInteractions(logout);
         }
     }
 
@@ -118,9 +149,21 @@ class SessionManagementServiceTest {
         @Test
         @DisplayName("should call expireAllSessionsForUser on repository")
         void success() {
-            service.invalidateAllSessionsForUser("user-1");
+            assertThat(service.invalidateAllSessionsForUser("user-1")).isFalse();
 
             verify(activeSessionRepository).expireAllSessionsForUser("user-1");
+        }
+
+        @Test
+        @DisplayName("ends every sign-in of the person, also those the console never tracked")
+        void endsTheSignInsOfThePerson() {
+            IForceLogoutService logout = mock(IForceLogoutService.class);
+            SessionManagementService ending = new SessionManagementService(activeSessionRepository, null, () -> logout);
+
+            assertThat(ending.invalidateAllSessionsForUser("user-1")).isTrue();
+
+            verify(activeSessionRepository).expireAllSessionsForUser("user-1");
+            verify(logout).forceLogoutByUserId(eq("user-1"), any());
         }
     }
 
@@ -279,12 +322,18 @@ class SessionManagementServiceTest {
         @Test
         @DisplayName("is invalidated by its reference, and by the raw value too for a caller that still has one")
         void invalidatedByItsReference() {
+            tracked("RAW-COOKIE-VALUE", "user-1");
             service.invalidateSession(ref("RAW-COOKIE-VALUE"));
             service.invalidateSession("RAW-COOKIE-VALUE");
 
             verify(activeSessionRepository, times(2)).expireSession(ref("RAW-COOKIE-VALUE"));
             verify(activeSessionRepository, never()).expireSession("RAW-COOKIE-VALUE");
         }
+    }
+
+    private void tracked(String sessionId, String userId) {
+        when(activeSessionRepository.findById(ref(sessionId))).thenReturn(Optional.of(
+                ActiveSession.builder().sessionId(ref(sessionId)).userId(userId).username(userId).build()));
     }
 
     private static String ref(String sessionId) {

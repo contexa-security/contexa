@@ -37,11 +37,16 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @Slf4j
 @Controller
@@ -87,13 +92,42 @@ public class SystemSettingsController {
         return "contexa/admin/system-settings";
     }
 
+    public String updateSettings(SystemSettingsForm form, RedirectAttributes ra) {
+        return updateSettings(form, null, ra);
+    }
+
+    /**
+     * A value that is not a number is refused with the value it is about, as a value out of range is; neither is a
+     * fault of the console. A refusal names the value in the administrator's language.
+     */
     @PostMapping
-    public String updateSettings(@ModelAttribute("settings") SystemSettingsForm form,
+    public String updateSettings(@ModelAttribute("settings") SystemSettingsForm form, @Nullable BindingResult binding,
                                  RedirectAttributes ra) {
+        if (binding != null && binding.hasFieldErrors()) {
+            String field = binding.getFieldErrors().get(0).getField();
+            String refusal = Arrays.stream(SystemSettingsService.Bound.values())
+                    .filter(bound -> bound.field().equals(field))
+                    .findFirst()
+                    .map(bound -> msg("admin.system.settings.refused.range", msg(bound.labelKey()), bound.min(), bound.max()))
+                    .orElseGet(() -> msg("admin.system.settings.refused.choice", field, String.valueOf(
+                            binding.getFieldErrors().get(0).getRejectedValue())));
+            log.warn("[SystemSettings] Settings were refused: field={} is not a value it may take", field);
+            ra.addFlashAttribute("errorMessage", msg("admin.system.settings.save.failed") + ": " + refusal);
+            return "redirect:/contexa/admin/system-settings";
+        }
         try {
             systemSettingsService.updateSettings(form);
             applyRuntimeSettings(form);
             ra.addFlashAttribute("message", msg("admin.system.settings.saved"));
+        } catch (SystemSettingsService.SettingRefusedException refused) {
+            log.warn("[SystemSettings] Settings were refused: {}", refused.getMessage());
+            List<Object> args = new ArrayList<>();
+            if (refused.getLabelKey() != null) {
+                args.add(msg(refused.getLabelKey()));
+            }
+            args.addAll(Arrays.asList(refused.getMessageArgs()));
+            ra.addFlashAttribute("errorMessage", msg("admin.system.settings.save.failed") + ": "
+                    + msg(refused.getMessageKey(), args.toArray()));
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage",
                     msg("admin.system.settings.save.failed") + ": "

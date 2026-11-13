@@ -62,4 +62,31 @@ class LoginControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("adminLoginProcessingUrl", LoginController.HOST_OWNED_LOGIN_PROCESSING_URL));
     }
+
+    /** A flash attribute is spent on the redirects in between, so the change is said by a flag that goes along. */
+    @Test
+    @DisplayName("a changed password is said on the sign-in Contexa provides")
+    void aChangedPasswordGoesAlongToTheSignIn() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
+                new LoginController(LoginController.DEFAULT_LOGIN_PROCESSING_URL, () -> "/mfa/login")).build();
+
+        mockMvc.perform(get("/contexa/admin/login").param(LoginController.PASSWORD_CHANGED_PARAMETER, ""))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/mfa/login?passwordChanged"));
+        mockMvc.perform(get("/contexa/admin/login"))
+                .andExpect(redirectedUrl("/mfa/login"));
+    }
+
+    @Test
+    @DisplayName("a changed password is said on the console's own form")
+    void aChangedPasswordIsSaidOnTheOwnForm() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
+                new LoginController(LoginController.HOST_OWNED_LOGIN_PROCESSING_URL, () -> null)).build();
+
+        mockMvc.perform(get("/contexa/admin/login").param(LoginController.PASSWORD_CHANGED_PARAMETER, ""))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("passwordChanged", true));
+        mockMvc.perform(get("/contexa/admin/login"))
+                .andExpect(model().attribute("passwordChanged", false));
+    }
 }

@@ -56,6 +56,19 @@ public interface AgentProvisioning {
                        @Nullable String accountUsername, @Nullable String accountPassword) {
     }
 
+    /**
+     * The token lifetime a number of minutes asks for, or null for none. A number too large (or too small) for a
+     * duration asks for a lifetime past the longest one, which the registration refuses, rather than failing here.
+     */
+    @Nullable
+    static Duration tokenLifetimeOfMinutes(@Nullable Long minutes) {
+        if (minutes == null) {
+            return null;
+        }
+        long bound = OAuth2AgentProvisioning.MAX_TOKEN_LIFETIME.toMinutes() + 1;
+        return Duration.ofMinutes(Math.max(-bound, Math.min(minutes, bound)));
+    }
+
     /** Whether agents can be registered here: Contexa's authorization server runs. */
     boolean available();
 

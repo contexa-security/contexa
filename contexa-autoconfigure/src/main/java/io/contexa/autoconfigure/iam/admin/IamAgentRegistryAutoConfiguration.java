@@ -430,7 +430,8 @@ public class IamAgentRegistryAutoConfiguration {
                                             ObjectProvider<GroupRepository> groups,
                                             ObjectProvider<CentralAuditFacade> auditFacade,
                                             ObjectProvider<SecurityZeroTrustProperties> properties,
-                                            ObjectProvider<UserEngineStatePurger> engineStatePurger) {
+                                            ObjectProvider<UserEngineStatePurger> engineStatePurger,
+                                            ObjectProvider<MessageSource> messageSource) {
             RegisteredClientRepository repository = clients.getIfAvailable();
             PasswordEncoder encoder = ContexaOwnBeans.passwordEncoder(beanFactory);
             if (repository == null) {
@@ -441,6 +442,8 @@ public class IamAgentRegistryAutoConfiguration {
                     groups.getIfAvailable(), auditFacade.getIfAvailable(),
                     properties.getIfAvailable(SecurityZeroTrustProperties::new).getAgent().getClientTokenLifetime());
             provisioning.setEngineStatePurger(engineStatePurger.getIfAvailable());
+            // IAM-D67: a value too long for its column is refused in the administrator's language.
+            provisioning.setMessageSource(messageSource.getIfAvailable());
             return provisioning;
         }
     }

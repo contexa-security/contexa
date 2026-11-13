@@ -31,7 +31,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Supplier;
@@ -54,7 +53,7 @@ public class AgentRegistrationApiController {
         AgentProvisioning.Registration toRegistration() {
             return new AgentProvisioning.Registration(tenantId, agentId, displayName, agentType, sponsorId, clientId,
                     scopes, ownToken, actsForPeople,
-                    tokenLifetimeMinutes != null ? Duration.ofMinutes(tokenLifetimeMinutes) : null, account,
+                    AgentProvisioning.tokenLifetimeOfMinutes(tokenLifetimeMinutes), account,
                     accountGroups);
         }
     }

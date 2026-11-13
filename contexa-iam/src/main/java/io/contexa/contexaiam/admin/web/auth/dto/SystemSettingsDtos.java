@@ -41,7 +41,6 @@ public final class SystemSettingsDtos {
         private String policyCombiningAlgorithm = SystemRuntimeSettingsService.DEFAULT_POLICY_COMBINING_ALGORITHM.name();
         private String noMatchingUrlPolicyDecision = SystemRuntimeSettingsService.DEFAULT_NO_MATCHING_URL_POLICY_DECISION.name();
         private String missingMethodPolicyDecision = SystemRuntimeSettingsService.DEFAULT_MISSING_METHOD_POLICY_DECISION.name();
-        private boolean registrationEnabled = false;
         private String securityZeroTrustMode = SystemRuntimeSettingsService.DEFAULT_SECURITY_ZEROTRUST_MODE.name();
         private String mvcResourceScannerBasePackages = SystemRuntimeSettingsService.DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES;
 
@@ -75,7 +74,6 @@ public final class SystemSettingsDtos {
                             : SystemRuntimeSettingsService.DEFAULT_NO_MATCHING_URL_POLICY_DECISION).name()));
             form.setMissingMethodPolicyDecision(valueOrDefault(source.getMissingMethodPolicyDecision(),
                     SystemRuntimeSettingsService.DEFAULT_MISSING_METHOD_POLICY_DECISION.name()));
-            form.setRegistrationEnabled(source.isRegistrationEnabled());
             String storedZeroTrustMode = source.getSecurityZeroTrustMode();
             form.setSecurityZeroTrustMode(!StringUtils.hasText(storedZeroTrustMode) && effectiveZeroTrustMode != null
                     ? effectiveZeroTrustMode.name()
