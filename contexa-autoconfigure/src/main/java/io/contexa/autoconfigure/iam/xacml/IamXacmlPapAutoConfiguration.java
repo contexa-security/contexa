@@ -69,7 +69,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.MessageSource;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
-
+
 
 @AutoConfiguration
 @AutoConfigureAfter(name = {
@@ -92,8 +92,13 @@ public class IamXacmlPapAutoConfiguration {
     public PolicySynchronizationService policySynchronizationService(
             PolicyRepository policyRepository,
             RoleRepository roleRepository,
-            PolicyService contexaPolicyService) {
-        return new PolicySynchronizationService(policyRepository, roleRepository, contexaPolicyService);
+            PolicyService contexaPolicyService,
+            ObjectProvider<ManagedResourceRepository> managedResourceRepository) {
+        PolicySynchronizationService service =
+                new PolicySynchronizationService(policyRepository, roleRepository, contexaPolicyService);
+        // the resources an automatic policy targets follow it, as those of a policy the policy center makes
+        service.setManagedResourceRepository(managedResourceRepository.getIfAvailable());
+        return service;
     }
 
     @Bean(name = "contexaPolicyConflictAnalyzer")

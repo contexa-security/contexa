@@ -113,7 +113,8 @@ class OrdinaryFlowLogLevelContractTest {
         WARN.put("ResourceNamingTemplate.java", List.of("ResourceNamingTemplate batch size {} exceeds"));
         WARN.put("HmacEvidenceSigner.java", List.of("[EvidenceSigning] No evidence signing key configured"));
         WARN.put("DefaultPromptQualityOfficialRunDetailService.java", List.of("[PQA-OFFICIAL-DETAIL-SLOW]"));
-        WARN.put("OfficialVerificationEvidencePreflight.java", List.of("PQA sealed evidence prompt contract recovered"));
+        WARN.put("OfficialVerificationEvidencePreflight.java", List.of(
+                "PQA sealed evidence prompt contract recovered", "PQA sealed evidence prompt projection contract failed"));
     }
 
     private static Map<String, Path> mainSources() throws IOException {

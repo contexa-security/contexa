@@ -116,6 +116,7 @@ io.contexa.autoconfigure.iam.admin.HostOwnedAdminConsoleAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminMetadataAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminMonitoringAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminCenterAutoConfiguration
+io.contexa.autoconfigure.iam.admin.IamAdminSeedTextAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminAccessCenterAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminBlacklistAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAgentRegistryAutoConfiguration
