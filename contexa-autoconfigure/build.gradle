@@ -26,6 +26,8 @@ dependencies {
     compileOnly 'org.springframework.ai:spring-ai-autoconfigure-model-chat-client'
 
     compileOnly 'org.springframework.boot:spring-boot-starter-mail'
+    // IAM-D31: the console's seed texts are written in the page's language by a Thymeleaf post-processor.
+    compileOnly 'org.springframework.boot:spring-boot-starter-thymeleaf'
     compileOnly("org.springframework.kafka:spring-kafka")
     testImplementation("org.springframework.kafka:spring-kafka")
     compileOnly 'com.querydsl:querydsl-jpa:5.1.0:jakarta'

@@ -243,7 +243,7 @@ public final class OfficialVerificationEvidencePreflight extends AbstractPromptQ
                 message("enterprise.pqa.runtimeVerification.preflight.hashMissing", "rawUserPromptHash"));
         Map<String, Object> manifest = parseJson(evidencePackage.getPromptEvidenceManifestJson());
         if (!manifest.isEmpty() && !Boolean.TRUE.equals(manifest.get("sealable"))) {
-            log.error(
+            log.warn(
                     "PQA sealed evidence prompt projection contract failed; official verification will continue and record the failed fields as findings. packageId={}, sealFailureReason={}",
                     evidencePackage.getPackageId(),
                     evidencePackage.getSealFailureReason());

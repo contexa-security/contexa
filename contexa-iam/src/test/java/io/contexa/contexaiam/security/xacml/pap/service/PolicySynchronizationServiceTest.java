@@ -24,6 +24,8 @@ import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.AuthorityProbe;
 import org.junit.jupiter.api.DisplayName;
@@ -199,6 +201,49 @@ class PolicySynchronizationServiceTest {
         verify(policyService, never()).deletePolicy(any(), any());
         verify(policyService, never()).updatePolicy(any(PolicyDto.class));
         verify(policyService, never()).createPolicy(any(PolicyDto.class));
+    }
+
+    @Test
+    @DisplayName("N-4: the resources the automatic policy targets are connected to a policy, as the policy center does")
+    void theTargetedResourcesAreConnectedToAPolicy() {
+        when(policyRepository.findByName(anyString())).thenReturn(Optional.empty());
+        Role role = role("ROLE_SALES", "READ", true);
+        ManagedResource resource = role.getRolePermissions().iterator().next().getPermission().getManagedResource();
+        resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
+        when(roleRepository.findByIdWithPermissionsAndResources(7L)).thenReturn(Optional.of(role));
+        ManagedResourceRepository resources = mock(ManagedResourceRepository.class);
+        PolicySynchronizationService service = new PolicySynchronizationService(policyRepository, roleRepository,
+                policyService);
+        service.setManagedResourceRepository(resources);
+
+        service.handleRolePermissionsChange(new RolePermissionsChangedEvent(7L));
+
+        assertThat(resource.getStatus()).isEqualTo(ManagedResource.Status.POLICY_CONNECTED);
+        verify(resources).save(resource);
+
+        // once connected, the next synchronization leaves it as it is
+        clearInvocations(resources);
+        service.handleRolePermissionsChange(new RolePermissionsChangedEvent(7L));
+        verify(resources, never()).save(any(ManagedResource.class));
+    }
+
+    @Test
+    @DisplayName("N-4: an automatic policy left with no target is deleted at the start; others stay")
+    void anAutomaticPolicyWithoutATargetIsDeletedAtTheStart() {
+        Policy empty = Policy.builder().id(41L).name("AUTO_POLICY_FOR_ROLE_EMPTY").build();
+        Policy targeted = Policy.builder().id(42L).name("AUTO_POLICY_FOR_ROLE_SALES").build();
+        targeted.addTarget(PolicyTarget.builder().targetType("URL").targetIdentifier("/rc/one/1").httpMethod("GET")
+                .build());
+        Policy ownWithoutTarget = Policy.builder().id(43L).name("A policy of an administrator").build();
+        when(policyRepository.findAllWithDetails()).thenReturn(List.of(empty, targeted, ownWithoutTarget));
+
+        new PolicySynchronizationService(policyRepository, roleRepository, policyService)
+                .removeAutomaticPoliciesWithoutTargets();
+
+        verify(policyService).deleteAutomaticPolicy(eq(41L), anyString());
+        verify(policyService, never()).deleteAutomaticPolicy(eq(42L), anyString());
+        verify(policyService, never()).deleteAutomaticPolicy(eq(43L), anyString());
+        verify(policyService, never()).deletePolicy(any(), any());
     }
 
     private AnnotationConfigApplicationContext context() {
