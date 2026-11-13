@@ -996,7 +996,8 @@ create table ctxa_one_time_tokens
 (
     token_value varchar(36) not null
         primary key,
-    username    varchar(50) not null,
+    -- as long as a user name of ctxa_users (Spring's own schema has 50, too short for an e-mail address as the name)
+    username    varchar(100) not null,
     expires_at  timestamp   not null
 );
 

@@ -580,6 +580,50 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **Two of the application's AI models that run the same model no longer stop its start.** When two of the application's
+  chat or embedding beans ran one model id (two clients of one provider with other keys, for example), Contexa stopped the
+  start with `Duplicate chat runtime selector '<model>'`, although the application starts with them alone. The start goes
+  on, and a bean name or a runtime id names either bean. Contexa stops, with the same reason, only when its own settings
+  ask for that model id, since picking one of the two would be a guess. Names someone chose for a binding (bean names,
+  runtime ids, aliases under `contexa.llm`) that collide still stop the start.
+
+- **An analysis of an event that names no user is reported at INFO, not ERROR.** An application whose sign-in gives a
+  principal with no name made Contexa write `userId missing - skipping ...` and `[SYSTEM_ERROR] userId is null -
+  authentication system failure` at ERROR, once every five minutes: an alarm about the application's sign-in where there
+  was no failure. The analysis skips the account's history by design, and the audit keeps the reason (`USER_ID_MISSING`).
+  The lines are INFO now, at the same rate, and the second one no longer says that the sign-in failed.
+
+- **A user whose name is longer than 50 characters gets the one-time codes of the sign-in.** The codes are stored under
+  the user's name in `ctxa_one_time_tokens.username`, which kept Spring's 50 characters while Contexa's users may have
+  names of 100 (`ctxa_users.username`), an e-mail address used as the name for one. Issuing the code failed for such a
+  user, so the second step of a sign-in and the answer to a CHALLENGE could not be made. The column holds 100 characters
+  now. **Check:** an existing installation keeps its column, since Contexa does not change column types at start; widen
+  it once with `alter table ctxa_one_time_tokens alter column username type varchar(100);`.
+
+- **The console asks for a user's e-mail address.** The address was optional on the console's form, but its column is
+  `NOT NULL`, so creating or editing a user without one ended in a database error page. A blank address is now refused
+  with its reason, as a blank name is; the one-time codes of the sign-in go to this address.
+
+- **Where the application keeps its sign-in, Contexa no longer replaces its language resolver.** Contexa defined the
+  `localeResolver` bean, so Spring Boot's own (`AcceptHeaderLocaleResolver`, or `FixedLocaleResolver` with
+  `spring.web.locale-resolver=fixed`) was not created. The application's requests answered in the same language, but an
+  application that took the bean as Boot's (to set its supported locales, for example) failed. Boot's resolver stays now;
+  only a request for Contexa's screens, under `/contexa/`, uses the screens' language (the one chosen with `?lang=` for
+  the session, before that the browser's when it is Korean or English, Korean otherwise), through an interceptor of that
+  path. Where Contexa owns the sign-in it still resolves the language of the whole application.
+
+- **An application with SAML no longer gets Spring Boot's default user from the starter.** The starter names Boot's
+  default user (`spring.security.user.name=user`) so that an application secured by Boot's defaults keeps it, although the
+  OAuth2 classes the starter brings make Boot give it up. An application that registers its SAML relying parties as beans,
+  without `spring.security.saml2.*` settings, got that user and the line `Using generated security password` where it had
+  none alone. Contexa brings no SAML, so SAML on the class path is the application's own sign-in: the user is not named
+  there any more, as Boot alone decides.
+
+- **OBSERVE and DISABLED no longer warn of what a restart loses in standalone.** The two start warnings of the standalone
+  mode (the learned state and the decisions in force are kept in memory) were written in every mode. In OBSERVE and
+  DISABLED Contexa learns nothing and holds no decision, so a restart loses nothing and they are not written there.
+  SHADOW and ENFORCE write them as before.
+
 - **The sign-in pages and the screens after them speak one language.** The pages Contexa writes for the sign-in ask the
   application's `LocaleResolver`, and say their language in `<html lang>`; before a choice the console follows the browser
   (Korean or English, Korean otherwise). A refused sign-in and an expired password are told in the page's language instead of
@@ -858,7 +902,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **An application written for WebFlux is told which of its beans do not run.** Contexa brings the servlet stack, and
   Spring Boot then starts such an application on it without a word. Its `WebFilter` and `SecurityWebFilterChain` beans
   are never called there; the start now logs a warning that names them. Such an application is refused, as before, only
-  when it has functional routes or sets `spring.main.web-application-type=reactive`.
+  when it has functional routes or sets `spring.main.web-application-type=reactive`. One that declares no WebFlux bean
+  (its controllers only) is the same, class for class, as a Spring MVC application with Contexa, so nothing at the start
+  can tell it; the line of what comes with Contexa, which every application gets at INFO, now ends with Spring MVC and
+  says that Spring Boot runs the application on the servlet stack, one written for WebFlux too.
 
 - **Cancelling an MFA sign-in is answered at once, however many cancel together.** Each cancel handed a task to the
   shared executor that slept five seconds and then released the cancelled flow. Past the executor's ten threads and

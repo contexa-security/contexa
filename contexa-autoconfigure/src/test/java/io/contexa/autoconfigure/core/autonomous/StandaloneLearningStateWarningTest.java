@@ -19,6 +19,7 @@ import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.baseline.store.InMemoryBaselineDataStore;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.ObjectProvider;
@@ -54,7 +55,7 @@ class StandaloneLearningStateWarningTest {
 
         SmartInitializingSingleton warning = (SmartInitializingSingleton) method.invoke(
                 new CoreAutonomousAutoConfiguration(), provider(new InMemoryBaselineDataStore()),
-                provider(new InMemorySecurityContextDataStore()));
+                provider(new InMemorySecurityContextDataStore()), provider(new SecurityZeroTrustProperties()));
         warning.afterSingletonsInstantiated();
 
         assertThat(output).containsOnlyOnce(WARNING);
@@ -65,7 +66,7 @@ class StandaloneLearningStateWarningTest {
     void storesTheHostGivesKeepTheStartupSilent(CapturedOutput output) throws Exception {
         SmartInitializingSingleton warning = (SmartInitializingSingleton) beanMethod("standaloneLearningStateWarning")
                 .invoke(new CoreAutonomousAutoConfiguration(), provider(mock(BaselineDataStore.class)),
-                        provider(mock(SecurityContextDataStore.class)));
+                        provider(mock(SecurityContextDataStore.class)), provider(new SecurityZeroTrustProperties()));
         warning.afterSingletonsInstantiated();
 
         assertThat(output).doesNotContain(WARNING);

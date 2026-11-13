@@ -72,12 +72,12 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
 
     @Override
     public Optional<LlmRuntimeBinding> findChatBinding(String selector) {
-        return findBinding(getChatBindings(), selector);
+        return findBinding(getChatBindings(), selector, ensureSnapshot().ambiguousChat());
     }
 
     @Override
     public Optional<LlmRuntimeBinding> findEmbeddingBinding(String selector) {
-        return findBinding(getEmbeddingBindings(), selector);
+        return findBinding(getEmbeddingBindings(), selector, ensureSnapshot().ambiguousEmbedding());
     }
 
     @Override
@@ -129,9 +129,9 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
             if (snapshot == null) {
                 List<LlmRuntimeBinding> chatBindings = discoverBindings(ChatModel.class, LlmRuntimeType.CHAT, bindingProperties.getChat());
                 List<LlmRuntimeBinding> embeddingBindings = discoverBindings(EmbeddingModel.class, LlmRuntimeType.EMBEDDING, bindingProperties.getEmbedding());
-                validateUniqueSelectors(chatBindings, "chat");
-                validateUniqueSelectors(embeddingBindings, "embedding");
-                snapshot = new Snapshot(chatBindings, embeddingBindings);
+                Map<String, String> ambiguousChat = validateUniqueSelectors(chatBindings, "chat");
+                Map<String, String> ambiguousEmbedding = validateUniqueSelectors(embeddingBindings, "embedding");
+                snapshot = new Snapshot(chatBindings, embeddingBindings, ambiguousChat, ambiguousEmbedding);
             }
             return snapshot;
         }
@@ -423,8 +423,16 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
         };
     }
 
-    private void validateUniqueSelectors(List<LlmRuntimeBinding> bindings, String runtimeType) {
+    /**
+     * Stops the start where two bindings answer to a name someone chose for one of them (a bean name, a runtime id, an alias).
+     * A model id two of the application's own beans run is no such name: the application starts with them as it does alone
+     * (A-19), and the id is kept as ambiguous, so that Contexa stops only when it is asked for that id (see findBinding).
+     *
+     * @return the model ids several of the application's beans run, each with the reason a request for it is refused
+     */
+    private Map<String, String> validateUniqueSelectors(List<LlmRuntimeBinding> bindings, String runtimeType) {
         Map<String, LlmRuntimeBinding> selectors = new LinkedHashMap<>();
+        Map<String, String> ambiguous = new LinkedHashMap<>();
         for (LlmRuntimeBinding binding : bindings) {
             for (String selector : selectorsOf(binding)) {
                 LlmRuntimeBinding existing = selectors.putIfAbsent(selector, binding);
@@ -434,12 +442,27 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
                         selectors.put(selector, isContexaModelBean(existing) ? existing : binding);
                         continue;
                     }
+                    if (applicationModelId(existing, binding, selector)) {
+                        ambiguous.putIfAbsent(selector, "Duplicate " + runtimeType + " runtime selector '" + selector + "' is the model of several of the "
+                                + "application's beans: " + describeBinding(existing) + ", " + describeBinding(binding)
+                                + ". Name the one Contexa uses by its bean name or its runtime id.");
+                        continue;
+                    }
                     throw new IllegalStateException("Duplicate " + runtimeType + " runtime selector '" + selector + "' is mapped by multiple bindings: "
                             + describeBinding(existing) + ", " + describeBinding(binding)
                             + ". Keep bean names, runtime ids, model ids, and aliases unique.");
                 }
             }
         }
+        return ambiguous;
+    }
+
+    /** Neither of the two is Contexa's own bean, and the selector is the model id both run (not a bean name or a runtime id). */
+    private boolean applicationModelId(LlmRuntimeBinding first, LlmRuntimeBinding second, String selector) {
+        return !isContexaModelBean(first) && !isContexaModelBean(second)
+                && selector.equals(first.getModelId()) && selector.equals(second.getModelId())
+                && !selector.equals(first.getBeanName()) && !selector.equals(second.getBeanName())
+                && !selector.equals(first.getRuntimeId()) && !selector.equals(second.getRuntimeId());
     }
 
     private boolean isContexaModelBean(LlmRuntimeBinding binding) {
@@ -481,7 +504,7 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
                 + ", provider=" + binding.getProvider()
                 + ", model=" + binding.getModelId() + "]";
     }
-    private Optional<LlmRuntimeBinding> findBinding(List<LlmRuntimeBinding> bindings, String selector) {
+    private Optional<LlmRuntimeBinding> findBinding(List<LlmRuntimeBinding> bindings, String selector, Map<String, String> ambiguous) {
         if (!StringUtils.hasText(selector)) {
             return Optional.empty();
         }
@@ -490,9 +513,14 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
         if (matched.size() < 2) {
             return matched.stream().findFirst();
         }
-        return matched.stream().filter(binding -> normalized.equals(binding.getRuntimeId()) || normalized.equals(binding.getBeanName())).findFirst()
-                .or(() -> matched.stream().filter(this::isContexaModelBean).findFirst())
-                .or(() -> matched.stream().findFirst());
+        Optional<LlmRuntimeBinding> named = matched.stream()
+                .filter(binding -> normalized.equals(binding.getRuntimeId()) || normalized.equals(binding.getBeanName())).findFirst()
+                .or(() -> matched.stream().filter(this::isContexaModelBean).findFirst());
+        if (named.isEmpty() && ambiguous.containsKey(normalized)) {
+            // Contexa was asked for a model several of the application's beans run: picking one of them would be a guess
+            throw new IllegalStateException(ambiguous.get(normalized));
+        }
+        return named.or(() -> matched.stream().findFirst());
     }
 
     private List<String> parsePriority(String priorityConfig) {
@@ -520,6 +548,7 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
         return value.trim();
     }
 
-    private record Snapshot(List<LlmRuntimeBinding> chatBindings, List<LlmRuntimeBinding> embeddingBindings) {
+    private record Snapshot(List<LlmRuntimeBinding> chatBindings, List<LlmRuntimeBinding> embeddingBindings,
+                            Map<String, String> ambiguousChat, Map<String, String> ambiguousEmbedding) {
     }
 }

@@ -104,7 +104,8 @@ public class UserManagementServiceImpl implements UserManagementService {
     /** The fields of a user's profile, each within its column; a blank optional one is kept as none. */
     private void checkProfile(UserDto userDto) {
         userDto.setName(ConsoleInput.required(messageSource, "crud.field.user.name", userDto.getName(), NAME_LENGTH));
-        userDto.setEmail(ConsoleInput.optional(messageSource, "crud.field.user.email", userDto.getEmail(),
+        // the column is NOT NULL, and the one-time codes of the sign-in go to this address: a blank one was a database error
+        userDto.setEmail(ConsoleInput.required(messageSource, "crud.field.user.email", userDto.getEmail(),
                 EMAIL_LENGTH));
         userDto.setPhone(ConsoleInput.optional(messageSource, "crud.field.user.phone", userDto.getPhone(),
                 PHONE_LENGTH));

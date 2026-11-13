@@ -243,8 +243,28 @@ class OwnershipStartupDiagnosticsTest {
 
     @Test
     void whatComesWithContexaIsNamedOnlyWhenItIsThere() {
-        assertThat(OwnershipStartupDiagnostics.classPathImpact(getClass().getClassLoader())).contains("Reactor Netty");
+        assertThat(OwnershipStartupDiagnostics.classPathImpact(getClass().getClassLoader())).contains("Reactor Netty")
+                .contains("Spring MVC (Spring Boot runs the application on the servlet stack");
         assertThat(OwnershipStartupDiagnostics.classPathImpact(new ClassLoader(null) {
         })).isNull();
+    }
+
+    @Test
+    void theServletStackIsNamedWhereSpringMvcIsThereOnly() {
+        String servlet = "org.springframework.web.servlet.DispatcherServlet";
+        ClassLoader springMvcOnly = new ClassLoader(null) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                if (name.equals(servlet)) {
+                    return OwnershipStartupDiagnosticsTest.class.getClassLoader().loadClass(name);
+                }
+                throw new ClassNotFoundException(name);
+            }
+        };
+
+        assertThat(OwnershipStartupDiagnostics.classPathImpact(springMvcOnly))
+                .contains("Spring MVC (Spring Boot runs the application on the servlet stack")
+                .contains("spring.main.web-application-type=reactive")
+                .doesNotContain("Reactor Netty");
     }
 }

@@ -188,6 +188,7 @@ class UserManagementServiceImplTest {
                 .id(id)
                 .username(username)
                 .name(name)
+                .email(username + "@example.com")
                 .mfaEnabled(false)
                 .selectedGroupIds(List.of())
                 .build();
@@ -343,6 +344,17 @@ class UserManagementServiceImplTest {
             order.verify(lastAdministratorGuard).serializeChanges();
             order.verify(userRepository).findByUsername("carol");
             order.verify(userRepository).save(any(Users.class));
+        }
+
+        @Test
+        @DisplayName("a blank email address is refused with its reason, nothing saved (the column is NOT NULL)")
+        void aBlankEmailAddress() {
+            UserDto dto = buildUserDto(null, "erin", "Erin");
+            dto.setEmail("  ");
+            dto.setPassword("a password of the policy");
+
+            assertThatThrownBy(() -> service.createUser(dto)).isInstanceOf(IllegalArgumentException.class);
+            verify(userRepository, never()).save(any());
         }
 
         @Test

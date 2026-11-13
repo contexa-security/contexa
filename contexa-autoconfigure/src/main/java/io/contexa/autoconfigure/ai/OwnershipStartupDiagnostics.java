@@ -97,6 +97,11 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
         impact.put("org.thymeleaf.spring6.view.ThymeleafViewResolver", "Thymeleaf (its view resolver is asked before JSP)");
         impact.put("io.micrometer.prometheusmetrics.PrometheusMeterRegistry", "Prometheus (Boot's simple meter registry is not created)");
         impact.put("jakarta.validation.Validator", "Bean Validation (@Valid and @Validated take effect)");
+        // PR-173: an application written for WebFlux that declares no WebFlux bean (its controllers only) cannot be told from a
+        // Spring MVC one while it runs, so this line, which every application gets, says what Spring Boot does with it
+        impact.put("org.springframework.web.servlet.DispatcherServlet",
+                "Spring MVC (Spring Boot runs the application on the servlet stack, one written for WebFlux too unless it sets "
+                        + "spring.main.web-application-type=reactive, which Contexa refuses: WebFlux is not supported)");
         return impact;
     }
 

@@ -81,7 +81,7 @@ contexa init
 
 ### By hand
 
-**1. Add the dependencies.** The starter brings the five Contexa modules; add Spring Security and the Spring AI model and vector-store starters you use next to it. The starter does not bring Spring Security, so that adding it alone changes nothing in your application.
+**1. Add the dependencies.** The starter brings the five Contexa modules; add Spring Security and the Spring AI model and vector-store starters you use next to it. The starter does not bring Spring Security, so that adding it alone changes nothing in your application. Contexa runs on the servlet stack and brings it: Spring Boot starts an application written for WebFlux on it as well, unless the application sets `spring.main.web-application-type=reactive`, and with that setting or with functional routes Contexa refuses to start. WebFlux is not supported.
 
 ```gradle
 dependencies {
@@ -194,7 +194,7 @@ Three independent settings decide how Contexa runs:
 
 | Setting | Options | What it decides |
 |---|---|---|
-| Sign-in ownership | `SANDBOX` (default) / `FULL` | Your application keeps sign-in, or Contexa provides sign-in, MFA and the admin console (`@EnableAISecurity(mode = SecurityMode.FULL)`) |
+| Sign-in ownership | `SANDBOX` (default) / `FULL` | Your application keeps sign-in, or Contexa provides sign-in, MFA and the admin console (`@EnableAISecurity(mode = SecurityMode.FULL)`). `FULL` changes some answers your clients get (sign-in on paths without a URL policy, CSRF on writes, no HTTP Basic or Bearer of your application): read [what changes under `FULL`](https://docs.ctxa.ai/en/docs/install/spring-boot.html#full-changes) before you choose it |
 | Enforcement, `contexa.security.zerotrust.mode` | `SHADOW` / `ENFORCE` (default) / `OBSERVE` / `DISABLED` | `SHADOW` analyzes and records only; `ENFORCE` stores and applies decisions |
 | Infrastructure, `contexa.infrastructure.mode` | `standalone` (default) / `distributed` | State in memory of one server, or shared through Redis and Kafka. `distributed` needs a single Redis server or Sentinel: Redis Cluster is not supported in this release. `org.redisson:redisson` brings a JCache provider, so an application whose cache goes through JCache sets its cache, for example `spring.cache.type=caffeine`, or names its own provider, for example `spring.cache.jcache.provider=org.ehcache.jsr107.EhcacheCachingProvider` |
 
