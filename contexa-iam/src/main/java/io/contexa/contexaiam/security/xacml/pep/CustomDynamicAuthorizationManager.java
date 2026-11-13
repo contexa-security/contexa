@@ -309,13 +309,14 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         TrustAssessment assessment = (TrustAssessment) context.attributes().get("ai_assessment");
         if (assessment != null) {
             try {
-                reason = "AI assessment result: " + objectMapper.writeValueAsString(assessment);
+                reason = AuthorizationAuditReason.aiAssessment(objectMapper.writeValueAsString(assessment));
             } catch (JsonProcessingException e) {
-                reason = "AI assessment result serialization failed. Score: " + assessment.score();
+                reason = AuthorizationAuditReason.aiAssessmentUnreadable(assessment.score());
             }
             riskScore = 1.0 - assessment.score();
         } else {
-            reason = "Static rule matching";
+            // D29: a code the security monitor shows in the language of the screen, not an English sentence.
+            reason = AuthorizationAuditReason.STATIC_RULE;
         }
 
         if (centralAuditFacade == null) {

@@ -17,6 +17,7 @@ package io.contexa.contexaiam.security.xacml.pep;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
@@ -41,6 +42,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.access.hierarchicalroles.NullRoleHierarchy;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -58,6 +60,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -137,6 +140,23 @@ class CustomDynamicAuthorizationManagerConditionFailureTest {
         assertThatThrownBy(() -> guarded.check(() -> user,
                 new RequestAuthorizationContext(new MockHttpServletRequest("GET", REQUEST_PATH))))
                 .isSameAs(challenge);
+    }
+
+    @Test
+    @DisplayName("D29: a decision without an AI assessment is audited with a code, not an English sentence")
+    void theAuditReasonIsACode() {
+        CentralAuditFacade audit = mock(CentralAuditFacade.class);
+        when(policyRetrievalPoint.findUrlPolicies()).thenReturn(List.of(policy(1L, Policy.Effect.ALLOW, 10, "permitAll")));
+        CustomDynamicAuthorizationManager manager = new CustomDynamicAuthorizationManager(
+                policyRetrievalPoint, resolver, mock(ObjectMapper.class), contextHandler,
+                mock(AuthorizationMetrics.class), audit, new PolicyCombiningEvaluator());
+        manager.reload();
+
+        check(manager);
+
+        ArgumentCaptor<AuditRecord> recorded = ArgumentCaptor.forClass(AuditRecord.class);
+        verify(audit).recordAsync(recorded.capture());
+        assertThat(recorded.getValue().getReason()).isEqualTo(AuthorizationAuditReason.STATIC_RULE);
     }
 
     @Test
