@@ -129,21 +129,21 @@ class AgentStopsTest {
         AgentStopApiController api = new AgentStopApiController(service);
         TestingAuthenticationToken admin = new TestingAuthenticationToken("admin", null);
 
-        assertThat(api.act(new AgentStopApiController.StopAction("KILL_SWITCH", null, null, null, " ", null), admin)
+        assertThat(api.act(new StopAction("KILL_SWITCH", null, null, null, " ", null), admin)
                 .getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(api.act(new AgentStopApiController.StopAction("RELEASE_DELEGATION", null, null, "report-agent",
+        assertThat(api.act(new StopAction("RELEASE_DELEGATION", null, null, "report-agent",
                 null, "reviewed"), admin).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(api.act(new AgentStopApiController.StopAction("KILL_SWITCH", null, null, null, "SYNC",
+        assertThat(api.act(new StopAction("KILL_SWITCH", null, null, null, "SYNC",
                 "incident 42"), admin).getBody().agents()).containsExactly("sync-agent");
         assertThat(api.stops().getBody().suspendedAgents()).extracting(agent -> agent.agentId())
                 .containsExactly("sync-agent");
-        assertThat(api.act(new AgentStopApiController.StopAction("RELEASE_AGENT", null, null, "unknown", null,
+        assertThat(api.act(new StopAction("RELEASE_AGENT", null, null, "unknown", null,
                 "reviewed"), admin).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(api.act(new AgentStopApiController.StopAction("release_agent", null, null, "sync-agent", null,
+        assertThat(api.act(new StopAction("release_agent", null, null, "sync-agent", null,
                 "reviewed"), admin).getBody().success()).isTrue();
         assertThat(registry.find(null, "sync-agent")).map(agent -> agent.status()).contains(AgentStatus.ACTIVE);
         assertThat(new AgentStopApiController(new AgentContainmentAdminService(null, registry, null, null))
-                .act(new AgentStopApiController.StopAction("KILL_SWITCH", null, null, null, null, "incident"), admin)
+                .act(new StopAction("KILL_SWITCH", null, null, null, null, "incident"), admin)
                 .getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
     }
 

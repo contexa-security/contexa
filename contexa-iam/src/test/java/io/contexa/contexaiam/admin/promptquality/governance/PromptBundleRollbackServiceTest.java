@@ -48,7 +48,8 @@ class PromptBundleRollbackServiceTest {
         PromptGovernanceTestSchema.apply(jdbc);
         invalidation = mock(PromptGovernanceRuntimeCacheInvalidationService.class);
         service = new PromptBundleRollbackService(jdbc, PromptBundleCatalog.shared(), invalidation, null,
-                new ObjectMapper(), Clock.fixed(Instant.parse("2026-10-16T01:00:00Z"), ZoneOffset.UTC));
+                new ObjectMapper(), Clock.fixed(Instant.parse("2026-10-16T01:00:00Z"), ZoneOffset.UTC),
+                new JdbcTestStatusWriter(jdbc));
     }
 
     @AfterEach

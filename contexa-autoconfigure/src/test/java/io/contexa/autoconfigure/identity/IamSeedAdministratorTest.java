@@ -55,9 +55,9 @@ class IamSeedAdministratorTest {
     @Test
     @DisplayName("Administrator seed: without contexa.iam.seed.admin.password nothing is created")
     void nothingWithoutPassword() {
-        assertThat(IamSeedDataAutoConfiguration.seedAdministrator(dataSource, new MockEnvironment()))
+        assertThat(IamSeedDataAutoConfiguration.seedAdministrator(new JdbcTestAdministratorAccounts(jdbc), new MockEnvironment()))
                 .isEqualTo(IamSeedDataAutoConfiguration.AdministratorSeed.NOT_REQUESTED);
-        assertThat(IamSeedDataAutoConfiguration.seedAdministrator(dataSource, new MockEnvironment()
+        assertThat(IamSeedDataAutoConfiguration.seedAdministrator(new JdbcTestAdministratorAccounts(jdbc), new MockEnvironment()
                 .withProperty(IamSeedDataAutoConfiguration.ADMIN_PASSWORD_PROPERTY, "  ")))
                 .isEqualTo(IamSeedDataAutoConfiguration.AdministratorSeed.NOT_REQUESTED);
         assertThat(jdbc.queryForObject("select count(*) from ctxa_users", Integer.class)).isZero();
@@ -69,7 +69,7 @@ class IamSeedAdministratorTest {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty(IamSeedDataAutoConfiguration.ADMIN_PASSWORD_PROPERTY, "Kp7mVx2qRt9wZb4n");
 
-        assertThat(IamSeedDataAutoConfiguration.seedAdministrator(dataSource, environment))
+        assertThat(IamSeedDataAutoConfiguration.seedAdministrator(new JdbcTestAdministratorAccounts(jdbc), environment))
                 .isEqualTo(IamSeedDataAutoConfiguration.AdministratorSeed.CREATED);
 
         Map<String, Object> user = jdbc.queryForMap("select * from ctxa_users");
@@ -87,11 +87,11 @@ class IamSeedAdministratorTest {
     @Test
     @DisplayName("Administrator seed: a later start never changes an existing administrator, so a password changed in the console stays")
     void leavesAnExistingAdministratorAlone() {
-        IamSeedDataAutoConfiguration.seedAdministrator(dataSource, new MockEnvironment()
+        IamSeedDataAutoConfiguration.seedAdministrator(new JdbcTestAdministratorAccounts(jdbc), new MockEnvironment()
                 .withProperty(IamSeedDataAutoConfiguration.ADMIN_PASSWORD_PROPERTY, "first-password"));
         String stored = jdbc.queryForObject("select password from ctxa_users", String.class);
 
-        assertThat(IamSeedDataAutoConfiguration.seedAdministrator(dataSource, new MockEnvironment()
+        assertThat(IamSeedDataAutoConfiguration.seedAdministrator(new JdbcTestAdministratorAccounts(jdbc), new MockEnvironment()
                 .withProperty(IamSeedDataAutoConfiguration.ADMIN_PASSWORD_PROPERTY, "second-password")))
                 .isEqualTo(IamSeedDataAutoConfiguration.AdministratorSeed.ALREADY_PRESENT);
         assertThat(jdbc.queryForObject("select count(*) from ctxa_users", Integer.class)).isEqualTo(1);
@@ -103,14 +103,14 @@ class IamSeedAdministratorTest {
     void chosenNamesAndCollisions() {
         jdbc.update("insert into ctxa_users (username, email, password, name) values ('kim', 'ops@example.com', 'x', 'Kim')");
 
-        assertThat(IamSeedDataAutoConfiguration.seedAdministrator(dataSource, new MockEnvironment()
+        assertThat(IamSeedDataAutoConfiguration.seedAdministrator(new JdbcTestAdministratorAccounts(jdbc), new MockEnvironment()
                 .withProperty(IamSeedDataAutoConfiguration.ADMIN_PASSWORD_PROPERTY, "secret")
                 .withProperty(IamSeedDataAutoConfiguration.ADMIN_USERNAME_PROPERTY, "root")
                 .withProperty(IamSeedDataAutoConfiguration.ADMIN_EMAIL_PROPERTY, "ops@example.com")))
                 .isEqualTo(IamSeedDataAutoConfiguration.AdministratorSeed.ALREADY_PRESENT);
         assertThat(jdbc.queryForObject("select count(*) from ctxa_users", Integer.class)).isEqualTo(1);
 
-        assertThat(IamSeedDataAutoConfiguration.seedAdministrator(dataSource, new MockEnvironment()
+        assertThat(IamSeedDataAutoConfiguration.seedAdministrator(new JdbcTestAdministratorAccounts(jdbc), new MockEnvironment()
                 .withProperty(IamSeedDataAutoConfiguration.ADMIN_PASSWORD_PROPERTY, "secret")
                 .withProperty(IamSeedDataAutoConfiguration.ADMIN_USERNAME_PROPERTY, "root")
                 .withProperty(IamSeedDataAutoConfiguration.ADMIN_EMAIL_PROPERTY, "root@example.com")))

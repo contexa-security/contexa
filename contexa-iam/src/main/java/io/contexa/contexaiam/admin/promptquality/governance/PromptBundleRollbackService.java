@@ -49,16 +49,19 @@ public class PromptBundleRollbackService {
     private final PromptPolicySetLookup policySets;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final PromptGovernanceStatusWriter statusWriter;
 
     public PromptBundleRollbackService(JdbcTemplate jdbc, PromptBundleCatalog catalog,
                                        PromptGovernanceRuntimeCacheInvalidationService invalidation,
-                                       PromptPolicySetLookup policySets, ObjectMapper objectMapper, Clock clock) {
+                                       PromptPolicySetLookup policySets, ObjectMapper objectMapper, Clock clock,
+                                       PromptGovernanceStatusWriter statusWriter) {
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
         this.catalog = Objects.requireNonNull(catalog, "catalog");
         this.invalidation = Objects.requireNonNull(invalidation, "invalidation");
         this.policySets = policySets;
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.statusWriter = Objects.requireNonNull(statusWriter, "statusWriter");
     }
 
     /** What the operator asks: the scope's active bundle, the target to switch to, why, and whether it is an emergency. */
@@ -237,8 +240,10 @@ public class PromptBundleRollbackService {
         for (String[] row : rows) {
             String readiness = catalog.find(row[1], row[2]).isPresent() ? "READY" : "TARGET_NOT_IN_BUILD";
             if (!readiness.equals(row[3])) {
-                changed += jdbc.update("update ctxa_prompt_governance_rollback_ledger set rollback_readiness_state = ?, "
-                        + "updated_at = ? where id = ?", readiness, Timestamp.from(clock.instant()), Long.parseLong(row[0]));
+                // the ledger is a JPA table (persistence-ownership.yml): written through its repository
+                statusWriter.rollbackReadiness(Long.parseLong(row[0]), readiness,
+                        Timestamp.from(clock.instant()).toLocalDateTime());
+                changed++;
             }
         }
         return changed;
@@ -261,8 +266,8 @@ public class PromptBundleRollbackService {
     }
 
     private void setStatus(String scope, String key, String version, String status, Timestamp now) {
-        jdbc.update("update ctxa_prompt_governance_registry set release_status = ?, updated_at = ? "
-                + "where registry_scope = ? and prompt_key = ? and prompt_version = ?", status, now, scope, key, version);
+        // the registry is a JPA table (persistence-ownership.yml): written through its repository
+        statusWriter.releaseStatus(scope, key, version, status, now.toLocalDateTime());
     }
 
     private void record(String executionKey, Request request, String actor, String status, Conditions conditions,

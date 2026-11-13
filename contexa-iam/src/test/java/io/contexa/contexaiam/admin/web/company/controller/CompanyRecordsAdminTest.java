@@ -26,8 +26,8 @@ import io.contexa.contexacore.autonomous.company.CompanyRecordSet.Person;
 import io.contexa.contexacore.autonomous.company.CompanyRecordSet.Policy;
 import io.contexa.contexacore.autonomous.company.CompanyRecordSet.Ticket;
 import io.contexa.contexacore.autonomous.company.InMemoryCompanyRecordStore;
-import io.contexa.contexaiam.admin.web.company.controller.CompanyRecordsApiController.DeleteBody;
-import io.contexa.contexaiam.admin.web.company.controller.CompanyRecordsApiController.RecordView;
+import io.contexa.contexaiam.admin.web.company.controller.DeleteBody;
+import io.contexa.contexaiam.admin.web.company.controller.RecordView;
 import io.contexa.contexaiam.admin.web.company.service.CompanyRecordsAdminService;
 import io.contexa.contexaiam.admin.web.company.service.CompanyRecordsAdminService.Recorded;
 import org.junit.jupiter.api.Test;
@@ -103,9 +103,9 @@ class CompanyRecordsAdminTest {
         assertThat(alice).extracting(RecordView::kind).containsExactlyInAnyOrder("PERSON", "ASSIGNMENT", "TICKET");
 
         assertThat(api.delete(new DeleteBody(null, "TICKET", List.of("TCK-1", "TCK-9")), integration).getBody())
-                .isEqualTo(new CompanyRecordsApiController.Removed(1));
+                .isEqualTo(new Removed(1));
         // as the answer is written
-        assertThat(new ObjectMapper().convertValue(new CompanyRecordsApiController.Removed(1), Map.class))
+        assertThat(new ObjectMapper().convertValue(new Removed(1), Map.class))
                 .isEqualTo(Map.of("removed", 1));
         assertThat(store.ofSubject(null, "alice").tickets()).isEmpty();
 

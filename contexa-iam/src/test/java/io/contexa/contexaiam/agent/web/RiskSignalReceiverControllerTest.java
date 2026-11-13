@@ -48,7 +48,7 @@ class RiskSignalReceiverControllerTest {
         RiskSignalReceiverController controller = new RiskSignalReceiverController(verifier,
                 new RiskSignalReceiver(actions, null, subjectId -> RiskSignalReceiver.userOf(subjectId, null), null));
 
-        ResponseEntity<RiskSignalReceiverController.DeliveryError> refused = controller.receive("forged");
+        ResponseEntity<DeliveryError> refused = controller.receive("forged");
         assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         // the members of RFC 8935 push delivery, as the answer is written
         assertThat(new ObjectMapper().convertValue(refused.getBody(), Map.class)).containsEntry("err", "invalid_key")

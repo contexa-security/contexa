@@ -60,11 +60,6 @@ public class CompanyRecordsAdminController {
         this.records = records;
     }
 
-    /** One record on the console: its kind, key, person, target and its values in one line. */
-    public record RecordRow(String kind, String key, String subject, String target, String summary,
-                            String ingestedBy, Instant ingestedAt) {
-    }
-
     @GetMapping
     public String list(@RequestParam(value = "kind", required = false) String kind,
                        @RequestParam(value = "subject", required = false) String subject,

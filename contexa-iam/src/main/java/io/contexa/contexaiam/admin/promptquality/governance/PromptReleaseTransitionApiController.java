@@ -31,14 +31,6 @@ public class PromptReleaseTransitionApiController {
         this.invalidation = Objects.requireNonNull(invalidation, "invalidation");
     }
 
-    /**
-     * What the operator asks: a bundle of a scope and the state it should take, named in the canonical vocabulary
-     * (decision 1) or in an older one the one table of {@link PromptBundleState} reads (N-GOV-4).
-     */
-    public record TransitionRequest(String registryScope, String promptKey, String promptVersion,
-                                    String targetReleaseStatus, String rationale) {
-    }
-
     @PostMapping("/transition")
     public ResponseEntity<PromptGovernanceReleaseGateService.ReleaseTransitionReceipt> transition(
             @RequestBody TransitionRequest request, Authentication authentication) {

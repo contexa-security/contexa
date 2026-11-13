@@ -28,6 +28,12 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.InitializingBean;
+import io.contexa.contexacommon.repository.GroupRepository;
+import io.contexa.contexacommon.repository.UserRepository;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
@@ -199,7 +205,6 @@ public class IamSeedDataAutoConfiguration {
             initializeSchemaAndSeedData(dataSource, schemaInstallState, enterpriseManaged,
                     enterpriseRequested ? maintenanceBacklog : null, seedLocations(environment),
                         environment.getProperty(VECTOR_DIMENSIONS_PROPERTY, Integer.class, SCHEMA_VECTOR_DIMENSIONS));
-            seedAdministrator(dataSource, environment);
             OssSchemaGovernance.GovernanceReport report = contexaOssSchemaGovernance.initializeAndRecordOss(
                     schemaInstallState == SchemaInstallState.ABSENT ? preInstallationObjects : null);
             log.info("[IamSeedData] OSS schema provenance verified. version={}, tables={}, views={}, checksum={}, "
@@ -208,6 +213,32 @@ public class IamSeedDataAutoConfiguration {
                     report.inventory().views().size(), report.inventory().checksum(),
                     report.ownership().host().tables().size(), report.ownership().host().views().size(),
                     report.ownership().unowned().tables().size(), report.ownership().unowned().views().size());
+        };
+    }
+
+    /**
+     * The administrator of contexa.iam.seed.admin.password, created once every singleton exists: Contexa's JPA is
+     * ready then (the users and their groups are JPA tables) and the web server has not started yet.
+     */
+    @Bean(name = "contexaIamAdministratorSeed")
+    public SmartInitializingSingleton iamAdministratorSeed(
+            ObjectProvider<UserRepository> users,
+            ObjectProvider<GroupRepository> groups,
+            @Qualifier("contexaTransactionManager") ObjectProvider<PlatformTransactionManager> transactions,
+            Environment environment) {
+        return () -> {
+            UserRepository userRepository = users.getIfAvailable();
+            GroupRepository groupRepository = groups.getIfAvailable();
+            PlatformTransactionManager transactionManager = transactions.getIfAvailable();
+            if (userRepository == null || groupRepository == null || transactionManager == null) {
+                if (StringUtils.hasText(environment.getProperty(ADMIN_PASSWORD_PROPERTY))) {
+                    log.warn("[IamSeedData] The administrator from {} is not created: Contexa's user repositories are not "
+                            + "available", ADMIN_PASSWORD_PROPERTY);
+                }
+                return;
+            }
+            seedAdministrator(new JpaAdministratorAccounts(userRepository, groupRepository,
+                    new TransactionTemplate(transactionManager)), environment);
         };
     }
 
@@ -316,36 +347,25 @@ public class IamSeedDataAutoConfiguration {
     /**
      * Creates the configured administrator once. An existing user with that username or e-mail is never changed, so a
      * password changed in the admin console is not reset at the next start. The password is stored in the {@code {bcrypt}}
-     * form of Spring's delegating encoder, like the sample accounts; the encoder is made here rather than injected
-     * because this initializer runs before Contexa's JPA setup. The account signs in with two steps, like the sample
+     * form of Spring's delegating encoder, like the sample accounts. The account signs in with two steps, like the sample
      * administrator, and its e-mail receives the one-time code.
      */
-    static AdministratorSeed seedAdministrator(DataSource dataSource, Environment environment) {
+    static AdministratorSeed seedAdministrator(AdministratorAccounts accounts, Environment environment) {
         String password = environment.getProperty(ADMIN_PASSWORD_PROPERTY);
         if (password == null || password.isBlank()) {
             return AdministratorSeed.NOT_REQUESTED;
         }
         String username = environment.getProperty(ADMIN_USERNAME_PROPERTY, DEFAULT_ADMIN_USERNAME).trim();
         String email = environment.getProperty(ADMIN_EMAIL_PROPERTY, DEFAULT_ADMIN_EMAIL).trim();
-        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
-        Integer existing = jdbc.queryForObject(
-                "select count(*) from ctxa_users where username = ? or email = ?", Integer.class, username, email);
-        if (existing != null && existing > 0) {
+        if (accounts.exists(username, email)) {
             log.info("[IamSeedData] A user named '{}' or with the e-mail {} exists; the administrator from {} is not created",
                     username, email, ADMIN_PASSWORD_PROPERTY);
             return AdministratorSeed.ALREADY_PRESENT;
         }
         String encoded = PasswordEncoderFactories.createDelegatingPasswordEncoder().encode(password);
-        jdbc.update("insert into ctxa_users (username, email, password, name, enabled, account_locked, credentials_expired, "
-                        + "failed_login_attempts, mfa_enabled, bridge_managed, external_auth_only, created_at) "
-                        + "values (?, ?, ?, ?, true, false, false, 0, true, false, false, current_timestamp)",
-                username, email, encoded, "Administrator");
-        Long userId = jdbc.queryForObject("select id from ctxa_users where username = ?", Long.class, username);
-        Integer group = jdbc.queryForObject(
-                "select count(*) from ctxa_app_group where group_id = ?", Integer.class, ADMIN_GROUP_ID);
-        if (group != null && group > 0) {
-            jdbc.update("insert into ctxa_user_groups (user_id, group_id, assigned_at) values (?, ?, current_timestamp)",
-                    userId, ADMIN_GROUP_ID);
+        long userId = accounts.create(username, email, encoded, "Administrator");
+        if (accounts.groupExists(ADMIN_GROUP_ID)) {
+            accounts.join(userId, ADMIN_GROUP_ID);
             log.info("[IamSeedData] Administrator '{}' created from {}", username, ADMIN_PASSWORD_PROPERTY);
         } else {
             log.warn("[IamSeedData] Administrator '{}' created from {}, but the administrators group {} is missing; "
