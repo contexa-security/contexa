@@ -73,8 +73,8 @@
     </th:block>
 
     <!--/* After the SDK: the console's fetch puts the context path in front of console paths and answers a Zero Trust
-           decision that stops a page script's request (console-net.js). */-->
-    <meta name="contexa-context-path" th:content="@{/}" />
+           decision that stops a page script's request (console-net.js). The script reads the context path from its
+           own address, not from @{/}, which a host may rewrite to its own home (contexa-site: /ko/). */-->
     <meta name="contexa-net-offline" th:content="#{console.net.offline}" />
     <meta name="contexa-net-failed" th:content="#{console.net.failed}" />
     <script th:src="@{/contexa/js/console-net.js}"></script>
