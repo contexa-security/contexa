@@ -19,6 +19,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionarySlotPlanProvider;
 import io.contexa.contexacore.autonomous.context.prompt.PromptListOrder;
+import io.contexa.contexacore.std.components.prompt.PromptSectionPriorityClass;
 import io.contexa.contexacore.autonomous.context.prompt.PromptMissingNotation;
 import io.contexa.contexacore.autonomous.context.prompt.PromptSlotRenderer;
 import io.contexa.contexacore.autonomous.context.prompt.PromptSourceGrade;
@@ -985,6 +986,299 @@ public final class SecurityDecisionPromptDictionary {
      */
     public static final List<PromptDictionaryEntry> V21_ENTRIES = v21Entries();
 
+    /** The v1.0 dictionary: the v21 entries and the facts of v19 and v20 the v21 lines did not state, as records. */
+    public static final String V1_VERSION = "v1.0";
+
+    /** The record kinds a host may look up, in the order the v1.0 line states them. */
+    static final String RECORDS_LOOKED_UP_KINDS = "approvals|tickets|assignment|on-call|travel|access history";
+    private static final String RECORDS_LOOKED_UP_PART = "(" + RECORDS_LOOKED_UP_KINDS
+            + ") (looked up, (\\d+ found|none found)|not looked up)";
+
+    /**
+     * v1.0 (F1, from v20 PolicySatisfied): which kinds of company record the host looked up and how many it found. A
+     * line that is not there is not a record that was looked up and not found: the v21 lines could not tell the two.
+     */
+    private static final PromptDictionaryEntry RECORDS_LOOKED_UP = entry(PromptBlock.DECISION_FACTS, "RecordsLookedUp",
+            "Which kinds of company record the host looked up for this request and how many of each it found",
+            "frictionProfile.checkedRecordKinds and the company records",
+            RECORDS_LOOKED_UP_PART + "(; " + RECORDS_LOOKED_UP_PART + ")*",
+            List.of("approvals looked up, none found; tickets looked up, 1 found; assignment not looked up"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "whether a missing approval or ticket was looked up; NO_COVERING_RECORD, POLICY_NOT_KNOWN",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /**
+     * v1.0 (F2, from v19 ROLE SCOPE): the scope group's denied categories and actions, whether the request's own are
+     * among them, and the drift the host states.
+     */
+    private static final PromptDictionaryEntry SCOPE_DENIED = entry(PromptBlock.DECISION_FACTS, "ScopeDenied",
+            "What the user's scope group is denied (categories and actions), whether the request's category and action"
+                    + " are among them, and the drift from the scope the host states",
+            "roleScopeProfile (forbidden families, drift)",
+            ".+",
+            List.of("denied categories payroll, billing; category customer in denied: no; host drift: category no, action yes"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST, PromptSourceGrade.COMPUTED),
+            "ROLE_SCOPE context",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** v1.0 (F7, from v19 ROLE SCOPE): the approval and escalation patterns usual in the scope group. */
+    private static final PromptDictionaryEntry SCOPE_HABITS = entry(PromptBlock.DECISION_FACTS, "ScopeHabits",
+            "The approval and escalation patterns usual in the user's scope group",
+            "roleScopeProfile (normal approval and escalation patterns)",
+            "(usual approvals .+|usual escalations .+)(; usual escalations .+)?",
+            List.of("usual approvals manager sign-off; usual escalations on-call lead"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "ROLE_SCOPE context",
+            true, PromptDictionaryEntry.PRIORITY_HIGH_VALUE, null, PromptListOrder.NONE, false,
+            List.of());
+
+    private static final String DELEGATION_CONTROL_PART =
+            "(approval required|privileged export allowed|containment only): (yes|no)";
+
+    /** v1.0 (F3, from v20 Delegation): the controls the delegation names for the agent's work. */
+    private static final PromptDictionaryEntry DELEGATION_CONTROLS = entry(PromptBlock.DECISION_FACTS,
+            "DelegationControls",
+            "The controls the delegation names: whether its work needs an approval, whether it may export privileged"
+                    + " data, whether it may only contain",
+            "delegation (approvalRequired, privilegedExportAllowed, containmentOnly)",
+            DELEGATION_CONTROL_PART + "(; " + DELEGATION_CONTROL_PART + ")*",
+            List.of("approval required: yes; privileged export allowed: no; containment only: no"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "DELEGATION context",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** v1.0 (F5, from v19 IDENTITY): the actor's tenant against the tenant the request names. */
+    private static final PromptDictionaryEntry TENANT_MATCH = entry(PromptBlock.DECISION_FACTS, "TenantMatch",
+            "The actor's tenant against the tenant the request names, when both are stated",
+            "actor.tenantId and the request's tenant attribute",
+            "actor tenant .+, request tenant .+: (same|differ)",
+            List.of("actor tenant acme, request tenant beta: differ"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.COMPUTED),
+            "DATA_CONFLICTS context",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** v1.0 (F6, from v19 USER PROFILE): how often the whole combination of this request was seen before. */
+    private static final PromptDictionaryEntry SEEN_COMBINATION = entry(PromptBlock.DECISION_FACTS, "SeenCombination",
+            "How many times the past records show this request's whole combination of time, network, device, login"
+                    + " method and action, with the scope searched and the dimensions compared",
+            "learning context evidence (current request combination)",
+            "this combination seen \\d+ times( \\(.+\\))?",
+            List.of("this combination seen 0 times (scope personal; compared time, network, device)"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.COMPUTED),
+            "DEVIATION context",
+            true, PromptDictionaryEntry.PRIORITY_HIGH_VALUE, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** v1.0 (F7, from v19 PEER COHORT): the cohort's usual protectable frequency and sensitivity bands. */
+    private static final PromptDictionaryEntry COHORT_BANDS = entry(PromptBlock.DECISION_FACTS, "CohortBands",
+            "The bands of protectable use and data sensitivity usual in the user's peer cohort",
+            "peerCohortProfile (frequency and sensitivity bands)",
+            "(usual protectable frequency .+|usual sensitivity .+)(; usual sensitivity .+)?",
+            List.of("usual protectable frequency HIGH; usual sensitivity MEDIUM"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "PEER_COHORT context",
+            true, PromptDictionaryEntry.PRIORITY_HIGH_VALUE, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** v1.0 (D5, from v19 INTENT): the anomaly signal the server itself issued, with its source and trust. */
+    private static final PromptDictionaryEntry VERIFIED_SIGNAL = entry(PromptBlock.DECISION_FACTS, "VerifiedSignal",
+            "An anomaly signal the server itself issued for this request, with its source: a verified input, unlike a"
+                    + " signal a requester sends",
+            "intent (anomalySignal from the server's verification source)",
+            ".+ \\(server-issued verification input " + V1LineValues.TRUSTED_SIGNAL_SOURCE + "\\)",
+            List.of("credential stuffing confirmed (server-issued verification input "
+                    + V1LineValues.TRUSTED_SIGNAL_SOURCE + ")"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "a verified signal; under the decision rules a required BLOCK",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** v1.0 (F6, from v19 SESSION NARRATIVE): whether the host saw a burst of requests in the session. */
+    private static final PromptDictionaryEntry BURST_PATTERN = entry(PromptBlock.SESSION, "BurstPattern",
+            "Whether the host saw the session's requests come in a burst",
+            "sessionNarrative.burstPattern",
+            "(burst observed|no burst) \\(host\\)",
+            List.of("burst observed (host)"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "automation context (H4)",
+            true, PromptDictionaryEntry.PRIORITY_HIGH_VALUE, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** v1.0 (F8, from v19 FRICTION): the host's counts of recent challenges, blocks and escalations of the user. */
+    private static final PromptDictionaryEntry HOST_DECISION_COUNTS = entry(PromptBlock.SESSION, "HostDecisionCounts",
+            "The host's counts of the user's recent challenges, blocks and escalations",
+            "session or frictionProfile (recent challenge, block and escalation counts)",
+            "host counts: challenges (\\d+|not stated), blocks (\\d+|not stated), escalations (\\d+|not stated)",
+            List.of("host counts: challenges 2, blocks 0, escalations not stated"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "friction context",
+            true, PromptDictionaryEntry.PRIORITY_HIGH_VALUE, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** v1.0 (F7, from v19 RESOURCE): the resource type the host declares. */
+    private static final PromptDictionaryEntry TARGET_TYPE = entry(PromptBlock.REQUEST, "TargetType",
+            "The resource type the host declares for the target",
+            "resource.resourceType",
+            "type .+",
+            List.of("type CUSTOMER_RECORD"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "what the data is (J4)",
+            true, PromptDictionaryEntry.PRIORITY_HIGH_VALUE, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** v1.0 (F7, from v19 LOCATION): the network zone with what it means, as the host declares it. */
+    private static final PromptDictionaryEntry NETWORK_ZONE = entry(PromptBlock.REQUEST, "NetworkZone",
+            "The network zone the host declares, with what the zone means",
+            "location.networkZone",
+            "[A-Z_]+ - .+ \\(host\\)",
+            List.of("CORPORATE - a company network (host)"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "DEVIATION_NETWORK context",
+            true, PromptDictionaryEntry.PRIORITY_HIGH_VALUE, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** v1.0 (F7, from v19 RAG EVIDENCE): whether the past records were filtered by the requester's permission. */
+    private static final PromptDictionaryEntry PAST_RECORDS_PERMISSION = entry(PromptBlock.PAST_RECORDS,
+            "PastRecordsPermission",
+            "Whether the past record search left out records the requester may not see",
+            "event metadata ragPermissionFiltered",
+            "records filtered by the requester's permission: (yes|no)",
+            List.of("records filtered by the requester's permission: yes"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.COMPUTED),
+            "how complete the past records are",
+            true, PromptDictionaryEntry.PRIORITY_SUPPORTING, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /**
+     * v1.0 (D3, from v19 A14 and B7): a past record the similarity search found beside the exact lookup, in the v21 past
+     * record form; only a bundle with the similarity search has such records, and without one the line is left out. Its
+     * lines carry fact ids for the hypotheses to weigh (no reason code names them), and a prompt over its budget takes
+     * them out first, so a similar-case variant differs from its exact variant by these lines alone.
+     */
+    private static final PromptDictionaryEntry SIMILAR_CASE = similarCase();
+
+    private static PromptDictionaryEntry similarCase() {
+        PromptDictionaryEntry record = V21_ENTRIES.stream()
+                .filter(entry -> entry.block() == PromptBlock.PAST_RECORDS && "PastRecord{i}".equals(entry.name()))
+                .findFirst().orElseThrow(() -> new IllegalStateException("No v21 entry PAST_RECORDS.PastRecord{i}"));
+        return new PromptDictionaryEntry(PromptBlock.PAST_RECORDS, "SimilarCase{i}",
+                "One past record a similarity search found, of this user or of others in the organization as its"
+                        + " authorization says, not necessarily of this request's action or target; the target field"
+                        + " says the target is in UNTRUSTED TEXT",
+                "past record store, the v19 similarity search: the request's query, the multi-query and supporting"
+                        + " searches the settings turn on, the organization's supporting documents (A14, B7)",
+                record.formatPattern(), record.formatExamples(),
+                PromptMissingNotation.LINE_OMITTED, null,
+                Set.of(PromptSourceGrade.LEARNED),
+                "how similar requests went: the hypotheses' for and against; no reason code names it",
+                true, PromptSectionPriorityClass.P3_OPTIONAL.name(), 5, PromptListOrder.PAST_RECORD, false,
+                List.of());
+    }
+
+    /** The v1.0 dictionary entries, in render order. */
+    public static final List<PromptDictionaryEntry> V1_ENTRIES = v1Entries();
+
+    /** The slot plans of the v1.0 dictionary. */
+    public static PromptDictionarySlotPlanProvider v1SlotPlanProvider() {
+        return new PromptDictionarySlotPlanProvider(V1_ENTRIES, V1_VERSION);
+    }
+
+    /** The v1.0 dictionary of a bundle with the decision rules (the fallback variants). */
+    public static final String V1_RULES_VERSION = "v1.0-rules";
+
+    /**
+     * v1.0 with the decision rules: the core's conclusions the v19 and v20 rules read, beside the records. The v20
+     * PolicySatisfied line as v20 drew it, and the v20 differences with whether a record explains each.
+     */
+    private static final PromptDictionaryEntry DEVIATIONS_EXPLAINED = deviationsExplained();
+
+    /** The v1.0 entries with the conclusions the decision rules read, each after the record line it concludes on. */
+    public static final List<PromptDictionaryEntry> V1_RULES_ENTRIES = v1RulesEntries();
+
+    /** The slot plans of the v1.0 dictionary with the decision rules. */
+    public static PromptDictionarySlotPlanProvider v1RulesSlotPlanProvider() {
+        return new PromptDictionarySlotPlanProvider(V1_RULES_ENTRIES, V1_RULES_VERSION);
+    }
+
+    private static PromptDictionaryEntry deviationsExplained() {
+        PromptDictionaryEntry v20 = baseEntry(PromptBlock.DECISION_FACTS, "DeviationsFromBaseline");
+        return new PromptDictionaryEntry(v20.block(), "DeviationsExplained",
+                "The differences from the usual as the core concludes on them: each one unexplained, or explained by the"
+                        + " record, the trip or the item limit that covers it (the v20 DeviationsFromBaseline line)",
+                v20.sourcePath(), v20.formatPattern(), v20.formatExamples(), v20.missing(), v20.missingText(),
+                v20.grades(), "the decision rules: P1, P2, the covered-work and elevated-risk boundaries",
+                v20.conditional(), v20.priority(), v20.listCap(), v20.listOrder(), v20.truncationAllowed(),
+                v20.preservedLabels());
+    }
+
+    private static List<PromptDictionaryEntry> v1RulesEntries() {
+        PromptDictionaryEntry policySatisfied = baseEntry(PromptBlock.DECISION_FACTS, "PolicySatisfied");
+        List<PromptDictionaryEntry> entries = new ArrayList<>();
+        for (PromptDictionaryEntry entry : V1_ENTRIES) {
+            entries.add(entry);
+            if (entry.block() == PromptBlock.DECISION_FACTS && "DeviationsFromBaseline".equals(entry.name())) {
+                entries.add(DEVIATIONS_EXPLAINED);
+            }
+            if (entry.block() == PromptBlock.DECISION_FACTS && "Policy".equals(entry.name())) {
+                entries.add(policySatisfied);
+            }
+        }
+        return List.copyOf(entries);
+    }
+
+    /** The base (v20) entry of the block and name; the dictionary always has it. */
+    private static PromptDictionaryEntry baseEntry(PromptBlock block, String name) {
+        return ENTRIES.stream().filter(entry -> entry.block() == block && name.equals(entry.name())).findFirst()
+                .orElseThrow(() -> new IllegalStateException("No base entry " + block + "." + name));
+    }
+
+    /** The v21 entries with each v1.0 entry after the entry its fact belongs with. */
+    private static List<PromptDictionaryEntry> v1Entries() {
+        List<PromptDictionaryEntry> entries = new ArrayList<>();
+        for (PromptDictionaryEntry entry : V21_ENTRIES) {
+            entries.add(entry);
+            String key = entry.block().name() + "." + entry.name();
+            switch (key) {
+                case "REQUEST.TargetScope" -> entries.add(TARGET_TYPE);
+                case "REQUEST.Network" -> entries.add(NETWORK_ZONE);
+                case "SESSION.RecentRequests" -> entries.add(BURST_PATTERN);
+                case "SESSION.RequestsInSession" -> entries.add(HOST_DECISION_COUNTS);
+                case "DECISION_FACTS.SameAsBaseline" -> entries.add(SEEN_COMBINATION);
+                case "DECISION_FACTS.Policy" -> entries.add(RECORDS_LOOKED_UP);
+                case "DECISION_FACTS.RoleScope" -> {
+                    entries.add(SCOPE_DENIED);
+                    entries.add(SCOPE_HABITS);
+                }
+                case "DECISION_FACTS.DataConflicts" -> entries.add(TENANT_MATCH);
+                case "DECISION_FACTS.ClientSignals" -> entries.add(VERIFIED_SIGNAL);
+                case "DECISION_FACTS.PeerCohort" -> entries.add(COHORT_BANDS);
+                case "DECISION_FACTS.ArgumentOrigin" -> entries.add(DELEGATION_CONTROLS);
+                case "PAST_RECORDS.PastRecordsState" -> entries.add(PAST_RECORDS_PERMISSION);
+                case "PAST_RECORDS.PastRecord{i}" -> entries.add(SIMILAR_CASE);
+                default -> {
+                }
+            }
+        }
+        return List.copyOf(entries);
+    }
+
     private SecurityDecisionPromptDictionary() {
     }
 
@@ -1270,6 +1564,19 @@ public final class SecurityDecisionPromptDictionary {
                 + '\n' + "blockTitles=" + titles + '\n';
     }
 
+    /**
+     * The v1.0 dictionary as text, with the titles its blocks carry (the v21 titles); the v1.0 bundles' dictionary
+     * element (B2).
+     */
+    public static String contentTextV1() {
+        StringBuilder titles = new StringBuilder();
+        for (PromptBlock block : PromptBlock.values()) {
+            titles.append(block).append('=').append(block.v21Title()).append(';');
+        }
+        return contentText(V1_VERSION, V1_ENTRIES) + "blockHeaderLabels=" + new TreeMap<>(BLOCK_HEADER_PRESERVED_LABELS)
+                + '\n' + "blockTitles=" + titles + '\n';
+    }
+
     private static String contentText(String version, List<PromptDictionaryEntry> entries) {
         StringBuilder text = new StringBuilder("version=").append(version).append('\n');
         for (PromptDictionaryEntry entry : entries) {
@@ -1295,10 +1602,33 @@ public final class SecurityDecisionPromptDictionary {
         return ContentDigest.V21_VALUE;
     }
 
+    /** The digest of {@link #contentTextV1()}, the same as the v1.0 bundles' dictionary element hash. */
+    public static String contentDigestV1() {
+        return ContentDigest.V1_VALUE;
+    }
+
+    /** The v1.0 dictionary with the decision rules as text; the fallback variants' dictionary element (B2). */
+    public static String contentTextV1Rules() {
+        StringBuilder titles = new StringBuilder();
+        for (PromptBlock block : PromptBlock.values()) {
+            titles.append(block).append('=').append(block.v21Title()).append(';');
+        }
+        return contentText(V1_RULES_VERSION, V1_RULES_ENTRIES) + "blockHeaderLabels="
+                + new TreeMap<>(BLOCK_HEADER_PRESERVED_LABELS) + '\n' + "blockTitles=" + titles + '\n';
+    }
+
+    /** The digest of {@link #contentTextV1Rules()}. */
+    public static String contentDigestV1Rules() {
+        return ContentDigest.V1_RULES_VALUE;
+    }
+
     /** The digests, computed once when they are first asked for. */
     private static final class ContentDigest {
 
         private static final String VALUE = PromptBundleHashes.present("B2", contentText(), "dictionary").hash();
         private static final String V21_VALUE = PromptBundleHashes.present("B2", contentTextV21(), "dictionary").hash();
+        private static final String V1_VALUE = PromptBundleHashes.present("B2", contentTextV1(), "dictionary").hash();
+        private static final String V1_RULES_VALUE =
+                PromptBundleHashes.present("B2", contentTextV1Rules(), "dictionary").hash();
     }
 }

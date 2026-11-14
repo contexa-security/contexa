@@ -17,6 +17,7 @@ package io.contexa.contexacore.verification.inspection;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedPastRecordSummary;
 import org.springframework.ai.document.Document;
@@ -37,6 +38,7 @@ public record PromptInspectionSources(
         Map<String, Object> requestFacts,
         Map<String, Object> authState,
         List<Document> pastRecords,
+        List<Document> similarCases,
         Set<String> unread) {
 
     public static final String REQUEST_FACTS = "requestFactsJson";
@@ -51,6 +53,7 @@ public record PromptInspectionSources(
         requestFacts = Collections.unmodifiableMap(new LinkedHashMap<>(requestFacts));
         authState = Collections.unmodifiableMap(new LinkedHashMap<>(authState));
         pastRecords = List.copyOf(pastRecords);
+        similarCases = List.copyOf(similarCases);
         unread = Collections.unmodifiableSet(new LinkedHashSet<>(unread));
     }
 
@@ -61,7 +64,10 @@ public record PromptInspectionSources(
         String pastRecords = evidencePackage.getRagResultsJson();
         map(pastRecords, PAST_RECORDS, unread);
         List<Document> records = unread.contains(PAST_RECORDS) ? List.of() : SealedPastRecordSummary.records(pastRecords);
-        return new PromptInspectionSources(requestFacts, authState, records, unread);
+        // v1.0 (D3): the similar cases a similar-case variant drew, sealed apart from the past records.
+        List<Document> similarCases = unread.contains(PAST_RECORDS) ? List.of()
+                : SealedPastRecordSummary.records(pastRecords, SimilarCases.SEALED_KEY);
+        return new PromptInspectionSources(requestFacts, authState, records, similarCases, unread);
     }
 
     /** A sealed JSON object; an absent one is empty, one that does not read is empty and named. */

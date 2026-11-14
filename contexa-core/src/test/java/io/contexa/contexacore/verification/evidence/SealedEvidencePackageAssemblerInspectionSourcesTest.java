@@ -4,10 +4,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidenceAssembler;
 import io.contexa.contexacore.autonomous.learning.evidence.RetrievedBehaviorEvidence;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.prompt.PastRecordLineValues;
+import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
+import io.contexa.contexacore.verification.replay.SealedDecisionReplayInputs;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
@@ -194,6 +197,43 @@ class SealedEvidencePackageAssemblerInspectionSourcesTest {
         assertThat(withheldRag.get("projectedDocumentIds")).isEqualTo(List.of());
         assertThat(withheldRag.get("ragProjectedToFinalPrompt")).isEqualTo(false);
         assertThat(withheldRag).doesNotContainKey("unmatchedDrawnIds");
+    }
+
+    /**
+     * v1.0 (D3): the similar cases a similar-case variant drew are sealed apart from the past records, each with its
+     * relation to the request; the past record count is the exact lookup's, and the replay reads the similar cases back
+     * marked, so a replay of the variant draws them again.
+     */
+    @Test
+    void theSimilarCasesAreSealedApartAndReadBackMarked() throws Exception {
+        Document record = Document.builder().id("doc-exact").text("EXPORT /api/projects/PLM-OPS/exports")
+                .metadata(new HashMap<>(Map.of("id", "doc-exact", "actionFamily", "EXPORT",
+                        "requestPath", "/api/projects/PLM-OPS/exports")))
+                .build();
+        Document similar = SimilarCases.join(List.of(), List.of(Document.builder().id("doc-similar")
+                .text("READ /api/documents/HX-1/download")
+                .metadata(new HashMap<>(Map.of("id", "doc-similar", "actionFamily", "READ",
+                        "requestPath", "/api/documents/HX-1/download")))
+                .build())).get(0);
+
+        SealedEvidencePackage sealed = seal("req-similar", Map.of(), List.of(record, similar));
+
+        Map<String, Object> rag = JSON.readValue(sealed.getRagResultsJson(), MAP);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> records = (List<Map<String, Object>>) rag.get("relatedDocuments");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> similarCases = (List<Map<String, Object>>) rag.get(SimilarCases.SEALED_KEY);
+        assertThat(records).extracting(summary -> summary.get("id")).containsExactly("doc-exact");
+        assertThat(similarCases).extracting(summary -> summary.get("id")).containsExactly("doc-similar");
+        assertThat(similarCases.get(0)).containsKeys("relation", "sameTarget");
+        assertThat(rag).containsEntry("relatedDocumentCount", 1);
+
+        CanonicalSecurityContextSerializer serializer = new CanonicalSecurityContextSerializer(JSON);
+        sealed.setCanonicalContextJson(serializer.serialize(CanonicalSecurityContext.builder().build()));
+        List<Document> replayed = SealedDecisionReplayInputs.of(sealed, "replay-similar", JSON, serializer).documents();
+        assertThat(replayed).extracting(Document::getId).containsExactly("doc-exact", "doc-similar");
+        assertThat(SimilarCases.isSimilarCase(replayed.get(0))).isFalse();
+        assertThat(SimilarCases.isSimilarCase(replayed.get(1))).isTrue();
     }
 
     private SealedEvidencePackage seal(String requestId, Map<String, Object> promptMetadata, List<Document> documents) {

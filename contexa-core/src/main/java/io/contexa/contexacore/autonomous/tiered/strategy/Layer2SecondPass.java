@@ -39,6 +39,7 @@ final class Layer2SecondPass {
 
     static final String V20_LAYOUT = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V20;
     static final String V21_LAYOUT = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21;
+    static final String V1_LAYOUT = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1;
 
     /** Past record states of a search the first pass did not finish or did not run. */
     private static final Set<String> NOT_RETRIEVED = Set.copyOf(PastRecordLineValues.NOT_RETRIEVED_STATES);
@@ -82,9 +83,10 @@ final class Layer2SecondPass {
                     explanations(metadata.get(PromptRuntimeTelemetrySupport.FIRST_PASS_HYPOTHESES)));
         }
 
-        /** A model verdict on a dictionary prompt (v20, v21) the second pass can add to. */
+        /** A model verdict on a dictionary prompt (v20, v21, v1.0) the second pass can add to. */
         boolean givesASecondPass() {
-            return modelVerdict && (V20_LAYOUT.equals(layout) || V21_LAYOUT.equals(layout)) && userPrompt != null;
+            return modelVerdict && (V20_LAYOUT.equals(layout) || V21_LAYOUT.equals(layout) || V1_LAYOUT.equals(layout))
+                    && userPrompt != null;
         }
 
         /** The past records this pass found when the first pass could not retrieve any. */

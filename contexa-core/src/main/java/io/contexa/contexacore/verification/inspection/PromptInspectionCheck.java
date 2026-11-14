@@ -15,6 +15,10 @@
  */
 package io.contexa.contexacore.verification.inspection;
 
+import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
+
+import java.util.List;
+
 /**
  * One check of the prompt inspector: what it compares with what, over one sealed package. A check points at problems;
  * it never changes the prompt, the decision or anything else.
@@ -36,5 +40,14 @@ public interface PromptInspectionCheck {
      */
     default PromptInspectionCheck forV21() {
         return this;
+    }
+
+    /**
+     * The check of a v1.0 package (plan 2.3 A20 to A27), with the dictionary its variant draws (the v1.0 dictionary, or
+     * the one with the conclusions the decision rules read): a check bound to a dictionary gives one bound to it, a check
+     * that reads only lines v1.0 adds gives one that reads them too; any other check is its v21 check.
+     */
+    default PromptInspectionCheck forV1(List<PromptDictionaryEntry> dictionary) {
+        return forV21();
     }
 }

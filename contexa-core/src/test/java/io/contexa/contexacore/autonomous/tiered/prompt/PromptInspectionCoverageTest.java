@@ -61,6 +61,26 @@ class PromptInspectionCoverageTest {
                 .doesNotContainAnyElementsOf(FactAccuracyCheck.NOT_COMPARABLE.keySet());
     }
 
+    /** v1.0 (plan 2.3 A20 to A27): every entry v1.0 adds is compared, inspected elsewhere or named not comparable. */
+    @Test
+    void everyEntryV1AddsIsComparedInspectedElsewhereOrNamedNotComparable() {
+        Set<String> v21 = SecurityDecisionPromptDictionary.V21_ENTRIES.stream()
+                .map(entry -> entry.block().name() + "." + entry.name()).collect(Collectors.toSet());
+        Set<String> v1Only = SecurityDecisionPromptDictionary.V1_RULES_ENTRIES.stream()
+                .map(entry -> entry.block().name() + "." + entry.name()).filter(name -> !v21.contains(name))
+                .collect(Collectors.toSet());
+
+        Set<String> accounted = new HashSet<>(FactAccuracyCheck.COMPARED_V1);
+        accounted.addAll(FactAccuracyCheck.INSPECTED_ELSEWHERE_V1.keySet());
+        accounted.addAll(FactAccuracyCheck.NOT_COMPARABLE_V1.keySet());
+        assertThat(accounted).isEqualTo(v1Only);
+        assertThat(FactAccuracyCheck.COMPARED_V1)
+                .doesNotContainAnyElementsOf(FactAccuracyCheck.INSPECTED_ELSEWHERE_V1.keySet())
+                .doesNotContainAnyElementsOf(FactAccuracyCheck.NOT_COMPARABLE_V1.keySet());
+        assertThat(FactAccuracyCheck.INSPECTED_ELSEWHERE_V1.keySet())
+                .doesNotContainAnyElementsOf(FactAccuracyCheck.NOT_COMPARABLE_V1.keySet());
+    }
+
     @Test
     void aDrawnLineOfAnEntryWithoutASealedSourceIsCountedNotComparableWithItsReason() {
         SealedEvidencePackage sealed = InspectionGolden.showcaseSealed().stream()

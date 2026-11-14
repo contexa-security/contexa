@@ -2,6 +2,7 @@ package io.contexa.contexacore.verification.runtime.prompt;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
@@ -669,6 +670,11 @@ public final class FinalPromptMetricContractCatalog {
                 .stream()
                 .map(FinalPromptSnapshot::normalizeSection)
                 .forEach(sections::add);
+        // B11: the blocks of a dictionary prompt (v20, v21, v1.0), by both of their titles.
+        for (PromptBlock block : PromptBlock.values()) {
+            sections.add(FinalPromptSnapshot.normalizeSection(block.title()));
+            sections.add(FinalPromptSnapshot.normalizeSection(block.v21Title()));
+        }
     }
 
     public record PromptSignalContract(

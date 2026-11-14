@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionContext;
+import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection;
@@ -61,10 +62,20 @@ class SecurityDecisionPromptBundleSelectionTest {
 
     @Test
     void theBuildRunsTheCurrentBundleAndOnePreviousOneWithTheV19BundleAsItsDefault() {
-        // V-1 (변경): v21 runs next to v20, its rollback target and the comparison it is measured against.
+        // V-1 (변경): v21 runs next to v20, its rollback target and the comparison it is measured against. Plan 1-6:
+        // the four v1.0 variants run as drafts beside them for the measurement (2.5), the build default stays v19.
         assertThat(SecurityDecisionPromptBundles.ALL)
                 .extracting(bundle -> bundle.descriptor().promptVersion())
-                .containsExactly(V19, V20, SecurityDecisionPromptBundles.V21.version());
+                .containsExactly(V19, V20, SecurityDecisionPromptBundles.V21.version(),
+                        SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR.version(),
+                        SecurityDecisionPromptBundles.V1_FALLBACK_EXACT.version(),
+                        SecurityDecisionPromptBundles.V1_RECORD_SIMILAR.version(),
+                        SecurityDecisionPromptBundles.V1_RECORD_EXACT.version());
+        assertThat(SecurityDecisionPromptBundles.V1_BUNDLES).allSatisfy(bundle -> {
+            assertThat(bundle.layout()).isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS);
+            assertThat(bundle.descriptor().releaseStatus()).isEqualTo(PromptReleaseStatus.DRAFT);
+            assertThat(bundle.descriptor().rollbackPromptVersion()).isEqualTo(V19);
+        });
         assertThat(SecurityDecisionPromptBundles.V21.layout())
                 .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS);
         assertThat(SecurityDecisionPromptBundles.V21.descriptor().rollbackPromptVersion()).isEqualTo(V20);

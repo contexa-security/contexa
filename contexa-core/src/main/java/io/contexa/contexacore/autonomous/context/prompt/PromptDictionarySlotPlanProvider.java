@@ -77,7 +77,8 @@ public class PromptDictionarySlotPlanProvider implements PromptSlotPlanProvider 
         return entries;
     }
 
-    private static String slotKey(PromptDictionaryEntry entry) {
+    /** The slot key of a dictionary entry: its block title and its name ({@code REQUEST.Action}). */
+    public static String slotKey(PromptDictionaryEntry entry) {
         return entry.block().title() + "." + entry.name();
     }
 

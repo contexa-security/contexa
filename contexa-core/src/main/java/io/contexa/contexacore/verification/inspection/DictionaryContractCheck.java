@@ -57,6 +57,12 @@ public final class DictionaryContractCheck implements PromptInspectionCheck {
         return new DictionaryContractCheck(SecurityDecisionPromptDictionary.V21_ENTRIES);
     }
 
+    /** The contract of the dictionary the v1.0 variant draws. */
+    @Override
+    public PromptInspectionCheck forV1(List<PromptDictionaryEntry> dictionary) {
+        return new DictionaryContractCheck(dictionary);
+    }
+
     @Override
     public String code() {
         return CODE;

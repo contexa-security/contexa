@@ -35,6 +35,7 @@ import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
@@ -629,26 +630,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return timeout != null && timeout.isBackgroundRagWarmupOnInteractiveTimeout();
     }
 
-    private SecurityEvent copyEventForRagRetrieval(SecurityEvent source) {
-        if (source == null) {
-            return null;
-        }
-        return SecurityEvent.builder()
-                .eventId(source.getEventId())
-                .source(source.getSource())
-                .timestamp(source.getTimestamp())
-                .severity(source.getSeverity())
-                .description(source.getDescription())
-                .sourceIp(source.getSourceIp())
-                .userId(source.getUserId())
-                .userName(source.getUserName())
-                .sessionId(source.getSessionId())
-                .userAgent(source.getUserAgent())
-                .metadata(source.getMetadata() != null ? new LinkedHashMap<>(source.getMetadata()) : new LinkedHashMap<>())
-                .blocked(source.isBlocked())
-                .build();
-    }
-
     private void copyRagRetrievalMetadata(SecurityEvent source, SecurityEvent target) {
         if (source == null || target == null || source.getMetadata() == null) {
             return;
@@ -770,7 +751,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
         metadata.put("ragUnavailable", ragUnavailable);
         metadata.put("ragTimedOut", ragTimedOut);
-        int relatedDocumentCount = relatedDocuments != null ? relatedDocuments.size() : 0;
+        // v1.0 (D3): the counts and states are the exact lookup's; the similar cases are drawn apart.
+        int relatedDocumentCount = SimilarCases.exact(relatedDocuments).size();
         boolean hasSearchLedgerMetadata = hasRagSearchLedgerMetadata(metadata);
         metadata.put("ragSearchExecuted", true);
         if (!hasSearchLedgerMetadata || ragUnavailable || ragTimedOut) {

@@ -164,6 +164,22 @@ public final class PastRecordLineValues {
                 PastDeniedLines.items(denied, requestTime, true));
     }
 
+    /**
+     * v1.0 (D3): the targets of the similar case lines a v1.0 render writes apart as untrusted texts, those no past
+     * record line names already, each once (shared with the inspector).
+     */
+    public static List<String> similarCaseTargets(List<Document> similarCases, Function<Document, String> sameTargetOf,
+                                                  LocalDateTime requestTime, List<String> pastRecordTargets) {
+        if (similarCases == null || similarCases.isEmpty()) {
+            return List.of();
+        }
+        List<PromptListItem> items = PastRecordLines.items(ranked(similarCases),
+                (document, record) -> sameTargetOf.apply(document), requestTime, PastRecordLines.TARGET_APART);
+        return SecurityDecisionPromptValues.similarCaseTargets(items).stream()
+                .filter(target -> pastRecordTargets == null || !pastRecordTargets.contains(target))
+                .toList();
+    }
+
     /** BR-S4: the records in the order the render draws them, through the same post-processing step. */
     private static List<Document> ranked(List<Document> documents) {
         return PastRecordPostProcessor.ranked().process(PastRecordPostProcessor.PAST_RECORDS, documents);

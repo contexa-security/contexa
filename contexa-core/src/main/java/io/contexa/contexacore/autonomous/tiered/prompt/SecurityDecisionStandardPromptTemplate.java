@@ -132,7 +132,7 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
      * the honesty rules, with no decision rule, numeric threshold, floor or later enforcement. Its user prompt is the
      * v20 dictionary blocks with the facts as records, measurements and comparisons and no conclusion of the core: no
      * policy satisfaction line, no record that "covers" the request, no difference marked explained, no "within" or
-     * "outside" a scope. Its output contract v4 adds the explanations the model weighed. Rollback goes to v20.25.
+     * "outside" a scope. Its output contract v4 adds the explanations the model weighed. Rollback goes to v20.26.
      */
     public static final PromptGovernanceDescriptor SECURITY_DECISION_V21_PROMPT_GOVERNANCE =
             new PromptGovernanceDescriptor(
@@ -178,6 +178,61 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
                             "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI"
                     ),
                     SecurityDecisionStandardPromptTemplate.class.getName());
+
+    /** The common part of every v1.0 bundle's change summary: what v1.0 joins and from where. */
+    private static final String V1_SUMMARY = "Zero Trust decision prompt v1.0: one bundle with every function of v19, "
+            + "v20 and v21 on the v21 records layout. User prompt: the v21 dictionary blocks with the facts of v19 and v20 "
+            + "the v21 blocks did not state, as records (whether the approvals were looked up, the scope group's denied "
+            + "families and the host's drift, the delegation's approval, export and containment fields, the host's "
+            + "failure count, the actor and request tenants, the burst pattern and the seen combination, the trusted "
+            + "verification signal's source and trust). System text: the v21 judgment with the evidence reading and "
+            + "honesty sentences of v19 and v20. Output contract v4. Minimum action rules recorded (OBSERVE) or enforced "
+            + "(ENFORCE) as the host configures. ";
+
+    /** v1.0 with the decision rules and their fallback, and the similar cases. */
+    public static final PromptGovernanceDescriptor SECURITY_DECISION_V1_FALLBACK_SIMILAR_PROMPT_GOVERNANCE =
+            v1Descriptor("2026.11.14-v1.0-fallback-similar", "Variant fallback-similar: the system text states the "
+                    + "v19 and v20 decision rules, the trusted signal boundary and the floors turned on; a response that "
+                    + "still breaks a boundary after the retry is replaced as v19 and v20 did; the similar cases of the "
+                    + "similarity search join the exact past record lookup.");
+
+    /** v1.0 with the decision rules and their fallback, on the exact past record lookup only. */
+    public static final PromptGovernanceDescriptor SECURITY_DECISION_V1_FALLBACK_EXACT_PROMPT_GOVERNANCE =
+            v1Descriptor("2026.11.14-v1.0-fallback-exact", "Variant fallback-exact: the decision rules and their "
+                    + "fallback as fallback-similar, on the exact past record lookup only.");
+
+    /** v1.0 without decision rules (the model judges, a breach is recorded), with the similar cases. */
+    public static final PromptGovernanceDescriptor SECURITY_DECISION_V1_RECORD_SIMILAR_PROMPT_GOVERNANCE =
+            v1Descriptor("2026.11.14-v1.0-record-similar", "Variant record-similar: no decision rule in the system "
+                    + "text; a response that breaks a boundary stays the model's and the breach is recorded for a "
+                    + "person's review; the similar cases join the exact past record lookup.");
+
+    /** v1.0 without decision rules, on the exact past record lookup only. */
+    public static final PromptGovernanceDescriptor SECURITY_DECISION_V1_RECORD_EXACT_PROMPT_GOVERNANCE =
+            v1Descriptor("2026.11.14-v1.0-record-exact", "Variant record-exact: no decision rule as record-similar, "
+                    + "on the exact past record lookup only.");
+
+    /** A v1.0 descriptor: a draft measured against v19, v20 and v21; its rollback is the production v19 bundle. */
+    private static PromptGovernanceDescriptor v1Descriptor(String version, String variantSummary) {
+        return new PromptGovernanceDescriptor(
+                "cortex.security-decision",
+                STANDARD_TEMPLATE_KEY,
+                version,
+                "CORTEX_PROMPT_CONTRACT_V4",
+                PromptReleaseStatus.DRAFT,
+                "contexa-cortex-core",
+                "V1-2026-11-14",
+                "NOT-EVALUATED",
+                SECURITY_DECISION_PROMPT_GOVERNANCE.promptVersion(),
+                V1_SUMMARY + variantSummary,
+                List.of(
+                        "STRICT_JSON_SCHEMA",
+                        "LOW_TEMPERATURE_SECURITY_DECISION",
+                        "EVIDENCE_ONLY_RETRIEVAL",
+                        "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI"
+                ),
+                SecurityDecisionStandardPromptTemplate.class.getName());
+    }
 
     private final SecurityDecisionPromptSections promptSections;
 

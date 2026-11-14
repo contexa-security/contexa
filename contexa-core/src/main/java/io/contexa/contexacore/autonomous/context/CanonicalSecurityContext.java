@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.contexa.contexacore.autonomous.baseline.AgentBaselineView;
 import io.contexa.contexacore.autonomous.baseline.BaselineView;
@@ -27,7 +28,9 @@ import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -97,6 +100,15 @@ public class CanonicalSecurityContext {
 
     /** The facts the engine computed for the decision (W2-5), set when the decision prompt is built. */
     private DecisionFacts decisionFacts;
+    /**
+     * v1.0: the decision facts in the conclusions notation, kept in memory beside the records the prompt states, for the
+     * v1.0 decision rules, the response check (boundaries, minimum action floors) and the minimum action record. It is
+     * never sealed, stored or compared; null for every other bundle.
+     */
+    @JsonIgnore
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    private DecisionFacts conclusionFacts;
 
     @Data
     @Builder

@@ -7,8 +7,13 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 final class OfficialVerificationCcsrCheckEvaluator {
+
+    /** B13: the LoginMethod line of a dictionary prompt (v20, v21, v1.0) that states this session's MFA. */
+    private static final Pattern DICTIONARY_MFA_VERIFIED =
+            Pattern.compile("(?m)^(\\[[A-Z]\\d+\\] )?LoginMethod: .*MFA verified");
 
     List<CcsrCheckResult> evaluate(
             EndpointDefinition endpoint,
@@ -55,10 +60,15 @@ final class OfficialVerificationCcsrCheckEvaluator {
     }
 
     private void addSecurityAndPhaseChecks(List<CcsrCheckResult> checks, CheckContext context) {
-        boolean promptMfa = containsText(context.userPrompt(), "MfaVerified: true");
+        // B13: a dictionary prompt (v20, v21, v1.0) states MFA on its LoginMethod line and the sensitivity on its
+        // ResourceClass line.
+        boolean promptMfa = containsText(context.userPrompt(), "MfaVerified: true")
+                || matches(context.userPrompt(), DICTIONARY_MFA_VERIFIED);
         boolean promptSensitivity = containsText(
                 context.userPrompt(), "Sensitivity: " + context.expectedSensitivity()
-        );
+        ) || (context.expectedSensitivity() != null && matches(context.userPrompt(), Pattern.compile(
+                "(?m)^(\\[[A-Z]\\d+\\] )?ResourceClass: .*\\(sensitivity " + Pattern.quote(context.expectedSensitivity())
+                        + "\\b")));
         boolean promptAllow = containsText(context.userPrompt(), "AuthorizationEffect: ALLOW");
         checks.add(check("mfaVerified state matches user prompt", boolText(context.eventMfaVerified()),
                 pair(boolText(context.eventMfaVerified()), boolText(promptMfa)),
@@ -84,6 +94,10 @@ final class OfficialVerificationCcsrCheckEvaluator {
 
     private CcsrCheckResult check(String label, String expected, String actual, boolean pass, String source) {
         return new CcsrCheckResult(label, value(expected), value(actual), pass, source);
+    }
+
+    private static boolean matches(String source, Pattern pattern) {
+        return source != null && pattern.matcher(source).find();
     }
 
     private boolean containsText(String source, String fragment) {

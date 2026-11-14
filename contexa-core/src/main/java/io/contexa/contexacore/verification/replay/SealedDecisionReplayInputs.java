@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
@@ -65,6 +66,9 @@ public record SealedDecisionReplayInputs(SecurityEvent event, SecurityDecisionSt
             "purpose", VectorDocumentMetadata.PURPOSE_MATCH,
             "retrievalPolicy", VectorDocumentMetadata.RETRIEVAL_POLICY_SUMMARY);
 
+    /** Where a sealed package keeps the similar cases of a v1.0 bundle with the similarity search (D3). */
+    private static final String SIMILAR_CASES = SimilarCases.SEALED_KEY;
+
     /** The inputs of the package, under the replay id; the request time is the canonical context's. */
     public static SealedDecisionReplayInputs of(SealedEvidencePackage sealed, String replayId, ObjectMapper mapper,
                                                 CanonicalSecurityContextSerializer serializer) {
@@ -89,7 +93,7 @@ public record SealedDecisionReplayInputs(SecurityEvent event, SecurityDecisionSt
         putAll(event, read(mapper, sealed.getBaselineSnapshotJson()), mapper);
         JsonNode retrieval = read(mapper, sealed.getRagResultsJson());
         retrieval.fields().forEachRemaining(entry -> {
-            if (!"relatedDocuments".equals(entry.getKey())) {
+            if (!"relatedDocuments".equals(entry.getKey()) && !SIMILAR_CASES.equals(entry.getKey())) {
                 event.addMetadata(entry.getKey(), mapper.convertValue(entry.getValue(), Object.class));
             }
         });
@@ -109,7 +113,10 @@ public record SealedDecisionReplayInputs(SecurityEvent event, SecurityDecisionSt
         session.setUserId(text(facts, "userId"));
         session.setSessionId(text(facts, "sessionId"));
         session.setAuthMethod(text(authState, "authMethod"));
-        return new SealedDecisionReplayInputs(event, session, documents(retrieval, mapper), context);
+        // v1.0 (D3): the similar cases a similar-case variant drew are sealed apart and come back marked.
+        return new SealedDecisionReplayInputs(event, session, SimilarCases.join(
+                documents(retrieval.path("relatedDocuments"), mapper),
+                documents(retrieval.path(SIMILAR_CASES), mapper)), context);
     }
 
     /** The baselines the decision was drawn against, for whichever user or organization the analysis asks. */
@@ -146,9 +153,9 @@ public record SealedDecisionReplayInputs(SecurityEvent event, SecurityDecisionSt
         }
     }
 
-    private static List<Document> documents(JsonNode retrieval, ObjectMapper mapper) {
+    private static List<Document> documents(JsonNode summaries, ObjectMapper mapper) {
         List<Document> documents = new ArrayList<>();
-        for (JsonNode summary : retrieval.path("relatedDocuments")) {
+        for (JsonNode summary : summaries) {
             Map<String, Object> metadata = new LinkedHashMap<>();
             summary.fields().forEachRemaining(entry -> {
                 if (!"textPreview".equals(entry.getKey()) && !"textLength".equals(entry.getKey())) {

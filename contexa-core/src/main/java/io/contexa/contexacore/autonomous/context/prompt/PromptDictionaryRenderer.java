@@ -273,11 +273,14 @@ public final class PromptDictionaryRenderer {
 
     /**
      * Whether a line of the entry with this value carries its block's fact id (dictionary 1.5, W3-13, P3 extra 12): a
-     * required line of a block with an id prefix, except the line counting a list's items over its cap (R1b-3: shared
-     * with the inspector).
+     * required line of a block with an id prefix, or a past record line the hypotheses may weigh (v1.0 D3: a similar
+     * case, whatever its priority; every other past record entry is required), except the line counting a list's items
+     * over its cap (R1b-3: shared with the inspector).
      */
     public static boolean citesFactId(PromptBlock block, PromptDictionaryEntry entry, String value) {
-        return block.factPrefix() != null && PromptDictionaryEntry.PRIORITY_REQUIRED.equals(entry.priority())
+        return block.factPrefix() != null
+                && (PromptDictionaryEntry.PRIORITY_REQUIRED.equals(entry.priority())
+                        || entry.listOrder() == PromptListOrder.PAST_RECORD)
                 && !(entry.indexed() && value != null && OVERFLOW.matcher(value).matches());
     }
 

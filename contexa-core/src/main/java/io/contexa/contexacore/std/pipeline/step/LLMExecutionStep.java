@@ -21,7 +21,9 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
+import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
@@ -42,6 +44,7 @@ import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.observation.SecurityDecisionObservationContextResolver;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector.Inspection;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV1OutputInspector;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV21OutputInspector;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -55,6 +58,7 @@ import reactor.core.publisher.Mono;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,6 +71,7 @@ public class LLMExecutionStep implements PipelineStep {
     private final SecurityDecisionRawOutputContractInspector rawOutputContractInspector =
             new SecurityDecisionRawOutputContractInspector();
     private final SecurityDecisionV21OutputInspector v21OutputInspector = new SecurityDecisionV21OutputInspector();
+    private final SecurityDecisionV1OutputInspector v1OutputInspector = new SecurityDecisionV1OutputInspector();
 
     private static final List<String> EXECUTION_METADATA_KEYS = List.of(
             "requestedModelId",
@@ -411,7 +416,8 @@ public class LLMExecutionStep implements PipelineStep {
         // V-5: a v21 decision is checked for what it says, never for its action.
         SecurityDecisionV21OutputInspector.V21Check v21Check = v21Check(request, context);
         if (v21Check != null) {
-            return executeV21Guarded(prompt, request, context, executionContext, v21Check, lastCall);
+            return executeV21Guarded(prompt, request, context, executionContext, v21Check,
+                    v1Rules(request, context, v21Check), lastCall);
         }
         // W4-5 (plan 7): the minimum action rules are checked here only in enforce mode; observe mode records them.
         SecurityDecisionRawOutputContractInspector.MinimumActionCheck ruleCheck = minimumActionCheck(request);
@@ -512,6 +518,7 @@ public class LLMExecutionStep implements PipelineStep {
             PipelineExecutionContext context,
             ExecutionContext executionContext,
             SecurityDecisionV21OutputInspector.V21Check v21Check,
+            SecurityDecisionV1OutputInspector.V1Rules v1Rules,
             AtomicReference<ExecutionContext> lastCall) {
         context.addMetadata(SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT,
                 SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT_V4);
@@ -520,8 +527,8 @@ public class LLMExecutionStep implements PipelineStep {
                         ? Mono.just("")
                         : Mono.error(error))
                 .flatMap(rawResponse -> {
-                    SecurityDecisionV21OutputInspector.V21Inspection initial = v21OutputInspector.inspect(
-                            rawResponse, request.getRequestId(), "initial", v21Check);
+                    SecurityDecisionV1OutputInspector.V1Inspection initial = inspectV21(
+                            rawResponse, request.getRequestId(), "initial", v21Check, v1Rules);
                     Inspection initialCheck = initial.inspection();
                     if (!initialCheck.requiresRetry()) {
                         context.addMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, initial.hypotheses());
@@ -541,8 +548,12 @@ public class LLMExecutionStep implements PipelineStep {
                     String retryReason = truncated ? OUTPUT_TRUNCATED : initialCheck.retryReason();
                     context.addMetadata("securityDecisionOutputRetryAttempted", true);
                     context.addMetadata("securityDecisionOutputRetryReason", retryReason);
+                    // v1.0 with the fallback: an answer that breaks a decision rule is asked again as v20 asked it,
+                    // naming the rule; without it, as v21 asks, the action staying the model's to choose.
                     ExecutionContext retryContext = buildExecutionContext(
-                            truncated ? prompt : correctivePromptV21(prompt, rawResponse, retryReason),
+                            truncated ? prompt : initial.ruleViolation() != null && v1Rules != null && v1Rules.fallback()
+                                    ? correctivePrompt(prompt, rawResponse, retryReason)
+                                    : correctivePromptV21(prompt, rawResponse, retryReason),
                             request,
                             context,
                             null,
@@ -554,8 +565,8 @@ public class LLMExecutionStep implements PipelineStep {
                     AtomicBoolean retryRecorded = new AtomicBoolean();
                     return outputRetryCall(retryContext, truncated, request, context, lastCall)
                             .map(retryResponse -> {
-                                SecurityDecisionV21OutputInspector.V21Inspection retry = v21OutputInspector.inspect(
-                                        retryResponse, request.getRequestId(), "retry", v21Check);
+                                SecurityDecisionV1OutputInspector.V1Inspection retry = inspectV21(
+                                        retryResponse, request.getRequestId(), "retry", v21Check, v1Rules);
                                 Inspection retryCheck = retry.inspection();
                                 boolean succeeded = !retryCheck.requiresRetry();
                                 context.addMetadata("securityDecisionOutputRetrySucceeded", succeeded);
@@ -578,12 +589,33 @@ public class LLMExecutionStep implements PipelineStep {
                                             "Security decision output had no usable form after retry: "
                                                     + retryCheck.retryReason());
                                 }
+                                if (!succeeded && retry.ruleViolation() != null
+                                        && v1RuleFallsBack(v1Rules, retry.ruleViolation())) {
+                                    // v1.0 fallback (B5, B6) and an enforced floor (B4): the rule's action replaces the
+                                    // answer, as the v19 and v20 response checks did.
+                                    context.addMetadata("securityDecisionOutputRetryFailureReason",
+                                            retryCheck.retryReason());
+                                    context.addMetadata(
+                                            SecurityDecisionRawOutputContractInspector.CONTRACT_FALLBACK_ACTION,
+                                            SecurityDecisionRawOutputContractInspector.fallbackActionFor(
+                                                    retry.ruleViolation()));
+                                    throw new StructuredOutputExecutionException(
+                                            StructuredOutputFailureCategory.VALIDATION_FAILED,
+                                            "Security decision output violated the response contract after retry: "
+                                                    + retryCheck.retryReason());
+                                }
                                 if (!succeeded) {
                                     // The answer is kept; the retry's fields name its failure as the retries do.
                                     context.addMetadata("securityDecisionOutputRetryFailureReason",
                                             retryCheck.retryReason());
                                     context.addMetadata(SecurityDecisionV21OutputInspector.UNRESOLVED_FINDINGS,
                                             retryCheck.retryReason());
+                                    if (retry.ruleViolation() != null) {
+                                        // v1.0 without the fallback: the model's answer stays and the breach is kept
+                                        // for a person's review.
+                                        context.addMetadata(SecurityDecisionV1OutputInspector.V1_RULE_BREACH,
+                                                retry.ruleViolation());
+                                    }
                                 }
                                 context.addMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, retry.hypotheses());
                                 return retryResponse;
@@ -609,7 +641,8 @@ public class LLMExecutionStep implements PipelineStep {
         PromptExecutionMetadata metadata = generated != null ? generated.getPromptExecutionMetadata() : null;
         Object layout = metadata != null && metadata.supplementalMetadata() != null
                 ? metadata.supplementalMetadata().get(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION) : null;
-        if (!SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21.equals(layout)
+        boolean v1 = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1.equals(layout);
+        if (!(v1 || SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21.equals(layout))
                 || !(request.getContext() instanceof SecurityDecisionContext decision)
                 || decision.getSecurityEvent() == null || decision.getSecurityEvent().getMetadata() == null
                 || !(decision.getSecurityEvent().getMetadata().get("sealedEvidence.canonicalContext")
@@ -618,6 +651,72 @@ public class LLMExecutionStep implements PipelineStep {
         }
         return new SecurityDecisionV21OutputInspector.V21Check(canonical, generated.getUserPrompt(),
                 Boolean.TRUE.equals(metadata.supplementalMetadata().get("layer2SecondPass")));
+    }
+
+    /**
+     * v1.0: what the answer is checked for besides the v21 checks, from the bundle's features fixed on the event and
+     * the conclusions the context kept beside its records; null for a v21 prompt.
+     */
+    private static SecurityDecisionV1OutputInspector.V1Rules v1Rules(AIRequest<?> request,
+                                                                    PipelineExecutionContext context,
+                                                                    SecurityDecisionV21OutputInspector.V21Check check) {
+        PromptGenerationResult generated = context.getStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION, PromptGenerationResult.class);
+        PromptExecutionMetadata metadata = generated != null ? generated.getPromptExecutionMetadata() : null;
+        Object layout = metadata != null && metadata.supplementalMetadata() != null
+                ? metadata.supplementalMetadata().get(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION) : null;
+        if (check == null || !SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1.equals(layout)
+                || !(request.getContext() instanceof SecurityDecisionContext decision)) {
+            return null;
+        }
+        Map<String, Object> eventMetadata = decision.getSecurityEvent().getMetadata();
+        Object version = eventMetadata.get(SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION);
+        SecurityDecisionPromptBundles.Features features = SecurityDecisionPromptBundles
+                .find(version != null ? version.toString() : null)
+                .map(SecurityDecisionPromptBundles.Bundle::features)
+                .orElse(SecurityDecisionPromptBundles.Features.NONE);
+        CanonicalSecurityContext canonical = check.context();
+        DecisionFacts conclusions = canonical.getConclusionFacts();
+        // Every v1.0 variant checks the boundaries on the facts its prompt states; only a fallback variant replaces
+        // an answer that still breaks one (plan 2.4, D1).
+        return new SecurityDecisionV1OutputInspector.V1Rules(conclusions, conclusions != null,
+                v1MinimumActionCheck(request, canonical, conclusions), features.fallbackOnViolation());
+    }
+
+    /** The v21 check of an answer, with the v1.0 rules after it for a v1.0 prompt. */
+    private SecurityDecisionV1OutputInspector.V1Inspection inspectV21(String rawResponse, String requestId,
+                                                                    String attempt,
+                                                                    SecurityDecisionV21OutputInspector.V21Check check,
+                                                                    SecurityDecisionV1OutputInspector.V1Rules rules) {
+        return rules != null
+                ? v1OutputInspector.inspect(rawResponse, requestId, attempt, check, rules)
+                : SecurityDecisionV1OutputInspector.V1Inspection.of(
+                        v21OutputInspector.inspect(rawResponse, requestId, attempt, check));
+    }
+
+    /** v1.0 (B4): the minimum action check on the conclusions when the host enforces the floors; null otherwise. */
+    private static SecurityDecisionRawOutputContractInspector.MinimumActionCheck v1MinimumActionCheck(
+            AIRequest<?> request, CanonicalSecurityContext canonical, DecisionFacts conclusions) {
+        String mode = request != null ? request.getParameter("minimumActionMode", String.class) : null;
+        if (!"ENFORCE".equalsIgnoreCase(mode != null ? mode.trim() : "") || conclusions == null) {
+            return null;
+        }
+        MinimumActionRules.Settings settings = request.getParameter("minimumActionSettings", MinimumActionRules.Settings.class);
+        CanonicalSecurityContext.Resource resource = canonical.getResource();
+        return new SecurityDecisionRawOutputContractInspector.MinimumActionCheck(conclusions,
+                resource != null ? resource.getResourceClass() : null, resource != null ? resource.getActionFamily() : null,
+                settings != null ? settings : MinimumActionRules.Settings.DEFAULTS);
+    }
+
+    /**
+     * v1.0: whether a rule an answer still breaks after the retry replaces the answer: an enforced floor always (the
+     * host asked for it), a boundary only in a fallback variant.
+     */
+    private static boolean v1RuleFallsBack(SecurityDecisionV1OutputInspector.V1Rules rules, String ruleViolation) {
+        if (rules == null) {
+            return false;
+        }
+        return ruleViolation.startsWith(SecurityDecisionV1OutputInspector.MINIMUM_ACTION_VIOLATION) || rules.fallback();
     }
 
     /**

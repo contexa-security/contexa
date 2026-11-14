@@ -33,6 +33,11 @@ public class SecurityPromptBuildContext {
     private final SecurityDecisionStandardPromptTemplate.SessionContext sessionContext;
     private final SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis;
     private final List<Document> relatedDocuments;
+    /**
+     * v1.0 (D3): the similar cases of a bundle with the similarity search, apart from the past records above, so that
+     * every count, state and line of the past records stays the exact lookup's.
+     */
+    private final List<Document> similarCases;
     private final CanonicalSecurityContext canonicalSecurityContext;
     private final String userId;
     private final BaselineStatus baselineStatus;
@@ -79,10 +84,39 @@ public class SecurityPromptBuildContext {
                                       PromptBudgetProfile promptBudgetProfile,
                                       StructuredOutputMode structuredOutputMode,
                                       List<PromptRuntimeGovernanceRule> runtimeGovernanceRules) {
+        this(event,
+                sessionContext,
+                behaviorAnalysis,
+                relatedDocuments,
+                List.of(),
+                canonicalSecurityContext,
+                userId,
+                baselineStatus,
+                detectedPatterns,
+                learningContextEvidence,
+                promptBudgetProfile,
+                structuredOutputMode,
+                runtimeGovernanceRules);
+    }
+
+    public SecurityPromptBuildContext(SecurityEvent event,
+                                      SecurityDecisionStandardPromptTemplate.SessionContext sessionContext,
+                                      SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+                                      List<Document> relatedDocuments,
+                                      List<Document> similarCases,
+                                      CanonicalSecurityContext canonicalSecurityContext,
+                                      String userId,
+                                      BaselineStatus baselineStatus,
+                                      SecurityDecisionStandardPromptTemplate.DetectedPatterns detectedPatterns,
+                                      LearningContextEvidence learningContextEvidence,
+                                      PromptBudgetProfile promptBudgetProfile,
+                                      StructuredOutputMode structuredOutputMode,
+                                      List<PromptRuntimeGovernanceRule> runtimeGovernanceRules) {
         this.event = event;
         this.sessionContext = sessionContext;
         this.behaviorAnalysis = behaviorAnalysis;
         this.relatedDocuments = relatedDocuments != null ? List.copyOf(relatedDocuments) : List.of();
+        this.similarCases = similarCases != null ? List.copyOf(similarCases) : List.of();
         this.canonicalSecurityContext = canonicalSecurityContext;
         this.userId = userId;
         this.baselineStatus = baselineStatus;
@@ -99,6 +133,7 @@ public class SecurityPromptBuildContext {
                 sessionContext,
                 behaviorAnalysis,
                 relatedDocuments,
+                similarCases,
                 canonicalSecurityContext,
                 userId,
                 baselineStatus,

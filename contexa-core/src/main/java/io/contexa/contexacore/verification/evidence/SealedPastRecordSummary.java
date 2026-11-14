@@ -101,8 +101,13 @@ public final class SealedPastRecordSummary {
      * their metadata names, the text preview as the text (the inspector draws the lines from them).
      */
     public static List<Document> records(String ragResultsJson) {
+        return records(ragResultsJson, "relatedDocuments");
+    }
+
+    /** As above, for the summaries under the given key (v1.0 D3: the similar cases, sealed apart). */
+    public static List<Document> records(String ragResultsJson, String listKey) {
         List<Document> documents = new ArrayList<>();
-        Object related = read(ragResultsJson).get("relatedDocuments");
+        Object related = read(ragResultsJson).get(listKey);
         if (!(related instanceof List<?> summaries)) {
             return documents;
         }
@@ -127,6 +132,11 @@ public final class SealedPastRecordSummary {
                     .build());
         }
         return documents;
+    }
+
+    /** A value the sealed retrieval summary keeps beside its records, or null when it keeps none. */
+    public static Object retrievalValue(String ragResultsJson, String key) {
+        return read(ragResultsJson).get(key);
     }
 
     private static Map<String, Object> read(String json) {

@@ -49,8 +49,10 @@ import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV4;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
@@ -1530,6 +1532,82 @@ class AbstractTieredStrategyTest {
         assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "PLATFORM_CANONICAL");
     }
 
+    /**
+     * Plan 2.3 B2 (D1): a v1.0 fallback variant takes the v19 canonical ALLOW explanation as v19 does; a record
+     * variant keeps the model's explanation.
+     */
+    @Test
+    void theV19CanonicalExplanationIsTakenByAV1FallbackVariantOnly() {
+        SecurityDecision fallback = SecurityDecision.builder().action(ZeroTrustAction.ALLOW)
+                .reasoning("MFA verified in historical signals.").llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL")).build();
+        SecurityDecision record = SecurityDecision.builder().action(ZeroTrustAction.ALLOW)
+                .reasoning("MFA verified in historical signals.").llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL")).build();
+        SecurityEvent fallbackEvent = SecurityEvent.builder().metadata(exportMetadata("GB-500", Map.of(
+                "ragProjectedToFinalPrompt", true, "personalBaselineEstablished", true))).build();
+        SecurityEvent recordEvent = SecurityEvent.builder().metadata(exportMetadata("GB-500", Map.of(
+                "ragProjectedToFinalPrompt", true, "personalBaselineEstablished", true))).build();
+        when(promptTemplate.promptBundle(fallbackEvent)).thenReturn(SecurityDecisionPromptBundles.V1_FALLBACK_EXACT);
+        when(promptTemplate.promptBundle(recordEvent)).thenReturn(SecurityDecisionPromptBundles.V1_RECORD_EXACT);
+
+        strategy.applyCanonicalDecisionReasoningForTest(fallback, fallbackEvent, List.of(exportRecord("GB-500")));
+        strategy.applyCanonicalDecisionReasoningForTest(record, recordEvent, List.of(exportRecord("GB-500")));
+
+        assertThat(fallback.getReasoning()).isEqualTo("Authorization allows access, the personal baseline is "
+                + "established, and authorized RAG is relevant to the same resource.");
+        assertThat(record.getReasoning()).isEqualTo("MFA verified in historical signals.");
+    }
+
+    /**
+     * Plan 2.3 B3: a v1.0 decision records the minimum action rules its conclusions meet, read from the conclusions the
+     * context kept beside the records its prompt states; a v21 decision records none.
+     */
+    @Test
+    void aV1DecisionRecordsTheMinimumActionRulesOfItsConclusions() {
+        DecisionFacts conclusions = new DecisionFacts(List.of(), List.of(),
+                new PolicySatisfaction(false, null, List.of(), "no approval", List.of()), List.of());
+        CanonicalSecurityContext canonical = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder().resourceClass("SENSITIVE").actionFamily("READ").build())
+                .decisionFacts(new DecisionFacts(List.of(), List.of(), null, List.of()))
+                .conclusionFacts(conclusions)
+                .build();
+        SecurityEvent v1Event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of("sealedEvidence.canonicalContext", canonical))).build();
+        SecurityEvent v21Event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of("sealedEvidence.canonicalContext", canonical))).build();
+        when(promptTemplate.promptBundle(v1Event)).thenReturn(SecurityDecisionPromptBundles.V1_RECORD_EXACT);
+        when(promptTemplate.promptBundle(v21Event)).thenReturn(SecurityDecisionPromptBundles.V21);
+        SecurityDecision v1 = SecurityDecision.builder().action(ZeroTrustAction.ALLOW).build();
+        SecurityDecision v21 = SecurityDecision.builder().action(ZeroTrustAction.ALLOW).build();
+
+        strategy.applyMinimumActionRulesForTest(v1, v1Event);
+        strategy.applyMinimumActionRulesForTest(v21, v21Event);
+
+        assertThat(v1.getAction()).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(v1Event.getMetadata()).containsEntry("minimumActionFindings", List.of(Map.of(
+                "rule", "P3_POLICY_NOT_SATISFIED", "code", "MIN_P3_POLICY_NOT_SATISFIED", "requiredAction", "ESCALATE",
+                "dimensions", List.of(), "decidedAction", "ALLOW", "violated", true)));
+        assertThat(v21Event.getMetadata()).doesNotContainKey("minimumActionFindings");
+    }
+
+    /** Plan 2.3 A4, A15: a v1.0 request with native structured output asks the provider for the output contract v4. */
+    @Test
+    void aV1RequestWithNativeStructuredOutputCarriesTheOutputContractV4Schema() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-v1-native")
+                .metadata(new LinkedHashMap<>(Map.of("structuredOutputMode", StructuredOutputMode.NATIVE_STRUCTURED.name())))
+                .build();
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR);
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), List.of());
+
+        assertThat(request.getParameter(ExecutionContext.OUTPUT_SCHEMA, String.class))
+                .isEqualTo(SecurityDecisionOutputContractV4.providerSchema());
+    }
+
     @Test
     @DisplayName("same-resource authorized RAG must not invent an absent baseline")
     void applyCanonicalDecisionReasoning_shouldNotInventAbsentBaseline() {
@@ -1953,6 +2031,81 @@ class AbstractTieredStrategyTest {
 
         verify(unifiedVectorService, atLeastOnce()).searchSimilar(any(SearchRequest.class));
         verify(unifiedVectorService, never()).pastRecordQuery();
+    }
+
+    /**
+     * v1.0 (D3): a similar-case variant adds the v19 similarity search beside the exact lookup. The event's search state
+     * stays the exact lookup's, the similar cases it did not find come marked, and one audit holds every document.
+     */
+    @Test
+    void aV1SimilarCaseRequestAddsTheSimilaritySearchBesideTheExactLookup() {
+        SecurityEvent event = exportEvent("event-v1-similar", true);
+        when(promptTemplate.promptBundle(any(SecurityEvent.class)))
+                .thenReturn(SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR);
+        Document sameTarget = new Document("00000000-0000-0000-0000-000000000051", "record same target",
+                Map.of("eventId", "e51", "requestPath", GB500, "pathFamily", EXPORTS, "actionFamily", "EXPORT"));
+        Document similar = new Document("00000000-0000-0000-0000-000000000052", "record of a similar request",
+                Map.of("eventId", "e52", "requestPath", "/api/reports/R-7/downloads", "actionFamily", "EXPORT"));
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(new RecordingPastRecordQuery(List.of(
+                new PastRecordGroup(EXPORTS, GB500, "POST", 1, LocalDateTime.of(2026, 10, 12, 11, 0))),
+                List.of(sameTarget)));
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of(similar, sameTarget));
+        authorizeEveryDocument();
+
+        List<Document> result = strategy.callSearchRelatedContextBase(event, 5, 0.5d);
+
+        assertThat(result).extracting(Document::getId).containsExactly(sameTarget.getId(), similar.getId());
+        assertThat(SimilarCases.isSimilarCase(result.get(0))).isFalse();
+        assertThat(SimilarCases.isSimilarCase(result.get(1))).isTrue();
+        assertThat(event.getMetadata())
+                .containsEntry("ragSearchMode", "EXACT_PAST_RECORD_LOOKUP")
+                .containsEntry("ragRetrievalState", "AVAILABLE")
+                .containsEntry("relatedDocumentCount", 1);
+        ArgumentCaptor<AuthorizedPromptContext> audited = ArgumentCaptor.forClass(AuthorizedPromptContext.class);
+        verify(promptContextAuditForwardingService, times(1))
+                .capture(ArgumentMatchers.same(event), any(), audited.capture());
+        assertThat(audited.getValue().documents()).extracting(Document::getId)
+                .containsExactly(sameTarget.getId(), similar.getId());
+    }
+
+    @Test
+    void aV1ExactRequestReadsOnlyTheExactLookup() {
+        SecurityEvent event = exportEvent("event-v1-exact", true);
+        when(promptTemplate.promptBundle(any(SecurityEvent.class)))
+                .thenReturn(SecurityDecisionPromptBundles.V1_FALLBACK_EXACT);
+        RecordingPastRecordQuery query = new RecordingPastRecordQuery(List.of(), List.of());
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(query);
+
+        strategy.callSearchRelatedContextBase(event, 5, 0.5d);
+
+        assertThat(query.scope).isNotNull();
+        verify(unifiedVectorService, never()).searchSimilar(any(SearchRequest.class));
+    }
+
+    @Test
+    void aFailedSimilarCaseSearchLeavesTheExactRecordsAndOneAudit() {
+        SecurityEvent event = exportEvent("event-v1-similar-failed", true);
+        when(promptTemplate.promptBundle(any(SecurityEvent.class)))
+                .thenReturn(SecurityDecisionPromptBundles.V1_RECORD_SIMILAR);
+        Document sameTarget = new Document("00000000-0000-0000-0000-000000000061", "record same target",
+                Map.of("eventId", "e61", "requestPath", GB500, "pathFamily", EXPORTS, "actionFamily", "EXPORT"));
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(new RecordingPastRecordQuery(List.of(
+                new PastRecordGroup(EXPORTS, GB500, "POST", 1, LocalDateTime.of(2026, 10, 12, 11, 0))),
+                List.of(sameTarget)));
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
+                .thenThrow(new RuntimeException("Similarity search failed"));
+        authorizeEveryDocument();
+
+        List<Document> result = strategy.callSearchRelatedContextBase(event, 5, 0.5d);
+
+        assertThat(result).extracting(Document::getId).containsExactly(sameTarget.getId());
+        assertThat(event.getMetadata()).containsEntry("ragRetrievalState", "AVAILABLE")
+                .containsEntry("relatedDocumentCount", 1);
+        ArgumentCaptor<AuthorizedPromptContext> audited = ArgumentCaptor.forClass(AuthorizedPromptContext.class);
+        verify(promptContextAuditForwardingService, times(1))
+                .capture(ArgumentMatchers.same(event), any(), audited.capture());
+        assertThat(audited.getValue().documents()).extracting(Document::getId).containsExactly(sameTarget.getId());
+        assertThat(audited.getValue().deniedReasons()).contains("VECTOR_STORE_SEARCH_FAILED");
     }
 
     @Test

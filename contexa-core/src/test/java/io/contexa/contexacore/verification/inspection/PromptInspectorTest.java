@@ -127,6 +127,11 @@ class PromptInspectorTest {
         assertThat(result.unverifiableCount()).isEqualTo(1);
     }
 
+    /**
+     * K2 (plan 2.3 B8, B9): a v19 prompt runs only the checks that do not read the dictionary; each dictionary check
+     * records that it could not read the prompt, so the package is incomplete and never taken for a clean one. K3: the
+     * result names no dictionary.
+     */
     @Test
     void aV19PromptRunsOnlyTheChecksThatDoNotReadTheDictionary() {
         PromptInspectionCheck dictionary = check("DICT", tally -> tally.mismatch(finding("DICT", PromptInspectionOutcome.MISMATCH)));
@@ -135,9 +140,12 @@ class PromptInspectorTest {
         PromptInspectionResult result = inspector(dictionary, seal)
                 .inspect(sealed("=== CURRENT REQUEST ===\nRequestPath: /a\n", "2026.10.11-v19.8"));
 
-        assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.NOT_APPLICABLE);
-        assertThat(result.checks()).extracting(PromptInspectionCheckResult::checkCode).containsExactly("SEAL");
+        assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.INCOMPLETE);
+        assertThat(result.checks()).extracting(PromptInspectionCheckResult::checkCode).containsExactly("DICT", "SEAL");
+        assertThat(result.checks().get(0).mismatched()).isZero();
+        assertThat(result.checks().get(0).unverifiable()).isEqualTo(1);
         assertThat(result.layoutVersion()).isEqualTo("2026.10.11-v19.8");
+        assertThat(result.dictionaryVersion()).isEqualTo(PromptInspector.NO_DICTIONARY);
     }
 
     @Test
@@ -157,9 +165,12 @@ class PromptInspectorTest {
 
         PromptInspectionResult result = inspector(dictionary).inspect(sealed(V20_PROMPT, null));
 
-        assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.NOT_APPLICABLE);
-        assertThat(result.checks()).isEmpty();
+        // K2: the dictionary check says it did not read the prompt, so the package is incomplete, not clean.
+        assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.INCOMPLETE);
+        assertThat(result.checks()).extracting(PromptInspectionCheckResult::checkCode).containsExactly("DICT");
+        assertThat(result.checks().get(0).matched()).isZero();
         assertThat(result.layoutVersion()).isNull();
+        assertThat(result.dictionaryVersion()).isEqualTo(PromptInspector.NO_DICTIONARY);
     }
 
     @Test

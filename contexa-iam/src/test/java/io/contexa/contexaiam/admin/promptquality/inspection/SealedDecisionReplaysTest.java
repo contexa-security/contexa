@@ -67,6 +67,22 @@ class SealedDecisionReplaysTest {
     private final Authentication operator = new UsernamePasswordAuthenticationToken("admin-1", null, List.of());
     private final SealedEvidencePackage sealed = sealed();
 
+    /**
+     * Plan 1-6: the four v1.0 variants are replay targets beside v19, v20 and v21 for the measurement (2.5), and the
+     * build default stays the v19 bundle.
+     */
+    @Test
+    void theV1VariantsAreReplayTargetsAndTheDefaultStaysV19() {
+        assertThat(replays.bundles()).containsExactly(SecurityDecisionPromptBundles.DEFAULT.version(),
+                SecurityDecisionPromptBundles.V20.version(), SecurityDecisionPromptBundles.V21.version(),
+                SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR.version(),
+                SecurityDecisionPromptBundles.V1_FALLBACK_EXACT.version(),
+                SecurityDecisionPromptBundles.V1_RECORD_SIMILAR.version(),
+                SecurityDecisionPromptBundles.V1_RECORD_EXACT.version());
+        assertThat(SecurityDecisionPromptBundles.DEFAULT.layout())
+                .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V19_SECTIONS);
+    }
+
     @Test
     void aSealedDecisionIsReplayedWithTheGivenBaselinesAndTheReplayIsAudited() throws Exception {
         when(packages.findByCorrelationId("req-1")).thenReturn(Optional.of(sealed));

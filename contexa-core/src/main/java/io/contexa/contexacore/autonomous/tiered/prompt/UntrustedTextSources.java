@@ -47,6 +47,8 @@ public final class UntrustedTextSources {
     public static final String CALL_ARGUMENTS = "call arguments (requester)";
     /** The target of a past record or a past denied decision: path variables a requester wrote (v21, A3-5). */
     public static final String PAST_RECORD_TARGET = "past record target (requester)";
+    /** The target of a similar case line: path variables a requester wrote (v1.0, D3). */
+    public static final String SIMILAR_CASE_TARGET = "similar case target (requester)";
     /** The objective of a delegation in the words it was written in (v21, A2-5). */
     public static final String DELEGATION_OBJECTIVE = "delegation objective (host text)";
     /**

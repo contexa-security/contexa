@@ -21,6 +21,7 @@ import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.autonomous.AnalysisTurn;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
@@ -53,6 +54,7 @@ import io.contexa.contexacore.autonomous.saas.SaasDetectionStrategyPackService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
@@ -90,6 +92,8 @@ import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
+import io.contexa.contexacore.std.security.AuthorizedPromptContextItem;
+import io.contexa.contexacore.std.security.ContextProvenanceRecord;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import io.contexa.contexacore.util.ErrorLogThrottle;
 import java.time.Duration;
@@ -98,6 +102,8 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -179,6 +185,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     private final ErrorLogThrottle missingUserIdRagSearchLog = new ErrorLogThrottle(MISSING_USER_ID_LOG_INTERVAL);
     private final ErrorLogThrottle missingUserIdPastRecordLog = new ErrorLogThrottle(MISSING_USER_ID_LOG_INTERVAL);
     private final ErrorLogThrottle missingUserIdBaselineLog = new ErrorLogThrottle(MISSING_USER_ID_LOG_INTERVAL);
+    /** v1.0 (D3): the prompt contexts a search beside another holds by its search id until both are done. */
+    private final Map<String, Queue<AuthorizedPromptContext>> heldPromptContextAudits = new ConcurrentHashMap<>();
     /**
      * D-40: a context search that keeps failing (the embedding service or the vector store is down) fails for every
      * decision; each decision's audit keeps VECTOR_STORE_SEARCH_FAILED, the log keeps the trace once per interval.
@@ -455,8 +463,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return decision;
     }
 
-    protected List<String> extractSimilarEventsSummary(List<Document> documents) {
-        if (documents == null || documents.isEmpty()) {
+    protected List<String> extractSimilarEventsSummary(List<Document> allDocuments) {
+        // v1.0 (D3): the similar cases are drawn apart in the prompt; the decision's patterns are the exact lookup's.
+        List<Document> documents = SimilarCases.exact(allDocuments);
+        if (documents.isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -880,8 +890,22 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return Collections.emptyList();
         }
         if (readsPastRecordsExactly(event)) {
+            // v1.0 (D3): a bundle with the similar cases adds the v19 similarity search beside the exact lookup.
+            if (runsV1SimilarCasesBundle(event)) {
+                return searchPastRecordsWithSimilarCases(event, searchId, retrievalPurpose, requestedTopK,
+                        similarityThreshold);
+            }
             return searchPastRecordsExactly(event, searchId, retrievalPurpose, requestedTopK);
         }
+        return searchBySimilarity(event, searchId, retrievalPurpose, requestedTopK, similarityThreshold);
+    }
+
+    /**
+     * The v19 past record search by similarity: the request's query, the multi-query and supporting searches the
+     * settings turn on and the organization's supporting documents. It states its search on the event it is given.
+     */
+    private List<Document> searchBySimilarity(SecurityEvent event, String searchId, String retrievalPurpose,
+                                              int requestedTopK, double similarityThreshold) {
         try {
             String targetResource = eventEnricher.getTargetResource(event).orElse(null);
             String resourceId = firstTextMetadata(event.getMetadata(),
@@ -1054,6 +1078,162 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
     }
 
+    /**
+     * v1.0 (D3, A14, B7): the exact lookup with the v19 similarity search beside it. The two run at once (the exact
+     * lookup on the search pool, the similarity search here as v19 runs it), the similarity search on a copy of the event,
+     * so the event's search state, counts and audit fallbacks stay the exact lookup's. The prompt context audit is one
+     * record of every document the prompt gets, written once both searches are done.
+     */
+    private List<Document> searchPastRecordsWithSimilarCases(SecurityEvent event, String searchId,
+                                                             String retrievalPurpose, int requestedTopK,
+                                                             double similarityThreshold) {
+        // The copy is taken before the exact lookup starts writing the event's search state.
+        SecurityEvent copy = copyEventForRagRetrieval(event);
+        String similarSearchId = beginRagSearch(copy);
+        Queue<AuthorizedPromptContext> exactAudits = holdPromptContextAudits(searchId);
+        Queue<AuthorizedPromptContext> similarAudits = holdPromptContextAudits(similarSearchId);
+        List<Document> exact;
+        List<Document> similar;
+        try {
+            CompletableFuture<List<Document>> exactLookup = CompletableFuture.supplyAsync(
+                    () -> searchPastRecordsExactly(event, searchId, retrievalPurpose, requestedTopK), RAG_EXECUTOR);
+            similar = similarCases(copy, similarSearchId, retrievalPurpose, requestedTopK, similarityThreshold);
+            exact = joinExactLookup(exactLookup);
+        }
+        finally {
+            releasePromptContextAudits(searchId);
+            releasePromptContextAudits(similarSearchId);
+            captureHeldPromptContextAudits(event, retrievalPurpose, exactAudits, similarAudits);
+        }
+        return SimilarCases.join(exact, similar);
+    }
+
+    /** The similarity search of the similar cases; none when it fails, and the exact lookup's records stay. */
+    private List<Document> similarCases(SecurityEvent copy, String searchId, String retrievalPurpose, int requestedTopK,
+                                        double similarityThreshold) {
+        try {
+            return searchBySimilarity(copy, searchId, retrievalPurpose, requestedTopK, similarityThreshold);
+        }
+        catch (RuntimeException e) {
+            log.error("[{}] The similar case search failed; the exact lookup's records stay: eventId={}",
+                    getLayerName(), copy.getEventId(), e);
+            return List.of();
+        }
+    }
+
+    /** The exact lookup's records; its failure is the caller's, as when it runs alone. */
+    private static List<Document> joinExactLookup(CompletableFuture<List<Document>> exactLookup) {
+        try {
+            return exactLookup.join();
+        }
+        catch (CompletionException failed) {
+            if (failed.getCause() instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            if (failed.getCause() instanceof Error error) {
+                throw error;
+            }
+            throw failed;
+        }
+    }
+
+    /** From now on the audits of the search hold their prompt contexts here instead of recording them; null without an id. */
+    private Queue<AuthorizedPromptContext> holdPromptContextAudits(String searchId) {
+        if (searchId == null) {
+            return null;
+        }
+        Queue<AuthorizedPromptContext> held = new ConcurrentLinkedQueue<>();
+        heldPromptContextAudits.put(searchId, held);
+        return held;
+    }
+
+    private void releasePromptContextAudits(String searchId) {
+        if (searchId != null) {
+            heldPromptContextAudits.remove(searchId);
+        }
+    }
+
+    /**
+     * One audit of the prompt contexts both searches held: one context as it is, two as one context of every document
+     * the prompt gets (each document once, the counts and reasons of both searches).
+     */
+    private void captureHeldPromptContextAudits(SecurityEvent event, String retrievalPurpose,
+                                                Queue<AuthorizedPromptContext> exactAudits,
+                                                Queue<AuthorizedPromptContext> similarAudits) {
+        List<AuthorizedPromptContext> held = new ArrayList<>();
+        if (exactAudits != null) {
+            held.addAll(exactAudits);
+        }
+        if (similarAudits != null) {
+            held.addAll(similarAudits);
+        }
+        if (held.isEmpty()) {
+            return;
+        }
+        capturePromptContextAudit(event, retrievalPurpose,
+                held.size() == 1 ? held.get(0) : mergedPromptContext(retrievalPurpose, held));
+    }
+
+    private static AuthorizedPromptContext mergedPromptContext(String retrievalPurpose,
+                                                               List<AuthorizedPromptContext> contexts) {
+        Map<String, Document> documents = new LinkedHashMap<>();
+        List<Document> withoutId = new ArrayList<>();
+        Set<String> deniedReasons = new LinkedHashSet<>();
+        List<ContextProvenanceRecord> provenance = new ArrayList<>();
+        List<AuthorizedPromptContextItem> items = new ArrayList<>();
+        int requested = 0;
+        int allowed = 0;
+        int denied = 0;
+        for (AuthorizedPromptContext context : contexts) {
+            for (Document document : context.documents()) {
+                if (document.getId() == null) {
+                    withoutId.add(document);
+                }
+                else {
+                    documents.putIfAbsent(document.getId(), document);
+                }
+            }
+            requested += context.requestedDocumentCount();
+            allowed += context.allowedDocumentCount();
+            denied += context.deniedDocumentCount();
+            deniedReasons.addAll(context.deniedReasons());
+            provenance.addAll(context.provenanceRecords());
+            items.addAll(context.contextItems());
+        }
+        List<Document> all = new ArrayList<>(documents.values());
+        all.addAll(withoutId);
+        return new AuthorizedPromptContext(all, requested, allowed, denied, retrievalPurpose,
+                List.copyOf(deniedReasons), contexts.get(0).retrievalPolicy(), provenance, items);
+    }
+
+    /** A copy of the event with metadata of its own, for a search whose state must stay off the event. */
+    protected static SecurityEvent copyEventForRagRetrieval(SecurityEvent source) {
+        if (source == null) {
+            return null;
+        }
+        return SecurityEvent.builder()
+                .eventId(source.getEventId())
+                .source(source.getSource())
+                .timestamp(source.getTimestamp())
+                .severity(source.getSeverity())
+                .description(source.getDescription())
+                .sourceIp(source.getSourceIp())
+                .userId(source.getUserId())
+                .userName(source.getUserName())
+                .sessionId(source.getSessionId())
+                .userAgent(source.getUserAgent())
+                .metadata(source.getMetadata() != null ? new LinkedHashMap<>(source.getMetadata()) : new LinkedHashMap<>())
+                .blocked(source.isBlocked())
+                .build();
+    }
+
+    /** Whether the event runs a v1.0 bundle that adds the similar cases of the similarity search. */
+    private boolean runsV1SimilarCasesBundle(SecurityEvent event) {
+        SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
+        return bundle != null && bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS
+                && bundle.features().similarCases();
+    }
+
     /** Whether the event runs a dictionary bundle (v20, v21), which reads its past records by the exact lookup (W3-18). */
     private boolean readsPastRecordsExactly(SecurityEvent event) {
         return runsV20Bundle(event);
@@ -1107,12 +1287,18 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     /** The minimum action rules the decision facts the prompt stated meet; empty without those facts. */
     protected List<MinimumActionRules.Hit> minimumActionHits(SecurityEvent event) {
         if (event == null || event.getMetadata() == null
-                || !(event.getMetadata().get("sealedEvidence.canonicalContext") instanceof CanonicalSecurityContext canonical)
-                || canonical.getDecisionFacts() == null) {
+                || !(event.getMetadata().get("sealedEvidence.canonicalContext") instanceof CanonicalSecurityContext canonical)) {
+            return List.of();
+        }
+        // v1.0 (B3): the rules count unexplained differences and read PolicySatisfied, which the conclusions state; a
+        // v1.0 context keeps them beside the records its prompt states.
+        DecisionFacts facts = canonical.getConclusionFacts() != null ? canonical.getConclusionFacts()
+                : canonical.getDecisionFacts();
+        if (facts == null) {
             return List.of();
         }
         CanonicalSecurityContext.Resource resource = canonical.getResource();
-        return MinimumActionRules.evaluate(canonical.getDecisionFacts(),
+        return MinimumActionRules.evaluate(facts,
                 resource != null ? resource.getResourceClass() : null,
                 resource != null ? resource.getActionFamily() : null,
                 minimumActionSettings);
@@ -1131,6 +1317,19 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected boolean runsV21Bundle(SecurityEvent event) {
         SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
         return bundle != null && bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS;
+    }
+
+    /** Whether the event runs a v1.0 bundle whose response check replaces an answer that breaks a rule (B2, B5, B6). */
+    protected boolean runsV1FallbackBundle(SecurityEvent event) {
+        SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
+        return bundle != null && bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS
+                && bundle.features().fallbackOnViolation();
+    }
+
+    /** Whether the event runs a bundle of the records layout (v21, v1.0), which answers in the output contract v4. */
+    protected boolean runsRecordsBundle(SecurityEvent event) {
+        SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
+        return bundle != null && bundle.layout().recordsNotation();
     }
 
     /** The bundle the event runs, fixed on the event for its later prompts; null without a template. */
@@ -1819,6 +2018,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (promptContextAuditRecorder == null || event == null || authorizedPromptContext == null) {
             return;
         }
+        // v1.0 (D3): a search beside another holds its context until both are done (searchPastRecordsWithSimilarCases).
+        Object searchId = event.getMetadata() != null ? event.getMetadata().get("ragSearchId") : null;
+        Queue<AuthorizedPromptContext> held = searchId != null ? heldPromptContextAudits.get(String.valueOf(searchId)) : null;
+        if (held != null) {
+            held.add(authorizedPromptContext);
+            return;
+        }
         try {
             promptContextAuditRecorder.capture(event, retrievalPurpose, authorizedPromptContext);
         } catch (Exception captureException) {
@@ -2076,7 +2282,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         // W4-2: a v20 request with native structured output asks the provider to enforce the output contract v3; the
         // v19 bundle keeps its own format, and without native output the system text states the schema.
         if (structuredOutputMode == StructuredOutputMode.NATIVE_STRUCTURED && runsV20Bundle(event)) {
-            request.withParameter(ExecutionContext.OUTPUT_SCHEMA, runsV21Bundle(event)
+            request.withParameter(ExecutionContext.OUTPUT_SCHEMA, runsRecordsBundle(event)
                     ? SecurityDecisionOutputContractV4.providerSchema() : SecurityDecisionOutputContract.providerSchema());
         }
         request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
@@ -2295,8 +2501,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return;
         }
 
-        // W4-3 (Q-57 decision 2): a v20 decision keeps the model's reason and reason codes; only v19 fixes sentences.
-        if (runsV20Bundle(event)) {
+        // W4-3 (Q-57 decision 2): a v20 decision keeps the model's reason and reason codes; only v19 fixes sentences,
+        // and v1.0 with the fallback, which keeps every v19 and v20 response rule (B2).
+        if (runsV20Bundle(event) && !runsV1FallbackBundle(event)) {
             return;
         }
         Map<String, Object> metadata = event.getMetadata();
@@ -2357,10 +2564,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
     private boolean hasSameResourceAuthorizedRag(
             SecurityEvent event,
-            List<Document> relatedDocuments) {
+            List<Document> allDocuments) {
         Map<String, Object> metadata = event.getMetadata();
+        // v1.0 (D3): a similar case is not a past record of this request's target.
+        List<Document> relatedDocuments = SimilarCases.exact(allDocuments);
         if (!Boolean.TRUE.equals(booleanValue(metadata.get("ragProjectedToFinalPrompt")))
-                || relatedDocuments == null
                 || relatedDocuments.isEmpty()) {
             return false;
         }

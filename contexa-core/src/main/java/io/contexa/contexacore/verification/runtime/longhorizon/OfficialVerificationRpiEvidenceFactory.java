@@ -27,6 +27,10 @@ final class OfficialVerificationRpiEvidenceFactory {
     private static final DateTimeFormatter KOREA_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
             .withLocale(Locale.KOREA)
             .withZone(ZoneId.of("Asia/Seoul"));
+    /** B13: the learned requests a dictionary prompt's BaselineStatus line states (v20, v21, v1.0). */
+    private static final Pattern LEARNED_REQUESTS = Pattern.compile("BaselineStatus: [A-Z_]+ \\((\\d+) learned requests");
+    /** B13: the BaselineStatus line of a dictionary prompt, its baseline context. */
+    private static final Pattern DICTIONARY_BASELINE = Pattern.compile("(?m)^(\\[B\\d+\\] )?BaselineStatus: ");
     private static final Pattern OBSERVATIONS_PATTERN = Pattern.compile("(?i)\\bObservations\\s+(\\d+)\\b");
     private static final Pattern OBSERVATIONS_KEY_VALUE_PATTERN = Pattern.compile("(?i)\\bobservations\\s*[=:]\\s*(\\d+)\\b");
     private static final Pattern OBSERVATION_COUNT_PATTERN = Pattern.compile("(?i)\\bobservationCount\\s*[=:]\\s*(\\d+)\\b");
@@ -303,6 +307,11 @@ final class OfficialVerificationRpiEvidenceFactory {
         if (!StringUtils.hasText(promptOrSummary)) {
             return -1;
         }
+        // B13: a dictionary prompt states the learned requests on its BaselineStatus line.
+        Matcher learned = LEARNED_REQUESTS.matcher(promptOrSummary);
+        if (learned.find()) {
+            return Integer.parseInt(learned.group(1));
+        }
         String marker = "WorkProfileSummary: Window 7d | Observations ";
         int markerStart = promptOrSummary.indexOf(marker);
         if (markerStart >= 0) {
@@ -345,7 +354,8 @@ final class OfficialVerificationRpiEvidenceFactory {
         if (StringUtils.hasText(userPrompt)) {
             if (userPrompt.contains("=== OBSERVED WORK PATTERN CONTEXT ===")
                     || userPrompt.contains("WorkProfileSummary: Window 7d | Observations ")
-                    || userPrompt.contains("PersonalBaselineStatus:")) {
+                    || userPrompt.contains("PersonalBaselineStatus:")
+                    || DICTIONARY_BASELINE.matcher(userPrompt).find()) {
                 return true;
             }
         }

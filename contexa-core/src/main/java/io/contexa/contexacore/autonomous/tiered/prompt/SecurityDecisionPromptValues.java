@@ -195,6 +195,19 @@ final class SecurityDecisionPromptValues {
             values.value(SESSION, "ConcurrentSessions", concurrentSessions(session));
             values.value(SESSION, "PasswordAge", passwordAge(session));
         }
+        // v1.0 (F4): a host that states its failure count only as auth.failure_count still states the failed logins.
+        if (v1(values) && (session == null || session.getFailedLoginAttempts() == null)) {
+            values.value(SESSION, "FailedLogins", V1LineValues.hostFailureCount(context.getEvent()));
+        }
+        // v1.0 (F6): whether the host saw the session's requests come in a burst.
+        if (values.has(SESSION, "BurstPattern")) {
+            values.value(SESSION, "BurstPattern", V1LineValues.burstPattern(narrative));
+        }
+        // v1.0 (F8): the host's own counts of the user's recent challenges, blocks and escalations.
+        if (values.has(SESSION, "HostDecisionCounts")) {
+            values.value(SESSION, "HostDecisionCounts",
+                    V1LineValues.hostDecisionCounts(session, canonical != null ? canonical.getFrictionProfile() : null));
+        }
         // Without the session's decision history its requests are named unknown by withoutSource (N-INS-2).
         if (narrative != null && narrative.getSessionDecisions() != null) {
             values.value(SESSION, "RequestsInSession",
@@ -243,9 +256,17 @@ final class SecurityDecisionPromptValues {
         if (values.has(REQUEST, "TargetScope")) {
             values.value(REQUEST, "TargetScope", targetScope(resource));
         }
+        // v1.0 (F7): the resource type the host declares.
+        if (values.has(REQUEST, "TargetType")) {
+            values.value(REQUEST, "TargetType", V1LineValues.targetType(resource));
+        }
         values.value(REQUEST, "Size", requestedSize(resource != null ? resource.getRequestedItems() : null));
         values.value(REQUEST, "ResourceClass", resourceClass(resource));
         values.value(REQUEST, "Network", network(session, canonical != null ? canonical.getLocation() : null, current));
+        // v1.0 (F7): the network zone with what it means, as the host declares it.
+        if (values.has(REQUEST, "NetworkZone")) {
+            values.value(REQUEST, "NetworkZone", V1LineValues.networkZone(canonical != null ? canonical.getLocation() : null));
+        }
         values.value(REQUEST, "Device", device(context.getEvent(), canonical, current));
     }
 
@@ -313,6 +334,46 @@ final class SecurityDecisionPromptValues {
         }
         values.value(FACTS, "ThreatMatch",
                 collapse(sections.buildThreatLearningSectionWithoutOutsideText(context.getBehaviorAnalysis())));
+        v1DecisionFacts(context, canonical, values);
+    }
+
+    /** v1.0: the decision facts of v19 and v20 the v21 lines did not state (F1, F2, F3, F5, F6, F7, D5), as records. */
+    private static void v1DecisionFacts(SecurityPromptBuildContext context, CanonicalSecurityContext canonical,
+                                        PromptEntryValues.Builder values) {
+        if (!v1(values) || canonical == null) {
+            return;
+        }
+        values.value(FACTS, "RecordsLookedUp", V1LineValues.recordsLookedUp(canonical.getFrictionProfile()));
+        values.value(FACTS, "ScopeDenied", V1LineValues.scopeDenied(canonical.getRoleScopeProfile()));
+        values.value(FACTS, "ScopeHabits", V1LineValues.scopeHabits(canonical.getRoleScopeProfile()));
+        CanonicalSecurityContext.Delegation delegation = canonical.getDelegation();
+        if (delegation != null && delegation.hasMandate()) {
+            values.value(FACTS, "DelegationControls", V1LineValues.delegationControls(delegation));
+        }
+        values.value(FACTS, "TenantMatch", V1LineValues.tenantMatch(canonical));
+        values.value(FACTS, "SeenCombination", V1LineValues.seenCombination(context.getLearningContextEvidence()));
+        values.value(FACTS, "CohortBands", V1LineValues.cohortBands(canonical.getPeerCohortProfile()));
+        values.value(FACTS, "VerifiedSignal", V1LineValues.verifiedSignal(canonical.getIntent()));
+        // v1.0 with the decision rules: the core's conclusions the v19 and v20 rules read, as v20 drew them.
+        DecisionFacts conclusions = canonical.getConclusionFacts();
+        if (conclusions != null) {
+            conclusionLine(values, conclusions, DecisionFactsResolver.POLICY_SATISFIED, "PolicySatisfied");
+            conclusionLine(values, conclusions, DecisionFactsResolver.DEVIATIONS_FROM_BASELINE, "DeviationsExplained");
+        }
+    }
+
+    /** A conclusion fact drawn under the name of its v1.0 rules entry, on the event clock when it states a time. */
+    private static void conclusionLine(PromptEntryValues.Builder values, DecisionFacts conclusions, String fact,
+                                       String entry) {
+        if (!values.has(FACTS, entry)) {
+            return;
+        }
+        conclusions.fact(fact).map(DecisionFact::value).ifPresent(value -> {
+            values.value(FACTS, entry, value);
+            if (ON_THE_CLOCK.matcher(value).find()) {
+                values.clocked(FACTS, entry);
+            }
+        });
     }
 
     /**
@@ -370,9 +431,18 @@ final class SecurityDecisionPromptValues {
         addUntrusted(items, UntrustedTextSources.SESSION_REQUEST_PATHS, sessionPaths(canonical), limit);
         if (v21) {
             // A3-5: the targets of the past record lines drawn, as the requesters wrote them.
-            for (String target : pastRecordTargets(sections.pastRecordItems(context, PastRecordLines.TARGET_APART),
-                    sections.pastDeniedItems(context, true))) {
+            List<String> pastTargets = pastRecordTargets(sections.pastRecordItems(context, PastRecordLines.TARGET_APART),
+                    sections.pastDeniedItems(context, true));
+            for (String target : pastTargets) {
                 addUntrusted(items, UntrustedTextSources.PAST_RECORD_TARGET, target, limit);
+            }
+            // v1.0 (D3): the targets of the similar case lines drawn that no past record line names already.
+            if (values.has(PAST, "SimilarCase{i}")) {
+                for (String target : similarCaseTargets(sections.similarCaseItems(context))) {
+                    if (!pastTargets.contains(target)) {
+                        addUntrusted(items, UntrustedTextSources.SIMILAR_CASE_TARGET, target, limit);
+                    }
+                }
             }
             // B3-3: the validated case memory's stored texts (an earlier analysis' summary, a threat signal's
             // summary, matched threat knowledge).
@@ -398,8 +468,20 @@ final class SecurityDecisionPromptValues {
         return List.copyOf(targets);
     }
 
+    /** The targets of the similar case lines drawn (within the entry's list cap, in drawn order), each once (v1.0, D3). */
+    static List<String> similarCaseTargets(List<PromptListItem> similarCases) {
+        Set<String> targets = new LinkedHashSet<>();
+        addTargets(targets, similarCases, SecurityDecisionPromptDictionary.V1_ENTRIES, "SimilarCase{i}");
+        return List.copyOf(targets);
+    }
+
     private static void addTargets(Set<String> targets, List<PromptListItem> items, String entryName) {
-        PromptDictionaryEntry entry = SecurityDecisionPromptDictionary.V21_ENTRIES.stream()
+        addTargets(targets, items, SecurityDecisionPromptDictionary.V21_ENTRIES, entryName);
+    }
+
+    private static void addTargets(Set<String> targets, List<PromptListItem> items,
+                                   List<PromptDictionaryEntry> dictionary, String entryName) {
+        PromptDictionaryEntry entry = dictionary.stream()
                 .filter(candidate -> candidate.block() == PAST && entryName.equals(candidate.name()))
                 .findFirst().orElseThrow();
         List<PromptListItem> sorted = entry.listOrder().sort(items);
@@ -465,6 +547,10 @@ final class SecurityDecisionPromptValues {
                                     LearningContextEvidence evidence, PromptEntryValues.Builder values) {
         SecurityDecisionPromptSections.RagState rag = sections.ragState(context);
         values.value(PAST, "PastRecordsState", pastRecordsState(rag));
+        // v1.0 (F7): whether the search left out records the requester may not see.
+        if (values.has(PAST, "PastRecordsPermission")) {
+            values.value(PAST, "PastRecordsPermission", V1LineValues.pastRecordsPermission(context.getEvent()));
+        }
         String notRetrievedReason = notRetrievedReason(rag);
         boolean notRetrieved = notRetrievedReason != null;
         // W3-18: the counted facts of the exact lookup; without a lookup that counted them, their name is unknown now.
@@ -485,6 +571,14 @@ final class SecurityDecisionPromptValues {
         // Dictionary 1.4: the search exists but did not give the records this time (unavailable now).
         if (notRetrieved) {
             values.unknown(PAST, "PastRecord{i}", PromptUnknownKind.UNAVAILABLE_NOW, notRetrievedReason);
+        }
+        // v1.0 (D3): the similar cases of a bundle with the similarity search; without any the line is left out.
+        if (values.has(PAST, "SimilarCase{i}")) {
+            List<PromptListItem> similar = sections.similarCaseItems(context);
+            values.lines(PAST, "SimilarCase{i}", similar);
+            if (similar.stream().anyMatch(item -> !item.text().startsWith(PastRecordLines.TIME_NOT_RECORDED))) {
+                values.clocked(PAST, "SimilarCase{i}");
+            }
         }
         // W5-4 (Q-57 decision 4): the user's recent decisions that did not allow, facts only; without any the line
         // is left out.
@@ -2012,6 +2106,11 @@ final class SecurityDecisionPromptValues {
                 return null;
             }
         }
+    }
+
+    /** Whether the entries are the v1.0 dictionary's: only it has the records looked up line. */
+    private static boolean v1(PromptEntryValues.Builder values) {
+        return values.has(FACTS, "RecordsLookedUp");
     }
 
     private static String metadata(SecurityEvent event, String key) {

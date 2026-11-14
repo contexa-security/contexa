@@ -26,6 +26,11 @@ import java.util.Optional;
  * decision 2), and the v19 bundle the build runs by default while v21 is measured against v20 (V-1). A bundle is its
  * descriptor, whose version names its manifest, and the user prompt layout its code draws.
  * Older manifests of the catalog are records of bundles no code of this build renders, so they cannot be run.
+ *
+ * <p>The v1.0 bundles join the three bundles into one: every function of v19, v20 and v21, on the v21 records layout.
+ * They differ only in their features (data, not code paths): whether the system text states decision rules and the
+ * response check replaces a response that breaks them, and whether the prompt adds the similar cases of the
+ * similarity search. They are measured against v19, v20 and v21 before one of them becomes the default.</p>
  */
 public final class SecurityDecisionPromptBundles {
 
@@ -39,23 +44,60 @@ public final class SecurityDecisionPromptBundles {
          * The v21 dictionary blocks: the v20 blocks with facts that state records, measurements and comparisons and no
          * conclusion of the core, read by a system text without decision rules (the model judges, V-1 to V-4).
          */
-        V21_BLOCKS;
+        V21_BLOCKS,
+        /**
+         * The v1.0 dictionary blocks: the v21 blocks with the facts of v19 and v20 the v21 blocks did not state, in the
+         * records notation, read by the v1.0 system text and checked by the v1.0 response check.
+         */
+        V1_BLOCKS;
 
-        /** Whether the layout draws the dictionary blocks (v20 and v21): its past records, second pass and output contract. */
+        /** Whether the layout draws the dictionary blocks (v20, v21, v1.0): its past records, second pass and output contract. */
         public boolean dictionaryBlocks() {
-            return this == V20_BLOCKS || this == V21_BLOCKS;
+            return this == V20_BLOCKS || this == V21_BLOCKS || this == V1_BLOCKS;
         }
+
+        /**
+         * Whether the layout states the decision facts as records and comparisons and asks for the output contract v4
+         * (v21 and v1.0): the model weighs explanations, and the response check reads the citations.
+         */
+        public boolean recordsNotation() {
+            return this == V21_BLOCKS || this == V1_BLOCKS;
+        }
+    }
+
+    /**
+     * The features of a v1.0 bundle; every other bundle has none of them.
+     *
+     * @param decisionRules          the system text states the decision rules of v19 and v20 (the boundaries, the trusted
+     *                               signal boundary, the minimum action floors the host turned on)
+     * @param fallbackOnViolation    a response that still breaks a boundary after the corrective retry is replaced by the
+     *                               action the boundary names, and an unsupported ALLOW reason by the canonical sentence
+     *                               (the v19 and v20 behaviour); without it the response stays and the breach is recorded
+     *                               for a person's review (the v21 principle)
+     * @param similarCases           the prompt adds the similar cases of the v19 similarity search and the organization's
+     *                               supporting documents to the exact past record lookup
+     */
+    public record Features(boolean decisionRules, boolean fallbackOnViolation, boolean similarCases) {
+
+        /** The features of v19, v20 and v21: none. */
+        public static final Features NONE = new Features(false, false, false);
     }
 
     /**
      * @param descriptor the bundle's descriptor; its prompt version is the bundle version
      * @param layout     the user prompt the bundle draws
+     * @param features   the v1.0 features of the bundle; {@link Features#NONE} for v19, v20 and v21
      */
-    public record Bundle(PromptGovernanceDescriptor descriptor, UserPromptLayout layout) {
+    public record Bundle(PromptGovernanceDescriptor descriptor, UserPromptLayout layout, Features features) {
 
         public Bundle {
             Objects.requireNonNull(descriptor, "descriptor");
             Objects.requireNonNull(layout, "layout");
+            Objects.requireNonNull(features, "features");
+        }
+
+        public Bundle(PromptGovernanceDescriptor descriptor, UserPromptLayout layout) {
+            this(descriptor, layout, Features.NONE);
         }
 
         public String version() {
@@ -74,7 +116,32 @@ public final class SecurityDecisionPromptBundles {
     public static final Bundle V21 = new Bundle(
             SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_V21_PROMPT_GOVERNANCE, UserPromptLayout.V21_BLOCKS);
 
-    public static final List<Bundle> ALL = List.of(DEFAULT, V20, V21);
+    /** v1.0 with the decision rules and their fallback, and the similar cases. */
+    public static final Bundle V1_FALLBACK_SIMILAR = new Bundle(
+            SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_V1_FALLBACK_SIMILAR_PROMPT_GOVERNANCE,
+            UserPromptLayout.V1_BLOCKS, new Features(true, true, true));
+
+    /** v1.0 with the decision rules and their fallback, on the exact past record lookup only. */
+    public static final Bundle V1_FALLBACK_EXACT = new Bundle(
+            SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_V1_FALLBACK_EXACT_PROMPT_GOVERNANCE,
+            UserPromptLayout.V1_BLOCKS, new Features(true, true, false));
+
+    /** v1.0 without decision rules (the model judges, a breach is recorded), with the similar cases. */
+    public static final Bundle V1_RECORD_SIMILAR = new Bundle(
+            SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_V1_RECORD_SIMILAR_PROMPT_GOVERNANCE,
+            UserPromptLayout.V1_BLOCKS, new Features(false, false, true));
+
+    /** v1.0 without decision rules, on the exact past record lookup only. */
+    public static final Bundle V1_RECORD_EXACT = new Bundle(
+            SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_V1_RECORD_EXACT_PROMPT_GOVERNANCE,
+            UserPromptLayout.V1_BLOCKS, new Features(false, false, false));
+
+    /** The v1.0 bundles, measured against v19, v20 and v21 before one of them becomes the default. */
+    public static final List<Bundle> V1_BUNDLES = List.of(V1_FALLBACK_SIMILAR, V1_FALLBACK_EXACT, V1_RECORD_SIMILAR,
+            V1_RECORD_EXACT);
+
+    public static final List<Bundle> ALL = List.of(DEFAULT, V20, V21, V1_FALLBACK_SIMILAR, V1_FALLBACK_EXACT,
+            V1_RECORD_SIMILAR, V1_RECORD_EXACT);
 
     private SecurityDecisionPromptBundles() {
     }

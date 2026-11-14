@@ -323,6 +323,68 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 .containsExactly("SKIPPED_DICTIONARY_SLOT_ON_SECTION_PROMPT");
     }
 
+    /**
+     * v1.0 (plan 2.3 A10): a v1.0 render moves a rule of the v19 bundle to the dictionary slot its v19 label went to, so
+     * the rule reaches the line of the v19 fact; a v21 render leaves the same rule out, as before.
+     */
+    @Test
+    void aV1RenderMovesAV19RuleToTheSlotItsLabelWentTo() {
+        PromptRuntimeGovernanceRule rule = new PromptRuntimeGovernanceRule(
+                "pqa-rtg-rule-v19-request-path",
+                "pqa-rtg-action-v19-request-path",
+                "cortex.security-decision",
+                "user_request_requestpath_v1_test",
+                "SUPPRESS_SLOT",
+                10,
+                Map.of("label", "RequestPath", "sectionKey", "CURRENT REQUEST AND EVENT"));
+        PromptContextComposer contract = promptContextComposer(List.of(slotPlan(
+                "user_request_requestpath_v1_test", "CURRENT REQUEST AND EVENT", "RequestPath")));
+        CapturingRuleProvider v1 = new CapturingRuleProvider(List.of(rule));
+        CapturingRuleProvider v21 = new CapturingRuleProvider(List.of(rule));
+
+        String v1Text = renderWithRules(SecurityDecisionPromptBundles.V1_RECORD_EXACT, contract, v1);
+        String v21Text = renderWithRules(SecurityDecisionPromptBundles.V21, contract, v21);
+
+        assertThat(v1.recordedApplications())
+                .extracting(PromptRuntimeGovernanceRuleApplication::resultState).containsExactly("APPLIED");
+        assertThat(v1.recordedApplications().get(0).slotKey()).endsWith(".Action");
+        assertThat(v1Text).doesNotContainPattern("(?m)^(\\[[A-Z]\\d+\\] )?Action: ");
+        assertThat(v21.recordedApplications())
+                .extracting(PromptRuntimeGovernanceRuleApplication::resultState)
+                .containsExactly("SKIPPED_SLOT_NOT_IN_DICTIONARY");
+        assertThat(v21Text).containsPattern("(?m)^(\\[[A-Z]\\d+\\] )?Action: ");
+    }
+
+    private static String renderWithRules(SecurityDecisionPromptBundles.Bundle bundle, PromptContextComposer contract,
+                                          CapturingRuleProvider provider) {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getPromptBundle().setActive(bundle.version());
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                properties,
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator()),
+                contract,
+                null,
+                provider);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-runtime-governance-v1-" + bundle.version())
+                .timestamp(LocalDateTime.of(2026, 6, 7, 10, 30).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("persona_fin_lead")
+                .sessionId("session-runtime-governance-v1")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("authorizationEffect", "ALLOW");
+        return template.buildStructuredPrompt(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of()).userText();
+    }
+
     private static PromptContextComposer promptContextComposer(List<PromptSlotPlan> plans) {
         PromptSlotPlanProvider provider = new PromptSlotPlanProvider() {
             @Override

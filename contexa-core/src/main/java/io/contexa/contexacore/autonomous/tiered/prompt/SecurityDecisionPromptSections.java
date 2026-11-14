@@ -40,6 +40,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptEntryValues;
 import io.contexa.contexacore.autonomous.context.prompt.PromptSlot;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryRenderer;
+import io.contexa.contexacore.autonomous.context.prompt.PromptMissingNotation;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryRendering;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionarySlotPlanProvider;
 import io.contexa.contexacore.autonomous.context.prompt.PromptListItem;
@@ -211,17 +212,29 @@ public class SecurityDecisionPromptSections {
             SecurityDecisionPromptDictionary.v21SlotPlanProvider();
     private final PromptDictionaryRenderer v21DictionaryRenderer = new PromptDictionaryRenderer(
             SecurityDecisionPromptDictionary.V21_ENTRIES, v21DictionarySlotPlans, true);
+    /** The v1.0 dictionary: its slot plans and its renderer, with the v21 block titles. */
+    private final PromptDictionarySlotPlanProvider v1DictionarySlotPlans =
+            SecurityDecisionPromptDictionary.v1SlotPlanProvider();
+    private final PromptDictionaryRenderer v1DictionaryRenderer = new PromptDictionaryRenderer(
+            SecurityDecisionPromptDictionary.V1_ENTRIES, v1DictionarySlotPlans, true);
+    /** The v1.0 dictionary of a bundle with the decision rules: the v1.0 entries and the conclusions the rules read. */
+    private final PromptDictionarySlotPlanProvider v1RulesDictionarySlotPlans =
+            SecurityDecisionPromptDictionary.v1RulesSlotPlanProvider();
+    private final PromptDictionaryRenderer v1RulesDictionaryRenderer = new PromptDictionaryRenderer(
+            SecurityDecisionPromptDictionary.V1_RULES_ENTRIES, v1RulesDictionarySlotPlans, true);
 
     /** The user prompt layout a v20 render states in its execution metadata (W3-2). */
     /** The v20 user prompt layout: the dictionary blocks (R1b-3: the one name the render, Layer2 and the inspector use). */
     public static final String USER_PROMPT_LAYOUT_V20 = "v20-dictionary-blocks";
     /** The v21 user prompt layout: the v21 dictionary blocks (records and comparisons, no conclusions). */
     public static final String USER_PROMPT_LAYOUT_V21 = "v21-dictionary-blocks";
+    /** The v1.0 user prompt layout: the v1.0 dictionary blocks (the v21 records and the facts v1.0 adds). */
+    public static final String USER_PROMPT_LAYOUT_V1 = "v1.0-dictionary-blocks";
     /**
      * The event metadata of the bundle the event's first prompt was drawn with (W3-16): a later prompt of the same
      * event, a Layer2 prompt or a second pass, is drawn with the same bundle.
      */
-    static final String EVENT_BUNDLE_VERSION = "promptBundleSelection.version";
+    public static final String EVENT_BUNDLE_VERSION = "promptBundleSelection.version";
     static final String EVENT_BUNDLE_SOURCE = "promptBundleSelection.source";
     private static final String SECOND_PASS_LAYOUT = "v20-second-pass";
     /** PR-91: the canonical contexts kept may take a thirty-second of the maximum heap, within these bounds. */
@@ -231,8 +244,11 @@ public class SecurityDecisionPromptSections {
     private static final String PROMPT_CACHE_KEY_PREFIX = "contexa-";
     /** The event metadata that says whether past records reached the user prompt the model gets (BR-C8, QF-16). */
     static final String RAG_PROJECTED_TO_FINAL_PROMPT = "ragProjectedToFinalPrompt";
-    /** A past record line of a dictionary prompt: a PAST RECORDS line, or a SECOND PASS line of a new record. */
-    private static final Pattern DICTIONARY_PAST_RECORD_LABEL = Pattern.compile("(New)?PastRecord\\d+");
+    /**
+     * A past record line of a dictionary prompt: a PAST RECORDS line, a SECOND PASS line of a new record, or a similar
+     * case line of a v1.0 bundle with the similarity search (A13).
+     */
+    private static final Pattern DICTIONARY_PAST_RECORD_LABEL = Pattern.compile("(New)?PastRecord\\d+|SimilarCase\\d+");
     /** A retrieved document line of the v19 RAG EVIDENCE CONTEXT section. */
     private static final Pattern V19_RAG_DOCUMENT_LABEL = Pattern.compile("RagDocument\\d+");
 
@@ -427,8 +443,16 @@ public class SecurityDecisionPromptSections {
                 runtimeResolutionContext);
         SecurityDecisionPromptBundles.UserPromptLayout layout = selected.bundle().layout();
         boolean dictionary = layout.dictionaryBlocks();
-        boolean v21 = layout == SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS;
+        boolean v21 = layout.recordsNotation();
+        DictionaryKit kit = dictionaryKit(selected.bundle());
         if (v21) {
+            if (layout == SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS && buildContext != null
+                    && buildContext.getCanonicalSecurityContext() != null) {
+                // v1.0: the decision rules, the response check and the minimum action record read the core's
+                // conclusions; they stay in memory beside the records, which the sealed context keeps.
+                CanonicalSecurityContext canonical = buildContext.getCanonicalSecurityContext();
+                canonical.setConclusionFacts(canonical.getDecisionFacts());
+            }
             // V-4: the v21 prompt states the decision facts as records and comparisons; the sealed context keeps them.
             restateDecisionFactsAsRecords(buildContext);
         }
@@ -459,10 +483,10 @@ public class SecurityDecisionPromptSections {
             userSections = !dictionary
                     ? composeSections(userSectionPlans, buildContext)
                     : secondPass != null
-                    ? composeSecondPass(buildContext, secondPass, v21)
+                    ? composeSecondPass(buildContext, secondPass, kit)
                     : composeDictionaryBlocks(buildContext,
                     modelSystemPrompt(systemSections.composedText(), structuredOutputMode, layout), effectiveBudgetProfile,
-                    modelHint, v21);
+                    modelHint, kit);
             userRenderMicros = elapsedMicros(userRenderStartedNanos);
         }
         List<String> sectionSet = mergeSectionKeys(systemSections.renderedSectionKeys(), userSections.renderedSectionKeys());
@@ -475,10 +499,14 @@ public class SecurityDecisionPromptSections {
         String userText = userSections.composedText();
         long runtimeGovernanceApplyStartedNanos = System.nanoTime();
         // A v20 prompt takes the rules of the dictionary slots only, and a v19 prompt only the others: a v19 rule
-        // leaves a v20 prompt as it is, and a v20 rule never rewrites a v19 line (W3-14).
+        // leaves a v20 prompt as it is, and a v20 rule never rewrites a v19 line (W3-14). v1.0 (A10) moves a v19 rule to
+        // the dictionary slot its label went to, so it reaches the line of the v19 fact.
+        List<PromptRuntimeGovernanceRule> dictionaryRules = dictionary && kit.v1()
+                ? V19RuleSlots.moved(runtimeGovernanceRules, kit.slotPlans(), kit.entries(), promptContextComposer)
+                : runtimeGovernanceRules;
         PromptRuntimeGovernanceRuleApplicationResult runtimeGovernanceResult = dictionary
                 ? promptRuntimeGovernanceRuleApplier.applyToDictionaryPrompt(
-                        userText, runtimeGovernanceRules, v21 ? v21DictionarySlotPlans : dictionarySlotPlans)
+                        userText, dictionaryRules, kit.slotPlans())
                 : promptRuntimeGovernanceRuleApplier.applyToSectionPrompt(
                         userText, runtimeGovernanceRules, promptContextComposer, dictionarySlotPlans);
         userText = runtimeGovernanceResult.userPrompt();
@@ -498,19 +526,22 @@ public class SecurityDecisionPromptSections {
         SecurityPromptContractAudit promptContractAudit = dictionary
                 ? SecurityPromptContractVerifier.auditV20(systemText, buildContext)
                 : SecurityPromptContractVerifier.audit(systemText, userText, buildContext);
+        if (dictionary && kit.v1()) {
+            // v1.0 (plan 2.3 A11): the render audits its own dictionary form, as the v19 render audits its labels.
+            promptContractAudit = withDictionaryFormViolations(promptContractAudit, userText, kit.entries());
+        }
         long promptContractAuditMicros = elapsedMicros(auditStartedNanos);
         long completenessStartedNanos = System.nanoTime();
         PromptEvidenceCompleteness promptEvidenceCompleteness = evaluateCompleteness(buildContext, omissionLedger,
                 promptContractAudit, userSections.metadata().get(PROMPT_EVIDENCE_COMPLETENESS_REASONS) instanceof List<?> facts
-                        ? facts : null);
+                        ? facts : null, dictionary && kit.v1());
         long completenessMicros = elapsedMicros(completenessStartedNanos);
         long metadataStartedNanos = System.nanoTime();
         Map<String, Object> supplementalMetadata = new LinkedHashMap<>();
         supplementalMetadata.put("promptBundleSelectionSource", selected.source().name());
         if (dictionary) {
             // The layout says which user prompt was drawn, next to the bundle that drew it.
-            supplementalMetadata.put(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION,
-                    v21 ? USER_PROMPT_LAYOUT_V21 : USER_PROMPT_LAYOUT_V20);
+            supplementalMetadata.put(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION, kit.layoutName());
         }
         supplementalMetadata.putAll(userSections.metadata());
         supplementalMetadata.put("promptCacheKey", promptCacheKey(modelSystemPrompt(systemText, structuredOutputMode, layout)));
@@ -930,11 +961,31 @@ public class SecurityDecisionPromptSections {
     }
 
     /**
+     * v1.0 (D3): the similar case lines of a bundle with the similarity search, in the past record form with the target
+     * apart (A3-5); none for any other bundle.
+     */
+    List<PromptListItem> similarCaseItems(SecurityPromptBuildContext context) {
+        List<Document> similarCases = context.getSimilarCases() != null ? context.getSimilarCases() : List.of();
+        if (similarCases.isEmpty()) {
+            return List.of();
+        }
+        return PastRecordLines.items(
+                PastRecordPostProcessor.ranked().process(PastRecordPostProcessor.PAST_RECORDS, similarCases),
+                requestSubject(context.getEvent()), requestWallClock(context), PastRecordLines.TARGET_APART);
+    }
+
+    /**
      * W6-12: the stored IDs of the past records the PAST RECORDS block drew, one per drawn line in the block's order
      * and within the entry's list cap, as the renderer draws them; none when the budget took the entry out.
      */
     List<String> drawnPastRecordIds(SecurityPromptBuildContext context, Set<PromptDictionaryEntry> withheld) {
-        PromptDictionaryEntry entry = SecurityDecisionPromptDictionary.ENTRIES.stream()
+        return drawnPastRecordIds(context, withheld, SecurityDecisionPromptDictionary.ENTRIES);
+    }
+
+    /** As above, by the PAST RECORDS entry of the given dictionary (v1.0 its own, K5). */
+    List<String> drawnPastRecordIds(SecurityPromptBuildContext context, Set<PromptDictionaryEntry> withheld,
+                                    List<PromptDictionaryEntry> dictionary) {
+        PromptDictionaryEntry entry = dictionary.stream()
                 .filter(candidate -> candidate.block() == PromptBlock.PAST_RECORDS
                         && "PastRecord{i}".equals(candidate.name()))
                 .findFirst().orElse(null);
@@ -1058,9 +1109,12 @@ public class SecurityDecisionPromptSections {
     private SecurityPromptBuildContext createBuildContext(SecurityEvent event,
                                                           SessionContext sessionContext,
                                                           BehaviorAnalysis behaviorAnalysis,
-                                                          List<Document> relatedDocuments,
+                                                          List<Document> retrievedDocuments,
                                                           PromptBudgetProfile budgetProfile,
                                                           StructuredOutputMode structuredOutputMode) {
+        // v1.0 (D3): the similar cases are drawn apart; everything else the past records give is the exact lookup's.
+        List<Document> relatedDocuments = SimilarCases.exact(retrievedDocuments);
+        List<Document> similarCases = SimilarCases.similar(retrievedDocuments);
         String userId = extractUserId(sessionContext);
         DetectedPatterns patterns = collectDetectedPatterns(relatedDocuments, userId, requestSubject(event));
         CanonicalSecurityContext canonicalSecurityContext = resolveCanonicalSecurityContext(event).orElse(null);
@@ -1111,13 +1165,15 @@ public class SecurityDecisionPromptSections {
                 sessionContext,
                 behaviorAnalysis,
                 relatedDocuments,
+                similarCases,
                 canonicalSecurityContext,
                 userId,
                 baselineStatus,
                 patterns,
                 learningContextEvidence,
                 budgetProfile,
-                structuredOutputMode != null ? structuredOutputMode : StructuredOutputMode.VALIDATED_CONVERTER
+                structuredOutputMode != null ? structuredOutputMode : StructuredOutputMode.VALIDATED_CONVERTER,
+                List.of()
         );
     }
 
@@ -1266,8 +1322,7 @@ public class SecurityDecisionPromptSections {
             PromptBudgetProfile budgetProfile,
             SecurityDecisionPromptBundles.Bundle bundle) {
         String cacheKey = systemSectionsCacheKey(buildContext, budgetProfile, bundle.version())
-                + (bundle.layout() != SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS
-                && agentRequest(buildContext) ? "|AGENT" : "");
+                + (systemTextVariesByAgent(bundle) && agentRequest(buildContext) ? "|AGENT" : "");
         RenderedPromptSections cached = systemSectionsCache.getIfPresent(cacheKey);
         if (cached != null) {
             return new CachedRenderedPromptSections(cacheKey, true, cached);
@@ -1276,6 +1331,7 @@ public class SecurityDecisionPromptSections {
         RenderedPromptSections rendered = composeSections(switch (bundle.layout()) {
             case V20_BLOCKS -> v20SystemSectionPlans;
             case V21_BLOCKS -> v21SystemSectionPlans;
+            case V1_BLOCKS -> v1SystemSectionPlans(bundle.features());
             case V19_SECTIONS -> systemSectionPlans;
         }, buildContext);
         systemSectionsCache.put(cacheKey, rendered);
@@ -1373,11 +1429,10 @@ public class SecurityDecisionPromptSections {
      */
     private RenderedPromptSections composeDictionaryBlocks(SecurityPromptBuildContext context, String systemText,
                                                            PromptBudgetProfile budgetProfile, String modelHint,
-                                                           boolean v21) {
+                                                           DictionaryKit kit) {
         long startedNanos = System.nanoTime();
-        PromptDictionaryRenderer renderer = v21 ? v21DictionaryRenderer : dictionaryRenderer;
-        List<PromptDictionaryEntry> entries = v21 ? SecurityDecisionPromptDictionary.V21_ENTRIES
-                : SecurityDecisionPromptDictionary.ENTRIES;
+        PromptDictionaryRenderer renderer = kit.renderer();
+        List<PromptDictionaryEntry> entries = kit.entries();
         PromptEntryValues values = SecurityDecisionPromptValues.of(this, context, renderer.values(),
                 EventTimeZone.get());
         Set<PromptDictionaryEntry> withheld = new LinkedHashSet<>();
@@ -1430,7 +1485,9 @@ public class SecurityDecisionPromptSections {
             metadata.put(PromptExecutionMetadata.PROMPT_PAST_RECORD_COUNTS, counts.toMetadata());
         }
         // W6-12: which stored records the model was given, so a seal names them and not only how many.
-        metadata.put(PromptExecutionMetadata.PROMPT_PAST_RECORD_IDS, drawnPastRecordIds(context, withheld));
+        // K5: a v1.0 render names its past records by its own dictionary's entry; v20 and v21 keep theirs as they were.
+        metadata.put(PromptExecutionMetadata.PROMPT_PAST_RECORD_IDS, kit.v1()
+                ? drawnPastRecordIds(context, withheld, entries) : drawnPastRecordIds(context, withheld));
         PastDeniedDecisions denied = pastDeniedDecisions(context);
         if (!denied.entries().isEmpty()) {
             metadata.put(PromptExecutionMetadata.PROMPT_PAST_DENIED_DECISIONS, denied.toMetadata());
@@ -1442,7 +1499,7 @@ public class SecurityDecisionPromptSections {
         // W4-7 (inventory 6 bundle 10): the facts the UNKNOWN block names are the completeness reasons.
         metadata.put(PROMPT_EVIDENCE_COMPLETENESS_REASONS, rendering.unknownFacts());
         return new RenderedPromptSections(rendering.text(), blockKeys, List.copyOf(trimmed),
-                Map.of(v21 ? USER_PROMPT_LAYOUT_V21 : USER_PROMPT_LAYOUT_V20, elapsedMicros(startedNanos)),
+                Map.of(kit.layoutName(), elapsedMicros(startedNanos)),
                 Collections.unmodifiableMap(metadata));
     }
 
@@ -1451,9 +1508,10 @@ public class SecurityDecisionPromptSections {
      * gathered (by its dictionary name: the second pass block carries no fact IDs) and the past records only this pass found.
      */
     private RenderedPromptSections composeSecondPass(SecurityPromptBuildContext context, SecondPass secondPass,
-                                                     boolean v21) {
+                                                     DictionaryKit kit) {
         long startedNanos = System.nanoTime();
-        PromptDictionaryRenderer renderer = v21 ? v21DictionaryRenderer : dictionaryRenderer;
+        boolean v21 = kit.records();
+        PromptDictionaryRenderer renderer = kit.renderer();
         // 판정층 E-4b: a first pass that retrieved its own past records gets none as new (Layer2's rule); the past
         // records of this pass's search are then not what the first pass lacked.
         boolean firstRetrieved = firstPassRetrieved(secondPass.firstPastRecordsState());
@@ -1482,8 +1540,7 @@ public class SecurityDecisionPromptSections {
             values.clocked(PromptBlock.SECOND_PASS, "NewPastRecord{i}");
         }
         Set<PromptDictionaryEntry> otherBlocks = new LinkedHashSet<>();
-        for (PromptDictionaryEntry entry : v21 ? SecurityDecisionPromptDictionary.V21_ENTRIES
-                : SecurityDecisionPromptDictionary.ENTRIES) {
+        for (PromptDictionaryEntry entry : kit.entries()) {
             if (entry.block() != PromptBlock.SECOND_PASS) {
                 otherBlocks.add(entry);
             }
@@ -1597,11 +1654,48 @@ public class SecurityDecisionPromptSections {
         return layer1Fallback;
     }
 
+    /**
+     * v1.0 (plan 2.3 A11): every drawn line of a dictionary block is of its entry's form, by the rule the prompt
+     * inspector's dictionary contract check reads (the entry's form, a list's overflow line, a missing value's text).
+     */
+    static SecurityPromptContractAudit withDictionaryFormViolations(SecurityPromptContractAudit audit, String userText,
+                                                                     List<PromptDictionaryEntry> entries) {
+        List<String> violations = new ArrayList<>(audit.violations());
+        PromptBlock block = null;
+        for (String line : userText.split("\n")) {
+            if (PromptBlock.isHeaderLine(line)) {
+                block = PromptBlock.fromSectionKey(line).orElse(null);
+                continue;
+            }
+            PromptDictionaryLine drawn = PromptDictionaryLine.parse(line);
+            if (drawn == null || block == null) {
+                continue;
+            }
+            PromptBlock lineBlock = block;
+            PromptDictionaryEntry entry = entries.stream()
+                    .filter(candidate -> candidate.block() == lineBlock && candidate.matchesLabel(drawn.label()))
+                    .findFirst().orElse(null);
+            if (entry == null) {
+                violations.add("V1_DICTIONARY_FORM:" + lineBlock.name() + "." + drawn.label() + " is no entry");
+                continue;
+            }
+            boolean overflow = entry.indexed() && PromptDictionaryRenderer.OVERFLOW.matcher(drawn.value()).matches();
+            boolean kept = overflow || entry.acceptsValue(drawn.value())
+                    || (entry.missing() == PromptMissingNotation.RENDERED_VALUE && drawn.value().equals(entry.missingText()));
+            if (!kept) {
+                violations.add("V1_DICTIONARY_FORM:" + lineBlock.name() + "." + entry.name() + " is out of its form");
+            }
+        }
+        return new SecurityPromptContractAudit(audit.renderedRequestSnapshot(), audit.renderedLearningSnapshot(),
+                audit.renderedLabelMatrix(), audit.compactedLineCountBySection(), List.copyOf(violations));
+    }
+
     private PromptEvidenceCompleteness evaluateCompleteness(
             SecurityPromptBuildContext buildContext,
             List<PromptOmissionRecord> omissionLedger,
             SecurityPromptContractAudit promptContractAudit,
-            List<?> unknownFacts) {
+            List<?> unknownFacts,
+            boolean v1) {
         boolean requiredOmission = omissionLedger != null && omissionLedger.stream()
                 .anyMatch(this::isCompletenessBlockingOmission);
         if (requiredOmission) {
@@ -1621,9 +1715,12 @@ public class SecurityDecisionPromptSections {
             if (!unknownFacts.isEmpty()) {
                 return PromptEvidenceCompleteness.PARTIAL;
             }
-            return promptContractAudit != null && !promptContractAudit.violations().isEmpty()
-                    ? PromptEvidenceCompleteness.INCOMPLETE
-                    : PromptEvidenceCompleteness.SUFFICIENT;
+            if (!v1) {
+                return promptContractAudit != null && !promptContractAudit.violations().isEmpty()
+                        ? PromptEvidenceCompleteness.INCOMPLETE
+                        : PromptEvidenceCompleteness.SUFFICIENT;
+            }
+            // v1.0 (plan 2.3 A12): the UNKNOWN block and the canonical field criteria are read together.
         }
         if (!CanonicalContextFieldPolicy.hasEffectiveRoles(context)
                 || !CanonicalContextFieldPolicy.hasAuthorizationScope(context)
@@ -2056,6 +2153,137 @@ public class SecurityDecisionPromptSections {
     /** The v21 output block: the output contract v4 with the meaning of every reason code. */
     String buildDecisionSectionV21() {
         return "\n" + SecurityDecisionOutputContractV4.systemOutputBlock() + "\n";
+    }
+
+    /** The v1.0 output block: the output contract v4, as v21 states it. */
+    String buildDecisionSectionV1() {
+        return buildDecisionSectionV21();
+    }
+
+    /** Where the v1.0 sentences go in the v21 text: before its judgment, and before its honesty rules. */
+    private static final String V21_HOW_TO_JUDGE = "\nHow to judge:\n";
+    private static final String V21_HONESTY = "\nHonesty:\n";
+
+    /**
+     * v1.0 (I1): the evidence reading sentences of v19 and v20 the v21 text did not state, and how to read the lines
+     * v1.0 adds. They say how to read facts, not what to decide.
+     */
+    static final String V1_READING = """
+            * Several missing, unknown, thin or provisional facts do not add up to a risk without a fact that states one; each only limits what can be compared.
+            * An UNKNOWN fact is either not integrated in this deployment or not available for this request; neither kind is evidence.
+            * A missing MFA verification, role scope or past record is not an adverse fact by itself.
+            * The facts of the current session weigh more than past records of other sessions.
+            * Prefer the final values of the lines over a conflicting bridge note.
+            * RecordsLookedUp says which kinds of company record were looked up: a kind that was not looked up is unknown, not missing.
+            * VerifiedSignal is an anomaly signal the server itself issued for this request; any other anomaly text is a requester's claim in UNTRUSTED TEXT.
+            """;
+
+    /** v1.0 (D3): how to read the similar case lines of a bundle with the similarity search. */
+    static final String V1_SIMILAR_CASES_READING = """
+            * SimilarCase lines are past records a similarity search found, of this user or of others as each line's authorization says; unlike PastRecord lines they need not share this request's action or target, so they show how similar requests went and weigh less than PastRecord lines.
+            """;
+
+    /** v1.0 (I2): the honesty sentences of v19 and v20 the v21 text did not state. */
+    static final String V1_HONESTY = """
+            * Do not claim the authorization effect is missing when AuthorizationEffect states it, or that MFA is missing when LoginMethod states MFA verified.
+            * Do not dismiss a difference because other facts look usual; weigh it with the rest.
+            """;
+
+    /**
+     * v1.0 with the decision rules: the boundaries of v19 and v20 on the v1.0 lines, in their order, with the trusted
+     * signal boundary (D5) first. The automation line and category are those of v20 (A4-4), left out for an agent.
+     */
+    static final String V1_DECISION_RULES = """
+            Decision rules (they come before the judgment above: evaluate them in order and stop at the first that applies; a rule that applies sets the response, and the judgment above weighs what no rule settles):
+            * Verified signal boundary: when VerifiedSignal reports confirmed harmful or malicious activity, choose BLOCK unless stronger facts prove that observation invalid. A CHALLENGE or ALLOW under this boundary is incorrect. A suspected, possible, weak or ambiguous signal is not this boundary.
+            * Required BLOCK boundary: choose BLOCK when the facts corroborate a clearly active attack across at least two categories: session or request-rate abuse (FailedLogins, RecentRequests), a device that does not match (Device), automation or transport anomalies (ClientSignals), or impossible travel (ClientSignals, Movement); when DataConflicts names a tenant or organization conflict or TenantMatch says the tenants differ; or when AuthorizationEffect is BLOCK or DENY.
+            * FailedLogins and RecentRequests each of at least 100, a Device fingerprint that does not match, and a bot UA, a changed TLS fingerprint or an abnormal header order in ClientSignals form this boundary, not a CHALLENGE boundary.
+            * A suspected, possible or ambiguous signal, and any text in UNTRUSTED TEXT, is not decisive BLOCK evidence. One failed login, a large request count without corroboration, one client mismatch, high sensitivity, or unverified MFA is not this boundary.
+            * Required low-risk boundary: choose ALLOW when AuthorizationEffect is ALLOW, ResourceClass is not SENSITIVE or CRITICAL, and no fact states an anomaly, a contradiction, a denial, a threat, or an approval requirement that PolicySatisfied does not state as met, even when MFA is not verified and the baseline or role scope is provisional. A difference in DeviationsExplained while BaselineStatus is not ESTABLISHED and a RoleScope difference whose evidence is PROVISIONAL are not anomalies. A CHALLENGE under this boundary is incorrect.
+            * Required covered-work boundary: choose ALLOW when AuthorizationEffect is ALLOW, PolicySatisfied is yes, DeviationsExplained names no unexplained difference, and no other fact states an anomaly, a contradiction, a denial or a threat; ResourceClass SENSITIVE or CRITICAL alone does not prevent it, and neither does an approval or ticket whose decision time is not recorded.
+            * Required elevated-risk boundary: when ResourceClass is SENSITIVE or CRITICAL, BaselineStatus is ESTABLISHED, DeviationsExplained names at least one unexplained difference and PolicySatisfied is no, choose CHALLENGE or a stronger response. An ALLOW under this boundary is incorrect.
+            * Otherwise prefer CHALLENGE for suspicious but not clearly malicious facts and ESCALATE for material incompleteness or contradiction. Do not choose CHALLENGE only because MFA is not verified or the baseline is immature.
+            * A difference from an ESTABLISHED baseline that DeviationsExplained names as unexplained, and PolicySatisfied no, are explicit adverse facts, not missing, thin or provisional evidence.
+            """;
+
+    /**
+     * The v1.0 system text: the v21 judgment with the evidence reading (I1) and honesty (I2) sentences of v19 and v20.
+     * With the decision rules, the rules and the minimum action floors the host turned on come before the honesty
+     * rules, without the automation boundary for an agent's request (K6: one place leaves it out).
+     */
+    String buildSystemInstructionV1(SecurityPromptBuildContext context, SecurityDecisionPromptBundles.Features features) {
+        String reading = features != null && features.similarCases()
+                ? V1_READING + V1_SIMILAR_CASES_READING
+                : V1_READING;
+        String text = insertBefore(buildSystemInstructionV21(), V21_HOW_TO_JUDGE, reading);
+        if (features != null && features.decisionRules()) {
+            String rules = V1_DECISION_RULES;
+            if (agentRequest(context)) {
+                rules = without(without(rules, V20_AUTOMATION_CATEGORY), V20_AUTOMATION_BOUNDARY);
+            }
+            // The rule codes are v3 reason codes; a v1.0 answer cites the facts with the v4 codes, and the engine
+            // records the rule a request meets (minimumActionFindings).
+            String floors = minimumActionRulesV20(minimumActionSettings)
+                    .replace("DeviationsFromBaseline", "DeviationsExplained")
+                    .replaceAll("P(\\d) MIN_P\\d_[A-Z_]+:", "P$1:");
+            if (!floors.isEmpty()) {
+                rules = rules + floors.stripTrailing() + "\n"
+                        + "* A later check enforces the minimum action rules: do not choose a stronger or a weaker action"
+                        + " because of it.\n";
+            }
+            text = insertBefore(text, V21_HONESTY, "\n" + rules);
+        }
+        return text + V1_HONESTY;
+    }
+
+    /** The text with the insertion before the anchor; a missing anchor is a fault of the build, not of a request. */
+    private static String insertBefore(String text, String anchor, String insertion) {
+        int at = text.indexOf(anchor);
+        if (at < 0) {
+            throw new IllegalStateException("The v21 system text has no anchor " + anchor.strip());
+        }
+        // The insertion ends the list before the anchor's blank line, so the anchor keeps its blank line above it.
+        return text.substring(0, at) + insertion + text.substring(at);
+    }
+
+    /** The v1.0 system sections of the bundle's features. */
+    private List<PromptSectionPlan> v1SystemSectionPlans(SecurityDecisionPromptBundles.Features features) {
+        return List.of(
+                new PromptSectionPlan(SecurityPromptSectionCatalog.SYSTEM_INSTRUCTION, PromptSectionPriorityClass.P0_REQUIRED, false, false,
+                        (template, context) -> template.buildSystemInstructionV1(context, features)),
+                new PromptSectionPlan(SecurityPromptSectionCatalog.DECISION_CONTRACT, PromptSectionPriorityClass.P0_REQUIRED, false, false,
+                        (template, context) -> template.buildDecisionSectionV1()));
+    }
+
+    /** Whether a person's and an agent's request get different system texts: v19, v20 and v1.0 with the rules. */
+    private static boolean systemTextVariesByAgent(SecurityDecisionPromptBundles.Bundle bundle) {
+        return switch (bundle.layout()) {
+            case V19_SECTIONS, V20_BLOCKS -> true;
+            case V21_BLOCKS -> false;
+            case V1_BLOCKS -> bundle.features().decisionRules();
+        };
+    }
+
+    /**
+     * The dictionary a bundle draws its user prompt with: its renderer, entries, slot plans and layout name, and whether
+     * it states the decision facts as records (v21, v1.0).
+     */
+    record DictionaryKit(PromptDictionaryRenderer renderer, List<PromptDictionaryEntry> entries,
+                         PromptDictionarySlotPlanProvider slotPlans, String layoutName, boolean records, boolean v1) {
+    }
+
+    private DictionaryKit dictionaryKit(SecurityDecisionPromptBundles.Bundle bundle) {
+        return switch (bundle.layout()) {
+            case V21_BLOCKS -> new DictionaryKit(v21DictionaryRenderer, SecurityDecisionPromptDictionary.V21_ENTRIES,
+                    v21DictionarySlotPlans, USER_PROMPT_LAYOUT_V21, true, false);
+            case V1_BLOCKS -> bundle.features().decisionRules()
+                    ? new DictionaryKit(v1RulesDictionaryRenderer, SecurityDecisionPromptDictionary.V1_RULES_ENTRIES,
+                    v1RulesDictionarySlotPlans, USER_PROMPT_LAYOUT_V1, true, true)
+                    : new DictionaryKit(v1DictionaryRenderer, SecurityDecisionPromptDictionary.V1_ENTRIES,
+                    v1DictionarySlotPlans, USER_PROMPT_LAYOUT_V1, true, true);
+            case V19_SECTIONS, V20_BLOCKS -> new DictionaryKit(dictionaryRenderer, SecurityDecisionPromptDictionary.ENTRIES,
+                    dictionarySlotPlans, USER_PROMPT_LAYOUT_V20, false, false);
+        };
     }
     String buildEventSection(SecurityEvent event, String userId) {
         TieredStrategyProperties.Layer1.Prompt promptConfig = tieredStrategyProperties.getLayer1().getPrompt();

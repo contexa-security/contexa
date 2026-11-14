@@ -11,6 +11,7 @@ import io.contexa.contexacore.verification.evidence.SealedEvidencePackageReposit
 import io.contexa.contexacore.verification.metric.OfficialVerificationMetricCatalog;
 import io.contexa.contexacore.verification.persistence.VerificationLedgerService;
 import io.contexa.contexacore.verification.prompt.VerificationPromptReplayBuilder;
+import io.contexa.contexacore.verification.inspection.PromptInspector;
 import io.contexa.contexacore.verification.replay.DeterministicReplayService;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationCasePublisher;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationMessageResolver;
@@ -360,13 +361,16 @@ public class PqaOfficialInspectionAutoConfiguration {
             CanonicalSecurityContextSerializer contextSerializer,
             PromptContextComposer contexaPromptContextComposer,
             SealedEvidencePackageIntegrity integrity,
-            VerificationPromptReplayBuilder promptReplayBuilder) {
+            VerificationPromptReplayBuilder promptReplayBuilder,
+            ObjectProvider<PromptInspector> promptInspector) {
+        // Plan 2.3 B12: a dictionary prompt's lines are computed again by the prompt inspector's checks.
         return new DeterministicReplayService(
                 evidenceLookupService,
                 contextSerializer,
                 contexaPromptContextComposer,
                 integrity,
-                promptReplayBuilder);
+                promptReplayBuilder,
+                promptInspector.getIfAvailable());
     }
 
     @Bean(name = "contexaPqaSealedEvidencePromptScorecard")

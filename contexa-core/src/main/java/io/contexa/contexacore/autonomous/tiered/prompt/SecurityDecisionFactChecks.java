@@ -52,6 +52,14 @@ public final class SecurityDecisionFactChecks {
     public static final String REQUIRED_LOW_RISK = "REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH";
     public static final String REQUIRED_COVERED_WORK = "REQUIRED_COVERED_WORK_BOUNDARY_ACTION_MISMATCH";
     public static final String REASON_CODE_MISMATCH = "REASON_CODE_MISMATCH";
+    /** v1.0 (from v19): a reason that rests on past records of the same target while the prompt draws none. */
+    public static final String FALSE_PAST_RECORD_CLAIM = "FALSE_AUTHORIZED_RAG_CLAIM";
+    /** A drawn past record line: a PAST RECORDS record or a new record of a SECOND PASS, by its number. */
+    private static final Pattern PAST_RECORD_LINE = Pattern.compile("PAST_RECORDS\\.PastRecord\\d+|SECOND_PASS\\.NewPastRecord\\d+");
+    /** A reason that says past records of the same target, or the v19 sentence of them, support the request. */
+    private static final Pattern SAME_TARGET_RECORD_CLAIM = Pattern.compile("relevant to the same resource"
+            + "|\\b(past|earlier|previous|prior) (allowed )?(records?|requests?|rag)\\b[^.;]*\\bsame (resource|target)\\b"
+            + "|\\bsame (resource|target)\\b[^.;]*\\b(past|earlier|previous|prior) (allowed )?(records?|requests?)\\b");
 
     /** The count from which FailedLogins and RecentRequests form the session or request-rate abuse category. */
     static final int ABUSE_COUNT = 100;
@@ -139,11 +147,20 @@ public final class SecurityDecisionFactChecks {
      * boundary, BLOCK without it, the required low-risk boundary, the required covered-work boundary.
      */
     public static String boundaryViolation(CanonicalSecurityContext context, DrawnPrompt prompt, String rawAction) {
+        return boundaryViolation(context, context != null ? context.getDecisionFacts() : null, prompt, rawAction);
+    }
+
+    /**
+     * v1.0: the same boundaries read on the given decision facts: the conclusions the v1.0 decision rules state, which
+     * the context keeps beside the records its prompt states.
+     */
+    public static String boundaryViolation(CanonicalSecurityContext context, DecisionFacts facts, DrawnPrompt prompt,
+                                           String rawAction) {
         if (context == null || prompt == null) {
             return null;
         }
         String action = rawAction != null ? rawAction.trim().toUpperCase(Locale.ROOT) : "";
-        Read read = new Read(context, prompt);
+        Read read = new Read(context, facts, prompt);
         if (read.requiredBlock()) {
             return "BLOCK".equals(action) ? null : REQUIRED_BLOCK;
         }
@@ -157,6 +174,23 @@ public final class SecurityDecisionFactChecks {
             return "ALLOW".equals(action) ? null : REQUIRED_COVERED_WORK;
         }
         return null;
+    }
+
+    /**
+     * v1.0 (A16, from v19 FALSE_AUTHORIZED_RAG_CLAIM): a reason that rests on past records of the same target when the
+     * prompt draws no past record line, or null.
+     */
+    public static String pastRecordClaimViolation(DrawnPrompt prompt, String rawReasoning) {
+        if (prompt == null || rawReasoning == null) {
+            return null;
+        }
+        // A numbered record line, not the state or counts lines whose names also begin with PastRecord.
+        boolean drawn = prompt.stated().stream().anyMatch(entry -> PAST_RECORD_LINE.matcher(entry).matches());
+        if (drawn) {
+            return null;
+        }
+        String reason = rawReasoning.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+        return SAME_TARGET_RECORD_CLAIM.matcher(reason).find() ? FALSE_PAST_RECORD_CLAIM : null;
     }
 
     /**
@@ -374,7 +408,11 @@ public final class SecurityDecisionFactChecks {
     }
 
     /** The facts the boundaries read, on the stated lines only (a fact the UNKNOWN line names states nothing). */
-    private record Read(CanonicalSecurityContext context, DrawnPrompt prompt) {
+    private record Read(CanonicalSecurityContext context, DecisionFacts facts, DrawnPrompt prompt) {
+
+        Read(CanonicalSecurityContext context, DrawnPrompt prompt) {
+            this(context, context != null ? context.getDecisionFacts() : null, prompt);
+        }
 
         String authorizationEffect() {
             CanonicalSecurityContext.Authorization authorization = context.getAuthorization();
@@ -390,7 +428,6 @@ public final class SecurityDecisionFactChecks {
         }
 
         private Optional<DecisionFact> fact(String name) {
-            DecisionFacts facts = context.getDecisionFacts();
             return facts != null && prompt.states(PromptBlock.DECISION_FACTS, name) ? facts.fact(name) : Optional.empty();
         }
 
@@ -466,13 +503,11 @@ public final class SecurityDecisionFactChecks {
         }
 
         boolean unexplainedDifference() {
-            DecisionFacts facts = context.getDecisionFacts();
             return facts != null && prompt.states(PromptBlock.DECISION_FACTS, "DeviationsFromBaseline")
                     && !facts.unexplained().isEmpty();
         }
 
         Boolean policySatisfied() {
-            DecisionFacts facts = context.getDecisionFacts();
             return facts != null && prompt.states(PromptBlock.DECISION_FACTS, "PolicySatisfied")
                     ? facts.policy().satisfied() : null;
         }

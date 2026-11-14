@@ -2,6 +2,9 @@ package io.contexa.contexacore.verification.adjudication;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
+import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +13,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Evaluates a sealed evidence package against prompt quality checks.
@@ -24,6 +30,18 @@ import java.util.LinkedHashMap;
 public class SealedEvidencePromptScorecard {
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
+
+    /** The user prompt layouts drawn in dictionary blocks, each judged in its own form (plan 2.3 B10). */
+    private static final Set<String> DICTIONARY_LAYOUTS = Set.of(SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V20,
+            SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21, SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1);
+    /** The blocks every dictionary prompt draws. */
+    private static final List<PromptBlock> DRAWN_BLOCKS = List.of(PromptBlock.USER_BASELINE, PromptBlock.SESSION,
+            PromptBlock.REQUEST, PromptBlock.DECISION_FACTS);
+    private static final List<String> ACTIONS = List.of("ALLOW", "CHALLENGE", "ESCALATE", "BLOCK");
+    /** The learned requests a dictionary prompt's BaselineStatus line states. */
+    private static final Pattern LEARNED_REQUESTS = Pattern.compile("BaselineStatus: [A-Z_]+ \\((\\d+) learned requests");
+    /** A dictionary prompt's line of a user without a personal baseline. */
+    private static final String DICTIONARY_NO_BASELINE = "BaselineStatus: NONE";
 
     private final ObjectMapper objectMapper;
 
@@ -41,6 +59,7 @@ public class SealedEvidencePromptScorecard {
         Map<String, Object> baseline = parseJson(pkg.getBaselineSnapshotJson());
         String systemPrompt = pkg.getSystemPromptText();
         String userPrompt = pkg.getUserPromptText();
+        boolean dictionary = dictionaryPrompt(pkg);
 
         // --- Harness: request chain correlation ---
         check(checks, "correlationId is present",
@@ -152,75 +171,85 @@ public class SealedEvidencePromptScorecard {
                 systemPrompt != null && !systemPrompt.isBlank(),
                 "systemPrompt length=" + (systemPrompt != null ? systemPrompt.length() : 0));
 
-        check(checks, "systemPrompt contains Zero Trust analyst instruction",
-                systemPrompt != null && systemPrompt.contains("Zero Trust"),
-                "systemPrompt contains 'Zero Trust': " + (systemPrompt != null && systemPrompt.contains("Zero Trust")));
+        if (dictionary) {
+            dictionarySystemPromptChecks(checks, systemPrompt);
+        }
+        else {
+            check(checks, "systemPrompt contains Zero Trust analyst instruction",
+                    systemPrompt != null && systemPrompt.contains("Zero Trust"),
+                    "systemPrompt contains 'Zero Trust': " + (systemPrompt != null && systemPrompt.contains("Zero Trust")));
 
-        check(checks, "systemPrompt contains DECISION section",
-                systemPrompt != null && systemPrompt.contains("=== DECISION ==="),
-                "DECISION section present");
+            check(checks, "systemPrompt contains DECISION section",
+                    systemPrompt != null && systemPrompt.contains("=== DECISION ==="),
+                    "DECISION section present");
 
-        check(checks, "systemPrompt contains output_format",
-                systemPrompt != null && systemPrompt.contains("<output_format>"),
-                "output_format section present");
+            check(checks, "systemPrompt contains output_format",
+                    systemPrompt != null && systemPrompt.contains("<output_format>"),
+                    "output_format section present");
 
-        check(checks, "systemPrompt contains action schema",
-                systemPrompt != null && systemPrompt.contains("\"action\":\"ALLOW|CHALLENGE|ESCALATE|BLOCK\""),
-                "action schema present");
+            check(checks, "systemPrompt contains action schema",
+                    systemPrompt != null && systemPrompt.contains("\"action\":\"ALLOW|CHALLENGE|ESCALATE|BLOCK\""),
+                    "action schema present");
+        }
 
         // --- Harness: userPrompt section checks (individual, not combined) ---
         check(checks, "userPrompt is captured",
                 userPrompt != null && !userPrompt.isBlank(),
                 "userPrompt length=" + (userPrompt != null ? userPrompt.length() : 0));
 
-        check(checks, "userPrompt contains CURRENT REQUEST AND EVENT section",
-                userPrompt != null && userPrompt.contains("=== CURRENT REQUEST"),
-                "CURRENT REQUEST section present");
+        if (dictionary) {
+            dictionaryUserPromptChecks(checks, userPrompt);
+        }
+        else {
+            check(checks, "userPrompt contains CURRENT REQUEST AND EVENT section",
+                    userPrompt != null && userPrompt.contains("=== CURRENT REQUEST"),
+                    "CURRENT REQUEST section present");
 
-        check(checks, "userPrompt contains BRIDGE RESOLUTION CONTEXT section",
-                userPrompt != null && userPrompt.contains("=== BRIDGE RESOLUTION CONTEXT"),
-                "BRIDGE RESOLUTION section present");
+            check(checks, "userPrompt contains BRIDGE RESOLUTION CONTEXT section",
+                    userPrompt != null && userPrompt.contains("=== BRIDGE RESOLUTION CONTEXT"),
+                    "BRIDGE RESOLUTION section present");
 
-        check(checks, "userPrompt contains CONTEXT COVERAGE section",
-                userPrompt != null && userPrompt.contains("=== CONTEXT COVERAGE"),
-                "CONTEXT COVERAGE section present");
+            check(checks, "userPrompt contains CONTEXT COVERAGE section",
+                    userPrompt != null && userPrompt.contains("=== CONTEXT COVERAGE"),
+                    "CONTEXT COVERAGE section present");
 
-        check(checks, "userPrompt contains IDENTITY AND ROLE CONTEXT section",
-                userPrompt != null && userPrompt.contains("=== IDENTITY AND ROLE"),
-                "IDENTITY AND ROLE section present");
+            check(checks, "userPrompt contains IDENTITY AND ROLE CONTEXT section",
+                    userPrompt != null && userPrompt.contains("=== IDENTITY AND ROLE"),
+                    "IDENTITY AND ROLE section present");
 
-        check(checks, "userPrompt contains AUTHENTICATION AND ASSURANCE CONTEXT section",
-                userPrompt != null && userPrompt.contains("=== AUTHENTICATION AND ASSURANCE"),
-                "AUTHENTICATION AND ASSURANCE section present");
+            check(checks, "userPrompt contains AUTHENTICATION AND ASSURANCE CONTEXT section",
+                    userPrompt != null && userPrompt.contains("=== AUTHENTICATION AND ASSURANCE"),
+                    "AUTHENTICATION AND ASSURANCE section present");
 
-        check(checks, "userPrompt contains RESOURCE AND ACTION CONTEXT section",
-                userPrompt != null && userPrompt.contains("=== RESOURCE AND ACTION"),
-                "RESOURCE AND ACTION section present");
+            check(checks, "userPrompt contains RESOURCE AND ACTION CONTEXT section",
+                    userPrompt != null && userPrompt.contains("=== RESOURCE AND ACTION"),
+                    "RESOURCE AND ACTION section present");
 
-        check(checks, "userPrompt contains SESSION NARRATIVE CONTEXT section",
-                userPrompt != null && userPrompt.contains("=== SESSION NARRATIVE"),
-                "SESSION NARRATIVE section present");
+            check(checks, "userPrompt contains SESSION NARRATIVE CONTEXT section",
+                    userPrompt != null && userPrompt.contains("=== SESSION NARRATIVE"),
+                    "SESSION NARRATIVE section present");
 
-        check(checks, "userPrompt contains PERSONAL WORK PROFILE section",
-                userPrompt != null && userPrompt.contains("=== PERSONAL WORK PROFILE"),
-                "PERSONAL WORK PROFILE section present");
+            check(checks, "userPrompt contains PERSONAL WORK PROFILE section",
+                    userPrompt != null && userPrompt.contains("=== PERSONAL WORK PROFILE"),
+                    "PERSONAL WORK PROFILE section present");
 
-        check(checks, "userPrompt contains ROLE AND WORK SCOPE CONTEXT section",
-                userPrompt != null && userPrompt.contains("=== ROLE AND WORK SCOPE"),
-                "ROLE AND WORK SCOPE section present");
+            check(checks, "userPrompt contains ROLE AND WORK SCOPE CONTEXT section",
+                    userPrompt != null && userPrompt.contains("=== ROLE AND WORK SCOPE"),
+                    "ROLE AND WORK SCOPE section present");
 
-        check(checks, "userPrompt contains EXPLICIT MISSING KNOWLEDGE section",
-                userPrompt != null && userPrompt.contains("=== EXPLICIT MISSING KNOWLEDGE"),
-                "EXPLICIT MISSING KNOWLEDGE section present");
+            check(checks, "userPrompt contains EXPLICIT MISSING KNOWLEDGE section",
+                    userPrompt != null && userPrompt.contains("=== EXPLICIT MISSING KNOWLEDGE"),
+                    "EXPLICIT MISSING KNOWLEDGE section present");
 
-        // --- Harness: additional userPrompt sections (sealed evidence extensions) ---
-        check(checks, "userPrompt contains FRICTION AND APPROVAL section",
-                userPrompt != null && userPrompt.contains("=== FRICTION AND APPROVAL"),
-                "FRICTION AND APPROVAL section present");
+            // --- Harness: additional userPrompt sections (sealed evidence extensions) ---
+            check(checks, "userPrompt contains FRICTION AND APPROVAL section",
+                    userPrompt != null && userPrompt.contains("=== FRICTION AND APPROVAL"),
+                    "FRICTION AND APPROVAL section present");
 
-        check(checks, "userPrompt contains DELEGATED OBJECTIVE section",
-                userPrompt != null && userPrompt.contains("=== DELEGATED OBJECTIVE"),
-                "DELEGATED OBJECTIVE section present");
+            check(checks, "userPrompt contains DELEGATED OBJECTIVE section",
+                    userPrompt != null && userPrompt.contains("=== DELEGATED OBJECTIVE"),
+                    "DELEGATED OBJECTIVE section present");
+        }
 
         // --- Harness: userPrompt evidence value checks ---
         String requestPath = text(requestFacts, "requestPath");
@@ -233,21 +262,36 @@ public class SealedEvidencePromptScorecard {
                 userPrompt != null && clientIp != null && userPrompt.contains(clientIp),
                 "clientIp in userPrompt");
 
-        check(checks, "userPrompt contains MfaVerified evidence",
-                userPrompt != null && userPrompt.contains("MfaVerified"),
-                "MfaVerified in userPrompt");
+        if (dictionary) {
+            check(checks, "userPrompt contains LoginMethod evidence",
+                    hasLine(userPrompt, "LoginMethod"), "LoginMethod in userPrompt");
 
-        check(checks, "userPrompt contains Sensitivity evidence",
-                userPrompt != null && userPrompt.contains("Sensitivity:"),
-                "Sensitivity in userPrompt");
+            check(checks, "userPrompt contains ResourceClass evidence",
+                    hasLine(userPrompt, "ResourceClass"), "ResourceClass in userPrompt");
+        }
+        else {
+            check(checks, "userPrompt contains MfaVerified evidence",
+                    userPrompt != null && userPrompt.contains("MfaVerified"),
+                    "MfaVerified in userPrompt");
+
+            check(checks, "userPrompt contains Sensitivity evidence",
+                    userPrompt != null && userPrompt.contains("Sensitivity:"),
+                    "Sensitivity in userPrompt");
+        }
 
         check(checks, "userPrompt contains AuthorizationEffect: ALLOW",
                 userPrompt != null && userPrompt.contains("AuthorizationEffect: ALLOW"),
                 "AuthorizationEffect: ALLOW in userPrompt");
 
-        check(checks, "userPrompt contains NewUser evidence",
-                userPrompt != null && userPrompt.contains("NewUser:"),
-                "NewUser in userPrompt");
+        if (dictionary) {
+            check(checks, "userPrompt contains BaselineStatus evidence",
+                    hasLine(userPrompt, "BaselineStatus"), "BaselineStatus in userPrompt");
+        }
+        else {
+            check(checks, "userPrompt contains NewUser evidence",
+                    userPrompt != null && userPrompt.contains("NewUser:"),
+                    "NewUser in userPrompt");
+        }
 
         // --- Harness: userPrompt noise path exclusion ---
         check(checks, "userPrompt does not contain status/SSE/evidence noise paths",
@@ -379,12 +423,13 @@ public class SealedEvidencePromptScorecard {
                 containsAny(firstUserPrompt,
                         "No baseline established",
                         "Personal behavioral baseline is not established yet.",
-                        "PROVISIONAL"),
+                        "PROVISIONAL",
+                        DICTIONARY_NO_BASELINE),
                 "firstRound baseline language");
 
         check(checks,
                 "2nd round userPrompt contains OBSERVED WORK PATTERN CONTEXT",
-                contains(secondUserPrompt, "=== OBSERVED WORK PATTERN CONTEXT ==="),
+                observedWorkPattern(rounds.get(1)),
                 "secondRound observed work pattern");
 
         check(checks,
@@ -396,8 +441,7 @@ public class SealedEvidencePromptScorecard {
 
         check(checks,
                 "3rd round userPrompt preserves core security facts",
-                contains(thirdUserPrompt, "MfaVerified: true")
-                        && contains(thirdUserPrompt, "AuthorizationEffect: ALLOW"),
+                mfaVerified(rounds.get(2)) && contains(thirdUserPrompt, "AuthorizationEffect: ALLOW"),
                 "3rd round core security facts");
 
         // Per-round progression checks (rounds 2+)
@@ -413,7 +457,7 @@ public class SealedEvidencePromptScorecard {
 
             check(checks,
                     "round " + (i + 1) + " userPrompt preserves MfaVerified: true",
-                    contains(currentPrompt, "MfaVerified: true"),
+                    mfaVerified(rounds.get(i)),
                     "round " + (i + 1) + " MfaVerified");
 
             check(checks,
@@ -424,7 +468,7 @@ public class SealedEvidencePromptScorecard {
             if (i >= 1) {
                 check(checks,
                         "round " + (i + 1) + " userPrompt contains OBSERVED WORK PATTERN CONTEXT",
-                        contains(currentPrompt, "=== OBSERVED WORK PATTERN CONTEXT ==="),
+                        observedWorkPattern(rounds.get(i)),
                         "round " + (i + 1) + " observed work pattern");
             }
 
@@ -439,6 +483,68 @@ public class SealedEvidencePromptScorecard {
         }
 
         return ScorecardResult.of("Progression-" + rounds.get(0).getUserId(), checks);
+    }
+
+    // --- The dictionary form of a v20, v21 or v1.0 package (plan 2.3 B10) ---
+
+    /** Whether the package's user prompt is drawn in dictionary blocks (v20, v21, v1.0), by its sealed layout. */
+    private boolean dictionaryPrompt(SealedEvidencePackage pkg) {
+        Map<String, Object> metadata = parseJson(pkg.getPromptExecutionMetadataJson());
+        return metadata.get(PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR) instanceof Map<?, ?> descriptor
+                && descriptor.get(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION) instanceof String layout
+                && DICTIONARY_LAYOUTS.contains(layout);
+    }
+
+    /** The system prompt's output section and its schema of the four actions, as every dictionary bundle states them. */
+    private void dictionarySystemPromptChecks(List<ScorecardCheckResult> checks, String systemPrompt) {
+        check(checks, "systemPrompt contains OUTPUT section",
+                systemPrompt != null && systemPrompt.contains("=== OUTPUT ==="),
+                "OUTPUT section present");
+
+        check(checks, "systemPrompt contains output_format",
+                systemPrompt != null && systemPrompt.contains("<output_format>"),
+                "output_format section present");
+
+        check(checks, "systemPrompt contains action schema",
+                systemPrompt != null && systemPrompt.contains("\"action\"")
+                        && ACTIONS.stream().allMatch(systemPrompt::contains),
+                "action schema present");
+    }
+
+    /** The blocks every dictionary prompt draws, by either of their titles. */
+    private void dictionaryUserPromptChecks(List<ScorecardCheckResult> checks, String userPrompt) {
+        for (PromptBlock block : DRAWN_BLOCKS) {
+            check(checks, "userPrompt contains " + block.title() + " block",
+                    hasBlock(userPrompt, block), block.title() + " block present");
+        }
+    }
+
+    private static boolean hasBlock(String userPrompt, PromptBlock block) {
+        return userPrompt != null && (userPrompt.contains("=== " + block.title())
+                || userPrompt.contains("=== " + block.v21Title()));
+    }
+
+    /** Whether the prompt has a line of the label, with or without its fact id. */
+    private static boolean hasLine(String userPrompt, String label) {
+        return userPrompt != null
+                && Pattern.compile("(?m)^(\\[[A-Z]\\d+\\] )?" + Pattern.quote(label) + ": ").matcher(userPrompt).find();
+    }
+
+    /** The observed work pattern: the v19 section, or the dictionary's USER BASELINE block with its BaselineStatus line. */
+    private boolean observedWorkPattern(SealedEvidencePackage pkg) {
+        String userPrompt = pkg.getUserPromptText();
+        return dictionaryPrompt(pkg)
+                ? hasBlock(userPrompt, PromptBlock.USER_BASELINE) && hasLine(userPrompt, "BaselineStatus")
+                : contains(userPrompt, "=== OBSERVED WORK PATTERN CONTEXT ===");
+    }
+
+    /** MFA verified: the v19 fact, or the dictionary's LoginMethod line that states it. */
+    private boolean mfaVerified(SealedEvidencePackage pkg) {
+        String userPrompt = pkg.getUserPromptText();
+        return dictionaryPrompt(pkg)
+                ? userPrompt != null && Pattern.compile("(?m)^(\\[[A-Z]\\d+\\] )?LoginMethod: .*MFA verified")
+                        .matcher(userPrompt).find()
+                : contains(userPrompt, "MfaVerified: true");
     }
 
     // --- Utility methods ---
@@ -497,6 +603,11 @@ public class SealedEvidencePromptScorecard {
 
     private int extractWorkProfileObservationCount(String userPrompt) {
         if (userPrompt == null || userPrompt.isBlank()) return -1;
+        // B10: a dictionary prompt states the learned requests on its BaselineStatus line.
+        Matcher learned = LEARNED_REQUESTS.matcher(userPrompt);
+        if (learned.find()) {
+            return Integer.parseInt(learned.group(1));
+        }
         String marker = "WorkProfileSummary: Window 7d | Observations ";
         int start = userPrompt.indexOf(marker);
         if (start < 0) return -1;

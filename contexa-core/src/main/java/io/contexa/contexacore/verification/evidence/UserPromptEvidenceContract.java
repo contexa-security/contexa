@@ -3,6 +3,10 @@ package io.contexa.contexacore.verification.evidence;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryLine;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptLabelPlaces;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
+import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -13,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Canonical packaging contract between the LLM-view user prompt and the sealed
@@ -20,6 +25,12 @@ import java.util.Set;
  * i18n keys are authoritative; English text is only the default fallback.
  */
 final class UserPromptEvidenceContract {
+
+    /** B13: the user prompt layouts drawn in dictionary blocks, read in their own form. */
+    private static final Set<String> DICTIONARY_LAYOUTS = Set.of(SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V20,
+            SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21, SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1);
+    /** The mark of a numbered dictionary entry ({@code PastRecord{i}}). */
+    private static final String NUMBERED = "{i}";
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
@@ -263,11 +274,18 @@ final class UserPromptEvidenceContract {
         int p0Blocking = 0;
         int declaredAbsence = 0;
 
+        // B13: a dictionary prompt (v20, v21, v1.0) names the facts with its entries, as the label place table moved them.
+        boolean dictionary = dictionaryLayout(roots.get("PROMPT_EXECUTION_METADATA"));
         for (FieldSpec spec : FIELDS) {
-            String promptValue = firstPromptValue(finalUserPrompt, spec.promptLabels());
+            List<String> labels = dictionary ? dictionaryLabels(spec.promptLabels()) : spec.promptLabels();
+            String promptValue = dictionary ? firstDictionaryValue(finalUserPrompt, labels)
+                    : firstPromptValue(finalUserPrompt, spec.promptLabels());
             EvidenceValue evidence = firstEvidenceValue(roots, spec);
-            ProjectionState state = projectionState(spec, promptValue, evidence.value());
-            if (isDeclaredAbsenceAllowed(spec, state, finalUserPrompt)) {
+            ProjectionState state = dictionary
+                    ? dictionaryProjectionState(spec, promptValue, evidence.value(), finalUserPrompt)
+                    : projectionState(spec, promptValue, evidence.value());
+            if (dictionary ? isDeclaredUnknown(spec, state, labels, finalUserPrompt)
+                    : isDeclaredAbsenceAllowed(spec, state, finalUserPrompt)) {
                 state = ProjectionState.DECLARED_ABSENCE;
                 declaredAbsence++;
             }
@@ -281,7 +299,7 @@ final class UserPromptEvidenceContract {
             Map<String, Object> row = new LinkedHashMap<>();
             putFieldIdentity(row, spec.fieldKey(), spec.displayNameFallback());
             row.put("requiredLevel", spec.requiredLevel());
-            row.put("promptLabels", spec.promptLabels());
+            row.put("promptLabels", labels);
             row.put("promptValue", promptValue);
             row.put("evidenceSection", evidence.section());
             row.put("evidencePath", evidence.path());
@@ -863,6 +881,111 @@ final class UserPromptEvidenceContract {
             return ProjectionState.MISSING_IN_EVIDENCE;
         }
         return valuesEquivalent(spec, promptValue, evidenceValue) ? ProjectionState.PRESENT : ProjectionState.VALUE_MISMATCH;
+    }
+
+    // --- B13: the dictionary form of a v20, v21 or v1.0 prompt ---
+
+    /** Whether the sealed execution metadata names a layout drawn in dictionary blocks (v20, v21, v1.0). */
+    private static boolean dictionaryLayout(Object metadata) {
+        return metadata instanceof Map<?, ?> map
+                && map.get(PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR) instanceof Map<?, ?> descriptor
+                && descriptor.get(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION) instanceof String layout
+                && DICTIONARY_LAYOUTS.contains(layout);
+    }
+
+    /** The dictionary entries the v19 labels went to (a place that is no entry, such as NO_FACT, gives none). */
+    private static List<String> dictionaryLabels(List<String> v19Labels) {
+        Set<String> names = new LinkedHashSet<>();
+        for (String label : v19Labels) {
+            for (String place : SecurityDecisionPromptLabelPlaces.placesOf(label)) {
+                int dot = place.indexOf('.');
+                if (dot > 0 && !place.contains(":")) {
+                    names.add(place.substring(dot + 1));
+                }
+            }
+        }
+        return List.copyOf(names);
+    }
+
+    /** The value of the first line of the entries, read past the line's fact id; a numbered entry's first line. */
+    private static String firstDictionaryValue(String prompt, List<String> entries) {
+        if (!StringUtils.hasText(prompt) || entries.isEmpty()) {
+            return null;
+        }
+        for (String entry : entries) {
+            boolean numbered = entry.endsWith(NUMBERED);
+            String stem = numbered ? entry.substring(0, entry.length() - NUMBERED.length()) : entry;
+            for (String line : prompt.split("\\R")) {
+                PromptDictionaryLine drawn = PromptDictionaryLine.parse(line);
+                if (drawn != null && (numbered ? drawn.label().matches(Pattern.quote(stem) + "\\d+")
+                        : drawn.label().equals(entry))) {
+                    return normalizePromptScalar(drawn.value());
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * A dictionary line states the sealed value with what it means beside it, so the value is in the line: the line
+     * holds it (each item of a list field); a requester's own text is quoted in UNTRUSTED TEXT instead of a line.
+     */
+    private static ProjectionState dictionaryProjectionState(FieldSpec spec, String promptValue, String evidenceValue,
+                                                             String prompt) {
+        boolean evidenceMissing = !StringUtils.hasText(evidenceValue);
+        if (!StringUtils.hasText(promptValue)) {
+            if (!evidenceMissing && quotedAsUntrustedText(prompt, evidenceValue)) {
+                return ProjectionState.PRESENT;
+            }
+            return evidenceMissing ? ProjectionState.MISSING_IN_BOTH : ProjectionState.MISSING_IN_PROMPT;
+        }
+        if (evidenceMissing) {
+            return ProjectionState.MISSING_IN_EVIDENCE;
+        }
+        String line = clean(promptValue);
+        if (line.contains(clean(evidenceValue))) {
+            return ProjectionState.PRESENT;
+        }
+        Set<String> items = tokenSet(spec, evidenceValue);
+        if (isListSetComparisonField(spec) && !items.isEmpty()
+                && items.stream().allMatch(item -> line.contains(clean(item)))) {
+            return ProjectionState.PRESENT;
+        }
+        // The line states the request's form (a path template); the requester's own value is quoted apart.
+        return quotedAsUntrustedText(prompt, evidenceValue) ? ProjectionState.PRESENT : ProjectionState.VALUE_MISMATCH;
+    }
+
+    /** Whether an UNTRUSTED TEXT line quotes the value. */
+    private static boolean quotedAsUntrustedText(String prompt, String value) {
+        if (!StringUtils.hasText(prompt)) {
+            return false;
+        }
+        String quoted = "\"" + value.trim() + "\"";
+        for (String line : prompt.split("\\R")) {
+            PromptDictionaryLine drawn = PromptDictionaryLine.parse(line);
+            if (drawn != null && drawn.label().startsWith("UntrustedText") && drawn.value().contains(quoted)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A fact the UNKNOWN block names as unknown is a declared absence, as v19's explicit missing knowledge was. */
+    private static boolean isDeclaredUnknown(FieldSpec spec, ProjectionState state, List<String> entries,
+                                             String prompt) {
+        if (!P1_REQUIRED_WITH_DECLARED_ABSENCE.equals(spec.requiredLevel())
+                || state == ProjectionState.PRESENT || state == ProjectionState.VALUE_MISMATCH
+                || !StringUtils.hasText(prompt)) {
+            return false;
+        }
+        for (String line : prompt.split("\\R")) {
+            PromptDictionaryLine drawn = PromptDictionaryLine.parse(line);
+            if (drawn != null && "Unknown".equals(drawn.label())
+                    && entries.stream().anyMatch(entry -> drawn.value().contains(entry.replace(NUMBERED, "")))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isDeclaredAbsenceAllowed(FieldSpec spec, ProjectionState state, String finalUserPrompt) {

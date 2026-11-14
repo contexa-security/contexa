@@ -52,23 +52,46 @@ public final class DecisionFactMatchCheck implements PromptInspectionCheck {
     private static final Set<String> LEARNED_BASELINE_FACTS = Set.of(
             DecisionFactsResolver.DEVIATIONS_FROM_BASELINE, DecisionFactsResolver.SAME_AS_BASELINE);
 
+    /**
+     * v1.0 with the decision rules: the conclusion lines its dictionary adds, each with the fact it draws in the
+     * conclusions notation, which the package does not seal (the context keeps the records it states).
+     */
+    private static final List<Map.Entry<String, String>> CONCLUSION_LINES = List.of(
+            Map.entry(DecisionFactsResolver.POLICY_SATISFIED, "PolicySatisfied"),
+            Map.entry(DecisionFactsResolver.DEVIATIONS_FROM_BASELINE, "DeviationsExplained"));
+
     private final List<PromptDictionaryEntry> entries;
     private final DecisionFactsResolver.Notation notation;
+    /** Whether the dictionary draws the conclusion lines (a v1.0 variant with the decision rules). */
+    private final boolean conclusions;
 
     public DecisionFactMatchCheck() {
-        this(SecurityDecisionPromptDictionary.ENTRIES, DecisionFactsResolver.Notation.CONCLUSIONS);
+        this(SecurityDecisionPromptDictionary.ENTRIES, DecisionFactsResolver.Notation.CONCLUSIONS, false);
     }
 
-    private DecisionFactMatchCheck(List<PromptDictionaryEntry> entries, DecisionFactsResolver.Notation notation) {
+    private DecisionFactMatchCheck(List<PromptDictionaryEntry> entries, DecisionFactsResolver.Notation notation,
+                                   boolean conclusions) {
         this.entries = entries;
         this.notation = notation;
+        this.conclusions = conclusions;
     }
 
     /** The decision facts of a v21 package: its dictionary, and computed again in the records notation. */
     @Override
     public PromptInspectionCheck forV21() {
         return new DecisionFactMatchCheck(SecurityDecisionPromptDictionary.V21_ENTRIES,
-                DecisionFactsResolver.Notation.RECORDS);
+                DecisionFactsResolver.Notation.RECORDS, false);
+    }
+
+    /**
+     * The decision facts of a v1.0 package: its variant's dictionary and the records notation, and the conclusion lines
+     * of a variant with the decision rules, computed again in the conclusions notation.
+     */
+    @Override
+    public PromptInspectionCheck forV1(List<PromptDictionaryEntry> dictionary) {
+        boolean drawsConclusions = dictionary.stream().anyMatch(entry -> entry.block() == BLOCK
+                && CONCLUSION_LINES.stream().anyMatch(line -> line.getValue().equals(entry.name())));
+        return new DecisionFactMatchCheck(dictionary, DecisionFactsResolver.Notation.RECORDS, drawsConclusions);
     }
 
     @Override
@@ -129,6 +152,64 @@ public final class DecisionFactMatchCheck implements PromptInspectionCheck {
             tally.matched(line);
         }
         recompute(tally, context, facts, notation);
+        if (conclusions) {
+            conclusions(tally, context, lines, omitted);
+        }
+    }
+
+    /**
+     * v1.0 with the decision rules: each conclusion line says what the resolver concludes from the sealed context; the
+     * difference line reads the learned baseline, which the package does not seal.
+     */
+    private static void conclusions(PromptInspectionTally tally, CanonicalSecurityContext context,
+                                    Map<String, InspectedPrompt.Line> lines, Set<String> omitted) {
+        ZoneId zone = tally.subject().eventZone();
+        DecisionFacts computed = zone != null
+                ? DecisionFactsResolver.resolve(context, null, zone, DecisionFactsResolver.Notation.CONCLUSIONS) : null;
+        for (Map.Entry<String, String> conclusion : CONCLUSION_LINES) {
+            String entry = conclusion.getValue();
+            InspectedPrompt.Line line = lines.get(entry);
+            if (LEARNED_BASELINE_FACTS.contains(conclusion.getKey())) {
+                if (line != null) {
+                    tally.unverifiable(tally.unverifiableFinding().block(BLOCK.title()).entry(entry)
+                            .lineNumber(line.number()).sourceRef(LEARNING_EVIDENCE)
+                            .reason("the conclusion compares the request with the learned baseline, which is not sealed")
+                            .build());
+                }
+                continue;
+            }
+            if (computed == null) {
+                if (line != null) {
+                    tally.unverifiable(tally.unverifiableFinding().block(BLOCK.title()).entry(entry)
+                            .lineNumber(line.number()).sourceRef(PromptInspectionSubject.EVENT_TIME_ZONE_REF)
+                            .reason("the conclusion cannot be computed again: the event time zone is not sealed").build());
+                }
+                continue;
+            }
+            String expected = computed.fact(conclusion.getKey()).map(DecisionFact::value)
+                    .filter(value -> !value.isBlank()).map(String::trim).orElse(null);
+            String source = RECOMPUTED + ".conclusions." + conclusion.getKey();
+            if (line == null) {
+                if (expected == null) {
+                    continue;
+                }
+                if (omitted.contains(BLOCK.name() + "." + entry)) {
+                    tally.matched();
+                    continue;
+                }
+                tally.mismatch(tally.mismatchFinding().block(BLOCK.title()).entry(entry).expected(expected)
+                        .sourceRef(source).reason("the conclusion the decision rules read is not in the prompt").build());
+                continue;
+            }
+            if (expected != null && expected.equals(line.entryLine().value())) {
+                tally.matched(line);
+                continue;
+            }
+            tally.mismatch(tally.mismatchFinding().block(BLOCK.title()).entry(entry).factId(line.factId())
+                    .lineNumber(line.number()).expected(expected != null ? expected : NO_FACT)
+                    .actual(line.entryLine().value()).sourceRef(source)
+                    .reason("the line says other than the conclusion the sealed context gives").build());
+        }
     }
 
     /**

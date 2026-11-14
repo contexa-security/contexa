@@ -18,6 +18,7 @@ package io.contexa.contexacore.verification.inspection;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.RelativeTime;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
+import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryRenderer;
 import io.contexa.contexacore.autonomous.context.prompt.PromptListItem;
 import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
@@ -25,7 +26,9 @@ import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
 import io.contexa.contexacore.autonomous.context.support.PastRecordRelevance;
 import io.contexa.contexacore.autonomous.tiered.prompt.PastDeniedLines;
 import io.contexa.contexacore.autonomous.tiered.prompt.PastRecordLineValues;
+import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
+import org.springframework.ai.document.Document;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -63,21 +66,34 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
     private static final String SEALED_DENIED = PromptExecutionMetadata.PROMPT_PAST_DENIED_DECISIONS;
     private static final String DENIED_SOURCE = "executionMetadata." + SEALED_DENIED;
 
+    private static final Pattern SIMILAR_LABEL = Pattern.compile("SimilarCase\\d+");
+    private static final String SIMILAR_ENTRY = PromptBlock.PAST_RECORDS.name() + ".SimilarCase{i}";
+    private static final String SIMILAR_SOURCE = PromptInspectionSources.PAST_RECORDS + "." + SimilarCases.SEALED_KEY;
+
     /** Whether the check reads a v21 package, whose record lines write their targets apart (docs/agent A3-5). */
     private final boolean v21;
+    /** Whether the check reads a v1.0 package, whose similar case lines are the sealed similar cases' (D3). */
+    private final boolean v1;
 
     public PastRecordNotationCheck() {
-        this(false);
+        this(false, false);
     }
 
-    private PastRecordNotationCheck(boolean v21) {
+    private PastRecordNotationCheck(boolean v21, boolean v1) {
         this.v21 = v21;
+        this.v1 = v1;
     }
 
     /** The check of a v21 package: its record and denied decision lines write their targets apart (A3-5). */
     @Override
     public PromptInspectionCheck forV21() {
-        return new PastRecordNotationCheck(true);
+        return new PastRecordNotationCheck(true, false);
+    }
+
+    /** The check of a v1.0 package: the v21 check, and the similar case lines against the sealed similar cases. */
+    @Override
+    public PromptInspectionCheck forV1(List<PromptDictionaryEntry> dictionary) {
+        return new PastRecordNotationCheck(true, true);
     }
 
     @Override
@@ -146,6 +162,66 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
         sources(tally, state, v21);
         counts(tally, counts);
         denied(tally, v21);
+        if (v1) {
+            similarCases(tally);
+        }
+    }
+
+    /**
+     * v1.0 (D3): the SimilarCase lines are the lines the sealed similar cases give, in drawn order, as the PastRecord
+     * lines are the sealed records'; a budget that took the entry out leaves no line to compare.
+     */
+    private static void similarCases(PromptInspectionTally tally) {
+        List<InspectedPrompt.Line> lines = new ArrayList<>();
+        for (InspectedPrompt.Line line : tally.subject().prompt().lines()) {
+            if (line.kind() == InspectedPrompt.Kind.ENTRY && line.block() == PromptBlock.PAST_RECORDS
+                    && SIMILAR_LABEL.matcher(line.entryLine().label()).matches()) {
+                lines.add(line);
+            }
+        }
+        List<Document> sealed = tally.subject().sources().similarCases();
+        if (lines.isEmpty() && (sealed.isEmpty() || tally.subject().budgetOmittedEntries().contains(SIMILAR_ENTRY))) {
+            return;
+        }
+        if (tally.subject().unreadSources().contains(PromptInspectionSources.PAST_RECORDS)) {
+            for (InspectedPrompt.Line line : lines) {
+                tally.unverifiable(tally.unverifiableFinding().block(PromptBlock.PAST_RECORDS.title())
+                        .entry(line.entryLine().label()).lineNumber(line.number()).actual(line.entryLine().value())
+                        .sourceRef(SIMILAR_SOURCE).reason("the sealed similar cases do not read").build());
+            }
+            return;
+        }
+        CanonicalSecurityContext context = tally.subject().canonicalContext();
+        ZoneId zone = tally.subject().eventZone();
+        if (context == null || context.getRequestObservedAt() == null || zone == null) {
+            tally.unverifiable(tally.unverifiableFinding().block(PromptBlock.PAST_RECORDS.title())
+                    .entry("SimilarCase").sourceRef(CONTEXT_REQUEST_TIME)
+                    .reason("the similar case lines cannot be compared: the request time or the event clock is not "
+                            + "sealed").build());
+            return;
+        }
+        List<String> expected = PastRecordLineValues.of(sealed,
+                document -> {
+                    Object sameTarget = document.getMetadata().get("sameTarget");
+                    return sameTarget != null ? sameTarget.toString() : PastRecordRelevance.NOT_KNOWN;
+                },
+                LocalDateTime.ofInstant(context.getRequestObservedAt(), zone), PastRecordLineValues.TARGET_APART);
+        for (int index = 0; index < Math.max(lines.size(), expected.size()); index++) {
+            InspectedPrompt.Line line = index < lines.size() ? lines.get(index) : null;
+            String wanted = index < expected.size() ? expected.get(index) : null;
+            if (line != null && wanted != null && wanted.equals(line.entryLine().value())) {
+                tally.matched(line);
+                continue;
+            }
+            PromptInspectionFinding.Builder finding = line != null ? finding(tally, line)
+                    : tally.mismatchFinding().block(PromptBlock.PAST_RECORDS.title()).entry("SimilarCase" + (index + 1));
+            tally.mismatch(finding.expected(wanted != null ? wanted : "no line (the sealed similar cases give no more)")
+                    .actual(line != null ? line.entryLine().value() : null).sourceRef(SIMILAR_SOURCE)
+                    .reason(line == null ? "a sealed similar case is not drawn"
+                            : wanted == null ? "the line draws a similar case the sealed similar cases do not hold"
+                            : "the similar case line is not what the sealed similar case says")
+                    .build());
+        }
     }
 
     /**

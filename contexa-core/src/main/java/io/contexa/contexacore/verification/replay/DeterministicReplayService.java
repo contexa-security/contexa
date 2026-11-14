@@ -6,6 +6,12 @@ import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSeri
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupPort;
+import io.contexa.contexacore.verification.inspection.PromptInspectionCheckResult;
+import io.contexa.contexacore.verification.inspection.PromptInspectionFinding;
+import io.contexa.contexacore.verification.inspection.PromptInspectionOutcome;
+import io.contexa.contexacore.verification.inspection.PromptInspectionResult;
+import io.contexa.contexacore.verification.inspection.PromptInspectionVerdict;
+import io.contexa.contexacore.verification.inspection.PromptInspector;
 import io.contexa.contexacore.verification.prompt.VerificationPromptReplayBuilder;
 import io.contexa.contexacore.verification.prompt.VerificationPromptReplayContext;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +42,20 @@ public class DeterministicReplayService {
     private final PromptContextComposer promptContextComposer;
     private final SealedEvidencePackageIntegrity integrity;
     private final VerificationPromptReplayBuilder promptReplayBuilder;
+    /**
+     * Plan 2.3 B12: the checks that compute a dictionary prompt's lines (v20, v21, v1.0) again from the sealed
+     * sources; null where the host runs no prompt inspector, and a dictionary prompt is then not compared.
+     */
+    private final PromptInspector promptInspector;
+
+    /** The replay of v19 section prompts only. */
+    public DeterministicReplayService(SealedEvidencePackageLookupPort lookupService,
+                                      CanonicalSecurityContextSerializer contextSerializer,
+                                      PromptContextComposer promptContextComposer,
+                                      SealedEvidencePackageIntegrity integrity,
+                                      VerificationPromptReplayBuilder promptReplayBuilder) {
+        this(lookupService, contextSerializer, promptContextComposer, integrity, promptReplayBuilder, null);
+    }
 
     public DeterministicReplayResult replay(String packageId) {
         SealedEvidencePackage pkg = lookupService.findByPackageId(packageId)
@@ -65,28 +85,51 @@ public class DeterministicReplayService {
         }
 
         checksRun++;
-        String reassembledContextSections = promptContextComposer.compose(context);
+        boolean dictionaryPrompt = promptInspector != null && promptInspector.readsAsDictionaryPrompt(pkg);
+        String reassembledContextSections = dictionaryPrompt ? null : promptContextComposer.compose(context);
         VerificationPromptReplayContext replayContext =
                 promptReplayBuilder.buildDeterministicReplayContext(pkg, reassembledContextSections);
-        if (reassembledContextSections != null && !reassembledContextSections.isBlank()) {
-            checksPassed++;
-        } else {
-            findings.add("CONTEXT_REASSEMBLY_EMPTY: PromptContextComposer.compose() returned null or blank");
-        }
-
         String rawUserPrompt = replayContext.rawUserPrompt();
         String systemPromptText = replayContext.systemPrompt();
         String userPromptText = replayContext.userPrompt();
-
-        checksRun++;
-        if (selectedCanonicalSectionsMatch(rawUserPrompt, reassembledContextSections)) {
-            checksPassed++;
-        } else if (rawUserPrompt == null) {
-            findings.add("RAW_USER_PROMPT_MISSING: sealed evidence lacks raw user prompt");
+        if (dictionaryPrompt) {
+            // B12: a dictionary prompt is not drawn from the composer's sections; its lines are computed again from
+            // the sealed sources, each compared with the line the model got.
+            PromptInspectionResult inspection = promptInspector.inspect(pkg);
+            if (inspection.verdict() != PromptInspectionVerdict.ERROR) {
+                checksPassed++;
+            } else {
+                findings.add("CONTEXT_REINSPECTION_FAILED: " + inspection.errorReason());
+            }
+            checksRun++;
+            if (inspection.verdict() != PromptInspectionVerdict.ERROR && inspection.mismatchCount() == 0
+                    && inspection.matchedCount() > 0) {
+                checksPassed++;
+            } else if (rawUserPrompt == null) {
+                findings.add("RAW_USER_PROMPT_MISSING: sealed evidence lacks raw user prompt");
+            } else {
+                findings.add("CONTEXT_LINE_DRIFT: " + inspection.mismatchCount()
+                        + " lines of the sealed user prompt are not what the sealed sources give, "
+                        + inspection.matchedCount() + " are");
+                userPromptDiff.addAll(lineDrift(inspection));
+            }
         } else {
-            findings.add("CONTEXT_SECTION_DRIFT: reassembled context sections not found verbatim in sealed raw user prompt");
-            if (reassembledContextSections != null) {
-                userPromptDiff.addAll(computeLineDiff(rawUserPrompt, reassembledContextSections));
+            if (reassembledContextSections != null && !reassembledContextSections.isBlank()) {
+                checksPassed++;
+            } else {
+                findings.add("CONTEXT_REASSEMBLY_EMPTY: PromptContextComposer.compose() returned null or blank");
+            }
+
+            checksRun++;
+            if (selectedCanonicalSectionsMatch(rawUserPrompt, reassembledContextSections)) {
+                checksPassed++;
+            } else if (rawUserPrompt == null) {
+                findings.add("RAW_USER_PROMPT_MISSING: sealed evidence lacks raw user prompt");
+            } else {
+                findings.add("CONTEXT_SECTION_DRIFT: reassembled context sections not found verbatim in sealed raw user prompt");
+                if (reassembledContextSections != null) {
+                    userPromptDiff.addAll(computeLineDiff(rawUserPrompt, reassembledContextSections));
+                }
             }
         }
 
@@ -190,6 +233,20 @@ public class DeterministicReplayService {
             }
         }
         return selectedSections > 0 && selectedSections == exactMatches;
+    }
+
+    /** B12: each line the checks found other than its sealed sources give, as the line it is and the one they give. */
+    private static List<DiffSection> lineDrift(PromptInspectionResult inspection) {
+        List<DiffSection> diffs = new ArrayList<>();
+        for (PromptInspectionCheckResult check : inspection.checks()) {
+            for (PromptInspectionFinding finding : check.findings()) {
+                if (finding.outcome() == PromptInspectionOutcome.MISMATCH) {
+                    diffs.add(new DiffSection(finding.lineNumber() != null ? finding.lineNumber() : 0,
+                            DiffSection.CHANGED, finding.actual(), finding.expected()));
+                }
+            }
+        }
+        return diffs;
     }
 
     private List<DiffSection> computeLineDiff(String original, String reconstructed) {

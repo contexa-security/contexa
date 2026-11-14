@@ -9,6 +9,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
@@ -18,6 +19,7 @@ import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptSnapshot;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.document.Document;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -349,10 +351,12 @@ public class SealedEvidencePackageAssembler {
         List<Map<String, Object>> documents = List.of();
         List<PastRecordRelevance.Subject> records = List.of();
         if (promptSnapshot != null && promptSnapshot.relatedDocuments() != null) {
-            documents = promptSnapshot.relatedDocuments().stream()
+            // v1.0 (D3): the past records are the exact lookup's; the similar cases are sealed apart below.
+            List<Document> pastRecords = SimilarCases.exact(promptSnapshot.relatedDocuments());
+            documents = pastRecords.stream()
                     .map(SealedPastRecordSummary::of)
                     .toList();
-            records = promptSnapshot.relatedDocuments().stream()
+            records = pastRecords.stream()
                     .map(document -> document == null
                             ? PastRecordRelevance.Subject.ofRecord(null, null)
                             : PastRecordRelevance.Subject.ofRecord(document.getMetadata(), document.getText()))
@@ -372,6 +376,21 @@ public class SealedEvidencePackageAssembler {
         if (!documents.isEmpty()) {
             rag.put("relatedDocuments", documents);
         }
+        // v1.0 (D3): the similar cases a similar-case variant drew, apart from the past records the counts state, each
+        // with its relation to the request as the render computed it.
+        List<Map<String, Object>> similarCases = new ArrayList<>();
+        for (Document document : promptSnapshot != null ? SimilarCases.similar(promptSnapshot.relatedDocuments())
+                : List.<Document>of()) {
+            Map<String, Object> summary = SealedPastRecordSummary.of(document);
+            PastRecordRelevance.Subject record = PastRecordRelevance.Subject.ofRecord(document.getMetadata(),
+                    document.getText());
+            summary.put("relation", PastRecordRelevance.relation(request, record).name());
+            summary.put("sameTarget", PastRecordRelevance.sameTarget(request, record));
+            similarCases.add(summary);
+        }
+        if (!similarCases.isEmpty()) {
+            rag.put(SimilarCases.SEALED_KEY, similarCases);
+        }
         rag.put("ragRelevance", PastRecordRelevance.relevance(request, records));
         rag.put("relatedDocumentCount", documents.size());
         putProjection(rag, promptSnapshot);
@@ -390,7 +409,7 @@ public class SealedEvidencePackageAssembler {
         }
         Set<String> returned = new LinkedHashSet<>();
         if (promptSnapshot.relatedDocuments() != null) {
-            promptSnapshot.relatedDocuments().stream()
+            SimilarCases.exact(promptSnapshot.relatedDocuments()).stream()
                     .filter(Objects::nonNull)
                     .map(PastRecordRanking::storedId)
                     .forEach(returned::add);

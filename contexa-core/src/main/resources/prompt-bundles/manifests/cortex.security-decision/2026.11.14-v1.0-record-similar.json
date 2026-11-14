@@ -1,0 +1,80 @@
+{
+  "promptKey" : "cortex.security-decision",
+  "bundleVersion" : "2026.11.14-v1.0-record-similar",
+  "bundleHash" : "93e5163d375cc134b43123f78cad0584bdbfca47f8c0989719e1fee66eb281da",
+  "elements" : [ {
+    "id" : "B1",
+    "state" : "PRESENT",
+    "hash" : "58fd9550c6b7b7d63e5440ae449402d0d5e50d8f405a11f638b4042ee20b33e1",
+    "detail" : "rendered system text of the L1 and L2 budget profiles"
+  }, {
+    "id" : "B2",
+    "state" : "PRESENT",
+    "hash" : "00afb7c5ad32fb98f30e26a33334059f5cd1e953fb739c95a2ef2f68d5d9409d",
+    "detail" : "prompt dictionary v1.0: every entry with all its fields, the block header labels and the block titles (plan 2.9)"
+  }, {
+    "id" : "B3",
+    "state" : "PRESENT",
+    "hash" : "ff0dc2a558d94de432b9e670604ef2925a3b7fce23a2791a0d1f32ee9fc40c7c",
+    "detail" : "golden render digest: 27 cases x L1/L2 and 24 second passes, inputs 165fcd4d2f5dded94f8af9073cbd76b72774b20999b8c96e42b0cd9a0821a89e"
+  }, {
+    "id" : "B4",
+    "state" : "PRESENT",
+    "hash" : "9d0a95283cdef145fbcc7c82aab454d86babfb33d218c39508994646f24f6bb6",
+    "detail" : "format instructions, the output contract v4 schema and the response fields (plan 2.3 A4)"
+  }, {
+    "id" : "B5",
+    "state" : "PRESENT",
+    "hash" : "adaf1bd80ed2e6b24a974c941a25bf0cade8ce7f7e4aacca296a1bce81f9ee99",
+    "detail" : "minimum action rules P1-P3 (D2): the rule source and the default settings"
+  }, {
+    "id" : "B6",
+    "state" : "PRESENT",
+    "hash" : "076b9acc7b25ea7a3598213fc3910f0df49eea24763c9545a7c5f49fcb497aff",
+    "detail" : "v1.0 response check sources: the v21 check, the past record claim, the boundaries and the floors, and the fallback actions (plan 2.2 B6)"
+  }, {
+    "id" : "B7",
+    "state" : "PRESENT",
+    "hash" : "7a4589ba712d4dcb8c8cbb03b47cc4c4e607f3b9a93a6a07ae45e2668b0fbecd",
+    "detail" : "retrieval counts, thresholds, waits and document truncation defaults"
+  }, {
+    "id" : "B8",
+    "state" : "PRESENT",
+    "hash" : "b495e42bfa4d36c1f12dce8954f9a11090f7b6fa8a163d59cfed755fda847744",
+    "detail" : "all prompt budget profiles"
+  }, {
+    "id" : "B9",
+    "state" : "ABSENT",
+    "hash" : "1379a7d2d6d698507038376bf6921a76478d01e4c174367987899cf6ec724b9d",
+    "detail" : "no verifier contracts: the former quality assurance contracts are not part of the prompt (R4-B9, Q-78)"
+  }, {
+    "id" : "B10",
+    "state" : "PRESENT",
+    "hash" : "faa19253b1ca0b87fb3023b7bf0584dcd65e99bf1640887b0faa7dbc2f5fa14a",
+    "detail" : "vocabulary vocab-2026.10.15.2: the version and the classifier sources it was given for (W5-7)"
+  }, {
+    "id" : "B11",
+    "state" : "INCLUDED",
+    "hash" : "1a98d74ecdb729d53725bcc87b95a86c2198b9c559a7623efb31f4d909e15ac4",
+    "detail" : "the second analysis renders inside B3: the L2 budget profile and the second-pass layout (W3-9)"
+  } ],
+  "goldenInputs" : {
+    "resource" : "prompt-bundles/golden/cortex.security-decision/case-inputs.json.gz",
+    "sha256" : "165fcd4d2f5dded94f8af9073cbd76b72774b20999b8c96e42b0cd9a0821a89e",
+    "caseCount" : 27,
+    "excludedCases" : {
+      "R1" : "not analysed by the engine (no model call), so no prompt input exists"
+    },
+    "renderProfiles" : [ "CORTEX_L1_INTERACTIVE_STRICT", "CORTEX_L2_EXPERT_STRICT" ]
+  },
+  "parentVersion" : null,
+  "changeSummary" : "Zero Trust decision prompt v1.0: one bundle with every function of v19, v20 and v21 on the v21 records layout. User prompt: the v21 dictionary blocks with the facts of v19 and v20 the v21 blocks did not state, as records (whether the approvals were looked up, the scope group's denied families and the host's drift, the delegation's approval, export and containment fields, the host's failure count, the actor and request tenants, the burst pattern and the seen combination, the trusted verification signal's source and trust). System text: the v21 judgment with the evidence reading and honesty sentences of v19 and v20. Output contract v4. Minimum action rules recorded (OBSERVE) or enforced (ENFORCE) as the host configures. Variant record-similar: no decision rule in the system text; a response that breaks a boundary stays the model's and the breach is recorded for a person's review; the similar cases join the exact past record lookup.",
+  "problemIds" : [ "V1.0" ],
+  "author" : "contexa-cortex-core",
+  "frozenOn" : "2026-11-15",
+  "vocabularyVersion" : "vocab-2026.10.15.2",
+  "compatibleVocabularyVersions" : [ "vocab-unstamped", "vocab-2026.10.15", "vocab-2026.10.15.2" ],
+  "rollbackTargets" : [ "2026.10.24-v19.21" ],
+  "declaredModelProfiles" : [ "STRICT_JSON_SCHEMA", "LOW_TEMPERATURE_SECURITY_DECISION", "EVIDENCE_ONLY_RETRIEVAL", "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI" ],
+  "evaluationScenarioFamilies" : [ "PROMPT_INJECTION", "MEMORY_POISONING" ]
+}
