@@ -69,6 +69,8 @@ clean {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // the whole suite runs in one test JVM: with the seed-text tests the default 512 MB ran out in the policy scale test (11-14)
+    maxHeapSize = '1g'
 }
 
 tasks.named('sourcesJar') {
