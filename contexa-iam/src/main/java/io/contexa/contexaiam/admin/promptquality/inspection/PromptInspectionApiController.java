@@ -28,7 +28,6 @@ import java.util.Objects;
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptInspectionApiController {
 
-
     private final JdbcPromptInspectionQueries queries;
     private final PromptInspectionConsole console;
     private final PromptInspectionReinspection reinspection;
@@ -40,10 +39,6 @@ public class PromptInspectionApiController {
         this.console = Objects.requireNonNull(console, "console");
         this.reinspection = Objects.requireNonNull(reinspection, "reinspection");
         this.clock = Objects.requireNonNull(clock, "clock");
-    }
-
-    /** A capture period to inspect again, both ends included. */
-    public record PeriodRequest(Instant from, Instant to) {
     }
 
     @GetMapping("/overview")
@@ -102,10 +97,5 @@ public class PromptInspectionApiController {
     private static ReinspectionSummary summary(PromptInspectionResult result) {
         return new ReinspectionSummary(result.packageId(), result.verdict().name(), result.inspectorVersion(),
                 result.mismatchCount(), result.unverifiableCount());
-    }
-
-    /** What the re-inspection of one package found, in the order the console reads it. */
-    public record ReinspectionSummary(String packageId, String verdict, String inspectorVersion, int mismatchCount,
-                                      int unverifiableCount) {
     }
 }

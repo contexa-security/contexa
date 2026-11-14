@@ -41,28 +41,6 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AgentLearningApiController {
 
-    /** The learning state of an agent or of one of its delegations. */
-    public record LearningState(String agentId, String delegationId, boolean quarantined) {
-    }
-
-    /** An action on the learning: quarantine, release or remove, with the administrator's reason. */
-    public record LearningActionRequest(String agentId, String delegationId, String action, String reason) {
-    }
-
-    /** What was done, or why it was not. */
-    public record LearningActionResponse(boolean success, String action, String agentId, String delegationId,
-                                         int records, int baselines, int observations, String error) {
-
-        static LearningActionResponse done(AgentLearningControl.Outcome outcome) {
-            return new LearningActionResponse(true, outcome.action(), outcome.agentId(), outcome.delegationId(),
-                    outcome.records(), outcome.baselines(), outcome.observations(), null);
-        }
-
-        static LearningActionResponse failed(String error) {
-            return new LearningActionResponse(false, null, null, null, 0, 0, 0, error);
-        }
-    }
-
     /** What the administrator is told of a fault of the server; the exception is in the log. */
     private static final String SERVER_FAULT_MESSAGE = "The action could not be completed. See the server log.";
 

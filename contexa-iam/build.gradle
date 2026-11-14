@@ -69,8 +69,9 @@ clean {
 
 tasks.named('test') {
     useJUnitPlatform()
-    // the whole suite runs in one test JVM: with the seed-text tests the default 512 MB ran out in the policy scale test (11-14)
-    maxHeapSize = '1g'
+    // PolicyValidationAtScaleTest compares every pair of 2,500 policies; after the rest of the module the default
+    // 512 MB test heap ran out and the test JVM stopped without a report
+    maxHeapSize = '2g'
 }
 
 tasks.named('sourcesJar') {

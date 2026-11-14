@@ -45,33 +45,6 @@ import java.util.function.Supplier;
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AgentRegistrationApiController {
 
-    /** An agent to register. {@code tokenLifetimeMinutes} is optional. */
-    public record RegisterBody(String tenantId, String agentId, String displayName, String agentType, String sponsorId,
-                               String clientId, List<String> scopes, Boolean ownToken, Boolean actsForPeople,
-                               Long tokenLifetimeMinutes, Boolean account, List<String> accountGroups) {
-
-        AgentProvisioning.Registration toRegistration() {
-            return new AgentProvisioning.Registration(tenantId, agentId, displayName, agentType, sponsorId, clientId,
-                    scopes, ownToken, actsForPeople,
-                    AgentProvisioning.tokenLifetimeOfMinutes(tokenLifetimeMinutes), account,
-                    accountGroups);
-        }
-    }
-
-    /** An agent to act on, with the new sponsor or the reason when the action takes one. */
-    public record AgentBody(String tenantId, String agentId, String sponsorId, String reason) {
-    }
-
-    /** The registration and the secrets shown once. */
-    public record CredentialsView(AgentView agent, String clientId, String clientSecret, String accountUsername,
-                                  String accountPassword) {
-
-        static CredentialsView of(AgentProvisioning.Credentials credentials) {
-            return new CredentialsView(AgentView.of(credentials.registration()), credentials.clientId(),
-                    credentials.clientSecret(), credentials.accountUsername(), credentials.accountPassword());
-        }
-    }
-
     private final AgentProvisioning provisioning;
     private final AgentRegistry registry;
 

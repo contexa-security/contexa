@@ -55,31 +55,6 @@ import java.util.stream.Collectors;
 @PreAuthorize("isAuthenticated()")
 public class AgentConfirmationApiController {
 
-    /** A confirmation as its agent reads it; a refused one ({@code refused}) is not asked again. */
-    public record ConfirmationStatus(String confirmationId, String status, boolean refused, String expiresAt,
-                                     @Nullable String decidedAt, @Nullable String authorizationId, String method,
-                                     String target, String trigger) {
-
-        static ConfirmationStatus of(AgentConfirmation confirmation) {
-            return new ConfirmationStatus(confirmation.confirmationId(), confirmation.status().name(),
-                    confirmation.status().refused(), confirmation.expiresAt().toString(),
-                    confirmation.decidedAt() != null ? confirmation.decidedAt().toString() : null,
-                    confirmation.status() == AgentConfirmation.Status.APPROVED
-                            || confirmation.status() == AgentConfirmation.Status.USED
-                            ? confirmation.authorizationId() : null,
-                    confirmation.method(), confirmation.target(), confirmation.trigger());
-        }
-    }
-
-    /**
-     * The request the agent asks a confirmation for: its method (a standard HTTP method), its path with the query (at
-     * most {@value AgentConfirmation#MAX_TARGET_LENGTH} characters, what a confirmation keeps, and a space, a control
-     * character or one that turns the text around written escaped, as a request line carries it), and its body's
-     * SHA-256 in hexadecimal (none for no body), as it will send it.
-     */
-    public record ConfirmationAsk(String method, String target, @Nullable String bodySha256, @Nullable String reason) {
-    }
-
     /** The methods an ask may name: what a request to the application can carry. */
     private static final Set<String> METHODS = Arrays.stream(HttpMethod.values()).map(HttpMethod::name)
             .collect(Collectors.toUnmodifiableSet());
@@ -177,11 +152,6 @@ public class AgentConfirmationApiController {
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(admission.retryAfterSeconds()))
                 .body(new CallLimitAnswer(AgentCallGuard.CALL_LIMIT, "The agent passed its call limit; slow down",
                         request.getRequestURI(), admission.scope(), admission.limit(), admission.retryAfterSeconds()));
-    }
-
-    /** The answer to an ask past the agent's call limit, the same members as the gate's answer to a call. */
-    public record CallLimitAnswer(String error, String message, String path, @Nullable String scope, int limit,
-                                  long retryAfterSeconds) {
     }
 
     private static String truncate(String value, int length) {

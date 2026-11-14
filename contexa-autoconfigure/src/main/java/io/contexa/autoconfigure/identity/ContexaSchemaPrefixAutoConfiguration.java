@@ -25,10 +25,12 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.ServiceLoader;
 
 /**
  * Moves a Contexa database that still has the former table names to the {@code ctxa_} names (see
@@ -60,13 +62,44 @@ public class ContexaSchemaPrefixAutoConfiguration {
         public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
             if (bean instanceof DataSource dataSource && isContexaDataSource(beanName)) {
                 try {
-                    new ContexaSchemaPrefixMigration(dataSource).migrate();
+                    ContexaSchemaPrefixMigration migration = new ContexaSchemaPrefixMigration(dataSource);
+                    if (legacyInstallation(migration)) {
+                        beforeRename(dataSource);
+                    }
+                    migration.migrate();
                 } catch (SQLException | RuntimeException e) {
                     throw new BeanInitializationException("The Contexa database could not be moved to the ctxa_ table names; "
                             + "it was left as it was: " + e.getMessage(), e);
                 }
             }
             return bean;
+        }
+
+        /** A database that cannot be reached is left to migrate(), which says so and goes on, as before. */
+        private static boolean legacyInstallation(ContexaSchemaPrefixMigration migration) {
+            try {
+                return migration.hasLegacyInstallation();
+            } catch (SQLException unreachable) {
+                return false;
+            }
+        }
+
+        /** The participants of the modules on the class path finish what needs the former names (ContexaSchemaPrefixParticipant). */
+        private void beforeRename(DataSource dataSource) {
+            Environment environment = beanFactory != null && beanFactory.containsBean("environment")
+                    ? beanFactory.getBean("environment", Environment.class) : null;
+            ClassLoader classLoader = beanFactory != null && beanFactory.getBeanClassLoader() != null
+                    ? beanFactory.getBeanClassLoader() : getClass().getClassLoader();
+            for (ContexaSchemaPrefixParticipant participant
+                    : ServiceLoader.load(ContexaSchemaPrefixParticipant.class, classLoader)) {
+                try {
+                    participant.beforeRename(dataSource, environment);
+                } catch (Exception e) {
+                    throw new BeanInitializationException("The work " + participant.getClass().getName()
+                            + " does on the former table names before the move to ctxa_ failed; the database was not "
+                            + "moved: " + e.getMessage(), e);
+                }
+            }
         }
 
         private boolean isContexaDataSource(String beanName) {

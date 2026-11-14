@@ -99,14 +99,6 @@ public class AgentConfirmationController {
         this.stops = stops;
     }
 
-    /**
-     * An agent of the person that was stopped: one that acted for the person ({@code DELEGATED}), or one the person
-     * is the sponsor of ({@code AUTONOMOUS}). A stop by the kill switch is released by an administrator only.
-     */
-    public record StoppedAgent(String kind, String agentId, @Nullable String tenantId, @Nullable Temporal stoppedAt,
-                               @Nullable String reason, boolean killSwitch) {
-    }
-
     /** AC-1: the person's confirmations and the notices about their agents. */
     @GetMapping
     public String list(Authentication authentication, HttpServletRequest request, Model model) {

@@ -40,23 +40,6 @@ import java.util.List;
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AgentStopApiController {
 
-    /** The stopped agents and delegations. */
-    public record Stops(List<AgentRegistration> suspendedAgents,
-                        List<AgentContainmentAdminService.StoppedDelegation> stoppedDelegations) {
-    }
-
-    /**
-     * An action: {@code RELEASE_DELEGATION} (userId and agentId), {@code RELEASE_AGENT} (agentId, optional tenant),
-     * {@code KILL_SWITCH} or {@code KILL_SWITCH_RELEASE} (optional agentType and tenant), with the reason.
-     */
-    public record StopAction(String action, String tenantId, String userId, String agentId, String agentType,
-                             String reason) {
-    }
-
-    /** What was done, or why it was not. */
-    public record StopResult(boolean success, String action, List<String> agents, String error) {
-    }
-
     private final AgentContainmentAdminService stops;
 
     public AgentStopApiController(AgentContainmentAdminService stops) {

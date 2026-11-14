@@ -21,8 +21,8 @@ import io.contexa.contexacore.autonomous.baseline.store.InMemoryBaselineDataStor
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
-import io.contexa.contexaiam.admin.web.agent.controller.AgentLearningApiController.LearningActionRequest;
-import io.contexa.contexaiam.admin.web.agent.controller.AgentLearningApiController.LearningActionResponse;
+import io.contexa.contexaiam.admin.web.agent.controller.LearningActionRequest;
+import io.contexa.contexaiam.admin.web.agent.controller.LearningActionResponse;
 import io.contexa.contexaiam.admin.web.agent.service.AgentLearningAdminService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
