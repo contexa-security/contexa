@@ -61,12 +61,26 @@ class SecurityDecisionPromptBundleSelectionTest {
     }
 
     @Test
-    void theBuildRunsTheCurrentBundleAndOnePreviousOneWithTheV19BundleAsItsDefault() {
-        // V-1 (변경): v21 runs next to v20, its rollback target and the comparison it is measured against. Plan 1-6:
-        // the four v1.0 variants run as drafts beside them for the measurement (2.5), the build default stays v19.
+    void theBuildRunsV1AsItsDefaultWithV19V20V21AndTheVariantsForTheReplay() {
+        // Plan 1-9: v1.0 (the variant record-similar promoted, with the comparison citation sentence) is the build
+        // default, the bundle that runs when nothing chooses one; a customer can still choose v19, v20, v21 or a variant
+        // by its version (2026-11-15).
+        assertThat(SecurityDecisionPromptBundles.DEFAULT).isSameAs(SecurityDecisionPromptBundles.V1);
+        assertThat(SecurityDecisionPromptBundles.V1.version()).isEqualTo("2026.11.15-v1.0");
+        assertThat(SecurityDecisionPromptBundles.V1.layout())
+                .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS);
+        assertThat(SecurityDecisionPromptBundles.V1.features())
+                .isEqualTo(new SecurityDecisionPromptBundles.Features(false, false, true, true));
+        assertThat(SecurityDecisionPromptBundles.V1_BUNDLES)
+                .allSatisfy(variant -> assertThat(variant.features().comparisonCitations()).isFalse());
+        assertThat(SecurityDecisionPromptBundles.V1.descriptor().releaseStatus()).isEqualTo(PromptReleaseStatus.PRODUCTION);
+        assertThat(SecurityDecisionPromptBundles.V1.descriptor().rollbackPromptVersion()).isEqualTo(V19);
+        assertThat(SecurityDecisionPromptBundles.V19.descriptor().releaseStatus())
+                .isEqualTo(PromptReleaseStatus.PRODUCTION);
         assertThat(SecurityDecisionPromptBundles.ALL)
                 .extracting(bundle -> bundle.descriptor().promptVersion())
-                .containsExactly(V19, V20, SecurityDecisionPromptBundles.V21.version(),
+                .containsExactly(SecurityDecisionPromptBundles.V1.version(), V19, V20,
+                        SecurityDecisionPromptBundles.V21.version(),
                         SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR.version(),
                         SecurityDecisionPromptBundles.V1_FALLBACK_EXACT.version(),
                         SecurityDecisionPromptBundles.V1_RECORD_SIMILAR.version(),
@@ -79,9 +93,9 @@ class SecurityDecisionPromptBundleSelectionTest {
         assertThat(SecurityDecisionPromptBundles.V21.layout())
                 .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS);
         assertThat(SecurityDecisionPromptBundles.V21.descriptor().rollbackPromptVersion()).isEqualTo(V20);
-        assertThat(SecurityDecisionPromptBundles.DEFAULT.descriptor())
+        assertThat(SecurityDecisionPromptBundles.V19.descriptor())
                 .isEqualTo(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
-        assertThat(SecurityDecisionPromptBundles.DEFAULT.layout())
+        assertThat(SecurityDecisionPromptBundles.V19.layout())
                 .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V19_SECTIONS);
         assertThat(SecurityDecisionPromptBundles.find(V20).orElseThrow().layout())
                 .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V20_BLOCKS);
@@ -121,14 +135,30 @@ class SecurityDecisionPromptBundleSelectionTest {
     }
 
     @Test
-    void withoutASelectionTheBuildDefaultBundleRunsInTheV19Layout() {
+    void withoutASelectionTheBuildDefaultBundleRunsInTheV1Layout() {
+        // Plan 1-9: nothing chooses a bundle, so the build default v1.0 runs.
         SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(goldenCase, L1, new TieredStrategyProperties());
+        Map<String, Object> metadata = rendered.executionMetadata().toMetadataMap();
+
+        assertThat(descriptor(metadata))
+                .containsEntry("promptVersion", SecurityDecisionPromptBundles.V1.version())
+                .containsEntry("promptBundleVersion", SecurityDecisionPromptBundles.V1.version())
+                .containsEntry("promptBundleSelectionSource", "BUILD_DEFAULT")
+                .containsEntry("userPromptLayoutVersion", SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1);
+        assertThat(rendered.userText()).startsWith("=== USER BASELINE");
+    }
+
+    @Test
+    void aCustomerCanStillChooseTheV19Bundle() {
+        // 2026-11-15: the customer setting chooses a bundle as before; v19 runs in its own layout when chosen.
+        SecurityDecisionGoldenRender.RenderedCase rendered =
+                golden.render(goldenCase, L1, SecurityDecisionGoldenRender.v19Properties());
         Map<String, Object> metadata = rendered.executionMetadata().toMetadataMap();
 
         assertThat(descriptor(metadata))
                 .containsEntry("promptVersion", V19)
                 .containsEntry("promptBundleVersion", V19)
-                .containsEntry("promptBundleSelectionSource", "BUILD_DEFAULT");
+                .containsEntry("promptBundleSelectionSource", "CONFIGURATION");
         assertThat(metadata).doesNotContainKey("userPromptLayoutVersion");
         assertThat(rendered.userText()).doesNotStartWith("=== USER BASELINE");
     }
@@ -163,9 +193,9 @@ class SecurityDecisionPromptBundleSelectionTest {
 
             assertThat(descriptor(rendered.executionMetadata().toMetadataMap()))
                     .as(requested)
-                    .containsEntry("promptVersion", V19)
+                    .containsEntry("promptVersion", SecurityDecisionPromptBundles.V1.version())
                     .containsEntry("promptBundleSelectionSource", "BUILD_DEFAULT");
-            assertThat(rendered.userText()).doesNotStartWith("=== USER BASELINE");
+            assertThat(rendered.userText()).startsWith("=== USER BASELINE");
         }
     }
 
@@ -256,7 +286,7 @@ class SecurityDecisionPromptBundleSelectionTest {
         assertThat(descriptor(metadata))
                 .containsEntry("promptVersion", V20)
                 .containsEntry("promptBundleSelectionSource", "CANARY");
-        assertThat(template.promptBundle(event("event-bundle-5"))).isEqualTo(SecurityDecisionPromptBundles.DEFAULT);
+        assertThat(template.promptBundle(event("event-bundle-5"))).isEqualTo(SecurityDecisionPromptBundles.V19);
     }
 
     @Test

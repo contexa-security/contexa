@@ -68,10 +68,10 @@ class PromptGovernanceLifecycleLedgerServiceTest {
 
         service.syncPlatformLifecycleLedgers();
 
-        // One declaration row per bundle the build runs: the v19, v20 and v21 bundles (W3-16; v21 plan) and the four
-        // v1.0 variants (plan 1-6).
+        // One declaration row per bundle the build runs: v1.0 (plan 1-9), the v19, v20 and v21 bundles (W3-16;
+        // v21 plan) and the four v1.0 variants (plan 1-6).
         int bundles = PromptGovernanceRegistryService.platformStandardDescriptors().size();
-        assertThat(bundles).isEqualTo(7);
+        assertThat(bundles).isEqualTo(8);
         verify(promptGovernanceRegistryService).syncPlatformRegistry();
         verify(changeRepository, times(bundles)).save(any(PromptGovernanceChangeRecord.class));
         // N-GOV-2: a declaration row needs the scenario families its bundle's manifest declares, or the default ones.
@@ -86,12 +86,13 @@ class PromptGovernanceLifecycleLedgerServiceTest {
         verify(releaseApprovalRepository, times(bundles)).save(any(PromptGovernanceReleaseApprovalRecord.class));
         // The v19 bundle declares no rollback target (its former target has no text), so it gets no rollback row. The
         // v20 bundle declares the v19 bundle of this build and the v21 bundle the v20 bundle: each row records the
-        // declared target, not a ready rollback (W1-18, PV-3). Each v1.0 variant declares the v19 bundle (plan 1-6, K1).
+        // declared target, not a ready rollback (W1-18, PV-3). v1.0 and each v1.0 variant declare the v19 bundle
+        // (plan 1-6, 1-9, K1).
         ArgumentCaptor<PromptGovernanceRollbackRecord> rollback = ArgumentCaptor.forClass(PromptGovernanceRollbackRecord.class);
-        verify(rollbackRepository, times(6)).save(rollback.capture());
+        verify(rollbackRepository, times(7)).save(rollback.capture());
         assertThat(rollback.getAllValues()).extracting(PromptGovernanceRollbackRecord::getRollbackTargetPromptVersion)
                 .containsExactlyInAnyOrder("2026.10.24-v19.21", "2026.10.24-v20.26", "2026.10.24-v19.21",
-                        "2026.10.24-v19.21", "2026.10.24-v19.21", "2026.10.24-v19.21");
+                        "2026.10.24-v19.21", "2026.10.24-v19.21", "2026.10.24-v19.21", "2026.10.24-v19.21");
         assertThat(rollback.getAllValues()).filteredOn(row -> "2026.10.24-v20.26".equals(row.getPromptVersion()))
                 .singleElement()
                 .satisfies(row -> assertThat(row.getRollbackTargetPromptVersion()).isEqualTo("2026.10.24-v19.21"));

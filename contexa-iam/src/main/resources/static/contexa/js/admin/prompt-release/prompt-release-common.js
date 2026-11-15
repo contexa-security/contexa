@@ -154,10 +154,16 @@ export function scopeText(row) {
     return parts.join(' / ');
 }
 
-/** Whether this build holds the bundle, with the same hash as the registry row. */
+/**
+ * Whether this build holds the bundle, whether it runs it or keeps its manifest as a record only (C9), and whether the
+ * hash is the registry row's.
+ */
 export function buildChip(row) {
     if (!row.inBuild) {
         return el('span', {class: 'pi-chip pi-chip-neutral', text: t('promptRelease.build.absent')});
+    }
+    if (!row.runnable) {
+        return el('span', {class: 'pi-chip pi-chip-neutral', text: t('promptRelease.build.recordOnly')});
     }
     return row.hashMatchesBuild
         ? el('span', {class: 'pi-chip pi-chip-matched', text: t('promptRelease.build.present')})

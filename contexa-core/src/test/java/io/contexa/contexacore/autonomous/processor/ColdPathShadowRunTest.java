@@ -65,7 +65,7 @@ class ColdPathShadowRunTest {
 
             @Override
             public PromptBundleSelection shadow(PromptGovernanceResolutionContext context, String subjectKey) {
-                return new PromptBundleSelection(SecurityDecisionPromptBundles.DEFAULT.version(),
+                return new PromptBundleSelection(SecurityDecisionPromptBundles.V19.version(),
                         PromptBundleSelectionSource.SHADOW);
             }
         };

@@ -41,7 +41,7 @@ class PromptReleaseConsoleApiControllerTest {
     void theBundleListCarriesTheCanonicalStateAndTheGatesAnswer() throws Exception {
         when(console.bundles("PLATFORM_GLOBAL")).thenReturn(List.of(new PromptReleaseConsole.BundleRow("PLATFORM_GLOBAL",
                 "cortex.security-decision", "2026.10.16-v20.23", "a".repeat(64), "SHADOW", null,
-                new PromptReleaseConsole.Canary(null, null, null), true, true,
+                new PromptReleaseConsole.Canary(null, null, null), true, false, true,
                 List.of(new PromptGovernanceReleaseGateService.ReleaseGateTarget("CANARY", true, "READY_FOR_CANARY",
                         List.of())), true, LocalDateTime.of(2026, 10, 16, 8, 0))));
 

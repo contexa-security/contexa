@@ -141,7 +141,7 @@ class RagProjectionFlagPromptTest {
     void aV19PromptThatDrawsItsDocumentsSaysSo() {
         SecurityEvent event = retrievedEvent("flag-7");
 
-        String userText = sections(SecurityDecisionPromptBundles.DEFAULT).buildStructuredPrompt(event, null, null,
+        String userText = sections(SecurityDecisionPromptBundles.V19).buildStructuredPrompt(event, null, null,
                 List.of(record("rec-1", "2026-10-12T10:00:00")), PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT)
                 .userText();
 

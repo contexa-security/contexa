@@ -26,7 +26,7 @@ class PromptBundleRollbackExecutionsTest {
     private static final String SCOPE = "PLATFORM_GLOBAL";
     private static final String KEY = "cortex.security-decision";
     private static final String FROM = SecurityDecisionPromptBundles.V20.version();
-    private static final String TO = SecurityDecisionPromptBundles.DEFAULT.version();
+    private static final String TO = SecurityDecisionPromptBundles.V19.version();
 
     private PostgresTestDatabase database;
     private JdbcTemplate jdbc;

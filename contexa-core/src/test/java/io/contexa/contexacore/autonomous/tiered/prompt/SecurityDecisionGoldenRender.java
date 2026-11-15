@@ -126,7 +126,17 @@ final class SecurityDecisionGoldenRender {
      * not depend on the machine that runs the build.
      */
     RenderedCase render(JsonNode goldenCase, PromptBudgetProfile profile) {
-        return render(goldenCase, profile, new TieredStrategyProperties());
+        return render(goldenCase, profile, v19Properties());
+    }
+
+    /**
+     * Settings that choose the v19 bundle. The golden render and the tests of the v19 prompt drew v19 as the build
+     * default; v1.0 is the build default since plan 1-9, so they choose v19 by its version and draw the same prompt.
+     */
+    static TieredStrategyProperties v19Properties() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V19.version());
+        return properties;
     }
 
     /** Renders with the given settings (the bundle the configuration chooses, W3-16, for example). */

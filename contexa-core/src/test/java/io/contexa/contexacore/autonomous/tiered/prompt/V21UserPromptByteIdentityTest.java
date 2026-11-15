@@ -64,7 +64,7 @@ class V21UserPromptByteIdentityTest {
     @Test
     void everyGoldenV19AndV20UserPromptIsTheOneRenderedBeforeThePastRecordFields() throws IOException {
         Map<String, String> now = new LinkedHashMap<>();
-        now.putAll(userTextDigests(SecurityDecisionPromptBundles.DEFAULT, "v19/"));
+        now.putAll(userTextDigests(SecurityDecisionPromptBundles.V19, "v19/"));
         now.putAll(userTextDigests(SecurityDecisionPromptBundles.V20, "v20/"));
         String capture = System.getenv("CONTEXA_PIN_CAPTURE_V19_V20");
         if (capture != null && !capture.isBlank()) {

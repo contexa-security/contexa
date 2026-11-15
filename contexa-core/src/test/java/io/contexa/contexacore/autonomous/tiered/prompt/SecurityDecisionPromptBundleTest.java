@@ -195,7 +195,7 @@ class SecurityDecisionPromptBundleTest {
         for (JsonNode goldenCase : golden.cases()) {
             PromptBudgetProfile profile = PromptBudgetProfile.fromKey(goldenCase.path("budgetProfile").asText(),
                     PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
-            SecurityDecisionGoldenRender.RenderedCase item = rendered(SecurityDecisionPromptBundles.DEFAULT).stream()
+            SecurityDecisionGoldenRender.RenderedCase item = rendered(SecurityDecisionPromptBundles.V19).stream()
                     .filter(candidate -> candidate.caseKey().equals(goldenCase.path("caseKey").asText())
                             && candidate.profile() == profile)
                     .findFirst()

@@ -177,8 +177,8 @@ class V21AgentLinesTest {
      */
     @Test
     void anAgentsRequestIsJudgedWithoutTheAutomationClientBoundary() {
-        String v19Person = render(SecurityDecisionPromptBundles.DEFAULT, context -> { }).systemPrompt();
-        String v19Agent = render(SecurityDecisionPromptBundles.DEFAULT, V21AgentLinesTest::delegatedAgent).systemPrompt();
+        String v19Person = render(SecurityDecisionPromptBundles.V19, context -> { }).systemPrompt();
+        String v19Agent = render(SecurityDecisionPromptBundles.V19, V21AgentLinesTest::delegatedAgent).systemPrompt();
         assertThat(v19Person).contains("BotUserAgent=true");
         assertThat(v19Agent).doesNotContain("BotUserAgent=true")
                 .isEqualTo(v19Person.replace(SecurityDecisionPromptSections.V19_AUTOMATION_BOUNDARY, ""));

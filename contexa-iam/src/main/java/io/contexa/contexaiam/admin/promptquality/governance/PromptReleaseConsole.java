@@ -4,6 +4,7 @@ import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleElement;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleRunnability;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceRegistryService;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
@@ -57,10 +58,11 @@ public class PromptReleaseConsole {
 
     /**
      * One bundle of the list: its name, hash, canonical state (null when the stored status belongs to no vocabulary,
-     * then the stored value is given), scope, whether this build holds it with the same hash, and the gate's answer.
+     * then the stored value is given), scope, whether this build holds it, whether the build runs it or keeps its
+     * manifest as a record only (C9), whether the hash is the build's, and the gate's answer.
      */
     public record BundleRow(String registryScope, String promptKey, String bundleVersion, String bundleHash,
-                            String state, String unknownStatus, Canary canary, boolean inBuild,
+                            String state, String unknownStatus, Canary canary, boolean inBuild, boolean runnable,
                             boolean hashMatchesBuild, List<PromptGovernanceReleaseGateService.ReleaseGateTarget> gate,
                             boolean gateRead, LocalDateTime updatedAt) {
     }
@@ -213,6 +215,7 @@ public class PromptReleaseConsole {
                 release.artifactHash(), state, state == null ? release.releaseStatus() : null,
                 new Canary(release.canaryPercent(), release.canaryTenants(), release.canaryResourceFamilies()),
                 manifest.isPresent(),
+                PromptBundleRunnability.runnable(catalog, release.promptKey(), release.promptVersion()),
                 manifest.map(found -> found.bundleHash().equals(release.artifactHash())).orElse(false),
                 assessment != null ? assessment.targets() : List.of(), retired || assessment != null,
                 release.updatedAt());

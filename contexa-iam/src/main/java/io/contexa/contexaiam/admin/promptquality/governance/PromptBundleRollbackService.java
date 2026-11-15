@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleRunnability;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,7 +79,10 @@ public class PromptBundleRollbackService {
     public record Result(String executionKey, String status, Conditions conditions, List<String> refusals) {
     }
 
-    /** One declared target as the rollback check reads it: in this build and registered in the scope. */
+    /**
+     * One declared target as the rollback check reads it: in this build, which means the build runs it (K1: a
+     * manifest kept only as a record is not in the build), and registered in the scope.
+     */
     public record TargetReadiness(String version, boolean inBuild, boolean registered) {
     }
 
@@ -98,7 +102,7 @@ public class PromptBundleRollbackService {
         boolean executing = executing(registryStatus(scope, key, version));
         List<TargetReadiness> targets = new ArrayList<>();
         for (String target : declaredTargets == null ? List.<String>of() : declaredTargets) {
-            targets.add(new TargetReadiness(target, catalog.find(key, target).isPresent(),
+            targets.add(new TargetReadiness(target, PromptBundleRunnability.runnable(catalog, key, target),
                     registryStatus(scope, key, target) != null));
         }
         return new Readiness(executing, List.copyOf(targets));
@@ -122,7 +126,9 @@ public class PromptBundleRollbackService {
         boolean sourceExecuting = executing(registryStatus(scope, key, request.fromVersion()));
         String policySet = policySets == null ? NOT_APPLICABLE
                 : policySets.policySetExists(scope, key, request.toVersion()) ? "PRESENT" : "MISSING";
-        Conditions conditions = new Conditions(sourceExecuting, target != null,
+        // K1: a target the catalog holds only as a record would run the build's default bundle, so it is not in the build.
+        Conditions conditions = new Conditions(sourceExecuting,
+                target != null && PromptBundleRunnability.runnable(catalog, key, request.toVersion()),
                 source != null && source.rollbackTargets().contains(request.toVersion()),
                 target != null && target.compatibleVocabularyVersions().contains(VocabularyVersion.CURRENT),
                 registryStatus(scope, key, request.toVersion()) != null, policySet);
@@ -238,7 +244,7 @@ public class PromptBundleRollbackService {
                 (rs, n) -> new String[] {rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)});
         int changed = 0;
         for (String[] row : rows) {
-            String readiness = catalog.find(row[1], row[2]).isPresent() ? "READY" : "TARGET_NOT_IN_BUILD";
+            String readiness = PromptBundleRunnability.runnable(catalog, row[1], row[2]) ? "READY" : "TARGET_NOT_IN_BUILD";
             if (!readiness.equals(row[3])) {
                 // the ledger is a JPA table (persistence-ownership.yml): written through its repository
                 statusWriter.rollbackReadiness(Long.parseLong(row[0]), readiness,

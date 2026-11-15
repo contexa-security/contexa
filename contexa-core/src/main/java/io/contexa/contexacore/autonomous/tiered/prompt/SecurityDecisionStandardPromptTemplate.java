@@ -52,6 +52,10 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     private static final String STRUCTURED_PROMPT_CACHE_KEY = "securityDecisionStructuredPrompt";
 
     public static final String STANDARD_TEMPLATE_KEY = "SecurityDecisionStandard";
+    /**
+     * The v19 bundle: the build default until v1.0 (plan 1-9). A customer can still choose it, and it is the rollback
+     * target of v1.0.
+     */
     public static final PromptGovernanceDescriptor SECURITY_DECISION_PROMPT_GOVERNANCE =
             new PromptGovernanceDescriptor(
                     "cortex.security-decision",
@@ -212,7 +216,35 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             v1Descriptor("2026.11.14-v1.0-record-exact", "Variant record-exact: no decision rule as record-similar, "
                     + "on the exact past record lookup only.");
 
-    /** A v1.0 descriptor: a draft measured against v19, v20 and v21; its rollback is the production v19 bundle. */
+    /**
+     * v1.0, the production bundle (plan 1-9): the variant record-similar promoted after the measurement against v19,
+     * v20 and v21 (2026-11-15), so the build default keeps the similarity search of v19, with the sentence on which line
+     * a difference code cites. Its rollback is v19.
+     */
+    public static final PromptGovernanceDescriptor SECURITY_DECISION_V1_PROMPT_GOVERNANCE = new PromptGovernanceDescriptor(
+            "cortex.security-decision",
+            STANDARD_TEMPLATE_KEY,
+            "2026.11.15-v1.0",
+            "CORTEX_PROMPT_CONTRACT_V4",
+            PromptReleaseStatus.PRODUCTION,
+            "contexa-cortex-core",
+            "V1-2026-11-15",
+            "SELF-MEASURED-2026-11-15",
+            SECURITY_DECISION_PROMPT_GOVERNANCE.promptVersion(),
+            V1_SUMMARY + "Promoted from the variant record-similar: no decision rule in the system text; a response "
+                    + "that breaks a boundary stays the model's and the breach is recorded for a person's review; the "
+                    + "similar cases join the exact past record lookup; a difference code cites the comparison line, "
+                    + "not the line with the current value; another person's similar work does not explain a difference of "
+                    + "this account's device, network, time or login method.",
+            List.of(
+                    "STRICT_JSON_SCHEMA",
+                    "LOW_TEMPERATURE_SECURITY_DECISION",
+                    "EVIDENCE_ONLY_RETRIEVAL",
+                    "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI"
+            ),
+            SecurityDecisionStandardPromptTemplate.class.getName());
+
+    /** A v1.0 variant descriptor: a draft kept for the measurement and the replay; its rollback is v19. */
     private static PromptGovernanceDescriptor v1Descriptor(String version, String variantSummary) {
         return new PromptGovernanceDescriptor(
                 "cortex.security-decision",
@@ -332,7 +364,7 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         return request instanceof SecurityDecisionRequest securityDecisionRequest
                 && securityDecisionRequest.getContext() != null
                 ? promptBundle(securityDecisionRequest.getContext().getSecurityEvent()).layout()
-                : SecurityDecisionPromptBundles.UserPromptLayout.V19_SECTIONS;
+                : SecurityDecisionPromptBundles.DEFAULT.layout();
     }
 
     @Override
@@ -367,7 +399,7 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
 
     @Override
     public PromptGovernanceDescriptor getPromptGovernanceDescriptor() {
-        return SECURITY_DECISION_PROMPT_GOVERNANCE;
+        return SecurityDecisionPromptBundles.DEFAULT.descriptor();
     }
 
     /** The bundle the event runs, fixed on the event for its later prompts (W3-16, W3-18). */

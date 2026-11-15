@@ -22,15 +22,16 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * The security decision bundles this build runs (W3-16): the current bundle and one previous bundle (version management
- * decision 2), and the v19 bundle the build runs by default while v21 is measured against v20 (V-1). A bundle is its
- * descriptor, whose version names its manifest, and the user prompt layout its code draws.
+ * The security decision bundles this build runs (W3-16). v1.0 is the build's default bundle (plan 1-9): it runs when
+ * nothing chooses a bundle. A customer can still choose any bundle of this list by its version, and v19, v20 and v21
+ * also serve the replay of sealed decisions and as rollback targets. A bundle is its descriptor, whose version names
+ * its manifest, and the user prompt layout its code draws.
  * Older manifests of the catalog are records of bundles no code of this build renders, so they cannot be run.
  *
  * <p>The v1.0 bundles join the three bundles into one: every function of v19, v20 and v21, on the v21 records layout.
- * They differ only in their features (data, not code paths): whether the system text states decision rules and the
- * response check replaces a response that breaks them, and whether the prompt adds the similar cases of the
- * similarity search. They are measured against v19, v20 and v21 before one of them becomes the default.</p>
+ * The variants differ only in their features (data, not code paths): whether the system text states decision rules and
+ * the response check replaces a response that breaks them, and whether the prompt adds the similar cases of the
+ * similarity search. They were measured against v19, v20 and v21, and the variant record-similar became v1.0.</p>
  */
 public final class SecurityDecisionPromptBundles {
 
@@ -76,11 +77,22 @@ public final class SecurityDecisionPromptBundles {
      *                               for a person's review (the v21 principle)
      * @param similarCases           the prompt adds the similar cases of the v19 similarity search and the organization's
      *                               supporting documents to the exact past record lookup
+     * @param comparisonCitations    the output contract says that a code naming a difference from the usual cites the
+     *                               comparison line, not the line with the current value (v1.0, plan 1-9: answers of the
+     *                               measured variants cited the request's network and device lines); with the similar
+     *                               cases, the reading also says that another person's similar work does not explain a
+     *                               difference of this account's device, network, time or login method
      */
-    public record Features(boolean decisionRules, boolean fallbackOnViolation, boolean similarCases) {
+    public record Features(boolean decisionRules, boolean fallbackOnViolation, boolean similarCases,
+                           boolean comparisonCitations) {
 
         /** The features of v19, v20 and v21: none. */
         public static final Features NONE = new Features(false, false, false);
+
+        /** The features of a measured v1.0 variant, without the comparison citation sentence. */
+        public Features(boolean decisionRules, boolean fallbackOnViolation, boolean similarCases) {
+            this(decisionRules, fallbackOnViolation, similarCases, false);
+        }
     }
 
     /**
@@ -105,8 +117,8 @@ public final class SecurityDecisionPromptBundles {
         }
     }
 
-    /** The build's default bundle: the one a request runs when no selector chooses another. */
-    public static final Bundle DEFAULT = new Bundle(
+    /** The v19 bundle: the build default until v1.0; still selectable, the rollback target of v1.0. */
+    public static final Bundle V19 = new Bundle(
             SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE, UserPromptLayout.V19_SECTIONS);
 
     public static final Bundle V20 = new Bundle(
@@ -136,11 +148,22 @@ public final class SecurityDecisionPromptBundles {
             SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_V1_RECORD_EXACT_PROMPT_GOVERNANCE,
             UserPromptLayout.V1_BLOCKS, new Features(false, false, false));
 
-    /** The v1.0 bundles, measured against v19, v20 and v21 before one of them becomes the default. */
+    /** The v1.0 variants, measured against v19, v20 and v21; record-similar was promoted to {@link #V1}. */
     public static final List<Bundle> V1_BUNDLES = List.of(V1_FALLBACK_SIMILAR, V1_FALLBACK_EXACT, V1_RECORD_SIMILAR,
             V1_RECORD_EXACT);
 
-    public static final List<Bundle> ALL = List.of(DEFAULT, V20, V21, V1_FALLBACK_SIMILAR, V1_FALLBACK_EXACT,
+    /**
+     * v1.0: the variant record-similar under the production version, so the build default keeps the similarity search
+     * v19 ran, with the comparison citation sentence (plan 1-9).
+     */
+    public static final Bundle V1 = new Bundle(
+            SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_V1_PROMPT_GOVERNANCE,
+            UserPromptLayout.V1_BLOCKS, new Features(false, false, true, true));
+
+    /** The build's default bundle: the one a request runs when no selector chooses another (v1.0, plan 1-9). */
+    public static final Bundle DEFAULT = V1;
+
+    public static final List<Bundle> ALL = List.of(V1, V19, V20, V21, V1_FALLBACK_SIMILAR, V1_FALLBACK_EXACT,
             V1_RECORD_SIMILAR, V1_RECORD_EXACT);
 
     private SecurityDecisionPromptBundles() {

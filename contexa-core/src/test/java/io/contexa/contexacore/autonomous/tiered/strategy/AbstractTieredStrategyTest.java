@@ -772,7 +772,7 @@ class AbstractTieredStrategyTest {
 
         strategy.setModelSelectionStrategy(() -> selecting(chatModel(OpenAiChatOptions.builder().model("gpt-6-luna").build())));
         SecurityEvent v19 = SecurityEvent.builder().eventId("event-w42-v19-selected").metadata(new LinkedHashMap<>()).build();
-        when(promptTemplate.promptBundle(v19)).thenReturn(SecurityDecisionPromptBundles.DEFAULT);
+        when(promptTemplate.promptBundle(v19)).thenReturn(SecurityDecisionPromptBundles.V19);
         assertThat(nativeSchema(v19)).isNull();
 
         tieredStrategyProperties.getPromptRuntime().setNativeStructuredOutputEnabled(false);
@@ -945,7 +945,7 @@ class AbstractTieredStrategyTest {
                 .eventId("event-w42-converter")
                 .metadata(new LinkedHashMap<>(Map.of("structuredOutputMode", StructuredOutputMode.VALIDATED_CONVERTER.name())))
                 .build();
-        when(promptTemplate.promptBundle(v19)).thenReturn(SecurityDecisionPromptBundles.DEFAULT);
+        when(promptTemplate.promptBundle(v19)).thenReturn(SecurityDecisionPromptBundles.V19);
         when(promptTemplate.promptBundle(converter)).thenReturn(SecurityDecisionPromptBundles.V20);
 
         for (SecurityEvent event : List.of(v19, converter)) {
@@ -2024,7 +2024,7 @@ class AbstractTieredStrategyTest {
     @Test
     void aV19RequestSearchesItsPastRecordsAsBefore() {
         SecurityEvent event = exportEvent("event-w318-v19", true);
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.DEFAULT);
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V19);
         when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of());
 
         strategy.callSearchRelatedContextBase(event, 5, 0.5d);

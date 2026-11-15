@@ -68,18 +68,18 @@ class SealedDecisionReplaysTest {
     private final SealedEvidencePackage sealed = sealed();
 
     /**
-     * Plan 1-6: the four v1.0 variants are replay targets beside v19, v20 and v21 for the measurement (2.5), and the
-     * build default stays the v19 bundle.
+     * Plan 1-6 and 1-9: v1.0, the build default, and the four v1.0 variants are replay targets beside v19, v20 and v21.
      */
     @Test
-    void theV1VariantsAreReplayTargetsAndTheDefaultStaysV19() {
-        assertThat(replays.bundles()).containsExactly(SecurityDecisionPromptBundles.DEFAULT.version(),
+    void v1AndItsVariantsAreReplayTargetsBesideV19V20V21() {
+        assertThat(replays.bundles()).containsExactly(SecurityDecisionPromptBundles.V1.version(),
+                SecurityDecisionPromptBundles.V19.version(),
                 SecurityDecisionPromptBundles.V20.version(), SecurityDecisionPromptBundles.V21.version(),
                 SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR.version(),
                 SecurityDecisionPromptBundles.V1_FALLBACK_EXACT.version(),
                 SecurityDecisionPromptBundles.V1_RECORD_SIMILAR.version(),
                 SecurityDecisionPromptBundles.V1_RECORD_EXACT.version());
-        assertThat(SecurityDecisionPromptBundles.DEFAULT.layout())
+        assertThat(SecurityDecisionPromptBundles.V19.layout())
                 .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V19_SECTIONS);
     }
 

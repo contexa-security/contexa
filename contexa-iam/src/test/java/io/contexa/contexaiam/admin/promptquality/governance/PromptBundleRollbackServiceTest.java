@@ -34,7 +34,7 @@ class PromptBundleRollbackServiceTest {
     private static final String KEY = "cortex.security-decision";
     // The bundles this build runs: the active v20 one and the v19 one its manifest declares as rollback target.
     private static final String FROM = SecurityDecisionPromptBundles.V20.version();
-    private static final String TO = SecurityDecisionPromptBundles.DEFAULT.version();
+    private static final String TO = SecurityDecisionPromptBundles.V19.version();
 
     private PostgresTestDatabase database;
     private JdbcTemplate jdbc;
@@ -121,17 +121,41 @@ class PromptBundleRollbackServiceTest {
 
     @Test
     void aTargetTheManifestDoesNotDeclareIsRefusedAndNothingChanges() {
+        // A bundle this build runs that the v20 manifest does not declare as its rollback target.
+        String undeclared = SecurityDecisionPromptBundles.V21.version();
         registry(FROM, "PRODUCTION");
-        registry("2026.10.15-v19.17", "DRAFT");
+        registry(undeclared, "DRAFT");
 
         PromptBundleRollbackService.Result result = service.rollback(new PromptBundleRollbackService.Request(SCOPE, KEY,
-                FROM, "2026.10.15-v19.17", "older", false), "operator-a");
+                FROM, undeclared, "older", false), "operator-a");
 
         assertThat(result.status()).isEqualTo(PromptBundleRollbackService.REFUSED);
         assertThat(result.refusals()).containsExactly("TARGET_NOT_DECLARED");
         assertThat(status(FROM)).isEqualTo("PRODUCTION");
         verify(invalidation, never()).publish(anyString(), anyString(), anyString(), anyString(), anyString());
         assertThat(execution(result.executionKey()).get(0)).isEqualTo("REFUSED");
+    }
+
+    /**
+     * K1 (plan 1-9): the v21.19 manifest declares v21.18 as a rollback target, and the catalog holds its manifest, but
+     * no code of this build renders it; a rollback to it would run the build's default bundle, so it is not in the build.
+     */
+    @Test
+    void aDeclaredTargetTheBuildKeepsOnlyAsARecordIsNotInTheBuild() {
+        String source = SecurityDecisionPromptBundles.V21.version();
+        String recordOnly = "2026.10.29-v21.18";
+        registry(source, "PRODUCTION");
+        registry(recordOnly, "DEPRECATED");
+
+        PromptBundleRollbackService.Result result = service.rollback(new PromptBundleRollbackService.Request(SCOPE, KEY,
+                source, recordOnly, "older", false), "operator-a");
+
+        assertThat(result.status()).isEqualTo(PromptBundleRollbackService.REFUSED);
+        assertThat(result.refusals()).containsExactly("TARGET_NOT_IN_BUILD");
+        assertThat(status(source)).isEqualTo("PRODUCTION");
+        assertThat(service.readiness(SCOPE, KEY, source, List.of(recordOnly)).targets())
+                .singleElement()
+                .satisfies(target -> assertThat(target.inBuild()).isFalse());
     }
 
     @Test

@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import java.time.ZoneId;
+import io.contexa.contexacore.autonomous.tiered.prompt.V19BundleProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.ThreatAssessment;
@@ -74,7 +75,7 @@ class Layer1ContextualStrategyPipelineTest {
                 null,
                 null,
                 new SecurityEventEnricher(),
-                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), V19BundleProperties.create()),
                 null,
                 null,
                 null,
@@ -84,7 +85,7 @@ class Layer1ContextualStrategyPipelineTest {
                 new PromptContextAuthorizationService(),
                 null,
                 pipelineOrchestrator,
-                new TieredStrategyProperties()
+                V19BundleProperties.create()
         );
 
         SecurityEvent event = SecurityEvent.builder()
@@ -115,7 +116,7 @@ class Layer1ContextualStrategyPipelineTest {
     @Test
     @DisplayName("Layer1 pipeline should fail closed when LLM execution exceeds layer budget")
     void analyzeWithContext_pipelineTimeout_returnsEscalationFallback() {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
+        TieredStrategyProperties properties = V19BundleProperties.create();
         properties.getLayer1().getTimeout().setLlmMs(10);
 
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
@@ -157,7 +158,7 @@ class Layer1ContextualStrategyPipelineTest {
     @Test
     @DisplayName("N-OUT-1 (G1-7): the Layer1 budget holds when the pipeline runs synchronously")
     void theLayerOneBudgetHoldsWhenThePipelineRunsSynchronously() {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
+        TieredStrategyProperties properties = V19BundleProperties.create();
         properties.getLayer1().getTimeout().setLlmMs(200);
 
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
@@ -205,7 +206,7 @@ class Layer1ContextualStrategyPipelineTest {
     @Test
     @DisplayName("N-OUT-1 (G1-7): the Layer1 total budget holds for the asynchronous analysis")
     void theLayerOneTotalBudgetHoldsForTheAsynchronousAnalysis() {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
+        TieredStrategyProperties properties = V19BundleProperties.create();
         properties.getLayer1().getTimeout().setLlmMs(5000);
         properties.getLayer1().getTimeout().setTotalMs(200);
 
@@ -270,7 +271,7 @@ class Layer1ContextualStrategyPipelineTest {
                 eq(SecurityDecisionResponse.class)))
                 .thenReturn(Mono.just(response));
 
-        TieredStrategyProperties properties = new TieredStrategyProperties();
+        TieredStrategyProperties properties = V19BundleProperties.create();
         Layer1ContextualStrategy strategy = new Layer1ContextualStrategy(
                 null,
                 null,
@@ -361,7 +362,7 @@ class Layer1ContextualStrategyPipelineTest {
     void theStageTotalCountsOnlyTheTimeBlockedOnTheSearch() {
         SecurityEvent event = pastRecordEvent("event-w34-total");
 
-        layer1(null, null, new TieredStrategyProperties())
+        layer1(null, null, V19BundleProperties.create())
                 .recordLayer1TimingMetadata(event, 0L, 400L, 0L, 700L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 710L);
 
         assertThat(millis(event, "layer1RagSearchMs")).isEqualTo(400L);
@@ -385,7 +386,7 @@ class Layer1ContextualStrategyPipelineTest {
     }
 
     private TieredStrategyProperties interactiveWait(long waitMs) {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
+        TieredStrategyProperties properties = V19BundleProperties.create();
         properties.getLayer1().getTimeout().setInteractiveRagWaitMs(waitMs);
         properties.getLayer1().getTimeout().setRagMs(5000);
         SecurityDecisionResponse response = new SecurityDecisionResponse();

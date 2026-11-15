@@ -41,6 +41,7 @@ public class PromptReleasePageController {
             Stream.of("state.unknown", "common.loading", "common.empty", "common.error", "common.notFound",
                     "common.yes", "common.no", "gate.ready", "gate.blocked", "gate.none", "gate.unavailable",
                     "gate.applied", "gate.refused", "build.present", "build.absent", "build.hashDiffers",
+                    "build.recordOnly",
                     "canary.percent", "canary.tenants", "canary.families", "action.transition", "action.approve",
                     "rollback.executed", "rollback.awaiting", "rollback.approved", "rollback.refused",
                     "rollback.noTargets", "rollback.reasonRequired", "rollback.notExecuting",

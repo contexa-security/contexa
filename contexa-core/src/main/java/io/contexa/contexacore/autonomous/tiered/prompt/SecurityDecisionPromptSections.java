@@ -2160,6 +2160,22 @@ public class SecurityDecisionPromptSections {
         return buildDecisionSectionV21();
     }
 
+    /**
+     * v1.0 (plan 1-9): which line a code that names a difference from the usual cites. The measured variants' answers
+     * cited the request's network or device line for such a code, the response check asked again, and the answer kept
+     * the wrong line.
+     */
+    static final String V1_COMPARISON_CITATIONS = "DEVIATION_TIME, DEVIATION_DAY, DEVIATION_NETWORK,"
+            + " DEVIATION_DEVICE, DEVIATION_LOGIN_METHOD, DEVIATION_TARGET, DEVIATION_ACTION, DEVIATION_RESOURCE_CLASS,"
+            + " DEVIATION_SIZE and DEVIATION_RATE cite the DeviationsFromBaseline line that states the difference, not"
+            + " the REQUEST or SESSION line with the current value.\n";
+
+    /** The v1.0 output block of the bundle's features: with the comparison citation sentence when they say so. */
+    String buildDecisionSectionV1(SecurityDecisionPromptBundles.Features features) {
+        String section = buildDecisionSectionV1();
+        return features != null && features.comparisonCitations() ? section + V1_COMPARISON_CITATIONS : section;
+    }
+
     /** Where the v1.0 sentences go in the v21 text: before its judgment, and before its honesty rules. */
     private static final String V21_HOW_TO_JUDGE = "\nHow to judge:\n";
     private static final String V21_HONESTY = "\nHonesty:\n";
@@ -2181,6 +2197,15 @@ public class SecurityDecisionPromptSections {
     /** v1.0 (D3): how to read the similar case lines of a bundle with the similarity search. */
     static final String V1_SIMILAR_CASES_READING = """
             * SimilarCase lines are past records a similarity search found, of this user or of others as each line's authorization says; unlike PastRecord lines they need not share this request's action or target, so they show how similar requests went and weigh less than PastRecord lines.
+            """;
+
+    /**
+     * v1.0 (plan 1-9): what a similar case cannot explain. With the similar cases, the measured answers allowed account
+     * takeovers whose device and network differed from the user's own, as if another person's similar work explained
+     * them; the promoted v1.0 says it does not.
+     */
+    static final String V1_SIMILAR_CASES_LIMIT = """
+            * Another person's similar work in a SimilarCase line does not explain a difference of this account's device, network, time or login method from its own usual ones; weigh such a difference against this account's own baseline and records.
             """;
 
     /** v1.0 (I2): the honesty sentences of v19 and v20 the v21 text did not state. */
@@ -2215,6 +2240,11 @@ public class SecurityDecisionPromptSections {
         String reading = features != null && features.similarCases()
                 ? V1_READING + V1_SIMILAR_CASES_READING
                 : V1_READING;
+        // The promoted v1.0 (similar cases with the comparison citations) also says what a similar case cannot explain;
+        // the measured variants keep the text they were measured with.
+        if (features != null && features.similarCases() && features.comparisonCitations()) {
+            reading = reading + V1_SIMILAR_CASES_LIMIT;
+        }
         String text = insertBefore(buildSystemInstructionV21(), V21_HOW_TO_JUDGE, reading);
         if (features != null && features.decisionRules()) {
             String rules = V1_DECISION_RULES;
@@ -2252,7 +2282,7 @@ public class SecurityDecisionPromptSections {
                 new PromptSectionPlan(SecurityPromptSectionCatalog.SYSTEM_INSTRUCTION, PromptSectionPriorityClass.P0_REQUIRED, false, false,
                         (template, context) -> template.buildSystemInstructionV1(context, features)),
                 new PromptSectionPlan(SecurityPromptSectionCatalog.DECISION_CONTRACT, PromptSectionPriorityClass.P0_REQUIRED, false, false,
-                        (template, context) -> template.buildDecisionSectionV1()));
+                        (template, context) -> template.buildDecisionSectionV1(features)));
     }
 
     /** Whether a person's and an agent's request get different system texts: v19, v20 and v1.0 with the rules. */

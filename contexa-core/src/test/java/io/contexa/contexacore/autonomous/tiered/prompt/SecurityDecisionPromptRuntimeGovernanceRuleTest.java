@@ -55,7 +55,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 Map.of("narrative", "RuntimeGovernanceNarrative: preserve browser transition context."))));
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -130,7 +130,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 Map.of("narrative", narrative))));
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -214,7 +214,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                         20,
                         Map.of("checkCode", "rag_authorization_reason",
                                 "narrative", "Each record must say why it is authorized."))));
-        TieredStrategyProperties properties = new TieredStrategyProperties();
+        TieredStrategyProperties properties = SecurityDecisionGoldenRender.v19Properties();
         properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
@@ -289,7 +289,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                                 "renderedValue", "ALLOW by policy W314 (METHOD_AUTHORIZATION_CHECK)"))));
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -357,7 +357,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
 
     private static String renderWithRules(SecurityDecisionPromptBundles.Bundle bundle, PromptContextComposer contract,
                                           CapturingRuleProvider provider) {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
+        TieredStrategyProperties properties = SecurityDecisionGoldenRender.v19Properties();
         properties.getPromptBundle().setActive(bundle.version());
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),

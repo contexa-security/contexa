@@ -103,10 +103,10 @@ class SecurityDecisionStandardPromptTemplateTest {
         };
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 provider,
                 new PromptContextComposer());
         SecurityEvent event = SecurityEvent.builder().eventId("shared-event-id").build();
@@ -149,7 +149,7 @@ class SecurityDecisionStandardPromptTemplateTest {
                         .authorizationEffect("ALLOW")
                         .build())
                 .build();
-        TieredStrategyProperties properties = new TieredStrategyProperties();
+        TieredStrategyProperties properties = SecurityDecisionGoldenRender.v19Properties();
         properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
@@ -194,10 +194,10 @@ class SecurityDecisionStandardPromptTemplateTest {
                         .build())
                 .build();
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
-                new SecurityEventEnricher(), new TieredStrategyProperties());
+                new SecurityEventEnricher(), SecurityDecisionGoldenRender.v19Properties());
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 event -> Optional.of(completeRequiredContext),
                 new PromptContextComposer());
         SecurityEvent event = SecurityEvent.builder()
@@ -225,10 +225,10 @@ class SecurityDecisionStandardPromptTemplateTest {
                         .sessionDeviceChange("Chrome/140 on WINDOWS -> Safari/17 on MAC").build())
                 .build();
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
-                new SecurityEventEnricher(), new TieredStrategyProperties());
+                new SecurityEventEnricher(), SecurityDecisionGoldenRender.v19Properties());
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 event -> Optional.of(context),
                 new PromptContextComposer());
         SecurityEvent event = SecurityEvent.builder()
@@ -254,7 +254,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generatePromptShouldUseGovernedStandardTemplate() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-001")
@@ -407,15 +407,25 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(executionMetadata.toMetadataMap().get("promptRenderCacheSystemHash"))
                 .asString()
                 .startsWith("sha256:");
-        // P2 renders computed facts in the v19 format, a new bundle whose evaluation baseline is the P1 gate measurement.
-        assertThat(descriptor.promptVersion()).isEqualTo("2026.10.24-v19.21");
-        assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
+        // Plan 1-9 (C13): the template's own descriptor is the build default v1.0; the chosen v19 bundle above draws
+        // the v19 prompt with its own descriptor in the execution metadata.
+        assertThat(descriptor).isEqualTo(SecurityDecisionPromptBundles.DEFAULT.descriptor());
+        assertThat(descriptor.promptVersion()).isEqualTo("2026.11.15-v1.0");
+        assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V4");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(descriptor.releaseApprovalReference()).isEqualTo("DD-8-2026-10-24");
-        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("protocol-938648df");
-        // The former rollback target 2026.07.26-v5 has no prompt text in the build, so v19 declares none (W1-18, PV-3).
-        assertThat(descriptor.rollbackPromptVersion()).isNull();
+        assertThat(descriptor.releaseApprovalReference()).isEqualTo("V1-2026-11-15");
+        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("SELF-MEASURED-2026-11-15");
+        assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.10.24-v19.21");
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
+        // P2 renders computed facts in the v19 format; the former rollback target 2026.07.26-v5 has no prompt text in
+        // the build, so v19 declares none (W1-18, PV-3).
+        PromptGovernanceDescriptor v19 = SecurityDecisionPromptBundles.V19.descriptor();
+        assertThat(v19.promptVersion()).isEqualTo("2026.10.24-v19.21");
+        assertThat(v19.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
+        assertThat(v19.releaseStatus().name()).isEqualTo("PRODUCTION");
+        assertThat(v19.releaseApprovalReference()).isEqualTo("DD-8-2026-10-24");
+        assertThat(v19.evaluationBaselineReference()).isEqualTo("protocol-938648df");
+        assertThat(v19.rollbackPromptVersion()).isNull();
     }
 
     @Test
@@ -442,10 +452,10 @@ class SecurityDecisionStandardPromptTemplateTest {
                         "Current request is usable with an explicit optional-context limitation."))
                 .build();
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
-                new SecurityEventEnricher(), new TieredStrategyProperties());
+                new SecurityEventEnricher(), SecurityDecisionGoldenRender.v19Properties());
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 event -> Optional.of(canonicalContext),
                 new PromptContextComposer());
         SecurityEvent event = SecurityEvent.builder()
@@ -479,7 +489,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generatePromptShouldKeepSystemPromptStableAcrossDifferentRequests() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityDecisionRequest firstRequest = requestFor("alice", "/api/customer/export", "POST");
         SecurityDecisionRequest secondRequest = requestFor("bob", "/admin/api/security-test/normal/resource-001", "GET");
@@ -505,7 +515,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void buildStructuredPromptShouldCacheStableSystemSectionsOnly() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
         SecurityDecisionRequest firstRequest = requestFor("alice", "/api/customer/export", "POST");
         SecurityDecisionRequest secondRequest = requestFor("bob", "/admin/api/security-test/normal/resource-001", "GET");
 
@@ -552,7 +562,7 @@ class SecurityDecisionStandardPromptTemplateTest {
             ObservedPromptTokenUsageRegistry.recordObservation("w47-calibrated-model", 1000, 1000);
             SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                     new SecurityEventEnricher(),
-                    new TieredStrategyProperties());
+                    SecurityDecisionGoldenRender.v19Properties());
 
             PromptTokenEstimate plain = estimateOf(template, null);
             PromptTokenEstimate calibrated = estimateOf(template, "w47-calibrated-model");
@@ -590,7 +600,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void thePromptTimingsAreRecordedInMicroseconds() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-w47-timing")
                 .timestamp(LocalDateTime.of(2026, 4, 17, 11, 0).atZone(ZoneId.systemDefault()).toInstant())
@@ -615,7 +625,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateSystemPromptShouldOmitOutputFormatWrapperForNativeStructuredMode() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-native-structured")
@@ -650,7 +660,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldKeepColdStartBaselineFactual() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-cold-start")
@@ -691,7 +701,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     @Test
     @DisplayName("configured layer1 default budget profile should flow into direct browser-style prompt generation")
     void generatePromptShouldUseConfiguredLayer1DefaultBudgetProfile() {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
+        TieredStrategyProperties properties = SecurityDecisionGoldenRender.v19Properties();
         properties.getLayer1().setDefaultBudgetProfile("CORTEX_L1_INTERACTIVE_STRICT");
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
@@ -726,7 +736,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldPreferCanonicalSessionNarrativeOverBehaviorFallback() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -785,7 +795,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptSealsTheDecisionFactsWithTheContext() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -823,7 +833,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptSealsTheFinalBaselineView() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -880,7 +890,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldKeepBaselineNarrativeProvisionalUntilPersonalBaselineIsEstablished() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-003")
@@ -923,7 +933,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldPreserveFullFactsForRawIdentityProfile() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         String longBaselineSummary = "personal baseline provisional | resource families="
                 + String.join(", ", List.of(
@@ -999,7 +1009,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldNotPromoteSparsePersonalHistoryIntoNewUser() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-003b")
@@ -1042,7 +1052,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     @DisplayName("sparse history should preserve direct personal comparison evidence")
     void sparseHistoryShouldPreserveDirectPersonalComparisonEvidence() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
-                new SecurityEventEnricher(), new TieredStrategyProperties());
+                new SecurityEventEnricher(), SecurityDecisionGoldenRender.v19Properties());
         CanonicalSecurityContext canonical = CanonicalSecurityContext.builder()
                 .session(CanonicalSecurityContext.Session.builder()
                         .sessionId("session-sparse-personal")
@@ -1065,7 +1075,7 @@ class SecurityDecisionStandardPromptTemplateTest {
                 .build();
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 ignored -> Optional.of(canonical),
                 new PromptContextComposer());
         SecurityEvent event = SecurityEvent.builder()
@@ -1129,7 +1139,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldRenderSupportingComparableEvidenceFromTypedLearningContext() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-supporting-comparables")
@@ -1184,7 +1194,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldRenderHistoricalComparableEventsWhenRagDocumentsExist() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-004")
@@ -1280,7 +1290,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(userPrompt).contains("MfaVerified: false");
         // W3-7: the example count follows its setting (layer1.prompt.maxSimilarEvents, 2 by default).
         assertThat(userPrompt).contains("ComparableExample2:");
-        TieredStrategyProperties oneExample = new TieredStrategyProperties();
+        TieredStrategyProperties oneExample = SecurityDecisionGoldenRender.v19Properties();
         oneExample.getLayer1().getPrompt().setMaxSimilarEvents(1);
         // A request keeps the prompt it was given, so the second template gets a new request of the same context.
         String withOneExample = new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), oneExample)
@@ -1295,7 +1305,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldNameTheRagRequestPathFamilyAsTheHostsUrlTemplate() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-path-family")
@@ -1341,7 +1351,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldTellARecordOfAnotherTargetFromTheSameResource() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-other-target")
@@ -1391,7 +1401,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldGiveEachDistinctPastRecordOfOneMethodItsOwnLine() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-distinct-records")
@@ -1439,7 +1449,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldCompareThePastRecordsWithTheRequestsClass() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-request-class")
@@ -1479,7 +1489,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldNeverTakeAClassFromAFamilyHint() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-hint-class")
@@ -1537,7 +1547,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldRenderRagZeroResultState() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-rag-zero")
@@ -1584,7 +1594,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldRenderRagPermissionFilteredState() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-rag-filtered")
@@ -1624,7 +1634,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldAvoidContradictoryCurrentHourAndSensitivityNarrative() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -1664,7 +1674,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldNormalizeAuthenticationVocabulary() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -1704,7 +1714,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void buildPromptExecutionMetadataShouldPreservePromptContractAuditFields() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -1750,7 +1760,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldRenderBridgeAndFrictionEvidenceForBrowserStyleFollowUpRequest() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                SecurityDecisionGoldenRender.v19Properties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -1818,7 +1828,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     void generateUserPromptShouldEvolveEvidenceAcrossRoundsWithoutRegression() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties());
+                SecurityDecisionGoldenRender.v19Properties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-006")
@@ -2562,7 +2572,7 @@ class SecurityDecisionStandardPromptTemplateTest {
                 }
                 assertThat(entry.acceptsValue(status)).as(where + ": " + status).isTrue();
                 String v19 = golden.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
-                        new TieredStrategyProperties(), organizationOnly).userText();
+                        SecurityDecisionGoldenRender.v19Properties(), organizationOnly).userText();
                 assertThat(v19).as(where).contains("BaselineProfileStatus: SPARSE_PERSONAL_HISTORY");
             }
             assertThat(none).isPositive();
@@ -2914,7 +2924,7 @@ class SecurityDecisionStandardPromptTemplateTest {
             assertThat(promptCacheKey(otherUser, v20(), Map.of())).isEqualTo(key);
             assertThat(promptCacheKey(golden.cases().get(1), v20(), Map.of())).isEqualTo(key);
             // The v19 bundle draws another system text (TO-4), so its requests go to another provider cache.
-            assertThat(promptCacheKey(goldenCase, new TieredStrategyProperties(), Map.of())).isNotEqualTo(key);
+            assertThat(promptCacheKey(goldenCase, SecurityDecisionGoldenRender.v19Properties(), Map.of())).isNotEqualTo(key);
             assertThat(promptCacheKey(goldenCase, v20(), Map.of("structuredOutputMode", "NATIVE_STRUCTURED")))
                     .isNotEqualTo(key);
             for (String mode : List.of("VALIDATED_CONVERTER", "NATIVE_STRUCTURED")) {
@@ -3296,7 +3306,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
             String user = golden.render(injected, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, v20()).userText();
             String v19 = golden.render(injected, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
-                    new TieredStrategyProperties()).userText();
+                    SecurityDecisionGoldenRender.v19Properties()).userText();
 
             assertThat(lineValue(user, "Target")).isEqualTo(
                     "documentKey from the request path (business label in UNTRUSTED TEXT), category PROJECT_DOCUMENTS");
@@ -3420,7 +3430,7 @@ class SecurityDecisionStandardPromptTemplateTest {
             String user = golden.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, v20(), analysis)
                     .userText();
             String v19 = golden.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
-                    new TieredStrategyProperties(), analysis).userText();
+                    SecurityDecisionGoldenRender.v19Properties(), analysis).userText();
 
             assertThat(Arrays.stream(block(user, PromptBlock.UNTRUSTED_TEXT).split("\n")).filter(line -> !line.isEmpty()))
                     .contains("UntrustedText1: " + FIRST_CASE_LABEL,
@@ -3444,7 +3454,7 @@ class SecurityDecisionStandardPromptTemplateTest {
             String user = golden.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, v20(), analysis)
                     .userText();
             String v19 = golden.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
-                    new TieredStrategyProperties(), analysis).userText();
+                    SecurityDecisionGoldenRender.v19Properties(), analysis).userText();
 
             assertThat(Arrays.stream(block(user, PromptBlock.UNTRUSTED_TEXT).split("\n")).filter(line -> !line.isEmpty()))
                     .containsExactly(
@@ -3630,7 +3640,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         }
 
         private static TieredStrategyProperties v20() {
-            TieredStrategyProperties properties = new TieredStrategyProperties();
+            TieredStrategyProperties properties = SecurityDecisionGoldenRender.v19Properties();
             properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
             return properties;
         }
