@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  The frame of every Zero Trust console screen (console design 6.0): the title and the question the screen answers,
+  the period buttons, the band, the place the screen draws in, and the console's messages for its script.
+-->
+<div th:fragment="console(title, question, periods)" class="zt-page" id="zt-console"
+     th:data-api-base="${apiBase}" th:data-screen="${screen}"
+     th:data-observation-id="${observationId}"
+     th:data-csrf-token="${_csrf != null ? _csrf.token : ''}"
+     th:data-csrf-header="${_csrf != null ? _csrf.headerName : 'X-CSRF-TOKEN'}">
+    <script type="application/json" id="zt-messages" th:utext="${ztMessages}"></script>
+    <div class="zt-stack">
+        <header class="zt-header">
+            <div>
+                <div class="zt-header-eyebrow" th:text="#{zt.console.ui.eyebrow}">Zero Trust</div>
+                <h1 th:text="${title}">Overview</h1>
+                <p class="zt-header-question" th:text="${question}">Question</p>
+            </div>
+            <div class="zt-toolbar">
+                <div class="zt-period" id="zt-period" role="group" th:if="${periods}"
+                     th:attr="aria-label=#{zt.console.ui.period}"></div>
+            </div>
+        </header>
+        <div class="zt-band" id="zt-band" aria-live="polite"></div>
+        <div class="zt-stack" id="zt-content"></div>
+    </div>
+</div>
+</body>
+</html>

@@ -272,9 +272,13 @@ public class ZeroTrustDecisionRecords {
     String conclusion(String action, String mainReason, String outcome, Locale locale) {
         Locale resolved = locale == null ? Locale.ENGLISH : locale;
         String actionText = message("zt.console.action." + action, action, resolved);
-        String reasonText = mainReason == null ? null
-                : message("zt.console.reasonGroup." + ZeroTrustConsoleService.groupOf(mainReason),
-                ZeroTrustConsoleService.groupOf(mainReason), resolved);
+        String reasonText = null;
+        if (mainReason != null) {
+            // The reason code's own words; its group's words when no message names the code.
+            String group = ZeroTrustConsoleService.groupOf(mainReason);
+            reasonText = message("zt.console.reasonCode." + mainReason,
+                    message("zt.console.reasonGroup." + group, group, resolved), resolved);
+        }
         String outcomeText = outcome == null ? null : message("zt.console.outcome." + outcome, outcome, resolved);
         if (reasonText == null && outcomeText == null) {
             return message("zt.console.conclusion.action", actionText, resolved, actionText);

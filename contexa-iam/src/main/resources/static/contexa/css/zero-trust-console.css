@@ -1,0 +1,890 @@
+/*
+ * Zero Trust console (console plan 1.1, 1.2, 1.3). Every spacing, radius, type size and colour is a token of :root;
+ * no other value is used below.
+ */
+:root {
+    --zt-space-1: 4px;
+    --zt-space-2: 8px;
+    --zt-space-3: 12px;
+    --zt-space-4: 16px;
+    --zt-space-5: 24px;
+    --zt-space-6: 32px;
+
+    --zt-page-padding: var(--zt-space-5);
+    --zt-section-gap: var(--zt-space-5);
+    --zt-card-gap: var(--zt-space-4);
+    --zt-card-padding: 20px;
+    --zt-card-title-gap: var(--zt-space-3);
+    --zt-grid-gap: var(--zt-space-4);
+
+    --zt-radius-card: 12px;
+    --zt-radius-chip: 6px;
+
+    --zt-font-12: 12px;
+    --zt-font-13: 13px;
+    --zt-font-14: 14px;
+    --zt-font-16: 16px;
+    --zt-font-20: 20px;
+    --zt-font-26: 26px;
+    --zt-line-body: 1.5;
+    --zt-line-number: 1.2;
+    --zt-title-line: 24px;
+
+    --zt-chart-s: 160px;
+    --zt-chart-m: 200px;
+    --zt-chart-l: 240px;
+
+    /* The widest a text cell beside a table's fill column grows before it cuts its words. */
+    --zt-cell-max: 160px;
+
+    --zt-bg: #0b1220;
+    --zt-card: #121c30;
+    --zt-card-sunk: #0f1830;
+    --zt-border: #23304a;
+    --zt-text: #e5e7eb;
+    --zt-text-strong: #ffffff;
+    --zt-muted: #9aa7bd;
+    --zt-track: #1c2a48;
+
+    --zt-allow: #34d399;
+    --zt-challenge: #fbbf24;
+    --zt-escalate: #a78bfa;
+    --zt-block: #f87171;
+    --zt-allow-bg: #0f2e24;
+    --zt-challenge-bg: #33270a;
+    --zt-escalate-bg: #241a3d;
+    --zt-block-bg: #3a1518;
+
+    --zt-good: #6ee7b7;
+    --zt-warn: #fcd34d;
+    --zt-bad: #fca5a5;
+    --zt-good-bg: #0f2e24;
+    --zt-warn-bg: #33270a;
+    --zt-bad-bg: #3a1518;
+
+    --zt-accent: #a5b4fc;
+    --zt-shadow-mode: #93c5fd;
+    --zt-shadow-mode-bg: #142a4a;
+}
+
+.zt-page {
+    background: var(--zt-bg);
+    color: var(--zt-text);
+    font-size: var(--zt-font-14);
+    line-height: var(--zt-line-body);
+    padding: var(--zt-page-padding);
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+@media (min-width: 1440px) {
+    .zt-page {
+        --zt-page-padding: var(--zt-space-6);
+    }
+}
+
+.zt-page *, .zt-page *::before, .zt-page *::after {
+    box-sizing: border-box;
+}
+
+.zt-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--zt-section-gap);
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    min-width: 0;
+}
+
+/* ----- the band above every screen (6.0) ----- */
+
+.zt-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: var(--zt-space-3);
+}
+
+.zt-header-eyebrow {
+    font-size: var(--zt-font-12);
+    color: var(--zt-muted);
+}
+
+.zt-header h1 {
+    margin: var(--zt-space-1) 0 0;
+    font-size: var(--zt-font-26);
+    line-height: var(--zt-line-number);
+    font-weight: 700;
+    color: var(--zt-text-strong);
+}
+
+.zt-header-question {
+    margin: var(--zt-space-2) 0 0;
+    font-size: var(--zt-font-14);
+    color: var(--zt-muted);
+}
+
+.zt-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--zt-space-2);
+    align-items: center;
+}
+
+.zt-period {
+    display: inline-flex;
+    border: 1px solid var(--zt-border);
+    border-radius: var(--zt-radius-chip);
+    overflow: hidden;
+}
+
+.zt-period button {
+    min-height: 40px;
+    padding: 0 var(--zt-space-3);
+    background: transparent;
+    color: var(--zt-text);
+    border: 0;
+    font: inherit;
+    font-size: var(--zt-font-13);
+    cursor: pointer;
+}
+
+.zt-period button[aria-pressed="true"] {
+    background: var(--zt-text);
+    color: var(--zt-bg);
+    font-weight: 700;
+}
+
+.zt-band {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--zt-space-2) var(--zt-space-4);
+    align-items: center;
+    font-size: var(--zt-font-13);
+    color: var(--zt-muted);
+}
+
+.zt-band > * {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.zt-band-note {
+    width: 100%;
+    font-size: var(--zt-font-12);
+    color: var(--zt-muted);
+}
+
+.zt-mode {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--zt-space-1);
+    padding: var(--zt-space-1) var(--zt-space-3);
+    border-radius: var(--zt-radius-chip);
+    font-size: var(--zt-font-13);
+    font-weight: 700;
+}
+
+.zt-mode[data-mode="ENFORCE"] { background: var(--zt-good-bg); color: var(--zt-good); }
+.zt-mode[data-mode="SHADOW"] { background: var(--zt-shadow-mode-bg); color: var(--zt-shadow-mode); }
+.zt-mode[data-mode="DISABLED"], .zt-mode[data-mode=""] { background: var(--zt-track); color: var(--zt-muted); }
+
+.zt-warning {
+    padding: var(--zt-space-2) var(--zt-space-3);
+    border-radius: var(--zt-radius-chip);
+    background: var(--zt-warn-bg);
+    color: var(--zt-warn);
+    font-size: var(--zt-font-13);
+}
+
+/* ----- the 12-column grid (1.2) ----- */
+
+.zt-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--zt-grid-gap);
+    align-items: stretch;
+}
+
+.zt-span-3 { grid-column: span 3; }
+.zt-span-4 { grid-column: span 4; }
+.zt-span-6 { grid-column: span 6; }
+.zt-span-8 { grid-column: span 8; }
+.zt-span-12 { grid-column: span 12; }
+
+@media (max-width: 1024px) {
+    .zt-span-3, .zt-span-4, .zt-span-6, .zt-span-8, .zt-span-12 {
+        grid-column: span 12;
+    }
+}
+
+/* ----- cards ----- */
+
+.zt-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--zt-card-title-gap);
+    min-width: 0;
+    background: var(--zt-card);
+    border: 1px solid var(--zt-border);
+    border-radius: var(--zt-radius-card);
+    padding: var(--zt-card-padding);
+}
+
+.zt-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--zt-space-2);
+    height: var(--zt-title-line);
+    min-width: 0;
+}
+
+.zt-card-head h2 {
+    margin: 0;
+    font-size: var(--zt-font-16);
+    line-height: var(--zt-title-line);
+    font-weight: 700;
+    color: var(--zt-text-strong);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.zt-card-head .zt-aside {
+    font-size: var(--zt-font-13);
+    line-height: var(--zt-title-line);
+    color: var(--zt-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.zt-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--zt-space-3);
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.zt-card-foot {
+    margin-top: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--zt-space-2);
+    align-items: center;
+    font-size: var(--zt-font-13);
+}
+
+.zt-verdict {
+    display: flex;
+    flex-direction: column;
+    gap: var(--zt-space-2);
+}
+
+.zt-verdict p {
+    margin: 0;
+    font-size: var(--zt-font-20);
+    line-height: var(--zt-line-body);
+    font-weight: 700;
+    color: var(--zt-text-strong);
+    overflow-wrap: anywhere;
+}
+
+/* ----- metrics: a name, a value and its definition (2.2) ----- */
+
+.zt-metric {
+    display: flex;
+    flex-direction: column;
+    gap: var(--zt-space-1);
+    min-width: 0;
+}
+
+.zt-metric-value {
+    font-size: var(--zt-font-26);
+    line-height: var(--zt-line-number);
+    font-weight: 700;
+    color: var(--zt-text-strong);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.zt-metric-value.zt-small {
+    font-size: var(--zt-font-20);
+}
+
+.zt-metric-label {
+    font-size: var(--zt-font-13);
+    color: var(--zt-text);
+}
+
+.zt-metric-definition, .zt-muted {
+    font-size: var(--zt-font-12);
+    color: var(--zt-muted);
+    overflow-wrap: anywhere;
+}
+
+.zt-metric-ratio {
+    font-size: var(--zt-font-12);
+    color: var(--zt-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.zt-none {
+    color: var(--zt-muted);
+}
+
+.zt-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--zt-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.zt-row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--zt-space-3);
+    font-size: var(--zt-font-13);
+    min-width: 0;
+}
+
+.zt-row > :first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.zt-row > :last-child {
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+/* ----- action chips: colour and words together (1.1) ----- */
+
+.zt-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--zt-space-2);
+    min-height: 24px;
+    border-radius: var(--zt-radius-chip);
+    font-size: var(--zt-font-12);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.zt-chip[data-action="ALLOW"] { background: var(--zt-allow-bg); color: var(--zt-allow); }
+.zt-chip[data-action="CHALLENGE"] { background: var(--zt-challenge-bg); color: var(--zt-challenge); }
+.zt-chip[data-action="ESCALATE"] { background: var(--zt-escalate-bg); color: var(--zt-escalate); }
+.zt-chip[data-action="BLOCK"] { background: var(--zt-block-bg); color: var(--zt-block); }
+.zt-chip[data-action="NO_DECISION"] { background: var(--zt-track); color: var(--zt-muted); }
+.zt-chip[data-status="MET"], .zt-chip[data-status="RECOMMENDED"] { background: var(--zt-good-bg); color: var(--zt-good); }
+.zt-chip[data-status="UNMET"], .zt-chip[data-status="CONDITIONS_UNMET"] { background: var(--zt-bad-bg); color: var(--zt-bad); }
+.zt-chip[data-status="INSUFFICIENT"], .zt-chip[data-status="DATA_INSUFFICIENT"] { background: var(--zt-warn-bg); color: var(--zt-warn); }
+.zt-chip[data-status="INFO"] { background: var(--zt-track); color: var(--zt-muted); }
+
+/* ----- tables: numbers right, words left (1.1) ----- */
+
+.zt-table-wrap {
+    overflow-x: auto;
+    min-width: 0;
+}
+
+.zt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--zt-font-13);
+}
+
+/* A cell never widens the table past its card (1.4 check 1): it shrinks and cuts its words, the full words in its title. */
+.zt-table th {
+    padding: var(--zt-space-2) var(--zt-space-3);
+    color: var(--zt-muted);
+    font-weight: 500;
+    text-align: left;
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.zt-table td {
+    padding: var(--zt-space-3);
+    border-top: 1px solid var(--zt-border);
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.zt-table td > a, .zt-table td > span:not(.zt-chip), .zt-table td > div {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The long form of a cell that has a short one is cut inside the cell as the cell's own words are. */
+.zt-table td .zt-long {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* A cell of several chips stacks them as its width allows, each chip whole or cut inside the cell. */
+.zt-table td.zt-cell-chips {
+    white-space: normal;
+}
+
+.zt-table td.zt-cell-chips .zt-chip {
+    margin: 0 var(--zt-space-1) var(--zt-space-1) 0;
+}
+
+.zt-table td .zt-chip {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    line-height: var(--zt-title-line);
+}
+
+.zt-table .zt-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.zt-table tr[data-selected="true"] td {
+    background: var(--zt-track);
+}
+
+/* ----- controls ----- */
+
+.zt-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 var(--zt-space-4);
+    border-radius: var(--zt-radius-chip);
+    border: 1px solid var(--zt-border);
+    background: var(--zt-track);
+    color: var(--zt-text-strong);
+    font: inherit;
+    font-size: var(--zt-font-13);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.zt-button.zt-primary {
+    background: var(--zt-text);
+    color: var(--zt-bg);
+    border-color: var(--zt-text);
+    font-weight: 700;
+}
+
+.zt-button[disabled] {
+    background: transparent;
+    color: var(--zt-muted);
+    cursor: default;
+}
+
+.zt-link {
+    color: var(--zt-accent);
+    font-size: var(--zt-font-13);
+    text-decoration: none;
+}
+
+.zt-input, .zt-select, .zt-textarea {
+    min-height: 40px;
+    padding: 0 var(--zt-space-3);
+    border: 1px solid var(--zt-border);
+    border-radius: var(--zt-radius-chip);
+    background: var(--zt-card-sunk);
+    color: var(--zt-text);
+    font: inherit;
+    font-size: var(--zt-font-13);
+    min-width: 0;
+}
+
+.zt-textarea {
+    padding: var(--zt-space-2) var(--zt-space-3);
+    min-height: 80px;
+    width: 100%;
+}
+
+.zt-filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--zt-space-4);
+}
+
+.zt-filters fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--zt-space-1);
+}
+
+.zt-filters legend {
+    font-size: var(--zt-font-12);
+    color: var(--zt-muted);
+    margin-bottom: var(--zt-space-1);
+}
+
+.zt-filters label {
+    display: flex;
+    gap: var(--zt-space-2);
+    align-items: center;
+    min-height: 28px;
+    font-size: var(--zt-font-13);
+}
+
+/* ----- charts (1.3): three box heights, legend top left ----- */
+
+.zt-chart {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.zt-chart-s { height: var(--zt-chart-s); }
+.zt-chart-m { height: var(--zt-chart-m); }
+.zt-chart-l { height: var(--zt-chart-l); }
+
+.zt-chart canvas, .zt-chart svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.zt-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--zt-space-1) var(--zt-space-3);
+    font-size: var(--zt-font-12);
+    color: var(--zt-muted);
+}
+
+.zt-legend span::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: var(--zt-space-1);
+    border-radius: 2px;
+    background: var(--zt-legend-color, var(--zt-muted));
+}
+
+.zt-empty {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--zt-space-1);
+    min-height: var(--zt-chart-s);
+    color: var(--zt-muted);
+    font-size: var(--zt-font-13);
+}
+
+.zt-empty strong {
+    font-size: var(--zt-font-20);
+    color: var(--zt-muted);
+}
+
+/* ----- custom visualisations (1.3) ----- */
+
+.zt-bar {
+    position: relative;
+    height: 12px;
+    background: var(--zt-track);
+    border-radius: var(--zt-radius-chip);
+    overflow: hidden;
+}
+
+.zt-bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    border-radius: var(--zt-radius-chip);
+}
+
+.zt-bar-mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--zt-text);
+}
+
+.zt-stacked {
+    display: flex;
+    height: 12px;
+    border-radius: var(--zt-radius-chip);
+    overflow: hidden;
+    background: var(--zt-track);
+}
+
+.zt-stacked > span {
+    display: block;
+    height: 100%;
+    min-width: 0;
+}
+
+.zt-criteria {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) minmax(0, 2fr) minmax(0, 2fr);
+    gap: var(--zt-space-3) var(--zt-space-4);
+    align-items: center;
+    font-size: var(--zt-font-13);
+}
+
+.zt-criteria > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.zt-criteria .zt-num {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.zt-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--zt-space-3);
+}
+
+.zt-tile {
+    padding: var(--zt-space-3);
+    border-radius: var(--zt-radius-chip);
+    background: var(--zt-card-sunk);
+    min-width: 0;
+}
+
+.zt-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--zt-space-2);
+}
+
+.zt-tabs button {
+    min-height: 40px;
+    padding: 0 var(--zt-space-4);
+    border-radius: var(--zt-radius-chip);
+    border: 1px solid var(--zt-border);
+    background: var(--zt-card);
+    color: var(--zt-text);
+    font: inherit;
+    font-size: var(--zt-font-14);
+    cursor: pointer;
+}
+
+.zt-tabs button[aria-selected="true"] {
+    background: var(--zt-text);
+    color: var(--zt-bg);
+    font-weight: 700;
+}
+
+/* A warning: its chip in one column, its sentence and rule in the other, so the two never cover each other. */
+.zt-alert {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--zt-space-2);
+    align-items: start;
+    padding: var(--zt-space-2) var(--zt-space-3);
+    border-radius: var(--zt-radius-chip);
+    background: var(--zt-card-sunk);
+    font-size: var(--zt-font-13);
+}
+
+.zt-fact {
+    padding: var(--zt-space-2) var(--zt-space-3);
+    border-radius: var(--zt-radius-chip);
+    background: var(--zt-card-sunk);
+    font-size: var(--zt-font-13);
+    overflow-wrap: anywhere;
+}
+
+.zt-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+    .zt-criteria {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .zt-split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/*
+ * Zero Trust console: what the overview, the threats and business impact and the trust screens add to
+ * zero-trust-console.css (console plan 1.1 to 1.3). Only the :root tokens are used.
+ */
+
+
+/* The one text column of a table that takes the room the numbers leave, its text cut with an ellipsis. */
+.zt-table td.zt-fill {
+    width: 100%;
+    max-width: 0;
+}
+
+/* Beside that column the others keep their whole content: a number or a column head is never cut (1.4 check 8). */
+.zt-table:has(td.zt-fill) th,
+.zt-table:has(td.zt-fill) td:not(.zt-fill) {
+    width: 1%;
+    max-width: none;
+}
+
+/* A text cell there grows to --zt-cell-max and then cuts its words, the whole words in its title. */
+.zt-table:has(td.zt-fill) td:not(.zt-fill):not(.zt-num) {
+    max-width: var(--zt-cell-max);
+}
+
+@media (max-width: 480px) {
+    /* A phone shows a table's name and its main numbers; the other columns stay in the wider layouts. */
+    .zt-table .zt-wide, .zt-table td .zt-chip.zt-wide {
+        display: none;
+    }
+
+    /* A phone leaves its fill column more room: a text cell beside it cuts its words sooner. */
+    .zt-table {
+        --zt-cell-max: 104px;
+    }
+
+    /* A heat map's cells keep their numbers inside the card on a phone: a smaller size and the short heads. */
+    .zt-heat .zt-table th, .zt-heat .zt-table td {
+        padding: var(--zt-space-1);
+        font-size: var(--zt-font-12);
+    }
+
+    /* Its coloured cells carry their number centred, edge to edge. */
+    .zt-heat .zt-table td {
+        padding-left: 0;
+        padding-right: 0;
+        text-align: center;
+    }
+
+    /* A cell with a short form (a heat map's head, a decision's time and user) shows it on a phone. */
+    .zt-table .zt-long, .zt-table td .zt-long {
+        display: none;
+    }
+
+    .zt-table th .zt-short {
+        display: inline;
+    }
+
+    .zt-table td .zt-short {
+        display: block;
+    }
+}
+
+.zt-table .zt-short {
+    display: none;
+}
+
+/* A line of a short form, cut on its own. */
+.zt-table .zt-short .zt-line {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/*
+ * Zero Trust console, screens B (decision records, decision detail, adoption, operations): the few rules the shared
+ * stylesheet lacks. Tokens of zero-trust-console.css only.
+ */
+
+/* A block of lines that belong together (a fact, an outcome, one explanation): name, value, note. */
+.zt-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--zt-space-1);
+    min-width: 0;
+}
+
+/* The state of a component the decision passes through (6.6): colour with its symbol and word. */
+.zt-chip[data-status="GOOD"] { background: var(--zt-good-bg); color: var(--zt-good); }
+.zt-chip[data-status="WARN"] { background: var(--zt-warn-bg); color: var(--zt-warn); }
+.zt-chip[data-status="BAD"] { background: var(--zt-bad-bg); color: var(--zt-bad); }
+.zt-chip[data-status="UNKNOWN"] { background: var(--zt-track); color: var(--zt-muted); }
+
+/* A chip whose words come from the data (a bundle, a cause): cut with an ellipsis inside its line, full text in its title. */
+.zt-chip.zt-fit {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: var(--zt-title-line);
+}
+
+/* A list row that selects its decision for the preview (6.4). */
+.zt-table tbody tr[data-selectable] {
+    cursor: pointer;
+}
+
+.zt-table tbody tr[data-selectable]:hover td {
+    background: var(--zt-card-sunk);
+}
+
+/* The glossary every screen opens from its toolbar (design principle 6): over the content, inside the page. */
+.zt-glossary {
+    position: relative;
+}
+
+.zt-glossary summary {
+    list-style: none;
+}
+
+.zt-glossary summary::-webkit-details-marker {
+    display: none;
+}
+
+.zt-glossary-list {
+    position: absolute;
+    right: 0;
+    z-index: 10;
+    width: min(480px, calc(100vw - 2 * var(--zt-page-padding)));
+    max-height: 480px;
+    overflow-y: auto;
+    margin: var(--zt-space-2) 0 0;
+    padding: var(--zt-card-padding);
+    background: var(--zt-card);
+    border: 1px solid var(--zt-border);
+    border-radius: var(--zt-radius-card);
+    font-size: var(--zt-font-13);
+}
+
+.zt-glossary-list dt {
+    font-weight: 700;
+    color: var(--zt-text-strong);
+}
+
+.zt-glossary-list dd {
+    margin: var(--zt-space-1) 0 var(--zt-space-3);
+    color: var(--zt-muted);
+    overflow-wrap: anywhere;
+}

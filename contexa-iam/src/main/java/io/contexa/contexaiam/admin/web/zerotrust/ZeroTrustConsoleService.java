@@ -330,9 +330,11 @@ public class ZeroTrustConsoleService {
         }
         List<ItemRow> unknown = reader.top(range, tenant, null, "UNKNOWN_FACT", List.of("NOT_INTEGRATED"), 1);
         if (!unknown.isEmpty() && unknown.get(0).counted() > 0) {
+            String fact = unknown.get(0).item();
+            String factName = metrics.message("zt.console.fact." + fact, fact);
             alerts.add(new Alert("notIntegrated", "INFO",
                     metrics.message("zt.console.alert.notIntegrated", "The fact the model most often lacked: "
-                            + unknown.get(0).item(), unknown.get(0).item(), unknown.get(0).counted()),
+                            + factName, factName, unknown.get(0).counted()),
                     "/contexa/admin/zero-trust/trust"));
         }
         return alerts;
