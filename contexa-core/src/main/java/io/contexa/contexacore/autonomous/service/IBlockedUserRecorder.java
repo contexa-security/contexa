@@ -38,6 +38,22 @@ public interface IBlockedUserRecorder {
         recordBlock(requestId, userId, username, action, reasoning, sourceIp, userAgent);
     }
 
+    /**
+     * Records a block with the decision's audit risk score and confidence (G27, console design 7.7): the scores decide
+     * nothing and are kept for the audit and the block list. A recorder that keeps no scores records the block as
+     * {@link #recordBlock(String, String, String, String, String, String, String, String)} does.
+     */
+    default void recordBlock(String requestId, String userId, String username,
+                             String action, String reasoning,
+                             String sourceIp, String userAgent, String tenantId,
+                             Double riskScore, Double confidence) {
+        if (tenantId != null && !tenantId.isBlank()) {
+            recordBlock(requestId, userId, username, action, reasoning, sourceIp, userAgent, tenantId);
+        } else {
+            recordBlock(requestId, userId, username, action, reasoning, sourceIp, userAgent);
+        }
+    }
+
     void resolveBlock(String userId, String adminId, String resolvedAction, String reason);
 
     /**

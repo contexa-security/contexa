@@ -69,6 +69,8 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
      * the model again while that CHALLENGE lasts.
      */
     public static final String JUDGE_AGAIN = "judgeAgainAfterTechnicalChallenge";
+    /** Console design 7.1: the id of the decision row written for this attempt, from the write to the enforcement. */
+    static final String CONSOLE_OBSERVATION_ID = "consoleObservationId";
     private static final String DECISION_AUDIT_PENDING = "decisionAuditPending";
     private static final String DECISION_AUDIT_PENDING_AT = "decisionAuditPendingAt";
     private static final Duration DEFAULT_AUDIT_FAILURE_COOLDOWN = Duration.ofSeconds(30);
@@ -240,7 +242,12 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         Enforcement enforcement;
         try {
+            // A retry carries the metadata of the attempt before it; its decision row is not this attempt's.
+            if (event.getMetadata() != null) {
+                event.getMetadata().remove(CONSOLE_OBSERVATION_ID);
+            }
             enforcement = enforceDecision(decisionKey(event, userId), event, result, sideEffectsEnabled);
+            recordConsoleEnforcement(event, enforcement);
             // docs/agent A5-5: what the enforcement did, for the decision record written after it.
             event.addMetadata(AgentDecisionRecord.ENFORCEMENT_OUTCOME, switch (enforcement) {
                 case APPLIED -> AgentDecisionRecord.APPLIED;
@@ -400,6 +407,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         event.addMetadata("runtimeEnforcementMode", sideEffectsEnabled ? "ENFORCE" : "SHADOW");
         String observationId = recordAiSecurityDecisionObservation(event, result, ztAction);
+        if (observationId != null && !observationId.isBlank()) {
+            event.addMetadata(CONSOLE_OBSERVATION_ID, observationId);
+        }
 
         if (!sideEffectsEnabled) {
             additionalFields.put("shadowMode", true);
@@ -753,15 +763,13 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
         if (blockedUserRecorder != null && (subject == null || subject.agentId() == null)) {
             try {
-                // A3-3 (R-01): the block keeps the request's tenant for the release's learning.
+                // A3-3 (R-01): the block keeps the request's tenant for the release's learning; G27: and the
+                // decision's audit scores for the block list.
                 Object tenant = event.getMetadata() != null ? event.getMetadata().get("tenantId") : null;
-                if (tenant != null && !tenant.toString().isBlank()) {
-                    blockedUserRecorder.recordBlock(requestId, userId, event.getUserName(), result.getAction(),
-                            reasoning, event.getSourceIp(), event.getUserAgent(), tenant.toString().trim());
-                } else {
-                    blockedUserRecorder.recordBlock(requestId, userId, event.getUserName(), result.getAction(),
-                            reasoning, event.getSourceIp(), event.getUserAgent());
-                }
+                String tenantId = tenant != null && !tenant.toString().isBlank() ? tenant.toString().trim() : null;
+                blockedUserRecorder.recordBlock(requestId, userId, event.getUserName(), result.getAction(),
+                        reasoning, event.getSourceIp(), event.getUserAgent(), tenantId,
+                        AuditingHandler.auditRiskScore(result), AuditingHandler.auditConfidence(result));
             } catch (Exception ex) {
                 log.error("[SecurityDecisionEnforcementHandler] Failed to record block to DB: userId={}", userId, ex);
             }
@@ -926,6 +934,27 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             return "ACCOUNT_DELETED";
         }
         return "NONE";
+    }
+
+    /**
+     * Console design 7.1: what the store did with the decision goes to its row once it is known (the row is written
+     * before the store). The row's id travels on the event only from the write to here.
+     */
+    private void recordConsoleEnforcement(SecurityEvent event, Enforcement enforcement) {
+        Object observationId = event.getMetadata() != null ? event.getMetadata().remove(CONSOLE_OBSERVATION_ID) : null;
+        if (observationId == null || enforcement == null) {
+            return;
+        }
+        try {
+            AiSecurityDecisionObservationWriter writer = aiSecurityDecisionObservationWriterSupplier.get();
+            if (writer != null) {
+                writer.recordEnforcement(observationId.toString(),
+                        enforcement == Enforcement.NOT_OWNER ? "DISCARDED" : enforcement.name());
+            }
+        } catch (Exception ex) {
+            log.error("[SecurityDecisionEnforcementHandler] Failed to record the enforcement of observation {}",
+                    observationId, ex);
+        }
     }
 
     private String recordAiSecurityDecisionObservation(

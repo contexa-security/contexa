@@ -193,6 +193,8 @@ import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 import io.contexa.contexacore.autonomous.agent.AgentDecisionFlights;
 import io.contexa.contexacore.autonomous.service.QueuedAgentEventRecheck;
 import io.contexa.contexacore.autonomous.service.SessionRecordingLine;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 
 @AutoConfiguration
 @AutoConfigureAfter(name = {
@@ -605,8 +607,9 @@ public class CoreAutonomousAutoConfiguration {
             CentralAuditFacade contexaCentralAuditFacade,
             @Nullable DecisionFeedbackForwardingService decisionFeedbackForwardingService,
             @Nullable ThreatOutcomeForwardingService threatOutcomeForwardingService,
-            BlockingSignalBroadcaster blockingSignalBroadcaster) {
-        return new AdminOverrideService(
+            BlockingSignalBroadcaster blockingSignalBroadcaster,
+            ObjectProvider<ZeroTrustDecisionOutcomes> decisionOutcomes) {
+        AdminOverrideService service = new AdminOverrideService(
                 contexaSecurityLearningService,
                 actionRedisRepository,
                 lockService,
@@ -615,6 +618,9 @@ public class CoreAutonomousAutoConfiguration {
                 threatOutcomeForwardingService,
                 blockingSignalBroadcaster
                 );
+        // Console design 7.3: a release or a kept block is recorded as the block decision's outcome.
+        service.setDecisionOutcomes(decisionOutcomes.getIfAvailable());
+        return service;
     }
 
     @Bean(name = "contexaCentralAuditFacade")
@@ -664,8 +670,11 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityMonitoringService securityMonitoringService(
             SecurityEventCollector eventCollector,
-            SecurityPlaneProperties securityPlaneProperties) {
-        return new SecurityMonitoringService(eventCollector, securityPlaneProperties);
+            SecurityPlaneProperties securityPlaneProperties,
+            ObjectProvider<ZeroTrustCoverageCounter> coverageCounter) {
+        SecurityMonitoringService service = new SecurityMonitoringService(eventCollector, securityPlaneProperties);
+        service.setCoverageCounter(coverageCounter.getIfAvailable());
+        return service;
     }
 
     @Bean(name = "contexaVectorStoreCacheLayer")
@@ -830,11 +839,13 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<SecurityDecisionEnforcementHandler> decisionEnforcementHandlerProvider,
             ObjectProvider<QueuedAgentEventRecheck> queuedAgentEventRecheckProvider,
             ObjectProvider<ModelServerGates> modelServerGatesProvider,
-            ObjectProvider<ShadowDecisionMemory> shadowMemory
+            ObjectProvider<ShadowDecisionMemory> shadowMemory,
+            ObjectProvider<ZeroTrustCoverageCounter> coverageCounter
     ) {
         SecurityPlaneAgent agent = new SecurityPlaneAgent(
                 securityMonitor, dataStore, contexaCentralAuditFacade,
                 processingOrchestrator, securityPlaneProperties, llmAnalysisExecutor);
+        agent.setCoverageCounter(coverageCounter.getIfAvailable());
         // docs/agent RL-12 (QD), PR-82: a queued event is read against the stored decisions again at its turn.
         agent.setQueuedEventRecheck(new SecurityPlaneAgent.QueuedEventRecheck() {
             @Override
@@ -998,7 +1009,8 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<AgentAllowReuse> agentAllowReuse,
             ObjectProvider<AgentDecisionFlights> agentDecisionFlights,
             ObjectProvider<NewContextDecisionLimit> newContextDecisionLimit,
-            ObjectProvider<ShadowDecisionMemory> shadowMemory) {
+            ObjectProvider<ShadowDecisionMemory> shadowMemory,
+            ObjectProvider<ZeroTrustCoverageCounter> coverageCounter) {
         SynchronousProtectableDecisionService service = new SynchronousProtectableDecisionService(
                 contexaZeroTrustEventPublisher,
                 contexaZeroTrustEventListener,
@@ -1018,6 +1030,7 @@ public class CoreAutonomousAutoConfiguration {
         // A call from a changed context past the person's decisions of a new context is refused for itself alone; the
         // limit is the one the sign-ins take from.
         service.setNewContextDecisionLimit(newContextDecisionLimit.getIfAvailable());
+        service.setCoverageCounter(coverageCounter.getIfAvailable());
         return service;
     }
     /**

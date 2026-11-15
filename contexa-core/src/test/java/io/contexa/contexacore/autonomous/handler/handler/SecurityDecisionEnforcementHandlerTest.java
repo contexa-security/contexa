@@ -178,6 +178,7 @@ class SecurityDecisionEnforcementHandlerTest {
         // The agent is no blocked person: its suspension is the agent's (A5-3), not the people's block list.
         verify(blockedUserRecorder, never()).recordBlock(any(), any(), any(), any(), any(), any(), any());
         verify(blockedUserRecorder, never()).recordBlock(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(blockedUserRecorder, never()).recordBlock(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -318,7 +319,7 @@ class SecurityDecisionEnforcementHandlerTest {
         verify(actionRepository).writeFinalAction(eq(own), eq(ZeroTrustAction.BLOCK), anyMap());
         verify(actionRepository).setBlockedFlag(own);
         verify(blockingSignalBroadcaster).registerBlockAndAwait(own);
-        verify(blockedUserRecorder).recordBlock(any(), eq(own), any(), any(), any(), any(), any());
+        verify(blockedUserRecorder).recordBlock(any(), eq(own), any(), any(), any(), any(), any(), any(), any(), any());
         verify(actionRepository, never()).setBlockedFlag("console::rcboss");
     }
 
@@ -341,7 +342,7 @@ class SecurityDecisionEnforcementHandlerTest {
 
         verify(containment, never()).onBlock(any(SecurityEvent.class), any());
         assertThat(event.getMetadata()).doesNotContainKey(AgentContainmentService.CONTAINMENT);
-        verify(blockedUserRecorder).recordBlock(any(), eq("alice"), any(), any(), any(), any(), any());
+        verify(blockedUserRecorder).recordBlock(any(), eq("alice"), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

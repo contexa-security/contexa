@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.event.publisher;
 
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.awaitility.Awaitility;
@@ -111,6 +112,8 @@ class KafkaSecurityEventPublisherHandOffTest {
     void aFullQueueNeitherHoldsNorFailsTheCaller() {
         sendsHoldTheirThreadUntilReleased();
         publisher = new KafkaSecurityEventPublisher(template, properties);
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        publisher.setCoverageCounter(coverage);
 
         Duration took = timed(() -> {
             for (int call = 0; call < KafkaSecurityEventPublisher.QUEUE_CAPACITY + 10; call++) {
@@ -119,8 +122,10 @@ class KafkaSecurityEventPublisherHandOffTest {
         });
 
         assertThat(took).isLessThan(Duration.ofSeconds(2));
-        assertThat((long) publisher.getStatistics().get("publish_failed_count")).as("those the queue had no room for")
-                .isGreaterThanOrEqualTo(9L);
+        long failed = (long) publisher.getStatistics().get("publish_failed_count");
+        assertThat(failed).as("those the queue had no room for").isGreaterThanOrEqualTo(9L);
+        // Console design 7.5: each protected call whose event never left the node is a skip.
+        assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.PUBLISH_QUEUE_FULL)).isEqualTo(failed);
     }
 
     @Test

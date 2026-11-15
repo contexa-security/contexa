@@ -24,6 +24,7 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -107,9 +108,13 @@ public class IamAdminPasswordPolicyAutoConfiguration {
             SystemRuntimeSettingsService contexaSystemRuntimeSettingsService,
             ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider,
             ObjectProvider<PolicyCombiningProperties> policyCombiningPropertiesProvider,
-            ObjectProvider<CustomDynamicAuthorizationManager> authorizationManagerProvider) {
-        return new SystemSettingsRuntimeApplier(contexaSystemRuntimeSettingsService, zeroTrustPropertiesProvider,
-                policyCombiningPropertiesProvider, authorizationManagerProvider);
+            ObjectProvider<CustomDynamicAuthorizationManager> authorizationManagerProvider,
+            ObjectProvider<CentralAuditFacade> centralAuditFacadeProvider) {
+        SystemSettingsRuntimeApplier applier = new SystemSettingsRuntimeApplier(contexaSystemRuntimeSettingsService,
+                zeroTrustPropertiesProvider, policyCombiningPropertiesProvider, authorizationManagerProvider);
+        // Console design 7.6: an operator's mode change is audited.
+        applier.setCentralAuditFacade(centralAuditFacadeProvider.getIfAvailable());
+        return applier;
     }
 
     @Bean(name = "contexaSystemSettingsService")

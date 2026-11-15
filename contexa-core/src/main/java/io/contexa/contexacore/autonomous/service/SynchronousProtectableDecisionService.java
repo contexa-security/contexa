@@ -40,6 +40,7 @@ import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 import io.contexa.contexacore.autonomous.agent.AgentDecisionFlights;
 import io.contexa.contexacore.autonomous.context.support.ResourceImportanceResolver;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
@@ -97,6 +98,7 @@ public class SynchronousProtectableDecisionService {
     private final SecurityPlaneAgent securityPlaneAgent;
     private final ZeroTrustActionRepository actionRepository;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
+    private ZeroTrustCoverageCounter coverageCounter;
     private AgentAllowReuse agentAllowReuse;
     private AgentDecisionFlights agentDecisionFlights;
     private SecurityZeroTrustProperties.UnrecordedAgentRequest unrecordedAgentRequest =
@@ -128,6 +130,18 @@ public class SynchronousProtectableDecisionService {
 
     public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
         this.unanalysedRequestRecorder = unanalysedRequestRecorder;
+    }
+
+    /** Console design 7.5: counts the calls settled here without an analysis of their own; null counts none. */
+    public void setCoverageCounter(ZeroTrustCoverageCounter coverageCounter) {
+        this.coverageCounter = coverageCounter;
+    }
+
+    private void settled(String outcome) {
+        ZeroTrustCoverageCounter counter = coverageCounter;
+        if (counter != null) {
+            counter.settled(outcome);
+        }
     }
 
     /**
@@ -210,6 +224,10 @@ public class SynchronousProtectableDecisionService {
         // The restriction in force answers the request without analysis; its session still keeps it (N-SES-1).
         SyncDecisionResult result = currentResult(event, userId, contextBindingHash, null);
         recordUnanalysed(event, result.action());
+        // Only a restriction in force answers a synchronous request; without one it was the decision of the same
+        // context waiting for its audit record that held the analysis back.
+        settled(result.action() != null && result.action().isAccessRestricted()
+                ? ZeroTrustCoverageCounter.REUSED_OUTCOME : ZeroTrustCoverageCounter.DECISION_AUDIT_PENDING);
         return result;
     }
 
@@ -297,6 +315,8 @@ public class SynchronousProtectableDecisionService {
             throw new DecisionNotInTimeException();
         } catch (ExecutionException failed) {
             if (failed.getCause() instanceof RejectedExecutionException) {
+                // No room for the analysis: it never ran, so no decision row tells of this request.
+                settled(ZeroTrustCoverageCounter.SYNC_ANALYSIS_REJECTED);
                 throw new DecisionNotInTimeException();
             }
             if (failed.getCause() instanceof RuntimeException failure) {
@@ -379,6 +399,7 @@ public class SynchronousProtectableDecisionService {
                 }
                 throw new IllegalStateException("The decision this request waited for failed", result.failure());
             case BUSY:
+                settled(ZeroTrustCoverageCounter.ANALYSIS_BUSY);
                 throw ZeroTrustAccessDeniedException.analysisBusy(event.getResource(),
                         (int) Math.max(1, agentDecisionFlights.settings().maxWait().toSeconds()));
             case COVERED:
@@ -388,6 +409,7 @@ public class SynchronousProtectableDecisionService {
                 SyncDecisionResult answered = currentResult(event, userId, contextBindingHash, null);
                 if (!result.analysed()) {
                     recordUnanalysed(event, answered.action());
+                    settled(ZeroTrustCoverageCounter.REUSED_OUTCOME);
                 }
                 return answered;
         }
@@ -500,7 +522,7 @@ public class SynchronousProtectableDecisionService {
         if (action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.CHALLENGE
                 || action == ZeroTrustAction.ESCALATE) {
             recordUnanalysed(event, action);
-            return AsyncProtectableGate.restricted(action);
+            return AsyncProtectableGate.answered(action);
         }
         // docs/agent A7-3 (CF-25): a request its accountable person confirmed is read as allowed for that request
         // (AgentRequestConfirmation), so it is not decided again in place; the analysis after it still runs.
@@ -518,7 +540,7 @@ public class SynchronousProtectableDecisionService {
                 }
                 if (pass == AgentDecisionFlights.Pass.FOLLOW) {
                     recordPassed(event);
-                    return AsyncProtectableGate.PASS_AND_RECORD;
+                    return AsyncProtectableGate.PASS_WITH_LEADING_REQUEST;
                 }
             }
             return AsyncProtectableGate.DECIDE_IN_PLACE;
@@ -585,6 +607,9 @@ public class SynchronousProtectableDecisionService {
         if (contextsAskedAbout.putIfAbsent(question, Boolean.TRUE)) {
             zeroTrustEventPublisher.publishMethodAuthorization(methodInvocation, authentication, true, null,
                     ZeroTrustEventPublisher.METHOD_NOT_RUN, null);
+        } else {
+            // The first call of the context asked for its analysis; this one waits for that verdict.
+            settled(ZeroTrustCoverageCounter.CONTEXT_CHANGE_WAITS);
         }
         return ZeroTrustAccessDeniedException.analysisBusy(event.getResource(), CHANGED_CONTEXT_RETRY_AFTER_SECONDS);
     }
@@ -733,13 +758,14 @@ public class SynchronousProtectableDecisionService {
         ZeroTrustAction inForce = currentAction(event, event.getUserId(), gateContext);
         if (inForce != null && inForce.isAccessRestricted()) {
             recordUnanalysed(event, inForce);
-            return AsyncProtectableGate.restricted(inForce);
+            return AsyncProtectableGate.answered(inForce);
         }
         if (contexaStores.anyDown()) {
             throw ZeroTrustAccessDeniedException.analysisBusy(event.getResource(), STORE_RETRY_AFTER_SECONDS);
         }
         recordUnanalysed(event, ZeroTrustAction.CHALLENGE);
-        return AsyncProtectableGate.restricted(ZeroTrustAction.CHALLENGE);
+        return AsyncProtectableGate.restrictedWithoutAnalysis(ZeroTrustAction.CHALLENGE,
+                ZeroTrustCoverageCounter.NEW_CONTEXT_LIMIT);
     }
 
     /** The answer of a request whose analysis ran or was not asked for: nothing is published after the method. */
@@ -1011,10 +1037,12 @@ public class SynchronousProtectableDecisionService {
 
     /**
      * The restriction in force, or whether the request is decided in place, or whether it passes before its verdict
-     * (RL-12) and whether its event is then analysed; none of these means it proceeds.
+     * (RL-12) and whether its event is then analysed; none of these means it proceeds. The coverage says how the call is
+     * settled without an analysis of its own when the gate's answer settles it (console design 7.5, see
+     * {@link ZeroTrustCoverageCounter#settled}); it is null when the call's own analysis decides it.
      */
     public record AsyncProtectableGate(ZeroTrustAction restriction, boolean decideInPlace, boolean passed,
-                                       boolean publishesEvent) {
+                                       boolean publishesEvent, String coverage) {
 
         public static final AsyncProtectableGate PROCEED = new AsyncProtectableGate(null, false, false, true);
         public static final AsyncProtectableGate DECIDE_IN_PLACE = new AsyncProtectableGate(null, true, false, false);
@@ -1022,9 +1050,28 @@ public class SynchronousProtectableDecisionService {
         public static final AsyncProtectableGate PASS_AND_ANALYSE = new AsyncProtectableGate(null, false, true, true);
         /** It passes and is only recorded: a verdict is in, or already pending. */
         public static final AsyncProtectableGate PASS_AND_RECORD = new AsyncProtectableGate(null, false, true, false);
+        /** It passes and is only recorded: the first request of its kind is being decided, and that decision answers it. */
+        static final AsyncProtectableGate PASS_WITH_LEADING_REQUEST = new AsyncProtectableGate(null, false, true, false,
+                ZeroTrustCoverageCounter.PASSED_WITH_LEADING_REQUEST);
 
+        public AsyncProtectableGate(ZeroTrustAction restriction, boolean decideInPlace, boolean passed,
+                                    boolean publishesEvent) {
+            this(restriction, decideInPlace, passed, publishesEvent, null);
+        }
+
+        /** A restriction the call's own analysis gave. */
         public static AsyncProtectableGate restricted(ZeroTrustAction restriction) {
             return new AsyncProtectableGate(restriction, false, false, false);
+        }
+
+        /** A restriction in force that answers the call without a new analysis. */
+        static AsyncProtectableGate answered(ZeroTrustAction restriction) {
+            return new AsyncProtectableGate(restriction, false, false, false, ZeroTrustCoverageCounter.REUSED_OUTCOME);
+        }
+
+        /** A restriction of the call alone, set without asking the model; the reason says why. */
+        static AsyncProtectableGate restrictedWithoutAnalysis(ZeroTrustAction restriction, String reason) {
+            return new AsyncProtectableGate(restriction, false, false, false, reason);
         }
     }
 

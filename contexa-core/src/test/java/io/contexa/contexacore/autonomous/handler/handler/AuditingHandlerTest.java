@@ -82,4 +82,29 @@ class AuditingHandlerTest {
         assertThat(row.getEnforcementAction()).isEqualTo("BLOCK");
         assertThat(row.getRequestContextHash()).isEqualTo(AgentDecisionRecord.requestContextHash(event));
     }
+
+    /** G26 (console design 7.7): without a decision score the record keeps the model's audit score and confidence. */
+    @Test
+    void theRecordKeepsTheModelsAuditScoreWhenTheDecisionHasNone() {
+        CentralAuditFacade facade = mock(CentralAuditFacade.class);
+        SecurityEvent event = SecurityEvent.builder().userId("alice").build();
+        SecurityEventContext context = SecurityEventContext.builder().securityEvent(event).build();
+        context.getProcessingMetrics().setResponseTimeMs(10L);
+        context.addMetadata("processingResult", ProcessingResult.builder()
+                .success(true)
+                .action("CHALLENGE")
+                .llmAuditRiskScore(0.8)
+                .llmAuditConfidence(0.7)
+                .build());
+
+        new AuditingHandler(facade).handle(context);
+
+        ArgumentCaptor<AuditRecord> captor = ArgumentCaptor.forClass(AuditRecord.class);
+        verify(facade).recordSync(captor.capture());
+        assertThat(captor.getValue().getRiskScore()).isEqualTo(0.8);
+        assertThat(captor.getValue().getDetails()).containsEntry("riskScore", 0.8).containsEntry("confidence", 0.7)
+                .containsEntry("llmAuditRiskScore", 0.8);
+        assertThat(AuditingHandler.auditRiskScore(ProcessingResult.builder().riskScore(0.97).llmAuditRiskScore(0.1)
+                .build())).as("the decision's own score comes first").isEqualTo(0.97);
+    }
 }

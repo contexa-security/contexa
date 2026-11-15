@@ -41,6 +41,7 @@ import io.contexa.contexaidentity.security.zerotrust.HostOwnedSignInFailureListe
 import io.contexa.contexaidentity.security.zerotrust.HostOwnedSignInListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.event.support.HostSignInEvents;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexaidentity.security.zerotrust.stepup.HostOwnedStepUpController;
 import io.contexa.contexaidentity.security.zerotrust.stepup.HostOwnedStepUpService;
 import io.contexa.contexaidentity.security.zerotrust.stepup.StepUpOptionsStore;
@@ -96,11 +97,14 @@ public class HostOwnedStepUpAutoConfiguration {
             ObjectProvider<PublicKeyCredentialUserEntityRepository> userEntities,
             ObjectProvider<UserCredentialRepository> userCredentials,
             ObjectProvider<PasskeyCreationOptionsCodec> passkeyCreationOptionsCodec,
-            ObjectProvider<BridgeUserMirrorSyncService> userMirror) {
+            ObjectProvider<BridgeUserMirrorSyncService> userMirror,
+            ObjectProvider<ZeroTrustDecisionOutcomes> decisionOutcomes) {
         ChallengeResolution resolution = new ChallengeResolution(actionRepository,
                 securityLearningService.getIfAvailable(), verificationLearningService::getIfAvailable,
                 securityContextDataStore::getIfAvailable, blockingSignalBroadcaster.getIfAvailable(),
                 blockedUserRecorder.getIfAvailable(), blockMfaStateStore.getIfAvailable());
+        // Console design 7.3: a passed challenge is recorded as the decision's outcome.
+        resolution.setDecisionOutcomes(decisionOutcomes.getIfAvailable());
 
         // Spring Security's one-time token engine over Contexa's ctxa_one_time_tokens; the service keys it short.
         JdbcTemplate jdbcTemplate = contexaJdbcTemplate.getIfAvailable();

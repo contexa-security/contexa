@@ -28,7 +28,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -197,6 +201,8 @@ public class AiSecurityDecisionObservationWriter {
         String eventProcessingIdentity = firstText(metadata, "eventProcessingIdentity");
         String idempotencyKey = successfulFinal ? eventProcessingIdentity : null;
         String processingGeneration = firstText(metadata, "eventProcessingOwnerToken");
+        // Console design 7.1: the columns the Zero Trust console reads, from what the engine already kept.
+        DecisionConsoleColumns.Values console = DecisionConsoleColumns.of(metadata, result, finalAction, Instant.now());
 
         long persistStart = System.currentTimeMillis();
         try {
@@ -210,59 +216,7 @@ public class AiSecurityDecisionObservationWriter {
                            AND success = FALSE
                         """, idempotencyKey);
             }
-            jdbcOperations.update("""
-                    INSERT INTO ctxa_ai_security_decision_observation (
-                        observation_id,
-                        tenant_id,
-                        idempotency_key,
-                        processing_generation,
-                        event_id,
-                        request_id,
-                        correlation_id,
-                        test_run_id,
-                        user_id,
-                        session_id,
-                        context_binding_hash,
-                        actor_session_key,
-                        window_id,
-                        trigger_source,
-                        trigger_relation,
-                        decision_boundary_mode,
-                        http_method,
-                        request_path,
-                        resource_id,
-                        model_provider,
-                        model_id,
-                        prompt_template_key,
-                        final_action,
-                        proposed_action,
-                        llm_risk_score,
-                        llm_confidence,
-                        llm_latency_ms,
-                        queue_wait_ms,
-                        prompt_build_ms,
-                        rag_vector_ms,
-                        openai_call_ms,
-                        parse_ms,
-                        persist_ms,
-                        total_analysis_ms,
-                        llm_decision_present,
-                        parser_failure,
-                        technical_fallback,
-                        timeout_failure,
-                        model_unavailable,
-                        failure_type,
-                        fallback_category,
-                        fallback_reason,
-                        outcome_class,
-                        metadata_json,
-                        success,
-                        created_at,
-                        decided_at
-                    ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                    )
-                    """,
+            Object[] observationArgs = {
                     observationId,
                     tenantId,
                     idempotencyKey,
@@ -309,7 +263,35 @@ public class AiSecurityDecisionObservationWriter {
                     writeJson(storedMetadata),
                     successfulFinal,
                     now,
-                    now);
+                    now,
+                    // Console design 7.1: the console columns; G25: the provider throttle the engine reported.
+                    console.attemptKind(),
+                    console.originalEventId(),
+                    truncate(console.decisionStage(), 64),
+                    console.analysisDepth(),
+                    console.decisionSource(),
+                    console.decisionChangeCause(),
+                    console.enforcementTiming(),
+                    console.actorKind(),
+                    console.resourceClass(),
+                    truncate(console.promptBundleVersion(), 64),
+                    console.mostLikelyHypothesis(),
+                    console.contextCoverageLevel(),
+                    truncate(console.baselineStatus(), 48),
+                    console.unknownFactCount(),
+                    console.promptTokens(),
+                    console.cachedPromptTokens(),
+                    console.outputTokens(),
+                    console.modelCallCount(),
+                    console.userWaitMs(),
+                    summaryJson(console.summary()),
+                    console.providerThrottleWaitMs(),
+                    console.providerThrottleAcquired(),
+                    console.providerThrottleReason(),
+                    console.providerEstimatedTokens()
+            };
+            jdbcOperations.update(observationInsert(console.reasons().size()),
+                    observationArguments(observationArgs, console.reasons(), now));
 
             long observationInsertMs = System.currentTimeMillis() - persistStart;
             log.info("[AiSecurityDecisionObservationWriter.timing] eventId={} observationId={} insertMs={} totalPersistMs={}",
@@ -322,6 +304,102 @@ public class AiSecurityDecisionObservationWriter {
             log.error("[AiSecurityDecisionObservationWriter] Failed to record AI security decision observation: eventId={}",
                     event.getEventId(), ex);
             return null;
+        }
+    }
+
+    /** The columns of a decision row, in the order of {@code observationArgs}. */
+    private static final String OBSERVATION_COLUMNS = """
+            observation_id, tenant_id, idempotency_key, processing_generation, event_id, request_id, correlation_id,
+            test_run_id, user_id, session_id, context_binding_hash, actor_session_key, window_id, trigger_source,
+            trigger_relation, decision_boundary_mode, http_method, request_path, resource_id, model_provider, model_id,
+            prompt_template_key, final_action, proposed_action, llm_risk_score, llm_confidence, llm_latency_ms,
+            queue_wait_ms, prompt_build_ms, rag_vector_ms, openai_call_ms, parse_ms, persist_ms, total_analysis_ms,
+            llm_decision_present, parser_failure, technical_fallback, timeout_failure, model_unavailable, failure_type,
+            fallback_category, fallback_reason, outcome_class, metadata_json, success, created_at, decided_at,
+            attempt_kind, original_event_id, decision_stage, analysis_depth, decision_source, decision_change_cause,
+            enforcement_timing, actor_kind, resource_class, prompt_bundle_version, most_likely_hypothesis,
+            context_coverage_level, baseline_status, unknown_fact_count, prompt_tokens, cached_prompt_tokens,
+            output_tokens, model_call_count, user_wait_ms, decision_summary_json, provider_throttle_wait_ms,
+            provider_throttle_acquired, provider_throttle_reason, provider_estimated_tokens""";
+
+    /** How many values a decision row has. */
+    private static final int OBSERVATION_VALUES = 71;
+
+    /**
+     * The insert of a decision row; with reason codes, one statement inserts the row and its reason rows (console
+     * design 7.2: in the same transaction), so a row never lacks the reasons it was decided on.
+     */
+    static String observationInsert(int reasons) {
+        String values = String.join(", ", Collections.nCopies(OBSERVATION_VALUES, "?"));
+        String insert = "INSERT INTO ctxa_ai_security_decision_observation (" + OBSERVATION_COLUMNS + ") VALUES ("
+                + values + ")";
+        if (reasons <= 0) {
+            return insert;
+        }
+        String reasonValues = String.join(", ", Collections.nCopies(reasons,
+                "(CAST(? AS SMALLINT), CAST(? AS VARCHAR), CAST(? AS VARCHAR), CAST(? AS VARCHAR), CAST(? AS VARCHAR))"));
+        return "WITH decided AS (" + insert + " RETURNING observation_id) "
+                + "INSERT INTO ctxa_zt_decision_reason (observation_id, reason_rank, reason_code, reason_group, fact_id, "
+                + "fact_name, created_at) "
+                + "SELECT decided.observation_id, cited.reason_rank, cited.reason_code, cited.reason_group, cited.fact_id, "
+                + "cited.fact_name, CAST(? AS TIMESTAMP) FROM decided CROSS JOIN (VALUES " + reasonValues + ") "
+                + "AS cited(reason_rank, reason_code, reason_group, fact_id, fact_name)";
+    }
+
+    /** The arguments of {@link #observationInsert}: the row's values, then the creation time and each reason's. */
+    static Object[] observationArguments(Object[] observationArgs, List<DecisionConsoleColumns.Reason> reasons,
+                                         LocalDateTime now) {
+        if (observationArgs.length != OBSERVATION_VALUES) {
+            throw new IllegalStateException("A decision row has " + OBSERVATION_VALUES + " values, not "
+                    + observationArgs.length);
+        }
+        if (reasons == null || reasons.isEmpty()) {
+            return observationArgs;
+        }
+        List<Object> arguments = new ArrayList<>(Arrays.asList(observationArgs));
+        arguments.add(now);
+        for (DecisionConsoleColumns.Reason reason : reasons) {
+            arguments.add(reason.rank());
+            arguments.add(reason.code());
+            arguments.add(reason.group());
+            arguments.add(reason.factId());
+            arguments.add(reason.factName());
+        }
+        return arguments.toArray();
+    }
+
+    /** The decision summary of the detail screen, bounded (console design 7.1). */
+    private String summaryJson(Map<String, Object> summary) {
+        String json = writeJson(summary);
+        return json != null && json.length() > DecisionConsoleColumns.SUMMARY_LIMIT ? null : json;
+    }
+
+    /**
+     * Console design 7.1: what the store did with the decision, known only after the row was written: applied, a
+     * stricter action in force kept, remembered in SHADOW (or not), or discarded because another processing owns the
+     * request. A stricter action kept over the model's makes the engine the source of the action in force.
+     */
+    public void recordEnforcement(String observationId, String enforcementResult) {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (jdbcOperations == null || text(observationId) == null || text(enforcementResult) == null) {
+            return;
+        }
+        try {
+            jdbcOperations.update("""
+                    UPDATE ctxa_ai_security_decision_observation
+                       SET enforcement_result = ?,
+                           decision_source = CASE WHEN ? IN ('KEPT_STRICTER', 'SHADOW_KEPT_STRICTER')
+                                                   AND decision_source = 'MODEL'
+                                                  THEN 'ENGINE_CHANGED' ELSE decision_source END,
+                           decision_change_cause = CASE WHEN ? IN ('KEPT_STRICTER', 'SHADOW_KEPT_STRICTER')
+                                                         AND decision_source = 'MODEL'
+                                                        THEN 'KEPT_STRICTER' ELSE decision_change_cause END
+                     WHERE observation_id = ?
+                    """, enforcementResult, enforcementResult, enforcementResult, observationId);
+        }
+        catch (DataAccessException ex) {
+            log.error("[AiSecurityDecisionObservationWriter] Failed to record the enforcement {} of observation {}",
+                    enforcementResult, observationId, ex);
         }
     }
 

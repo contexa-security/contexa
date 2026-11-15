@@ -15,6 +15,9 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService.PolicyDecisionSettings;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
@@ -24,7 +27,12 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -45,6 +53,8 @@ public class SystemSettingsRuntimeApplier
     private final ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider;
     private final ObjectProvider<PolicyCombiningProperties> policyCombiningPropertiesProvider;
     private final ObjectProvider<CustomDynamicAuthorizationManager> authorizationManagerProvider;
+    /** Records a mode an operator changed (console design 7.6); null records nothing. */
+    private CentralAuditFacade centralAuditFacade;
 
     public SystemSettingsRuntimeApplier(
             SystemRuntimeSettingsService runtimeSettingsService,
@@ -86,10 +96,51 @@ public class SystemSettingsRuntimeApplier
     public void apply() {
         SecurityZeroTrustProperties zeroTrustProperties = zeroTrustPropertiesProvider.getIfAvailable();
         if (zeroTrustProperties != null) {
+            SecurityZeroTrustProperties.EnforcementMode before = zeroTrustProperties.getMode();
             runtimeSettingsService.findSecurityZeroTrustMode()
                     .ifPresent(mode -> applyZeroTrustSettings(zeroTrustProperties, mode));
+            auditModeChange(before, zeroTrustProperties.getMode());
         }
         applyPolicyDecisionSettings();
+    }
+
+    public void setCentralAuditFacade(CentralAuditFacade centralAuditFacade) {
+        this.centralAuditFacade = centralAuditFacade;
+    }
+
+    /**
+     * Console design 7.6: a mode an operator changed in the console is an audit event, so the adoption screen can tell
+     * since when a mode has been in effect. Only the operator's own save is recorded: the other nodes and a start apply
+     * the same stored mode again without a person, and recording them would repeat the change.
+     */
+    private void auditModeChange(SecurityZeroTrustProperties.EnforcementMode before,
+                                 SecurityZeroTrustProperties.EnforcementMode after) {
+        if (centralAuditFacade == null || after == null || after == before) {
+            return;
+        }
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            return;
+        }
+        try {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("previousMode", before != null ? before.name() : null);
+            details.put("mode", after.name());
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.ZERO_TRUST_MODE_CHANGED)
+                    .principalName(authentication.getName())
+                    .eventSource("IAM")
+                    .resourceIdentifier("contexa.security.zerotrust.mode")
+                    .action("CHANGE")
+                    .decision(after.name())
+                    .outcome("APPLIED")
+                    .details(details)
+                    .build());
+        }
+        catch (RuntimeException exception) {
+            log.error("Failed to audit the zero trust mode change from {} to {}", before, after, exception);
+        }
     }
 
     /**

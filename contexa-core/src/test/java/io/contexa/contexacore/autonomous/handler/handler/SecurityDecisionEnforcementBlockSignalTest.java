@@ -101,7 +101,7 @@ class SecurityDecisionEnforcementBlockSignalTest {
         order.verify(actionRepository).writeFinalAction(eq("user-1"), eq(ZeroTrustAction.BLOCK), anyMap());
         order.verify(actionRepository).setBlockedFlag("user-1");
         order.verify(signals).registerBlockAndAwait("user-1");
-        order.verify(blockedUserRecorder).recordBlock(any(), eq("user-1"), any(), eq("BLOCK"), any(), any(), any());
+        order.verify(blockedUserRecorder).recordBlock(any(), eq("user-1"), any(), eq("BLOCK"), any(), any(), any(), any(), any(), any());
     }
 
     @ParameterizedTest
@@ -126,6 +126,6 @@ class SecurityDecisionEnforcementBlockSignalTest {
         assertThat(handler.handle(context)).isFalse();
 
         verify(actionRepository).setBlockedFlag("user-1");
-        verify(blockedUserRecorder).recordBlock(any(), eq("user-1"), any(), eq("BLOCK"), any(), any(), any());
+        verify(blockedUserRecorder).recordBlock(any(), eq("user-1"), any(), eq("BLOCK"), any(), any(), any(), any(), any(), any());
     }
 }

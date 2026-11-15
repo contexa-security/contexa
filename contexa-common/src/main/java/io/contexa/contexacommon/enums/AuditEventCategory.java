@@ -60,6 +60,7 @@ public enum AuditEventCategory {
     COMPANY_RECORDS_RECORDED("Company records put by an integration or an administrator"),
     COMPANY_RECORDS_DELETED("Company records deleted by an integration or an administrator"),
     SEALED_DECISION_REPLAYED("Sealed decision replayed by an operator with a chosen bundle"),
+    ZERO_TRUST_MODE_CHANGED("Zero trust mode changed by an operator in the console"),
     HTTP_ACCESS_BLOCKED("HTTP request blocked by zero trust filter"),
 
     USER_BLOCKED("User blocked by AI decision"),

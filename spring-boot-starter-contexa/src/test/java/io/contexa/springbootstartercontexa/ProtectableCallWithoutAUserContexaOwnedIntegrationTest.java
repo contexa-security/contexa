@@ -119,7 +119,8 @@ class ProtectableCallWithoutAUserContexaOwnedIntegrationTest {
     private static void mode(EnforcementMode mode) {
         SecurityZeroTrustProperties properties = application.getBean(SecurityZeroTrustProperties.class);
         SystemSettingsRuntimeApplier.applyZeroTrustSettings(properties, mode);
-        assertThat(properties.getMode()).isEqualTo(mode);
+        // Console decision 11.2: a mode set to OBSERVE is read as DISABLED, which it always behaved as.
+        assertThat(properties.getMode()).isEqualTo(mode == EnforcementMode.OBSERVE ? EnforcementMode.DISABLED : mode);
     }
 
     private static int runs() {

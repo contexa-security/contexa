@@ -222,7 +222,7 @@ class CoreBacklogRegressionTest {
         assertThat(response.getContentAsString()).contains("__CONTEXA_RESPONSE_BLOCKED__:BLOCK");
         verify(h.recorder, atLeastOnce()).recordBlock(anyString(), eq(event.getUserId()),
                 eq(event.getUserName()), eq("BLOCK"), eq("Controlled regression decision"),
-                eq(event.getSourceIp()), eq(event.getUserAgent()));
+                eq(event.getSourceIp()), eq(event.getUserAgent()), any(), any(), any());
 
         h.actions.saveAction(event.getUserId(), ZeroTrustAction.ALLOW, Map.of());
         assertThat(h.actions.getCurrentAction(event.getUserId())).isEqualTo(ZeroTrustAction.BLOCK);

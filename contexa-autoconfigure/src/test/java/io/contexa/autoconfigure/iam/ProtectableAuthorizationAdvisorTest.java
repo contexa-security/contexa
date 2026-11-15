@@ -12,6 +12,7 @@ package io.contexa.autoconfigure.iam;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableLlmSuppressionWriter;
 import io.contexa.contexaiam.security.xacml.pep.DelegatorAuthority;
@@ -52,14 +53,15 @@ class ProtectableAuthorizationAdvisorTest {
                 counting(mock(ProtectableLlmSuppressionWriter.class), resolved),
                 counting(mock(AuthorizationDenialRecorder.class), resolved),
                 counting(new SecurityZeroTrustProperties(), resolved),
-                counting(new DelegatorAuthority(null), resolved));
+                counting(new DelegatorAuthority(null), resolved),
+                counting(new ZeroTrustCoverageCounter(null, "node-1", null), resolved));
 
         assertThat(resolved).as("nothing is resolved while post-processors are registered").hasValue(0);
 
         advisor.afterSingletonsInstantiated();
         advisor.afterSingletonsInstantiated();
 
-        assertThat(resolved).as("each collaborator once").hasValue(9);
+        assertThat(resolved).as("each collaborator once").hasValue(10);
     }
 
     @Test

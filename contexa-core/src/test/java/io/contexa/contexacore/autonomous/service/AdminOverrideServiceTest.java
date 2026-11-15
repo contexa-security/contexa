@@ -25,6 +25,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.saas.DecisionFeedbackForwardingService;
 import io.contexa.contexacore.autonomous.saas.ThreatOutcomeForwardingService;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -230,6 +232,23 @@ class AdminOverrideServiceTest {
                 null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("requestId is required");
+    }
+
+    /** Console design 7.3: a release is the clearest sign the decision was wrong; a BLOCK confirmed keeps it. */
+    @Test
+    void theAdministratorsAnswerIsAnOutcomeOfTheDecision() {
+        ZeroTrustDecisionOutcomes outcomes = mock(ZeroTrustDecisionOutcomes.class);
+        adminOverrideService.setDecisionOutcomes(outcomes);
+        SecurityEvent event = SecurityEvent.builder().userId("user1").build();
+        event.addMetadata("tenantId", "tenant-a");
+
+        adminOverrideService.approve("req-1", "user1", "admin1", "BLOCK", 0.9, 0.85, "ALLOW", "Verified user", event);
+        adminOverrideService.approve("req-2", "user1", "admin1", "BLOCK", 0.9, 0.85, "BLOCK", "Confirmed", event);
+
+        verify(outcomes).record("req-1", "user1", "tenant-a", ZeroTrustDecisionOutcomes.Kind.ADMIN_RELEASED, "admin1",
+                "Verified user");
+        verify(outcomes).record("req-2", "user1", "tenant-a", ZeroTrustDecisionOutcomes.Kind.BLOCK_KEPT, "admin1",
+                "Confirmed");
     }
 
     @Test

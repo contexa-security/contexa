@@ -44,6 +44,7 @@ import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -708,9 +709,27 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     /** The decision part of a completed step-up, shared with the verification-only step-up of HOST_OWNED. */
     private ChallengeResolution challengeResolution() {
-        return new ChallengeResolution(actionRedisRepository, securityLearningService,
+        ChallengeResolution resolution = new ChallengeResolution(actionRedisRepository, securityLearningService,
                 this::verificationLearningService, () -> applicationContext.getBean(SecurityContextDataStore.class),
                 blockingSignalBroadcaster, blockedUserRecorder, blockMfaStateStore);
+        // Console design 7.3: a passed challenge is recorded as the decision's outcome.
+        resolution.setDecisionOutcomes(decisionOutcomes());
+        return resolution;
+    }
+
+    /** The recorder of the decisions' outcomes, or null: a lookup that fails records no outcome and stops nothing. */
+    private ZeroTrustDecisionOutcomes decisionOutcomes() {
+        if (applicationContext == null) {
+            return null;
+        }
+        try {
+            ObjectProvider<ZeroTrustDecisionOutcomes> provider =
+                    applicationContext.getBeanProvider(ZeroTrustDecisionOutcomes.class);
+            return provider != null ? provider.getIfAvailable() : null;
+        } catch (Exception e) {
+            safeLogError("[MFA] Failed to look up the recorder of the decisions' outcomes", e);
+            return null;
+        }
     }
 
     private void resetActionOnMfaSuccess(String userId, HttpServletRequest request,

@@ -354,6 +354,10 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         if (token == null || !codeKey(situation.user()).equals(token.getUsername())) {
             if (answer == maxCodeAnswers) {
                 discardCodes(context, situation);
+                // Console design 7.3: the challenge's answers are used up; it failed.
+                if (situation.purpose() == Purpose.CHALLENGE && resolution != null) {
+                    resolution.recordChallengeFailure(situation.decisionKey());
+                }
             }
             return false;
         }

@@ -22,6 +22,7 @@ import io.contexa.contexacore.autonomous.event.support.InvocationArguments;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
@@ -76,6 +77,7 @@ public class AccessEvaluationService {
     private final SynchronousProtectableDecisionService decisions;
     private final SecurityZeroTrustProperties properties;
     private final Clock clock;
+    private ZeroTrustCoverageCounter coverageCounter;
 
     public AccessEvaluationService(ZeroTrustEventPublisher events, SynchronousProtectableDecisionService decisions,
                                    @Nullable SecurityZeroTrustProperties properties, @Nullable Clock clock) {
@@ -83,6 +85,11 @@ public class AccessEvaluationService {
         this.decisions = Objects.requireNonNull(decisions, "decisions");
         this.properties = properties != null ? properties : new SecurityZeroTrustProperties();
         this.clock = clock != null ? clock : Clock.systemUTC();
+    }
+
+    /** Console design 7.5: an evaluation that asks for a decision is a protected call; null counts none. */
+    public void setCoverageCounter(ZeroTrustCoverageCounter coverageCounter) {
+        this.coverageCounter = coverageCounter;
     }
 
     /**
@@ -103,6 +110,10 @@ public class AccessEvaluationService {
         ZeroTrustSpringEvent event = events.buildDescribedAuthorizationEvent(described.userId(),
                 described.sessionId(), described.clientIp(), described.userAgent(), described.resource(),
                 described.payload(), described.at());
+        ZeroTrustCoverageCounter counter = coverageCounter;
+        if (counter != null) {
+            counter.protectedCall();
+        }
         SynchronousProtectableDecisionService.SyncDecisionResult result = decisions.analyze(event);
         ZeroTrustAction action = result.action() != null ? result.action() : ZeroTrustAction.PENDING_ANALYSIS;
         ZeroTrustActionRepository.ZeroTrustAnalysisData analysis = result.analysisData();

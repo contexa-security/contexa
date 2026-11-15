@@ -20,6 +20,7 @@ import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import org.junit.jupiter.api.BeforeEach;
@@ -283,6 +284,39 @@ class ZeroTrustEventListenerTest {
                 .thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
         assertThat(listener.shouldPublishAuthorizationEvent(event)).isTrue();
         assertThat(listener.shouldPublishSynchronousAuthorizationEvent(event)).isTrue();
+    }
+
+    /**
+     * Console design 7.5: a protected call the decision in force answers is a reuse, one held back by a decision waiting
+     * for its audit record is a skip, and one sent to the analysis is counted by its decision row instead.
+     */
+    @Test
+    void theCallsSettledHereAreCountedForTheCoverage() {
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        listener.setCoverageCounter(coverage);
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType("METHOD")
+                .userId("user-coverage")
+                .sessionId("session-coverage")
+                .clientIp("10.60.1.43")
+                .userAgent("browser")
+                .build();
+        String contextBindingHash = listener.generateAuthorizationContextBindingHash(event);
+
+        when(actionRepository.getCurrentAction("user-coverage", contextBindingHash)).thenReturn(ZeroTrustAction.ALLOW);
+        listener.handleZeroTrustEvent(event);
+        when(actionRepository.getCurrentAction("user-coverage", contextBindingHash))
+                .thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+        when(actionRepository.isDecisionAuditPending("user-coverage", contextBindingHash)).thenReturn(true);
+        listener.handleZeroTrustEvent(event);
+        when(actionRepository.isDecisionAuditPending("user-coverage", contextBindingHash)).thenReturn(false);
+        listener.handleZeroTrustEvent(event);
+
+        assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.REUSED)).isEqualTo(1);
+        assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.DECISION_AUDIT_PENDING)).isEqualTo(1);
+        assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.SKIPPED)).isEqualTo(1);
+        verify(securityEventPublisher).publishGenericSecurityEvent(event);
     }
 
     @Test

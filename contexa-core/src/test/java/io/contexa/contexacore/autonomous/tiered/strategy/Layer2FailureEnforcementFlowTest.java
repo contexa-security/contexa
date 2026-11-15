@@ -184,6 +184,7 @@ class Layer2FailureEnforcementFlowTest {
 
         assertThat(repository.getCurrentAction(user, "context-1")).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
         verify(blockedUserRecorder, never()).recordBlock(any(), anyString(), any(), any(), any(), any(), any());
+        verify(blockedUserRecorder, never()).recordBlock(any(), anyString(), any(), any(), any(), any(), any(), any(), any(), any());
         repository.removeAllUserData(user);
     }
 

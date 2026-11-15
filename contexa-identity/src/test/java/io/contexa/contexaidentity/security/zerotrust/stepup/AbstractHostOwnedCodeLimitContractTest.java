@@ -138,6 +138,8 @@ abstract class AbstractHostOwnedCodeLimitContractTest {
 
         assertThat(answer(victim, code)).isFalse();
         verify(resolution, never()).releaseChallenge(anyString(), any(), any(), any());
+        // Console design 7.3: the answers of the challenge in force are used up, which is its outcome.
+        verify(resolution).recordChallengeFailure(signedIn.getName());
     }
 
     @Test
@@ -149,6 +151,7 @@ abstract class AbstractHostOwnedCodeLimitContractTest {
 
         assertThat(answer(victim, mailed.newest())).isTrue();
         verify(resolution).releaseChallenge(anyString(), any(), any(), any());
+        verify(resolution, never()).recordChallengeFailure(anyString());
     }
 
     @Test
@@ -161,6 +164,7 @@ abstract class AbstractHostOwnedCodeLimitContractTest {
 
         assertThat(answer(victim, code)).isFalse();
         assertThat(mailed.looks()).isLessThanOrEqualTo(LIMIT);
+        verify(resolution, times(1)).recordChallengeFailure(signedIn.getName());
     }
 
     @Test

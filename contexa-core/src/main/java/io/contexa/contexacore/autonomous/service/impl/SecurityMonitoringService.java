@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.service.impl;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -58,6 +59,7 @@ public class SecurityMonitoringService {
     private final int maxBatchRequeueAttempts;
 
     private volatile SecurityEventBatchProcessor batchProcessor;
+    private volatile ZeroTrustCoverageCounter coverageCounter;
 
     public SecurityMonitoringService(SecurityEventCollector eventCollector,
                                      SecurityPlaneProperties securityPlaneProperties) {
@@ -89,6 +91,11 @@ public class SecurityMonitoringService {
 
     public void setBatchProcessor(SecurityEventBatchProcessor processor) {
         this.batchProcessor = processor;
+    }
+
+    /** Console design 7.5: counts the protected calls whose event was dropped after its batch failed; null counts none. */
+    public void setCoverageCounter(ZeroTrustCoverageCounter coverageCounter) {
+        this.coverageCounter = coverageCounter;
     }
 
     @PostConstruct
@@ -234,6 +241,11 @@ public class SecurityMonitoringService {
             event.addMetadata("batchRequeueExhaustedReason", "max_batch_requeue_attempts_exceeded");
             log.error("[SecurityMonitoringService] Dropping queued security event after batch requeue budget exhausted: eventId={}, attempts={}, maxAttempts={}",
                     event.getEventId(), failureCount, maxBatchRequeueAttempts);
+            ZeroTrustCoverageCounter counter = coverageCounter;
+            if (counter != null && "AUTHORIZATION".equals(event.getMetadata().get("zerotrust.category"))
+                    && !event.getMetadata().containsKey("judgedAgainEvent")) {
+                counter.skipped(ZeroTrustCoverageCounter.BATCH_REQUEUE_EXHAUSTED);
+            }
             return false;
         }
 

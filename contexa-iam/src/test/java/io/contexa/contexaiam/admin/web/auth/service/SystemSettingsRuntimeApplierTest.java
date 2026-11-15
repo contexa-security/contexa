@@ -19,6 +19,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
@@ -52,6 +54,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.mockito.ArgumentCaptor;
 import org.springframework.security.authorization.AuthorizationDecision;
 
 import java.time.LocalDateTime;
@@ -64,6 +68,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -222,6 +228,39 @@ class SystemSettingsRuntimeApplierTest {
         applier.apply();
 
         assertThat(zeroTrustProperties.getMode()).isEqualTo(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
+    }
+
+    /**
+     * G33 (console design 7.6): an operator's change of the mode is an audit event; the same stored mode applied again
+     * by a start, with no person, and a mode that does not change record nothing.
+     */
+    @Test
+    void anOperatorsModeChangeIsAudited() {
+        CentralAuditFacade audit = mock(CentralAuditFacade.class);
+        applier.setCentralAuditFacade(audit);
+        zeroTrustProperties.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder().securityZeroTrustMode("ENFORCE").build()));
+
+        SecurityContextHolder.clearContext();
+        applier.apply();
+        verify(audit, never()).recordAsync(any());
+
+        zeroTrustProperties.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("admin", "n/a",
+                AuthorityUtils.createAuthorityList("ROLE_ADMIN")));
+        try {
+            applier.apply();
+            applier.apply();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        ArgumentCaptor<AuditRecord> recorded = ArgumentCaptor.forClass(AuditRecord.class);
+        verify(audit).recordAsync(recorded.capture());
+        assertThat(recorded.getValue().getEventCategory()).isEqualTo(AuditEventCategory.ZERO_TRUST_MODE_CHANGED);
+        assertThat(recorded.getValue().getPrincipalName()).isEqualTo("admin");
+        assertThat(recorded.getValue().getDecision()).isEqualTo("ENFORCE");
+        assertThat(recorded.getValue().getDetails()).containsEntry("previousMode", "SHADOW");
     }
 
     @Test

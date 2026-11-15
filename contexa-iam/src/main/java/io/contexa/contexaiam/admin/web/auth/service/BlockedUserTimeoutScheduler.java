@@ -19,12 +19,14 @@ import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.soar.event.SecurityActionEvent;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -49,6 +51,13 @@ public class BlockedUserTimeoutScheduler {
     private final BlockedUserJpaRepository blockedUserJpaRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final CentralAuditFacade centralAuditFacade;
+    /** Console design 7.3: records the block kept after its answer time; null records none. */
+    private ZeroTrustDecisionOutcomes decisionOutcomes;
+
+    @Autowired(required = false)
+    public void setDecisionOutcomes(ZeroTrustDecisionOutcomes decisionOutcomes) {
+        this.decisionOutcomes = decisionOutcomes;
+    }
 
     @Scheduled(scheduler = "contexaTaskScheduler", fixedDelay = 3600000)
     @SchedulerLock(name = "blockedUserTimeoutCheck", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
@@ -84,6 +93,12 @@ public class BlockedUserTimeoutScheduler {
 
             user.setStatus(BlockedUserStatus.TIMEOUT_RESPONDED);
             blockedUserJpaRepository.save(user);
+            // Console design 7.3: nobody asked for a release within the answer time; the block stays.
+            if (decisionOutcomes != null) {
+                decisionOutcomes.record(user.getRequestId(), user.getUserId(), user.getTenantId(),
+                        ZeroTrustDecisionOutcomes.Kind.BLOCK_KEPT, "contexa",
+                        "no unblock request within " + TIMEOUT_HOURS + " hours");
+            }
 
             centralAuditFacade.recordAsync(AuditRecord.builder()
                     .eventCategory(AuditEventCategory.SOAR_AUTO_RESPONSE)

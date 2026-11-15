@@ -1871,6 +1871,223 @@ CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_event
 CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_test_run
     ON ctxa_ai_security_decision_observation (test_run_id, created_at);
 
+-- ----------------------------------------------------------------
+-- Zero Trust console data (console plan stage 2, design 7.1 to 7.6 and 11.3).
+-- The console reads the hourly tables only; the decision rows are read by index for the decision list and detail.
+-- ----------------------------------------------------------------
+ALTER TABLE ctxa_ai_security_decision_observation
+    ADD COLUMN IF NOT EXISTS attempt_kind VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS original_event_id VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS decision_stage VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS analysis_depth VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS decision_source VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS decision_change_cause VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS enforcement_result VARCHAR(48),
+    ADD COLUMN IF NOT EXISTS enforcement_timing VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS actor_kind VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS resource_class VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS prompt_bundle_version VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS most_likely_hypothesis VARCHAR(16),
+    ADD COLUMN IF NOT EXISTS context_coverage_level VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS baseline_status VARCHAR(48),
+    ADD COLUMN IF NOT EXISTS unknown_fact_count INTEGER,
+    ADD COLUMN IF NOT EXISTS prompt_tokens BIGINT,
+    ADD COLUMN IF NOT EXISTS cached_prompt_tokens BIGINT,
+    ADD COLUMN IF NOT EXISTS output_tokens BIGINT,
+    ADD COLUMN IF NOT EXISTS model_call_count INTEGER,
+    ADD COLUMN IF NOT EXISTS user_wait_ms BIGINT,
+    ADD COLUMN IF NOT EXISTS decision_summary_json TEXT;
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_user_created
+    ON ctxa_ai_security_decision_observation (user_id, created_at);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_request
+    ON ctxa_ai_security_decision_observation (request_id);
+
+CREATE TABLE IF NOT EXISTS ctxa_zt_decision_reason (
+    observation_id VARCHAR(64) NOT NULL,
+    reason_rank SMALLINT NOT NULL,
+    reason_code VARCHAR(64) NOT NULL,
+    reason_group VARCHAR(48),
+    fact_id VARCHAR(16),
+    fact_name VARCHAR(160),
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (observation_id, reason_rank)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_reason_code_created
+    ON ctxa_zt_decision_reason (reason_code, created_at);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_reason_created
+    ON ctxa_zt_decision_reason (created_at);
+
+CREATE TABLE IF NOT EXISTS ctxa_zt_decision_outcome (
+    outcome_id VARCHAR(64) PRIMARY KEY,
+    observation_id VARCHAR(64),
+    request_id VARCHAR(160),
+    user_id VARCHAR(160),
+    tenant_id VARCHAR(160),
+    outcome_kind VARCHAR(48) NOT NULL,
+    evaluation_reason VARCHAR(64),
+    actor VARCHAR(255),
+    note VARCHAR(1024),
+    occurred_at TIMESTAMP(6) NOT NULL,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_outcome_observation
+    ON ctxa_zt_decision_outcome (observation_id);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_outcome_request
+    ON ctxa_zt_decision_outcome (request_id);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_outcome_kind_occurred
+    ON ctxa_zt_decision_outcome (outcome_kind, occurred_at);
+
+CREATE TABLE IF NOT EXISTS ctxa_zt_stats_hourly (
+    bucket_start TIMESTAMP(6) NOT NULL,
+    tenant_id VARCHAR(160) NOT NULL DEFAULT '',
+    decision_boundary_mode VARCHAR(32) NOT NULL DEFAULT '',
+    final_action VARCHAR(64) NOT NULL DEFAULT '',
+    decision_source VARCHAR(32) NOT NULL DEFAULT '',
+    decision_change_cause VARCHAR(64) NOT NULL DEFAULT '',
+    decision_stage VARCHAR(64) NOT NULL DEFAULT '',
+    most_likely_hypothesis VARCHAR(16) NOT NULL DEFAULT '',
+    resource_class VARCHAR(32) NOT NULL DEFAULT '',
+    actor_kind VARCHAR(32) NOT NULL DEFAULT '',
+    enforcement_timing VARCHAR(32) NOT NULL DEFAULT '',
+    prompt_bundle_version VARCHAR(64) NOT NULL DEFAULT '',
+    model_id VARCHAR(160) NOT NULL DEFAULT '',
+    decision_count BIGINT NOT NULL DEFAULT 0,
+    protected_decision_count BIGINT NOT NULL DEFAULT 0,
+    baseline_established_count BIGINT NOT NULL DEFAULT 0,
+    baseline_provisional_count BIGINT NOT NULL DEFAULT 0,
+    baseline_none_count BIGINT NOT NULL DEFAULT 0,
+    environment_context_count BIGINT NOT NULL DEFAULT 0,
+    identity_context_count BIGINT NOT NULL DEFAULT 0,
+    scope_context_count BIGINT NOT NULL DEFAULT 0,
+    business_context_count BIGINT NOT NULL DEFAULT 0,
+    unknown_fact_sum BIGINT NOT NULL DEFAULT 0,
+    retried_count BIGINT NOT NULL DEFAULT 0,
+    latency_sum_ms BIGINT NOT NULL DEFAULT 0,
+    latency_le_1s BIGINT NOT NULL DEFAULT 0,
+    latency_le_2s BIGINT NOT NULL DEFAULT 0,
+    latency_le_5s BIGINT NOT NULL DEFAULT 0,
+    latency_le_10s BIGINT NOT NULL DEFAULT 0,
+    latency_le_30s BIGINT NOT NULL DEFAULT 0,
+    latency_le_60s BIGINT NOT NULL DEFAULT 0,
+    latency_le_90s BIGINT NOT NULL DEFAULT 0,
+    latency_gt_90s BIGINT NOT NULL DEFAULT 0,
+    user_wait_count BIGINT NOT NULL DEFAULT 0,
+    user_wait_sum_ms BIGINT NOT NULL DEFAULT 0,
+    user_wait_le_1s BIGINT NOT NULL DEFAULT 0,
+    user_wait_le_2s BIGINT NOT NULL DEFAULT 0,
+    user_wait_le_5s BIGINT NOT NULL DEFAULT 0,
+    user_wait_le_10s BIGINT NOT NULL DEFAULT 0,
+    user_wait_le_30s BIGINT NOT NULL DEFAULT 0,
+    user_wait_gt_30s BIGINT NOT NULL DEFAULT 0,
+    prompt_tokens_sum BIGINT NOT NULL DEFAULT 0,
+    cached_prompt_tokens_sum BIGINT NOT NULL DEFAULT 0,
+    output_tokens_sum BIGINT NOT NULL DEFAULT 0,
+    model_call_sum BIGINT NOT NULL DEFAULT 0,
+    challenge_passed_count BIGINT NOT NULL DEFAULT 0,
+    challenge_failed_count BIGINT NOT NULL DEFAULT 0,
+    challenge_expired_count BIGINT NOT NULL DEFAULT 0,
+    unblock_requested_count BIGINT NOT NULL DEFAULT 0,
+    admin_released_count BIGINT NOT NULL DEFAULT 0,
+    block_kept_count BIGINT NOT NULL DEFAULT 0,
+    evaluated_valid_count BIGINT NOT NULL DEFAULT 0,
+    evaluated_invalid_count BIGINT NOT NULL DEFAULT 0,
+    computed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (bucket_start, tenant_id, decision_boundary_mode, final_action, decision_source,
+                 decision_change_cause, decision_stage, most_likely_hypothesis, resource_class, actor_kind,
+                 enforcement_timing, prompt_bundle_version, model_id)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_stats_hourly_bucket
+    ON ctxa_zt_stats_hourly (bucket_start);
+
+CREATE TABLE IF NOT EXISTS ctxa_zt_coverage_hourly (
+    bucket_start TIMESTAMP(6) NOT NULL,
+    tenant_id VARCHAR(160) NOT NULL DEFAULT '',
+    node_id VARCHAR(160) NOT NULL DEFAULT '',
+    counter_kind VARCHAR(32) NOT NULL,
+    reason VARCHAR(64) NOT NULL DEFAULT '',
+    counted BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (bucket_start, tenant_id, node_id, counter_kind, reason)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_coverage_hourly_bucket
+    ON ctxa_zt_coverage_hourly (bucket_start);
+
+CREATE TABLE IF NOT EXISTS ctxa_zt_review_queue (
+    observation_id VARCHAR(64) PRIMARY KEY,
+    sample_day DATE NOT NULL,
+    sampled_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    review_status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    reviewed_by VARCHAR(255),
+    reviewed_at TIMESTAMP(6)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_review_queue_day
+    ON ctxa_zt_review_queue (sample_day, review_status);
+
+-- The lists the console ranks and the people it counts, by hour: decisions per user and action, challenges passed
+-- per user, stopped decisions per resource, first reasons, unknown facts, paths without a decision. They name users,
+-- so they are kept as long as the decision rows.
+CREATE TABLE IF NOT EXISTS ctxa_zt_item_hourly (
+    bucket_start TIMESTAMP(6) NOT NULL,
+    tenant_id VARCHAR(160) NOT NULL DEFAULT '',
+    decision_boundary_mode VARCHAR(32) NOT NULL DEFAULT '',
+    dimension VARCHAR(32) NOT NULL,
+    item VARCHAR(512) NOT NULL,
+    detail VARCHAR(64) NOT NULL DEFAULT '',
+    counted BIGINT NOT NULL DEFAULT 0,
+    computed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (bucket_start, tenant_id, decision_boundary_mode, dimension, item, detail)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_item_hourly_dimension
+    ON ctxa_zt_item_hourly (dimension, bucket_start);
+
+-- The time each stage of a decision took, by hour, in buckets that add up across hours.
+CREATE TABLE IF NOT EXISTS ctxa_zt_latency_hourly (
+    bucket_start TIMESTAMP(6) NOT NULL,
+    tenant_id VARCHAR(160) NOT NULL DEFAULT '',
+    decision_boundary_mode VARCHAR(32) NOT NULL DEFAULT '',
+    stage VARCHAR(16) NOT NULL,
+    measured BIGINT NOT NULL DEFAULT 0,
+    sum_ms BIGINT NOT NULL DEFAULT 0,
+    le_100ms BIGINT NOT NULL DEFAULT 0,
+    le_250ms BIGINT NOT NULL DEFAULT 0,
+    le_500ms BIGINT NOT NULL DEFAULT 0,
+    le_1s BIGINT NOT NULL DEFAULT 0,
+    le_2s BIGINT NOT NULL DEFAULT 0,
+    le_5s BIGINT NOT NULL DEFAULT 0,
+    le_10s BIGINT NOT NULL DEFAULT 0,
+    le_30s BIGINT NOT NULL DEFAULT 0,
+    le_60s BIGINT NOT NULL DEFAULT 0,
+    gt_60s BIGINT NOT NULL DEFAULT 0,
+    computed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (bucket_start, tenant_id, decision_boundary_mode, stage)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_latency_hourly_bucket
+    ON ctxa_zt_latency_hourly (bucket_start);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_audit_log_timestamp
+    ON ctxa_audit_log (timestamp);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_audit_log_category_timestamp
+    ON ctxa_audit_log (event_category, timestamp);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_audit_log_correlation
+    ON ctxa_audit_log (correlation_id);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_blocked_user_user_status
+    ON ctxa_blocked_user (user_id, status);
+
 CREATE TABLE IF NOT EXISTS ctxa_ai_security_monitoring_session_summary (
     session_id VARCHAR(64) PRIMARY KEY,
     started_at TIMESTAMP(6) NOT NULL,
