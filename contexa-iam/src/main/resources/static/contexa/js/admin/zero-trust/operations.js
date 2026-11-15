@@ -145,7 +145,19 @@
             }}}}
         }, hasData, 'NO_DECISIONS');
         return ZT.card(t(P + 'throughput.title'), hasData ? t(P + 'throughput.peak', perMinute(peak / 60)) : null,
-            metrics, hasData ? ZT.legend([{label: t(P + 'throughput.decisions'), color: ZT.COLORS.ACCENT}]) : null, box);
+            metrics, triggerLine(operations),
+            hasData ? ZT.legend([{label: t(P + 'throughput.decisions'), color: ZT.COLORS.ACCENT}]) : null, box);
+    }
+
+    /** What started the decisions (a protected method, an AuthZEN evaluation), as shares (console plan 5-2 ②). */
+    function triggerLine(operations) {
+        const triggers = (operations.triggers || []).filter(share => share.count > 0);
+        if (!triggers.length) {
+            return null;
+        }
+        const text = triggers.map(share => known(P + 'trigger.' + share.key, t(P + 'trigger.other')) + ' '
+            + ZT.percent(share.ratio, 0)).join(' · ');
+        return muted(t(P + 'trigger.line', text));
     }
 
     // ----- protected calls without a decision -----
@@ -192,8 +204,10 @@
         stages.forEach(stage => {
             const name = known(P + 'stage.' + stage.stage, stage.stage);
             const has = stage.measured > 0 && stage.p95Ms != null;
-            const text = has ? t(P + 'latency.range', ZT.seconds(stage.p50Ms), ZT.seconds(stage.p95Ms))
-                : t(P + 'latency.notMeasured');
+            const range = stage.averageMs != null
+                ? t(P + 'latency.rangeAverage', ZT.seconds(stage.p50Ms), ZT.seconds(stage.p95Ms), ZT.seconds(stage.averageMs))
+                : t(P + 'latency.range', ZT.seconds(stage.p50Ms), ZT.seconds(stage.p95Ms));
+            const text = has ? range : t(P + 'latency.notMeasured');
             list.append(el('div', {class: 'zt-row', title: has ? t(P + 'latency.measured', ZT.count(stage.measured)) : null},
                 stage.stage === 'TOTAL' ? el('strong', {text: name}) : el('span', {text: name}),
                 el('span', {text})));
@@ -375,7 +389,25 @@
         } else {
             body = ZT.empty('NO_DECISIONS');
         }
-        return ZT.card(t(P + 'usage.title'), usage.length ? t(P + 'usage.aside', ZT.count(usage.length)) : null, body);
+        return ZT.card(t(P + 'usage.title'), usage.length ? t(P + 'usage.aside', ZT.count(usage.length)) : null, body,
+            providersBlock(operations));
+    }
+
+    /** The decisions by the provider that answered them, its models in the title (console plan 5-2 ①). */
+    function providersBlock(operations) {
+        const providers = operations.providers || [];
+        const whole = providers.reduce((sum, item) => sum + item.count, 0);
+        if (!whole) {
+            return null;
+        }
+        return el('div', {class: 'zt-rows'}, el('div', {class: 'zt-metric-label', text: t(P + 'providers.title')}),
+            ZT.rows(providers, item => {
+                const models = Object.keys(item.byDetail || {}).filter(Boolean).join(', ') || '—';
+                const name = known(P + 'provider.' + item.item, item.item);
+                return [el('span', {text: name, title: t(P + 'providers.models', models)}),
+                    el('span', {class: 'zt-num', text: t(P + 'share', ZT.count(item.count),
+                        ZT.percent(item.count / whole, 0))})];
+            }));
     }
 
     // ----- storage -----

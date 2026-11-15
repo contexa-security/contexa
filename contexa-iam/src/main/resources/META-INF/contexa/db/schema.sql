@@ -1453,6 +1453,9 @@ alter table ctxa_system_settings add column if not exists no_matching_url_policy
 alter table ctxa_system_settings alter column no_matching_url_policy_decision drop not null;
 alter table ctxa_system_settings alter column no_matching_url_policy_decision drop default;
 alter table ctxa_system_settings add column if not exists missing_method_policy_decision varchar(20) default 'PERMIT' not null;
+-- Console plan 5-6: the Zero Trust console's settings an operator chose, as one JSON object; NULL, or a key left out,
+-- leaves the matching contexa.security.zerotrust.console.* property in effect.
+alter table ctxa_system_settings add column if not exists zero_trust_console_settings text;
 
 -- docs/agent A3-3 (R-01): the tenant of a blocked request, so that an administrator's release learns within it.
 alter table ctxa_blocked_user add column if not exists tenant_id varchar(255);

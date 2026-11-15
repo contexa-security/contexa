@@ -42,6 +42,15 @@ import java.util.stream.Collectors;
 
 public class AdminMenuService {
 
+    /** Console plan 5-1: the Zero Trust console's screens under the Zero Trust group, as [name, url, data page]. */
+    static final List<String[]> ZERO_TRUST_MENUS = List.of(
+            new String[] {"menu.zerotrust.overview", "/contexa/admin/zero-trust", "zero-trust-overview"},
+            new String[] {"menu.zerotrust.impact", "/contexa/admin/zero-trust/impact", "zero-trust-impact"},
+            new String[] {"menu.zerotrust.trust", "/contexa/admin/zero-trust/trust", "zero-trust-trust"},
+            new String[] {"menu.zerotrust.decisions", "/contexa/admin/zero-trust/decisions", "zero-trust-decisions"},
+            new String[] {"menu.zerotrust.adoption", "/contexa/admin/zero-trust/adoption", "zero-trust-adoption"},
+            new String[] {"menu.zerotrust.operations", "/contexa/admin/zero-trust/operations", "zero-trust-operations"});
+
     private final AdminMenuRepository menuRepository;
     private final AdminMenuQueryCache menuQueryCache;
     private final boolean enterpriseEnabled;
@@ -110,16 +119,16 @@ public class AdminMenuService {
             createMenu("menu.iam.password.policy", "/contexa/admin/password-policy", "", iamId, 6, "CORE", "password-policy");
             createMenu("menu.iam.system.settings", "/contexa/admin/system-settings", "", iamId, 7, "CORE", "system-settings");
             createMenu("menu.iam.menu.management", "/contexa/admin/menu-management", "", iamId, 8, "CORE", "menu-management");
-            createMenu("menu.zerotrust.monitor", "/contexa/admin/security-monitor", "", securityId, 1, "CORE", "security-monitor");
+            createMenu("menu.security.events", "/contexa/admin/security-monitor", "", securityId, 1, "CORE", "security-monitor");
             createMenu("menu.zerotrust.blacklist", "/contexa/admin/blacklist", "", securityId, 2, "CORE", "blacklist");
             createMenu("menu.security.sessions", "/contexa/admin/session-management", "", securityId, 3, "CORE", "session-management");
             createMenu("menu.security.ip", "/contexa/admin/ip-management", "", securityId, 4, "CORE", "ip-management");
             createMenu("menu.security.company.records", "/contexa/admin/company-records", "", securityId, 5, "CORE", "company-records");
             createMenu("menu.agents.list", "/contexa/admin/agents", "", agentsId, 1, "CORE", "agents-list");
-            createMenu("menu.aiMonitor.overview", "/contexa/admin/ai-monitor", "", aiMonitorId, 1, "CORE", "ai-monitor-overview");
-            createMenu("menu.aiMonitor.llm", "/contexa/admin/ai-monitor/llm", "", aiMonitorId, 2, "CORE", "ai-monitor-llm");
-            createMenu("menu.aiMonitor.failures", "/contexa/admin/ai-monitor/failures", "", aiMonitorId, 3, "CORE", "ai-monitor-failures");
-            createMenu("menu.aiMonitor.readiness", "/contexa/admin/ai-monitor/readiness", "", aiMonitorId, 4, "CORE", "ai-monitor-readiness");
+            for (int i = 0; i < ZERO_TRUST_MENUS.size(); i++) {
+                String[] menu = ZERO_TRUST_MENUS.get(i);
+                createMenu(menu[0], menu[1], "", aiMonitorId, i + 1, "CORE", menu[2]);
+            }
             createMenu("menu.enterprise.zerotrust", "/contexa/admin/enterprise/zerotrust", "", securityId, 6, "ENTERPRISE", "enterprise-zerotrust");
             createMenu("menu.enterprise.incidents", "/contexa/admin/enterprise/incidents", "", securityId, 7, "ENTERPRISE", "enterprise-incidents");
             createMenu("menu.enterprise.home", "/contexa/admin/enterprise", "", enterpriseId, 1, "ENTERPRISE", "enterprise-home");
@@ -192,11 +201,13 @@ public class AdminMenuService {
     private void ensureAiMonitorMenus() {
         // After the agents (6), as data-menu.sql places it: the same order would leave the two in the order the rows come.
         Long aiMonitorId = ensureMenu("menu.nav.aiMonitor", null, svgAiMonitor(), null, 7, "CORE", "ai-monitor");
-        ensureMenu("menu.aiMonitor.overview", "/contexa/admin/ai-monitor", "", aiMonitorId, 1, "CORE", "ai-monitor-overview");
-        ensureMenu("menu.aiMonitor.llm", "/contexa/admin/ai-monitor/llm", "", aiMonitorId, 2, "CORE", "ai-monitor-llm");
-        ensureMenu("menu.aiMonitor.failures", "/contexa/admin/ai-monitor/failures", "", aiMonitorId, 3, "CORE", "ai-monitor-failures");
-        ensureMenu("menu.aiMonitor.readiness", "/contexa/admin/ai-monitor/readiness", "", aiMonitorId, 4, "CORE", "ai-monitor-readiness");
-        disableMenu("ai-monitor-operations");
+        for (int i = 0; i < ZERO_TRUST_MENUS.size(); i++) {
+            String[] menu = ZERO_TRUST_MENUS.get(i);
+            ensureMenu(menu[0], menu[1], "", aiMonitorId, i + 1, "CORE", menu[2]);
+        }
+        // Console plan 5-1: the AI monitor's pages now open the console's screens (AiMonitorController).
+        List.of("ai-monitor-overview", "ai-monitor-llm", "ai-monitor-failures", "ai-monitor-readiness",
+                "ai-monitor-operations").forEach(this::disableMenu);
     }
 
     private void disableMenu(String dataPage) {

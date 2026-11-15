@@ -91,7 +91,7 @@ public class SystemSettingsRuntimeApplier
     /**
      * Applies all stored settings. A zero trust mode saved by an operator replaces the configured
      * {@code contexa.security.zerotrust.mode}; when no mode is stored the configured value stays
-     * in effect.
+     * in effect. The console's settings an operator chose replace their configured values the same way.
      */
     public void apply() {
         SecurityZeroTrustProperties zeroTrustProperties = zeroTrustPropertiesProvider.getIfAvailable();
@@ -100,6 +100,8 @@ public class SystemSettingsRuntimeApplier
             runtimeSettingsService.findSecurityZeroTrustMode()
                     .ifPresent(mode -> applyZeroTrustSettings(zeroTrustProperties, mode));
             auditModeChange(before, zeroTrustProperties.getMode());
+            ZeroTrustConsoleSettings.apply(runtimeSettingsService.getSettings().getZeroTrustConsoleSettings(),
+                    zeroTrustProperties);
         }
         applyPolicyDecisionSettings();
     }

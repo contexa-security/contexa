@@ -76,6 +76,10 @@
         if (ZT.query().get('view') === 'review') {
             return 'review';
         }
+        // console plan 5-2 ③: the slowest decisions under the filters, as the AI monitor's slow requests
+        if (ZT.query().get('view') === 'slowest') {
+            return 'slowest';
+        }
         return filterValue('action') === UNREVIEWED.action && filterValue('outcome') === UNREVIEWED.outcome
             ? 'unreviewed' : 'all';
     }
@@ -183,12 +187,12 @@
         const buttons = {};
         const decisions = state.overview && state.overview.header ? state.overview.header.decisions : null;
         [['all', t(P + 'tab.all', ZT.count(decisions))], ['review', t(P + 'tab.review', '…')],
-            ['unreviewed', t(P + 'tab.unreviewed', '…')]].forEach(([key, text]) => {
+            ['unreviewed', t(P + 'tab.unreviewed', '…')], ['slowest', t(P + 'tab.slowest')]].forEach(([key, text]) => {
             const button = el('button', {type: 'button', role: 'tab', 'aria-selected': 'false', text});
             button.addEventListener('click', () => {
                 const view = currentView();
-                if (key === 'review') {
-                    rewrite({view: 'review'});
+                if (key === 'review' || key === 'slowest') {
+                    rewrite({view: key});
                 } else if (key === 'unreviewed') {
                     rewrite(Object.assign(clearedFilters(), UNREVIEWED, {view: null}));
                 } else {
@@ -302,12 +306,16 @@
         const token = ++state.token;
         const list = state.list;
         const review = currentView() === 'review';
-        list.title.textContent = t(P + (review ? 'list.reviewTitle' : 'list.title'));
-        list.aside.textContent = t(P + (review ? 'list.reviewAside' : 'list.aside'));
+        const slowest = currentView() === 'slowest';
+        const titles = review ? ['list.reviewTitle', 'list.reviewAside']
+            : slowest ? ['list.slowestTitle', 'list.slowestAside'] : ['list.title', 'list.aside'];
+        list.title.textContent = t(P + titles[0]);
+        list.aside.textContent = t(P + titles[1]);
         list.holder.replaceChildren(muted(t(P + 'loading')));
         list.previous.disabled = true;
         list.next.disabled = true;
-        show(list.pager, !review);
+        // the slowest decisions are one page: their order has no cursor
+        show(list.pager, !review && !slowest);
         try {
             if (review) {
                 const items = await ZT.load('/review-queue');
@@ -318,12 +326,14 @@
                 list.holder.replaceChildren(items.length ? reviewTable(state, items) : muted(t(P + 'review.empty')));
                 return;
             }
-            const page = await ZT.load('/decisions', {cursor: state.stack[state.stack.length - 1], view: null});
+            const page = await ZT.load('/decisions', {cursor: slowest ? null : state.stack[state.stack.length - 1],
+                view: null, order: slowest ? 'slowest' : null});
             if (token !== state.token) {
                 return;
             }
             state.next = page.nextCursor || null;
-            list.holder.replaceChildren(page.rows.length ? decisionTable(state, page.rows) : muted(t(P + 'list.empty')));
+            list.holder.replaceChildren(page.rows.length ? decisionTable(state, page.rows, slowest)
+                : muted(t(P + 'list.empty')));
             list.previous.disabled = state.stack.length <= 1;
             list.next.disabled = !state.next;
             list.page.textContent = t(P + 'list.page', ZT.count(state.stack.length), ZT.count(page.rows.length));
@@ -385,16 +395,27 @@
             row.mode === 'SHADOW' ? [' ', wide(ZT.statusChip('INFO', t(P + 'row.shadow')))] : null);
     }
 
-    function decisionTable(state, rows) {
+    function wideCell(node) {
+        node.classList.add('zt-wide');
+        return node;
+    }
+
+    /** @param took whether the time each decision took is a column (the slowest decisions) */
+    function decisionTable(state, rows, took) {
         // The target takes the room the others leave; a phone keeps who, target and action (1.4 check 8).
-        return table([{key: 'who'}, {key: 'target'}, {key: 'action'}, {key: 'hypothesis', wide: true},
-            {key: 'outcome', wide: true}],
-            rows.map(row => selectable(state, row.observationId, [
-                whoCell(row.createdAt, row.user, row.observationId),
-                cell(target(row), {class: 'zt-fill'}),
-                actionCell(row),
-                cell(hypothesisLabel(row.hypothesis), {class: 'zt-wide'}),
-                cell(outcomeLabel(row), {class: 'zt-wide'})])));
+        // the slowest decisions keep the time on a phone in place of the action
+        const columns = [{key: 'who'}, {key: 'target'}, {key: 'action', wide: took}];
+        if (took) {
+            columns.push({key: 'took', number: true});
+        }
+        columns.push({key: 'hypothesis', wide: true}, {key: 'outcome', wide: true});
+        return table(columns, rows.map(row => selectable(state, row.observationId, [
+            whoCell(row.createdAt, row.user, row.observationId),
+            cell(target(row), {class: 'zt-fill'}),
+            took ? wideCell(actionCell(row)) : actionCell(row),
+            took ? cell(row.totalMs == null ? '—' : ZT.seconds(row.totalMs), {class: 'zt-num'}) : null,
+            cell(hypothesisLabel(row.hypothesis), {class: 'zt-wide'}),
+            cell(outcomeLabel(row), {class: 'zt-wide'})].filter(Boolean))));
     }
 
     function reviewTable(state, items) {

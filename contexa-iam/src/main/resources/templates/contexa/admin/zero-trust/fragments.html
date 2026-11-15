@@ -10,7 +10,7 @@
      th:data-observation-id="${observationId}"
      th:data-csrf-token="${_csrf != null ? _csrf.token : ''}"
      th:data-csrf-header="${_csrf != null ? _csrf.headerName : 'X-CSRF-TOKEN'}">
-    <script type="application/json" id="zt-messages" th:utext="${ztMessages}"></script>
+    <script type="application/json" id="zt-messages" th:utext="${scriptMessagesJson}"></script>
     <div class="zt-stack">
         <header class="zt-header">
             <div>

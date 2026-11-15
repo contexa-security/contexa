@@ -23,6 +23,7 @@ import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Adoption;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionDetail;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionPage;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionRow;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Evaluation;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Impact;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Operations;
@@ -258,7 +259,19 @@ class ZeroTrustConsolePostgresTest {
                 .satisfies(stage -> {
                     assertThat(stage.measured()).isEqualTo(10);
                     assertThat(stage.p50Ms()).isBetween(1000L, 2000L);
+                    assertThat(stage.averageMs()).as("console plan 5-2 ④: every decision took 1.5 s").isEqualTo(1500L);
                 });
+        // console plan 5-2 ①②: no provider was recorded; every decision came from a protected method
+        assertThat(operations.providers()).singleElement().satisfies(provider -> {
+            assertThat(provider.item()).isEqualTo("UNKNOWN");
+            assertThat(provider.count()).isEqualTo(10);
+            assertThat(provider.byDetail()).containsEntry("qwen3:8b", 10L);
+        });
+        assertThat(operations.triggers()).singleElement().satisfies(trigger -> {
+            assertThat(trigger.key()).isEqualTo("PROTECTABLE");
+            assertThat(trigger.count()).isEqualTo(10);
+            assertThat(trigger.ratio()).isEqualTo(1.0);
+        });
         assertThat(operations.failedPaths()).first().satisfies(path -> assertThat(path.item()).isEqualTo("/api/slow"));
         assertThat(operations.failureTrend()).hasSize(1);
         assertThat(operations.cost().tokensPerDecision().value()).isEqualTo(150.0);
@@ -372,6 +385,62 @@ class ZeroTrustConsolePostgresTest {
         assertThat(recommended.criteria()).filteredOn(criterion -> !"INFO".equals(criterion.status()))
                 .allSatisfy(criterion -> assertThat(criterion.status()).as(criterion.key()).isEqualTo("MET"));
         assertThat(recommended.verdict()).isEqualTo("RECOMMENDED");
+    }
+
+    /** Console plan 5-2 ③: the slowest decisions first, decisions only, as the AI monitor's slow requests. */
+    @Test
+    void theSlowestDecisionsComeFirst() {
+        jdbc.update("UPDATE ctxa_ai_security_decision_observation SET total_analysis_ms = 9000 "
+                + "WHERE observation_id IN ('challenge-2', 'retry-1', 'timeout-1')");
+        jdbc.update("UPDATE ctxa_ai_security_decision_observation SET total_analysis_ms = 5000 "
+                + "WHERE observation_id = 'block-1'");
+
+        DecisionPage slowest = records.slowest(service.range("week", null, null), null, null);
+
+        assertThat(slowest.nextCursor()).isNull();
+        assertThat(slowest.rows()).hasSize(10);
+        assertThat(slowest.rows()).extracting(DecisionRow::observationId).startsWith("challenge-2", "block-1")
+                .doesNotContain("retry-1", "timeout-1");
+        assertThat(slowest.rows().get(0).totalMs()).isEqualTo(9000L);
+    }
+
+    /** Console plan 5-2 ⑤: the AI monitor's past windows, newest first, for all tenants only. */
+    @Test
+    void theAiMonitorsPastWindowsAreShown() {
+        jdbc.execute("TRUNCATE ctxa_ai_security_monitoring_session_summary");
+        Instant end = now.minus(Duration.ofDays(3));
+        for (String[] window : new String[][] {{"window-old", "10"}, {"window-new", "2"}}) {
+            Instant ended = window[0].equals("window-new") ? end : end.minus(Duration.ofDays(Long.parseLong(window[1])));
+            jdbc.update("INSERT INTO ctxa_ai_security_monitoring_session_summary (session_id, started_at, ended_at, "
+                    + "llm_decision_count, failure_rate, timeout_rate, p95_latency_ms, recommendation, reset_by, "
+                    + "reset_reason) VALUES (?, ?, ?, 120, 0.12, 0.04, 6400, 'DO_NOT_RECOMMEND', 'admin', 'trial')",
+                    window[0], Timestamp.from(ended.minus(Duration.ofDays(1))), Timestamp.from(ended));
+        }
+
+        Adoption adoption = service.adoption(null, Locale.ENGLISH);
+
+        assertThat(adoption.pastWindows()).hasSize(2);
+        assertThat(adoption.pastWindows().get(0).endedAt()).isEqualTo(end.toString());
+        assertThat(adoption.pastWindows().get(0)).satisfies(window -> {
+            assertThat(window.decisions()).isEqualTo(120);
+            assertThat(window.failureRate()).isEqualTo(0.12);
+            assertThat(window.p95LatencyMs()).isEqualTo(6400.0);
+            assertThat(window.recommendation()).isEqualTo("DO_NOT_RECOMMEND");
+            assertThat(window.closedBy()).isEqualTo("admin");
+        });
+        assertThat(service.adoption("tenant-a", Locale.ENGLISH).pastWindows()).as("the windows have no tenant").isEmpty();
+    }
+
+    /** Console plan 5-4·5-5: the security event log and the blocked users open a request's decision by its request. */
+    @Test
+    void aRequestOpensItsFirstDecision() {
+        decision(Map.of("observation_id", "challenge-1-again", "user_id", "u1", "final_action", "CHALLENGE",
+                "attempt_kind", "RETRY", "request_id", "request-c1"), now.minus(Duration.ofMinutes(10)));
+
+        assertThat(records.observationOfRequest("request-c1")).isEqualTo("challenge-1");
+        assertThat(records.observationOfRequest("request-timeout-1")).isEqualTo("timeout-1");
+        assertThat(records.observationOfRequest("request-nobody-sent")).isNull();
+        assertThat(records.observationOfRequest(" ")).isNull();
     }
 
     private static void decision(Map<String, Object> values, Instant createdAt) {

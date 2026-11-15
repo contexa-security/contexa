@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.zerotrust;
 
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.PastWindow;
 import org.springframework.jdbc.core.JdbcOperations;
 
 import java.sql.ResultSet;
@@ -433,6 +434,26 @@ final class ZeroTrustConsoleReader {
                  LIMIT ?
                 """, (rs, row) -> new String[] {String.valueOf(instant(rs, 1)), rs.getString(2), rs.getString(3),
                 rs.getString(4)}, limit);
+    }
+
+    /**
+     * Console plan 5-2 ⑤: the measuring windows the AI monitor's reset closed, newest first. The table only holds the
+     * windows kept before the reset was removed (console design 11.4).
+     */
+    List<PastWindow> pastWindows(int limit) {
+        JdbcOperations operations = jdbc.get();
+        if (operations == null) {
+            return List.of();
+        }
+        return operations.query("""
+                SELECT started_at, ended_at, llm_decision_count, failure_rate, timeout_rate, p95_latency_ms,
+                       recommendation, reset_by, reset_reason
+                  FROM ctxa_ai_security_monitoring_session_summary
+                 ORDER BY ended_at DESC
+                 LIMIT ?
+                """, (rs, row) -> new PastWindow(String.valueOf(instant(rs, 1)), String.valueOf(instant(rs, 2)),
+                rs.getLong(3), rs.getObject(4, Double.class), rs.getObject(5, Double.class),
+                rs.getObject(6, Double.class), rs.getString(7), rs.getString(8), rs.getString(9)), limit);
     }
 
     /** The first hour a mode decided in, for a mode no change on record started. */

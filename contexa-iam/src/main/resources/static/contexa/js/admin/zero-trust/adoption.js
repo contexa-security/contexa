@@ -274,14 +274,42 @@
         return card;
     }
 
+    // ----- the AI monitor's past measuring windows (console plan 5-2 ⑤) -----
+
+    function pastWindowsCard(windows) {
+        // [key, class]: a phone keeps the window, its decisions and its failure rate
+        const head = el('tr', {}, [['span', null], ['decisions', 'zt-num'], ['failureRate', 'zt-num'],
+            ['timeoutRate', 'zt-num zt-wide'], ['p95', 'zt-num zt-wide'], ['recommendation', 'zt-wide']]
+            .map(([key, kind]) => el('th', {scope: 'col', class: kind, text: t(P + 'past.column.' + key)})));
+        const rows = windows.map(past => {
+            const when = t(P + 'past.span', ZT.time(past.startedAt), ZT.time(past.endedAt));
+            const closed = t(P + 'past.closed', past.closedBy || '—', past.reason || '—');
+            return el('tr', {}, el('td', {class: 'zt-fill', title: when + ' · ' + closed, text: when}),
+                el('td', {class: 'zt-num', text: ZT.count(past.decisions)}),
+                el('td', {class: 'zt-num', text: ZT.percent(past.failureRate)}),
+                el('td', {class: 'zt-num zt-wide', text: ZT.percent(past.timeoutRate)}),
+                el('td', {class: 'zt-num zt-wide', text: past.p95LatencyMs == null ? '—'
+                    : ZT.seconds(past.p95LatencyMs)}),
+                el('td', {class: 'zt-wide', text: known(P + 'past.recommendation.' + past.recommendation,
+                    t(P + 'past.recommendation.other'))}));
+        });
+        return ZT.card(t(P + 'past.title'), t(P + 'past.aside', ZT.count(windows.length)),
+            el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table'}, el('thead', {}, head),
+                el('tbody', {}, rows))), muted(t(P + 'past.note')));
+    }
+
     function render(content, adoption) {
         const criteria = adoption.criteria || [];
         const weighed = criteria.filter(criterion => criterion.status !== 'INFO');
+        const windows = adoption.pastWindows || [];
         content.append(
             grid(span(gaugeCard(weighed), 4), span(verdictCard(adoption, criteria), 8)),
             grid(span(criteriaCard(adoption), 12)),
             grid(span(trendCard(adoption), 8), span(wouldHaveCard(adoption), 4)),
             grid(span(historyCard(adoption), 12)));
+        if (windows.length) {
+            content.append(grid(span(pastWindowsCard(windows), 12)));
+        }
     }
 
     ZT.start('/adoption', render);

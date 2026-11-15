@@ -47,6 +47,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -112,6 +113,20 @@ public class ZeroTrustConsoleController {
         return page("decision", model, locale, authentication);
     }
 
+    /**
+     * A request's decision, for the screens that know only the request (the security event log, the blocked users):
+     * its detail, else the decision records searched for the request.
+     */
+    @GetMapping(BASE + "/decisions/request/{requestId}")
+    public String decisionOfRequest(@PathVariable String requestId, Authentication authentication) {
+        requireAdmin(authentication);
+        String observationId = records.observationOfRequest(requestId);
+        if (observationId != null) {
+            return "redirect:" + BASE + "/decisions/" + UriUtils.encodePathSegment(observationId, StandardCharsets.UTF_8);
+        }
+        return "redirect:" + BASE + "/decisions?q=" + UriUtils.encodeQueryParam(requestId, StandardCharsets.UTF_8);
+    }
+
     @GetMapping(BASE + "/adoption")
     public String adoptionPage(Model model, Locale locale, Authentication authentication) {
         return page("adoption", model, locale, authentication);
@@ -168,6 +183,31 @@ public class ZeroTrustConsoleController {
         return within(() -> service.operations(period, from, to, blank(tenant), locale));
     }
 
+    /**
+     * Console plan 5-2 ⑥: a screen's numbers as a CSV (the overview, the threats and work impact, the decision trust,
+     * the adoption, the operations), as the AI monitor exported its tabs. The decision records have their own CSV.
+     */
+    @GetMapping(value = API + "/{screen:overview|impact|trust|adoption|operations}.csv", produces = "text/csv")
+    public ResponseEntity<byte[]> screenCsv(@PathVariable String screen, @RequestParam(required = false) String period,
+                                            @RequestParam(required = false) String from,
+                                            @RequestParam(required = false) String to,
+                                            @RequestParam(required = false) String tenant, Locale locale,
+                                            Authentication authentication) {
+        requireAdmin(authentication);
+        String scope = blank(tenant);
+        Object answer = within(() -> switch (screen) {
+            case "overview" -> service.overview(period, from, to, scope, locale);
+            case "impact" -> service.impact(period, from, to, scope, locale);
+            case "trust" -> service.trust(period, from, to, scope, locale);
+            case "adoption" -> service.adoption(scope, locale);
+            default -> service.operations(period, from, to, scope, locale);
+        });
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"zero-trust-" + screen + ".csv\"")
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(ZeroTrustConsoleCsv.of(answer, objectMapper).getBytes(StandardCharsets.UTF_8));
+    }
+
     @ResponseBody
     @GetMapping(API + "/decisions")
     public DecisionPage decisions(@RequestParam(required = false) String period,
@@ -181,12 +221,15 @@ public class ZeroTrustConsoleController {
                                   @RequestParam(required = false) String resourceClass,
                                   @RequestParam(required = false) String outcome,
                                   @RequestParam(required = false) String mode, @RequestParam(required = false) String q,
+                                  @RequestParam(required = false) String order,
                                   Authentication authentication) {
         requireAdmin(authentication);
         ZeroTrustConsoleRange range = within(() -> service.range(period, from, to));
-        return records.list(range, blank(tenant),
-                new ZeroTrustDecisionRecords.Filter(action, source, hypothesis, actor, resourceClass, outcome, mode, q),
-                cursor);
+        ZeroTrustDecisionRecords.Filter filter =
+                new ZeroTrustDecisionRecords.Filter(action, source, hypothesis, actor, resourceClass, outcome, mode, q);
+        // console plan 5-2 ③: the slowest decisions first, one page
+        return "slowest".equals(order) ? records.slowest(range, blank(tenant), filter)
+                : records.list(range, blank(tenant), filter, cursor);
     }
 
     @ResponseBody
@@ -260,9 +303,10 @@ public class ZeroTrustConsoleController {
     private String page(String screen, Model model, Locale locale, Authentication authentication) {
         requireAdmin(authentication);
         model.addAttribute("screen", screen);
-        model.addAttribute("activePage", "zero-trust-" + screen);
+        // the menu of the screen (data-menu.sql); a decision's detail belongs to the decision records
+        model.addAttribute("activePage", "zero-trust-" + ("decision".equals(screen) ? "decisions" : screen));
         model.addAttribute("apiBase", API);
-        model.addAttribute("ztMessages", ZeroTrustConsoleMessages.json(messages, locale, objectMapper));
+        model.addAttribute("scriptMessagesJson", ZeroTrustConsoleMessages.json(messages, locale, objectMapper));
         return "contexa/admin/zero-trust/" + screen;
     }
 

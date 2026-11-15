@@ -242,6 +242,31 @@ class ZeroTrustConsoleDataPostgresTest {
                 Long.class)).isEqualTo(2L);
     }
 
+    /** Console plan 5-2 ①②: the decisions by provider and model, and by what started their analysis. */
+    @Test
+    void theHourlyItemsCountTheProvidersAndTheTriggersOfTheDecisions() {
+        Instant at = clock.instant().minus(Duration.ofMinutes(10));
+        decision("ollama-1", at, "FIRST", "ALLOW", null, null);
+        decision("ollama-2", at, "FIRST", "CHALLENGE", null, null);
+        decision("openai-1", at, "FIRST", "ALLOW", null, null);
+        decision("unknown-1", at, "FIRST", "BLOCK", null, null);
+        decision("retry", at, "RETRY", "CHALLENGE", null, null);
+        jdbc.update("UPDATE ctxa_ai_security_decision_observation SET model_provider = 'ollama', model_id = 'qwen3:8b', "
+                + "trigger_source = 'PROTECTABLE' WHERE observation_id IN ('ollama-1', 'ollama-2', 'retry')");
+        jdbc.update("UPDATE ctxa_ai_security_decision_observation SET model_provider = 'openai', model_id = 'gpt-x', "
+                + "trigger_source = 'AUTHZEN' WHERE observation_id = 'openai-1'");
+
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+
+        assertThat(jdbc.queryForList("SELECT item || ' ' || detail || ' ' || counted FROM ctxa_zt_item_hourly "
+                + "WHERE dimension = 'PROVIDER' ORDER BY item COLLATE \"C\"", String.class))
+                .as("the decisions only, a provider nothing recorded as UNKNOWN")
+                .containsExactly("UNKNOWN  1", "ollama qwen3:8b 2", "openai gpt-x 1");
+        assertThat(jdbc.queryForList("SELECT item || ' ' || counted FROM ctxa_zt_item_hourly "
+                + "WHERE dimension = 'TRIGGER' ORDER BY item", String.class))
+                .containsExactly("AUTHZEN 1", "PROTECTABLE 2", "UNKNOWN 1");
+    }
+
     /** A timeout whose request was decided on a later try is no failure: the request got its decision. */
     @Test
     void aTimeoutWhoseRequestWasDecidedIsNoFailure() {

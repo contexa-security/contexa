@@ -59,6 +59,8 @@ public class ZeroTrustDecisionRecords {
     }
 
     static final int PAGE = 50;
+    /** The slowest decisions the list shows in its slowest-first order. */
+    static final int SLOWEST = 20;
     /** The most rows one CSV carries. */
     static final int CSV_LIMIT = 10_000;
     private static final Set<String> ACTIONS = Set.of("ALLOW", "CHALLENGE", "ESCALATE", "BLOCK",
@@ -110,7 +112,20 @@ public class ZeroTrustDecisionRecords {
         return rows(range, tenant, filter, null, CSV_LIMIT);
     }
 
+    /**
+     * Console plan 5-2 ③: the slowest decisions of the period under the filter, the longest analysis first, as many as
+     * {@link #SLOWEST} (the AI monitor showed its ten slowest requests). One page: the order has no cursor.
+     */
+    public DecisionPage slowest(ZeroTrustConsoleRange range, String tenant, Filter filter) {
+        return new DecisionPage(List.copyOf(rows(range, tenant, filter, null, SLOWEST, true)), null);
+    }
+
     private List<DecisionRow> rows(ZeroTrustConsoleRange range, String tenant, Filter filter, String cursor, int limit) {
+        return rows(range, tenant, filter, cursor, limit, false);
+    }
+
+    private List<DecisionRow> rows(ZeroTrustConsoleRange range, String tenant, Filter filter, String cursor, int limit,
+                                   boolean slowestFirst) {
         JdbcOperations operations = jdbc.get();
         if (operations == null) {
             return List.of();
@@ -151,18 +166,23 @@ public class ZeroTrustDecisionRecords {
             args.add(bounded);
             args.add(likePrefix(bounded));
         }
-        Object[] position = decodeCursor(cursor);
+        Object[] position = slowestFirst ? null : decodeCursor(cursor);
         if (position != null) {
             where.append(" AND (o.created_at < ? OR (o.created_at = ? AND o.observation_id < ?))");
             args.add(position[0]);
             args.add(position[0]);
             args.add(position[1]);
         }
+        String order = " ORDER BY o.created_at DESC, o.observation_id DESC";
+        if (slowestFirst) {
+            where.append(" AND o.total_analysis_ms IS NOT NULL");
+            order = " ORDER BY o.total_analysis_ms DESC, o.observation_id DESC";
+        }
         args.add(limit);
         return operations.query("SELECT " + ROW_COLUMNS
                 + " FROM ctxa_ai_security_decision_observation o"
                 + " LEFT JOIN ctxa_zt_decision_reason r ON r.observation_id = o.observation_id AND r.reason_rank = 1"
-                + where + " ORDER BY o.created_at DESC, o.observation_id DESC LIMIT ?", this::row, args.toArray());
+                + where + order + " LIMIT ?", this::row, args.toArray());
     }
 
     private DecisionRow row(ResultSet rs, int index) throws SQLException {
@@ -177,6 +197,25 @@ public class ZeroTrustDecisionRecords {
     }
 
     // ----- one decision -----
+
+    /**
+     * The decision row of a request, for the screens that know a request and not its row (the security event log, the
+     * blocked users): its latest first decision, else its latest row. Null when the request has no decision row.
+     */
+    public String observationOfRequest(String requestId) {
+        JdbcOperations operations = jdbc.get();
+        if (operations == null || requestId == null || requestId.isBlank()) {
+            return null;
+        }
+        List<String> found = operations.queryForList("""
+                SELECT observation_id
+                  FROM ctxa_ai_security_decision_observation
+                 WHERE request_id = ?
+                 ORDER BY CASE WHEN attempt_kind = 'FIRST' THEN 0 ELSE 1 END, created_at DESC
+                 LIMIT 1
+                """, String.class, requestId);
+        return found.isEmpty() ? null : found.get(0);
+    }
 
     public DecisionDetail detail(String observationId, Locale locale) {
         JdbcOperations operations = jdbc.get();

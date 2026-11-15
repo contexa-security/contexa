@@ -22,6 +22,9 @@ import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningPropert
 import lombok.Data;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * Form-binding DTOs for the {@code /contexa/admin/system-settings} screen.
  *
@@ -43,6 +46,11 @@ public final class SystemSettingsDtos {
         private String missingMethodPolicyDecision = SystemRuntimeSettingsService.DEFAULT_MISSING_METHOD_POLICY_DECISION.name();
         private String securityZeroTrustMode = SystemRuntimeSettingsService.DEFAULT_SECURITY_ZEROTRUST_MODE.name();
         private String mvcResourceScannerBasePackages = SystemRuntimeSettingsService.DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES;
+        /**
+         * The Zero Trust console's settings by their key ({@code ZeroTrustConsoleSettings.SETTINGS}), in the screen's
+         * units; a key the form does not send changes nothing.
+         */
+        private Map<String, String> zeroTrustConsole = new LinkedHashMap<>();
 
         public static SystemSettingsForm from(SystemSettings entity) {
             return from(entity, null, null);

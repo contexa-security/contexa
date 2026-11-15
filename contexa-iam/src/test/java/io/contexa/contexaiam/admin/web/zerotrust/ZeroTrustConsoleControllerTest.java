@@ -45,7 +45,10 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
@@ -78,6 +81,27 @@ class ZeroTrustConsoleControllerTest {
         }
     }
 
+    /** A decision's detail lights the decision records' menu (data-menu.sql has no menu of its own for it). */
+    @Test
+    void aDecisionsDetailBelongsToTheDecisionRecordsMenu() throws Exception {
+        mvc.perform(get("/contexa/admin/zero-trust/decisions/obs-1").principal(admin))
+                .andExpect(model().attribute("activePage", "zero-trust-decisions"));
+        mvc.perform(get("/contexa/admin/zero-trust/trust").principal(admin))
+                .andExpect(model().attribute("activePage", "zero-trust-trust"));
+    }
+
+    /** Console plan 5-4·5-5: a request opens its decision, else the records searched for it. */
+    @Test
+    void aRequestOpensItsDecisionOrTheSearchForIt() throws Exception {
+        when(records.observationOfRequest("request-1")).thenReturn("obs 1");
+        mvc.perform(get("/contexa/admin/zero-trust/decisions/request/request-1").principal(admin))
+                .andExpect(redirectedUrl("/contexa/admin/zero-trust/decisions/obs%201"));
+        mvc.perform(get("/contexa/admin/zero-trust/decisions/request/request-2").principal(admin))
+                .andExpect(redirectedUrl("/contexa/admin/zero-trust/decisions?q=request-2"));
+        mvc.perform(get("/contexa/admin/zero-trust/decisions/request/request-1").principal(user))
+                .andExpect(status().isForbidden());
+    }
+
     @Test
     void onlyAnAdministratorReadsTheConsole() throws Exception {
         mvc.perform(get("/contexa/admin/api/zero-trust/overview").principal(user)).andExpect(status().isForbidden());
@@ -95,6 +119,33 @@ class ZeroTrustConsoleControllerTest {
                 .andExpect(jsonPath("$.header.period.key").value("day"))
                 .andExpect(jsonPath("$.stopped.stopped.value").doesNotExist())
                 .andExpect(jsonPath("$.stopped.stopped.noDataReason").value(ZeroTrustConsoleMetrics.NO_DECISIONS));
+    }
+
+    /** Console plan 5-2 ⑥: a screen's numbers as a CSV, each metric with the reason it has none. */
+    @Test
+    void aScreensNumbersComeAsACsv() throws Exception {
+        String csv = mvc.perform(get("/contexa/admin/api/zero-trust/overview.csv").param("period", "day").principal(admin))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"zero-trust-overview.csv\""))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(csv).startsWith("﻿" + ZeroTrustConsoleCsv.HEADER);
+        assertThat(csv).contains("stopped.stopped,").contains("," + ZeroTrustConsoleMetrics.NO_DECISIONS);
+        for (String screen : List.of("impact", "trust", "adoption", "operations")) {
+            mvc.perform(get("/contexa/admin/api/zero-trust/" + screen + ".csv").principal(admin))
+                    .andExpect(status().isOk());
+        }
+        mvc.perform(get("/contexa/admin/api/zero-trust/other.csv").principal(admin)).andExpect(status().isNotFound());
+        mvc.perform(get("/contexa/admin/api/zero-trust/trust.csv").principal(user)).andExpect(status().isForbidden());
+    }
+
+    /** Console plan 5-2 ③: the slowest-first order reads the slowest decisions, one page. */
+    @Test
+    void theSlowestOrderReadsTheSlowestDecisions() throws Exception {
+        when(records.slowest(any(), isNull(), any())).thenReturn(new DecisionPage(List.of(), null));
+        mvc.perform(get("/contexa/admin/api/zero-trust/decisions").param("order", "slowest").principal(admin))
+                .andExpect(status().isOk());
+        verify(records).slowest(any(), isNull(), any());
+        verify(records, never()).list(any(), any(), any(), any());
     }
 
     @Test

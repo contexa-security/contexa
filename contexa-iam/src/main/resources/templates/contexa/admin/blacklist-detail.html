@@ -115,6 +115,10 @@
                 <div class="p-5 rounded-xl" style="background: rgba(15,23,42,0.7); border: 1px solid rgba(71,85,105,0.3);">
                     <p class="text-base whitespace-pre-wrap" style="color: #e2e8f0; line-height: 1.7;" th:text="${blocked.reasoning} ?: #{admin.blacklist.detail.no.reasoning}"></p>
                 </div>
+                <a th:if="${blocked.requestId != null}"
+                   th:href="@{/contexa/admin/zero-trust/decisions/request/{id}(id=${blocked.requestId})}"
+                   class="inline-block text-sm mt-4" style="color: #818cf8; text-decoration: none;"
+                   th:text="#{admin.blacklist.detail.decision.link}">Decision</a>
             </div>
 
             <div class="rounded-2xl p-7 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(71,85,105,0.3);">

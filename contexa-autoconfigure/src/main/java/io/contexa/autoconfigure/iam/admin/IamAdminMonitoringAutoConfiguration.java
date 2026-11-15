@@ -88,23 +88,11 @@ public class IamAdminMonitoringAutoConfiguration {
         return controller;
     }
 
-    @Bean(name = "contexaAiSecurityDecisionMonitoringService")
-    @ConditionalOnMissingBean
-    public AiSecurityDecisionMonitoringService aiSecurityDecisionMonitoringService(
-            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
-            SecurityZeroTrustProperties zeroTrustProperties,
-            MessageSource messageSource) {
-        return new AiSecurityDecisionMonitoringService(
-                jdbcOperationsProvider::getIfAvailable,
-                zeroTrustProperties,
-                messageSource);
-    }
-
+    /** Console plan 5-2: the AI monitor's old addresses open the Zero Trust console's screens. */
     @Bean(name = "contexaAiMonitorController")
     @ConditionalOnMissingBean
-    public AiMonitorController aiMonitorController(
-            AiSecurityDecisionMonitoringService contexaAiSecurityDecisionMonitoringService) {
-        return new AiMonitorController(contexaAiSecurityDecisionMonitoringService);
+    public AiMonitorController aiMonitorController() {
+        return new AiMonitorController();
     }
 
     /** Console design 3 to 6: the numbers of the Zero Trust console, read from its hourly tables. */

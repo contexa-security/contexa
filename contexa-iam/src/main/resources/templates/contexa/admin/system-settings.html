@@ -47,6 +47,34 @@
                     </div>
                 </section>
 
+                <section class="system-settings-section system-settings-section--console">
+                    <div class="system-settings-section-header">
+                        <i class="fas fa-chart-line"></i>
+                        <div>
+                            <h2 th:text="#{admin.system.settings.zt.title}">Zero Trust console</h2>
+                            <p th:text="#{admin.system.settings.zt.desc}">Values nobody saved follow the configuration.</p>
+                        </div>
+                    </div>
+                    <div class="system-settings-grid">
+                        <div class="system-settings-field" th:each="setting : ${zeroTrustConsoleSettings}">
+                            <label th:for="${'zt-' + setting.key()}" th:text="#{${setting.labelKey()}}">Setting</label>
+                            <input th:id="${'zt-' + setting.key()}" type="number" class="system-settings-input"
+                                   th:name="${'zeroTrustConsole[' + setting.key() + ']'}"
+                                   th:value="${settings.zeroTrustConsole[setting.key()]}"
+                                   th:attr="min=${setting.minText()}, max=${setting.maxText()}, step=${setting.step()}"
+                                   th:required="${setting.required()}" />
+                            <p th:text="#{${setting.labelKey() + '.desc'}}">What the setting does.</p>
+                        </div>
+                        <div class="system-settings-field">
+                            <label for="zt-priceCurrency" th:text="#{admin.system.settings.zt.priceCurrency}">Currency</label>
+                            <input id="zt-priceCurrency" type="text" class="system-settings-input" maxlength="3"
+                                   pattern="[A-Za-z]{3}" name="zeroTrustConsole[priceCurrency]"
+                                   th:value="${settings.zeroTrustConsole['priceCurrency']}" required />
+                            <p th:text="#{admin.system.settings.zt.priceCurrency.desc}">The currency of the prices.</p>
+                        </div>
+                    </div>
+                </section>
+
                 <section class="system-settings-section system-settings-section--audit">
                     <div class="system-settings-section-header">
                         <i class="fas fa-file-alt"></i>

@@ -169,6 +169,31 @@ public class ZeroTrustHourlyStats {
                       LEFT(u.value, 64)
             """.formatted(DECIDED);
 
+    /** Console plan 5-2 ①: the decisions by the provider and the model that answered them, as the AI monitor showed. */
+    private static final String ITEM_PROVIDERS = """
+            INSERT INTO ctxa_zt_item_hourly (bucket_start, tenant_id, decision_boundary_mode, dimension, item, detail,
+                                             counted, computed_at)
+            SELECT ?, COALESCE(o.tenant_id, ''), COALESCE(o.decision_boundary_mode, ''), 'PROVIDER',
+                   LEFT(COALESCE(NULLIF(o.model_provider, ''), 'UNKNOWN'), 512), LEFT(COALESCE(o.model_id, ''), 64),
+                   COUNT(*), ?
+              FROM ctxa_ai_security_decision_observation o
+             WHERE %s
+             GROUP BY COALESCE(o.tenant_id, ''), COALESCE(o.decision_boundary_mode, ''),
+                      LEFT(COALESCE(NULLIF(o.model_provider, ''), 'UNKNOWN'), 512), LEFT(COALESCE(o.model_id, ''), 64)
+            """.formatted(DECIDED);
+
+    /** Console plan 5-2 ②: the decisions by what started their analysis (a protected method, an AuthZEN evaluation). */
+    private static final String ITEM_TRIGGERS = """
+            INSERT INTO ctxa_zt_item_hourly (bucket_start, tenant_id, decision_boundary_mode, dimension, item, detail,
+                                             counted, computed_at)
+            SELECT ?, COALESCE(o.tenant_id, ''), COALESCE(o.decision_boundary_mode, ''), 'TRIGGER',
+                   LEFT(COALESCE(NULLIF(o.trigger_source, ''), 'UNKNOWN'), 512), '', COUNT(*), ?
+              FROM ctxa_ai_security_decision_observation o
+             WHERE %s
+             GROUP BY COALESCE(o.tenant_id, ''), COALESCE(o.decision_boundary_mode, ''),
+                      LEFT(COALESCE(NULLIF(o.trigger_source, ''), 'UNKNOWN'), 512)
+            """.formatted(DECIDED);
+
     private static final String ITEM_FAILED_PATHS = """
             INSERT INTO ctxa_zt_item_hourly (bucket_start, tenant_id, decision_boundary_mode, dimension, item, detail,
                                              counted, computed_at)
@@ -385,7 +410,7 @@ public class ZeroTrustHourlyStats {
         jdbc.update(REBUILD, from, at, from, to, from, to);
         jdbc.update(NO_DECISION, from, at, from, to);
         for (String items : List.of(ITEM_USERS, ITEM_PASSED, ITEM_USER_BASELINES, ITEM_USER_REASONS, ITEM_RESOURCES,
-                ITEM_FIRST_REASONS, ITEM_UNKNOWN_FACTS, ITEM_FAILED_PATHS)) {
+                ITEM_FIRST_REASONS, ITEM_UNKNOWN_FACTS, ITEM_PROVIDERS, ITEM_TRIGGERS, ITEM_FAILED_PATHS)) {
             jdbc.update(items, from, at, from, to);
         }
         jdbc.update(LATENCY, from, at, from, to);

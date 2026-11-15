@@ -72,6 +72,7 @@
                     <div class="space-y-2">
                         <div th:if="${log.sessionId != null}" class="text-sm" style="color: #94a3b8;"><span th:text="#{admin.security.monitor.detail.session}">Session</span>: <span class="font-mono" style="color: #cbd5e1;" th:text="${log.sessionId}"></span></div>
                         <div th:if="${log.correlationId != null}" class="text-sm" style="color: #94a3b8;"><span th:text="#{admin.security.monitor.detail.correlation}">Correlation</span>: <span class="font-mono" style="color: #cbd5e1;" th:text="${log.correlationId}"></span></div>
+                        <div th:if="${log.eventCategory == 'SECURITY_DECISION' and log.correlationId != null}" class="text-sm"><a th:href="@{/contexa/admin/zero-trust/decisions/request/{id}(id=${log.correlationId})}" style="color: #818cf8; text-decoration: none;" th:text="#{admin.security.monitor.decision.link}">Decision</a></div>
                     </div>
                 </div>
 

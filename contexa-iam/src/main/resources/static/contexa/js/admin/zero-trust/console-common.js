@@ -565,6 +565,9 @@
         'engineChanged', 'modelLess', 'firstLayer', 'secondLayer', 'baseline', 'context', 'unknownFact', 'shadow',
         'enforce', 'review'];
 
+    /** The screens whose numbers have a CSV (ZeroTrustConsoleController.screenCsv); the records have their own. */
+    const CSV_SCREENS = ['overview', 'impact', 'trust', 'adoption', 'operations'];
+
     /** The glossary every screen opens from its toolbar. */
     function glossary() {
         const list = el('dl', {class: 'zt-glossary-list'});
@@ -583,10 +586,21 @@
         const content = document.getElementById('zt-content');
         const period = document.getElementById('zt-period');
         const toolbar = root ? root.querySelector('.zt-toolbar') : null;
+        // Console plan 5-2 ⑥: a screen of numbers gives them as a CSV of its period, as the AI monitor's tabs did.
+        const screen = root ? root.dataset.screen : null;
+        const csv = CSV_SCREENS.includes(screen) ? el('a', {class: 'zt-button', text: t('zt.console.ui.csv'),
+            title: t('zt.console.ui.csvTitle')}) : null;
+        if (toolbar && csv && !toolbar.querySelector('.zt-screen-csv')) {
+            csv.classList.add('zt-screen-csv');
+            toolbar.append(csv);
+        }
         if (toolbar && !toolbar.querySelector('.zt-glossary')) {
             toolbar.append(glossary());
         }
         const draw = async () => {
+            if (csv) {
+                csv.setAttribute('href', apiUrl('/' + screen + '.csv'));
+            }
             try {
                 const value = await load(path);
                 header(band, value.header);

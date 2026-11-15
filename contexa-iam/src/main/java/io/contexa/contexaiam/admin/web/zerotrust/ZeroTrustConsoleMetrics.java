@@ -15,7 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.zerotrust;
 
-import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MetricValue;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.MetricValue;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.RangedMetric;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Share;
 import org.springframework.context.MessageSource;

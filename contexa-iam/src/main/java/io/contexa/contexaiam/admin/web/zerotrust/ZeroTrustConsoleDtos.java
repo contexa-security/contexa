@@ -15,7 +15,6 @@
  */
 package io.contexa.contexaiam.admin.web.zerotrust;
 
-import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MetricValue;
 
 import java.util.List;
 import java.util.Map;
@@ -27,6 +26,14 @@ import java.util.Map;
 public final class ZeroTrustConsoleDtos {
 
     private ZeroTrustConsoleDtos() {
+    }
+
+    /**
+     * A number with its definition (console design 2): its name and what it counts, its value, its numerator and
+     * denominator for a ratio, its unit, and the reason it has none when no value can be given.
+     */
+    public record MetricValue(String key, String label, String description, Double value, Long numerator,
+                              Long denominator, String unit, String noDataReason) {
     }
 
     /** The period a screen reads: its key (day, week, month, quarter, custom) and its bounds. */
@@ -205,9 +212,19 @@ public final class ZeroTrustConsoleDtos {
      * @param trend the SHADOW decisions of each day: what would have been stopped, and the share with an established
      *              baseline, from which the screen reads how the baseline grows
      */
+    /** @param pastWindows the measuring windows the AI monitor's reset closed, newest first (console plan 5-2 ⑤) */
     public record Adoption(Header header, String verdict, int unmet, String observedMode, String observedSince,
                            long observedDays, List<Criterion> criteria, WouldHave wouldHave, List<DayPoint> trend,
-                           List<ModeChange> modeHistory) {
+                           List<ModeChange> modeHistory, List<PastWindow> pastWindows) {
+    }
+
+    /**
+     * A measuring window the AI monitor kept when an operator restarted it: its span, its decisions, its failure and
+     * timeout shares, its p95 and the readiness it found. The windows stop with the reset (console design 11.4); the ones
+     * kept stay readable.
+     */
+    public record PastWindow(String startedAt, String endedAt, long decisions, Double failureRate, Double timeoutRate,
+                             Double p95LatencyMs, String recommendation, String closedBy, String reason) {
     }
 
     /** One criterion: what it measures now, the recommended bound and whether it is met. */
@@ -224,10 +241,15 @@ public final class ZeroTrustConsoleDtos {
 
     // ----- operations (6.6) -----
 
+    /**
+     * @param providers the decisions by the provider that answered, with its models (console plan 5-2 ①)
+     * @param triggers  the decisions by what started their analysis: a protected method, an AuthZEN evaluation (5-2 ②)
+     */
     public record Operations(Header header, List<Component> components, Throughput throughput,
                              List<HourPoint> hourly, List<Share> noDecisionReasons, List<FailureDay> failureTrend,
                              List<RankedItem> failedPaths, List<StageLatency> latency, List<Share> analysisTimeBuckets,
-                             List<DayPoint> trend, Cost cost, List<BundleModelRow> usage, Storage storage) {
+                             List<DayPoint> trend, Cost cost, List<BundleModelRow> usage, List<RankedItem> providers,
+                             List<Share> triggers, Storage storage) {
     }
 
     public record Throughput(MetricValue protectedPerMinute, MetricValue decisionsPerMinute, Integer inLine) {
@@ -236,7 +258,8 @@ public final class ZeroTrustConsoleDtos {
     public record FailureDay(String day, Map<String, Long> byKind) {
     }
 
-    public record StageLatency(String stage, Long p50Ms, Long p95Ms, long measured) {
+    /** @param averageMs the stage's mean, from the summed times (console plan 5-2 ④); null when nothing was measured */
+    public record StageLatency(String stage, Long p50Ms, Long p95Ms, Long averageMs, long measured) {
     }
 
     public record Cost(MetricValue tokensPerDecision, MetricValue callsPerDecision, MetricValue costPerDay,

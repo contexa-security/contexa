@@ -89,6 +89,67 @@ class AdminMenuServiceTest {
         verify(menuQueryCache, atLeastOnce()).invalidate();
     }
 
+    /** Console plan 5-1: a new installation gets the console's six screens and none of the AI monitor's pages. */
+    @Test
+    @DisplayName("a new installation seeds the Zero Trust console's six screens under the Zero Trust group")
+    void aNewInstallationSeedsTheConsoleScreens() {
+        AdminMenuService service = new AdminMenuService(menuRepository, menuQueryCache, false, false);
+        List<AdminMenu> saved = new ArrayList<>();
+        when(menuRepository.count()).thenReturn(0L);
+        when(menuRepository.findDuplicatedDataPages()).thenReturn(Collections.emptyList());
+        when(menuRepository.save(any(AdminMenu.class))).thenAnswer(inv -> {
+            AdminMenu menu = inv.getArgument(0);
+            if (menu.getId() == null) {
+                menu.setId((long) saved.size() + 1);
+            }
+            saved.add(menu);
+            return menu;
+        });
+
+        service.initializeDefaultMenusIfEmpty();
+
+        Long group = saved.stream().filter(menu -> "ai-monitor".equals(menu.getDataPage())).findFirst()
+                .orElseThrow().getId();
+        List<String> screens = saved.stream().filter(menu -> group.equals(menu.getParentId()))
+                .map(menu -> menu.getMenuOrder() + " " + menu.getName() + " " + menu.getUrl() + " " + menu.getDataPage())
+                .distinct().toList();
+        assertThat(screens).containsExactly(
+                "1 menu.zerotrust.overview /contexa/admin/zero-trust zero-trust-overview",
+                "2 menu.zerotrust.impact /contexa/admin/zero-trust/impact zero-trust-impact",
+                "3 menu.zerotrust.trust /contexa/admin/zero-trust/trust zero-trust-trust",
+                "4 menu.zerotrust.decisions /contexa/admin/zero-trust/decisions zero-trust-decisions",
+                "5 menu.zerotrust.adoption /contexa/admin/zero-trust/adoption zero-trust-adoption",
+                "6 menu.zerotrust.operations /contexa/admin/zero-trust/operations zero-trust-operations");
+        assertThat(saved).noneMatch(menu -> menu.getDataPage() != null && menu.getDataPage().startsWith("ai-monitor-"));
+        assertThat(saved).filteredOn(menu -> "security-monitor".equals(menu.getDataPage()))
+                .extracting(AdminMenu::getName).containsOnly("menu.security.events");
+    }
+
+    @Test
+    @DisplayName("an existing installation keeps the AI monitor's old menus off: their addresses open the console")
+    void anExistingInstallationTurnsTheOldMenusOff() {
+        AdminMenuService service = new AdminMenuService(menuRepository, menuQueryCache, false, false);
+        AdminMenu oldOverview = AdminMenu.builder().name("menu.aiMonitor.overview").url("/contexa/admin/ai-monitor")
+                .dataPage("ai-monitor-overview").enabled(true).build();
+        oldOverview.setId(40L);
+        when(menuRepository.count()).thenReturn(30L);
+        when(menuRepository.findDuplicatedDataPages()).thenReturn(Collections.emptyList());
+        when(menuRepository.findAllByDataPageOrderByIdAsc(anyString())).thenReturn(Collections.emptyList());
+        when(menuRepository.findAllByDataPageOrderByIdAsc("ai-monitor-overview")).thenReturn(List.of(oldOverview));
+        when(menuRepository.save(any(AdminMenu.class))).thenAnswer(inv -> {
+            AdminMenu menu = inv.getArgument(0);
+            if (menu.getId() == null) {
+                menu.setId(1L);
+            }
+            return menu;
+        });
+
+        service.initializeDefaultMenusIfEmpty();
+
+        assertThat(oldOverview.isEnabled()).isFalse();
+        verify(menuRepository).save(oldOverview);
+    }
+
     @Nested
     @DisplayName("deduplicateMenusByDataPage")
     class DeduplicateMenus {

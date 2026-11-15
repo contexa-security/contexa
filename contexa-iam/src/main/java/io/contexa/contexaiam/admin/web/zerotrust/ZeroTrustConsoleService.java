@@ -20,7 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV4;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
-import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MetricValue;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.MetricValue;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Adoption;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Alert;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.BlockOutcome;
@@ -657,7 +657,7 @@ public class ZeroTrustConsoleService {
                 metrics.value("burdenP95PerWeek", burdenP95, "PER_USER_WEEK", ZeroTrustConsoleMetrics.NO_DECISIONS));
         return new Adoption(header(range, tenant, all), verdict, unmet, mode,
                 first != null ? first.toString() : null, days, list, wouldHave, trend(range, tenant, SHADOW),
-                modeHistory());
+                modeHistory(), tenant == null ? reader.pastWindows(20) : List.of());
     }
 
     private Criterion ratioCriterion(ZeroTrustConsoleMetrics metrics, String key, long numerator, long denominator,
@@ -717,6 +717,7 @@ public class ZeroTrustConsoleService {
             LatencyRow row = stages.get(stage);
             latency.add(new StageLatency(stage, row == null ? null : ZeroTrustConsoleMetrics.percentile(row.buckets(), 0.5),
                     row == null ? null : ZeroTrustConsoleMetrics.percentile(row.buckets(), 0.95),
+                    row == null || row.measured() == 0 ? null : Math.round(row.sumMs() / (double) row.measured()),
                     row == null ? 0 : row.measured()));
         }
         List<Share> histogram = new ArrayList<>();
@@ -754,8 +755,15 @@ public class ZeroTrustConsoleService {
         return new Operations(header(range, tenant, rows),
                 components(range, tenant, rows, throughput, stages, planeAgent), throughput, hourly,
                 coverage.noDecisionReasons(), failureTrend, failedPaths, latency, histogram, trend(range, tenant),
-                costs, bundleModels(rows),
+                costs, bundleModels(rows), ranked(range, tenant, "PROVIDER", null), triggers(range, tenant, decisions),
                 new Storage(console.getDecisionRetentionDays(), console.getAggregateRetentionDays(), standalone));
+    }
+
+    /** Console plan 5-2 ②: the decisions by what started their analysis, as shares of the decisions. */
+    private List<Share> triggers(ZeroTrustConsoleRange range, String tenant, long decisions) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        reader.items(range, tenant, null, "TRIGGER").forEach(row -> counts.merge(row.item(), row.counted(), Long::sum));
+        return ZeroTrustConsoleMetrics.sharesOf(counts, decisions);
     }
 
     /**
