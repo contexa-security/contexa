@@ -30,6 +30,13 @@ import io.contexa.contexaiam.admin.web.monitoring.controller.AiMonitorController
 import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
 import io.contexa.contexaiam.admin.web.monitoring.controller.SecurityMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.service.*;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleController;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleService;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustDecisionRecords;
+import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.core.env.Environment;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
@@ -98,6 +105,45 @@ public class IamAdminMonitoringAutoConfiguration {
     public AiMonitorController aiMonitorController(
             AiSecurityDecisionMonitoringService contexaAiSecurityDecisionMonitoringService) {
         return new AiMonitorController(contexaAiSecurityDecisionMonitoringService);
+    }
+
+    /** Console design 3 to 6: the numbers of the Zero Trust console, read from its hourly tables. */
+    @Bean(name = "contexaZeroTrustConsoleService")
+    @ConditionalOnMissingBean
+    public ZeroTrustConsoleService zeroTrustConsoleService(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            SecurityZeroTrustProperties zeroTrustProperties,
+            MessageSource messageSource,
+            @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper,
+            ObjectProvider<SecurityPlaneAgent> securityPlaneAgent,
+            Environment environment) {
+        // The standalone mode keeps the decisions in force and the baselines in memory (console design 6.0).
+        boolean standalone = !"distributed".equalsIgnoreCase(environment.getProperty("contexa.infrastructure.mode"));
+        return new ZeroTrustConsoleService(jdbcOperationsProvider::getIfAvailable, zeroTrustProperties, messageSource,
+                objectMapper.getIfAvailable(), securityPlaneAgent::getIfAvailable, standalone, null);
+    }
+
+    /** Console design 6.4 and decision 11.3: the decision records, the review queue and the evaluations. */
+    @Bean(name = "contexaZeroTrustDecisionRecords")
+    @ConditionalOnMissingBean
+    public ZeroTrustDecisionRecords zeroTrustDecisionRecords(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            ObjectProvider<ZeroTrustDecisionOutcomes> decisionOutcomes,
+            MessageSource messageSource,
+            @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
+        return new ZeroTrustDecisionRecords(jdbcOperationsProvider::getIfAvailable, decisionOutcomes.getIfAvailable(),
+                messageSource, objectMapper.getIfAvailable(), null);
+    }
+
+    @Bean(name = "contexaZeroTrustConsoleController")
+    @ConditionalOnMissingBean
+    public ZeroTrustConsoleController zeroTrustConsoleController(ZeroTrustConsoleService contexaZeroTrustConsoleService,
+                                                                 ZeroTrustDecisionRecords contexaZeroTrustDecisionRecords,
+                                                                 MessageSource messageSource,
+                                                                 @Qualifier("contexaObjectMapper")
+                                                                 ObjectProvider<ObjectMapper> objectMapper) {
+        return new ZeroTrustConsoleController(contexaZeroTrustConsoleService, contexaZeroTrustDecisionRecords,
+                messageSource, objectMapper.getIfAvailable(ObjectMapper::new));
     }
 
     @Bean(name = "contexaCsvExportService")

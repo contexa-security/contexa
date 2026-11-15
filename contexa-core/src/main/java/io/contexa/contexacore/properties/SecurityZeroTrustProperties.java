@@ -594,6 +594,42 @@ public class SecurityZeroTrustProperties {
         private long aggregationIntervalMs = 60_000L;
         /** How many stopped decisions of a day are sampled for a person's review. */
         private int reviewDailySample = 20;
+        /** Console design 6.6: the price of a million prompt tokens, for the estimated cost; null shows no cost. */
+        private Double promptTokenPricePerMillion;
+        /** The price of a million cached prompt tokens; null prices them as prompt tokens. */
+        private Double cachedPromptTokenPricePerMillion;
+        /** The price of a million output tokens; null shows no cost. */
+        private Double outputTokenPricePerMillion;
+        /** The currency the prices are in, as it is shown. */
+        private String priceCurrency = "USD";
+        /** Console design 6.5 and decision 11.5: the recommended criteria for moving from SHADOW to ENFORCE. */
+        private Adoption adoption = new Adoption();
+    }
+
+    /**
+     * The recommended criteria the adoption screen weighs (console design 6.5). They are recommendations an operator
+     * may change, not a guarantee of the product.
+     */
+    @Data
+    public static class Adoption {
+        /** The days of observed decisions at least. */
+        private int minObservedDays = 14;
+        /** The decisions at least. */
+        private long minDecisions = 5_000L;
+        /** The share of decisions the model set, at least. */
+        private double minModelDecidedRatio = 0.95;
+        /** The share of decisions set without the model, at most. */
+        private double maxModelLessRatio = 0.05;
+        /** The share of decisions of users with an established baseline, at least. */
+        private double minBaselineEstablishedRatio = 0.70;
+        /** The lower bound (95%) of the share of reviewed decisions found valid, at least. */
+        private double minReviewValidLowerBound = 0.90;
+        /** The reviewed decisions at least, for the review criterion to count. */
+        private int minReviewSample = 30;
+        /** The challenges of the 95th percentile user in a week, at most. */
+        private double maxBurdenP95PerWeek = 3.0;
+        /** The 95th percentile of a user's wait for a synchronous decision, at most, in milliseconds. */
+        private long maxUserWaitP95Ms = 10_000L;
     }
 
     @Data

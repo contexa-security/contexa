@@ -256,7 +256,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         this.analysisLineBound = analysisLineBound;
     }
 
-    int analysisLineBound() {
+    /** How many analyses may be accepted and not finished (the console's operations screen shows it). */
+    public int analysisLineBound() {
         return analysisLineBound;
     }
 
