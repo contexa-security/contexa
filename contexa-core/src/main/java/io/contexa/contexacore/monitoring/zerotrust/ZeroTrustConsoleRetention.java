@@ -42,6 +42,22 @@ public class ZeroTrustConsoleRetention {
     /** The most batches one run deletes from a table; the next run goes on. */
     static final int MAX_BATCHES = 200;
 
+    /**
+     * K21: a row written before the fix keeps the LLM step's label ({@code RUNTIME_MODEL_SELECTION}) or nothing as its
+     * mode; the Zero Trust mode it ran under is in its metadata. Rows within the decision retention are set from it, a
+     * batch at a time, so the decision records' mode filter finds them.
+     */
+    static final String REPAIR_BOUNDARY = """
+            UPDATE ctxa_ai_security_decision_observation
+               SET decision_boundary_mode = CAST(metadata_json AS jsonb) ->> 'runtimeEnforcementMode'
+             WHERE ctid IN (SELECT ctid FROM ctxa_ai_security_decision_observation
+                             WHERE created_at >= ?
+                               AND (decision_boundary_mode IS NULL OR decision_boundary_mode NOT IN ('SHADOW', 'ENFORCE'))
+                               AND metadata_json LIKE '%"runtimeEnforcementMode"%'
+                               AND CAST(metadata_json AS jsonb) ->> 'runtimeEnforcementMode' IN ('SHADOW', 'ENFORCE')
+                             LIMIT ?)
+            """;
+
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
     private final SecurityZeroTrustProperties properties;
     private final Clock clock;
@@ -71,6 +87,11 @@ public class ZeroTrustConsoleRetention {
         Timestamp aggregateCutoff = Timestamp.from(now.minus(Duration.ofDays(Math.max(1, console.getAggregateRetentionDays()))));
         long removed = 0;
         try {
+            long repaired = batches(jdbc, REPAIR_BOUNDARY, decisionCutoff);
+            if (repaired > 0) {
+                log.info("[ZeroTrustConsoleRetention] Set the Zero Trust mode of {} decision rows from their metadata",
+                        repaired);
+            }
             removed += batches(jdbc, """
                     DELETE FROM ctxa_zt_decision_reason
                      WHERE ctid IN (SELECT ctid FROM ctxa_zt_decision_reason WHERE created_at < ? LIMIT ?)

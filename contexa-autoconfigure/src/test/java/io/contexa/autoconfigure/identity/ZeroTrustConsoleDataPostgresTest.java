@@ -194,6 +194,57 @@ class ZeroTrustConsoleDataPostgresTest {
         assertThat(reasons).extracting(each -> each.get("fact_id")).containsExactly("F3", "F4");
     }
 
+    /**
+     * K21: the row's mode is the Zero Trust mode the enforcement handler states, not the LLM step's runtime-selection
+     * label kept under the same key (a real SHADOW run with a thinking-disabled model wrote that label).
+     */
+    @Test
+    void theRowsModeIsTheZeroTrustModeNotTheLlmStepsLabel() {
+        AiSecurityDecisionObservationWriter writer = new AiSecurityDecisionObservationWriter(
+                () -> jdbc, new ObjectMapper(), "ollama", "qwen3:8b");
+        ProcessingResult result = ProcessingResult.builder().success(true).action(ZeroTrustAction.ALLOW.name())
+                .llmDecisionPresent(true).build();
+        String shadow = writer.recordDecision(SecurityEvent.builder().eventId("event-shadow").userId("alice")
+                .metadata(Map.of("requestId", "request-shadow", "decisionBoundaryMode", "RUNTIME_MODEL_SELECTION",
+                        "runtimeEnforcementMode", "SHADOW")).build(), result, ZeroTrustAction.ALLOW);
+        String stated = writer.recordDecision(SecurityEvent.builder().eventId("event-stated").userId("alice")
+                .metadata(Map.of("requestId", "request-stated", "decisionBoundaryMode", "enforce")).build(),
+                result, ZeroTrustAction.ALLOW);
+        String none = writer.recordDecision(SecurityEvent.builder().eventId("event-none").userId("alice")
+                .metadata(Map.of("requestId", "request-none", "decisionBoundaryMode", "RUNTIME_MODEL_SELECTION"))
+                .build(), result, ZeroTrustAction.ALLOW);
+        // a prompt shadow run copies its decision's metadata and states SHADOW: the stated boundary comes first
+        String shadowRun = writer.recordDecision(SecurityEvent.builder().eventId("event-run").userId("alice")
+                .metadata(Map.of("requestId", "request-run", "decisionBoundaryMode", "SHADOW",
+                        "runtimeEnforcementMode", "ENFORCE")).build(), result, ZeroTrustAction.ALLOW);
+
+        assertThat(mode(shadow)).isEqualTo("SHADOW");
+        assertThat(mode(stated)).isEqualTo("ENFORCE");
+        assertThat(mode(shadowRun)).isEqualTo("SHADOW");
+        assertThat(mode(none)).as("no Zero Trust mode stated: no mode, not the LLM step's label").isNull();
+    }
+
+    /** K21: a row written before the fix gets its Zero Trust mode from its metadata on the retention pass. */
+    @Test
+    void theRetentionSetsTheModeOfAnOlderRowFromItsMetadata() {
+        decision("before-fix", clock.instant().minus(Duration.ofHours(3)), "FIRST", "ALLOW", null, null);
+        decision("outside", clock.instant().minus(Duration.ofDays(200)), "FIRST", "ALLOW", null, null);
+        jdbc.update("UPDATE ctxa_ai_security_decision_observation SET decision_boundary_mode = 'RUNTIME_MODEL_SELECTION', "
+                + "metadata_json = '{\"decisionBoundaryMode\":\"RUNTIME_MODEL_SELECTION\",\"runtimeEnforcementMode\":"
+                + "\"ENFORCE\"}' WHERE observation_id IN ('before-fix', 'outside')");
+
+        new ZeroTrustConsoleRetention(() -> jdbc, properties, clock).purgeOnce();
+
+        assertThat(mode("before-fix")).isEqualTo("ENFORCE");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ctxa_ai_security_decision_observation "
+                + "WHERE observation_id = 'outside'", Long.class)).as("past the retention: removed, not repaired").isZero();
+    }
+
+    private static String mode(String observationId) {
+        return jdbc.queryForObject("SELECT decision_boundary_mode FROM ctxa_ai_security_decision_observation "
+                + "WHERE observation_id = ?", String.class, observationId);
+    }
+
     /** A stricter action kept over the model's makes the engine the source of the action in force. */
     @Test
     void theEnforcementResultReachesItsRow() {

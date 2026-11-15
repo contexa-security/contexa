@@ -232,7 +232,7 @@ public class AiSecurityDecisionObservationWriter {
                     windowId,
                     triggerSource,
                     LEGACY_TRIGGER_RELATION_NOT_APPLICABLE,
-                    firstText(metadata, "decisionBoundaryMode"),
+                    zeroTrustBoundary(metadata),
                     firstText(metadata, "httpMethod", "method"),
                     firstText(metadata, "requestPath", "requestUri", "httpUri"),
                     firstText(metadata, "resourceId"),
@@ -832,6 +832,27 @@ public class AiSecurityDecisionObservationWriter {
 
     private JdbcOperations jdbcOperations() {
         return jdbcOperationsSupplier == null ? null : jdbcOperationsSupplier.get();
+    }
+
+    /**
+     * K21: the Zero Trust mode the decision ran under (SHADOW or ENFORCE), which the console reads as its mode. A boundary
+     * the event states ({@code decisionBoundaryMode}, a prompt shadow run's SHADOW among them) comes first; otherwise the
+     * mode the enforcement handler states as {@code runtimeEnforcementMode} right before the row is written. The LLM step
+     * writes its own label ({@code RUNTIME_MODEL_SELECTION}) under {@code decisionBoundaryMode} when runtime model options
+     * apply and no boundary was stated: that label is no mode and stays in the metadata.
+     */
+    static String zeroTrustBoundary(Map<String, Object> metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        for (String key : new String[] {"decisionBoundaryMode", "runtimeEnforcementMode"}) {
+            Object value = metadata.get(key);
+            String mode = value == null ? null : value.toString().trim().toUpperCase(Locale.ROOT);
+            if ("SHADOW".equals(mode) || "ENFORCE".equals(mode)) {
+                return mode;
+            }
+        }
+        return null;
     }
 
     private String firstText(Map<String, Object> metadata, String... keys) {
