@@ -30,35 +30,89 @@ import java.util.function.BiFunction;
 /**
  * One version of a prompt as the assembler made it (plan 3.8): the product parts with an organization's changes,
  * deletions, additions and inclusions applied, in their order. It is what the engine draws a prompt from; it holds no
- * value of a request. Two versions that draw the same prompt have the same content hash.
- *
- * @param prompt              the prompt, such as {@code cortex.security-decision}
- * @param release             the Contexa release of the product document the version stands on
- * @param title               the version's title
- * @param system              the system parts in order; a prepared part not included is kept, marked prepared
- * @param user                the user blocks in order
- * @param corrections         the sentences that ask again, by key
- * @param organizationParts   whether an organization changed or added a part (the precedence sentence is drawn)
+ * value of a request. Two versions that draw the same prompt have the same content hash, worked out once when the
+ * version is made: a request that keys a cache by it does no work for it.
  */
-public record AssembledPrompt(
-        String prompt,
-        String release,
-        String title,
-        List<PromptVersionDocument.Part> system,
-        List<PromptVersionDocument.Part> user,
-        Map<String, String> corrections,
-        boolean organizationParts) {
+public final class AssembledPrompt {
 
     /** The condition of the parts drawn only in a version an organization changed (the precedence sentence). */
     public static final String ORGANIZATION_PARTS = "organization-parts";
     /** The group of a system part that has none: the judgment text. */
     public static final String JUDGMENT = "judgment";
 
-    public AssembledPrompt {
-        Objects.requireNonNull(prompt, "prompt");
-        system = List.copyOf(system);
-        user = List.copyOf(user);
-        corrections = Map.copyOf(corrections);
+    private final String prompt;
+    private final String release;
+    private final String title;
+    private final List<PromptVersionDocument.Part> system;
+    private final List<PromptVersionDocument.Part> user;
+    private final Map<String, String> corrections;
+    private final boolean organizationParts;
+    private final String contentHash;
+
+    /**
+     * @param prompt            the prompt, such as {@code cortex.security-decision}
+     * @param release           the Contexa release of the product document the version stands on
+     * @param title             the version's title
+     * @param system            the system parts in order; a prepared part not included is kept, marked prepared
+     * @param user              the user blocks in order
+     * @param corrections       the sentences that ask again, by key
+     * @param organizationParts whether an organization changed or added a part (the precedence sentence is drawn)
+     */
+    public AssembledPrompt(String prompt, String release, String title, List<PromptVersionDocument.Part> system,
+                           List<PromptVersionDocument.Part> user, Map<String, String> corrections,
+                           boolean organizationParts) {
+        this.prompt = Objects.requireNonNull(prompt, "prompt");
+        this.release = release;
+        this.title = title;
+        this.system = List.copyOf(system);
+        this.user = List.copyOf(user);
+        this.corrections = Map.copyOf(corrections);
+        this.organizationParts = organizationParts;
+        this.contentHash = hashOf(this.prompt, this.organizationParts, this.system, this.user, this.corrections);
+    }
+
+    public String prompt() {
+        return prompt;
+    }
+
+    public String release() {
+        return release;
+    }
+
+    public String title() {
+        return title;
+    }
+
+    public List<PromptVersionDocument.Part> system() {
+        return system;
+    }
+
+    public List<PromptVersionDocument.Part> user() {
+        return user;
+    }
+
+    public Map<String, String> corrections() {
+        return corrections;
+    }
+
+    public boolean organizationParts() {
+        return organizationParts;
+    }
+
+    /** Two versions are the same when they draw the same prompt: when their content hashes are the same. */
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof AssembledPrompt version && contentHash.equals(version.contentHash);
+    }
+
+    @Override
+    public int hashCode() {
+        return contentHash.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return "AssembledPrompt[" + prompt + ", " + release + ", " + title + ", " + contentHash + "]";
     }
 
     /** The system part of the key, prepared or not. */
@@ -142,6 +196,11 @@ public record AssembledPrompt(
      * so two versions that draw the same prompt have the same hash.
      */
     public String contentHash() {
+        return contentHash;
+    }
+
+    private static String hashOf(String prompt, boolean organizationParts, List<PromptVersionDocument.Part> system,
+                                 List<PromptVersionDocument.Part> user, Map<String, String> corrections) {
         StringBuilder canonical = new StringBuilder("prompt=").append(prompt).append('\n');
         canonical.append("organizationParts=").append(organizationParts).append('\n');
         system.forEach(part -> canonical(canonical, "system", part));

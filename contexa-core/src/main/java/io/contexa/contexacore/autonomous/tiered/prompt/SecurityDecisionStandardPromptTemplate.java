@@ -35,6 +35,8 @@ import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContex
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackSnapshot;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
 import io.contexa.contexacore.std.components.prompt.*;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionContext;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
@@ -424,6 +426,16 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
 
     public SecurityDecisionPromptBundles.Bundle promptBundle(SecurityEvent event) {
         return promptSections.bundleOf(event);
+    }
+
+    /** Plan 6-2: the version of the prompt the event runs, whose parts and effects draw and check its decision. */
+    public AssembledPrompt promptVersion(SecurityEvent event) {
+        return promptSections.promptVersionOf(event);
+    }
+
+    /** Plan 6-2: the store the version an event names is read from; the product versions when null. */
+    public void setPromptVersionStore(PromptVersionStore store) {
+        promptSections.setPromptVersionStore(store);
     }
 
     @Override

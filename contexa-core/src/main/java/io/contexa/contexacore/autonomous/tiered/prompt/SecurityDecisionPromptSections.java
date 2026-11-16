@@ -99,6 +99,7 @@ import io.contexa.contexacore.std.components.prompt.SecurityPromptSectionCatalog
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
 import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocument;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import java.time.Instant;
@@ -208,6 +209,8 @@ public class SecurityDecisionPromptSections {
     private volatile MinimumActionRules.Settings minimumActionSettings = MinimumActionRules.Settings.DEFAULTS;
     /** Whether the host enforces the minimum action floors (OBSERVE or ENFORCE, K32). */
     private volatile String minimumActionMode = "OBSERVE";
+    /** Where the version an event names is found (plan 6-2; the versions of a store from plan 6-3). */
+    private volatile PromptVersionStore promptVersionStore = SecurityDecisionPromptDocument.productStore();
     private final PromptDictionarySlotPlanProvider dictionarySlotPlans = SecurityDecisionPromptDictionary.slotPlanProvider();
     private final PromptDictionaryRenderer dictionaryRenderer = new PromptDictionaryRenderer(
             SecurityDecisionPromptDictionary.ENTRIES, dictionarySlotPlans);
@@ -450,7 +453,7 @@ public class SecurityDecisionPromptSections {
         SecurityDecisionPromptBundles.UserPromptLayout layout = selected.bundle().layout();
         boolean dictionary = layout.dictionaryBlocks();
         boolean v21 = layout.recordsNotation();
-        DictionaryKit kit = dictionaryKit(selected.bundle());
+        DictionaryKit kit = dictionaryKit(selected.bundle(), promptVersionOf(buildContext != null ? buildContext.getEvent() : null));
         if (v21) {
             if (layout == SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS && buildContext != null
                     && buildContext.getCanonicalSecurityContext() != null) {
@@ -1327,8 +1330,11 @@ public class SecurityDecisionPromptSections {
             SecurityPromptBuildContext buildContext,
             PromptBudgetProfile budgetProfile,
             SecurityDecisionPromptBundles.Bundle bundle) {
+        AssembledPrompt version = promptVersionOf(buildContext != null ? buildContext.getEvent() : null);
+        // Plan 6-2: the version's parts draw the v1.0 text, so its content hash keys the cache with the bundle.
         String cacheKey = systemSectionsCacheKey(buildContext, budgetProfile, bundle.version())
-                + (systemTextVariesByAgent(bundle) && agentRequest(buildContext) ? "|AGENT" : "");
+                + (bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS ? "|" + version.contentHash() : "")
+                + (systemTextVariesByAgent(bundle, version) && agentRequest(buildContext) ? "|AGENT" : "");
         RenderedPromptSections cached = systemSectionsCache.getIfPresent(cacheKey);
         if (cached != null) {
             return new CachedRenderedPromptSections(cacheKey, true, cached);
@@ -1999,6 +2005,29 @@ public class SecurityDecisionPromptSections {
      * K32 (decision D10): the settings and whether the host enforces them; an enforced floor is stated by the v1.0 system
      * text, as the response check holds an answer to it.
      */
+    /** Plan 6-2: the store the version an event names is read from; the product versions when null. */
+    public void setPromptVersionStore(PromptVersionStore store) {
+        this.promptVersionStore = store != null ? store : SecurityDecisionPromptDocument.productStore();
+        systemSectionsCache.invalidateAll();
+    }
+
+    /**
+     * The version of the security decision prompt the event runs: the one its metadata names when the store has it,
+     * else the product version.
+     */
+    public AssembledPrompt promptVersionOf(SecurityEvent event) {
+        Object named = event != null && event.getMetadata() != null
+                ? event.getMetadata().get(SecurityDecisionPromptDocument.EVENT_PROMPT_VERSION) : null;
+        if (named != null && !named.toString().isBlank()) {
+            Optional<AssembledPrompt> version = promptVersionStore.find(SecurityDecisionPromptDocument.PROMPT,
+                    named.toString().trim());
+            if (version.isPresent()) {
+                return version.get();
+            }
+        }
+        return SecurityDecisionPromptDocument.product();
+    }
+
     public void setMinimumActionSettings(MinimumActionRules.Settings settings, String mode) {
         this.minimumActionMode = mode != null ? mode.trim().toUpperCase(Locale.ROOT) : "OBSERVE";
         setMinimumActionSettings(settings);
@@ -2163,8 +2192,8 @@ public class SecurityDecisionPromptSections {
      * the meaning of every reason code with the lines it may cite, which line a difference code cites) for the short
      * output contract v5 (v1.0, K30); the output contract v4 block for a measured variant.
      */
-    String buildDecisionSectionV1(SecurityDecisionPromptBundles.Features features) {
-        AssembledPrompt version = SecurityDecisionPromptDocument.product();
+    String buildDecisionSectionV1(SecurityPromptBuildContext context, SecurityDecisionPromptBundles.Features features) {
+        AssembledPrompt version = promptVersionOf(context != null ? context.getEvent() : null);
         boolean citations = features != null && features.comparisonCitations();
         if (features == null || !features.compactOutput()) {
             String section = buildDecisionSectionV1();
@@ -2234,7 +2263,7 @@ public class SecurityDecisionPromptSections {
      * request (K6: one place leaves it out).
      */
     String buildSystemInstructionV1(SecurityPromptBuildContext context, SecurityDecisionPromptBundles.Features features) {
-        AssembledPrompt version = SecurityDecisionPromptDocument.product();
+        AssembledPrompt version = promptVersionOf(context != null ? context.getEvent() : null);
         Set<String> conditions = v1Conditions(context, features);
         List<PromptVersionDocument.Part> parts = new ArrayList<>(version.drawnParts(AssembledPrompt.JUDGMENT,
                 conditions).stream().filter(part -> drawnBy(part, features)).toList());
@@ -2279,18 +2308,19 @@ public class SecurityDecisionPromptSections {
                 new PromptSectionPlan(SecurityPromptSectionCatalog.SYSTEM_INSTRUCTION, PromptSectionPriorityClass.P0_REQUIRED, false, false,
                         (template, context) -> template.buildSystemInstructionV1(context, features)),
                 new PromptSectionPlan(SecurityPromptSectionCatalog.DECISION_CONTRACT, PromptSectionPriorityClass.P0_REQUIRED, false, false,
-                        (template, context) -> template.buildDecisionSectionV1(features)));
+                        (template, context) -> template.buildDecisionSectionV1(context, features)));
     }
 
     /**
      * Whether a person's and an agent's request get different system texts: v19, v20, v1.0 with the rules, and a v1.0
      * version that draws a part with its own text for an agent's request.
      */
-    private static boolean systemTextVariesByAgent(SecurityDecisionPromptBundles.Bundle bundle) {
+    private static boolean systemTextVariesByAgent(SecurityDecisionPromptBundles.Bundle bundle, AssembledPrompt version) {
         return switch (bundle.layout()) {
             case V19_SECTIONS, V20_BLOCKS -> true;
             case V21_BLOCKS -> false;
-            case V1_BLOCKS -> bundle.features().decisionRules() || SecurityDecisionPromptDocument.productVariesByAgent();
+            case V1_BLOCKS -> bundle.features().decisionRules()
+                    || SecurityDecisionVersionFeatures.of(version).agentVariesSystemText();
         };
     }
 
@@ -2302,11 +2332,12 @@ public class SecurityDecisionPromptSections {
                          PromptDictionarySlotPlanProvider slotPlans, String layoutName, boolean records, boolean v1) {
     }
 
-    private DictionaryKit dictionaryKit(SecurityDecisionPromptBundles.Bundle bundle) {
+    /** The dictionary of the bundle; a v1.0 version with the decision rules states their conclusion lines (D6). */
+    private DictionaryKit dictionaryKit(SecurityDecisionPromptBundles.Bundle bundle, AssembledPrompt version) {
         return switch (bundle.layout()) {
             case V21_BLOCKS -> new DictionaryKit(v21DictionaryRenderer, SecurityDecisionPromptDictionary.V21_ENTRIES,
                     v21DictionarySlotPlans, USER_PROMPT_LAYOUT_V21, true, false);
-            case V1_BLOCKS -> bundle.features().decisionRules()
+            case V1_BLOCKS -> bundle.features().decisionRules() || SecurityDecisionVersionFeatures.of(version).conclusionLines()
                     ? new DictionaryKit(v1RulesDictionaryRenderer, SecurityDecisionPromptDictionary.V1_RULES_ENTRIES,
                     v1RulesDictionarySlotPlans, USER_PROMPT_LAYOUT_V1, true, true)
                     : new DictionaryKit(v1DictionaryRenderer, SecurityDecisionPromptDictionary.V1_ENTRIES,

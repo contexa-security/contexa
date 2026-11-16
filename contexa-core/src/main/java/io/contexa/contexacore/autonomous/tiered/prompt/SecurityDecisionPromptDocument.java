@@ -22,6 +22,7 @@ import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocument;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentReader;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,6 +34,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -65,9 +67,34 @@ public final class SecurityDecisionPromptDocument {
     private SecurityDecisionPromptDocument() {
     }
 
+    /**
+     * The event metadata that names the version a decision runs, fixed for its later prompts (1st and 2nd pass, the
+     * correction); without it the product version runs.
+     */
+    public static final String EVENT_PROMPT_VERSION = "promptBundleSelection.promptVersion";
+
     /** The product version of the latest release this build ships. */
     public static AssembledPrompt product() {
         return Holder.PRODUCT;
+    }
+
+    /** The store of the product versions this build ships, named by their release. */
+    public static PromptVersionStore productStore() {
+        return (prompt, version) -> PROMPT.equals(prompt) && product().release().equals(version)
+                ? Optional.of(product()) : Optional.empty();
+    }
+
+    /**
+     * A conclusion line the decision rules read (plan 6-2, decision D6): its meaning and use, from the items of the
+     * prepared decision rules part of the version.
+     */
+    static PromptVersionDocument.Item conclusionLine(AssembledPrompt version, String name) {
+        return version.systemPart(SecurityDecisionVersionFeatures.DECISION_RULES_PART).stream()
+                .flatMap(part -> part.items().stream())
+                .filter(item -> item.key().equals(name))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("The prompt document " + version.release()
+                        + " has no conclusion line " + name + " in its decision rules"));
     }
 
     /** The product document of a release, as the build ships it. */

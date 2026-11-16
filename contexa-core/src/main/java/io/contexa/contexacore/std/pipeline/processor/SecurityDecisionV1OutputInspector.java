@@ -40,6 +40,12 @@ public final class SecurityDecisionV1OutputInspector {
     /** The prefix of a minimum action floor an answer breaks (W4-5), as the v20 response check names it. */
     public static final String MINIMUM_ACTION_VIOLATION = "MINIMUM_ACTION_VIOLATION";
 
+    /**
+     * The request parameter a strategy sets when the version of the event replaces an answer that still breaks a
+     * decision rule (plan 6-2, decision D6).
+     */
+    public static final String FALLBACK_PARAMETER = "securityDecisionV1FallbackOnViolation";
+
     private final SecurityDecisionV21OutputInspector v21OutputInspector = new SecurityDecisionV21OutputInspector();
 
     /**

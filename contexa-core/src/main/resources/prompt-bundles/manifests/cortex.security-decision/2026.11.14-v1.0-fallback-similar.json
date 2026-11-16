@@ -1,7 +1,7 @@
 {
   "promptKey" : "cortex.security-decision",
   "bundleVersion" : "2026.11.14-v1.0-fallback-similar",
-  "bundleHash" : "7c4b2c35e0a7958a75fa20c384f5766af3f3cbf8b17693fe3e49b6486d2a0526",
+  "bundleHash" : "9621908d4817d0ea19e33d360030058b687121a911a22dee7eb4439083598e73",
   "elements" : [ {
     "id" : "B1",
     "state" : "PRESENT",
@@ -30,7 +30,7 @@
   }, {
     "id" : "B6",
     "state" : "PRESENT",
-    "hash" : "076b9acc7b25ea7a3598213fc3910f0df49eea24763c9545a7c5f49fcb497aff",
+    "hash" : "6e8796ce9929b3795f8e6257c72589bf0236a02f77314d1e4636ba401eb724c3",
     "detail" : "v1.0 response check sources: the v21 check, the past record claim, the boundaries and the floors, and the fallback actions (plan 2.2 B6)"
   }, {
     "id" : "B7",

@@ -25,6 +25,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptSlotRenderer;
 import io.contexa.contexacore.autonomous.context.prompt.PromptSourceGrade;
 import io.contexa.contexacore.autonomous.context.prompt.PromptUnknownKind;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocument;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -1221,19 +1222,25 @@ public final class SecurityDecisionPromptDictionary {
         return new PromptDictionarySlotPlanProvider(V1_RULES_ENTRIES, V1_RULES_VERSION);
     }
 
+    /**
+     * The conclusion line of the v20 line it is drawn as, with its meaning and use from the decision rules part of the
+     * product prompt document (plan 6-2, decision D6).
+     */
+    private static PromptDictionaryEntry conclusionLine(PromptDictionaryEntry v20, String name) {
+        PromptVersionDocument.Item item = SecurityDecisionPromptDocument.conclusionLine(
+                SecurityDecisionPromptDocument.product(), name);
+        return new PromptDictionaryEntry(v20.block(), name, item.text(), v20.sourcePath(), v20.formatPattern(),
+                v20.formatExamples(), v20.missing(), v20.missingText(), v20.grades(), item.use(), v20.conditional(),
+                v20.priority(), v20.listCap(), v20.listOrder(), v20.truncationAllowed(), v20.preservedLabels());
+    }
+
     private static PromptDictionaryEntry deviationsExplained() {
-        PromptDictionaryEntry v20 = baseEntry(PromptBlock.DECISION_FACTS, "DeviationsFromBaseline");
-        return new PromptDictionaryEntry(v20.block(), "DeviationsExplained",
-                "The differences from the usual as the core concludes on them: each one unexplained, or explained by the"
-                        + " record, the trip or the item limit that covers it (the v20 DeviationsFromBaseline line)",
-                v20.sourcePath(), v20.formatPattern(), v20.formatExamples(), v20.missing(), v20.missingText(),
-                v20.grades(), "the decision rules: P1, P2, the covered-work and elevated-risk boundaries",
-                v20.conditional(), v20.priority(), v20.listCap(), v20.listOrder(), v20.truncationAllowed(),
-                v20.preservedLabels());
+        return conclusionLine(baseEntry(PromptBlock.DECISION_FACTS, "DeviationsFromBaseline"), "DeviationsExplained");
     }
 
     private static List<PromptDictionaryEntry> v1RulesEntries() {
-        PromptDictionaryEntry policySatisfied = baseEntry(PromptBlock.DECISION_FACTS, "PolicySatisfied");
+        PromptDictionaryEntry policySatisfied = conclusionLine(baseEntry(PromptBlock.DECISION_FACTS, "PolicySatisfied"),
+                "PolicySatisfied");
         List<PromptDictionaryEntry> entries = new ArrayList<>();
         for (PromptDictionaryEntry entry : V1_ENTRIES) {
             entries.add(entry);

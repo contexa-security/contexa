@@ -661,12 +661,15 @@ public class LLMExecutionStep implements PipelineStep {
                 ? metadata.supplementalMetadata().get(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION) : null;
         boolean v1 = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1.equals(layout);
         if (!(v1 || SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21.equals(layout))
-                || !(request.getContext() instanceof SecurityDecisionContext decision)
-                || decision.getSecurityEvent() == null || decision.getSecurityEvent().getMetadata() == null
-                || !(decision.getSecurityEvent().getMetadata().get("sealedEvidence.canonicalContext")
-                        instanceof CanonicalSecurityContext canonical)) {
+                || !(request.getContext() instanceof SecurityDecisionContext decision)) {
             return null;
         }
+        // Plan 6-2: a v1.0 or v21 prompt is checked as one even without the canonical context it was drawn from (the
+        // v19 and v20 checks read lines of another form and would refuse it); without the context the checks of the
+        // facts are left out and the form is still checked.
+        Object sealed = decision.getSecurityEvent() != null && decision.getSecurityEvent().getMetadata() != null
+                ? decision.getSecurityEvent().getMetadata().get("sealedEvidence.canonicalContext") : null;
+        CanonicalSecurityContext canonical = sealed instanceof CanonicalSecurityContext drawnFrom ? drawnFrom : null;
         return new SecurityDecisionV21OutputInspector.V21Check(canonical, generated.getUserPrompt(),
                 Boolean.TRUE.equals(metadata.supplementalMetadata().get("layer2SecondPass")));
     }
@@ -694,11 +697,13 @@ public class LLMExecutionStep implements PipelineStep {
                 .map(SecurityDecisionPromptBundles.Bundle::features)
                 .orElse(SecurityDecisionPromptBundles.Features.NONE);
         CanonicalSecurityContext canonical = check.context();
-        DecisionFacts conclusions = canonical.getConclusionFacts();
+        DecisionFacts conclusions = canonical != null ? canonical.getConclusionFacts() : null;
         // Every v1.0 variant checks the boundaries on the facts its prompt states; only a fallback variant replaces
         // an answer that still breaks one (plan 2.4, D1).
         return new SecurityDecisionV1OutputInspector.V1Rules(conclusions, conclusions != null,
-                v1MinimumActionCheck(request, canonical, conclusions), features.fallbackOnViolation());
+                v1MinimumActionCheck(request, canonical, conclusions), features.fallbackOnViolation()
+                || Boolean.TRUE.equals(request.getParameter(SecurityDecisionV1OutputInspector.FALLBACK_PARAMETER,
+                Boolean.class)));
     }
 
     /** The v21 check of an answer, with the v1.0 rules after it for a v1.0 prompt. */

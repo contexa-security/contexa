@@ -55,7 +55,8 @@ class PromptAssemblerTest {
         assertThat(keys(product.drawnParts("output", Set.of()))).containsExactly("output", "reason-codes",
                 "citation-rules");
         assertThat(product.systemPart("decision-rules").orElseThrow().prepared()).isTrue();
-        assertThat(product.effects()).isEmpty();
+        // Plan 6-2: the similar case reading turns the similarity search on.
+        assertThat(product.effects()).containsExactly("similar-cases");
         assertThat(keys(product.user())).containsExactly("USER_BASELINE", "SESSION", "REQUEST", "DECISION_FACTS",
                 "PAST_RECORDS", "UNKNOWN", "UNTRUSTED_TEXT", "SECOND_PASS");
         assertThat(product.user()).allMatch(PromptVersionDocument.Part::isLocked);
@@ -135,7 +136,7 @@ class PromptAssemblerTest {
                     include: true
                 """));
         assertThat(keys(included.drawnParts(AssembledPrompt.JUDGMENT, Set.of()))).contains("decision-rules");
-        assertThat(included.effects()).containsExactly("conclusion-lines", "fallback-on-violation");
+        assertThat(included.effects()).containsExactly("similar-cases", "conclusion-lines", "fallback-on-violation");
         assertThat(included.draw(AssembledPrompt.JUDGMENT, Set.of(), null)).contains("\n\nDecision rules (they come");
 
         AssembledPrompt takenOut = assembler.apply(included, organization("""
@@ -145,7 +146,7 @@ class PromptAssemblerTest {
                 """));
         assertThat(keys(takenOut.drawnParts(AssembledPrompt.JUDGMENT, Set.of()))).doesNotContain("decision-rules");
         assertThat(takenOut.systemPart("decision-rules").orElseThrow().prepared()).isTrue();
-        assertThat(takenOut.effects()).isEmpty();
+        assertThat(takenOut.effects()).containsExactly("similar-cases");
         assertThat(takenOut.contentHash()).isEqualTo(product.contentHash());
     }
 
