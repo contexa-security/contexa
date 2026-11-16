@@ -56,7 +56,7 @@ class PromptGeneratorTest {
 
             SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                     new SecurityEventEnricher(),
-                    v19Properties());
+                    new TieredStrategyProperties());
             PromptGenerator promptGenerator = new PromptGenerator(List.of(template));
             promptGenerator.registerTemplate(SecurityDecisionRequest.TEMPLATE_TYPE.name(), template);
 
@@ -97,7 +97,7 @@ class PromptGeneratorTest {
     void generatePromptShouldAttachGovernanceMetadata() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                v19Properties());
+                new TieredStrategyProperties());
         PromptGenerator promptGenerator = new PromptGenerator(List.of(template));
         promptGenerator.registerTemplate(SecurityDecisionRequest.TEMPLATE_TYPE.name(), template);
 
@@ -214,7 +214,7 @@ class PromptGeneratorTest {
     void generatePromptShouldKeepFullColdStartEvidenceInInteractiveStrictFinalPrompt() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                v19Properties(),
+                new TieredStrategyProperties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -310,7 +310,7 @@ class PromptGeneratorTest {
     void generatePromptShouldCarryExplicitResourceAndOfficialSlotContextIntoCanonicalPromptSections() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                v19Properties(),
+                new TieredStrategyProperties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -386,7 +386,7 @@ class PromptGeneratorTest {
     void generatePromptShouldPreserveRawPromptLineageDuringLosslessNormalization() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                v19Properties());
+                new TieredStrategyProperties());
         PromptGenerator promptGenerator = new PromptGenerator(List.of(template));
         promptGenerator.registerTemplate(SecurityDecisionRequest.TEMPLATE_TYPE.name(), template);
 
@@ -423,7 +423,7 @@ class PromptGeneratorTest {
     void generatePromptShouldUseConfiguredLayer1DefaultBudgetProfile() {
         TemplateType templateType = new TemplateType("configured-layer1-default");
         PromptTemplate template = new PlainPromptTemplate(templateType);
-        TieredStrategyProperties properties = v19Properties();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer1().setDefaultBudgetProfile(PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
         PromptGenerator promptGenerator = new PromptGenerator(
                 List.of(template),
@@ -447,7 +447,7 @@ class PromptGeneratorTest {
     void generatePromptShouldRejectComposerWithContradictoryLedger() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                v19Properties());
+                new TieredStrategyProperties());
         LLMViewComposer brokenComposer = (rawSystemPrompt, rawUserPrompt, budgetProfile) -> new PromptViewComposition(
                 rawSystemPrompt,
                 rawUserPrompt,
@@ -490,11 +490,10 @@ class PromptGeneratorTest {
     /** W3-2: with the v20 user prompt format the generator sends the dictionary blocks and states the layout. */
     @Test
     void generatePromptWithTheV20UserPromptFormatSendsTheDictionaryBlocksAndStatesTheLayout() {
-        TieredStrategyProperties properties = v19Properties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         SecurityDecisionStandardPromptTemplate v20 = new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties);
         SecurityDecisionStandardPromptTemplate v19 = new SecurityDecisionStandardPromptTemplate(
-                new SecurityEventEnricher(), v19Properties());
+                new SecurityEventEnricher(), new TieredStrategyProperties());
 
         PromptGenerationResult v20Result = generate(v20);
         PromptGenerationResult v19Result = generate(v19);
@@ -615,17 +614,4 @@ class PromptGeneratorTest {
                 BaselineEvidenceStatus.NO_DATA,
                 "");
     }
-
-    /**
-     * Settings that choose the v19 bundle: these tests drew v19 as the build default; v1.0 is the build default since
-     * plan 1-9, so they choose v19 by its version and draw the same prompt.
-     */
-    private static TieredStrategyProperties v19Properties() {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V19.version());
-        return properties;
-    }
 }
-
-
-

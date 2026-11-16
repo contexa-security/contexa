@@ -35,24 +35,24 @@ import java.util.Objects;
  * dictionary slot stays as it is; a v19 rule whose label went to no entry of the dictionary, or to several, stays as it
  * is too, and the applier leaves it out as it leaves out every v19 rule on a dictionary prompt.
  */
-final class V19RuleSlots {
+final class SectionRuleSlots {
 
     /** The payload key that keeps the v19 slot key of a moved rule. */
-    static final String V19_SLOT_KEY = "v19SlotKey";
+    static final String SECTION_SLOT_KEY = "v19SlotKey";
     /** The payload key that keeps the v19 section a moved rule named. */
-    static final String V19_SECTION_KEY = "v19SectionKey";
+    static final String SECTION_KEY = "v19SectionKey";
 
     /** The payload values that name the line a rule targets; a v19 label among them becomes the entry's name. */
     private static final List<String> LABEL_KEYS = List.of("label", "contextItem", "suppressPattern");
 
-    private V19RuleSlots() {
+    private SectionRuleSlots() {
     }
 
     static List<PromptRuntimeGovernanceRule> moved(List<PromptRuntimeGovernanceRule> rules,
                                                    PromptDictionarySlotPlanProvider dictionary,
                                                    List<PromptDictionaryEntry> entries,
-                                                   PromptContextComposer v19Contract) {
-        if (rules == null || rules.isEmpty() || dictionary == null || v19Contract == null) {
+                                                   PromptContextComposer sectionContract) {
+        if (rules == null || rules.isEmpty() || dictionary == null || sectionContract == null) {
             return rules;
         }
         Map<String, PromptDictionaryEntry> byPlace = new LinkedHashMap<>();
@@ -61,7 +61,7 @@ final class V19RuleSlots {
         }
         List<PromptRuntimeGovernanceRule> moved = new ArrayList<>(rules.size());
         for (PromptRuntimeGovernanceRule rule : rules) {
-            moved.add(moved(rule, dictionary, byPlace, v19Contract));
+            moved.add(moved(rule, dictionary, byPlace, sectionContract));
         }
         return List.copyOf(moved);
     }
@@ -69,12 +69,12 @@ final class V19RuleSlots {
     private static PromptRuntimeGovernanceRule moved(PromptRuntimeGovernanceRule rule,
                                                      PromptDictionarySlotPlanProvider dictionary,
                                                      Map<String, PromptDictionaryEntry> byPlace,
-                                                     PromptContextComposer v19Contract) {
+                                                     PromptContextComposer sectionContract) {
         if (rule == null || !StringUtils.hasText(rule.slotKey())
                 || !dictionary.plansForSlotKey(rule.promptKey(), rule.slotKey()).isEmpty()) {
             return rule;
         }
-        List<PromptSlotPlan> plans = v19Contract.plansForSlotKey(rule.promptKey(), rule.slotKey());
+        List<PromptSlotPlan> plans = sectionContract.plansForSlotKey(rule.promptKey(), rule.slotKey());
         if (plans == null || plans.size() != 1 || plans.get(0) == null || !StringUtils.hasText(plans.get(0).labelKey())) {
             return rule;
         }
@@ -97,9 +97,9 @@ final class V19RuleSlots {
         // The v19 section is not the dictionary block; the moved rule keeps it apart, with the v19 slot key.
         Object section = payload.remove("sectionKey");
         if (section != null) {
-            payload.put(V19_SECTION_KEY, section);
+            payload.put(SECTION_KEY, section);
         }
-        payload.put(V19_SLOT_KEY, rule.slotKey());
+        payload.put(SECTION_SLOT_KEY, rule.slotKey());
         return new PromptRuntimeGovernanceRule(rule.ruleId(), rule.sourceActionId(), rule.promptKey(),
                 PromptDictionarySlotPlanProvider.slotKey(entry), rule.ruleType(), rule.priority(),
                 Collections.unmodifiableMap(payload));

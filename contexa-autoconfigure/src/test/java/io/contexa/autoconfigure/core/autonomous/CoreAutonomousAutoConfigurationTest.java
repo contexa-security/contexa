@@ -333,16 +333,18 @@ class CoreAutonomousAutoConfigurationTest {
     class PromptDictionaryWiring {
 
         @Test
-        @DisplayName("Should give v20 lines their dictionary entry when no slot plan provider bean exists")
+        @DisplayName("Should give the dictionary lines their entry when no slot plan provider bean exists")
         void shouldUseTheDictionaryWhenNoSlotPlanProviderBeanExists() {
             ObjectProvider<PromptSlotPlanProvider> none =
                     new StaticListableBeanFactory().getBeanProvider(PromptSlotPlanProvider.class);
 
             PromptContextComposer composer = new CoreAutonomousAutoConfiguration().promptContextComposer(none);
 
-            assertThat(composer.planFor("DECISION FACTS", "PolicySatisfied").dictionaryEntry())
-                    .isSameAs(SecurityDecisionPromptDictionary.slotPlanProvider()
-                            .entryFor("DECISION FACTS", "PolicySatisfied").orElseThrow());
+            assertThat(composer.planFor("DECISION FACTS", "Policy").dictionaryEntry())
+                    .isSameAs(SecurityDecisionPromptDictionary.v1SlotPlanProvider()
+                            .entryFor("DECISION FACTS", "Policy").orElseThrow());
+            // Plan 6-2: the conclusion line of the decision rules is no line of the product dictionary.
+            assertThat(composer.planFor("DECISION FACTS", "PolicySatisfied").dictionaryEntry()).isNull();
             assertThat(composer.planFor("SESSION NARRATIVE CONTEXT", "SessionAgeMinutes").dictionaryEntry()).isNull();
         }
 

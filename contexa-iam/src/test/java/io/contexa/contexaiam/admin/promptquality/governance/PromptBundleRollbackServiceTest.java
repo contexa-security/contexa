@@ -4,6 +4,9 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBun
 import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleElement;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,10 +34,18 @@ import static org.mockito.Mockito.verify;
 class PromptBundleRollbackServiceTest {
 
     private static final String SCOPE = "PLATFORM_GLOBAL";
-    private static final String KEY = "cortex.security-decision";
-    // The bundles this build runs: the active v20 one and the v19 one its manifest declares as rollback target.
-    private static final String FROM = SecurityDecisionPromptBundles.V20.version();
-    private static final String TO = SecurityDecisionPromptBundles.V19.version();
+    /**
+     * Plan 6-2: the build runs one security decision bundle, which declares no rollback target, so the rollback is tested
+     * on the bundles of a test catalog: a source that declares its target, the target, and a bundle no source declares.
+     * Outside the security decision a bundle is in the build when the catalog holds its manifest.
+     */
+    private static final String KEY = "cortex.rollback-test";
+    private static final String FROM = "2026.01.02-r2";
+    private static final String TO = "2026.01.01-r1";
+    private static final String UNDECLARED = "2026.01.03-r3";
+    private static final String SECURITY_DECISION = "cortex.security-decision";
+    /** K1: a security decision bundle whose manifest the catalog holds as a record but whose prompt no code draws. */
+    private static final String RECORD_ONLY = "2026.10.30-v21.19";
 
     private PostgresTestDatabase database;
     private JdbcTemplate jdbc;
@@ -47,7 +58,7 @@ class PromptBundleRollbackServiceTest {
         jdbc = database.jdbcTemplate();
         PromptGovernanceTestSchema.apply(jdbc);
         invalidation = mock(PromptGovernanceRuntimeCacheInvalidationService.class);
-        service = new PromptBundleRollbackService(jdbc, PromptBundleCatalog.shared(), invalidation, null,
+        service = new PromptBundleRollbackService(jdbc, catalog(), invalidation, null,
                 new ObjectMapper(), Clock.fixed(Instant.parse("2026-10-16T01:00:00Z"), ZoneOffset.UTC),
                 new JdbcTestStatusWriter(jdbc));
     }
@@ -121,8 +132,8 @@ class PromptBundleRollbackServiceTest {
 
     @Test
     void aTargetTheManifestDoesNotDeclareIsRefusedAndNothingChanges() {
-        // A bundle this build runs that the v20 manifest does not declare as its rollback target.
-        String undeclared = SecurityDecisionPromptBundles.V21.version();
+        // A bundle in the build that the source's manifest does not declare as its rollback target.
+        String undeclared = UNDECLARED;
         registry(FROM, "PRODUCTION");
         registry(undeclared, "DRAFT");
 
@@ -137,23 +148,23 @@ class PromptBundleRollbackServiceTest {
     }
 
     /**
-     * K1 (plan 1-9): the v21.19 manifest declares v21.18 as a rollback target, and the catalog holds its manifest, but
-     * no code of this build renders it; a rollback to it would run the build's default bundle, so it is not in the build.
+     * K1 (plan 1-9): a security decision manifest declares a rollback target whose manifest the catalog holds, but no
+     * code of this build renders it; a rollback to it would run the build's default bundle, so it is not in the build.
      */
     @Test
     void aDeclaredTargetTheBuildKeepsOnlyAsARecordIsNotInTheBuild() {
-        String source = SecurityDecisionPromptBundles.V21.version();
-        String recordOnly = "2026.10.29-v21.18";
-        registry(source, "PRODUCTION");
-        registry(recordOnly, "DEPRECATED");
+        String source = SecurityDecisionPromptBundles.V1.version();
+        String recordOnly = RECORD_ONLY;
+        registry(SECURITY_DECISION, source, "PRODUCTION");
+        registry(SECURITY_DECISION, recordOnly, "DEPRECATED");
 
-        PromptBundleRollbackService.Result result = service.rollback(new PromptBundleRollbackService.Request(SCOPE, KEY,
-                source, recordOnly, "older", false), "operator-a");
+        PromptBundleRollbackService.Result result = service.rollback(new PromptBundleRollbackService.Request(SCOPE,
+                SECURITY_DECISION, source, recordOnly, "older", false), "operator-a");
 
         assertThat(result.status()).isEqualTo(PromptBundleRollbackService.REFUSED);
         assertThat(result.refusals()).containsExactly("TARGET_NOT_IN_BUILD");
         assertThat(status(source)).isEqualTo("PRODUCTION");
-        assertThat(service.readiness(SCOPE, KEY, source, List.of(recordOnly)).targets())
+        assertThat(service.readiness(SCOPE, SECURITY_DECISION, source, List.of(recordOnly)).targets())
                 .singleElement()
                 .satisfies(target -> assertThat(target.inBuild()).isFalse());
     }
@@ -235,13 +246,31 @@ class PromptBundleRollbackServiceTest {
     }
 
     private void registry(String version, String status) {
+        registry(KEY, version, status);
+    }
+
+    private void registry(String key, String version, String status) {
         jdbc.update("""
                         insert into ctxa_prompt_governance_registry (registry_scope, prompt_key, template_key, prompt_version,
                             contract_version, prompt_artifact_hash_sha256, release_status, owner_name,
                             template_class_name, registration_source)
                         values (?, ?, 'SecurityDecisionStandard', ?, 'CORTEX_PROMPT_CONTRACT_V3', 'hash', ?, 'pqa',
                             'SecurityDecisionStandardPromptTemplate', 'test')""",
-                SCOPE, KEY, version, status);
+                SCOPE, key, version, status);
+    }
+
+    /** The bundles the tests roll between, and a security decision bundle that declares a record as its target. */
+    private static PromptBundleCatalog catalog() {
+        return new PromptBundleCatalog(List.of(manifest(KEY, FROM, List.of(TO)), manifest(KEY, TO, List.of()),
+                manifest(KEY, UNDECLARED, List.of()),
+                manifest(SECURITY_DECISION, SecurityDecisionPromptBundles.V1.version(), List.of(RECORD_ONLY)),
+                manifest(SECURITY_DECISION, RECORD_ONLY, List.of())));
+    }
+
+    private static PromptBundleManifest manifest(String key, String version, List<String> rollbackTargets) {
+        List<PromptBundleElement> elements = List.of(PromptBundleHashes.present("B1", version, "test bundle"));
+        return new PromptBundleManifest(key, version, PromptBundleHashes.bundleHash(elements), elements, null, null,
+                "test", List.of(), "pqa", "2026-01-01", null, List.of(), rollbackTargets, List.of());
     }
 
     private void release(String scope, String templateKey, String version, String status) {

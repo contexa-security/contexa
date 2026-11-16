@@ -39,7 +39,7 @@ class V21DelegationVocabularyTest {
 
     private static List<SecurityDecisionFactChecks.ReasonFinding> findings(CanonicalSecurityContext context, String code,
                                                                           String fact) {
-        return SecurityDecisionV21FactChecks.reasonFindings(context, PROMPT,
+        return SecurityDecisionAnswerChecks.reasonFindings(context, PROMPT,
                 List.of(new SecurityDecisionOutputContract.Citation(code, fact)));
     }
 

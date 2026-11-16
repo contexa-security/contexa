@@ -175,7 +175,6 @@ class PromptFactLinesWithoutGuidanceTest {
         analysis.setCohortSeedWeight(0.7d);
         analysis.setCohortSeedWeightState("LIMITED");
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         return GOLDEN.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties, analysis);
     }
 

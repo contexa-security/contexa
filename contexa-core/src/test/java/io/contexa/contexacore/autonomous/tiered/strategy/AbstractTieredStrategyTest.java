@@ -39,7 +39,6 @@ import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.context.decision.PolicySatisfaction;
@@ -48,8 +47,9 @@ import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
 import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
+import io.contexa.contexacore.autonomous.tiered.prompt.MeasuredVariant;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV4;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV5;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
@@ -719,14 +719,14 @@ class AbstractTieredStrategyTest {
                 .isIn(StructuredOutputMode.NATIVE_STRUCTURED.name(), StructuredOutputMode.VALIDATED_CONVERTER.name());
     }
 
-    /** W4-2: a v20 request with native structured output asks the provider to enforce the output contract v3. */
+    /** W4-2: a request with native structured output asks the provider to enforce the output contract v5. */
     @Test
-    void aV20RequestWithNativeStructuredOutputCarriesTheOutputContractSchema() {
+    void aRequestWithNativeStructuredOutputCarriesTheOutputContractSchema() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-w42-native")
                 .metadata(new LinkedHashMap<>(Map.of("structuredOutputMode", StructuredOutputMode.NATIVE_STRUCTURED.name())))
                 .build();
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V1);
 
         SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
                 event,
@@ -735,7 +735,7 @@ class AbstractTieredStrategyTest {
                 List.of());
 
         assertThat(request.getParameter(ExecutionContext.OUTPUT_SCHEMA, String.class))
-                .isEqualTo(SecurityDecisionOutputContract.providerSchema());
+                .isEqualTo(SecurityDecisionOutputContractV5.providerSchema());
     }
 
     /**
@@ -746,7 +746,7 @@ class AbstractTieredStrategyTest {
     void aV20RequestThatNamesNoModelIsJudgedByTheChatModelTheAnalysisRunsOn() {
         strategy.setModelSelectionStrategy(() -> selecting(chatModel(OpenAiChatOptions.builder().model("gpt-6-luna").build())));
         SecurityEvent event = SecurityEvent.builder().eventId("event-w42-selected").metadata(new LinkedHashMap<>()).build();
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V1);
 
         SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(event,
                 new SecurityDecisionStandardPromptTemplate.SessionContext(),
@@ -756,29 +756,31 @@ class AbstractTieredStrategyTest {
                 .isEqualTo(StructuredOutputMode.NATIVE_STRUCTURED.name());
         assertThat(request.getParameter("structuredOutputProviderFamily", String.class)).isEqualTo("openai");
         assertThat(request.getParameter(ExecutionContext.OUTPUT_SCHEMA, String.class))
-                .isEqualTo(SecurityDecisionOutputContract.providerSchema());
+                .isEqualTo(SecurityDecisionOutputContractV5.providerSchema());
     }
 
     /**
-     * W4-2: a chat model whose options cannot carry a schema, a prompt profile with native structured output turned off
-     * and the v19 bundle keep the schema in the system text (no provider schema).
+     * W4-2: a chat model whose options cannot carry a schema and a prompt profile with native structured output turned
+     * off keep the schema in the system text (no provider schema).
      */
     @Test
-    void aModelWithoutSchemaOptionsAProfileWithoutNativeOutputAndV19KeepTheSystemTextSchema() {
+    void aModelWithoutSchemaOptionsOrAProfileWithoutNativeOutputKeepsTheSystemTextSchema() {
         SecurityEvent plain = SecurityEvent.builder().eventId("event-w42-plain").metadata(new LinkedHashMap<>()).build();
-        when(promptTemplate.promptBundle(plain)).thenReturn(SecurityDecisionPromptBundles.V20);
+        when(promptTemplate.promptBundle(plain)).thenReturn(SecurityDecisionPromptBundles.V1);
         strategy.setModelSelectionStrategy(() -> selecting(chatModel(ChatOptions.builder().model("plain").build())));
         assertThat(nativeSchema(plain)).isNull();
 
         strategy.setModelSelectionStrategy(() -> selecting(chatModel(OpenAiChatOptions.builder().model("gpt-6-luna").build())));
-        SecurityEvent v19 = SecurityEvent.builder().eventId("event-w42-v19-selected").metadata(new LinkedHashMap<>()).build();
-        when(promptTemplate.promptBundle(v19)).thenReturn(SecurityDecisionPromptBundles.V19);
-        assertThat(nativeSchema(v19)).isNull();
-
         tieredStrategyProperties.getPromptRuntime().setNativeStructuredOutputEnabled(false);
         SecurityEvent off = SecurityEvent.builder().eventId("event-w42-off").metadata(new LinkedHashMap<>()).build();
-        when(promptTemplate.promptBundle(off)).thenReturn(SecurityDecisionPromptBundles.V20);
+        when(promptTemplate.promptBundle(off)).thenReturn(SecurityDecisionPromptBundles.V1);
         assertThat(nativeSchema(off)).isNull();
+    }
+
+    /** Plan 6-2: the event runs the one bundle with the version that makes the measured variant (decision D6). */
+    private void chooses(SecurityEvent event, MeasuredVariant variant) {
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V1);
+        when(promptTemplate.promptVersion(event)).thenReturn(variant.version());
     }
 
     private String nativeSchema(SecurityEvent event) {
@@ -846,7 +848,7 @@ class AbstractTieredStrategyTest {
             }
         });
         SecurityEvent event = SecurityEvent.builder().eventId("event-n-out-1-tier").metadata(new LinkedHashMap<>()).build();
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V1);
 
         SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(event,
                 new SecurityDecisionStandardPromptTemplate.SessionContext(),
@@ -882,7 +884,7 @@ class AbstractTieredStrategyTest {
             }
         });
         SecurityEvent event = SecurityEvent.builder().eventId("event-w47-hint").metadata(new LinkedHashMap<>()).build();
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V1);
 
         SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(event,
                 new SecurityDecisionStandardPromptTemplate.SessionContext(),
@@ -936,19 +938,14 @@ class AbstractTieredStrategyTest {
 
     /** W4-2: the v19 bundle keeps its format, and without native structured output the system text states the schema. */
     @Test
-    void aV19RequestOrOneWithoutNativeStructuredOutputCarriesNoSchema() {
-        SecurityEvent v19 = SecurityEvent.builder()
-                .eventId("event-w42-v19")
-                .metadata(new LinkedHashMap<>(Map.of("structuredOutputMode", StructuredOutputMode.NATIVE_STRUCTURED.name())))
-                .build();
+    void aRequestWithoutNativeStructuredOutputCarriesNoSchema() {
         SecurityEvent converter = SecurityEvent.builder()
                 .eventId("event-w42-converter")
                 .metadata(new LinkedHashMap<>(Map.of("structuredOutputMode", StructuredOutputMode.VALIDATED_CONVERTER.name())))
                 .build();
-        when(promptTemplate.promptBundle(v19)).thenReturn(SecurityDecisionPromptBundles.V19);
-        when(promptTemplate.promptBundle(converter)).thenReturn(SecurityDecisionPromptBundles.V20);
+        when(promptTemplate.promptBundle(converter)).thenReturn(SecurityDecisionPromptBundles.V1);
 
-        for (SecurityEvent event : List.of(v19, converter)) {
+        for (SecurityEvent event : List.of(converter)) {
             SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
                     event,
                     new SecurityDecisionStandardPromptTemplate.SessionContext(),
@@ -1537,7 +1534,7 @@ class AbstractTieredStrategyTest {
      * variant keeps the model's explanation.
      */
     @Test
-    void theV19CanonicalExplanationIsTakenByAV1FallbackVariantOnly() {
+    void theCanonicalExplanationIsTakenByAVersionWithTheDecisionRulesOnly() {
         SecurityDecision fallback = SecurityDecision.builder().action(ZeroTrustAction.ALLOW)
                 .reasoning("MFA verified in historical signals.").llmDecisionPresent(true)
                 .fieldProvenance(Map.of("reasoning", "MODEL")).build();
@@ -1548,8 +1545,8 @@ class AbstractTieredStrategyTest {
                 "ragProjectedToFinalPrompt", true, "personalBaselineEstablished", true))).build();
         SecurityEvent recordEvent = SecurityEvent.builder().metadata(exportMetadata("GB-500", Map.of(
                 "ragProjectedToFinalPrompt", true, "personalBaselineEstablished", true))).build();
-        when(promptTemplate.promptBundle(fallbackEvent)).thenReturn(SecurityDecisionPromptBundles.V1_FALLBACK_EXACT);
-        when(promptTemplate.promptBundle(recordEvent)).thenReturn(SecurityDecisionPromptBundles.V1_RECORD_EXACT);
+        chooses(fallbackEvent, MeasuredVariant.FALLBACK_EXACT);
+        chooses(recordEvent, MeasuredVariant.RECORD_EXACT);
 
         strategy.applyCanonicalDecisionReasoningForTest(fallback, fallbackEvent, List.of(exportRecord("GB-500")));
         strategy.applyCanonicalDecisionReasoningForTest(record, recordEvent, List.of(exportRecord("GB-500")));
@@ -1561,7 +1558,7 @@ class AbstractTieredStrategyTest {
 
     /**
      * Plan 2.3 B3: a v1.0 decision records the minimum action rules its conclusions meet, read from the conclusions the
-     * context kept beside the records its prompt states; a v21 decision records none.
+     * context kept beside the records its prompt states.
      */
     @Test
     void aV1DecisionRecordsTheMinimumActionRulesOfItsConclusions() {
@@ -1574,38 +1571,15 @@ class AbstractTieredStrategyTest {
                 .build();
         SecurityEvent v1Event = SecurityEvent.builder()
                 .metadata(new LinkedHashMap<>(Map.of("sealedEvidence.canonicalContext", canonical))).build();
-        SecurityEvent v21Event = SecurityEvent.builder()
-                .metadata(new LinkedHashMap<>(Map.of("sealedEvidence.canonicalContext", canonical))).build();
-        when(promptTemplate.promptBundle(v1Event)).thenReturn(SecurityDecisionPromptBundles.V1_RECORD_EXACT);
-        when(promptTemplate.promptBundle(v21Event)).thenReturn(SecurityDecisionPromptBundles.V21);
+        chooses(v1Event, MeasuredVariant.RECORD_EXACT);
         SecurityDecision v1 = SecurityDecision.builder().action(ZeroTrustAction.ALLOW).build();
-        SecurityDecision v21 = SecurityDecision.builder().action(ZeroTrustAction.ALLOW).build();
 
         strategy.applyMinimumActionRulesForTest(v1, v1Event);
-        strategy.applyMinimumActionRulesForTest(v21, v21Event);
 
         assertThat(v1.getAction()).isEqualTo(ZeroTrustAction.ALLOW);
         assertThat(v1Event.getMetadata()).containsEntry("minimumActionFindings", List.of(Map.of(
                 "rule", "P3_POLICY_NOT_SATISFIED", "code", "MIN_P3_POLICY_NOT_SATISFIED", "requiredAction", "ESCALATE",
                 "dimensions", List.of(), "decidedAction", "ALLOW", "violated", true)));
-        assertThat(v21Event.getMetadata()).doesNotContainKey("minimumActionFindings");
-    }
-
-    /** Plan 2.3 A4, A15: a v1.0 request with native structured output asks the provider for the output contract v4. */
-    @Test
-    void aV1RequestWithNativeStructuredOutputCarriesTheOutputContractV4Schema() {
-        SecurityEvent event = SecurityEvent.builder()
-                .eventId("event-v1-native")
-                .metadata(new LinkedHashMap<>(Map.of("structuredOutputMode", StructuredOutputMode.NATIVE_STRUCTURED.name())))
-                .build();
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR);
-
-        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(event,
-                new SecurityDecisionStandardPromptTemplate.SessionContext(),
-                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), List.of());
-
-        assertThat(request.getParameter(ExecutionContext.OUTPUT_SCHEMA, String.class))
-                .isEqualTo(SecurityDecisionOutputContractV4.providerSchema());
     }
 
     @Test
@@ -1687,7 +1661,7 @@ class AbstractTieredStrategyTest {
                         "ragProjectedToFinalPrompt", true,
                         "personalBaselineEstablished", true)))
                 .build();
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V1);
 
         strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of(exportRecord("GB-500")));
 
@@ -1924,7 +1898,7 @@ class AbstractTieredStrategyTest {
     @Test
     void aV20RequestReadsItsPastRecordsByTheExactLookupOfItsActionFamily() {
         SecurityEvent event = exportEvent("event-w318-exact", true);
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        chooses(event, MeasuredVariant.RECORD_EXACT);
         Document sameTarget = new Document("00000000-0000-0000-0000-000000000002", "record same target",
                 Map.of("eventId", "e2", "requestPath", GB500, "pathFamily", EXPORTS, "actionFamily", "EXPORT"));
         Document otherTarget = new Document("00000000-0000-0000-0000-000000000003", "record other target",
@@ -1972,7 +1946,7 @@ class AbstractTieredStrategyTest {
     @Test
     void theCandidatesOfAnExactLookupAreTheRecordsItCountedNotTheOnesItRead() {
         SecurityEvent event = exportEvent("event-w319-candidates", true);
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        chooses(event, MeasuredVariant.RECORD_EXACT);
         Document sameTarget = new Document("00000000-0000-0000-0000-000000000012", "record same target",
                 Map.of("eventId", "e12", "requestPath", GB500, "pathFamily", EXPORTS, "actionFamily", "EXPORT"));
         Document otherTarget = new Document("00000000-0000-0000-0000-000000000013", "record other target",
@@ -1995,7 +1969,7 @@ class AbstractTieredStrategyTest {
     @Test
     void aV20RequestWithoutAnExactLookupSaysThePastRecordsWereNotRetrieved() {
         SecurityEvent event = exportEvent("event-w318-unavailable", true);
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        chooses(event, MeasuredVariant.RECORD_EXACT);
         when(unifiedVectorService.pastRecordQuery()).thenReturn(PastRecordQuery.unavailable());
 
         assertThat(strategy.callSearchRelatedContextBase(event, 5, 0.5d)).isEmpty();
@@ -2008,7 +1982,7 @@ class AbstractTieredStrategyTest {
     @Test
     void aV20RequestWithoutAnActionFamilyIsNotLookedUp() {
         SecurityEvent event = exportEvent("event-w318-no-action", false);
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        chooses(event, MeasuredVariant.RECORD_EXACT);
         RecordingPastRecordQuery query = new RecordingPastRecordQuery(List.of(), List.of());
         when(unifiedVectorService.pastRecordQuery()).thenReturn(query);
 
@@ -2020,19 +1994,6 @@ class AbstractTieredStrategyTest {
                 .containsEntry("ragAbsenceReason", "ACTION_FAMILY_UNKNOWN");
     }
 
-    /** The v19 bundle stays the comparison baseline: it searches its past records as before. */
-    @Test
-    void aV19RequestSearchesItsPastRecordsAsBefore() {
-        SecurityEvent event = exportEvent("event-w318-v19", true);
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V19);
-        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of());
-
-        strategy.callSearchRelatedContextBase(event, 5, 0.5d);
-
-        verify(unifiedVectorService, atLeastOnce()).searchSimilar(any(SearchRequest.class));
-        verify(unifiedVectorService, never()).pastRecordQuery();
-    }
-
     /**
      * v1.0 (D3): a similar-case variant adds the v19 similarity search beside the exact lookup. The event's search state
      * stays the exact lookup's, the similar cases it did not find come marked, and one audit holds every document.
@@ -2041,7 +2002,7 @@ class AbstractTieredStrategyTest {
     void aV1SimilarCaseRequestAddsTheSimilaritySearchBesideTheExactLookup() {
         SecurityEvent event = exportEvent("event-v1-similar", true);
         when(promptTemplate.promptBundle(any(SecurityEvent.class)))
-                .thenReturn(SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR);
+                .thenReturn(SecurityDecisionPromptBundles.V1);
         Document sameTarget = new Document("00000000-0000-0000-0000-000000000051", "record same target",
                 Map.of("eventId", "e51", "requestPath", GB500, "pathFamily", EXPORTS, "actionFamily", "EXPORT"));
         Document similar = new Document("00000000-0000-0000-0000-000000000052", "record of a similar request",
@@ -2071,8 +2032,8 @@ class AbstractTieredStrategyTest {
     @Test
     void aV1ExactRequestReadsOnlyTheExactLookup() {
         SecurityEvent event = exportEvent("event-v1-exact", true);
-        when(promptTemplate.promptBundle(any(SecurityEvent.class)))
-                .thenReturn(SecurityDecisionPromptBundles.V1_FALLBACK_EXACT);
+        when(promptTemplate.promptBundle(any(SecurityEvent.class))).thenReturn(SecurityDecisionPromptBundles.V1);
+        when(promptTemplate.promptVersion(any(SecurityEvent.class))).thenReturn(MeasuredVariant.FALLBACK_EXACT.version());
         RecordingPastRecordQuery query = new RecordingPastRecordQuery(List.of(), List.of());
         when(unifiedVectorService.pastRecordQuery()).thenReturn(query);
 
@@ -2085,8 +2046,7 @@ class AbstractTieredStrategyTest {
     @Test
     void aFailedSimilarCaseSearchLeavesTheExactRecordsAndOneAudit() {
         SecurityEvent event = exportEvent("event-v1-similar-failed", true);
-        when(promptTemplate.promptBundle(any(SecurityEvent.class)))
-                .thenReturn(SecurityDecisionPromptBundles.V1_RECORD_SIMILAR);
+        when(promptTemplate.promptBundle(any(SecurityEvent.class))).thenReturn(SecurityDecisionPromptBundles.V1);
         Document sameTarget = new Document("00000000-0000-0000-0000-000000000061", "record same target",
                 Map.of("eventId", "e61", "requestPath", GB500, "pathFamily", EXPORTS, "actionFamily", "EXPORT"));
         when(unifiedVectorService.pastRecordQuery()).thenReturn(new RecordingPastRecordQuery(List.of(
@@ -2113,7 +2073,7 @@ class AbstractTieredStrategyTest {
     void theRecentDecisionsThatDidNotAllowAreLeftForThePastRecordsBlock() {
         SecurityEvent event = exportEvent("event-w54-denied", true);
         event.setTimestamp(Instant.parse("2026-10-14T03:17:00Z"));
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        chooses(event, MeasuredVariant.RECORD_EXACT);
         Document challenged = new Document("00000000-0000-0000-0000-000000000041", "record denied",
                 Map.of("eventId", "e41", "documentType", "suspicious", "requestPath", GB500, "pathFamily", EXPORTS,
                         "actionFamily", "EXPORT", "action", "CHALLENGE", "timestamp", "2026-10-12T03:17:00"));
@@ -2171,7 +2131,7 @@ class AbstractTieredStrategyTest {
         event.addMetadata("organizationId", "org-1");
         event.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
         event.addMetadata("agentId", "report-agent");
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        chooses(event, MeasuredVariant.RECORD_EXACT);
         Document kept = new Document("00000000-0000-0000-0000-000000000021", "denied",
                 Map.of("eventId", "d1", "documentType", "threat", "action", "BLOCK", "requestPath", GB500,
                         "timestamp", "2026-10-12T10:00:00"));
@@ -2215,7 +2175,7 @@ class AbstractTieredStrategyTest {
         for (String key : List.of("organizationId", "organization_id", "orgId")) {
             SecurityEvent event = exportEvent("event-org-" + key, true);
             event.addMetadata(key, "org-1");
-            when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+            chooses(event, MeasuredVariant.RECORD_EXACT);
             RecordingPastRecordQuery query = new RecordingPastRecordQuery(List.of(), List.of());
             when(unifiedVectorService.pastRecordQuery()).thenReturn(query);
             authorizeEveryDocument();

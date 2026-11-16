@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Bundle v21.11 (docs/agent A3-5): a past record's target is the path variables a requester wrote, so a v21 past record
  * line writes it apart and the UNTRUSTED TEXT block quotes it; the same-target field stays the core's comparison. The
- * v20 render is unchanged, and the inspector compares the v21 lines with the sealed records.
+ * inspector compares the lines with the sealed records.
  */
 class V21PastRecordTargetTest {
 
@@ -50,10 +50,6 @@ class V21PastRecordTargetTest {
                         value -> assertThat(value).contains(" / no target / "),
                         value -> assertThat(value).matches(".*PastRecord\\d+: \\+\\d+ more")));
         assertThat(rendered.v21().userPrompt()).contains("source=" + UntrustedTextSources.PAST_RECORD_TARGET + "; \"");
-        // The v20 render writes the target as before and quotes none.
-        assertThat(lines(rendered.v20().userPrompt(), "PastRecord")).noneMatch(line -> line.contains(
-                PastRecordLines.TARGET_APART));
-        assertThat(rendered.v20().userPrompt()).doesNotContain(UntrustedTextSources.PAST_RECORD_TARGET);
 
         PromptInspectionResult result = INSPECTOR.inspect(rendered.v21().sealed());
         assertThat(result.findings()).filteredOn(finding -> finding.outcome() == PromptInspectionOutcome.MISMATCH)
@@ -78,7 +74,7 @@ class V21PastRecordTargetTest {
                 .anyMatch(finding -> finding.actual() != null && finding.actual().contains("FORGED-1"));
     }
 
-    private record Rendered(InspectionGolden.Render v20, InspectionGolden.Render v21) {
+    private record Rendered(InspectionGolden.Render v21) {
     }
 
     /** The first golden case whose v21 render draws a past record with a target. */
@@ -94,11 +90,11 @@ class V21PastRecordTargetTest {
     }
 
     private static Optional<Rendered> render(SecurityDecisionGoldenRender golden, JsonNode goldenCase) {
-        InspectionGolden.Render v21 = render(golden, goldenCase, SecurityDecisionPromptBundles.V21);
+        InspectionGolden.Render v21 = render(golden, goldenCase, SecurityDecisionPromptBundles.V1);
         if (lines(v21.userPrompt(), "PastRecord").stream().noneMatch(line -> line.contains(PastRecordLines.TARGET_APART))) {
             return Optional.empty();
         }
-        return Optional.of(new Rendered(render(golden, goldenCase, SecurityDecisionPromptBundles.V20), v21));
+        return Optional.of(new Rendered(v21));
     }
 
     private static InspectionGolden.Render render(SecurityDecisionGoldenRender golden, JsonNode goldenCase,

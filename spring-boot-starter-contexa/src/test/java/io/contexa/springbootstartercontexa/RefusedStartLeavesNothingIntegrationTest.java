@@ -72,8 +72,11 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 @Timeout(300)
 class RefusedStartLeavesNothingIntegrationTest {
 
-    /** The tables of Contexa's schema: 152, and the Zero Trust console's seven (console plan stage 2). */
-    private static final int CONTEXA_TABLES = 159;
+    /**
+     * The tables of Contexa's schema: 152, the Zero Trust console's seven (console plan stage 2) and the prompt versions'
+     * five (implementation plan 6-3).
+     */
+    private static final int CONTEXA_TABLES = 164;
 
     private static final String PROBLEM_BEFORE = "Contexa owns the sign-in of this application, but the application declares its own"
             + " security chain(s) [";

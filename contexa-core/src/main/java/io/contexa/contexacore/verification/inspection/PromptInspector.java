@@ -18,6 +18,7 @@ package io.contexa.contexacore.verification.inspection;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDictionary;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
@@ -77,6 +78,10 @@ public final class PromptInspector {
 
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {
     };
+    /** The entries of the conclusion lines: those of the dictionary with the conclusions the records one lacks. */
+    private static final List<PromptDictionaryEntry> CONCLUSION_ENTRIES =
+            SecurityDecisionPromptDictionary.V1_RULES_ENTRIES.stream()
+                    .filter(entry -> !SecurityDecisionPromptDictionary.V1_ENTRIES.contains(entry)).toList();
 
     private final List<PromptInspectionCheck> checks;
     /** The checks of a v21 package: the same checks, bound to the v21 dictionary, notation and reason codes. */
@@ -129,22 +134,22 @@ public final class PromptInspector {
         String sealedBundle = sealedBundle(metadata);
         boolean v21 = V21_LAYOUT.equals(layout);
         boolean v1 = V1_LAYOUT.equals(layout);
-        // A v1.0 variant with the decision rules draws the conclusions its rules read beside the records.
-        boolean v1Rules = v1 && SecurityDecisionPromptBundles.find(sealedBundle)
-                .map(bundle -> bundle.features().decisionRules()).orElse(false);
         boolean dictionaryPrompt = V20_LAYOUT.equals(layout) || v21 || v1;
-        String dictionaryVersion = v1 ? (v1Rules ? V1_RULES_DICTIONARY_VERSION : V1_DICTIONARY_VERSION)
-                : v21 ? V21_DICTIONARY_VERSION
-                : dictionaryPrompt ? DICTIONARY_VERSION : NO_DICTIONARY;
         String userPrompt = evidencePackage.getUserPromptText();
         if (userPrompt == null) {
-            return error(packageId, layout, dictionaryVersion, List.of(), "the user prompt the model got is not sealed");
+            return error(packageId, layout, dictionaryVersion(layout, false), List.of(),
+                    "the user prompt the model got is not sealed");
         }
+        InspectedPrompt prompt = InspectedPrompt.parse(userPrompt);
+        // Plan 6-2 (D6): a version with the decision rules draws the conclusions its rules read beside the records; the
+        // sealed prompt says whether it did, whichever version drew it.
+        boolean v1Rules = v1 && drawsConclusionLines(prompt);
+        String dictionaryVersion = dictionaryVersion(layout, v1Rules);
         // R1b-7 (P3 extra 17): the dictionary checks read a package only when it was drawn in this build's form, with
-        // this build's dictionary and render; a package of another form would give findings of format changes.
-        boolean thisForm = !dictionaryPrompt || drawnInThisForm(metadata, sealedBundle, v21, v1, v1Rules);
-        PromptInspectionSubject subject = new PromptInspectionSubject(evidencePackage, layout,
-                InspectedPrompt.parse(userPrompt), metadata,
+        // this build's dictionary and render; a package of another form would give findings of format changes. A
+        // package of a bundle this build no longer ships (v20, v21) is not read again (decision D7).
+        boolean thisForm = !dictionaryPrompt || v1 && drawnInThisForm(metadata, sealedBundle);
+        PromptInspectionSubject subject = new PromptInspectionSubject(evidencePackage, layout, prompt, metadata,
                 contextSerializer.deserialize(evidencePackage.getCanonicalContextJson()));
         List<PromptInspectionCheckResult> results = new ArrayList<>();
         for (PromptInspectionCheck check : v1 ? (v1Rules ? v1RulesChecks : v1Checks) : v21 ? v21Checks : checks) {
@@ -160,8 +165,9 @@ public final class PromptInspector {
             }
             if (check.dictionaryPromptOnly() && !thisForm) {
                 tally.unverifiable(tally.unverifiableFinding().sourceRef(SEALED_BUNDLE).actual(sealedBundle)
-                        .reason("the package was drawn with another bundle's prompt dictionary or render, so it is not "
-                                + "read against this one").build());
+                        .reason(v1 ? "the package was drawn with another bundle's prompt dictionary or render, so it is"
+                                + " not read against this one" : "the package was drawn with a bundle this build no"
+                                + " longer ships, so it cannot be inspected again (decision D7)").build());
                 results.add(tally.result());
                 continue;
             }
@@ -228,10 +234,10 @@ public final class PromptInspector {
 
     /**
      * Whether a bundle draws its prompt in this build's form: this build's dictionary (B2) and the render of this
-     * build's v20 bundle (B3), R1b-7.
+     * build's bundle (B3), R1b-7.
      */
     static boolean drawnInThisForm(PromptBundleManifest sealed, PromptBundleManifest current) {
-        return drawnInThisForm(sealed, current, SecurityDecisionPromptDictionary.contentDigest());
+        return drawnInThisForm(sealed, current, SecurityDecisionPromptDictionary.contentDigestV1());
     }
 
     /** Whether a bundle draws its prompt with that dictionary (B2) and the render of the given bundle (B3). */
@@ -262,39 +268,41 @@ public final class PromptInspector {
     }
 
     /**
-     * Whether the bundle the package names draws in this build's form (R1b-7); a v1.0 package is read against this
-     * build's bundle of its own variant, with that variant's dictionary.
+     * Whether the v1.0 bundle the package names draws in this build's form (R1b-7): the records dictionary and the
+     * render of this build's v1.0 bundle. The manifest states the records dictionary; a version with the decision rules
+     * adds the two conclusion lines to it, which the checks read with the dictionary that has them.
      */
-    private static boolean drawnInThisForm(Map<String, Object> metadata, String sealedBundle, boolean v21, boolean v1,
-                                           boolean v1Rules) {
+    private static boolean drawnInThisForm(Map<String, Object> metadata, String sealedBundle) {
         if (sealedBundle == null
                 || !(metadata.get(PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR) instanceof Map<?, ?> descriptor)
                 || !(descriptor.get("promptKey") instanceof String promptKey)) {
             return false;
         }
-        PromptGovernanceDescriptor current;
-        String dictionaryDigest;
-        if (v1) {
-            SecurityDecisionPromptBundles.Bundle variant = SecurityDecisionPromptBundles.find(sealedBundle)
-                    .filter(bundle -> bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS)
-                    .orElse(null);
-            if (variant == null) {
-                return false;
-            }
-            current = variant.descriptor();
-            dictionaryDigest = v1Rules ? SecurityDecisionPromptDictionary.contentDigestV1Rules()
-                    : SecurityDecisionPromptDictionary.contentDigestV1();
-        }
-        else {
-            current = (v21 ? SecurityDecisionPromptBundles.V21 : SecurityDecisionPromptBundles.V20).descriptor();
-            dictionaryDigest = v21 ? SecurityDecisionPromptDictionary.contentDigestV21()
-                    : SecurityDecisionPromptDictionary.contentDigest();
-        }
+        PromptGovernanceDescriptor current = SecurityDecisionPromptBundles.V1.descriptor();
         PromptBundleCatalog catalog = PromptBundleCatalog.shared();
         return catalog.find(promptKey, sealedBundle)
                 .flatMap(sealed -> catalog.find(current.promptKey(), current.promptVersion())
-                        .map(ours -> drawnInThisForm(sealed, ours, dictionaryDigest)))
+                        .map(ours -> drawnInThisForm(sealed, ours, SecurityDecisionPromptDictionary.contentDigestV1())))
                 .orElse(false);
+    }
+
+    /** The dictionary a result of the layout names; a v1.0 prompt with the conclusion lines names the one with them. */
+    private static String dictionaryVersion(String layout, boolean v1Rules) {
+        if (V1_LAYOUT.equals(layout)) {
+            return v1Rules ? V1_RULES_DICTIONARY_VERSION : V1_DICTIONARY_VERSION;
+        }
+        if (V21_LAYOUT.equals(layout)) {
+            return V21_DICTIONARY_VERSION;
+        }
+        return V20_LAYOUT.equals(layout) ? DICTIONARY_VERSION : NO_DICTIONARY;
+    }
+
+    /** Whether the prompt states a conclusion line of the decision rules (the entries only their dictionary has). */
+    static boolean drawsConclusionLines(InspectedPrompt prompt) {
+        return prompt.lines().stream()
+                .filter(line -> line.kind() == InspectedPrompt.Kind.ENTRY && line.block() != null)
+                .anyMatch(line -> CONCLUSION_ENTRIES.stream().anyMatch(entry -> entry.block() == line.block()
+                        && entry.matchesLabel(line.entryLine().label())));
     }
 
     private static String layoutOf(Map<String, Object> metadata) {

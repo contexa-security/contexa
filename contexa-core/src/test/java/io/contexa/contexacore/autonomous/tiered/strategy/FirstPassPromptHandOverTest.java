@@ -63,7 +63,7 @@ class FirstPassPromptHandOverTest {
 
     private static PromptGenerationResult drawn(String userPrompt) {
         return new PromptGenerationResult(null, "SYSTEM", userPrompt,
-                Map.of("userPromptLayoutVersion", Layer2SecondPass.V20_LAYOUT), null);
+                Map.of("userPromptLayoutVersion", Layer2SecondPass.V1_LAYOUT), null);
     }
 
     private static SecurityDecisionRequest request(SecurityEvent event) {

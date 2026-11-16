@@ -1,7 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.governance;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import org.junit.jupiter.api.AfterEach;
@@ -25,8 +24,9 @@ class PromptBundleRollbackExecutionsTest {
 
     private static final String SCOPE = "PLATFORM_GLOBAL";
     private static final String KEY = "cortex.security-decision";
-    private static final String FROM = SecurityDecisionPromptBundles.V20.version();
-    private static final String TO = SecurityDecisionPromptBundles.V19.version();
+    // Executions are records: they keep the bundles they rolled between, the earlier bundles among them (plan 6-2).
+    private static final String FROM = "2026.10.24-v20.26";
+    private static final String TO = "2026.10.24-v19.21";
 
     private PostgresTestDatabase database;
     private JdbcTemplate jdbc;

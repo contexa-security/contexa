@@ -44,7 +44,7 @@ import java.util.Set;
  * after the request); a code that names the model's own judgment of a record or of the data holds on any line it may
  * cite. An explanation the model weighed cites lines the prompt drew.
  */
-public final class SecurityDecisionV21FactChecks {
+public final class SecurityDecisionAnswerChecks {
 
     public static final String HYPOTHESES_MISSING = "HYPOTHESES_MISSING";
     public static final String HYPOTHESIS_MISMATCH = "HYPOTHESIS_MISMATCH";
@@ -66,7 +66,7 @@ public final class SecurityDecisionV21FactChecks {
             "RECORD_OVER_LIMIT", PolicyReason.OVER_LIMIT,
             "RECORD_CUMULATIVE_OVER_LIMIT", PolicyReason.CUMULATIVE);
 
-    private SecurityDecisionV21FactChecks() {
+    private SecurityDecisionAnswerChecks() {
     }
 
     /** One explanation the model weighed: its id, the name it gave H5, its assessment and the fact ids for and against. */

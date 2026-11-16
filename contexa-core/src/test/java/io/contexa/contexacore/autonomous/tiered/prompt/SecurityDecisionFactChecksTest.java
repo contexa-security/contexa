@@ -5,14 +5,11 @@ import io.contexa.contexacore.autonomous.context.decision.DecisionFact;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.context.decision.Deviation;
 import io.contexa.contexacore.autonomous.context.decision.DeviationDimension;
-import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.context.decision.PolicyReason;
 import io.contexa.contexacore.autonomous.context.decision.PolicySatisfaction;
 import io.contexa.contexacore.autonomous.context.model.ContextQualityGrade;
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.DrawnPrompt;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.Outcome;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.ReasonFinding;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -61,13 +58,13 @@ class SecurityDecisionFactChecksTest {
         DrawnPrompt drawn = DrawnPrompt.of(prompt(150, 120, "NORMAL", "[F1] AuthorizationEffect: ALLOW\n", null)
                 .replace("Device: Chrome/140 on WINDOWS", "Device: Chrome/140 on WINDOWS (fingerprint does not match)"));
 
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, drawn, "CHALLENGE"))
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, context.getDecisionFacts(), drawn, "CHALLENGE"))
                 .isEqualTo(SecurityDecisionFactChecks.REQUIRED_BLOCK);
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, drawn, "BLOCK")).isNull();
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, context.getDecisionFacts(), drawn, "BLOCK")).isNull();
 
         DrawnPrompt withoutTheFailures = DrawnPrompt.of(prompt(150, 120, "NORMAL", "[F1] AuthorizationEffect: ALLOW\n", null)
                 .replace("FailedLogins: 150 in last 10 min\n", ""));
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, withoutTheFailures, "BLOCK"))
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, context.getDecisionFacts(), withoutTheFailures, "BLOCK"))
                 .isEqualTo(SecurityDecisionFactChecks.BLOCK_WITHOUT_EVIDENCE);
     }
 
@@ -84,7 +81,7 @@ class SecurityDecisionFactChecksTest {
         DrawnPrompt drawn = DrawnPrompt.of(prompt(150, 3, "NORMAL", "[F1] AuthorizationEffect: ALLOW\n", null)
                 .replace("Device: Chrome/140 on WINDOWS", "Device: Chrome/140 on WINDOWS (fingerprint does not match)"));
 
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, drawn, "CHALLENGE"))
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, context.getDecisionFacts(), drawn, "CHALLENGE"))
                 .isEqualTo(SecurityDecisionFactChecks.REQUIRED_BLOCK);
     }
 
@@ -98,9 +95,9 @@ class SecurityDecisionFactChecksTest {
                 ClientSignals: bot UA: yes
                 """, null));
 
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, drawn, "BLOCK"))
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, context.getDecisionFacts(), drawn, "BLOCK"))
                 .isEqualTo(SecurityDecisionFactChecks.BLOCK_WITHOUT_EVIDENCE);
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, drawn, "CHALLENGE")).isNull();
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, context.getDecisionFacts(), drawn, "CHALLENGE")).isNull();
     }
 
     @Test
@@ -115,9 +112,9 @@ class SecurityDecisionFactChecksTest {
                 [F2] DataConflicts: tenantId (request tenant-a, account tenant-b)
                 """, null));
 
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(denied, deniedPrompt, "CHALLENGE"))
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(denied, denied.getDecisionFacts(), deniedPrompt, "CHALLENGE"))
                 .isEqualTo(SecurityDecisionFactChecks.REQUIRED_BLOCK);
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(conflicting, conflictPrompt, "ESCALATE"))
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(conflicting, conflicting.getDecisionFacts(), conflictPrompt, "ESCALATE"))
                 .isEqualTo(SecurityDecisionFactChecks.REQUIRED_BLOCK);
     }
 
@@ -126,29 +123,29 @@ class SecurityDecisionFactChecksTest {
     void theLowRiskBoundaryRequiresAllowAndOnlyWithoutAnAdverseFact() {
         String allow = "[F1] AuthorizationEffect: ALLOW\n";
         CanonicalSecurityContext plain = context(0, 3, "NORMAL", facts(List.of()));
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(plain, DrawnPrompt.of(prompt(0, 3, "NORMAL", allow, null)),
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(plain, plain.getDecisionFacts(), DrawnPrompt.of(prompt(0, 3, "NORMAL", allow, null)),
                 "CHALLENGE")).isEqualTo(SecurityDecisionFactChecks.REQUIRED_LOW_RISK);
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(plain, DrawnPrompt.of(prompt(0, 3, "NORMAL", allow, null)),
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(plain, plain.getDecisionFacts(), DrawnPrompt.of(prompt(0, 3, "NORMAL", allow, null)),
                 "ALLOW")).isNull();
 
         CanonicalSecurityContext sensitive = context(0, 3, "SENSITIVE", facts(List.of()));
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(sensitive,
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(sensitive, sensitive.getDecisionFacts(),
                 DrawnPrompt.of(prompt(0, 3, "SENSITIVE", allow, null)), "CHALLENGE")).isNull();
 
         CanonicalSecurityContext different = context(0, 3, "NORMAL", new DecisionFacts(List.of(
                 fact("DeviationsFromBaseline", "time 03 seen 0 of 25 (unexplained)", "DEVIATION_TIME")),
                 List.of(unexplained(DeviationDimension.TIME)), PolicySatisfaction.UNKNOWN, List.of()));
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(different, DrawnPrompt.of(prompt(0, 3, "NORMAL",
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(different, different.getDecisionFacts(), DrawnPrompt.of(prompt(0, 3, "NORMAL",
                 allow + "[F2] DeviationsFromBaseline: time 03 seen 0 of 25 (unexplained)\n", null)), "CHALLENGE")).isNull();
 
         CanonicalSecurityContext unmet = context(0, 3, "NORMAL", new DecisionFacts(List.of(), List.of(),
                 new PolicySatisfaction(false, PolicyReason.NO_RECORD, List.of(), "no approval", List.of()), List.of()));
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(unmet, DrawnPrompt.of(prompt(0, 3, "NORMAL", allow
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(unmet, unmet.getDecisionFacts(), DrawnPrompt.of(prompt(0, 3, "NORMAL", allow
                 + "[F2] Policy: EXPORT_APPROVAL requires a covering approval\n[F3] PolicySatisfied: no — no approval\n",
                 null)), "CHALLENGE")).isNull();
 
         CanonicalSecurityContext failed = context(1, 3, "NORMAL", facts(List.of()));
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(failed, DrawnPrompt.of(prompt(1, 3, "NORMAL", allow, null)),
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(failed, failed.getDecisionFacts(), DrawnPrompt.of(prompt(1, 3, "NORMAL", allow, null)),
                 "CHALLENGE")).isNull();
     }
 
@@ -159,9 +156,9 @@ class SecurityDecisionFactChecksTest {
         CanonicalSecurityContext provisional = scoped(ContextQualityGrade.WEAK);
         CanonicalSecurityContext trusted = scoped(ContextQualityGrade.STRONG);
 
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(provisional, DrawnPrompt.of(prompt(0, 3, "NORMAL", lines,
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(provisional, provisional.getDecisionFacts(), DrawnPrompt.of(prompt(0, 3, "NORMAL", lines,
                 null)), "CHALLENGE")).isEqualTo(SecurityDecisionFactChecks.REQUIRED_LOW_RISK);
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(trusted, DrawnPrompt.of(prompt(0, 3, "NORMAL", lines,
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(trusted, trusted.getDecisionFacts(), DrawnPrompt.of(prompt(0, 3, "NORMAL", lines,
                 null)), "CHALLENGE")).isNull();
     }
 
@@ -180,16 +177,16 @@ class SecurityDecisionFactChecksTest {
                         "APR-1")), new PolicySatisfaction(true, null, List.of("APR-1"), "approval APR-1", List.of()), List.of());
         CanonicalSecurityContext context = context(0, 3, "CRITICAL", explained);
 
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, DrawnPrompt.of(prompt(0, 3, "CRITICAL", covered,
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, context.getDecisionFacts(), DrawnPrompt.of(prompt(0, 3, "CRITICAL", covered,
                 null)), "CHALLENGE")).isEqualTo(SecurityDecisionFactChecks.REQUIRED_COVERED_WORK);
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, DrawnPrompt.of(prompt(0, 3, "CRITICAL", covered,
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, context.getDecisionFacts(), DrawnPrompt.of(prompt(0, 3, "CRITICAL", covered,
                 null)), "ALLOW")).isNull();
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, DrawnPrompt.of(prompt(0, 3, "CRITICAL",
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(context, context.getDecisionFacts(), DrawnPrompt.of(prompt(0, 3, "CRITICAL",
                 covered + "ThreatMatch: campaign C-7 matches the request\n", null)), "CHALLENGE")).isNull();
 
         DecisionFacts unexplainedToo = new DecisionFacts(explained.facts(), List.of(unexplained(DeviationDimension.TIME)),
                 explained.policy(), List.of());
-        assertThat(SecurityDecisionFactChecks.boundaryViolation(context(0, 3, "CRITICAL", unexplainedToo),
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(context(0, 3, "CRITICAL", unexplainedToo), context(0, 3, "CRITICAL", unexplainedToo).getDecisionFacts(),
                 DrawnPrompt.of(prompt(0, 3, "CRITICAL", covered, null)), "CHALLENGE")).isNull();
     }
 
@@ -209,93 +206,26 @@ class SecurityDecisionFactChecksTest {
                 "MFA verified.")).isNull();
     }
 
-    /** Dictionary 5: the ID is in the prompt, its line is one the code cites, and the code's condition holds. */
-    @Test
-    void eachReasonCodeIsCheckedOnItsIdItsLineAndItsCondition() {
-        DecisionFacts decisionFacts = new DecisionFacts(List.of(
-                fact("PolicySatisfied", "no — no approval", "POLICY_NOT_SATISFIED_NO_RECORD"),
-                fact("DeviationsFromBaseline", "class CRITICAL seen 0 of 25 (unexplained)", "DEVIATION_RESOURCE_CLASS"),
-                fact("DataConflicts", "authorizationEffect (policy ALLOW, method DENY)", "AUTHORIZATION_CONFLICT")),
-                List.of(), new PolicySatisfaction(false, PolicyReason.NO_RECORD, List.of(), "no approval", List.of()),
-                List.of());
-        CanonicalSecurityContext context = context(0, 3, "CRITICAL", decisionFacts);
-        DrawnPrompt drawn = DrawnPrompt.of(prompt(0, 3, "CRITICAL", """
-                [F1] AuthorizationEffect: ALLOW
-                [F2] PolicySatisfied: no — no approval
-                [F3] DeviationsFromBaseline: class CRITICAL seen 0 of 25 (unexplained)
-                """, "not-integrated: [U1] ClientSignals").replace("=== UNKNOWN ===", """
-                === PAST RECORDS (learned) ===
-                [P1] PastRecord1: 09-29 10:12 EXPORT GB-500 ALLOW
-
-                === UNKNOWN ==="""));
-
-        List<ReasonFinding> findings = SecurityDecisionFactChecks.reasonFindings(context, MinimumActionRules.Settings.DEFAULTS,
-                drawn, List.of(
-                        citation("MIN_P3_POLICY_NOT_SATISFIED", "F2"),
-                        citation("POLICY_NOT_SATISFIED_NO_RECORD", "f2"),
-                        citation("POLICY_SATISFIED", "F2"),
-                        citation("APPROVAL_COVERS", "F1"),
-                        citation("DEVIATION_TIME", "F3"),
-                        citation("MATERIAL_MISSING_EVIDENCE", "U1"),
-                        citation("MATERIAL_MISSING_EVIDENCE", "U9"),
-                        citation("POLICY_SATISFIED", "U1"),
-                        citation("PAST_RECORD_SAME_TARGET", "P1"),
-                        citation("NOT_A_CODE", "F1"),
-                        citation("AUTHORIZATION_CONFLICT", "F1")));
-
-        assertThat(findings).extracting(ReasonFinding::outcome).containsExactly(
-                Outcome.MATCH, Outcome.MATCH, Outcome.MISMATCH, Outcome.MISMATCH, Outcome.MISMATCH, Outcome.MATCH,
-                Outcome.MISMATCH, Outcome.MISMATCH, Outcome.UNDECIDED, Outcome.MISMATCH, Outcome.MATCH);
-        assertThat(findings.get(7).reason()).isEqualTo("the code does not cite ClientSignals");
-        assertThat(findings.get(3).reason()).isEqualTo("the code does not cite DECISION_FACTS.AuthorizationEffect");
-        assertThat(findings.get(6).reason()).isEqualTo("the prompt gives no fact this ID");
-        assertThat(findings.get(8).reason())
-                .isEqualTo("the condition of PAST_RECORD_SAME_TARGET cannot be decided on the facts here");
-        assertThat(SecurityDecisionFactChecks.reasonViolation(findings))
-                .startsWith(SecurityDecisionFactChecks.REASON_CODE_MISMATCH + ": POLICY_SATISFIED F2 (")
-                .doesNotContain("MIN_P3", "PAST_RECORD_SAME_TARGET");
-        assertThat(SecurityDecisionFactChecks.reasonViolation(findings.subList(0, 2))).isNull();
-    }
-
     /**
-     * The minimum action codes need the host's rule settings; without them (a sealed package) they cannot be told, and
-     * the reason says so rather than that the condition does not hold (the inspection screen showed it, W4-8).
+     * Plan 6-2: the claim kinds the v19 response check read on its labels are read by the engine on the context the
+     * prompt states: a verified MFA called unverified, a normal resource called highly sensitive, and a negated claim,
+     * which states nothing wrong.
      */
     @Test
-    void withoutTheRuleSettingsAMinimumActionCodeCannotBeTold() {
-        CanonicalSecurityContext context = context(0, 3, "CRITICAL", new DecisionFacts(List.of(), List.of(),
-                new PolicySatisfaction(false, PolicyReason.NO_RECORD, List.of(), "no approval", List.of()), List.of()));
-        DrawnPrompt drawn = DrawnPrompt.of(prompt(0, 3, "CRITICAL", "[F1] PolicySatisfied: no — no approval\n", null));
+    void aClaimOfAnUnverifiedMfaOrOfAHighSensitivityTheStatedFactsContradictIsPointedAt() {
+        CanonicalSecurityContext context = context(0, 3, "NORMAL", facts(List.of()));
+        context.getSession().setMfaVerified(true);
+        DrawnPrompt drawn = DrawnPrompt.of(prompt(0, 3, "NORMAL", "[F1] AuthorizationEffect: ALLOW\n", null)
+                .replace("LoginMethod: PASSWORD, MFA not verified", "LoginMethod: PASSWORD, MFA verified"));
 
-        assertThat(SecurityDecisionFactChecks.reasonFindings(context, null, drawn,
-                List.of(citation("MIN_P3_POLICY_NOT_SATISFIED", "F1")))).extracting(ReasonFinding::outcome)
-                .containsExactly(Outcome.UNDECIDED);
-        assertThat(SecurityDecisionFactChecks.reasonFindings(context, null, drawn,
-                List.of(citation("MIN_P3_POLICY_NOT_SATISFIED", "F1")))).extracting(ReasonFinding::reason)
-                .containsExactly("the minimum action settings are not sealed, so the condition of"
-                        + " MIN_P3_POLICY_NOT_SATISFIED cannot be decided");
-        assertThat(SecurityDecisionFactChecks.reasonFindings(context, MinimumActionRules.Settings.DEFAULTS, drawn,
-                List.of(citation("MIN_P3_POLICY_NOT_SATISFIED", "F1")))).extracting(ReasonFinding::outcome)
-                .containsExactly(Outcome.MATCH);
-    }
-
-    /**
-     * CQ-1: the argument origin code belongs to the output contract v4 of the v21 bundle; the v20 contract (v3) is the
-     * one it was, so a v20 answer that names the code is a code the contract does not have.
-     */
-    @Test
-    void theArgumentOriginCodeIsNoCodeOfTheV20OutputContract() {
-        DrawnPrompt drawn = DrawnPrompt.of(prompt(0, 3, "CRITICAL", "[F1] AuthorizationEffect: ALLOW\n", null));
-
-        List<ReasonFinding> findings = SecurityDecisionFactChecks.reasonFindings(
-                context(0, 3, "CRITICAL", facts(List.of())), MinimumActionRules.Settings.DEFAULTS, drawn,
-                List.of(citation("VALUE_FROM_UNTRUSTED_OUTPUT", "F1")));
-
-        assertThat(SecurityDecisionOutputContract.codes()).doesNotContain("VALUE_FROM_UNTRUSTED_OUTPUT");
-        assertThat(findings).singleElement().satisfies(finding -> {
-            assertThat(finding.outcome()).isEqualTo(Outcome.MISMATCH);
-            assertThat(finding.reason()).isEqualTo("not a reason code of the output contract");
-        });
+        assertThat(SecurityDecisionFactChecks.claimViolation(context, drawn, "MFA is not verified for this request."))
+                .isEqualTo("FALSE_MFA_UNVERIFIED_CLAIM");
+        assertThat(SecurityDecisionFactChecks.claimViolation(context, drawn, "The resource has high sensitivity."))
+                .isEqualTo("FALSE_HIGH_SENSITIVITY_CLAIM");
+        assertThat(SecurityDecisionFactChecks.claimViolation(context, drawn,
+                "Fresh verification is not required for this request.")).isNull();
+        assertThat(SecurityDecisionFactChecks.claimViolation(context, drawn,
+                "Authorization allows the normal request; MFA is verified.")).isNull();
     }
 
     private static String prompt(int failed, int recent, String resourceClass, String facts, String unknown) {
@@ -338,7 +268,4 @@ class SecurityDecisionFactChecksTest {
         return new Deviation(dimension, "x", true, true, 0, 10, "y", Deviation.Explanation.UNEXPLAINED, null);
     }
 
-    private static SecurityDecisionOutputContract.Citation citation(String code, String fact) {
-        return new SecurityDecisionOutputContract.Citation(code, fact);
-    }
 }

@@ -29,9 +29,6 @@ import java.util.Locale;
  */
 public final class SecurityDecisionCompactAnswer {
 
-    /** The request parameter a strategy sets when the event's bundle answers in the output contract v5. */
-    public static final String REQUEST_PARAMETER = "securityDecisionCompactAnswer";
-
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private SecurityDecisionCompactAnswer() {

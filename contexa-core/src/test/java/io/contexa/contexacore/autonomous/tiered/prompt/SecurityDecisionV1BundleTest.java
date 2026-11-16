@@ -168,7 +168,7 @@ class SecurityDecisionV1BundleTest {
 
     @Test
     void theV1SystemTextIsTheV21JudgmentWithTheReadingAndHonestySentences() {
-        InspectionGolden.Render render = render(SecurityDecisionPromptBundles.V1_RECORD_EXACT, context -> {
+        InspectionGolden.Render render = render(MeasuredVariant.RECORD_EXACT, context -> {
         });
         String system = render.systemPrompt();
 
@@ -185,38 +185,40 @@ class SecurityDecisionV1BundleTest {
     }
 
     @Test
-    void theDecisionRulesComeOnlyWithTheFallbackVariantsAndLeaveTheAutomationLineOutForAnAgent() {
-        String person = render(SecurityDecisionPromptBundles.V1_FALLBACK_EXACT, context -> {
+    void theDecisionRulesComeOnlyWithAVersionThatIncludesThemAndLeaveTheAutomationLineOutForAnAgent() {
+        String automation = PreparedPartsEquivalenceTest.MEASURED.path("v20AutomationBoundary").asText().strip();
+        String category = PreparedPartsEquivalenceTest.MEASURED.path("v20AutomationCategory").asText().strip();
+        String person = render(MeasuredVariant.FALLBACK_EXACT, context -> {
         }).systemPrompt();
-        String agent = render(SecurityDecisionPromptBundles.V1_FALLBACK_EXACT, context -> {
+        String agent = render(MeasuredVariant.FALLBACK_EXACT, context -> {
             context.getAttributes().put("executionSubjectKind", "AUTONOMOUS_AGENT");
             context.getAttributes().put("agentId", "report-agent");
             context.setDelegation(CanonicalSecurityContext.Delegation.builder().delegated(false)
                     .agentId("report-agent").build());
         }).systemPrompt();
 
-        assertThat(person).contains("Decision rules", "Verified signal boundary",
-                SecurityDecisionPromptSections.V20_AUTOMATION_BOUNDARY.strip());
+        assertThat(person).contains("Decision rules", "Verified signal boundary", automation);
         assertThat(person.indexOf("Decision rules")).isGreaterThan(person.indexOf("Responses and what they do:"))
                 .isLessThan(person.indexOf("Honesty:"));
-        assertThat(agent).contains("Decision rules")
-                .doesNotContain(SecurityDecisionPromptSections.V20_AUTOMATION_BOUNDARY.strip())
-                .doesNotContain(SecurityDecisionPromptSections.V20_AUTOMATION_CATEGORY.strip());
+        assertThat(agent).contains("Decision rules").doesNotContain(automation).doesNotContain(category);
+        assertThat(render(MeasuredVariant.RECORD_EXACT, context -> {
+        }).systemPrompt()).doesNotContain("Decision rules");
     }
 
     /**
-     * Plan 2.3 B1 (2.8, D2): the minimum action floors are stated by the fallback variants only, without the v3 rule
-     * codes the v4 answer does not cite; a record variant states no floor.
+     * Plan 2.3 B1 (2.8, D2, D10, K32): the minimum action floors are stated when the host enforces them, by any version
+     * (MinimumActionRulesSystemTextTest, PreparedPartsEquivalenceTest), never with the v3 rule codes the answer does not
+     * cite; a version the host only observes states no floor, the decision rules included or not.
      */
     @Test
-    void theMinimumActionFloorsAreStatedByTheFallbackVariantsOnly() {
-        String fallback = render(SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR, context -> {
+    void noVersionStatesTheMinimumActionFloorsWhenTheHostOnlyObservesThem() {
+        String rules = render(MeasuredVariant.FALLBACK_SIMILAR, context -> {
         }).systemPrompt();
-        String record = render(SecurityDecisionPromptBundles.V1_RECORD_SIMILAR, context -> {
+        String product = render(MeasuredVariant.RECORD_SIMILAR, context -> {
         }).systemPrompt();
 
-        assertThat(fallback).contains("Minimum action rules", "P1: ", "P2: ", "P3: ").doesNotContain("MIN_P");
-        assertThat(record).doesNotContain("Minimum action rules").doesNotContain("Decision rules");
+        assertThat(rules).contains("Decision rules").doesNotContain("Minimum action rules").doesNotContain("MIN_P");
+        assertThat(product).doesNotContain("Minimum action rules").doesNotContain("Decision rules");
     }
 
     /** The text of a part of the product prompt document (plan 6-1: the sentences are the document's). */
@@ -238,9 +240,8 @@ class SecurityDecisionV1BundleTest {
         assertThat(Pattern.matches(entry.formatPattern(), value)).as(block + "." + name + " = " + value).isTrue();
     }
 
-    /** The L1 render of the first golden case by the bundle, after a change to its sealed context. */
-    static InspectionGolden.Render render(SecurityDecisionPromptBundles.Bundle bundle,
-                                          Consumer<CanonicalSecurityContext> change) {
+    /** The L1 render of the first golden case by the variant's version, after a change to its sealed context. */
+    static InspectionGolden.Render render(MeasuredVariant variant, Consumer<CanonicalSecurityContext> change) {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         JsonNode goldenCase = golden.cases().get(0);
         CanonicalSecurityContext context = InspectionGolden.SERIALIZER
@@ -253,10 +254,9 @@ class SecurityDecisionV1BundleTest {
         catch (IOException exception) {
             throw new UncheckedIOException(exception);
         }
-        TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(bundle.version());
-        SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(changed,
-                PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties);
+        SecurityDecisionGoldenRender.RenderedCase rendered = golden.renderVersion(changed,
+                PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, new TieredStrategyProperties(), variant.store(),
+                MeasuredVariant.VERSION, Map.of());
         return new InspectionGolden.Render(rendered.caseKey(), PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
                 rendered.systemText(), rendered.userText(), rendered.canonicalContext(),
                 rendered.executionMetadata().toMetadataMap(), goldenCase.path("ragResults").toString(),

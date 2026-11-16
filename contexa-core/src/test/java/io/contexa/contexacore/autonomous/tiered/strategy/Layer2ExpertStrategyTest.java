@@ -15,7 +15,6 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
-import io.contexa.contexacore.autonomous.tiered.prompt.V19BundleProperties;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import java.time.ZoneId;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -88,11 +87,11 @@ class Layer2ExpertStrategyTest {
                 approvalService,
                 null,
                 new SecurityEventEnricher(),
-                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), V19BundleProperties.create()),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
                 null,
                 null,
                 null,
-                V19BundleProperties.create(),
+                new TieredStrategyProperties(),
                 null,
                 null,
                 null,
@@ -247,7 +246,7 @@ class Layer2ExpertStrategyTest {
     /** allow-escalate-final-action keeps what it has always done: a failed call ends as ESCALATE, held for review. */
     @Test
     void anAllowedFinalEscalateStaysWhenTheLlmPipelineFails() {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer2().setAllowEscalateFinalAction(true);
         strategy = strategyWith(properties);
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
@@ -269,7 +268,7 @@ class Layer2ExpertStrategyTest {
     @CsvSource({"BLOCK,BLOCK", "ALLOW,ALLOW", "CHALLENGE,CHALLENGE", "ESCALATE,CHALLENGE",
             "PENDING_ANALYSIS,CHALLENGE"})
     void aFailedCallEndsAsTheConfiguredFallback(ZeroTrustAction configured, ZeroTrustAction expected) {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer2().setEscalateFallbackAction(configured);
         strategy = strategyWith(properties);
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
@@ -283,7 +282,7 @@ class Layer2ExpertStrategyTest {
 
     @Test
     void aFailedCallEndsAsChallengeWithoutAConfiguredFallback() {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer2().setEscalateFallbackAction(null);
         strategy = strategyWith(properties);
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
@@ -322,7 +321,7 @@ class Layer2ExpertStrategyTest {
     /** The async wrapper's own budget ends the wait: its fallback is the same decision. */
     @Test
     void theAsyncBudgetEndsAFailureTheSameWay() {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer2().setTimeoutMs(50);
         strategy = strategyWith(properties);
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
@@ -345,7 +344,7 @@ class Layer2ExpertStrategyTest {
     @ParameterizedTest
     @ValueSource(strings = {"BLOCK", "CHALLENGE"})
     void aModelsRestrictionStandsWhenAStepAfterItFails(String modelAction) {
-        strategy = strategyFailingAfterTheModel(V19BundleProperties.create());
+        strategy = strategyFailingAfterTheModel(new TieredStrategyProperties());
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setAction(modelAction);
         response.setReasoning("The export is outside the owner's work.");
@@ -364,7 +363,7 @@ class Layer2ExpertStrategyTest {
     /** A model's ALLOW is no restriction to keep: the failed step ends it as a failure, which is the stricter end. */
     @Test
     void aModelsAllowEndsAsTheFallbackWhenAStepAfterItFails() {
-        strategy = strategyFailingAfterTheModel(V19BundleProperties.create());
+        strategy = strategyFailingAfterTheModel(new TieredStrategyProperties());
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setAction("ALLOW");
         response.setReasoning("Routine work.");
@@ -380,7 +379,7 @@ class Layer2ExpertStrategyTest {
     /** With the final ESCALATE allowed a failed step ends as before. */
     @Test
     void anAllowedFinalEscalateStaysWhenAStepAfterTheModelFails() {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer2().setAllowEscalateFinalAction(true);
         strategy = strategyFailingAfterTheModel(properties);
         SecurityDecisionResponse response = new SecurityDecisionResponse();
@@ -422,7 +421,7 @@ class Layer2ExpertStrategyTest {
     @DisplayName("the expert strategy reads the ids a session had from the context store (P2 correction 5)")
     void previousSessionIds_comeFromTheContextStore() {
         InMemorySecurityContextDataStore dataStore = new InMemorySecurityContextDataStore();
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         Layer2ExpertStrategy sessionStrategy = new Layer2ExpertStrategy(
                 approvalService,
                 dataStore,
@@ -449,7 +448,7 @@ class Layer2ExpertStrategyTest {
     @Test
     @DisplayName("performDeepAnalysis should end as the escalate fallback action when the pipeline exceeds the layer budget")
     void performDeepAnalysis_pipelineTimeout_endsAsTheEscalateFallbackAction() {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer2().setTimeoutMs(10);
         strategy = new Layer2ExpertStrategy(
                 approvalService,
@@ -487,7 +486,7 @@ class Layer2ExpertStrategyTest {
     /** allow-escalate-final-action keeps what it has always done: a call past the budget ends as ESCALATE. */
     @Test
     void anAllowedFinalEscalateStaysWhenThePipelineExceedsTheLayerBudget() {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer2().setAllowEscalateFinalAction(true);
         properties.getLayer2().setTimeoutMs(10);
         strategy = strategyWith(properties);
@@ -503,7 +502,7 @@ class Layer2ExpertStrategyTest {
     @Test
     @DisplayName("N-OUT-1 (G1-7): the Layer2 budget holds when the pipeline runs synchronously")
     void theLayerTwoBudgetHoldsWhenThePipelineRunsSynchronously() {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer2().setTimeoutMs(200);
         strategy = new Layer2ExpertStrategy(
                 approvalService,
@@ -664,7 +663,7 @@ class Layer2ExpertStrategyTest {
     @Test
     @DisplayName("Layer2 terminal fallback preserves the LLM ESCALATE proposal and exposes the final action")
     void performDeepAnalysis_escalateProposal_preservesProposalAndFinalFallback() {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         strategy = new Layer2ExpertStrategy(
                 approvalService,
                 null,
@@ -755,7 +754,7 @@ class Layer2ExpertStrategyTest {
      */
     @Test
     void aFirstPassWithNothingNewIsStillDecidedByTheSecondPassModel() {
-        Layer2ExpertStrategy secondPass = strategyWith(V19BundleProperties.create());
+        Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
         SecurityEvent event = firstPassEscalated("w39-nothing-new", "ZERO_RESULTS", false, V20_LAYOUT);
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
                 eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(allow()));
@@ -776,8 +775,7 @@ class Layer2ExpertStrategyTest {
     /** 판정층 E-5: a v21 second pass that still answers ESCALATE is terminalized like every other bundle's. */
     @Test
     void aV21SecondPassEscalateIsTerminalized() {
-        TieredStrategyProperties v21 = V19BundleProperties.create();
-        v21.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
+        TieredStrategyProperties v21 = new TieredStrategyProperties();
         Layer2ExpertStrategy secondPass = strategyWith(v21);
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setAction("ESCALATE");
@@ -798,8 +796,7 @@ class Layer2ExpertStrategyTest {
      */
     @Test
     void aV21SecondPassEscalateIsTerminalizedAlsoWhereAV20RuleWouldAskForAReview() {
-        TieredStrategyProperties v21 = V19BundleProperties.create();
-        v21.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
+        TieredStrategyProperties v21 = new TieredStrategyProperties();
         Layer2ExpertStrategy secondPass = strategyWith(v21);
         SecurityEvent event = buildTestEvent();
         event.addMetadata("sealedEvidence.canonicalContext", CanonicalSecurityContext.builder()
@@ -822,7 +819,7 @@ class Layer2ExpertStrategyTest {
     /** W3-9: past records the first pass could not retrieve and this pass found are the only facts added. */
     @Test
     void aFirstPassThatCouldNotRetrievePastRecordsGetsOnlyTheFoundOnesAdded() {
-        Layer2ExpertStrategy secondPass = strategyWith(V19BundleProperties.create());
+        Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
         String eventId = "w39-new-records";
         List<Document> found = List.of(new Document("past record one", Map.of("id", "past-1")));
         AbstractTieredStrategy.cacheEscalationContext(eventId, null, null, found);
@@ -860,7 +857,7 @@ class Layer2ExpertStrategyTest {
                 "accessScope", "USER",
                 "eventId", "past-event-1"));
         when(vectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of(record));
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         Layer2ExpertStrategy secondPass = new Layer2ExpertStrategy(
                 approvalService,
                 null,
@@ -902,7 +899,7 @@ class Layer2ExpertStrategyTest {
     /** W3-9: without a model verdict (a technical fallback) Layer2 makes the first model decision, as before. */
     @Test
     void aFirstPassWithoutAModelVerdictIsAnalysedAsBefore() {
-        Layer2ExpertStrategy secondPass = strategyWith(V19BundleProperties.create());
+        Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
         SecurityEvent event = firstPassEscalated("w39-technical", "ZERO_RESULTS", true, V20_LAYOUT);
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
                 eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(allow()));
@@ -920,7 +917,7 @@ class Layer2ExpertStrategyTest {
     /** W3-9: the v19 sections stay the comparison baseline, so Layer2 is asked as before. */
     @Test
     void theV19FormatAsksLayer2AsBefore() {
-        Layer2ExpertStrategy secondPass = strategyWith(V19BundleProperties.create());
+        Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
         SecurityEvent event = firstPassEscalated("w39-v19", "ZERO_RESULTS", false, null);
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
                 eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(allow()));
@@ -942,7 +939,7 @@ class Layer2ExpertStrategyTest {
      */
     @Test
     void theFirstPromptsBundleDecidesTheSecondPassWithoutAnySetting() {
-        Layer2ExpertStrategy secondPass = strategyWith(V19BundleProperties.create());
+        Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
         SecurityEvent event = firstPassEscalated("w316-v20-first", "ZERO_RESULTS", false, V20_LAYOUT);
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
                 eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(allow()));
@@ -964,7 +961,7 @@ class Layer2ExpertStrategyTest {
      */
     @Test
     void theSecondPassDecisionCarriesItsOwnValuesNotTheFirstPasss() {
-        Layer2ExpertStrategy secondPass = strategyWith(V19BundleProperties.create());
+        Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
         SecurityEvent event = firstPassEscalatedWithModelValues("n-rsn-1-values");
         SecurityDecisionResponse answer = allow();
         answer.setRiskScore(0.31);

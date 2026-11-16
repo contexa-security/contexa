@@ -49,8 +49,8 @@ class SecurityDecisionV1SimilarCasesTest {
     void theVariantsDrawTheSameUserPromptWithoutSimilarCases() {
         JsonNode a1 = goldenCase("A1");
 
-        String similar = render(a1, SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR).userText();
-        String exact = render(a1, SecurityDecisionPromptBundles.V1_FALLBACK_EXACT).userText();
+        String similar = render(a1, MeasuredVariant.FALLBACK_SIMILAR).userText();
+        String exact = render(a1, MeasuredVariant.FALLBACK_EXACT).userText();
 
         assertThat(similar).isEqualTo(exact);
         assertThat(similar).doesNotContain("SimilarCase");
@@ -59,9 +59,9 @@ class SecurityDecisionV1SimilarCasesTest {
     @Test
     void theSimilarCasesAreDrawnApartAndEveryOtherLineStaysTheExactLookups() {
         JsonNode a1 = goldenCase("A1");
-        SecurityDecisionGoldenRender.RenderedCase without = render(a1, SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR);
+        SecurityDecisionGoldenRender.RenderedCase without = render(a1, MeasuredVariant.FALLBACK_SIMILAR);
         SecurityDecisionGoldenRender.RenderedCase with = render(withSimilarCases(a1, 3, null),
-                SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR);
+                MeasuredVariant.FALLBACK_SIMILAR);
 
         List<PromptDictionaryLine> similarLines = lines(with.userText()).stream()
                 .filter(line -> line.label().startsWith("SimilarCase")).toList();
@@ -88,7 +88,7 @@ class SecurityDecisionV1SimilarCasesTest {
         JsonNode a1 = goldenCase("A1");
 
         String userText = render(withSimilarCases(a1, 1, OTHER_TARGET_PATH),
-                SecurityDecisionPromptBundles.V1_RECORD_SIMILAR).userText();
+                MeasuredVariant.RECORD_SIMILAR).userText();
 
         assertThat(userText).contains(UntrustedTextSources.SIMILAR_CASE_TARGET)
                 .contains("ZZ-SIMILAR-9");
@@ -99,10 +99,10 @@ class SecurityDecisionV1SimilarCasesTest {
         JsonNode a1 = goldenCase("A1");
         String reading = SecurityDecisionV1BundleTest.partText("similar-case-reading").strip();
 
-        assertThat(render(a1, SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR).systemText()).contains(reading);
-        assertThat(render(a1, SecurityDecisionPromptBundles.V1_RECORD_SIMILAR).systemText()).contains(reading);
-        assertThat(render(a1, SecurityDecisionPromptBundles.V1_FALLBACK_EXACT).systemText()).doesNotContain(reading);
-        assertThat(render(a1, SecurityDecisionPromptBundles.V1_RECORD_EXACT).systemText()).doesNotContain(reading);
+        assertThat(render(a1, MeasuredVariant.FALLBACK_SIMILAR).systemText()).contains(reading);
+        assertThat(render(a1, MeasuredVariant.RECORD_SIMILAR).systemText()).contains(reading);
+        assertThat(render(a1, MeasuredVariant.FALLBACK_EXACT).systemText()).doesNotContain(reading);
+        assertThat(render(a1, MeasuredVariant.RECORD_EXACT).systemText()).doesNotContain(reading);
     }
 
     /**
@@ -113,14 +113,13 @@ class SecurityDecisionV1SimilarCasesTest {
     void everyGoldenRenderOfEveryVariantKeepsTheDictionaryForm() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         int renders = 0;
-        for (SecurityDecisionPromptBundles.Bundle bundle : SecurityDecisionPromptBundles.V1_BUNDLES) {
-            TieredStrategyProperties properties = new TieredStrategyProperties();
-            properties.getPromptBundle().setActive(bundle.version());
+        for (MeasuredVariant variant : MeasuredVariant.values()) {
             for (JsonNode goldenCase : golden.cases()) {
                 for (PromptBudgetProfile profile : SecurityDecisionGoldenRender.PROFILES) {
-                    Object violations = golden.render(goldenCase, profile, properties).executionMetadata()
+                    Object violations = golden.renderVersion(goldenCase, profile, new TieredStrategyProperties(),
+                            variant.store(), MeasuredVariant.VERSION, Map.of()).executionMetadata()
                             .supplementalMetadata().get("promptContractViolations");
-                    assertThat(violations).as(bundle.version() + " " + goldenCase.path("caseKey").asText() + " " + profile)
+                    assertThat(violations).as(variant + " " + goldenCase.path("caseKey").asText() + " " + profile)
                             .asList().noneMatch(violation -> String.valueOf(violation).startsWith("V1_DICTIONARY_FORM"));
                     renders++;
                 }
@@ -130,7 +129,7 @@ class SecurityDecisionV1SimilarCasesTest {
                 new SecurityPromptContractAudit(Map.of(), Map.of(), Map.of(), Map.of(), List.of()),
                 "=== REQUEST ===\nNetworkZone: somewhere\n", SecurityDecisionPromptDictionary.V1_ENTRIES);
 
-        assertThat(renders).isEqualTo(SecurityDecisionPromptBundles.V1_BUNDLES.size() * golden.cases().size()
+        assertThat(renders).isEqualTo(MeasuredVariant.values().length * golden.cases().size()
                 * SecurityDecisionGoldenRender.PROFILES.size());
         assertThat(broken.violations()).containsExactly("V1_DICTIONARY_FORM:REQUEST.NetworkZone is out of its form");
     }
@@ -142,16 +141,16 @@ class SecurityDecisionV1SimilarCasesTest {
     @Test
     void aV1RenderIsNeverSufficientWithoutTheCanonicalFieldsTheCompletenessReads() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
-        TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V1_FALLBACK_EXACT.version());
+        MeasuredVariant variant = MeasuredVariant.FALLBACK_EXACT;
         int missingFields = 0;
         for (JsonNode goldenCase : golden.cases()) {
             ObjectNode changed = goldenCase.deepCopy();
             // The authorization's roles and scope taken out: a field the v19 completeness requires.
             ObjectNode context = (ObjectNode) changed.path("canonicalContext");
             context.remove("authorization");
-            SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(changed,
-                    PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties);
+            SecurityDecisionGoldenRender.RenderedCase rendered = golden.renderVersion(changed,
+                    PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, new TieredStrategyProperties(), variant.store(),
+                    MeasuredVariant.VERSION, Map.of());
             CanonicalSecurityContext used = rendered.canonicalContext();
             if (used != null && !(CanonicalContextFieldPolicy.hasEffectiveRoles(used)
                     && CanonicalContextFieldPolicy.hasAuthorizationScope(used))) {
@@ -176,7 +175,7 @@ class SecurityDecisionV1SimilarCasesTest {
         }
 
         SecurityDecisionGoldenRender.RenderedCase rendered = render(onlySimilar,
-                SecurityDecisionPromptBundles.V1_RECORD_SIMILAR);
+                MeasuredVariant.RECORD_SIMILAR);
 
         assertThat(rendered.userText()).contains("SimilarCase1: ").doesNotContainPattern("(?m)^(\\[P\\d+\\] )?PastRecord1: ");
         assertThat(rendered.executionMetadata().toMetadataMap()).containsEntry("ragProjectedToFinalPrompt", true);
@@ -220,12 +219,9 @@ class SecurityDecisionV1SimilarCasesTest {
                 .filter(item -> caseKey.equals(item.path("caseKey").asText())).findFirst().orElseThrow();
     }
 
-    private static SecurityDecisionGoldenRender.RenderedCase render(JsonNode goldenCase,
-                                                                    SecurityDecisionPromptBundles.Bundle bundle) {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(bundle.version());
-        return SecurityDecisionGoldenRender.load().render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
-                properties);
+    private static SecurityDecisionGoldenRender.RenderedCase render(JsonNode goldenCase, MeasuredVariant variant) {
+        return SecurityDecisionGoldenRender.load().renderVersion(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
+                new TieredStrategyProperties(), variant.store(), MeasuredVariant.VERSION, Map.of());
     }
 
     private static List<PromptDictionaryLine> lines(String userText) {

@@ -42,7 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class PromptShadowRunnerTest {
 
-    private static final String CANDIDATE = SecurityDecisionPromptBundles.V19.version();
+    private static final String CANDIDATE = SecurityDecisionPromptBundles.V1.version();
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-16T01:00:00Z"), ZoneOffset.UTC);
 
     private final List<Runnable> queued = new ArrayList<>();

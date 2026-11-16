@@ -199,8 +199,8 @@ class PromptInspectionConsoleTest {
                 .requestFactsJson("{\"httpMethod\":\"POST\",\"requestPath\":\"/api/projects/GB-500/exports\","
                         + "\"resourceId\":\"exportDocuments\"}")
                 .promptExecutionMetadataJson("{\"governanceDescriptor\":{\"userPromptLayoutVersion\":\""
-                        + PromptInspector.V20_LAYOUT + "\",\"promptKey\":\"cortex.security-decision\","
-                        + "\"promptBundleVersion\":\"" + SecurityDecisionPromptBundles.V20.descriptor().promptVersion()
+                        + PromptInspector.V1_LAYOUT + "\",\"promptKey\":\"cortex.security-decision\","
+                        + "\"promptBundleVersion\":\"" + SecurityDecisionPromptBundles.V1.descriptor().promptVersion()
                         + "\"}}")
                 .build();
     }

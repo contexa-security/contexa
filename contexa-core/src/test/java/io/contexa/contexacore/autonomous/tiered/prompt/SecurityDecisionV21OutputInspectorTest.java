@@ -49,7 +49,6 @@ class SecurityDecisionV21OutputInspectorTest {
     static void render() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         for (JsonNode goldenCase : golden.cases()) {
             String key = goldenCase.path("caseKey").asText();
             if (key.equals("A3") || key.equals("A3T") || key.equals("S12")) {

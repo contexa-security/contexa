@@ -426,7 +426,8 @@ class PromptDictionaryContractTest {
 
     @Test
     void theProviderGivesAV20LineItsEntryAndLeavesV19LinesAsBefore() {
-        PromptDictionarySlotPlanProvider provider = SecurityDecisionPromptDictionary.slotPlanProvider();
+        PromptDictionarySlotPlanProvider provider = new PromptDictionarySlotPlanProvider(SecurityDecisionPromptDictionary.ENTRIES,
+                SecurityDecisionPromptDictionary.VERSION);
 
         PromptSlotPlan policy = provider.planFor("=== DECISION FACTS ===", "PolicySatisfied");
         assertThat(policy.dictionaryEntry()).isSameAs(entries.get("DECISION_FACTS.PolicySatisfied"));
@@ -457,7 +458,8 @@ class PromptDictionaryContractTest {
      */
     @Test
     void theProviderFindsTheEntryOfADictionarySlotKey() {
-        PromptDictionarySlotPlanProvider provider = SecurityDecisionPromptDictionary.slotPlanProvider();
+        PromptDictionarySlotPlanProvider provider = new PromptDictionarySlotPlanProvider(SecurityDecisionPromptDictionary.ENTRIES,
+                SecurityDecisionPromptDictionary.VERSION);
 
         List<PromptSlotPlan> policy = provider.plansForSlotKey("SECURITY_DECISION", "DECISION FACTS.PolicySatisfied");
         assertThat(policy).singleElement().satisfies(plan -> {

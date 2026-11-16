@@ -78,10 +78,12 @@ class SecurityDecisionResponseProcessorTest {
 
     /** W4-2: a v3 response keeps its reason codes and its reason within the contract's 200 characters. */
     @Test
-    void wrapResponseShouldKeepTheReasonCodesAndTheV3ReasonLimit() {
-        String sentence = "Unexplained overnight administrative exports targeting restricted engineering repositories "
+    void wrapResponseShouldKeepTheReasonCodesAndTheReasonLimit() {
+        String once = "Unexplained overnight administrative exports targeting restricted engineering repositories "
                 + "combined with unfamiliar workstation fingerprints, atypical authentication sequences, escalating "
                 + "request velocity, and missing managerial authorization collectively warrant verification.";
+        String sentence = once + " " + once;
+        assertThat(sentence).hasSizeGreaterThan(SecurityDecisionOutputContractV4.MAX_REASON_CHARACTERS);
         SecurityDecisionResponseLite v3 = new SecurityDecisionResponseLite();
         v3.setAction("CHALLENGE");
         v3.setReasoning(sentence);
@@ -98,10 +100,10 @@ class SecurityDecisionResponseProcessorTest {
 
         assertThat(v3Response.getReasonCodes())
                 .containsExactly(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1"));
-        assertThat(v3Response.getReasoning()).hasSizeLessThanOrEqualTo(SecurityDecisionOutputContract.MAX_REASON_CHARACTERS);
+        assertThat(v3Response.getReasoning()).hasSizeLessThanOrEqualTo(SecurityDecisionOutputContractV4.MAX_REASON_CHARACTERS);
         assertThat(v3Response.getFieldProvenance()).containsEntry("reasonCodes", "MODEL");
         assertThat(v19Response.getReasonCodes()).isEmpty();
-        assertThat(v19Response.getReasoning()).hasSizeGreaterThan(SecurityDecisionOutputContract.MAX_REASON_CHARACTERS);
+        assertThat(v19Response.getReasoning()).hasSizeGreaterThan(SecurityDecisionOutputContractV4.MAX_REASON_CHARACTERS);
         assertThat(v19Response.getFieldProvenance()).containsEntry("reasonCodes", "ABSENT");
     }
 

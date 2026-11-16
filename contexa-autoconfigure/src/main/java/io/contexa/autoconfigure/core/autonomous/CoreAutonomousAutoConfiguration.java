@@ -491,7 +491,8 @@ public class CoreAutonomousAutoConfiguration {
     public PromptContextComposer promptContextComposer(ObjectProvider<PromptSlotPlanProvider> slotPlanProvider) {
         return new PromptContextComposer(
                 new PromptSlotRenderer(),
-                slotPlanProvider.getIfAvailable(SecurityDecisionPromptDictionary::slotPlanProvider));
+                // Plan 6-2: the slot plans of the one dictionary the prompts are drawn with, unless the host gives its own.
+                slotPlanProvider.getIfAvailable(SecurityDecisionPromptDictionary::v1SlotPlanProvider));
     }
 
     /** Where the context collectors stage a request's observations until its final decision commits them (W2-7). */

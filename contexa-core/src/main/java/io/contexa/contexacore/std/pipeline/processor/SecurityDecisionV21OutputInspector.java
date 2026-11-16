@@ -20,7 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionV21FactChecks;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionAnswerChecks;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector.Inspection;
 
@@ -97,7 +97,7 @@ public final class SecurityDecisionV21OutputInspector {
         if (parseFailureCategory == null || parseFailureCategory.isBlank()) {
             parseFailureCategory = "NONE";
         }
-        List<SecurityDecisionV21FactChecks.Hypothesis> hypotheses = hypotheses(rawResponse);
+        List<SecurityDecisionAnswerChecks.Hypothesis> hypotheses = hypotheses(rawResponse);
         Violation found = parsingFallback ? null : violation(check, parsed, hypotheses);
         String violation = found != null ? found.text() : null;
         String retryReason = parsingFallback ? "PARSER_" + parseFailureCategory : violation;
@@ -110,7 +110,7 @@ public final class SecurityDecisionV21OutputInspector {
 
     /** Everything the answer says wrongly, in one text the corrective retry names; null when it says nothing wrongly. */
     private static Violation violation(V21Check check, SecurityDecisionResponseLite response,
-                                       List<SecurityDecisionV21FactChecks.Hypothesis> hypotheses) {
+                                       List<SecurityDecisionAnswerChecks.Hypothesis> hypotheses) {
         if (response == null || check == null) {
             return null;
         }
@@ -124,20 +124,20 @@ public final class SecurityDecisionV21OutputInspector {
             otherThanCodes = true;
         }
         if (response.getReasonCodes() == null || response.getReasonCodes().isEmpty()) {
-            parts.add(SecurityDecisionV21FactChecks.REASON_CODES_MISSING);
+            parts.add(SecurityDecisionAnswerChecks.REASON_CODES_MISSING);
             otherThanCodes = true;
         }
         else if (check.context() != null) {
             // Plan 6-2: without the canonical context the prompt was drawn from, its facts cannot be checked.
-            List<SecurityDecisionFactChecks.ReasonFinding> findings = SecurityDecisionV21FactChecks.reasonFindings(
+            List<SecurityDecisionFactChecks.ReasonFinding> findings = SecurityDecisionAnswerChecks.reasonFindings(
                     check.context(), drawn, response.getReasonCodes());
             String reasons = SecurityDecisionFactChecks.reasonViolation(findings);
             if (reasons != null) {
                 parts.add(reasons);
-                codesMadeUp = findings.stream().anyMatch(SecurityDecisionV21FactChecks::madeUp);
+                codesMadeUp = findings.stream().anyMatch(SecurityDecisionAnswerChecks::madeUp);
             }
         }
-        String explanations = SecurityDecisionV21FactChecks.hypothesisViolation(drawn, hypotheses);
+        String explanations = SecurityDecisionAnswerChecks.hypothesisViolation(drawn, hypotheses);
         if (explanations != null) {
             parts.add(explanations);
             otherThanCodes = true;
@@ -154,10 +154,10 @@ public final class SecurityDecisionV21OutputInspector {
     }
 
     /** The explanations of the answer's JSON object; none when it has no such list or no JSON object. */
-    static List<SecurityDecisionV21FactChecks.Hypothesis> hypotheses(String rawResponse) {
+    static List<SecurityDecisionAnswerChecks.Hypothesis> hypotheses(String rawResponse) {
         JsonNode root = jsonObject(rawResponse);
         JsonNode items = root != null ? root.get("hypotheses") : null;
-        List<SecurityDecisionV21FactChecks.Hypothesis> hypotheses = new ArrayList<>();
+        List<SecurityDecisionAnswerChecks.Hypothesis> hypotheses = new ArrayList<>();
         if (items == null || !items.isArray()) {
             return hypotheses;
         }
@@ -165,7 +165,7 @@ public final class SecurityDecisionV21OutputInspector {
             if (!item.isObject()) {
                 continue;
             }
-            hypotheses.add(new SecurityDecisionV21FactChecks.Hypothesis(text(item.get("id")), text(item.get("name")),
+            hypotheses.add(new SecurityDecisionAnswerChecks.Hypothesis(text(item.get("id")), text(item.get("name")),
                     text(item.get("assessment")), texts(item.get("for")), texts(item.get("against"))));
         }
         return hypotheses;
@@ -207,9 +207,9 @@ public final class SecurityDecisionV21OutputInspector {
     }
 
     /** The explanations as the decision record keeps them: id, name, assessment, the fact ids for and against. */
-    private static List<Map<String, Object>> records(List<SecurityDecisionV21FactChecks.Hypothesis> hypotheses) {
+    private static List<Map<String, Object>> records(List<SecurityDecisionAnswerChecks.Hypothesis> hypotheses) {
         List<Map<String, Object>> records = new ArrayList<>();
-        for (SecurityDecisionV21FactChecks.Hypothesis hypothesis : hypotheses) {
+        for (SecurityDecisionAnswerChecks.Hypothesis hypothesis : hypotheses) {
             Map<String, Object> record = new LinkedHashMap<>();
             record.put("id", hypothesis.id());
             record.put("name", hypothesis.name());

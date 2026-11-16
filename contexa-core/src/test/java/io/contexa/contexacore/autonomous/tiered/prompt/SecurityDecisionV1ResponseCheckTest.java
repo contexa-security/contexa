@@ -45,14 +45,6 @@ class SecurityDecisionV1ResponseCheckTest {
     }
 
     @Test
-    void aV21RenderKeepsNoConclusions() {
-        CanonicalSecurityContext used = SecurityDecisionV1BundleTest.render(SecurityDecisionPromptBundles.V21, context -> {
-        }).used();
-
-        assertThat(used.getConclusionFacts()).isNull();
-    }
-
-    @Test
     void theFallbackVariantsCheckTheBoundariesOnTheConclusions() {
         InspectionGolden.Render render = render();
         DecisionFacts conclusions = render.used().getConclusionFacts();
@@ -70,7 +62,7 @@ class SecurityDecisionV1ResponseCheckTest {
 
     @Test
     void theRecordVariantsCheckTheBoundariesOnTheFactsTheirPromptsState() {
-        InspectionGolden.Render render = SecurityDecisionV1BundleTest.render(SecurityDecisionPromptBundles.V1_RECORD_EXACT,
+        InspectionGolden.Render render = SecurityDecisionV1BundleTest.render(MeasuredVariant.RECORD_EXACT,
                 context -> {
                 });
         DecisionFacts conclusions = render.used().getConclusionFacts();
@@ -118,7 +110,7 @@ class SecurityDecisionV1ResponseCheckTest {
     }
 
     private static InspectionGolden.Render render() {
-        return SecurityDecisionV1BundleTest.render(SecurityDecisionPromptBundles.V1_FALLBACK_EXACT, context -> {
+        return SecurityDecisionV1BundleTest.render(MeasuredVariant.FALLBACK_EXACT, context -> {
         });
     }
 

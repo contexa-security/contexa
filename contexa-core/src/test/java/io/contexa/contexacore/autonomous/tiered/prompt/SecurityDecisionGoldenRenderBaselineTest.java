@@ -54,7 +54,6 @@ class SecurityDecisionGoldenRenderBaselineTest {
     void theBaselineStatusAndTheDeviationsAreTheSealedOnes() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         List<String> differing = new ArrayList<>();
         for (JsonNode goldenCase : golden.cases()) {
             PromptBudgetProfile profile = PromptBudgetProfile.fromKey(goldenCase.path("budgetProfile").asText(),
@@ -85,7 +84,6 @@ class SecurityDecisionGoldenRenderBaselineTest {
     void thePastDeniedDecisionsAreTheSealedOnes() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         Map<String, List<String>> drawn = new TreeMap<>();
         List<String> differing = new ArrayList<>();
         for (JsonNode goldenCase : golden.cases()) {

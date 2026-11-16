@@ -45,7 +45,6 @@ class V20SecondPassFactsTest {
     static void render() {
         golden = SecurityDecisionGoldenRender.load();
         v20 = new TieredStrategyProperties();
-        v20.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
                 .orElseThrow();
         first = golden.render(a3, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, v20).userText();

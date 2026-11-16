@@ -57,7 +57,6 @@ class V21RetryRecordTest {
     void aRetryWhoseCitationStaysWrongNamesItsFailureInTheCallFieldsAndInTheRetries() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         JsonNode a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
                 .orElseThrow();
         SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(a3,
@@ -103,7 +102,6 @@ class V21RetryRecordTest {
     void anAnswerWhoseOnlyFaultIsUnsupportedCodesIsKeptWithoutAskingAgain() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         JsonNode a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
                 .orElseThrow();
         SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(a3,
@@ -140,7 +138,6 @@ class V21RetryRecordTest {
     void aSecondPassEscalateIsAskedOnceMoreAndAFirstPassEscalateIsKept() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         JsonNode a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
                 .orElseThrow();
         SecurityDecisionGoldenRender.RenderedCase first = golden.render(a3,
@@ -173,7 +170,6 @@ class V21RetryRecordTest {
     void aCorrectiveRetryCutBeforeAnyTextIsAskedAgainWithTwiceTheOutputLimit() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         JsonNode a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
                 .orElseThrow();
         SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(a3,

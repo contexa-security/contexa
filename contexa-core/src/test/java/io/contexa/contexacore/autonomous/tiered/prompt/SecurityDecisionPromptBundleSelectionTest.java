@@ -23,7 +23,6 @@ import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionContext;
 import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
-import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
@@ -41,13 +40,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * W3-16: one selector chooses the bundle a request runs; the bundle gives the descriptor, the manifest and the user
  * prompt layout, and the execution record states what chose it. A bundle the build cannot run falls back to the
- * build default.
+ * build default. Plan 6-2: the build runs v1.0 alone, so what the selector chose shows in the source it gives; the
+ * names of the earlier bundles are names the build cannot run.
  */
 class SecurityDecisionPromptBundleSelectionTest {
 
     private static final String PROMPT_KEY = "cortex.security-decision";
-    private static final String V19 = "2026.10.24-v19.21";
-    private static final String V20 = "2026.10.24-v20.26";
+    private static final String V1 = SecurityDecisionPromptBundles.V1.version();
     private static final PromptBudgetProfile L1 = PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
     private static final PromptBudgetProfile L2 = PromptBudgetProfile.CORTEX_L2_EXPERT_STRICT;
 
@@ -61,79 +60,21 @@ class SecurityDecisionPromptBundleSelectionTest {
     }
 
     @Test
-    void theBuildRunsV1AsItsDefaultWithV19V20V21AndTheVariantsForTheReplay() {
-        // Plan 1-9: v1.0 (the variant record-similar promoted, with the comparison citation sentence) is the build
-        // default, the bundle that runs when nothing chooses one; a customer can still choose v19, v20, v21 or a variant
-        // by its version (2026-11-15).
-        // K30 (2026-11-16): v1.0 answers in the short output contract v5; the first v1.0 (2026.11.15, contract v4) is no
-        // longer run.
+    void theBuildRunsV1AloneAsItsDefault() {
+        // Plan 1-9 and 6-2: v1.0 is the build default and the one bundle the build runs; it answers in the short output
+        // contract v5 (K30) and has no rollback target, since the product starts at v1.0.
         assertThat(SecurityDecisionPromptBundles.DEFAULT).isSameAs(SecurityDecisionPromptBundles.V1);
-        assertThat(SecurityDecisionPromptBundles.V1.version()).isEqualTo("2026.11.16-v1.0");
-        assertThat(SecurityDecisionPromptBundles.V1.layout())
-                .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS);
-        assertThat(SecurityDecisionPromptBundles.V1.features())
-                .isEqualTo(new SecurityDecisionPromptBundles.Features(false, false, true, true, true));
-        assertThat(SecurityDecisionPromptBundles.V1_BUNDLES)
-                .allSatisfy(variant -> assertThat(variant.features().comparisonCitations()).isFalse());
-        assertThat(SecurityDecisionPromptBundles.V1.descriptor().releaseStatus()).isEqualTo(PromptReleaseStatus.PRODUCTION);
-        assertThat(SecurityDecisionPromptBundles.V1.descriptor().rollbackPromptVersion()).isEqualTo(V19);
-        assertThat(SecurityDecisionPromptBundles.V19.descriptor().releaseStatus())
-                .isEqualTo(PromptReleaseStatus.PRODUCTION);
-        assertThat(SecurityDecisionPromptBundles.ALL)
-                .extracting(bundle -> bundle.descriptor().promptVersion())
-                .containsExactly(SecurityDecisionPromptBundles.V1.version(), V19, V20,
-                        SecurityDecisionPromptBundles.V21.version(),
-                        SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR.version(),
-                        SecurityDecisionPromptBundles.V1_FALLBACK_EXACT.version(),
-                        SecurityDecisionPromptBundles.V1_RECORD_SIMILAR.version(),
-                        SecurityDecisionPromptBundles.V1_RECORD_EXACT.version());
-        assertThat(SecurityDecisionPromptBundles.V1_BUNDLES).allSatisfy(bundle -> {
-            assertThat(bundle.layout()).isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS);
-            assertThat(bundle.descriptor().releaseStatus()).isEqualTo(PromptReleaseStatus.DRAFT);
-            assertThat(bundle.descriptor().rollbackPromptVersion()).isEqualTo(V19);
-        });
-        assertThat(SecurityDecisionPromptBundles.V21.layout())
-                .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS);
-        assertThat(SecurityDecisionPromptBundles.V21.descriptor().rollbackPromptVersion()).isEqualTo(V20);
-        assertThat(SecurityDecisionPromptBundles.V19.descriptor())
+        assertThat(V1).isEqualTo("2026.11.16-v1.0");
+        assertThat(SecurityDecisionPromptBundles.ALL).containsExactly(SecurityDecisionPromptBundles.V1);
+        assertThat(SecurityDecisionPromptBundles.V1.descriptor())
                 .isEqualTo(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
-        assertThat(SecurityDecisionPromptBundles.V19.layout())
-                .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V19_SECTIONS);
-        assertThat(SecurityDecisionPromptBundles.find(V20).orElseThrow().layout())
-                .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V20_BLOCKS);
-        assertThat(SecurityDecisionPromptBundles.find("2026.10.11-v19.5")).isEmpty();
-        for (SecurityDecisionPromptBundles.Bundle bundle : SecurityDecisionPromptBundles.ALL) {
-            assertThat(PromptBundleCatalog.shared().find(PROMPT_KEY, bundle.descriptor().promptVersion()))
-                    .as("manifest of " + bundle.descriptor().promptVersion())
-                    .isPresent();
+        assertThat(SecurityDecisionPromptBundles.V1.descriptor().releaseStatus()).isEqualTo(PromptReleaseStatus.PRODUCTION);
+        assertThat(SecurityDecisionPromptBundles.V1.descriptor().rollbackPromptVersion()).isNull();
+        assertThat(PromptBundleCatalog.shared().find(PROMPT_KEY, V1)).as("manifest of " + V1).isPresent();
+        for (String earlier : List.of("2026.10.24-v19.21", "2026.10.24-v20.26", "2026.10.30-v21.19",
+                "2026.11.14-v1.0-fallback-similar", "2026.11.15-v1.0", "2026.10.11-v19.5")) {
+            assertThat(SecurityDecisionPromptBundles.find(earlier)).as(earlier).isEmpty();
         }
-    }
-
-    /**
-     * CQ-1 and BR-C6: the bundle the build runs is v21.19 (the past record lines state their source), frozen from v21.18
-     * (the argument origins), which was frozen from v21.17; both stay as records the build cannot run. The change summary
-     * names both works. The v19 and v20 bundles are the ones they were.
-     */
-    @Test
-    void theV21BundleIsV2119AndKeepsEveryEarlierBundleAsARecord() {
-        SecurityDecisionPromptBundles.Bundle v21 = SecurityDecisionPromptBundles.V21;
-
-        assertThat(v21.version()).isEqualTo("2026.10.30-v21.19");
-        assertThat(v21.descriptor().changeSummary()).contains("v21.18 (CQ-1)").contains("v21.19 (BR-C6)");
-        PromptBundleManifest manifest = PromptBundleCatalog.shared().find(PROMPT_KEY, v21.version()).orElseThrow();
-        assertThat(manifest.parentVersion()).isEqualTo("2026.10.29-v21.18");
-        assertThat(manifest.rollbackTargets()).containsExactly("2026.10.29-v21.18", "2026.10.27-v21.17");
-        assertThat(manifest.problemIds()).containsExactly("BR-C6");
-        assertThat(manifest.frozenOn()).isEqualTo("2026-10-30");
-        PromptBundleManifest argumentOrigins = PromptBundleCatalog.shared().find(PROMPT_KEY, "2026.10.29-v21.18")
-                .orElseThrow();
-        assertThat(argumentOrigins.parentVersion()).isEqualTo("2026.10.27-v21.17");
-        assertThat(argumentOrigins.bundleHash()).isEqualTo(
-                "c87857bbbf3a1c6e8b4b299e21262d3953ec747ad7ce6cb1f71ae6c788cddcca");
-        PromptBundleManifest first = PromptBundleCatalog.shared().find(PROMPT_KEY, "2026.10.27-v21.17").orElseThrow();
-        assertThat(first.bundleHash()).isEqualTo("63747ea83d2eadbf8ad09c0e15dc221d2d1555da1926c4d9b2e241f9c26c8942");
-        assertThat(SecurityDecisionPromptBundles.find("2026.10.29-v21.18")).isEmpty();
-        assertThat(SecurityDecisionPromptBundles.find("2026.10.27-v21.17")).isEmpty();
     }
 
     @Test
@@ -143,51 +84,37 @@ class SecurityDecisionPromptBundleSelectionTest {
         Map<String, Object> metadata = rendered.executionMetadata().toMetadataMap();
 
         assertThat(descriptor(metadata))
-                .containsEntry("promptVersion", SecurityDecisionPromptBundles.V1.version())
-                .containsEntry("promptBundleVersion", SecurityDecisionPromptBundles.V1.version())
+                .containsEntry("promptVersion", V1)
+                .containsEntry("promptBundleVersion", V1)
                 .containsEntry("promptBundleSelectionSource", "BUILD_DEFAULT")
                 .containsEntry("userPromptLayoutVersion", SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1);
         assertThat(rendered.userText()).startsWith("=== USER BASELINE");
     }
 
     @Test
-    void aCustomerCanStillChooseTheV19Bundle() {
-        // 2026-11-15: the customer setting chooses a bundle as before; v19 runs in its own layout when chosen.
-        SecurityDecisionGoldenRender.RenderedCase rendered =
-                golden.render(goldenCase, L1, SecurityDecisionGoldenRender.v19Properties());
-        Map<String, Object> metadata = rendered.executionMetadata().toMetadataMap();
-
-        assertThat(descriptor(metadata))
-                .containsEntry("promptVersion", V19)
-                .containsEntry("promptBundleVersion", V19)
-                .containsEntry("promptBundleSelectionSource", "CONFIGURATION");
-        assertThat(metadata).doesNotContainKey("userPromptLayoutVersion");
-        assertThat(rendered.userText()).doesNotStartWith("=== USER BASELINE");
-    }
-
-    @Test
     void theConfiguredBundleRunsWithItsOwnDescriptorManifestAndLayout() {
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(V20);
+        properties.getPromptBundle().setActive(V1);
 
         SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(goldenCase, L1, properties);
         Map<String, Object> metadata = rendered.executionMetadata().toMetadataMap();
 
         assertThat(descriptor(metadata))
-                .containsEntry("promptVersion", V20)
-                .containsEntry("contractVersion", "CORTEX_PROMPT_CONTRACT_V3")
-                .containsEntry("promptBundleVersion", V20)
+                .containsEntry("promptVersion", V1)
+                .containsEntry("contractVersion", "CORTEX_PROMPT_CONTRACT_V5")
+                .containsEntry("promptBundleVersion", V1)
                 .containsEntry("promptBundleHash",
-                        PromptBundleCatalog.shared().find(PROMPT_KEY, V20).orElseThrow().bundleHash())
+                        PromptBundleCatalog.shared().find(PROMPT_KEY, V1).orElseThrow().bundleHash())
                 .containsEntry("promptBundleSelectionSource", "CONFIGURATION")
-                .containsEntry("userPromptLayoutVersion", SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V20);
+                .containsEntry("userPromptLayoutVersion", SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1);
         assertThat(rendered.userText()).startsWith("=== USER BASELINE");
     }
 
     @Test
     void aBundleTheBuildCannotRunFallsBackToTheBuildDefault() {
-        // 2026.10.11-v19.5 has a manifest as a record, but no render code in this build.
-        for (String requested : List.of("2026.10.11-v19.5", "2099.01.01-v99")) {
+        // The earlier bundles (v19, v20, v21, the measured variants) have no render code in this build any more.
+        for (String requested : List.of("2026.10.24-v19.21", "2026.10.24-v20.26", "2026.10.30-v21.19",
+                "2026.11.14-v1.0-record-exact", "2026.10.11-v19.5", "2099.01.01-v99")) {
             TieredStrategyProperties properties = new TieredStrategyProperties();
             properties.getPromptBundle().setActive(requested);
 
@@ -195,7 +122,7 @@ class SecurityDecisionPromptBundleSelectionTest {
 
             assertThat(descriptor(rendered.executionMetadata().toMetadataMap()))
                     .as(requested)
-                    .containsEntry("promptVersion", SecurityDecisionPromptBundles.V1.version())
+                    .containsEntry("promptVersion", V1)
                     .containsEntry("promptBundleSelectionSource", "BUILD_DEFAULT");
             assertThat(rendered.userText()).startsWith("=== USER BASELINE");
         }
@@ -205,13 +132,13 @@ class SecurityDecisionPromptBundleSelectionTest {
     void theSourceTheSelectorGivesIsRecordedWithTheBundle() {
         for (PromptBundleSelectionSource source : List.of(PromptBundleSelectionSource.REGISTRY,
                 PromptBundleSelectionSource.CANARY)) {
-            PromptBundleSelector selector = (context, subject) -> new PromptBundleSelection(V20, source);
+            PromptBundleSelector selector = (context, subject) -> new PromptBundleSelection(V1, source);
 
             Map<String, Object> descriptor = descriptor(
                     golden.render(goldenCase, L1, selector).executionMetadata().toMetadataMap());
 
             assertThat(descriptor)
-                    .containsEntry("promptVersion", V20)
+                    .containsEntry("promptVersion", V1)
                     .containsEntry("promptBundleSelectionSource", source.name());
         }
     }
@@ -238,7 +165,7 @@ class SecurityDecisionPromptBundleSelectionTest {
     @Test
     void oneEventKeepsTheBundleItsFirstPromptWasDrawnWith() {
         AtomicReference<PromptBundleSelection> choice =
-                new AtomicReference<>(new PromptBundleSelection(V20, PromptBundleSelectionSource.CONFIGURATION));
+                new AtomicReference<>(new PromptBundleSelection(V1, PromptBundleSelectionSource.CONFIGURATION));
         AtomicInteger selections = new AtomicInteger();
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(), new TieredStrategyProperties(), null, null,
@@ -249,59 +176,61 @@ class SecurityDecisionPromptBundleSelectionTest {
         SecurityEvent event = event("event-bundle-1");
 
         sections.buildStructuredPrompt(event, null, null, List.of(), L1);
-        choice.set(new PromptBundleSelection(V19, PromptBundleSelectionSource.REGISTRY));
+        choice.set(new PromptBundleSelection(V1, PromptBundleSelectionSource.REGISTRY));
         Map<String, Object> second = sections.buildStructuredPrompt(event, null, null, List.of(), L2)
                 .executionMetadata().toMetadataMap();
 
-        // The Layer2 prompt of the same event (a second pass among them) is drawn with the first prompt's bundle.
+        // The Layer2 prompt of the same event (a second pass among them) is drawn with the first prompt's choice.
         assertThat(descriptor(second))
-                .containsEntry("promptVersion", V20)
+                .containsEntry("promptVersion", V1)
                 .containsEntry("promptBundleSelectionSource", "CONFIGURATION");
         assertThat(selections).hasValue(1);
 
         Map<String, Object> next = sections.buildStructuredPrompt(event("event-bundle-2"), null, null, List.of(), L1)
                 .executionMetadata().toMetadataMap();
         assertThat(descriptor(next))
-                .containsEntry("promptVersion", V19)
+                .containsEntry("promptVersion", V1)
                 .containsEntry("promptBundleSelectionSource", "REGISTRY");
         assertThat(selections).hasValue(2);
     }
 
     /**
-     * W3-18: the strategy asks for the event's bundle before its past record search, since a v20 bundle reads its past
-     * records by the exact lookup; the prompt drawn later keeps that bundle.
+     * W3-18: the strategy asks for the event's bundle before its past record search, since the version decides how the
+     * past records are read; the prompt drawn later keeps that choice.
      */
     @Test
     void theTemplateFixesTheEventsBundleBeforeThePromptIsDrawn() {
         AtomicReference<PromptBundleSelection> choice =
-                new AtomicReference<>(new PromptBundleSelection(V20, PromptBundleSelectionSource.CANARY));
+                new AtomicReference<>(new PromptBundleSelection(V1, PromptBundleSelectionSource.CANARY));
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(), new TieredStrategyProperties(), null, null, null, null,
                 (context, subject) -> choice.get());
         SecurityEvent event = event("event-bundle-4");
 
-        assertThat(template.promptBundle(event)).isEqualTo(SecurityDecisionPromptBundles.V20);
-        choice.set(new PromptBundleSelection(V19, PromptBundleSelectionSource.REGISTRY));
+        assertThat(template.promptBundle(event)).isEqualTo(SecurityDecisionPromptBundles.V1);
+        choice.set(new PromptBundleSelection(V1, PromptBundleSelectionSource.REGISTRY));
         Map<String, Object> metadata = template.buildStructuredPrompt(event, null, null, List.of(), L1)
                 .executionMetadata().toMetadataMap();
 
         assertThat(descriptor(metadata))
-                .containsEntry("promptVersion", V20)
+                .containsEntry("promptVersion", V1)
                 .containsEntry("promptBundleSelectionSource", "CANARY");
-        assertThat(template.promptBundle(event("event-bundle-5"))).isEqualTo(SecurityDecisionPromptBundles.V19);
+        Map<String, Object> next = template.buildStructuredPrompt(event("event-bundle-5"), null, null, List.of(), L1)
+                .executionMetadata().toMetadataMap();
+        assertThat(descriptor(next)).containsEntry("promptBundleSelectionSource", "REGISTRY");
     }
 
     @Test
     void theTemplateRunsTheBundleOfTheSelectorItIsGiven() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(), new TieredStrategyProperties(), null, null, null, null,
-                (context, subject) -> new PromptBundleSelection(V20, PromptBundleSelectionSource.REGISTRY));
+                (context, subject) -> new PromptBundleSelection(V1, PromptBundleSelectionSource.REGISTRY));
 
         Map<String, Object> metadata = template.buildStructuredPrompt(event("event-bundle-3"), null, null, List.of(), L1)
                 .executionMetadata().toMetadataMap();
 
         assertThat(descriptor(metadata))
-                .containsEntry("promptVersion", V20)
+                .containsEntry("promptVersion", V1)
                 .containsEntry("promptBundleSelectionSource", "REGISTRY");
     }
 

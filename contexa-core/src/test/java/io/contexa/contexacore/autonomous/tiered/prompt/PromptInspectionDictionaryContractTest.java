@@ -39,7 +39,6 @@ class PromptInspectionDictionaryContractTest {
     static void render() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         for (JsonNode goldenCase : golden.cases()) {
             for (PromptBudgetProfile profile : SecurityDecisionGoldenRender.PROFILES) {
                 RENDERS.add(golden.render(goldenCase, profile, properties).userText());
@@ -281,9 +280,9 @@ class PromptInspectionDictionaryContractTest {
                     .rawUserPrompt(userPrompt)
                     .userPromptText(userPrompt)
                     .promptExecutionMetadataJson(JSON.writeValueAsString(Map.of("governanceDescriptor",
-                            Map.of("userPromptLayoutVersion", PromptInspector.V20_LAYOUT,
+                            Map.of("userPromptLayoutVersion", PromptInspector.V1_LAYOUT,
                                     "promptKey", "cortex.security-decision",
-                                    "promptBundleVersion", SecurityDecisionPromptBundles.V20.descriptor().promptVersion()))))
+                                    "promptBundleVersion", SecurityDecisionPromptBundles.V1.descriptor().promptVersion()))))
                     .build();
         }
         catch (Exception exception) {

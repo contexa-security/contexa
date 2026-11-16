@@ -50,6 +50,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionAnswerChecks;
 import java.util.LinkedHashMap;
 import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.publisher.Flux;
@@ -480,12 +481,12 @@ class LLMExecutionStepTest {
         assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isFalse();
     }
 
-    /** A v20 answer the checks reject: a CHALLENGE where the facts ask for the low risk boundary action. */
-    private static final String V20_REJECTED = "{\"action\":\"CHALLENGE\",\"reasonCodes\":[{\"code\":\"BASELINE_MATCH\","
-            + "\"fact\":\"F2\"}],\"reason\":\"MFA is not verified.\"}";
-    /** A v20 answer the checks accept. */
-    private static final String V20_ACCEPTED = "{\"action\":\"ALLOW\",\"reasonCodes\":[{\"code\":\"BASELINE_MATCH\","
-            + "\"fact\":\"F2\"}],\"reason\":\"The read is as usual.\"}";
+    /** An answer the check asks again: it gives no reason code. */
+    private static final String REJECTED = "{\"action\":\"CHALLENGE\",\"riskScore\":0.4,\"hypothesis\":\"H1\","
+            + "\"reasonCodes\":[],\"reason\":\"MFA is not verified.\"}";
+    /** The answer after the retry, which the decision keeps as the model gave it (V-5), its findings recorded. */
+    private static final String KEPT = "{\"action\":\"ALLOW\",\"riskScore\":0.1,\"hypothesis\":\"H1\","
+            + "\"reasonCodes\":[],\"reason\":\"The read is as usual.\"}";
 
     /**
      * QF-50 (DD-65 A): a corrective retry goes out with the first call's output limit and a longer prompt (the first
@@ -496,10 +497,10 @@ class LLMExecutionStepTest {
      */
     @Test
     void aCorrectiveRetryCutBeforeAnyTextIsAskedAgainWithTwiceTheOutputLimit() {
-        ScriptedChatModel model = new ScriptedChatModel(ScriptedChatModel.answer(V20_REJECTED, "end_turn"),
-                ScriptedChatModel.thinkingOnly("max_tokens"), ScriptedChatModel.answer(V20_ACCEPTED, "end_turn"));
-        PipelineExecutionContext context = v20Context("exec-qf50-v20", V20_USER_PROMPT);
-        SecurityDecisionRequest request = v20Request();
+        ScriptedChatModel model = new ScriptedChatModel(ScriptedChatModel.answer(REJECTED, "end_turn"),
+                ScriptedChatModel.thinkingOnly("max_tokens"), ScriptedChatModel.answer(KEPT, "end_turn"));
+        PipelineExecutionContext context = v1Context("exec-qf50-v1", USER_PROMPT);
+        SecurityDecisionRequest request = v1Request();
         request.withParameter("platformSecurityDecisionMaxTokens", 2048);
 
         Object response = new LLMExecutionStep(model.orchestrator()).execute(request, context).block();
@@ -509,14 +510,14 @@ class LLMExecutionStepTest {
         List<Integer> messages = model.messageCounts();
         assertThat(messages.get(1)).as("the corrective prompt").isEqualTo(messages.get(0) + 2);
         assertThat(messages.get(2)).as("the corrective prompt again").isEqualTo(messages.get(1));
-        assertThat(response).isEqualTo(V20_ACCEPTED);
+        assertThat(response).isEqualTo(KEPT);
         assertThat(context.getMetadata("rawExecutionSucceeded", Boolean.class)).isTrue();
-        assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isTrue();
         String reason = context.getMetadata("securityDecisionOutputRetryReason", String.class);
-        assertThat(reason).contains("REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH");
+        assertThat(reason).contains(SecurityDecisionAnswerChecks.REASON_CODES_MISSING);
         assertThat(context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.class))
                 .as("one retry, as the seal's integrity check reads a model call stage (N-OUT-3)")
-                .isEqualTo(List.of(Map.of("reason", reason, "succeeded", true)));
+                .isEqualTo(List.of(Map.of("reason", reason, "succeeded", false,
+                        "failureReason", context.getMetadata("securityDecisionOutputRetryFailureReason", String.class))));
     }
 
     /**
@@ -526,10 +527,10 @@ class LLMExecutionStepTest {
      */
     @Test
     void aCorrectiveRetryCutBeforeAnyTextTwiceFailsAsOutputTruncated() {
-        ScriptedChatModel model = new ScriptedChatModel(ScriptedChatModel.answer(V20_REJECTED, "end_turn"),
+        ScriptedChatModel model = new ScriptedChatModel(ScriptedChatModel.answer(REJECTED, "end_turn"),
                 ScriptedChatModel.thinkingOnly("max_tokens"), ScriptedChatModel.thinkingOnly("max_tokens"));
-        PipelineExecutionContext context = v20Context("exec-qf50-v20-twice", V20_USER_PROMPT);
-        SecurityDecisionRequest request = v20Request();
+        PipelineExecutionContext context = v1Context("exec-qf50-v1-twice", USER_PROMPT);
+        SecurityDecisionRequest request = v1Request();
         request.withParameter("platformSecurityDecisionMaxTokens", 2048);
 
         Object response = new LLMExecutionStep(model.orchestrator()).execute(request, context).block();
@@ -931,25 +932,7 @@ class LLMExecutionStepTest {
         assertThat(llmClient.executionContexts).hasSize(1);
     }
 
-    /** W4-8 (S-28): a v20 decision is checked on the facts its prompt was drawn from, then retried with what broke. */
-    @Test
-    void aV20DecisionIsCheckedOnTheFactsOfItsPrompt() {
-        RecordingLlmClient llmClient = new RecordingLlmClient();
-        llmClient.rawResponse = "{\"action\":\"CHALLENGE\",\"reasonCodes\":[{\"code\":\"BASELINE_MATCH\",\"fact\":\"F2\"}],"
-                + "\"reason\":\"MFA is not verified.\"}";
-        llmClient.secondRawResponse = "{\"action\":\"ALLOW\",\"reasonCodes\":[{\"code\":\"BASELINE_MATCH\",\"fact\":\"F2\"}],"
-                + "\"reason\":\"The read is as usual.\"}";
-        LLMExecutionStep step = new LLMExecutionStep(llmClient);
-        PipelineExecutionContext context = v20Context("exec-w48", V20_USER_PROMPT);
-
-        Object response = step.execute(v20Request(), context).block();
-
-        assertThat(response).isEqualTo(llmClient.secondRawResponse);
-        List<Message> retry = llmClient.executionContexts.get(1).getPrompt().getInstructions();
-        assertThat(retry.get(retry.size() - 1).getText()).contains("REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH");
-    }
-
-    private static final String V20_USER_PROMPT = """
+    private static final String USER_PROMPT = """
             === SESSION (host) ===
             LoginMethod: PASSWORD, MFA not verified
 
@@ -961,29 +944,21 @@ class LLMExecutionStepTest {
             [F2] SameAsBaseline: time, network as usual
             """;
 
-    private static SecurityDecisionRequest v20Request() {
-        CanonicalSecurityContext canonical = CanonicalSecurityContext.builder()
-                .session(CanonicalSecurityContext.Session.builder().mfaVerified(false).build())
-                .resource(CanonicalSecurityContext.Resource.builder().resourceClass("NORMAL").actionFamily("READ").build())
-                .authorization(CanonicalSecurityContext.Authorization.builder().authorizationEffect("ALLOW").build())
-                .decisionFacts(new DecisionFacts(List.of(new DecisionFact(null, "SameAsBaseline", "time, network as usual",
-                        List.of("BASELINE_MATCH"), List.of(), DecisionFact.COMPUTED)), List.of(), PolicySatisfaction.UNKNOWN,
-                        List.of()))
-                .build();
-        SecurityEvent event = SecurityEvent.builder().eventId("event-w48").metadata(new LinkedHashMap<>()).build();
-        event.addMetadata("sealedEvidence.canonicalContext", canonical);
+    /** A security decision request without the canonical context: the form of its answer is checked, not its facts. */
+    private static SecurityDecisionRequest v1Request() {
+        SecurityEvent event = SecurityEvent.builder().eventId("event-qf50").metadata(new LinkedHashMap<>()).build();
         return new SecurityDecisionRequest(new SecurityDecisionContext(event,
                 new SecurityDecisionStandardPromptTemplate.SessionContext(), null, List.of()));
     }
 
-    private PipelineExecutionContext v20Context(String requestId, String userPrompt) {
+    private PipelineExecutionContext v1Context(String requestId, String userPrompt) {
         PipelineExecutionContext context = new PipelineExecutionContext(requestId);
         PromptExecutionMetadata metadata = PromptGovernanceSupport.buildExecutionMetadata(
-                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_V20_PROMPT_GOVERNANCE,
+                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE,
                 PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, List.of(), List.of(), List.of(), List.of(),
                 PromptEvidenceCompleteness.SUFFICIENT, null, "system", userPrompt, "system", userPrompt,
                 PromptCompressionLedger.identity("system", userPrompt),
-                Map.of(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION, SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V20));
+                Map.of(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION, SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1));
         context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
                 new PromptGenerationResult(new Prompt(userPrompt), "system", userPrompt, Map.of(), metadata));
         context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);

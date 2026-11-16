@@ -132,9 +132,9 @@ class SecurityDecisionPromptDocumentTest {
     @Test
     void k32WithTheFloorsEnforcedTheV1TextStatesThemAndThatALaterCheckRaisesAWeakerResponse() {
         String observe = sections(MinimumActionRules.Settings.DEFAULTS, "OBSERVE")
-                .buildSystemInstructionV1(null, SecurityDecisionPromptBundles.V1.features());
+                .buildSystemInstructionV1(null);
         String enforce = sections(MinimumActionRules.Settings.DEFAULTS, "ENFORCE")
-                .buildSystemInstructionV1(null, SecurityDecisionPromptBundles.V1.features());
+                .buildSystemInstructionV1(null);
 
         assertThat(observe).contains(RESPONSE_SENTENCE).doesNotContain("Minimum action rules");
         assertThat(enforce).doesNotContain(RESPONSE_SENTENCE)
@@ -165,11 +165,11 @@ class SecurityDecisionPromptDocumentTest {
     @Test
     void k32TheFloorsTheHostTurnedOnAreTheOnesStatedAndNoneStatesNothing() {
         String identityOnly = sections(new MinimumActionRules.Settings(true, 3, "CRITICAL", false, false, "CHALLENGE"),
-                "ENFORCE").buildSystemInstructionV1(null, SecurityDecisionPromptBundles.V1.features());
+                "ENFORCE").buildSystemInstructionV1(null);
         String policyOnly = sections(new MinimumActionRules.Settings(false, 2, "SENSITIVE", false, true, "CHALLENGE"),
-                "ENFORCE").buildSystemInstructionV1(null, SecurityDecisionPromptBundles.V1.features());
+                "ENFORCE").buildSystemInstructionV1(null);
         String none = sections(new MinimumActionRules.Settings(false, 2, "SENSITIVE", false, false, "ESCALATE"),
-                "ENFORCE").buildSystemInstructionV1(null, SecurityDecisionPromptBundles.V1.features());
+                "ENFORCE").buildSystemInstructionV1(null);
 
         assertThat(identityOnly).contains("P1: ResourceClass is CRITICAL, BaselineStatus is ESTABLISHED, and"
                         + " DeviationsFromBaseline states a difference in at least 3 of")

@@ -63,7 +63,6 @@ class PastDeniedDecisionsPromptTest {
 
     private static SecurityDecisionPromptSections v20() {
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         return new SecurityDecisionPromptSections(new SecurityEventEnricher(), properties);
     }
 

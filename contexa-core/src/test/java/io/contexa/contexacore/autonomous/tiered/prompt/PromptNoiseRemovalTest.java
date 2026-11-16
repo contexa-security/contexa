@@ -196,7 +196,6 @@ class PromptNoiseRemovalTest {
 
     private static TieredStrategyProperties v20() {
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         return properties;
     }
 }

@@ -56,26 +56,6 @@ public class PromptRuntimeGovernanceRuleApplier {
     }
 
     /**
-     * Applies the rules to a v19 section prompt (W3-14). A rule whose slot key is a slot of the v20 dictionary is a rule
-     * of the v20 bundle and leaves the prompt as it is, whatever plan the slot contract rows give its key (the rows of
-     * the enterprise carry no dictionary entry).
-     */
-    public PromptRuntimeGovernanceRuleApplicationResult applyToSectionPrompt(
-            String userPrompt,
-            List<PromptRuntimeGovernanceRule> rules,
-            PromptContextComposer promptContextComposer,
-            PromptDictionarySlotPlanProvider dictionaryPlans) {
-        SlotPlanResolver contractPlans = promptContextComposer == null
-                ? (promptKey, slotKey) -> List.of()
-                : promptContextComposer::plansForSlotKey;
-        SlotPlanResolver sectionPlans = dictionaryPlans == null ? contractPlans : (promptKey, slotKey) -> {
-            List<PromptSlotPlan> dictionarySlots = dictionaryPlans.plansForSlotKey(promptKey, slotKey);
-            return dictionarySlots.isEmpty() ? contractPlans.resolve(promptKey, slotKey) : dictionarySlots;
-        };
-        return applyInternal(userPrompt, rules, sectionPlans, false);
-    }
-
-    /**
      * Applies the rules to a v20 user prompt (W3-14). A rule is applied only when its slot key is a slot of the
      * dictionary, inside the block of its entry, and it writes only lines of the entry in the entry's form; a rule of
      * the v19 bundle (v19 slot key) leaves the prompt as it is.

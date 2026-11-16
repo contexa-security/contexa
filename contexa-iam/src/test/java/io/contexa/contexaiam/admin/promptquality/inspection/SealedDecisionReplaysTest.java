@@ -54,7 +54,7 @@ import static org.mockito.Mockito.when;
 /** docs/agent OC-5: an operator replays a sealed decision with a chosen bundle through the admin API. */
 class SealedDecisionReplaysTest {
 
-    private static final String BUNDLE = SecurityDecisionPromptBundles.V21.version();
+    private static final String BUNDLE = SecurityDecisionPromptBundles.V1.version();
     private static final ObjectMapper JSON = new ObjectMapper().findAndRegisterModules();
 
     private final SealedEvidencePackageRepository packages = mock(SealedEvidencePackageRepository.class);
@@ -67,20 +67,10 @@ class SealedDecisionReplaysTest {
     private final Authentication operator = new UsernamePasswordAuthenticationToken("admin-1", null, List.of());
     private final SealedEvidencePackage sealed = sealed();
 
-    /**
-     * Plan 1-6 and 1-9: v1.0, the build default, and the four v1.0 variants are replay targets beside v19, v20 and v21.
-     */
+    /** Plan 6-2: v1.0, the one bundle the build runs, is the replay target (the versions of a store from plan 6-4). */
     @Test
-    void v1AndItsVariantsAreReplayTargetsBesideV19V20V21() {
-        assertThat(replays.bundles()).containsExactly(SecurityDecisionPromptBundles.V1.version(),
-                SecurityDecisionPromptBundles.V19.version(),
-                SecurityDecisionPromptBundles.V20.version(), SecurityDecisionPromptBundles.V21.version(),
-                SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR.version(),
-                SecurityDecisionPromptBundles.V1_FALLBACK_EXACT.version(),
-                SecurityDecisionPromptBundles.V1_RECORD_SIMILAR.version(),
-                SecurityDecisionPromptBundles.V1_RECORD_EXACT.version());
-        assertThat(SecurityDecisionPromptBundles.V19.layout())
-                .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V19_SECTIONS);
+    void v1IsTheReplayTarget() {
+        assertThat(replays.bundles()).containsExactly(SecurityDecisionPromptBundles.V1.version());
     }
 
     @Test

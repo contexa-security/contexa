@@ -57,7 +57,6 @@ class V21PromptTest {
     static void render() throws IOException {
         golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         rendered = new ArrayList<>();
         Path directory = Path.of("build/reports/prompt-bundle/v21");
         Files.createDirectories(directory);

@@ -48,8 +48,6 @@ class V1CorrectionPromptTest {
                 + " and one of ALLOW, CHALLENGE, ESCALATE and BLOCK; give the explanation you judged most likely and"
                 + " reason codes that cite only the lines that state them. Your action is yours to choose.");
         assertThat(text).doesNotContain("explanations and reason codes");
-        assertThat(lastText(LLMExecutionStep.correctivePromptV21(PROMPT, "{}", "X")))
-                .contains("with explanations and reason codes");
     }
 
     @Test

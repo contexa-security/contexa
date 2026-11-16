@@ -16,6 +16,8 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
+import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.DrawnPrompt;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.Outcome;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.ReasonFinding;
@@ -48,7 +50,7 @@ class V21PastRecordCountsCitationTest {
 
     @Test
     void theSameTargetCodeMayCiteTheCountedFactAsWellAsARecordButNoOtherLine() {
-        List<ReasonFinding> findings = SecurityDecisionV21FactChecks.reasonFindings(null, DrawnPrompt.of(PROMPT),
+        List<ReasonFinding> findings = SecurityDecisionAnswerChecks.reasonFindings(null, DrawnPrompt.of(PROMPT),
                 List.of(citation("P1"), citation("P2"), citation("F4")));
 
         assertThat(findings).extracting(ReasonFinding::outcome)
@@ -60,7 +62,8 @@ class V21PastRecordCountsCitationTest {
 
     @Test
     void theSystemTextNamesTheCountedFactAmongTheLinesTheCodeCites() {
-        assertThat(SecurityDecisionOutputContractV4.systemOutputBlock()).contains("- " + CODE
+        assertThat(new SecurityDecisionPromptSections(new SecurityEventEnricher(), new TieredStrategyProperties())
+                .buildDecisionSectionV1(null)).contains("- " + CODE
                 + ": an earlier allowed record on the same target; PastRecordCounts, PastRecord\n");
     }
 

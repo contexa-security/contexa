@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.prompt;
 
+import io.contexa.contexacore.autonomous.context.prompt.PromptDictionarySlotPlanProvider;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDictionary;
 import org.junit.jupiter.api.Test;
 
@@ -40,7 +41,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PromptDictionaryRendererTest {
 
     private final PromptDictionaryRenderer renderer = new PromptDictionaryRenderer(
-            SecurityDecisionPromptDictionary.ENTRIES, SecurityDecisionPromptDictionary.slotPlanProvider());
+            SecurityDecisionPromptDictionary.ENTRIES, new PromptDictionarySlotPlanProvider(SecurityDecisionPromptDictionary.ENTRIES,
+                SecurityDecisionPromptDictionary.VERSION));
 
     /**
      * R1b-3: the header form is the block's own, drawn by the render and read by the prompt inspector: the line the

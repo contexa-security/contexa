@@ -17,7 +17,6 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import java.util.LinkedHashMap;
 import java.util.Collections;
-import io.contexa.contexacore.autonomous.tiered.prompt.V19BundleProperties;
 import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
@@ -86,7 +85,7 @@ class Layer1ContextualStrategyTest {
                 null,
                 null,
                 new SecurityEventEnricher(),
-                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), V19BundleProperties.create()),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
                 null,
                 null,
                 null,
@@ -96,7 +95,7 @@ class Layer1ContextualStrategyTest {
                 new PromptContextAuthorizationService(),
                 null,
                 pipelineOrchestrator,
-                V19BundleProperties.create()
+                new TieredStrategyProperties()
         );
     }
 
@@ -221,7 +220,7 @@ class Layer1ContextualStrategyTest {
                         List.of()));
         when(brokenDocument.getMetadata()).thenThrow(new IllegalStateException("broken metadata"));
 
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer1().getRag().setMultiQuerySearchEnabled(true);
         properties.getLayer1().getRag().setSupportingSearchEnabled(true);
 
@@ -237,7 +236,7 @@ class Layer1ContextualStrategyTest {
                 vectorService,
                 null,
                 new SecurityEventEnricher(),
-                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), V19BundleProperties.create()),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
                 null,
                 null,
                 null,
@@ -247,7 +246,7 @@ class Layer1ContextualStrategyTest {
                 authorizationService,
                 null,
                 pipelineOrchestrator,
-                V19BundleProperties.create()
+                new TieredStrategyProperties()
         );
 
         SecurityEvent event = buildTestEvent();
@@ -285,7 +284,7 @@ class Layer1ContextualStrategyTest {
                         1,
                         "security_investigation",
                         List.of("DENIED_TENANT_SCOPE")));
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer1().getRag().setMultiQuerySearchEnabled(true);
         properties.getLayer1().getRag().setSupportingSearchEnabled(true);
 
@@ -301,7 +300,7 @@ class Layer1ContextualStrategyTest {
                 vectorService,
                 null,
                 new SecurityEventEnricher(),
-                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), V19BundleProperties.create()),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
                 null,
                 null,
                 null,
@@ -311,7 +310,7 @@ class Layer1ContextualStrategyTest {
                 authorizationService,
                 null,
                 pipelineOrchestrator,
-                V19BundleProperties.create()
+                new TieredStrategyProperties()
         );
 
         SecurityEvent event = buildTestEvent();
@@ -359,7 +358,7 @@ class Layer1ContextualStrategyTest {
                     : List.of();
         });
 
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer1().getRag().setMultiQuerySearchEnabled(true);
         properties.getLayer1().getRag().setSupportingSearchEnabled(true);
 
@@ -410,7 +409,7 @@ class Layer1ContextualStrategyTest {
     void analyzeWithContext_runtimeRagTimeout_shouldCancelSlowLookup() throws InterruptedException {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
         PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         AtomicBoolean interrupted = new AtomicBoolean(false);
         properties.getLayer1().getTimeout().setRagMs(500);
         properties.getLayer1().getTimeout().setInteractiveRagWaitMs(50);
@@ -491,7 +490,7 @@ class Layer1ContextualStrategyTest {
     void anEventNamingTheFormerVerificationMarkersWaitsOnlyTheInteractiveTime() {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
         PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer1().getTimeout().setRagMs(50);
         properties.getLayer1().getTimeout().setInteractiveRagWaitMs(10);
         when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class))).thenAnswer(invocation -> {
@@ -530,7 +529,7 @@ class Layer1ContextualStrategyTest {
     void analyzeWithContext_innerVectorTimeoutPreservesRecordedBudgetExpiry() {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
         PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer1().getTimeout().setRagMs(8000);
         // R4-L3: the full wait comes from the configuration (interactive wait = full budget), not from event text.
         properties.getLayer1().getTimeout().setInteractiveRagWaitMs(8000);
@@ -600,7 +599,7 @@ class Layer1ContextualStrategyTest {
                 null,
                 dataStore,
                 new SecurityEventEnricher(),
-                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), V19BundleProperties.create()),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
                 null,
                 null,
                 null,
@@ -610,7 +609,7 @@ class Layer1ContextualStrategyTest {
                 new PromptContextAuthorizationService(),
                 null,
                 pipelineOrchestrator,
-                V19BundleProperties.create()
+                new TieredStrategyProperties()
         );
         dataStore.addSessionDecision("session-old", "decision-1");
 
@@ -631,9 +630,9 @@ class Layer1ContextualStrategyTest {
         PipelineOrchestrator orchestrator = mock(PipelineOrchestrator.class);
         Layer1ContextualStrategy sessionStrategy = new Layer1ContextualStrategy(null, dataStore,
                 new SecurityEventEnricher(),
-                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), V19BundleProperties.create()),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
                 null, null, null, null, null, null, new PromptContextAuthorizationService(), null, orchestrator,
-                V19BundleProperties.create());
+                new TieredStrategyProperties());
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setAction("ALLOW");
         response.setReasoning("Normal activity");
@@ -666,7 +665,7 @@ class Layer1ContextualStrategyTest {
                 null,
                 dataStore,
                 new SecurityEventEnricher(),
-                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), V19BundleProperties.create()),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
                 null,
                 null,
                 null,
@@ -676,7 +675,7 @@ class Layer1ContextualStrategyTest {
                 new PromptContextAuthorizationService(),
                 null,
                 pipelineOrchestrator,
-                V19BundleProperties.create()
+                new TieredStrategyProperties()
         );
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setAction("ALLOW");
@@ -717,8 +716,7 @@ class Layer1ContextualStrategyTest {
     @Test
     void theDeniedDecisionsTheSearchCopyReadsComeBackToTheEvent() {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
-        TieredStrategyProperties properties = V19BundleProperties.create();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         when(vectorService.pastRecordQuery()).thenReturn(new PastRecordQuery() {
             @Override
             public boolean available() {
@@ -778,8 +776,7 @@ class Layer1ContextualStrategyTest {
     @Test
     void layer1FixesTheBundleBeforeItsPastRecordSearchAndAV20RequestReadsThemExactly() {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
-        TieredStrategyProperties properties = V19BundleProperties.create();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         when(vectorService.pastRecordQuery()).thenReturn(new PastRecordQuery() {
             @Override
             public boolean available() {
@@ -823,7 +820,7 @@ class Layer1ContextualStrategyTest {
 
         verify(vectorService, never()).searchSimilar(ArgumentMatchers.any(SearchRequest.class));
         assertThat(event.getMetadata())
-                .containsEntry("promptBundleSelection.version", SecurityDecisionPromptBundles.V20.version())
+                .containsEntry("promptBundleSelection.version", SecurityDecisionPromptBundles.V1.version())
                 .containsEntry("ragSearchMode", "EXACT_PAST_RECORD_LOOKUP")
                 .containsKey("ragPastRecordCounts");
     }

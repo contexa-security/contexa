@@ -20,7 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionV21FactChecks;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionAnswerChecks;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 
 import java.util.ArrayList;
@@ -82,10 +82,10 @@ public final class ReasonMatchCheck implements PromptInspectionCheck {
         }
         SecurityDecisionFactChecks.DrawnPrompt drawn =
                 SecurityDecisionFactChecks.DrawnPrompt.of(subject.evidencePackage().getUserPromptText());
-        // V-6: a v21 decision's codes are those of the output contract v4, checked as its response check checks them.
-        List<SecurityDecisionFactChecks.ReasonFinding> findings = v21
-                ? SecurityDecisionV21FactChecks.reasonFindings(subject.canonicalContext(), drawn, citations)
-                : SecurityDecisionFactChecks.reasonFindings(subject.canonicalContext(), null, drawn, citations);
+        // V-6: the codes are those of the output contract v4 and v5, checked as the response check checks them; a
+        // package of a bundle this build no longer ships is not read again (decision D7).
+        List<SecurityDecisionFactChecks.ReasonFinding> findings =
+                SecurityDecisionAnswerChecks.reasonFindings(subject.canonicalContext(), drawn, citations);
         for (SecurityDecisionFactChecks.ReasonFinding finding : findings) {
             InspectedPrompt.Line line = lineOf(subject.prompt(), finding.fact(), drawn);
             String block = line != null && line.block() != null ? line.block().title() : null;

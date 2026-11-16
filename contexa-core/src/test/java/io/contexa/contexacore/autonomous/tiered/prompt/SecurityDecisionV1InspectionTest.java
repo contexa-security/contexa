@@ -67,7 +67,7 @@ class SecurityDecisionV1InspectionTest {
 
     @Test
     void everyCoreCheckFindsAFallbackRenderWithSimilarCasesSound() {
-        Sealed sealed = seal(SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR, 3);
+        Sealed sealed = seal(MeasuredVariant.FALLBACK_SIMILAR, 3);
 
         for (PromptInspectionCheck check : PromptInspector.coreChecks()) {
             PromptInspectionCheckResult result = run(check, SecurityDecisionPromptDictionary.V1_RULES_ENTRIES, sealed);
@@ -77,7 +77,7 @@ class SecurityDecisionV1InspectionTest {
 
     @Test
     void everyCoreCheckFindsARecordRenderSound() {
-        Sealed sealed = seal(SecurityDecisionPromptBundles.V1_RECORD_EXACT, 0);
+        Sealed sealed = seal(MeasuredVariant.RECORD_EXACT, 0);
 
         for (PromptInspectionCheck check : PromptInspector.coreChecks()) {
             PromptInspectionCheckResult result = run(check, SecurityDecisionPromptDictionary.V1_ENTRIES, sealed);
@@ -87,7 +87,7 @@ class SecurityDecisionV1InspectionTest {
 
     @Test
     void theSimilarCaseLinesAndTargetsAreTheSealedSimilarCases() {
-        Sealed sealed = seal(SecurityDecisionPromptBundles.V1_RECORD_SIMILAR, 3);
+        Sealed sealed = seal(MeasuredVariant.RECORD_SIMILAR, 3);
         List<Integer> similarLines = linesStarting(sealed.pkg().getUserPromptText(), "SimilarCase");
         String tampered = sealed.pkg().getUserPromptText().replaceFirst("(?m)^((\\[P\\d+\\] )?SimilarCase2: \\S+)", "$1 9");
 
@@ -111,7 +111,7 @@ class SecurityDecisionV1InspectionTest {
 
     @Test
     void theConclusionLinesAreTheConclusionsTheSealedContextGives() {
-        Sealed sealed = seal(SecurityDecisionPromptBundles.V1_FALLBACK_EXACT, 0);
+        Sealed sealed = seal(MeasuredVariant.FALLBACK_EXACT, 0);
         String tampered = sealed.pkg().getUserPromptText().replaceFirst("(?m)^((\\[F\\d+\\] )?PolicySatisfied: )(.*)$",
                 "$1tampered");
 
@@ -130,8 +130,8 @@ class SecurityDecisionV1InspectionTest {
     void aV1PackageIsReadAsADictionaryPromptWithItsVariantsDictionary() {
         PromptInspector inspector = new PromptInspector(PromptInspector.coreChecks(), InspectionGolden.JSON);
 
-        PromptInspectionResult rules = inspector.inspect(seal(SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR, 3).pkg());
-        PromptInspectionResult records = inspector.inspect(seal(SecurityDecisionPromptBundles.V1_RECORD_EXACT, 0).pkg());
+        PromptInspectionResult rules = inspector.inspect(seal(MeasuredVariant.FALLBACK_SIMILAR, 3).pkg());
+        PromptInspectionResult records = inspector.inspect(seal(MeasuredVariant.RECORD_EXACT, 0).pkg());
 
         assertThat(rules.layoutVersion()).isEqualTo(PromptInspector.V1_LAYOUT);
         assertThat(rules.dictionaryVersion()).isEqualTo(PromptInspector.V1_RULES_DICTIONARY_VERSION);
@@ -147,7 +147,7 @@ class SecurityDecisionV1InspectionTest {
     @Test
     void theScorecardReadsAV1PackageInItsDictionaryForm() {
         ScorecardResult result = new SealedEvidencePromptScorecard(InspectionGolden.JSON)
-                .evaluate(seal(SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR, 3).pkg());
+                .evaluate(seal(MeasuredVariant.FALLBACK_SIMILAR, 3).pkg());
         Map<String, Boolean> checks = new LinkedHashMap<>();
         result.checks().forEach(check -> checks.put(check.label(), check.passed()));
 
@@ -171,7 +171,7 @@ class SecurityDecisionV1InspectionTest {
      */
     @Test
     void theDeterministicReplayComputesAV1PackagesLinesAgain() {
-        SealedEvidencePackage pkg = seal(SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR, 3).pkg();
+        SealedEvidencePackage pkg = seal(MeasuredVariant.FALLBACK_SIMILAR, 3).pkg();
         String packageId = pkg.getPackageId() != null ? pkg.getPackageId() : "pkg-v1-deterministic";
         pkg.setPackageId(packageId);
         SealedEvidencePackageLookupPort lookup = mock(SealedEvidencePackageLookupPort.class);
@@ -193,8 +193,8 @@ class SecurityDecisionV1InspectionTest {
      */
     @Test
     void theEvidenceBackfillReadsAV1PackageOnItsDictionaryLines() throws Exception {
-        SealedEvidencePackage pkg = seal(SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR, 3).pkg();
-        SealedEvidencePackage withoutLayout = seal(SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR, 3).pkg();
+        SealedEvidencePackage pkg = seal(MeasuredVariant.FALLBACK_SIMILAR, 3).pkg();
+        SealedEvidencePackage withoutLayout = seal(MeasuredVariant.FALLBACK_SIMILAR, 3).pkg();
         Map<String, Object> metadata = InspectionGolden.JSON.readValue(withoutLayout.getPromptExecutionMetadataJson(),
                 new TypeReference<>() {
                 });
@@ -242,7 +242,7 @@ class SecurityDecisionV1InspectionTest {
      * The A1 case rendered by the bundle with copies of its first records as similar cases (the first at another
      * target), sealed as the assembler seals it: the past records and, apart, the similar cases.
      */
-    private static Sealed seal(SecurityDecisionPromptBundles.Bundle bundle, int similarCases) {
+    private static Sealed seal(MeasuredVariant variant, int similarCases) {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         JsonNode a1 = golden.cases().stream().filter(item -> "A1".equals(item.path("caseKey").asText())).findFirst()
                 .orElseThrow();
@@ -264,10 +264,9 @@ class SecurityDecisionV1InspectionTest {
         if (similarCases == 0) {
             sealedRetrieval.remove(SimilarCases.SEALED_KEY);
         }
-        TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(bundle.version());
-        SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(input,
-                PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties);
+        SecurityDecisionGoldenRender.RenderedCase rendered = golden.renderVersion(input,
+                PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, new TieredStrategyProperties(), variant.store(),
+                MeasuredVariant.VERSION, Map.of());
         InspectionGolden.Render render = new InspectionGolden.Render(rendered.caseKey(),
                 PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, rendered.systemText(), rendered.userText(),
                 rendered.canonicalContext(), rendered.executionMetadata().toMetadataMap(), sealedRetrieval.toString(),

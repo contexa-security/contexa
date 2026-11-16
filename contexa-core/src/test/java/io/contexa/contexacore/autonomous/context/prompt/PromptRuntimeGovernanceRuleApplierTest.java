@@ -597,48 +597,6 @@ class PromptRuntimeGovernanceRuleApplierTest {
         assertThat(result.applications()).noneMatch(PromptRuntimeGovernanceRuleApplication::changedPrompt);
     }
 
-    /** W3-14: a rule of a v20 bundle (dictionary slot key) does not change a v19 prompt. */
-    @Test
-    void aDictionaryRuleLeavesAV19PromptAsItIs() {
-        String v19 = "=== CURRENT REQUEST AND EVENT ===\nRequestPath: /api/documents/D-1\nHttpMethod: GET\n";
-        PromptRuntimeGovernanceRule action = ruleWithSlot("rule-v20-action", "UPDATE_SLOT_VALUE", "REQUEST.Action",
-                Map.of("label", "Action", "renderedValue",
-                        "READ (declared) GET (template /api/documents/{documentId})"));
-        PromptRuntimeGovernanceRule size = ruleWithSlot("rule-v20-size", "ADD_SLOT", "REQUEST.Size",
-                Map.of("renderedValue", "Size: 4,831 items"));
-
-        PromptRuntimeGovernanceRuleApplicationResult result = applier.apply(v19, List.of(action, size),
-                SecurityDecisionPromptDictionary.slotPlanProvider());
-
-        assertThat(result.userPrompt()).isEqualTo(v19);
-        assertThat(result.applications()).extracting(PromptRuntimeGovernanceRuleApplication::resultState)
-                .containsExactly("SKIPPED_DICTIONARY_SLOT_ON_SECTION_PROMPT", "SKIPPED_DICTIONARY_SLOT_ON_SECTION_PROMPT");
-    }
-
-    /**
-     * W3-14: the enterprise slot contract rows give a dictionary slot key a plan without its entry, so the plan alone
-     * cannot tell a v20 rule; on a v19 prompt the slot key of the dictionary still makes it a rule of the v20 bundle,
-     * which leaves the prompt as it is (without the dictionary the rule would rewrite the v19 line of the same name).
-     */
-    @Test
-    void aDictionaryRuleLeavesAV19PromptAsItIsWhateverTheSlotRowsSay() {
-        String v19 = "=== AUTHORIZATION CONTEXT ===\nAuthorizationEffect: ALLOW\n";
-        PromptSlotPlan row = new PromptSlotPlan("DECISION FACTS.AuthorizationEffect", "DECISION FACTS",
-                "AuthorizationEffect", "canonical.authorizationEffect", "PromptContextComposer", "P0_REQUIRED", "PROTECT");
-        PromptRuntimeGovernanceRule rule = ruleWithSlot("rule-v20-effect", "UPDATE_SLOT_VALUE",
-                "DECISION FACTS.AuthorizationEffect", Map.of("label", "AuthorizationEffect",
-                        "renderedValue", "ALLOW by policy W314 (METHOD_AUTHORIZATION_CHECK)"));
-        PromptContextComposer composer = new PromptContextComposer(new PromptSlotRenderer(), slotProvider(List.of(row)));
-
-        PromptRuntimeGovernanceRuleApplicationResult withoutDictionary = applier.apply(v19, List.of(rule), composer);
-        PromptRuntimeGovernanceRuleApplicationResult result = applier.applyToSectionPrompt(
-                v19, List.of(rule), composer, SecurityDecisionPromptDictionary.slotPlanProvider());
-
-        assertThat(withoutDictionary.userPrompt()).contains("AuthorizationEffect: ALLOW by policy W314");
-        assertThat(result.userPrompt()).isEqualTo(v19);
-        assertThat(result.applications().get(0).resultState()).isEqualTo("SKIPPED_DICTIONARY_SLOT_ON_SECTION_PROMPT");
-    }
-
     /** W3-14: a dictionary rule changes its entry inside its block, whose header carries a qualifier. */
     @Test
     void aDictionaryRuleChangesItsEntryOnlyInsideItsBlock() {
@@ -775,7 +733,7 @@ class PromptRuntimeGovernanceRuleApplierTest {
     private PromptRuntimeGovernanceRuleApplicationResult applyToV20(
             String prompt,
             List<PromptRuntimeGovernanceRule> rules) {
-        return applier.applyToDictionaryPrompt(prompt, rules, SecurityDecisionPromptDictionary.slotPlanProvider());
+        return applier.applyToDictionaryPrompt(prompt, rules, SecurityDecisionPromptDictionary.v1SlotPlanProvider());
     }
 
     private PromptSlotPlanProvider slotProvider(List<PromptSlotPlan> plans) {

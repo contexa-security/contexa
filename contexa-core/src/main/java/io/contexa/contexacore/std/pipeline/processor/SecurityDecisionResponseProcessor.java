@@ -86,14 +86,11 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         List<SecurityDecisionOutputContract.Citation> reasonCodes =
                 lite.getReasonCodes() == null ? List.of() : List.copyOf(lite.getReasonCodes());
         normalized.setReasonCodes(reasonCodes);
-        // W4-2: a v3 response keeps its reason within the contract's limit, which the provider schema cannot carry; a v4
-        // response (v21) within the v4 limit, which holds its sentence of 40 words.
-        boolean v4 = context != null && SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT_V4.equals(
-                context.getMetadata(SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT, String.class));
+        // W4-2: a response with reason codes keeps its reason within the limit of the output contract, which holds its
+        // sentence of 40 words and which the provider schema cannot carry.
         int reasoningLimit = reasonCodes.isEmpty()
                 ? MAX_REASONING_CHARS
-                : v4 ? SecurityDecisionOutputContractV4.MAX_REASON_CHARACTERS
-                : SecurityDecisionOutputContract.MAX_REASON_CHARACTERS;
+                : SecurityDecisionOutputContractV4.MAX_REASON_CHARACTERS;
         String normalizedReasoning = normalizeReasoning(lite.getReasoning(), repairedFields, reasoningLimit);
         normalized.setReasoning(normalizedReasoning);
         normalized.setMitre(normalizeMitre(lite.getMitre(), repairedFields));

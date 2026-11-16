@@ -55,7 +55,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 Map.of("narrative", "RuntimeGovernanceNarrative: preserve browser transition context."))));
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                SecurityDecisionGoldenRender.v19Properties(),
+                new TieredStrategyProperties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -130,7 +130,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 Map.of("narrative", narrative))));
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                SecurityDecisionGoldenRender.v19Properties(),
+                new TieredStrategyProperties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -214,8 +214,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                         20,
                         Map.of("checkCode", "rag_authorization_reason",
                                 "narrative", "Each record must say why it is authorized."))));
-        TieredStrategyProperties properties = SecurityDecisionGoldenRender.v19Properties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 properties,
@@ -289,7 +288,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                                 "renderedValue", "ALLOW by policy W314 (METHOD_AUTHORIZATION_CHECK)"))));
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                SecurityDecisionGoldenRender.v19Properties(),
+                new TieredStrategyProperties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -325,7 +324,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
 
     /**
      * v1.0 (plan 2.3 A10): a v1.0 render moves a rule of the v19 bundle to the dictionary slot its v19 label went to, so
-     * the rule reaches the line of the v19 fact; a v21 render leaves the same rule out, as before.
+     * the rule reaches the line of the v19 fact.
      */
     @Test
     void aV1RenderMovesAV19RuleToTheSlotItsLabelWentTo() {
@@ -340,24 +339,18 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
         PromptContextComposer contract = promptContextComposer(List.of(slotPlan(
                 "user_request_requestpath_v1_test", "CURRENT REQUEST AND EVENT", "RequestPath")));
         CapturingRuleProvider v1 = new CapturingRuleProvider(List.of(rule));
-        CapturingRuleProvider v21 = new CapturingRuleProvider(List.of(rule));
 
-        String v1Text = renderWithRules(SecurityDecisionPromptBundles.V1_RECORD_EXACT, contract, v1);
-        String v21Text = renderWithRules(SecurityDecisionPromptBundles.V21, contract, v21);
+        String v1Text = renderWithRules(SecurityDecisionPromptBundles.V1, contract, v1);
 
         assertThat(v1.recordedApplications())
                 .extracting(PromptRuntimeGovernanceRuleApplication::resultState).containsExactly("APPLIED");
         assertThat(v1.recordedApplications().get(0).slotKey()).endsWith(".Action");
         assertThat(v1Text).doesNotContainPattern("(?m)^(\\[[A-Z]\\d+\\] )?Action: ");
-        assertThat(v21.recordedApplications())
-                .extracting(PromptRuntimeGovernanceRuleApplication::resultState)
-                .containsExactly("SKIPPED_SLOT_NOT_IN_DICTIONARY");
-        assertThat(v21Text).containsPattern("(?m)^(\\[[A-Z]\\d+\\] )?Action: ");
     }
 
     private static String renderWithRules(SecurityDecisionPromptBundles.Bundle bundle, PromptContextComposer contract,
                                           CapturingRuleProvider provider) {
-        TieredStrategyProperties properties = SecurityDecisionGoldenRender.v19Properties();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getPromptBundle().setActive(bundle.version());
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),

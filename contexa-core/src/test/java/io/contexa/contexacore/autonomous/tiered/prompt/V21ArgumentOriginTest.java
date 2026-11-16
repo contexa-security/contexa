@@ -80,7 +80,7 @@ class V21ArgumentOriginTest {
 
     @Test
     void aV21RenderDrawsTheLineAfterTheRecordProvenanceAndQuotesTheSentenceAsAnUntrustedText() {
-        InspectionGolden.Render render = render(SecurityDecisionPromptBundles.V21,
+        InspectionGolden.Render render = render(SecurityDecisionPromptBundles.V1,
                 withOrigins(fromReadFile().toPayload(true, 300)));
 
         writeExample(render);
@@ -97,19 +97,8 @@ class V21ArgumentOriginTest {
     }
 
     @Test
-    void aV20RenderOfTheSameRequestStatesNothingOfIt() {
-        InspectionGolden.Render v20 = render(SecurityDecisionPromptBundles.V20,
-                withOrigins(fromReadFile().toPayload(true, 300)));
-        InspectionGolden.Render bare = render(SecurityDecisionPromptBundles.V20, context -> { });
-
-        assertThat(v20.userPrompt()).isEqualTo(bare.userPrompt())
-                .doesNotContain("ArgumentOrigin").doesNotContain("tool output excerpt").doesNotContain("read_file");
-        assertThat(v20.used().getDecisionFacts().fact(DecisionFactsResolver.ARGUMENT_ORIGIN)).isEmpty();
-    }
-
-    @Test
     void withoutTheSentenceTheLineStopsAtTheToolAndNoUntrustedTextIsDrawn() {
-        InspectionGolden.Render render = render(SecurityDecisionPromptBundles.V21,
+        InspectionGolden.Render render = render(SecurityDecisionPromptBundles.V1,
                 withOrigins(fromReadFile().toPayload(false, 300)));
 
         assertThat(InspectionGolden.bare(InspectionGolden.lineStarting(render.userPrompt(), "ArgumentOrigin: ")))
@@ -121,8 +110,8 @@ class V21ArgumentOriginTest {
     /** A value of the user's request, the company's records or the agent itself gets no line, and nothing else moves. */
     @Test
     void aRequestWithoutAToolOutputValueIsDrawnAsItWasWithoutOrigins() {
-        InspectionGolden.Render none = render(SecurityDecisionPromptBundles.V21, context -> { });
-        InspectionGolden.Render named = render(SecurityDecisionPromptBundles.V21, withOrigins(ArgumentOrigins.of(
+        InspectionGolden.Render none = render(SecurityDecisionPromptBundles.V1, context -> { });
+        InspectionGolden.Render named = render(SecurityDecisionPromptBundles.V1, withOrigins(ArgumentOrigins.of(
                 ArgumentOrigins.Origin.of("recipient", "US133", ArgumentOrigins.Source.USER_REQUEST),
                 ArgumentOrigins.Origin.of("project", "GB-500", ArgumentOrigins.Source.COMPANY_RECORD),
                 ArgumentOrigins.Origin.of("note", "weekly", ArgumentOrigins.Source.AGENT_GENERATED))
@@ -135,7 +124,7 @@ class V21ArgumentOriginTest {
 
     @Test
     void theInspectorComparesTheLineAndTheQuotedSentenceWithTheSealedContext() {
-        InspectionGolden.Render render = render(SecurityDecisionPromptBundles.V21,
+        InspectionGolden.Render render = render(SecurityDecisionPromptBundles.V1,
                 withOrigins(fromReadFile().toPayload(true, 300)));
 
         PromptInspectionResult matched = INSPECTOR.inspect(render.sealed());
@@ -174,7 +163,7 @@ class V21ArgumentOriginTest {
     void aSentenceWithLineBreaksAndQuotesIsDrawnOnOneLineAndInspectedAsSealed() {
         String sentence = "Line one\nLine two says \"pay\" \\ now | memo\tend";
         String drawnSentence = "Line one\\nLine two says \\\"pay\\\" \\\\ now | memo\\tend";
-        InspectionGolden.Render render = render(SecurityDecisionPromptBundles.V21, withOrigins(ArgumentOrigins.of(
+        InspectionGolden.Render render = render(SecurityDecisionPromptBundles.V1, withOrigins(ArgumentOrigins.of(
                 ArgumentOrigins.Origin.toolOutput("recipient", "US133000000121212121212", "read_file", sentence))
                 .toPayload(true, 300)));
 
@@ -225,21 +214,18 @@ class V21ArgumentOriginTest {
         assertThat(code.meaning()).contains("first appeared in the output of a tool")
                 .doesNotContain("ALLOW").doesNotContain("BLOCK").doesNotContain("CHALLENGE");
         assertThat(SecurityDecisionOutputContractV4.codes()).contains("VALUE_FROM_UNTRUSTED_OUTPUT");
-        assertThat(SecurityDecisionOutputContractV4.providerSchema()).contains("VALUE_FROM_UNTRUSTED_OUTPUT");
-        assertThat(SecurityDecisionOutputContractV4.systemOutputBlock()).contains("- VALUE_FROM_UNTRUSTED_OUTPUT: "
-                + code.meaning() + "; ArgumentOrigin\n");
-        // The v20 output contract (v3) is the one it was.
-        assertThat(SecurityDecisionOutputContract.codes()).doesNotContain("VALUE_FROM_UNTRUSTED_OUTPUT");
+        // The system text names the code with its meaning and the line it cites.
+        assertThat(render(SecurityDecisionPromptBundles.V1, context -> { }).systemPrompt())
+                .contains("- VALUE_FROM_UNTRUSTED_OUTPUT: " + code.meaning() + "; ArgumentOrigin\n");
     }
 
     @Test
-    void theV21DictionaryHasTheEntryAndTheV20DictionaryDoesNot() {
-        PromptDictionaryEntry entry = SecurityDecisionPromptDictionary.V21_ENTRIES.stream()
+    void theDictionaryHasTheEntry() {
+        PromptDictionaryEntry entry = SecurityDecisionPromptDictionary.V1_ENTRIES.stream()
                 .filter(candidate -> candidate.block() == PromptBlock.DECISION_FACTS
                         && "ArgumentOrigin".equals(candidate.name()))
                 .findFirst().orElseThrow();
 
-        assertThat(SecurityDecisionPromptDictionary.ENTRIES).noneMatch(candidate -> "ArgumentOrigin".equals(candidate.name()));
         assertThat(entry.grades()).containsExactly(PromptSourceGrade.HOST);
         assertThat(entry.priority()).isEqualTo(PromptDictionaryEntry.PRIORITY_REQUIRED);
         assertThat(entry.decisionUse()).contains("VALUE_FROM_UNTRUSTED_OUTPUT");
@@ -247,7 +233,7 @@ class V21ArgumentOriginTest {
                 .as(example).isTrue());
         assertThat(entry.acceptsValue(LINE.substring("ArgumentOrigin: ".length()))).isTrue();
         assertThat(entry.acceptsValue("the money is for a friend")).isFalse();
-        PromptDictionaryEntry untrusted = SecurityDecisionPromptDictionary.V21_ENTRIES.stream()
+        PromptDictionaryEntry untrusted = SecurityDecisionPromptDictionary.V1_ENTRIES.stream()
                 .filter(candidate -> candidate.block() == PromptBlock.UNTRUSTED_TEXT).findFirst().orElseThrow();
         assertThat(untrusted.sourcePath()).contains("tool output");
         assertThat(UntrustedTextSources.TOOL_OUTPUT_EXCERPT).isEqualTo("tool output excerpt (host-quoted)");
@@ -255,7 +241,7 @@ class V21ArgumentOriginTest {
 
     @Test
     void theFactTheResolverStatesIsTheLineTheRenderDraws() {
-        InspectionGolden.Render render = render(SecurityDecisionPromptBundles.V21,
+        InspectionGolden.Render render = render(SecurityDecisionPromptBundles.V1,
                 withOrigins(fromReadFile().toPayload(true, 300)));
 
         DecisionFact fact = render.used().getDecisionFacts().fact(DecisionFactsResolver.ARGUMENT_ORIGIN).orElseThrow();
@@ -280,13 +266,13 @@ class V21ArgumentOriginTest {
     private static SecurityDecisionFactChecks.Outcome outcome(CanonicalSecurityContext context,
                                                               SecurityDecisionFactChecks.DrawnPrompt prompt, String code,
                                                               String fact) {
-        return SecurityDecisionV21FactChecks.reasonFindings(context, prompt,
+        return SecurityDecisionAnswerChecks.reasonFindings(context, prompt,
                 List.of(new SecurityDecisionOutputContract.Citation(code, fact))).get(0).outcome();
     }
 
     /** The names of a block's entries in the v21 dictionary order. */
     private static List<String> v21Names(PromptBlock block) {
-        return SecurityDecisionPromptDictionary.V21_ENTRIES.stream().filter(entry -> entry.block() == block)
+        return SecurityDecisionPromptDictionary.V1_ENTRIES.stream().filter(entry -> entry.block() == block)
                 .map(PromptDictionaryEntry::name).toList();
     }
 

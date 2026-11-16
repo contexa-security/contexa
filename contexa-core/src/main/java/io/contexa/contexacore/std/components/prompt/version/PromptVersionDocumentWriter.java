@@ -169,7 +169,7 @@ public final class PromptVersionDocumentWriter {
                 case '\t' -> quoted.append("\\t");
                 default -> {
                     if (character < 0x20) {
-                        quoted.append(String.format("\\x%02x", (int) character));
+                        quoted.append(String.format(Locale.ROOT, "\\x%02x", (int) character));
                     }
                     else {
                         quoted.append(character);

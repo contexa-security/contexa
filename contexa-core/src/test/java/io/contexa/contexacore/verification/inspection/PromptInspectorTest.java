@@ -59,12 +59,12 @@ class PromptInspectorTest {
 
     /**
      * R1b-7: the dictionary checks read a package drawn in this build's form only: its bundle has this build's
-     * dictionary (B2) and the render of this build's v20 bundle (B3). The other elements do not change the form.
+     * dictionary (B2) and the render of this build's bundle (B3). The other elements do not change the form.
      */
     @Test
     void aBundleIsOfThisFormWithThisDictionaryAndThisRender() {
         PromptBundleManifest current = PromptBundleCatalog.shared()
-                .find("cortex.security-decision", SecurityDecisionPromptBundles.V20.descriptor().promptVersion())
+                .find("cortex.security-decision", SecurityDecisionPromptBundles.V1.descriptor().promptVersion())
                 .orElseThrow();
         String other = "0".repeat(64);
 
@@ -287,7 +287,7 @@ class PromptInspectorTest {
     }
 
     static SealedEvidencePackage sealed(String userPrompt, String layout) {
-        return sealed(userPrompt, layout, SecurityDecisionPromptBundles.V20.descriptor().promptVersion());
+        return sealed(userPrompt, layout, SecurityDecisionPromptBundles.V1.descriptor().promptVersion());
     }
 
     /** A package as the assembler seals it: the governance descriptor names the bundle the prompt was drawn with. */

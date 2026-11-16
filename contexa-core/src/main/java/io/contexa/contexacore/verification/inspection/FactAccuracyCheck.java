@@ -205,26 +205,29 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
     private final boolean v21;
     /** Whether the check reads a v1.0 package, which draws the v21 lines and the lines v1.0 adds (plan 2.8). */
     private final boolean v1;
+    /** The dictionary a v1.0 package is read with: the records one, or the one with the conclusion lines (D6). */
+    private final List<PromptDictionaryEntry> v1Dictionary;
 
     public FactAccuracyCheck() {
-        this(false, false);
+        this(false, false, List.of());
     }
 
-    private FactAccuracyCheck(boolean v21, boolean v1) {
+    private FactAccuracyCheck(boolean v21, boolean v1, List<PromptDictionaryEntry> v1Dictionary) {
         this.v21 = v21;
         this.v1 = v1;
+        this.v1Dictionary = List.copyOf(v1Dictionary);
     }
 
     /** The check of a v21 package: its subject, coverage, agent lines and untrusted texts as the v21 render draws them. */
     @Override
     public PromptInspectionCheck forV21() {
-        return new FactAccuracyCheck(true, false);
+        return new FactAccuracyCheck(true, false, List.of());
     }
 
     /** The check of a v1.0 package: the v21 check, and the lines v1.0 adds compared with their sealed sources. */
     @Override
     public PromptInspectionCheck forV1(List<PromptDictionaryEntry> dictionary) {
-        return new FactAccuracyCheck(true, true);
+        return new FactAccuracyCheck(true, true, dictionary);
     }
 
     @Override
@@ -437,8 +440,8 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
             if (line.kind() != InspectedPrompt.Kind.ENTRY || line.block() == null) {
                 continue;
             }
-            // v1.0: its lines are entries of its dictionary (every v1.0 entry is in the one with the conclusions).
-            (v1 ? SecurityDecisionPromptDictionary.V1_RULES_ENTRIES : SecurityDecisionPromptDictionary.ENTRIES).stream()
+            // v1.0: its lines are entries of the dictionary it was drawn with.
+            (v1 ? v1Dictionary : SecurityDecisionPromptDictionary.ENTRIES).stream()
                     .filter(entry -> entry.block() == line.block() && entry.matchesLabel(line.entryLine().label()))
                     .findFirst()
                     .map(entry -> entry.block().name() + "." + entry.name())

@@ -186,7 +186,7 @@ class AnalysesWithoutAUserIdLogTest {
             Layer1ContextualStrategy strategy = context.getBean(Layer1ContextualStrategy.class);
             UnifiedVectorService vectors = context.getBean(UnifiedVectorService.class);
             SecurityDecisionStandardPromptTemplate template = context.getBean(SecurityDecisionStandardPromptTemplate.class);
-            when(template.promptBundle(any(SecurityEvent.class))).thenReturn(SecurityDecisionPromptBundles.V20);
+            when(template.promptBundle(any(SecurityEvent.class))).thenReturn(SecurityDecisionPromptBundles.V1);
 
             List<SecurityEvent> withoutAUser = new ArrayList<>();
             List<String> notes = infoLinesDuring(() -> {

@@ -67,7 +67,6 @@ class SealedDecisionReplayTest {
     void aReplayDrawsTheGoldenPromptOfTheSealedInputsWithTheChosenBundle() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties v21 = new TieredStrategyProperties();
-        v21.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         for (String caseKey : List.of("A3", "A3T", "S12")) {
             JsonNode goldenCase = golden.cases().stream()
                     .filter(item -> item.path("caseKey").asText().equals(caseKey)).findFirst().orElseThrow();
@@ -192,7 +191,7 @@ class SealedDecisionReplayTest {
             SealedDecisionReplayService.Result result = service.replay(sealed(goldenCase),
                     vector(goldenCase.path("learningEvidence").path("personalBaseline")),
                     vector(goldenCase.path("learningEvidence").path("organizationBaseline")),
-                    SecurityDecisionPromptBundles.V21.version(), Duration.ofSeconds(30), secondPassModels);
+                    SecurityDecisionPromptBundles.V1.version(), Duration.ofSeconds(30), secondPassModels);
             return new Drawing(result, userPrompts, tiers, models);
         }
         finally {
