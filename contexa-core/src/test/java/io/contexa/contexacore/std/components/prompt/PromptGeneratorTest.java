@@ -15,7 +15,6 @@
  */
 package io.contexa.contexacore.std.components.prompt;
 
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import java.time.ZoneId;
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.PromptTemplate;
@@ -26,11 +25,13 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
+import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -129,7 +130,8 @@ class PromptGeneratorTest {
         assertThat(executionMetadata).isNotNull();
         assertThat(executionMetadata.governanceDescriptor().promptVersion())
                 .isEqualTo(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE.promptVersion());
-        assertThat(executionMetadata.governanceDescriptor().contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
+        assertThat(executionMetadata.governanceDescriptor().contractVersion())
+                .isEqualTo(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE.contractVersion());
         assertThat(executionMetadata.governanceDescriptor().releaseStatus().name()).isEqualTo("PRODUCTION");
         assertThat(executionMetadata.governanceDescriptor().releaseApprovalReference())
                 .isEqualTo(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE.releaseApprovalReference());
@@ -149,13 +151,16 @@ class PromptGeneratorTest {
         assertThat(executionMetadata.promptCompressionLedger().transformationMode())
                 .isIn("IDENTITY", "NORMALIZE_ONLY", "NORMALIZE_AND_DEDUPLICATE");
         assertThat(executionMetadata.promptEvidenceCompleteness().name()).isEqualTo("INCOMPLETE");
-        assertThat(executionMetadata.omittedSections()).contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
+        // The dictionary blocks draw every entry that has a value; nothing is left out under the observed budget.
+        assertThat(executionMetadata.omittedSections()).isEmpty();
         assertThat(executionMetadata.duplicationInventory()).isNotEmpty();
         assertThat(executionMetadata.duplicationInventory())
                 .extracting(PromptDuplicationRecord::dimension)
                 .contains("session", "device", "location");
-        assertThat(executionMetadata.sectionSet())
-                .contains("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", "CURRENT_REQUEST_AND_EVENT", "EXPLICIT_MISSING_KNOWLEDGE");
+        List<String> sections = List.of("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", PromptBlock.USER_BASELINE.title(),
+                PromptBlock.REQUEST.title(), PromptBlock.PAST_RECORDS.title(), PromptBlock.UNKNOWN.title(),
+                PromptBlock.UNTRUSTED_TEXT.title());
+        assertThat(executionMetadata.sectionSet()).containsExactlyElementsOf(sections);
         assertThat(executionMetadata.promptHash()).startsWith("sha256:");
         assertThat(executionMetadata.rawPromptHash()).startsWith("sha256:");
         assertThat(result.getMetadata()).containsKeys(
@@ -191,10 +196,8 @@ class PromptGeneratorTest {
                 "promptCompressionSavedCharacters",
                 "promptCompressionSavedEstimatedTokens",
                 "promptCompressionLedger");
-        assertThat(result.getMetadata().get("promptSectionSet")).asList()
-                .contains("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", "CURRENT_REQUEST_AND_EVENT", "EXPLICIT_MISSING_KNOWLEDGE");
-        assertThat(result.getMetadata().get("omittedSections")).asList()
-                .contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
+        assertThat(result.getMetadata().get("promptSectionSet")).asList().containsExactlyElementsOf(sections);
+        assertThat(result.getMetadata().get("omittedSections")).asList().isEmpty();
         assertThat(result.getMetadata().get("promptDuplicationInventoryCount")).isEqualTo(executionMetadata.duplicationInventory().size());
         assertThat(result.getMetadata().get("promptDuplicationInventory")).asList().isNotEmpty();
         assertThat(result.getSystemPrompt()).doesNotContain("promptHash");
@@ -284,17 +287,21 @@ class PromptGeneratorTest {
                 "");
 
         PromptExecutionMetadata executionMetadata = result.getPromptExecutionMetadata();
-        assertThat(result.getRawUserPrompt()).contains("AvailableFacts:");
+        // The final prompt is the raw one (lossless normalization): every cold-start fact the request has stays.
+        assertThat(result.getUserPrompt()).isEqualTo(result.getRawUserPrompt());
         assertThat(result.getRawUserPrompt()).doesNotContain("RemediationHints:");
-        assertThat(result.getUserPrompt()).contains("AuthorizationEffectProvenance: METHOD_INVOCATION_RESULT");
-        assertThat(result.getUserPrompt()).contains("AuthorizationEffectStageNote: Bridge stamp omitted AuthorizationEffect; final AuthorizationEffect was resolved later from METHOD_INVOCATION_RESULT.");
-        assertThat(result.getUserPrompt()).contains("RequestPath: /admin/api/security-test/sensitive/resource-001");
-        assertThat(result.getUserPrompt()).contains("Sensitivity: HIGH");
-        assertThat(result.getUserPrompt()).contains("AuthorizationEffect: ALLOW");
-        assertThat(result.getUserPrompt()).contains("BaselineGapSupport:");
-        assertThat(result.getUserPrompt()).contains("CoverageLevel: BUSINESS_AWARE");
-        assertThat(result.getUserPrompt()).contains("AvailableFacts:\n-");
-        assertThat(result.getUserPrompt()).doesNotContain("RemediationHints:\n-");
+        assertThat(value(result.getUserPrompt(), "BaselineStatus"))
+                .isEqualTo("NONE (no learned requests, no observations, account not new, personal baseline NO_DATA)");
+        assertThat(value(result.getUserPrompt(), "AuthorizationEffect")).isEqualTo("ALLOW (METHOD_INVOCATION_RESULT)");
+        assertThat(value(result.getUserPrompt(), "ResourceClass")).isEqualTo("SENSITIVE (sensitivity HIGH)");
+        assertThat(value(result.getUserPrompt(), "Device")).isEqualTo("Chrome/120 on WINDOWS (new device per host)");
+        assertThat(value(result.getUserPrompt(), "FailedLogins")).isEqualTo("0 recent failed logins (window not stated)");
+        assertThat(value(result.getUserPrompt(), "RecentRequests")).isEqualTo("host count 2, window not stated");
+        assertThat(value(result.getUserPrompt(), "Roles"))
+                .isEqualTo("ADMIN, DEVELOPER, MANAGER, PENDING_ANALYSIS, USER; source host (SECURITY_CONTEXT)");
+        assertThat(result.getUserPrompt())
+                .contains("source=request path (requester); \"/admin/api/security-test/sensitive/resource-001\"")
+                .doesNotContain("AuthorizationEffectStageNote");
         assertThat(result.getUserPrompt()).doesNotContain("CompactedLineCategories");
         assertThat(result.getUserPrompt()).doesNotContain("additional lines compacted");
         assertThat(result.getUserPrompt()).doesNotContain("AdditionalConfidenceWarningsCompacted");
@@ -365,20 +372,19 @@ class PromptGeneratorTest {
                 "",
                 "");
 
-        assertThat(result.getUserPrompt()).contains("=== DEVICE CONTEXT ===");
-        assertThat(result.getUserPrompt()).contains("=== LOCATION CONTEXT ===");
-        assertThat(result.getUserPrompt()).contains("=== RESOURCE AND ACTION CONTEXT ===");
-        assertThat(result.getUserPrompt()).contains("TenantId: tenant-acme");
-        assertThat(result.getUserPrompt()).contains("DeviceOs: WINDOWS");
-        assertThat(result.getUserPrompt()).contains("DeviceBrowser: Chrome");
-        assertThat(result.getUserPrompt()).contains("Country: KR");
-        assertThat(result.getUserPrompt()).contains("City: Seoul");
-        assertThat(result.getUserPrompt()).contains("IpBand: 10.10.0.0/24");
-        assertThat(result.getUserPrompt()).contains("ResourceId: self-sensitive-1");
-        assertThat(result.getUserPrompt()).contains("ResourceType: SENSITIVE");
-        assertThat(result.getUserPrompt()).contains("Sensitivity: HIGH");
+        String user = result.getUserPrompt();
+        assertThat(value(user, "Subject")).isEqualTo("persona_fin (HUMAN_USER, account age not known, tenant tenant-acme)");
+        assertThat(value(user, "Device"))
+                .isEqualTo("Chrome/120 on WINDOWS (OS version 11, language ko-KR, fingerprint matches)");
+        assertThat(value(user, "Network")).isEqualTo("10.10.0.20 (10.10.0.0/24, Seoul, KR, ASN AS9318)");
+        assertThat(value(user, "TargetType")).isEqualTo("type SENSITIVE");
+        assertThat(value(user, "ResourceClass")).isEqualTo("SENSITIVE (sensitivity HIGH)");
+        assertThat(value(user, "LoginMethod")).isEqualTo("PASSWORD, MFA verified; source host");
+        assertThat(value(user, "TenantMatch")).isEqualTo("actor tenant tenant-acme, request tenant tenant-acme: same");
+        // The resource's own name is the requester's and the host's text: only UNTRUSTED TEXT quotes it.
+        assertThat(user.indexOf("self-sensitive-1")).isGreaterThan(user.indexOf("=== UNTRUSTED TEXT"));
         assertThat(result.getPromptExecutionMetadata().sectionSet())
-                .contains("DEVICE_CONTEXT", "LOCATION_CONTEXT", "RESOURCE_AND_ACTION");
+                .contains(PromptBlock.SESSION.title(), PromptBlock.REQUEST.title());
     }
 
     @Test
@@ -399,8 +405,7 @@ class PromptGeneratorTest {
         assertThat(result.getRawUserPrompt()).isNotBlank();
         assertThat(result.getPrompt().getContents()).contains(result.getSystemPrompt());
         assertThat(result.getPrompt().getContents()).contains(result.getUserPrompt());
-        assertThat(result.getUserPrompt()).contains("=== CURRENT REQUEST AND EVENT ===");
-        assertThat(result.getUserPrompt()).contains("TenantId: demo");
+        assertThat(result.getUserPrompt()).contains("\n=== REQUEST (time zone ");
         assertThat(result.getUserPrompt())
                 .contains("/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
         assertThat(result.getPromptExecutionMetadata().budgetProfile().profileKey())
@@ -412,10 +417,8 @@ class PromptGeneratorTest {
         assertThat(result.getPromptExecutionMetadata().promptCompressionLedger().records()).isEmpty();
         assertThat(result.getSystemPrompt()).isEqualTo(result.getRawSystemPrompt());
         assertThat(result.getUserPrompt()).isEqualTo(result.getRawUserPrompt());
-        assertThat(countOccurrences(result.getUserPrompt(), "=== PERSONAL WORK PROFILE ==="))
-                .isEqualTo(1);
-        assertThat(countOccurrences(result.getUserPrompt(), "ObservedPatternEvidenceScope: NO_PERSONAL_OBSERVED_PATTERN"))
-                .isEqualTo(1);
+        assertThat(countOccurrences(result.getUserPrompt(), "=== USER BASELINE")).isEqualTo(1);
+        assertThat(countOccurrences(result.getUserPrompt(), "BaselineStatus: ")).isEqualTo(1);
     }
 
     @Test
@@ -469,6 +472,17 @@ class PromptGeneratorTest {
         return (value.length() - value.replace(token, "").length()) / token.length();
     }
 
+    /** The value of the first line with the label, its fact id set aside; null without one. */
+    private static String value(String userPrompt, String label) {
+        for (String line : userPrompt.split("\n")) {
+            String fact = line.replaceFirst("^\\[[BSRFP]\\d+] ", "");
+            if (fact.startsWith(label + ": ")) {
+                return fact.substring(label.length() + 2);
+            }
+        }
+        return null;
+    }
+
     private record PlainPromptTemplate(TemplateType supportedType) implements PromptTemplate {
 
         @Override
@@ -487,32 +501,26 @@ class PromptGeneratorTest {
         }
     }
 
-    /** W3-2: with the v20 user prompt format the generator sends the dictionary blocks and states the layout. */
+    /** W3-2: the generator sends the dictionary blocks and the system text of the product version, and states the layout. */
     @Test
-    void generatePromptWithTheV20UserPromptFormatSendsTheDictionaryBlocksAndStatesTheLayout() {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
-        SecurityDecisionStandardPromptTemplate v20 = new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties);
-        SecurityDecisionStandardPromptTemplate v19 = new SecurityDecisionStandardPromptTemplate(
+    void generatePromptSendsTheDictionaryBlocksAndStatesTheLayout() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(), new TieredStrategyProperties());
 
-        PromptGenerationResult v20Result = generate(v20);
-        PromptGenerationResult v19Result = generate(v19);
+        PromptGenerationResult result = generate(template);
 
-        assertThat(v20Result.getUserPrompt()).startsWith("=== USER BASELINE (learned) ===").contains("=== REQUEST")
+        assertThat(result.getUserPrompt()).startsWith("=== USER BASELINE (learned) ===").contains("\n=== REQUEST")
                 .doesNotContain("=== CURRENT REQUEST AND EVENT ===");
-        // Since TO-4 the v20 bundle sends its own system text (W4-1 brought forward), not the v19 one.
-        assertThat(v20Result.getSystemPrompt()).isNotEqualTo(v19Result.getSystemPrompt())
-                .contains("Required covered-work boundary").doesNotContain("AnomalySignalTrust");
-        assertThat(layout(v20Result)).isEqualTo("v20-dictionary-blocks");
-        assertThat(layout(v19Result))
-                .isEqualTo(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE.promptVersion());
+        assertThat(result.getSystemPrompt()).startsWith("You are the security analyst of CONTEXA.")
+                .doesNotContain("Decision rules").doesNotContain("AnomalySignalTrust");
+        assertThat(layout(result)).isEqualTo(SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1);
     }
 
     private PromptGenerationResult generate(SecurityDecisionStandardPromptTemplate template) {
         PromptGenerator promptGenerator = new PromptGenerator(List.of(template));
         promptGenerator.registerTemplate(SecurityDecisionRequest.TEMPLATE_TYPE.name(), template);
         SecurityEvent event = SecurityEvent.builder()
-                .eventId("event-generator-v20")
+                .eventId("event-generator-layout")
                 .timestamp(LocalDateTime.of(2026, 3, 26, 11, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-1")

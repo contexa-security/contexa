@@ -28,31 +28,29 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 판정층 8절 7 (docs/showcase/판정층-수정계획.md): E-4 made the second pass ask its model in every bundle, so a v20
- * second pass, too, states only what it knows that the first did not. The v20 dictionary has no line for "none new"
- * and stays as v20.25 was frozen: after a first pass that retrieved its own past records the v20 second pass asks
- * with the first prompt alone, with no SECOND PASS block; after one that could not retrieve any it gets what the
- * second pass found, as before.
+ * 판정층 8절 7 (docs/showcase/판정층-수정계획.md): E-4 made the second pass ask its model, so a second pass states only
+ * what it knows that the first did not (E-4b). After a first pass that retrieved its own past records the SECOND PASS
+ * block names none as new and adds no record; after one that could not retrieve any it gets what the second pass found.
  */
-class V20SecondPassFactsTest {
+class SecondPassFactsTest {
 
     private static SecurityDecisionGoldenRender golden;
     private static JsonNode a3;
-    private static TieredStrategyProperties v20;
+    private static TieredStrategyProperties properties;
     private static String first;
 
     @BeforeAll
     static void render() {
         golden = SecurityDecisionGoldenRender.load();
-        v20 = new TieredStrategyProperties();
+        properties = new TieredStrategyProperties();
         a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
                 .orElseThrow();
-        first = golden.render(a3, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, v20).userText();
+        first = golden.render(a3, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties).userText();
     }
 
     /** The user prompt of A3's second pass after a first pass whose past record search ended in the state. */
     private static String secondPassPrompt(String firstPassState) {
-        return golden.render(a3, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, v20, null,
+        return golden.render(a3, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties, null,
                 Map.of("layer2FirstPassUserPrompt", first, "layer2FirstPassVerdict", "ESCALATE",
                         "layer2FirstPassPastRecordsState", firstPassState)).userText();
     }
@@ -67,19 +65,22 @@ class V20SecondPassFactsTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"AVAILABLE", "ZERO_RESULTS"})
-    void aFirstPassThatRetrievedItsRecordsIsAskedAgainWithTheFirstPromptAlone(String state) {
+    void aFirstPassThatRetrievedItsRecordsIsAskedAgainWithNoneNew(String state) {
         String prompt = secondPassPrompt(state);
 
-        assertThat(prompt).isEqualTo(first.stripTrailing())
-                .doesNotContain("=== SECOND PASS")
-                .doesNotContain("not retrieved");
+        assertThat(prompt).isEqualTo(first.stripTrailing()
+                + "\n\n=== SECOND PASS (only the facts gathered after the first pass) ===\n"
+                + "FirstPassVerdict: ESCALATE\n"
+                + "NewlyKnown: PastRecord{i}: none new (first pass: retrieved, " + state + ")\n");
+        assertThat(secondPassBlock(state)).doesNotContain("NewPastRecord").doesNotContain("not retrieved");
     }
 
     @Test
     void aFirstPassThatCouldNotRetrieveGetsWhatTheSecondPassFound() {
         String block = secondPassBlock("TIMEOUT");
 
-        assertThat(block).contains("PastRecord{i}: 5 found (first pass: not retrieved, TIMEOUT)")
-                .contains("NewPastRecord1");
+        assertThat(block).contains("NewlyKnown: PastRecord{i}: 5 found (first pass: not retrieved, TIMEOUT)\n")
+                .contains("NewPastRecord5: ")
+                .doesNotContain("NewPastRecord6: ");
     }
 }

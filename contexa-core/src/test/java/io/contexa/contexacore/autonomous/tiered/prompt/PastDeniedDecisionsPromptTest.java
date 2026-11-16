@@ -27,10 +27,15 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** W5-4: the user's recent decisions that did not allow are lines of the past records block, sealed with the prompt. */
+/**
+ * W5-4: the user's recent decisions that did not allow are lines of the past records block, sealed with the prompt. A
+ * decision's target is path variables a requester wrote: its line says the target is in UNTRUSTED TEXT, which quotes it
+ * (A3-5).
+ */
 class PastDeniedDecisionsPromptTest {
 
     private static final Instant REQUEST = Instant.parse("2026-10-12T03:17:00Z");
@@ -43,27 +48,36 @@ class PastDeniedDecisionsPromptTest {
                 PastDeniedDecisions.NOT_VERIFIED)));
         event.addMetadata(PastDeniedDecisions.EVENT_METADATA_KEY, denied.toMetadata());
 
-        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = v20().buildStructuredPrompt(event, null, null,
-                List.of(), PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
-        List<PromptListItem> expected = PastDeniedLines.items(denied, LocalDateTime.ofInstant(REQUEST, EventTimeZone.get()));
+        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = sections().buildStructuredPrompt(event, null,
+                null, List.of(), PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
+        List<PromptListItem> expected = PastDeniedLines.items(denied,
+                LocalDateTime.ofInstant(REQUEST, EventTimeZone.get()), true);
 
-        assertThat(prompt.userText()).contains("PastDeniedDecision1: " + expected.get(0).text());
+        assertThat(expected).hasSize(1);
+        assertThat(expected.get(0).text()).contains(" EXPORT " + PastDeniedLines.TARGET_APART + " -> CHALLENGE (")
+                .doesNotContain("GB-500");
+        assertThat(prompt.userText())
+                .containsPattern("(?m)^\\[P\\d+] PastDeniedDecision1: " + Pattern.quote(expected.get(0).text()) + "$")
+                .doesNotContain("PastDeniedDecision2")
+                .contains("source=" + UntrustedTextSources.PAST_RECORD_TARGET + "; \"projectKey=GB-500\"");
+        assertThat(prompt.userText().indexOf("projectKey=GB-500"))
+                .isEqualTo(prompt.userText().lastIndexOf("projectKey=GB-500"))
+                .isGreaterThan(prompt.userText().indexOf("=== UNTRUSTED TEXT"));
         assertThat(prompt.executionMetadata().toMetadataMap()).containsEntry("promptPastDeniedDecisions",
                 denied.toMetadata());
     }
 
     @Test
     void withoutDecisionsThereIsNoLine() {
-        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = v20().buildStructuredPrompt(
+        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = sections().buildStructuredPrompt(
                 event("event-denied-2"), null, null, List.of(), PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
 
         assertThat(prompt.userText()).doesNotContain("PastDeniedDecision");
         assertThat(prompt.executionMetadata().toMetadataMap()).doesNotContainKey("promptPastDeniedDecisions");
     }
 
-    private static SecurityDecisionPromptSections v20() {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
-        return new SecurityDecisionPromptSections(new SecurityEventEnricher(), properties);
+    private static SecurityDecisionPromptSections sections() {
+        return new SecurityDecisionPromptSections(new SecurityEventEnricher(), new TieredStrategyProperties());
     }
 
     private static SecurityEvent event(String eventId) {

@@ -197,7 +197,9 @@ class SecurityDecisionV1BundleTest {
                     .agentId("report-agent").build());
         }).systemPrompt();
 
-        assertThat(person).contains("Decision rules", "Verified signal boundary", automation);
+        // The verified signal boundary is a prepared part of its own, which a version includes apart from the decision
+        // rules (PreparedPartsEquivalenceTest).
+        assertThat(person).contains("Decision rules", automation).doesNotContain("Verified signal boundary");
         assertThat(person.indexOf("Decision rules")).isGreaterThan(person.indexOf("Responses and what they do:"))
                 .isLessThan(person.indexOf("Honesty:"));
         assertThat(agent).contains("Decision rules").doesNotContain(automation).doesNotContain(category);

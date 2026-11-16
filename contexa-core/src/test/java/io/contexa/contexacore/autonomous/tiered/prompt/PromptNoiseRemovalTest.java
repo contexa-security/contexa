@@ -23,8 +23,8 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * W3-5 (principle 14; removals Q-61 and Q-73 decided 2026-10-13): the v20 prompt leaves out the items the user
- * removed and keeps their facts where the removal check list says they stay.
+ * W3-5 (principle 14; removals Q-61 and Q-73 decided 2026-10-13): the prompt leaves out the items the user removed and
+ * keeps their facts where the removal check list says they stay.
  */
 class PromptNoiseRemovalTest {
 
@@ -56,10 +56,10 @@ class PromptNoiseRemovalTest {
             "Organization or cohort baseline is reference evi", "Sparse personal history limits user-specific com",
             "Sparse personal history is uncertainty, not proo", "Current-vs-observed facts and limitations are re");
 
-    /** The v20 golden renders, written for the value-by-value comparison of the prompt before and after a removal. */
+    /** The golden renders, written for the value-by-value comparison of the prompt before and after a removal. */
     @Test
     void theGoldenRendersAreReported() throws IOException {
-        Path directory = Path.of("build/reports/prompt-bundle/rendered-v20");
+        Path directory = Path.of("build/reports/prompt-bundle/rendered-v1.0");
         Files.createDirectories(directory);
         for (InspectionGolden.Render render : InspectionGolden.renders()) {
             Files.writeString(directory.resolve(render.caseKey() + "-" + render.profile().name() + "-user.txt"),
@@ -69,8 +69,8 @@ class PromptNoiseRemovalTest {
     }
 
     /**
-     * Q-61: no removed item is drawn, neither as a line nor inside the value of a line that carries a v19 section (the
-     * golden renders, and a case whose context fills every section the removed items come from).
+     * Q-61: no removed item is drawn, neither as a line nor inside the value of a line that carries what a removed
+     * section held (the golden renders, and a case whose context fills every section the removed items come from).
      */
     @Test
     void noRemovedItemIsDrawn() {
@@ -115,13 +115,25 @@ class PromptNoiseRemovalTest {
         assertThat(value(user, "Action")).contains("method ");
     }
 
-    /** Q-61 X15, X26, X27: the validated cases keep the memory facts without the summary, guardrails and pack summary. */
+    /**
+     * Q-61 X15, X26, X27: the validated cases keep the memory facts without the summary, guardrails and pack summary.
+     * B3-3: a stored free text of the memory (here the cross-tenant misuse facts) is quoted once in UNTRUSTED TEXT, not
+     * written on the line.
+     */
     @Test
     void theValidatedCasesKeepTheMemoryFactsWithoutTheRemovedLines() {
-        String cases = value(filled().userText(), "ValidatedCases");
-        assertThat(cases).contains("ReinforcedCaseCount: 3", "HardNegativeCaseCount: 1", "RetentionTier: HOT",
-                "CrossTenantObjectiveMisuseFacts: objective drift across tenants");
+        String user = filled().userText();
+        String cases = value(user, "ValidatedCases");
+        assertThat(cases).isEqualTo("ReinforcedCaseCount: 3; HardNegativeCaseCount: 1; RetentionTier: HOT");
         assertThat(cases).doesNotContain("memory summary").doesNotContain("never treat memory as proof")
+                .doesNotContain("pack summary").doesNotContain("CrossTenantObjectiveMisuseFacts")
+                .doesNotContain("objective drift across tenants");
+        assertThat(user).contains("source=" + UntrustedTextSources.VALIDATED_CASE_MEMORY
+                + "; \"objective drift across tenants\"");
+        assertThat(user.indexOf("objective drift across tenants"))
+                .isEqualTo(user.lastIndexOf("objective drift across tenants"))
+                .isGreaterThan(user.indexOf("=== UNTRUSTED TEXT"));
+        assertThat(user).doesNotContain("memory summary").doesNotContain("never treat memory as proof")
                 .doesNotContain("pack summary");
     }
 
@@ -177,7 +189,8 @@ class PromptNoiseRemovalTest {
         analysis.setCohortSeedWeight(0.7d);
         analysis.setCohortSeedWeightState("LIMITED");
         analysis.setCohortSeedPolicyFacts(List.of("Runtime weight 0.70 applies to cohort finance-kr with 4 cohort tenants"));
-        return GOLDEN.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, v20(), analysis);
+        return GOLDEN.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, new TieredStrategyProperties(),
+                analysis);
     }
 
     /** The value of the first line with the label, its fact id set aside; null without one. */
@@ -192,10 +205,5 @@ class PromptNoiseRemovalTest {
             parent.putObject(field);
         }
         return (ObjectNode) parent.path(field);
-    }
-
-    private static TieredStrategyProperties v20() {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
-        return properties;
     }
 }

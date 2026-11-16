@@ -22,7 +22,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * TO-1..TO-3 (plan 5.3.2, Q-84, Q-85): the v20 fact lines hold facts only. The trust profiles' usage notes and the
+ * TO-1..TO-3 (plan 5.3.2, Q-84, Q-85): the fact lines hold facts only. The trust profiles' usage notes and the
  * instruction clauses after their facts, the coverage clauses the system text's evidence rules already state, the
  * delegation unknowns' instructions and the cohort seed's instruction sentences are left out; the facts before them stay.
  */
@@ -30,7 +30,7 @@ class PromptFactLinesWithoutGuidanceTest {
 
     private static final SecurityDecisionGoldenRender GOLDEN = SecurityDecisionGoldenRender.load();
 
-    /** The clauses and sentences the v20 fact lines leave out, as the context producers write them. */
+    /** The clauses and sentences the fact lines leave out, as the context producers write them. */
     private static final List<String> LEFT_OUT = List.of(
             // Trust profiles (Q-84 request 1): the usage notes and the instructions after a fact.
             "Use this profile to understand", "require friction, delegation, or enterprise memory context",
@@ -62,7 +62,7 @@ class PromptFactLinesWithoutGuidanceTest {
 
     @Test
     void theEvidenceLineKeepsTheFactsBeforeTheInstructions() {
-        // The collectors' warnings as they write them: a fact, then the instruction the v20 system text states.
+        // The collectors' warnings as they write them: a fact, then the instruction the system text states.
         ContextTrustProfile roleScope = ContextTrustProfile.builder()
                 .profileKey("ROLE_SCOPE_PROFILE")
                 .provenanceSummary("role scope collector over 30 days")
@@ -95,14 +95,30 @@ class PromptFactLinesWithoutGuidanceTest {
                         + "than inferred role norms.",
                 "Delegated objective comparison shows a mismatch between current request facts and declared delegated "
                         + "scope; any ALLOW conclusion must explain why the request is still acceptable.");
+        // What the report says of a delegated objective stays for a delegated request only, and with its fact only: the
+        // instruction after it is the model's own judgment to make (A2-6).
+        String delegatedFact = "Delegated objective comparison shows a mismatch between current request facts and "
+                + "declared delegated scope.";
         InspectionGolden.Render render = InspectionGolden.renderWith(base, context -> {
             ContextCoverageReport report = context.getCoverage();
             List<String> warnings = new ArrayList<>(report.confidenceWarnings());
             warnings.addAll(kept);
             context.setCoverage(new ContextCoverageReport(report.level(), report.availableFacts(),
                     report.missingCriticalFacts(), report.remediationHints(), warnings, report.summary()));
+            context.setDelegation(CanonicalSecurityContext.Delegation.builder().delegated(true).agentId("agent-7")
+                    .build());
         });
-        assertThat(value(render.userPrompt(), "Coverage")).contains(kept.toArray(String[]::new));
+        assertThat(value(render.userPrompt(), "Coverage")).contains(kept.get(0), kept.get(1), delegatedFact)
+                .doesNotContain("any ALLOW conclusion must explain");
+        InspectionGolden.Render notDelegated = InspectionGolden.renderWith(base, context -> {
+            ContextCoverageReport report = context.getCoverage();
+            List<String> warnings = new ArrayList<>(report.confidenceWarnings());
+            warnings.addAll(kept);
+            context.setCoverage(new ContextCoverageReport(report.level(), report.availableFacts(),
+                    report.missingCriticalFacts(), report.remediationHints(), warnings, report.summary()));
+        });
+        assertThat(value(notDelegated.userPrompt(), "Coverage")).contains(kept.get(0), kept.get(1))
+                .doesNotContain("Delegated objective comparison");
     }
 
     /** A coverage that repeats the trust profiles' texts (the profiles not in the context) draws neither the notes nor their label. */
@@ -133,11 +149,9 @@ class PromptFactLinesWithoutGuidanceTest {
         InspectionGolden.Render render = InspectionGolden.renderWith(base, context -> context.setDelegation(
                 CanonicalSecurityContext.Delegation.builder().delegated(true).agentId("agent-7").build()));
         String delegation = value(render.userPrompt(), "Delegation");
-        assertThat(delegation).contains("AgentId: agent-7",
-                "ObjectiveFamily: UNKNOWN - delegation context supplied no objective family",
-                "ObjectiveSummary: UNKNOWN - delegation context supplied no objective summary",
-                "ObjectiveAlignmentEvidence: UNKNOWN - delegation context supplied no objective alignment evidence")
+        assertThat(delegation).startsWith("agent agent-7 ").contains(", objective not stated, ")
                 .doesNotContain("do not infer");
+        LEFT_OUT.forEach(clause -> assertThat(delegation).doesNotContain(clause));
     }
 
     @Test

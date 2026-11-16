@@ -33,18 +33,18 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The v21 bundle on the golden inputs (R0 of the v21 plan, no model call): its system text holds no decision rule,
- * threshold, floor or later enforcement and holds the judgment text (D1); its user prompts hold no conclusion of the
- * core (D2). The renders are written to build/reports/prompt-bundle/v21 to be read.
+ * The product version on the golden inputs (no model call): its system text holds no decision rule, threshold, floor or
+ * later enforcement and holds the judgment text (D1); its user prompts hold no conclusion of the core (D2). The renders
+ * are written to build/reports/prompt-bundle/v1.0 to be read.
  */
-class V21PromptTest {
+class ProductPromptJudgmentTest {
 
-    /** Words of a decision rule, a floor or a later enforcement; none is in the v21 system text. */
+    /** Words of a decision rule, a floor or a later enforcement; none is in the product system text. */
     private static final List<String> RULE_WORDS = List.of("Floor", "floor", "Minimum action", "minimum action",
             "Required BLOCK", "boundary", "Boundaries", "choose ALLOW when", "choose BLOCK when", "at least 100",
             "MIN_P", "PolicySatisfied", "A later check", "enforces", "Otherwise prefer", "least disruptive");
 
-    /** Words of a conclusion of the core; none is in a v21 user prompt. */
+    /** Words of a conclusion of the core; none is in a user prompt of the product version. */
     private static final List<String> CONCLUSION_WORDS = List.of("PolicySatisfied", "— covers this request",
             "does not cover:", "not known whether it covers", "(unexplained)", "(explained by",
             "within the scope group", "outside the scope group", "within the cohort", "outside the cohort",
@@ -58,7 +58,7 @@ class V21PromptTest {
         golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
         rendered = new ArrayList<>();
-        Path directory = Path.of("build/reports/prompt-bundle/v21");
+        Path directory = Path.of("build/reports/prompt-bundle/v1.0");
         Files.createDirectories(directory);
         for (JsonNode goldenCase : golden.cases()) {
             SecurityDecisionGoldenRender.RenderedCase item =
@@ -87,7 +87,7 @@ class V21PromptTest {
                 // 판정층 E-1, E-2: ESCALATE hands the request to the second analysis, which chooses one of the other
                 // three; a prompt with SECOND PASS is that analysis. No person reviews a request.
                 .contains("No later system changes an ALLOW, a CHALLENGE or a BLOCK; do not pre-compensate for one.")
-                // 판정층 8절 2 (v21.8): the second analysis decides from the same facts; it gathers past records
+                // 판정층 8절 2: the second analysis decides from the same facts; it gathers past records
                 // only when the first analysis could not retrieve them (E-4b).
                 .contains("ESCALATE: the facts here cannot settle the response: they conflict, or they are too"
                         + " incomplete to choose between the other three. A second analysis then decides the request"
@@ -100,13 +100,13 @@ class V21PromptTest {
                 .doesNotContain("the facts found after it")
                 .doesNotContain("until a person reviews it")
                 .doesNotContain("No later system changes your response")
-                .contains("Return one JSON object with exactly these keys: action, hypotheses, reasonCodes, reason,"
-                        + " riskScore, confidence, mitre.");
+                .contains("Return one compact JSON object, on one line, with exactly these keys: "
+                        + String.join(", ", SecurityDecisionOutputContractV5.KEYS) + ".");
         assertThat(rendered).allSatisfy(item -> assertThat(item.systemText()).isEqualTo(system));
     }
 
     /**
-     * v21.17 (M10A, docs/agent 모델비교 5절): the system text says what a delegation's proof shows: a record the person
+     * M10A (docs/agent 모델비교 5절): the system text says what a delegation's proof shows: a record the person
      * wrote is the person's own hand-over, an access token's claim alone is the word of whoever holds the token. It says
      * how to read the evidence and names no response: the verdict stays the model's own reasoning.
      */
@@ -133,7 +133,7 @@ class V21PromptTest {
         assertThat(rendered).anySatisfy(item -> assertThat(item.userText()).contains("=== RECORDS AND COMPARISONS"));
     }
 
-    /** Every line a v4 reason code may cite carries a fact ID in the v21 prompt, so the model can cite it. */
+    /** Every line a reason code of the output contract may cite carries a fact ID, so the model can cite it. */
     @Test
     void everyLineAReasonCodeCitesCarriesAFactId() {
         List<String> notCitable = new ArrayList<>();
@@ -144,7 +144,7 @@ class V21PromptTest {
                 }
                 String block = cited.substring(0, cited.indexOf('.'));
                 String name = cited.substring(cited.indexOf('.') + 1);
-                boolean citable = SecurityDecisionPromptDictionary.V21_ENTRIES.stream()
+                boolean citable = SecurityDecisionPromptDictionary.V1_ENTRIES.stream()
                         .anyMatch(entry -> entry.block().name().equals(block) && entry.name().equals(name)
                                 && entry.block().factPrefix() != null
                                 && PromptDictionaryEntry.PRIORITY_REQUIRED.equals(entry.priority()));
@@ -157,11 +157,11 @@ class V21PromptTest {
     }
 
     @Test
-    void theRenderIsTheV21LayoutAndItsFactsHoldNoPolicySatisfaction() {
+    void theRenderIsTheDictionaryLayoutAndItsFactsHoldNoPolicySatisfaction() {
         assertThat(rendered).allSatisfy(item -> {
             assertThat(item.executionMetadata().supplementalMetadata()
                     .get(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION))
-                    .isEqualTo(SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21);
+                    .isEqualTo(SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1);
             if (item.canonicalContext() != null && item.canonicalContext().getDecisionFacts() != null) {
                 assertThat(item.canonicalContext().getDecisionFacts().facts()).extracting(DecisionFact::name)
                         .doesNotContain("PolicySatisfied");

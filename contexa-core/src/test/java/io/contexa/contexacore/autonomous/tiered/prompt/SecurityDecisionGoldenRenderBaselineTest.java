@@ -31,10 +31,12 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * N-GOLD-1: the golden render draws the baseline the sealed prompts state. Each case is rendered with the v20 bundle
- * the sealed prompts were drawn with and the budget profile its source decision was sealed with; its baseline status
- * line and its line of deviations from the baseline are the sealed prompt's (27 cases). N-K5-2: so are its past denied
- * decisions, which the template relearn case draws.
+ * N-GOLD-1: the golden render draws the baseline the sealed prompts state. Each case is rendered with the budget profile
+ * its source decision was sealed with; its baseline status line and its line of deviations from the baseline are the
+ * sealed prompt's (27 cases). The sealed prompts were drawn before the product version stated records in place of the
+ * core's conclusions (V-4), so a deviation is compared without the conclusion the sealed line gave it (unexplained, or
+ * explained by a record). N-K5-2: so are its past denied decisions, which the template relearn case draws; their
+ * targets are quoted in UNTRUSTED TEXT (A3-5).
  */
 class SecurityDecisionGoldenRenderBaselineTest {
 
@@ -49,6 +51,10 @@ class SecurityDecisionGoldenRenderBaselineTest {
     /** N-K5-2: the golden case whose sealed prompt draws past denied decisions (an engine template relearn step). */
     private static final String TEMPLATE_RELEARN_CASE = "TPL-ADM-C-50";
     private static final Pattern DENIED = Pattern.compile("^(?:\\[P[0-9]{1,2}] )?(PastDeniedDecision[0-9]+: .*)$");
+    /** The target of a sealed past denied decision line, between its action and its decided action. */
+    private static final Pattern DENIED_TARGET = Pattern.compile("^(.* [A-Z_]+ )(\\S+)( -> [A-Z_]+ \\(.+\\))$");
+    /** The core's conclusion on a deviation, which a sealed line wrote after it and the product version does not. */
+    private static final Pattern CONCLUSION = Pattern.compile(" \\((?:unexplained|explained by [^)]+)\\)");
 
     @Test
     void theBaselineStatusAndTheDeviationsAreTheSealedOnes() {
@@ -63,6 +69,9 @@ class SecurityDecisionGoldenRenderBaselineTest {
             for (String name : NAMES) {
                 String expected = "DeviationsFromBaseline".equals(name) && sealed.contains(CLOCK_HOUR_RATE)
                         ? withTheRateNotCompared(line(sealed, name)) : line(sealed, name);
+                if ("DeviationsFromBaseline".equals(name) && expected != null) {
+                    expected = CONCLUSION.matcher(expected).replaceAll("");
+                }
                 String actual = line(rendered, name);
                 if (!Objects.equals(expected, actual)) {
                     differing.add(goldenCase.path("caseKey").asText() + " " + name + "\n  sealed   " + expected
@@ -75,10 +84,11 @@ class SecurityDecisionGoldenRenderBaselineTest {
     }
 
     /**
-     * N-K5-2 (completion criterion K5): the v20 render draws the past denied decisions the sealed prompt draws, in its
-     * order, and the template relearn case draws its three. The fact IDs are left out: the golden inputs carry no past
-     * record counts (the sealed retrieval results do not keep them), so the render numbers the past records block
-     * from its first record.
+     * N-K5-2 (completion criterion K5): the render draws the past denied decisions the sealed prompt draws, in its
+     * order, and the template relearn case draws its three. Each line says its target is in UNTRUSTED TEXT, which quotes
+     * the target the sealed line wrote (A3-5). The fact IDs are left out: the golden inputs carry no past record counts
+     * (the sealed retrieval results do not keep them), so the render numbers the past records block from its first
+     * record.
      */
     @Test
     void thePastDeniedDecisionsAreTheSealedOnes() {
@@ -90,8 +100,18 @@ class SecurityDecisionGoldenRenderBaselineTest {
             PromptBudgetProfile profile = PromptBudgetProfile.fromKey(goldenCase.path("budgetProfile").asText(),
                     PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
             String caseKey = goldenCase.path("caseKey").asText();
-            List<String> sealed = denied(goldenCase.path("rawUserPrompt").asText());
-            List<String> rendered = denied(golden.render(goldenCase, profile, properties).userText());
+            String user = golden.render(goldenCase, profile, properties).userText();
+            List<String> sealed = new ArrayList<>();
+            for (String line : denied(goldenCase.path("rawUserPrompt").asText())) {
+                Matcher target = DENIED_TARGET.matcher(line);
+                assertThat(target.matches()).as(caseKey + " " + line).isTrue();
+                sealed.add(target.group(1) + PastDeniedLines.TARGET_APART + target.group(3));
+                String quoted = "source=" + UntrustedTextSources.PAST_RECORD_TARGET + "; \"" + target.group(2) + "\"";
+                if (!user.substring(Math.max(0, user.indexOf("=== UNTRUSTED TEXT"))).contains(quoted)) {
+                    differing.add(caseKey + " target not quoted: " + quoted);
+                }
+            }
+            List<String> rendered = denied(user);
             if (!sealed.equals(rendered)) {
                 differing.add(caseKey + "\n  sealed   " + sealed + "\n  rendered " + rendered);
             }
@@ -102,7 +122,8 @@ class SecurityDecisionGoldenRenderBaselineTest {
         assertThat(differing).isEmpty();
         assertThat(drawn).containsOnlyKeys(TEMPLATE_RELEARN_CASE);
         assertThat(drawn.get(TEMPLATE_RELEARN_CASE)).hasSize(3).contains("PastDeniedDecision2: 09-24 Thu 23:09 "
-                + "(5 days before this request) READ documentKey=PLM-OPS-SPC-00121 -> CHALLENGE (verified by step-up)");
+                + "(5 days before this request) READ " + PastDeniedLines.TARGET_APART
+                + " -> CHALLENGE (verified by step-up)");
     }
 
     /** The PastDeniedDecision lines of a prompt in their order, without their fact IDs. */
