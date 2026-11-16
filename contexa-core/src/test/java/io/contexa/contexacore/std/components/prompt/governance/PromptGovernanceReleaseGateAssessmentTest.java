@@ -47,7 +47,8 @@ class PromptGovernanceReleaseGateAssessmentTest {
 
     private static final String SCOPE = PromptGovernanceRegistryService.PLATFORM_GLOBAL_SCOPE;
     private static final String KEY = "cortex.security-decision";
-    private static final String VERSION = "2026.10.16-v20.22";
+    /** Plan 6-2: the gate reads the manifest of the one bundle the build ships (the earlier manifests went, D7). */
+    private static final String VERSION = "2026.11.16-v1.0";
     private static final String CONTRACT = "CORTEX_PROMPT_CONTRACT_V3";
     private static final String ROLLBACK = "2026.10.16-v19.18";
 
@@ -163,16 +164,16 @@ class PromptGovernanceReleaseGateAssessmentTest {
         when(evaluationRepository.findFirstByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(SCOPE, KEY,
                 VERSION)).thenReturn(Optional.of(PromptGovernanceEvaluationRecord.builder()
                 .evaluationReference("P6-GATE-1").evaluationState("PARTIAL").coveredScenarioCount(1)
-                .requiredScenarioCount(3).coveredScenarioFamiliesJson("[\"PROMPT_INJECTION\"]")
+                .requiredScenarioCount(2).coveredScenarioFamiliesJson("[\"PROMPT_INJECTION\"]")
                 .bundleHash("another-bundle-hash").build()));
 
         PromptGovernanceReleaseGateService.ReleaseGateEvidence evidence = service.assessPromptRelease(SCOPE, KEY,
                 VERSION).evidence();
 
-        assertThat(evidence.requiredScenarioFamilies())
-                .containsExactly("PROMPT_INJECTION", "TOOL_MISUSE", "MEMORY_POISONING");
+        // The families the v1.0 manifest declares (N-GOV-2).
+        assertThat(evidence.requiredScenarioFamilies()).containsExactly("PROMPT_INJECTION", "MEMORY_POISONING");
         assertThat(evidence.coveredScenarioFamilies()).containsExactly("PROMPT_INJECTION");
-        assertThat(evidence.uncoveredScenarioFamilies()).containsExactly("TOOL_MISUSE", "MEMORY_POISONING");
+        assertThat(evidence.uncoveredScenarioFamilies()).containsExactly("MEMORY_POISONING");
     }
 
     @Test

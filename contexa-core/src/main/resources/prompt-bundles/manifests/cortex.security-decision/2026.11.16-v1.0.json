@@ -1,7 +1,7 @@
 {
   "promptKey" : "cortex.security-decision",
   "bundleVersion" : "2026.11.16-v1.0",
-  "bundleHash" : "d40afebdad5b88463a30f9ee6d8ed243e4d5fffebbc1a84fd6c323b64ca6e4dd",
+  "bundleHash" : "23423aa64cf12a38edd94a169e59879969ac28766fbd6ee98274017b1d2f247f",
   "elements" : [ {
     "id" : "B1",
     "state" : "PRESENT",
@@ -20,7 +20,7 @@
   }, {
     "id" : "B4",
     "state" : "PRESENT",
-    "hash" : "6ff3e35da6773f7c2008f3b7291eb31082beade6fab5707466041b343f35de89",
+    "hash" : "3dd16f5b3b3693f37b419480065bd2735a4760bb6fe227258ca53cc222db2ad4",
     "detail" : "format instructions, the output contract v5 schema and the response fields (K30)"
   }, {
     "id" : "B5",
@@ -30,7 +30,7 @@
   }, {
     "id" : "B6",
     "state" : "PRESENT",
-    "hash" : "489e54dbc8b081b4b0f42a71510a800e48dfc272b0f01e94e0b1b1020f8e0621",
+    "hash" : "50545164e5d4c9b670d8723fc36b5e79ae56c029140e8b7e0f2d9cd871abec76",
     "detail" : "v1.0 response check sources: the v21 check, the past record claim, the boundaries and the floors, and the fallback actions, read through the short answer's adapter (K30)"
   }, {
     "id" : "B7",
@@ -74,7 +74,7 @@
   "frozenOn" : "2026-11-16",
   "vocabularyVersion" : "vocab-2026.10.15.2",
   "compatibleVocabularyVersions" : [ "vocab-unstamped", "vocab-2026.10.15", "vocab-2026.10.15.2" ],
-  "rollbackTargets" : [ "2026.10.24-v19.21" ],
+  "rollbackTargets" : [ ],
   "declaredModelProfiles" : [ "STRICT_JSON_SCHEMA", "LOW_TEMPERATURE_SECURITY_DECISION", "EVIDENCE_ONLY_RETRIEVAL", "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI" ],
   "evaluationScenarioFamilies" : [ "PROMPT_INJECTION", "MEMORY_POISONING" ]
 }
