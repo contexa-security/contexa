@@ -17,7 +17,6 @@ package io.contexa.autoconfigure.iam.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
-import io.contexa.autoconfigure.core.scope.ContexaScopedAnnotationAutoConfiguration;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
@@ -199,7 +198,7 @@ public class PromptVersionAutoConfiguration {
     public ApplicationRunner promptVersionStartupRunner(
             PromptVersionService contexaPromptVersionService,
             ObjectProvider<PromptVersionFolderScanner> promptVersionFolderScanner,
-            @Qualifier(ContexaScopedAnnotationAutoConfiguration.TASK_SCHEDULER) ObjectProvider<TaskScheduler> scheduler) {
+            @Qualifier("contexaTaskScheduler") ObjectProvider<TaskScheduler> scheduler) {
         PromptVersionStartup startup = new PromptVersionStartup(contexaPromptVersionService,
                 promptVersionFolderScanner.getIfAvailable());
         return args -> startup.start(scheduler.getIfAvailable());

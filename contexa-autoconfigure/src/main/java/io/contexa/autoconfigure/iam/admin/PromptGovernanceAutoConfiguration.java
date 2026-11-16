@@ -4,8 +4,6 @@ import java.time.Clock;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptPolicySetLookup;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
-import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackApiController;
-import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseTransitionApiController;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceBudgetProfileRepository;
@@ -29,10 +27,6 @@ import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernance
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernanceRuntimeCacheInvalidationService;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRuntimeCacheInvalidationService;
-import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseApiController;
-import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseConsole;
-import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseConsoleApiController;
-import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
 import io.contexa.contexaiam.admin.promptquality.official.application.JdbcPromptRuntimeGovernanceDescriptorVerifier;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptRuntimeGovernanceDescriptorVerifier;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
@@ -51,8 +45,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * Prompt version management: the registry, its lifecycle ledger, release gate, evaluation and model compatibility
  * services, the startup registration, the ledger writer, the descriptor resolver, the runtime cache invalidation, the
- * descriptor verifier, the version query API (GET /contexa/admin/api/prompt-quality/releases) and the version
- * screens with their read API (W7-14).
+ * descriptor verifier, the release query and the bundle rollback. The prompt version screens and their API, which took
+ * the place of the release screens, are PromptVersionConsoleAutoConfiguration's (plan 6-6).
  *
  * <p>One property, {@code contexa.prompt.governance.enabled} (default on, version management decision 11), turns all
  * of them on or off together, in an OSS-only installation as well as with the enterprise modules. The descriptor
@@ -131,12 +125,6 @@ public class PromptGovernanceAutoConfiguration {
         return new JdbcPromptReleaseQueryService(jdbcTemplate);
     }
 
-    @Bean(name = "contexaPromptReleaseApiController")
-    @ConditionalOnMissingBean
-    public PromptReleaseApiController promptReleaseApiController(JdbcPromptReleaseQueryService contexaPromptReleaseQueryService) {
-        return new PromptReleaseApiController(contexaPromptReleaseQueryService);
-    }
-
     /** W6-10: the bundle rollback, on this build's bundles; a host with policy sets gives a {@link PromptPolicySetLookup}. */
     @Bean(name = "contexaPromptBundleRollbackService")
     @ConditionalOnMissingBean
@@ -149,13 +137,6 @@ public class PromptGovernanceAutoConfiguration {
         return new PromptBundleRollbackService(jdbcTemplate, PromptBundleCatalog.shared(), runtimeCacheInvalidationService,
                 policySetLookup.getIfAvailable(), objectMapper, Clock.systemUTC(),
                 new JpaPromptGovernanceStatusWriter(registryRepository.getIfAvailable(), rollbackRepository.getIfAvailable()));
-    }
-
-    @Bean(name = "contexaPromptBundleRollbackApiController")
-    @ConditionalOnMissingBean
-    public PromptBundleRollbackApiController promptBundleRollbackApiController(
-            PromptBundleRollbackService contexaPromptBundleRollbackService) {
-        return new PromptBundleRollbackApiController(contexaPromptBundleRollbackService);
     }
 
     @Bean(name = "contexaPromptGovernanceRegistryService")
@@ -220,47 +201,6 @@ public class PromptGovernanceAutoConfiguration {
                 promptGovernanceModelCompatibilityRepository,
                 promptGovernanceBudgetProfileRepository);
     }
-
-    /** W6-8: the operator's registry transitions through the release gate. */
-    @Bean(name = "contexaPromptReleaseTransitionApiController")
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(PromptGovernanceReleaseGateService.class)
-    public PromptReleaseTransitionApiController promptReleaseTransitionApiController(
-            PromptGovernanceReleaseGateService contexaPromptGovernanceReleaseGateService,
-            PromptGovernanceRuntimeCacheInvalidationService runtimeCacheInvalidationService) {
-        return new PromptReleaseTransitionApiController(contexaPromptGovernanceReleaseGateService,
-                runtimeCacheInvalidationService);
-    }
-
-    /**
-     * W7-14: what the version screens show, from the registry, the release gate, the rollbacks and the sealed
-     * decisions. The sealed decisions are read with the inspection read model, also where the inspection is off.
-     */
-    @Bean(name = "contexaPromptReleaseConsole")
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(PromptGovernanceReleaseGateService.class)
-    public PromptReleaseConsole promptReleaseConsole(
-            JdbcPromptReleaseQueryService contexaPromptReleaseQueryService,
-            PromptGovernanceReleaseGateService contexaPromptGovernanceReleaseGateService,
-            PromptBundleRollbackService contexaPromptBundleRollbackService,
-            ObjectProvider<JdbcPromptInspectionQueries> promptInspectionQueries,
-            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
-        return new PromptReleaseConsole(contexaPromptReleaseQueryService, contexaPromptGovernanceReleaseGateService,
-                contexaPromptBundleRollbackService, PromptBundleCatalog.shared(),
-                promptInspectionQueries.getIfAvailable(() -> new JdbcPromptInspectionQueries(jdbcTemplate)));
-    }
-
-    /** W7-14: the read API of the version screens (bundles, gate, compare). */
-    @Bean(name = "contexaPromptReleaseConsoleApiController")
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(PromptReleaseConsole.class)
-    public PromptReleaseConsoleApiController promptReleaseConsoleApiController(
-            PromptReleaseConsole contexaPromptReleaseConsole) {
-        return new PromptReleaseConsoleApiController(contexaPromptReleaseConsole, Clock.systemUTC());
-    }
-
-    // Plan 6-6 (3): the addresses of the release screens open the prompt version screens
-    // (PromptVersionConsoleController), so the release page controller is no longer registered.
 
     @Bean(name = "contexaPromptGovernanceEmpiricalEvalService")
     @ConditionalOnMissingBean

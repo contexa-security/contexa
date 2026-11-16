@@ -20,16 +20,21 @@ import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumen
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.AdvancedView;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Cancelled;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.CheckView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Created;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Draft;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.DraftForm;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.FolderView;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Hidden;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.HistoryRow;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.ListView;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.ProblemView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Receipt;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Refused;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.ShadowResults;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.TrialStart;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.TrialStarted;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.TrialView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.UseCheck;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.VersionView;
@@ -59,10 +64,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
 
@@ -330,11 +333,11 @@ public class PromptVersionConsoleController {
 
     @ResponseBody
     @PostMapping(API + "/{number:\\d+}/hide")
-    public Map<String, Object> hide(@PathVariable int number, @RequestParam(required = false) String scope,
+    public Hidden hide(@PathVariable int number, @RequestParam(required = false) String scope,
                                     @RequestParam(required = false) String prompt, Authentication authentication) {
         requireAdmin(authentication);
         console.hide(scope, prompt, number, authentication.getName());
-        return Map.of("hidden", PromptVersionNames.name(number));
+        return new Hidden(PromptVersionNames.name(number));
     }
 
     /** A document an operator uploads: its file name and its text. */
@@ -411,7 +414,7 @@ public class PromptVersionConsoleController {
 
     @ResponseBody
     @PostMapping(API + "/trials")
-    public Map<String, Object> startTrial(@RequestParam(required = false) String scope,
+    public TrialStarted startTrial(@RequestParam(required = false) String scope,
                                           @RequestParam(required = false) String prompt, @RequestBody TrialBody body,
                                           Authentication authentication) {
         requireAdmin(authentication);
@@ -420,14 +423,14 @@ public class PromptVersionConsoleController {
         }
         long id = console.startTrial(scope, prompt, body.candidate(), body.reference(), body.count(),
                 authentication.getName());
-        return Map.of("id", id);
+        return new TrialStarted(id);
     }
 
     @ResponseBody
     @PostMapping(API + "/trials/{id:\\d+}/cancel")
-    public Map<String, Object> cancelTrial(@PathVariable long id, Authentication authentication) {
+    public Cancelled cancelTrial(@PathVariable long id, Authentication authentication) {
         requireAdmin(authentication);
-        return Map.of("cancelled", console.cancelTrial(id, authentication.getName()));
+        return new Cancelled(console.cancelTrial(id, authentication.getName()));
     }
 
     /** An emergency rollback: the version to go back to and why. */
@@ -460,28 +463,20 @@ public class PromptVersionConsoleController {
 
     /** A request the console refuses: 422 with the code the screen names. */
     @ExceptionHandler(PromptVersionConsole.RefusedException.class)
-    public ResponseEntity<Map<String, Object>> refused(PromptVersionConsole.RefusedException refused) {
-        return ResponseEntity.unprocessableEntity().body(Map.of("code", refused.code()));
+    public ResponseEntity<Refused> refused(PromptVersionConsole.RefusedException refused) {
+        return ResponseEntity.unprocessableEntity().body(new Refused(refused.code(), List.of()));
     }
 
     @ExceptionHandler(PromptVersionTrials.RefusedException.class)
-    public ResponseEntity<Map<String, Object>> trialRefused(PromptVersionTrials.RefusedException refused) {
-        return ResponseEntity.unprocessableEntity().body(Map.of("code", "TRIAL_" + refused.refusal().name()));
+    public ResponseEntity<Refused> trialRefused(PromptVersionTrials.RefusedException refused) {
+        return ResponseEntity.unprocessableEntity().body(new Refused("TRIAL_" + refused.refusal().name(), List.of()));
     }
 
     /** A document that cannot be saved: 422 with every problem (plan 3.5). */
     @ExceptionHandler(PromptVersionDocumentException.class)
-    public ResponseEntity<Map<String, Object>> problems(PromptVersionDocumentException refused) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("code", "PROBLEMS");
-        body.put("problems", refused.problems().stream().map(problem -> {
-            Map<String, Object> one = new LinkedHashMap<>();
-            one.put("code", problem.code().name());
-            one.put("where", problem.where());
-            one.put("detail", problem.detail());
-            return one;
-        }).toList());
-        return ResponseEntity.unprocessableEntity().body(body);
+    public ResponseEntity<Refused> problems(PromptVersionDocumentException refused) {
+        return ResponseEntity.unprocessableEntity().body(new Refused("PROBLEMS", refused.problems().stream()
+                .map(problem -> new ProblemView(problem.code().name(), problem.where(), problem.detail())).toList()));
     }
 
     private static ResponseEntity<Receipt> receipt(Receipt receipt) {

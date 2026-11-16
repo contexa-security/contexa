@@ -23,7 +23,6 @@ import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
 import io.contexa.contexacore.autonomous.tiered.prompt.MeasuredVariant;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import static org.mockito.Mockito.never;
@@ -33,6 +32,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import java.time.ZoneId;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
@@ -831,13 +831,16 @@ class Layer1ContextualStrategyTest {
                 properties
         );
         SecurityEvent event = buildTestEvent();
+        // A version fixed on the event when its decision started: its name and what chose it (plan 3.4).
         event.getMetadata().put(SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION, MeasuredVariant.VERSION);
+        event.getMetadata().put(SecurityDecisionPromptSections.EVENT_BUNDLE_SOURCE,
+                PromptBundleSelectionSource.CONFIGURATION.name());
 
         exactStrategy.evaluate(event);
 
         verify(vectorService, never()).searchSimilar(ArgumentMatchers.any(SearchRequest.class));
         assertThat(event.getMetadata())
-                .containsEntry("promptBundleSelection.version", SecurityDecisionPromptBundles.V1.version())
+                .containsEntry("promptBundleSelection.version", MeasuredVariant.VERSION)
                 .containsEntry("ragSearchMode", "EXACT_PAST_RECORD_LOOKUP")
                 .containsKey("ragPastRecordCounts");
     }

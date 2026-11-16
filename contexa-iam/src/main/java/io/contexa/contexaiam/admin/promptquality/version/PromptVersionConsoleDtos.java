@@ -161,6 +161,26 @@ public final class PromptVersionConsoleDtos {
                             int systemTokens, Long estimatedDeltaMs, Integer contextTokens) {
     }
 
+    /** A version hidden from the lists. */
+    public record Hidden(String hidden) {
+    }
+
+    /** A trial started, by its id. */
+    public record TrialStarted(long id) {
+    }
+
+    /** Whether a trial was cancelled. */
+    public record Cancelled(boolean cancelled) {
+    }
+
+    /** A request the console refused: the code the screens name, and the problems of a document that has any. */
+    public record Refused(String code, List<ProblemView> problems) {
+
+        public Refused {
+            problems = problems == null ? List.of() : List.copyOf(problems);
+        }
+    }
+
     /** A saved version, and the receipt of using it for decisions when the screen asked to. */
     public record Created(int number, String name, String contentHash, boolean made, Receipt used) {
     }
