@@ -9,6 +9,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
@@ -462,6 +463,11 @@ public class SealedEvidencePackageAssembler {
                 "runtimeModelId",
                 "requestedModelId",
                 "preferredModel"));
+        // Plan 3.8 (9): the version the decision ran and its content hash, as fixed on the event when it started.
+        putIfAbsent(metadata, PromptExecutionMetadata.PROMPT_VERSION_NAME,
+                resolveText(runtimeMetadata, SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION));
+        putIfAbsent(metadata, PromptExecutionMetadata.PROMPT_CONTENT_HASH,
+                resolveText(runtimeMetadata, SecurityDecisionPromptSections.EVENT_BUNDLE_CONTENT_HASH));
         return toJson(compactPromptExecutionMetadata(metadata));
     }
 
@@ -489,6 +495,8 @@ public class SealedEvidencePackageAssembler {
         copyPromptMetadataField(compact, source, "promptBundleVersion");
         copyPromptMetadataField(compact, source, "promptBundleHash");
         copyPromptMetadataField(compact, source, "promptBundleSelectionSource");
+        copyPromptMetadataField(compact, source, PromptExecutionMetadata.PROMPT_VERSION_NAME);
+        copyPromptMetadataField(compact, source, PromptExecutionMetadata.PROMPT_CONTENT_HASH);
         copyPromptMetadataField(compact, source, "promptTemplateVersion");
         copyPromptMetadataField(compact, source, "promptGovernanceVersion");
         copyPromptMetadataField(compact, source, "provider");

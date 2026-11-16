@@ -70,6 +70,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDic
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import org.springframework.lang.Nullable;
@@ -546,8 +547,10 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<PromptGovernanceDescriptorResolver> promptGovernanceDescriptorResolver,
             ObjectProvider<PromptRuntimeGovernanceRuleProvider> promptRuntimeGovernanceRuleProvider,
             ObjectProvider<PromptBundleSelector> promptBundleSelector,
+            ObjectProvider<PromptVersionStore> promptVersionStore,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
-        // Without a selector bean the configured bundle runs (contexa.security.tiered.prompt-bundle.active, W3-16).
+        // Plan 3.4: the version resolver of the console chooses the version of each decision; without a selector bean
+        // the configured name runs (contexa.security.tiered.prompt-bundle.active).
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 contexaSecurityEventEnricher,
                 tieredStrategyProperties,
@@ -556,6 +559,9 @@ public class CoreAutonomousAutoConfiguration {
                 promptGovernanceDescriptorResolver.getIfAvailable(PromptGovernanceDescriptorResolver::identity),
                 promptRuntimeGovernanceRuleProvider.getIfAvailable(PromptRuntimeGovernanceRuleProvider::none),
                 promptBundleSelector.getIfAvailable());
+        // Plan 3.8 (2, 11): the versions are read from the database store, the product documents behind it; without
+        // the store only the product documents are.
+        template.setPromptVersionStore(promptVersionStore.getIfAvailable());
         // W4-4: the system text states the minimum action rules the strategies check, with the host's settings; K32:
         // the v1.0 text states them when the host enforces them, as the response check then holds an answer to them.
         template.setMinimumActionSettings(securityZeroTrustProperties.getMinimumAction().toRules(),

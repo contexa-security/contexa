@@ -18,15 +18,21 @@ package io.contexa.autoconfigure.core.autonomous;
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
+import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
+import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentReader;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
@@ -45,7 +51,7 @@ import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -168,11 +174,17 @@ class CoreAutonomousAutoConfigurationTest {
         }
 
         @Test
-        @DisplayName("Should draw the prompt with the bundle the selector bean chooses (W3-16)")
-        void shouldDrawThePromptWithTheBundleTheSelectorBeanChooses() {
+        @DisplayName("Should draw the prompt with the version the selector bean chooses from the version store bean (plan 3.4, 3.8)")
+        void shouldDrawThePromptWithTheVersionTheSelectorBeanChoosesFromTheStoreBean() {
+            AssembledPrompt organization = new PromptAssembler().apply(SecurityDecisionPromptDocument.product(),
+                    new PromptVersionDocumentReader().read("prompt: cortex.security-decision\nbasedOn: v1.0\n"
+                            + "title: Finance closing\nsystem:\n  - key: how-to-judge\n    text: |\n"
+                            + "      1. Weigh the duty roster first.\n"));
             DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
-            beans.registerSingleton("contexaPromptBundleSelector", (PromptBundleSelector) (context, subject) ->
-                    new PromptBundleSelection("2026.10.24-v20.26", PromptBundleSelectionSource.REGISTRY));
+            beans.registerSingleton("contexaPromptVersionResolver", (PromptBundleSelector) (context, subject) ->
+                    new PromptBundleSelection("v2.0", PromptBundleSelectionSource.REGISTRY));
+            beans.registerSingleton("contexaPromptVersionStore", (PromptVersionStore) (prompt, version) ->
+                    "v2.0".equals(version) ? Optional.of(organization) : Optional.empty());
 
             SecurityDecisionStandardPromptTemplate template = new CoreAutonomousAutoConfiguration()
                     .securityDecisionStandardPromptTemplate(
@@ -183,16 +195,16 @@ class CoreAutonomousAutoConfigurationTest {
                             beans.getBeanProvider(PromptGovernanceDescriptorResolver.class),
                             beans.getBeanProvider(PromptRuntimeGovernanceRuleProvider.class),
                             beans.getBeanProvider(PromptBundleSelector.class),
+                            beans.getBeanProvider(PromptVersionStore.class),
                             new SecurityZeroTrustProperties());
-            Map<String, Object> metadata = template.buildStructuredPrompt(
-                            SecurityEvent.builder().eventId("event-w316").userId("alice").build(), null, null, List.of(),
-                            PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT)
-                    .executionMetadata().toMetadataMap();
+            SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
+                    SecurityEvent.builder().eventId("event-w316").userId("alice").build(), null, null, List.of(),
+                    PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
 
-            @SuppressWarnings("unchecked")
-            Map<String, Object> descriptor = (Map<String, Object>) metadata.get("governanceDescriptor");
-            assertThat(descriptor)
-                    .containsEntry("promptVersion", "2026.10.24-v20.26")
+            assertThat(prompt.systemText()).contains("1. Weigh the duty roster first.");
+            assertThat(prompt.executionMetadata().supplementalMetadata())
+                    .containsEntry(PromptExecutionMetadata.PROMPT_VERSION_NAME, "v2.0")
+                    .containsEntry(PromptExecutionMetadata.PROMPT_CONTENT_HASH, organization.contentHash())
                     .containsEntry("promptBundleSelectionSource", "REGISTRY");
         }
 

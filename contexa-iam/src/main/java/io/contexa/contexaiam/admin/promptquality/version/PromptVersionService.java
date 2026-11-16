@@ -213,8 +213,13 @@ public class PromptVersionService {
         AssembledPrompt version = assembler.apply(baseVersion, document);
         String name = originName != null && !originName.isBlank() ? originName.trim()
                 : "screen:" + UUID.randomUUID();
-        return save(scopeName, document.prompt(), document, yaml, version, base.get().number(),
+        Saved saved = save(scopeName, document.prompt(), document, yaml, version, base.get().number(),
                 baseVersion.contentHash(), PromptVersionRecord.ORGANIZATION, origin, name, createdBy);
+        if (saved.made() && PromptVersionRecord.FOLDER.equals(origin)) {
+            audit.record(PromptVersionAudit.FOLDER_REGISTERED, scopeName, document.prompt(), saved.name(), createdBy,
+                    name);
+        }
+        return saved;
     }
 
     /** The base an organization's document names: by its content hash first, then by its number. */

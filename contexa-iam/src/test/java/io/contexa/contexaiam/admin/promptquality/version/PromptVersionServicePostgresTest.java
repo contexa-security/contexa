@@ -32,9 +32,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.TaskScheduler;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -60,6 +64,11 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 /**
  * Plan 6-3 on a database with the schema of a new installation: the product versions are registered on a first
@@ -70,6 +79,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * order, on two servers within the invalidation poll.
  */
 @EnabledIfEnvironmentVariable(named = "CONTEXA_TEST_DB_URL", matches = ".+")
+@ExtendWith(OutputCaptureExtension.class)
 class PromptVersionServicePostgresTest {
 
     private static final String PROMPT = SecurityDecisionPromptDocument.PROMPT;
@@ -318,35 +328,101 @@ class PromptVersionServicePostgresTest {
         setting.set("v3.0");
         assertThat(resolver.select(context(null), "alice"))
                 .isEqualTo(new PromptBundleSelection("v3.0", PromptBundleSelectionSource.CONFIGURATION));
-        setting.set("2026.10.24-v19.21");
-        assertThat(resolver.select(context(null), "alice").bundleVersion()).as("an earlier bundle").isEqualTo("v1.0");
-        setting.set("v9.0");
-        assertThat(resolver.select(context(null), "alice").bundleVersion()).as("a version not made yet").isEqualTo("v1.0");
-        versions.create(null, organization("v1.0", JUDGE.replace("duty roster", "risk")), PromptVersionRecord.SCREEN,
-                null, "admin", null);
-        for (int number = 5; number <= 9; number++) {
-            versions.create(null, organization("v1.0", JUDGE.replace("duty roster", "risk " + number)),
-                    PromptVersionRecord.SCREEN, null, "admin", null);
-        }
-        clock.move(Duration.ofSeconds(61));
-        assertThat(resolver.select(context(null), "alice").bundleVersion()).as("the version made later").isEqualTo("v9.0");
-
         label("v2.0", "ACTIVE");
         assertThat(new PromptVersionResolver(new JdbcPromptGovernanceDescriptorResolver(jdbc, new ObjectMapper())
                 .registrySelector(), versions, setting::get, clock)
                 .select(context(null), "alice"))
                 .isEqualTo(new PromptBundleSelection("v2.0", PromptBundleSelectionSource.REGISTRY));
-        // The request's scope runs its own label; a scope without one runs the platform's.
+    }
+
+    /** Plan 3.4: the label of the request's scope, else the label of the platform scope. */
+    @Test
+    void theRequestScopeRunsItsOwnLabelAndAScopeWithoutOneThePlatforms() {
+        versions.registerProducts(null);
+        versions.create(null, organization("v1.0", JUDGE), PromptVersionRecord.SCREEN, null, "admin", null);
+        versions.create(null, organization("v1.0", JUDGE.replace("duty roster", "plan")), PromptVersionRecord.SCREEN,
+                null, "admin", null);
+        label("v2.0", "ACTIVE");
         labelIn("TENANT-A", "v3.0", "ACTIVE");
-        PromptVersionResolver fresh = new PromptVersionResolver(new JdbcPromptGovernanceDescriptorResolver(jdbc,
+        PromptVersionResolver resolver = new PromptVersionResolver(new JdbcPromptGovernanceDescriptorResolver(jdbc,
+                new ObjectMapper()).registrySelector(), versions, () -> null, clock);
+
+        assertThat(resolver.select(context("TENANT-A"), "alice"))
+                .isEqualTo(new PromptBundleSelection("v3.0", PromptBundleSelectionSource.REGISTRY));
+        assertThat(resolver.select(context("TENANT-B"), "alice"))
+                .isEqualTo(new PromptBundleSelection("v2.0", PromptBundleSelectionSource.REGISTRY));
+    }
+
+    /**
+     * Plan 3.4: a setting that names a version that does not exist (or is hidden) is said once and the newest Contexa
+     * version runs until it exists; a version made later runs from then on; an earlier bundle's name is said once,
+     * whatever runs.
+     */
+    @Test
+    void aSettingOfNoVersionALaterVersionOrAnEarlierBundleIsSaidOnceAndPassedOver(CapturedOutput output) {
+        versions.registerProducts(null);
+        AtomicReference<String> setting = new AtomicReference<>("v3.0");
+        PromptVersionResolver resolver = new PromptVersionResolver(new JdbcPromptGovernanceDescriptorResolver(jdbc,
                 new ObjectMapper()).registrySelector(), versions, setting::get, clock);
-        assertThat(fresh.select(context("TENANT-A"), "alice").bundleVersion()).isEqualTo("v3.0");
-        assertThat(fresh.select(context("TENANT-B"), "alice").bundleVersion()).isEqualTo("v2.0");
-        // A setting that names a hidden version is passed over.
-        versions.hide(null, PROMPT, 9, "admin");
-        clock.move(Duration.ofSeconds(61));
-        assertThat(new PromptVersionResolver(null, versions, setting::get, clock).select(context(null), "alice"))
+
+        assertThat(resolver.select(context(null), "alice")).as("a version not made yet")
                 .isEqualTo(new PromptBundleSelection("v1.0", PromptBundleSelectionSource.BUILD_DEFAULT));
+        assertThat(resolver.select(context(null), "alice").bundleVersion()).isEqualTo("v1.0");
+        versions.create(null, organization("v1.0", JUDGE), PromptVersionRecord.SCREEN, null, "admin", null);
+        versions.create(null, organization("v1.0", JUDGE.replace("duty roster", "plan")), PromptVersionRecord.SCREEN,
+                null, "admin", null);
+        clock.move(Duration.ofSeconds(61));
+        assertThat(resolver.select(context(null), "alice")).as("the version made later")
+                .isEqualTo(new PromptBundleSelection("v3.0", PromptBundleSelectionSource.CONFIGURATION));
+        versions.hide(null, PROMPT, 3, "admin");
+        clock.move(Duration.ofSeconds(61));
+        assertThat(resolver.select(context(null), "alice").bundleVersion()).as("a hidden version").isEqualTo("v1.0");
+
+        setting.set("2026.10.24-v19.21");
+        label("v2.0", "ACTIVE");
+        PromptVersionResolver labelled = new PromptVersionResolver(new JdbcPromptGovernanceDescriptorResolver(jdbc,
+                new ObjectMapper()).registrySelector(), versions, setting::get, clock);
+        assertThat(labelled.select(context(null), "alice").bundleVersion()).as("an earlier bundle beside a label")
+                .isEqualTo("v2.0");
+        label("v2.0", "AVAILABLE");
+        PromptVersionResolver unlabelled = new PromptVersionResolver(new JdbcPromptGovernanceDescriptorResolver(jdbc,
+                new ObjectMapper()).registrySelector(), versions, setting::get, clock);
+        unlabelled.select(context(null), "alice");
+        assertThat(unlabelled.select(context(null), "alice").bundleVersion()).as("an earlier bundle").isEqualTo("v1.0");
+
+        assertThat(output.getOut().split("names v3.0, which is not a version", -1)).as("said once").hasSize(2);
+        assertThat(output.getOut().split("names 2026.10.24-v19.21, an earlier bundle", -1))
+                .as("said once by each resolver").hasSize(3);
+    }
+
+    /**
+     * Plan 6-3: the start of a node registers the product versions, retires the rows of earlier bundles, reads the
+     * document folder once and has it read every minute; another node starting after it registers nothing again.
+     */
+    @Test
+    void theStartOfANodeRegistersTheProductsRetiresTheBundlesAndReadsTheFolderEveryMinute(@TempDir Path folder)
+            throws Exception {
+        jdbc.update("insert into ctxa_prompt_governance_registry (registry_scope, prompt_key, template_key, prompt_version,"
+                + " contract_version, prompt_artifact_hash_sha256, release_status, owner_name, template_class_name,"
+                + " registration_source) values ('PLATFORM_GLOBAL', ?, ?, '2026.11.16-v1.0', 'C', ?, 'ACTIVE',"
+                + " 'o', 't', 'BUILD')", PROMPT, TEMPLATE_KEY, "a".repeat(64));
+        Files.writeString(folder.resolve("finance.yaml"), organization("v1.0", JUDGE));
+        TaskScheduler scheduler = mock(TaskScheduler.class);
+
+        new PromptVersionStartup(versions, new PromptVersionFolderScanner(() -> jdbc, versions, folder, "node-1", null))
+                .start(scheduler);
+        new PromptVersionStartup(service(SecurityDecisionPromptDocument.productReleases()), null).start(null);
+
+        assertThat(versions.list(null, PROMPT, false)).extracting(PromptVersionRecord::name, PromptVersionRecord::origin)
+                .containsExactly(tuple("v2.0", PromptVersionRecord.FOLDER), tuple("v1.0", PromptVersionRecord.PRODUCT));
+        assertThat(jdbc.queryForList("select prompt_version || ' ' || release_status from ctxa_prompt_governance_registry"
+                + " order by prompt_version", String.class))
+                .containsExactly("2026.11.16-v1.0 RETIRED", "v1.0 AVAILABLE", "v2.0 AVAILABLE");
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_prompt_version_folder_scan where node_name = 'node-1'"
+                + " and registered_count = 1", Integer.class)).isEqualTo(1);
+        verify(scheduler).scheduleWithFixedDelay(any(Runnable.class), any(Instant.class),
+                eq(PromptVersionStartup.FOLDER_INTERVAL));
+        assertThat(audited).contains("PROMPT_VERSION_CREATED v1.0", "PROMPT_VERSION_FOLDER_REGISTERED v2.0");
     }
 
     @Test
