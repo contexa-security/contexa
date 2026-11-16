@@ -360,8 +360,8 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("IAM schema maintenance should replay only nullability and default removal under ALTER COLUMN")
-    void iamSchemaMaintenanceAcceptsOnlyDropNotNullAndDropDefaultColumnChanges() {
+    @DisplayName("IAM schema maintenance should replay only nullability and default removal and varchar widening under ALTER COLUMN")
+    void iamSchemaMaintenanceAcceptsOnlyDropNotNullDropDefaultAndVarcharWideningColumnChanges() {
         String sql = """
                 alter table ctxa_system_settings alter column security_zerotrust_mode drop not null;
 
@@ -387,9 +387,13 @@ class IamSeedDataAutoConfigurationTest {
                 .map(statement -> statement.replaceAll("\\s+", " ").trim())
                 .toList();
 
+        // K35: a varchar widening is replayed too; the maintenance runs it only on a shorter column
+        // (SchemaVarcharWideningPostgresTest).
         assertThat(maintenance).containsExactly(
                 "alter table ctxa_system_settings alter column security_zerotrust_mode drop not null",
-                "alter table ctxa_system_settings alter column security_zerotrust_mode drop default");
+                "alter table ctxa_system_settings alter column security_zerotrust_mode drop default",
+                "alter table ctxa_sealed_evidence_package alter column package_id set data type varchar(256)",
+                "alter table ctxa_official_prompt_field_definition alter column field_key type varchar(512)");
     }
 
     @Test

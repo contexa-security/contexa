@@ -1001,6 +1001,10 @@ create table ctxa_one_time_tokens
     expires_at  timestamp   not null
 );
 
+-- K35: a database created while the user name was 50 characters long widens it; the start's maintenance runs this only
+-- on a shorter column and never shortens one.
+alter table ctxa_one_time_tokens alter column username type varchar(100);
+
 
 create table ctxa_oauth2_authorization_consent
 (

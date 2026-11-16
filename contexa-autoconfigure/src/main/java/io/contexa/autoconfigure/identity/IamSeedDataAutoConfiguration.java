@@ -56,6 +56,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -141,6 +142,13 @@ public class IamSeedDataAutoConfiguration {
     /** The columns the schema adds to a table after its {@code create table}; the same statements the maintenance replays. */
     private static final Pattern ALTER_TABLE_ADD_COLUMN_IF_NOT_EXISTS =
             Pattern.compile("^alter table (?:if exists )?(?:only )?([\\w.\"]+) .*\\badd column if not exists\\b.*");
+    /**
+     * K35: a text column the schema made longer after it was first created, such as the user name of
+     * ctxa_one_time_tokens (50, then 100). The maintenance runs such a statement only on a shorter column: it never
+     * shortens one, and it leaves a column of another type as it is.
+     */
+    static final Pattern ALTER_COLUMN_WIDEN_VARCHAR = Pattern.compile(
+            "^alter table (?:if exists )?(?:only )?([\\w.\"]+) alter column ([\\w\"]+) (?:set data )?type varchar\\((\\d+)\\)$");
 
     /**
      * The seed files the initializer runs, in order; the sample accounts last. Without the property they come unless an
@@ -411,8 +419,8 @@ public class IamSeedDataAutoConfiguration {
                     CANONICAL_SCHEMA_LOCATION);
             return;
         }
-        String maintenanceSql = extractIdempotentSchemaMaintenanceSql(
-                sanitizeSchemaSqlForInstalledDatabase(schema.getContentAsString(StandardCharsets.UTF_8)));
+        String maintenanceSql = withoutNeedlessWidening(dataSource, extractIdempotentSchemaMaintenanceSql(
+                sanitizeSchemaSqlForInstalledDatabase(schema.getContentAsString(StandardCharsets.UTF_8))));
         if (maintenanceSql.isBlank()) {
             log.info("[IamSeedData] No idempotent schema maintenance statements found");
             return;
@@ -812,6 +820,54 @@ public class IamSeedDataAutoConfiguration {
         return maintenance.toString();
     }
 
+    /**
+     * K35: the maintenance without the varchar widenings the database does not need. A widening stays only when the
+     * column exists as a varchar shorter than the schema's length; a longer column, an unbounded one, a column of
+     * another type and a missing column are left as they are, so the maintenance never shortens a column.
+     */
+    static String withoutNeedlessWidening(DataSource dataSource, String maintenanceSql) {
+        if (maintenanceSql == null || maintenanceSql.isBlank()) {
+            return "";
+        }
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        StringBuilder kept = new StringBuilder();
+        for (String statement : splitSqlStatements(maintenanceSql)) {
+            String candidate = statement.trim();
+            if (candidate.isEmpty()) {
+                continue;
+            }
+            Matcher widening = ALTER_COLUMN_WIDEN_VARCHAR.matcher(normalizeSqlStatement(candidate));
+            if (widening.matches() && !shorterVarchar(jdbc, unqualified(widening.group(1)),
+                    widening.group(2).replace("\"", ""), Integer.parseInt(widening.group(3)))) {
+                continue;
+            }
+            kept.append(candidate).append(";\n");
+        }
+        return kept.toString();
+    }
+
+    private static boolean shorterVarchar(JdbcTemplate jdbc, String table, String column, int length) {
+        List<Map<String, Object>> found = jdbc.queryForList("select data_type, character_maximum_length "
+                        + "from information_schema.columns where table_schema = current_schema() "
+                        + "and table_name = ? and column_name = ?", table, column);
+        if (found.isEmpty()) {
+            return false;
+        }
+        Object current = found.get(0).get("character_maximum_length");
+        boolean shorter = "character varying".equals(found.get(0).get("data_type"))
+                && current instanceof Number number && number.intValue() < length;
+        if (shorter) {
+            log.info("[IamSeedData] {}.{} is widened from varchar({}) to varchar({})", table, column, current, length);
+        }
+        return shorter;
+    }
+
+    private static String unqualified(String name) {
+        String bare = name.replace("\"", "");
+        int schemaSeparator = bare.lastIndexOf('.');
+        return schemaSeparator >= 0 ? bare.substring(schemaSeparator + 1) : bare;
+    }
+
     private static boolean isIdempotentSchemaMaintenanceStatement(String sqlStatement) {
         if (sqlStatement == null || sqlStatement.isBlank()) {
             return false;
@@ -822,10 +878,12 @@ public class IamSeedDataAutoConfiguration {
                 .replaceAll("\\s+", " ")
                 .trim()
                 .toLowerCase(Locale.ROOT);
-        // Under ALTER COLUMN only the removal of a NOT NULL constraint or of a default is replayed;
-        // both are no-ops once applied. Type, default and constraint changes are never replayed.
+        // Under ALTER COLUMN only the removal of a NOT NULL constraint or of a default is replayed, and the widening
+        // of a varchar, which withoutNeedlessWidening keeps for a shorter column only; all three are no-ops once
+        // applied. Other type, default and constraint changes are never replayed.
         return normalized.matches("^alter table \\S+ .*\\badd column if not exists\\b.*")
                 || normalized.matches("^alter table \\S+ alter column \\S+ drop (not null|default)$")
+                || ALTER_COLUMN_WIDEN_VARCHAR.matcher(normalized).matches()
                 || normalized.matches("^create table if not exists\\b.*")
                 || normalized.matches("^create (unique )?index if not exists\\b.*")
                 || normalized.matches("^create extension if not exists\\b.*");
