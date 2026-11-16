@@ -165,6 +165,14 @@ public final class ZeroTrustConsoleDtos {
     }
 
     /** One prompt bundle and model, the period it decided in and how its decisions came out. */
+    /**
+     * Plan 3.10 (2): the decisions of one prompt version since {@code from}: how many, the median decision time, the
+     * share asked again and the share of no usable answer (null without decisions), and the decisions per action.
+     */
+    public record VersionDecisions(String version, String from, long decisions, Long medianMs, Double retriedRatio,
+                                   Double malformedRatio, Map<String, Long> actions) {
+    }
+
     public record BundleModelRow(String bundle, String model, String from, String to, long decisions,
                                  Double stoppedRatio, Double modelLessRatio) {
     }

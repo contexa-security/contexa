@@ -299,6 +299,26 @@ public final class SecurityDecisionPromptDocument {
         return FormatHolder.OUTPUT_FORMAT;
     }
 
+    /**
+     * Plan 3.10 (2): the system text a decision draws from the version when the host keeps its defaults (a person's
+     * request, the minimum action floors observed): its judgment parts, then its output parts with the meaning of
+     * every reason code. The version screen shows it as the version's finished system prompt; the output format, which
+     * no version changes, follows it at the end of the prompt.
+     */
+    public static String systemPreview(AssembledPrompt version) {
+        Set<String> holding = version.holding(Set.of());
+        String judgment = version.draw(AssembledPrompt.JUDGMENT, Set.of(), null);
+        String output = AssembledPrompt.draw(version.drawnParts(OUTPUT_GROUP, Set.of()), holding, (part, held) ->
+                REASON_CODES_PART.equals(part.key())
+                        ? reasonCodeLines(part, SecurityDecisionOutputContractV4.citedLines()) : null);
+        return judgment + "\n" + output;
+    }
+
+    /** Plan 3.10 (2): the output format every version ends its prompt with, with the answer schema in place. */
+    public static String outputFormatPreview() {
+        return productOutputFormat();
+    }
+
     /** Whether the product version draws a part with its own text for an agent's request, worked out once. */
     static boolean productVariesByAgent() {
         return Holder.VARIES_BY_AGENT;

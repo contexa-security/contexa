@@ -71,11 +71,12 @@ class PromptReleaseMessagesTest {
         assertThat(PromptReleasePageController.SCRIPT_KEYS).contains("promptRelease.evidence.scenarioFamilies");
     }
 
+    /** Plan 6-6: the prompt version screens took the place of the release screens in the prompt quality group. */
     @Test
     void theMenuHasTheVersionScreenUnderThePromptQualityGroup() throws IOException {
         assertThat(read("META-INF/contexa/db/data-menu.sql")).containsPattern(
-                "\\('menu\\.pqa\\.releases',\\s*'/contexa/admin/prompt-quality/releases',\\s*'',\\s*'prompt-quality',"
-                        + "\\s*\\d+,\\s*TRUE,\\s*'CORE',\\s*'prompt-quality-releases'\\)");
+                "\\('menu\\.pqa\\.versions',\\s*'/contexa/admin/prompt-quality/versions',\\s*'',\\s*'prompt-quality',"
+                        + "\\s*\\d+,\\s*TRUE,\\s*'CORE',\\s*'prompt-quality-versions'\\)");
     }
 
     private static String read(String resource) throws IOException {

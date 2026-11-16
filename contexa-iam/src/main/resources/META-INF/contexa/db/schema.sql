@@ -4199,6 +4199,10 @@ alter table ctxa_prompt_governance_registry add column if not exists canary_perc
 -- W6-9 (P6-CHANGE-6): a canary release's target tenants and resource families (comma separated, none is every one).
 alter table ctxa_prompt_governance_registry add column if not exists canary_tenants varchar(2000);
 alter table ctxa_prompt_governance_registry add column if not exists canary_resource_families varchar(2000);
+-- Plan 3.4: the share of requests and the daily runs of a version running alongside the decisions (its shadow);
+-- empty, the shadow runner keeps the values of its configuration.
+alter table ctxa_prompt_governance_registry add column if not exists shadow_sample_percent integer check (shadow_sample_percent between 0 and 100);
+alter table ctxa_prompt_governance_registry add column if not exists shadow_daily_limit integer check (shadow_daily_limit >= 0);
 
 create unique index if not exists ctxa_idx_prompt_governance_registry_identity
     on ctxa_prompt_governance_registry (registry_scope, prompt_key, prompt_version);

@@ -120,6 +120,14 @@ public final class ZeroTrustConsoleMetrics {
      * read linearly inside its bucket; a percentile past the last bound is the last bound. Null for no measurement.
      */
     static Long percentile(long[] buckets, double p) {
+        return percentile(buckets, LATENCY_BOUNDS, p);
+    }
+
+    /** The bounds of the decision time buckets of the hourly table (1 s to 90 s, and one past the last). */
+    static final long[] HOURLY_LATENCY_BOUNDS = {1_000, 2_000, 5_000, 10_000, 30_000, 60_000, 90_000};
+
+    /** As {@link #percentile(long[], double)}, for a histogram of the given bounds. */
+    static Long percentile(long[] buckets, long[] bounds, double p) {
         long total = 0;
         for (long count : buckets) {
             total += count;
@@ -132,17 +140,17 @@ public final class ZeroTrustConsoleMetrics {
         for (int i = 0; i < buckets.length; i++) {
             long inBucket = buckets[i];
             if (inBucket > 0 && below + inBucket >= rank) {
-                if (i >= LATENCY_BOUNDS.length) {
-                    return LATENCY_BOUNDS[LATENCY_BOUNDS.length - 1];
+                if (i >= bounds.length) {
+                    return bounds[bounds.length - 1];
                 }
-                long lower = i == 0 ? 0 : LATENCY_BOUNDS[i - 1];
-                long upper = LATENCY_BOUNDS[i];
+                long lower = i == 0 ? 0 : bounds[i - 1];
+                long upper = bounds[i];
                 double inside = (rank - below) / inBucket;
                 return Math.round(lower + inside * (upper - lower));
             }
             below += inBucket;
         }
-        return LATENCY_BOUNDS[LATENCY_BOUNDS.length - 1];
+        return bounds[bounds.length - 1];
     }
 
     /** The value at a percentile of a list of values (nearest rank); null for an empty list. */

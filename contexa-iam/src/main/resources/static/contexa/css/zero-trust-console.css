@@ -1281,3 +1281,381 @@
         font-size: 0.6875rem;
     }
 }
+
+/* ----- prompt version screens (plan 3.10): the parts of a version, its editors and the policy center's confirmation ----- */
+
+.pv-crumbs {
+    font-size: 0.75rem;
+    line-height: 1.5;
+    min-height: 1.125rem;
+}
+
+.pv-notice:empty {
+    display: none;
+}
+
+.pv-notice {
+    margin-bottom: 1.5rem;
+}
+
+.pv-confirm-modal {
+    position: relative;
+}
+
+.pv-confirm-title {
+    margin: 0 0 1rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--zt-text);
+}
+
+.pv-foot {
+    margin: 0;
+    font-size: 0.75rem;
+}
+
+.pv-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.pv-actions.pv-end {
+    justify-content: flex-end;
+}
+
+/* The actions of a version row: links stacked under one another, so the row keeps the table's width. */
+.zt-table td.pv-cell-actions {
+    white-space: normal;
+}
+
+.zt-table td > div.pv-row-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    white-space: normal;
+}
+
+.pv-row-action {
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+}
+
+/* A text cut at its box, the whole text in its title. */
+.pv-cut {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* A value that may be one long word (a setting's name, a document's name): it breaks where it must. */
+.pv-wrap {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
+/* The short line a narrow screen shows in place of the columns it leaves out. */
+.pv-narrow {
+    display: none;
+}
+
+.pv-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--zt-muted);
+}
+
+.pv-col-number {
+    white-space: nowrap;
+}
+
+.pv-pager {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: auto;
+}
+
+.pv-menu {
+    position: relative;
+}
+
+.pv-menu > summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.pv-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.pv-menu-list {
+    position: absolute;
+    right: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 12rem;
+    margin-top: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--zt-border);
+    border-radius: 0.5rem;
+    background: rgba(15, 23, 42, 0.95);
+    font-size: 0.875rem;
+}
+
+/* The parts of a version, in their order: number and name, a line of what the part says, and its mark. */
+.pv-parts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pv-part,
+.pv-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--zt-border);
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.4);
+}
+
+.pv-part[data-pv-mark="CHANGED"], .pv-editor[data-pv-mark="CHANGED"] { border-left: 3px solid var(--zt-warn); }
+.pv-part[data-pv-mark="DELETED"], .pv-editor[data-pv-mark="DELETED"] { border-left: 3px solid var(--zt-bad); }
+.pv-part[data-pv-mark="ADDED"], .pv-editor[data-pv-mark="ADDED"] { border-left: 3px solid var(--zt-good); }
+.pv-part[data-pv-mark="INCLUDED"], .pv-editor[data-pv-mark="INCLUDED"] { border-left: 3px solid var(--zt-accent); }
+
+.pv-part > summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.pv-part > summary::-webkit-details-marker {
+    display: none;
+}
+
+.pv-part-head {
+    display: grid;
+    grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: center;
+    min-width: 0;
+}
+
+.pv-editor .pv-part-head {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.pv-part-title {
+    min-width: 0;
+    font-weight: 600;
+    color: var(--zt-text);
+    overflow-wrap: anywhere;
+}
+
+.pv-part-summary {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.75rem;
+}
+
+.pv-part-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.pv-compare {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.75rem;
+}
+
+/* A text of the prompt as it is: whole, wrapped at the box, in the console's monospace. */
+.pv-text {
+    margin: 0;
+    max-height: 24rem;
+    overflow: auto;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    background: rgba(15, 23, 42, 0.6);
+    color: var(--zt-text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.pv-items {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+    gap: 0.25rem 1rem;
+    margin: 0;
+    font-size: 0.75rem;
+}
+
+.pv-items dt {
+    min-width: 0;
+    color: var(--zt-muted);
+    overflow-wrap: anywhere;
+}
+
+.pv-items dd {
+    margin: 0;
+    min-width: 0;
+    color: var(--zt-text);
+    overflow-wrap: anywhere;
+}
+
+.pv-mark[data-pv-mark="LOCKED"], .pv-mark[data-pv-mark="SAME"] { background: rgba(100, 116, 139, 0.2); color: #94a3b8; border-color: rgba(100, 116, 139, 0.3); }
+.pv-mark[data-pv-mark="CHANGED"] { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
+.pv-mark[data-pv-mark="DELETED"] { background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+.pv-mark[data-pv-mark="ADDED"] { background: rgba(34, 197, 94, 0.2); color: #4ade80; border-color: rgba(34, 197, 94, 0.3); }
+.pv-mark[data-pv-mark="INCLUDED"] { background: rgba(139, 92, 246, 0.2); color: #a78bfa; border-color: rgba(139, 92, 246, 0.3); }
+
+.zt-chip[data-pv-state="USED"] { background: rgba(34, 197, 94, 0.2); color: #4ade80; border-color: rgba(34, 197, 94, 0.3); }
+.zt-chip[data-pv-state="CANARY"] { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
+.zt-chip[data-pv-state="SHADOW"] { background: rgba(139, 92, 246, 0.2); color: #a78bfa; border-color: rgba(139, 92, 246, 0.3); }
+.zt-chip[data-pv-state="HIDDEN"] { background: rgba(100, 116, 139, 0.1); color: #64748b; border-color: rgba(100, 116, 139, 0.2); }
+.zt-chip[data-pv-trial="DONE"], .zt-chip[data-pv-rollback="APPROVED"], .zt-chip[data-pv-rollback="EXECUTED"] { background: rgba(34, 197, 94, 0.2); color: #4ade80; border-color: rgba(34, 197, 94, 0.3); }
+.zt-chip[data-pv-trial="RUNNING"], .zt-chip[data-pv-trial="QUEUED"], .zt-chip[data-pv-rollback="AWAITING_APPROVAL"] { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
+.zt-chip[data-pv-trial="FAILED"], .zt-chip[data-pv-rollback="REFUSED"] { background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+
+.pv-editor-text {
+    min-height: 6rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+.pv-form-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+}
+
+.pv-add-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.pv-inline {
+    flex: 0 1 20rem;
+}
+
+.pv-prepared > summary {
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.pv-prepared > .zt-stack {
+    margin-top: 0.75rem;
+}
+
+@media (max-width: 1024px) {
+    .pv-compare {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .zt-table .pv-wide {
+        display: none;
+    }
+
+    .zt-table .pv-narrow {
+        display: block;
+    }
+
+    .pv-part-head,
+    .pv-editor .pv-part-head {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .pv-part-head .pv-part-summary {
+        display: none;
+    }
+
+    .pv-editor .pv-part-head .pv-actions {
+        grid-column: 1 / -1;
+    }
+}
+
+/* A table a phone cannot hold whole (the actions of a trial per version) gives way to the bars of the same numbers. */
+.pv-phone {
+    display: none;
+}
+
+@media (max-width: 480px) {
+    .pv-desk {
+        display: none;
+    }
+
+    .pv-phone {
+        display: block;
+    }
+
+    /* An action of a version row may take two lines rather than leave its cell. */
+    .pv-row-action {
+        white-space: normal;
+    }
+
+    /* A notice keeps its badge above its words, so its buttons stay inside it. */
+    .pv-page-notices .zt-alert,
+    .pv-prepared .zt-alert {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* The title of a version screen takes the row and its toolbar stays at the right, as the mockups place it. */
+.pv-title-row > .min-w-0 {
+    flex: 1 1 24rem;
+}
+
+/* Three key cards fill the row (the version in use, the versions, what is being tried). */
+.zt-kpi-row.pv-kpi-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.zt-kpi-row.pv-kpi-3 .zt-kpi-sub {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    white-space: normal;
+}
+
+@media (max-width: 1024px) {
+    .zt-kpi-row.pv-kpi-3 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* A field of buttons (a share, a count) takes a row of the form, so its buttons stay on one line. */
+.pv-form-grid .pv-span-all {
+    grid-column: 1 / -1;
+}
+
+/* A column head that names a version keeps its case: v2.0 is a name, not a word to capitalise. */
+.zt-page .zt-table th.pv-keep-case {
+    text-transform: none;
+}

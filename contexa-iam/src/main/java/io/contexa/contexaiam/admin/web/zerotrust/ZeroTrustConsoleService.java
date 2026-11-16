@@ -59,6 +59,7 @@ import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Trust;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.TrustCard;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.UnknownFact;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.WouldHave;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.VersionDecisions;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleReader.DayRow;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleReader.ItemRow;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleReader.LatencyRow;
@@ -555,6 +556,35 @@ public class ZeroTrustConsoleService {
     /** A fallback for an answer whose action had no usable form (console design 1.4). */
     private static boolean isResponseFormat(String cause) {
         return cause != null && (cause.startsWith("ACTION_") || "RESPONSE_FORMAT".equals(cause));
+    }
+
+    /**
+     * Plan 3.10 (2): the decisions a prompt version made in the last 90 days, from the hourly table the console screens
+     * read: how many, the median decision time, the share asked again, the share whose answer had no usable form or
+     * broke the contract (so the engine chose the action), and how many ended in each action.
+     */
+    public VersionDecisions versionDecisions(String bundleVersion, String tenant) {
+        ZeroTrustConsoleRange range = range("quarter", null, null);
+        long decisions = 0;
+        long retried = 0;
+        long malformed = 0;
+        Map<String, Long> actions = new LinkedHashMap<>();
+        for (StatsRow row : reader.stats(range, tenant)) {
+            if (!row.decision() || !bundleVersion.equals(row.bundle())) {
+                continue;
+            }
+            decisions += row.decisions();
+            retried += row.retried();
+            if (isResponseFormat(row.cause()) || "CONTRACT_FALLBACK".equals(row.cause())) {
+                malformed += row.decisions();
+            }
+            actions.merge(row.action(), row.decisions(), Long::sum);
+        }
+        Long median = decisions == 0 ? null : ZeroTrustConsoleMetrics.percentile(
+                reader.latencyOfBundle(range, tenant, bundleVersion), ZeroTrustConsoleMetrics.HOURLY_LATENCY_BOUNDS, 0.5);
+        return new VersionDecisions(bundleVersion, range.from().toString(), decisions, median,
+                decisions == 0 ? null : (double) retried / decisions, decisions == 0 ? null : (double) malformed / decisions,
+                actions);
     }
 
     /** Console design 6.3: each prompt bundle and model, when it decided and how its decisions came out. */

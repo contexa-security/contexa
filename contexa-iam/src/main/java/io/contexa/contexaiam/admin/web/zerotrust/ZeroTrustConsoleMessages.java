@@ -23,6 +23,7 @@ import org.springframework.core.io.ClassPathResource;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -30,22 +31,31 @@ import java.util.Map;
 import java.util.Properties;
 
 /**
- * The console's words for its screens: every message whose key starts with {@value #PREFIX}, in the language of the
- * request, as one JSON object the screens read. The keys are read from the default messages, so a new message needs
- * no list of its own; the placeholders stay for the screen to fill.
+ * The console's words for its screens: every message whose key starts with {@value #PREFIX} (or with the prefixes a
+ * screen names), in the language of the request, as one JSON object the screens read. The keys are read from the
+ * default messages, so a new message needs no list of its own; the placeholders stay for the screen to fill.
  */
 @Slf4j
-final class ZeroTrustConsoleMessages {
+public final class ZeroTrustConsoleMessages {
 
     static final String PREFIX = "zt.console.";
     private static final String DEFAULT_MESSAGES = "contexa/i18n/messages.properties";
-    private static volatile List<String> keys;
+    private static volatile List<String> allKeys;
 
     private ZeroTrustConsoleMessages() {
     }
 
     static List<String> keys() {
-        List<String> known = keys;
+        return keys(PREFIX);
+    }
+
+    /** The keys of the default messages that start with one of the prefixes, sorted. */
+    static List<String> keys(String... prefixes) {
+        return all().stream().filter(key -> Arrays.stream(prefixes).anyMatch(key::startsWith)).toList();
+    }
+
+    private static List<String> all() {
+        List<String> known = allKeys;
         if (known != null) {
             return known;
         }
@@ -57,16 +67,21 @@ final class ZeroTrustConsoleMessages {
                     unreadable);
             return List.of();
         }
-        known = properties.stringPropertyNames().stream().filter(key -> key.startsWith(PREFIX)).sorted().toList();
-        keys = known;
+        known = properties.stringPropertyNames().stream().sorted().toList();
+        allKeys = known;
         return known;
     }
 
     /** The console's messages in the locale, as JSON safe to put inside a script element. */
     static String json(MessageSource messages, Locale locale, ObjectMapper objectMapper) {
+        return json(messages, locale, objectMapper, PREFIX);
+    }
+
+    /** The messages of the prefixes in the locale, as JSON safe to put inside a script element. */
+    public static String json(MessageSource messages, Locale locale, ObjectMapper objectMapper, String... prefixes) {
         Map<String, String> resolved = new LinkedHashMap<>();
         Locale language = locale != null ? locale : Locale.ENGLISH;
-        for (String key : keys()) {
+        for (String key : keys(prefixes)) {
             resolved.put(key, messages != null ? messages.getMessage(key, null, key, language) : key);
         }
         try {
