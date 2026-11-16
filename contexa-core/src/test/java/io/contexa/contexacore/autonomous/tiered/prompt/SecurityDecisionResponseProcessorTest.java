@@ -76,35 +76,42 @@ class SecurityDecisionResponseProcessorTest {
         assertThat(context.getMetadata("securityDecisionPostprocessingRepairFields", List.class)).contains("reasoning");
     }
 
-    /** W4-2: a v3 response keeps its reason codes and its reason within the contract's 200 characters. */
+    /**
+     * W4-2: a response with reason codes keeps them and its reason within the output contract's 300 characters, which
+     * the provider schema cannot carry; a response without reason codes is held to the general 280 characters.
+     */
     @Test
     void wrapResponseShouldKeepTheReasonCodesAndTheReasonLimit() {
-        String once = "Unexplained overnight administrative exports targeting restricted engineering repositories "
+        // One sentence of fewer than 40 words, longer than both limits, so only the character limits cut it.
+        String sentence = "Unexplained overnight administrative exports targeting restricted engineering repositories "
                 + "combined with unfamiliar workstation fingerprints, atypical authentication sequences, escalating "
-                + "request velocity, and missing managerial authorization collectively warrant verification.";
-        String sentence = once + " " + once;
+                + "request velocity, and missing managerial authorization collectively warrant verification, "
+                + "notwithstanding comprehensive organizational authentication documentation requirements.";
         assertThat(sentence).hasSizeGreaterThan(SecurityDecisionOutputContractV4.MAX_REASON_CHARACTERS);
-        SecurityDecisionResponseLite v3 = new SecurityDecisionResponseLite();
-        v3.setAction("CHALLENGE");
-        v3.setReasoning(sentence);
-        v3.setReasonCodes(List.of(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1")));
-        SecurityDecisionResponseLite v19 = new SecurityDecisionResponseLite();
-        v19.setAction("CHALLENGE");
-        v19.setReasoning(sentence);
+        assertThat(sentence.split("\\s+")).hasSizeLessThan(40);
+        SecurityDecisionResponseLite withCodes = new SecurityDecisionResponseLite();
+        withCodes.setAction("CHALLENGE");
+        withCodes.setReasoning(sentence);
+        withCodes.setReasonCodes(List.of(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1")));
+        SecurityDecisionResponseLite withoutCodes = new SecurityDecisionResponseLite();
+        withoutCodes.setAction("CHALLENGE");
+        withoutCodes.setReasoning(sentence);
         SecurityDecisionResponseProcessor processor = new SecurityDecisionResponseProcessor();
 
-        SecurityDecisionResponse v3Response = (SecurityDecisionResponse) processor.wrapResponse(
-                v3, new PipelineExecutionContext("req-v3"));
-        SecurityDecisionResponse v19Response = (SecurityDecisionResponse) processor.wrapResponse(
-                v19, new PipelineExecutionContext("req-v19"));
+        SecurityDecisionResponse codedResponse = (SecurityDecisionResponse) processor.wrapResponse(
+                withCodes, new PipelineExecutionContext("req-codes"));
+        SecurityDecisionResponse uncodedResponse = (SecurityDecisionResponse) processor.wrapResponse(
+                withoutCodes, new PipelineExecutionContext("req-no-codes"));
 
-        assertThat(v3Response.getReasonCodes())
+        assertThat(codedResponse.getReasonCodes())
                 .containsExactly(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1"));
-        assertThat(v3Response.getReasoning()).hasSizeLessThanOrEqualTo(SecurityDecisionOutputContractV4.MAX_REASON_CHARACTERS);
-        assertThat(v3Response.getFieldProvenance()).containsEntry("reasonCodes", "MODEL");
-        assertThat(v19Response.getReasonCodes()).isEmpty();
-        assertThat(v19Response.getReasoning()).hasSizeGreaterThan(SecurityDecisionOutputContractV4.MAX_REASON_CHARACTERS);
-        assertThat(v19Response.getFieldProvenance()).containsEntry("reasonCodes", "ABSENT");
+        assertThat(codedResponse.getReasoning())
+                .hasSizeLessThanOrEqualTo(SecurityDecisionOutputContractV4.MAX_REASON_CHARACTERS)
+                .hasSizeGreaterThan(280);
+        assertThat(codedResponse.getFieldProvenance()).containsEntry("reasonCodes", "MODEL");
+        assertThat(uncodedResponse.getReasonCodes()).isEmpty();
+        assertThat(uncodedResponse.getReasoning()).hasSizeLessThanOrEqualTo(280);
+        assertThat(uncodedResponse.getFieldProvenance()).containsEntry("reasonCodes", "ABSENT");
     }
 
     @Test

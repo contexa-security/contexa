@@ -21,8 +21,11 @@ import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
+import io.contexa.contexacore.autonomous.tiered.prompt.MeasuredVariant;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
+import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import org.mockito.ArgumentCaptor;
@@ -62,6 +65,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -262,6 +266,7 @@ class Layer1ContextualStrategyTest {
         verify(pipelineOrchestrator).execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
     }
 
+    /** The past record search's state on the event is the exact lookup's (D3), whose records pass the authorization. */
     @Test
     @DisplayName("evaluate should preserve RAG candidate and denied counts when authorization filters all documents")
     void analyzeWithContext_permissionFilteredRag_shouldPreserveSearchLedgerMetadata() {
@@ -276,6 +281,7 @@ class Layer1ContextualStrategyTest {
                         "accessScope", "USER"));
 
         when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class))).thenReturn(List.of(deniedDocument));
+        when(vectorService.pastRecordQuery()).thenReturn(pastRecords(() -> List.of(deniedDocument)));
         when(authorizationService.authorize(any(), any(), ArgumentMatchers.<List<Document>>any()))
                 .thenReturn(new AuthorizedPromptContext(
                         List.of(),
@@ -393,15 +399,17 @@ class Layer1ContextualStrategyTest {
 
         ThreatAssessment assessment = ragStrategy.evaluate(event);
 
+        // D3: the similarity search runs beside the exact lookup, and what it finds reaches the prompt as a similar case.
         assertThat(assessment).isNotNull();
-        assertThat(event.getMetadata())
-                .containsEntry("ragRetrievalState", "AVAILABLE")
-                .containsEntry("ragProjectionState", "PROJECTED")
-                .containsEntry("ragCandidateDocumentCount", 1)
-                .containsEntry("ragAuthorizedDocumentCount", 1)
-                .containsEntry("ragDeniedDocumentCount", 0)
-                .containsEntry("ragPermissionFiltered", false)
-                .containsEntry("relatedDocumentCount", 1);
+        ArgumentCaptor<SecurityDecisionRequest> requests = ArgumentCaptor.forClass(SecurityDecisionRequest.class);
+        verify(pipelineOrchestrator).execute(requests.capture(), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class));
+        assertThat(userEvidenceGiven).isTrue();
+        assertThat(requests.getValue().getContext().getRelatedDocuments()).singleElement().satisfies(document -> {
+            assertThat(document.getText()).isEqualTo(currentUserDocument.getText());
+            assertThat(document.getMetadata()).containsEntry("userId", "user-001");
+            assertThat(SimilarCases.isSimilarCase(document)).isTrue();
+        });
     }
 
     @Test
@@ -536,6 +544,10 @@ class Layer1ContextualStrategyTest {
 
         when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class)))
                 .thenThrow(new VectorOperations.VectorStoreException("Vector store similarity search timed out after 4000ms"));
+        // The event's state is the exact lookup's (D3): its own store call runs out of time inside the full budget.
+        when(vectorService.pastRecordQuery()).thenReturn(pastRecords(() -> {
+            throw new VectorOperations.VectorStoreException("Past record lookup timed out after 4000ms");
+        }));
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setRiskScore(0.18);
         response.setConfidence(0.82);
@@ -745,7 +757,7 @@ class Layer1ContextualStrategyTest {
         response.setReasoning("Usual read");
         when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
                 .thenReturn(Mono.just(response));
-        Layer1ContextualStrategy v20Strategy = new Layer1ContextualStrategy(
+        Layer1ContextualStrategy searchingStrategy = new Layer1ContextualStrategy(
                 vectorService,
                 null,
                 new SecurityEventEnricher(),
@@ -763,18 +775,19 @@ class Layer1ContextualStrategyTest {
         );
         SecurityEvent event = buildTestEvent();
 
-        v20Strategy.evaluate(event);
+        searchingStrategy.evaluate(event);
 
         assertThat(PastDeniedDecisions.fromMetadata(event.getMetadata().get(PastDeniedDecisions.EVENT_METADATA_KEY))
                 .entries()).extracting(PastDeniedDecisions.Entry::decidedAction).containsExactly("CHALLENGE");
     }
 
     /**
-     * W3-18: Layer1 fixes the event's bundle before it copies the event for the past record search, so a v20 request
-     * reads its past records by the exact lookup on the copy and the prompt drawn later keeps the same bundle.
+     * W3-18, plan 6-2 (D6): Layer1 fixes the event's bundle before it copies the event for the past record search, and
+     * the copy keeps the version the event names, so a version without the similar cases reads its past records by the
+     * exact lookup alone on the copy and the prompt drawn later keeps the same bundle.
      */
     @Test
-    void layer1FixesTheBundleBeforeItsPastRecordSearchAndAV20RequestReadsThemExactly() {
+    void layer1FixesTheBundleBeforeItsPastRecordSearchAndAnExactVersionReadsThemExactly() {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
         TieredStrategyProperties properties = new TieredStrategyProperties();
         when(vectorService.pastRecordQuery()).thenReturn(new PastRecordQuery() {
@@ -798,11 +811,14 @@ class Layer1ContextualStrategyTest {
         response.setReasoning("Usual read");
         when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
                 .thenReturn(Mono.just(response));
-        Layer1ContextualStrategy v20Strategy = new Layer1ContextualStrategy(
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(), properties);
+        template.setPromptVersionStore(MeasuredVariant.RECORD_EXACT.store());
+        Layer1ContextualStrategy exactStrategy = new Layer1ContextualStrategy(
                 vectorService,
                 null,
                 new SecurityEventEnricher(),
-                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                template,
                 null,
                 null,
                 null,
@@ -815,14 +831,35 @@ class Layer1ContextualStrategyTest {
                 properties
         );
         SecurityEvent event = buildTestEvent();
+        event.getMetadata().put(SecurityDecisionPromptDocument.EVENT_PROMPT_VERSION, MeasuredVariant.VERSION);
 
-        v20Strategy.evaluate(event);
+        exactStrategy.evaluate(event);
 
         verify(vectorService, never()).searchSimilar(ArgumentMatchers.any(SearchRequest.class));
         assertThat(event.getMetadata())
                 .containsEntry("promptBundleSelection.version", SecurityDecisionPromptBundles.V1.version())
                 .containsEntry("ragSearchMode", "EXACT_PAST_RECORD_LOOKUP")
                 .containsKey("ragPastRecordCounts");
+    }
+
+    /** The exact past record lookup of a store whose records of the request's target are the ones given. */
+    private static PastRecordQuery pastRecords(Supplier<List<Document>> records) {
+        return new PastRecordQuery() {
+            @Override
+            public boolean available() {
+                return true;
+            }
+
+            @Override
+            public List<PastRecordGroup> groups(PastRecordScope scope) {
+                return List.of(new PastRecordGroup("/api/data", "/api/data", "GET", 1, null));
+            }
+
+            @Override
+            public List<Document> records(PastRecordScope scope, List<String> firstPaths, int limit) {
+                return records.get();
+            }
+        };
     }
 
     private SecurityEvent buildTestEvent() {

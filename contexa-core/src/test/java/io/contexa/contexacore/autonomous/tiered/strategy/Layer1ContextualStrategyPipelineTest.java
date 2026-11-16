@@ -20,6 +20,9 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
+import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
+import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
+import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
@@ -396,6 +399,10 @@ class Layer1ContextualStrategyPipelineTest {
         return properties;
     }
 
+    /**
+     * A store whose past record search takes the given time: the exact lookup, whose state the event keeps (D3), and the
+     * similar case search beside it, which finds the same record.
+     */
     private static UnifiedVectorService searchTaking(long millis, AtomicLong ended) {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
         Document record = new Document("User accessed a previous public resource.", Map.of(
@@ -411,6 +418,32 @@ class Layer1ContextualStrategyPipelineTest {
                 ended.set(System.nanoTime());
             }
             return List.of(record);
+        });
+        when(vectorService.pastRecordQuery()).thenReturn(new PastRecordQuery() {
+            @Override
+            public boolean available() {
+                return true;
+            }
+
+            @Override
+            public List<PastRecordGroup> groups(PastRecordScope scope) {
+                return List.of(new PastRecordGroup("/api/data", "/api/data", "GET", 1, null));
+            }
+
+            @Override
+            public List<Document> records(PastRecordScope scope, List<String> firstPaths, int limit) {
+                try {
+                    Thread.sleep(millis);
+                }
+                catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("The past record lookup was interrupted", interrupted);
+                }
+                if (ended != null) {
+                    ended.set(System.nanoTime());
+                }
+                return List.of(record);
+            }
         });
         return vectorService;
     }

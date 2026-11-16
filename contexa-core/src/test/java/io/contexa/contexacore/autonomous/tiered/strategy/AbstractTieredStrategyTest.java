@@ -104,6 +104,7 @@ import org.springframework.ai.vectorstore.SimpleVectorStore;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 
 @ExtendWith(MockitoExtension.class)
@@ -739,11 +740,11 @@ class AbstractTieredStrategyTest {
     }
 
     /**
-     * W4-2 on the real server: a security decision names no model (the request's model hint is ignored), so a v20
+     * W4-2 on the real server: a security decision names no model (the request's model hint is ignored), so the
      * request is judged by the chat model the analysis will run on; an OpenAI model takes the output contract schema.
      */
     @Test
-    void aV20RequestThatNamesNoModelIsJudgedByTheChatModelTheAnalysisRunsOn() {
+    void aRequestThatNamesNoModelIsJudgedByTheChatModelTheAnalysisRunsOn() {
         strategy.setModelSelectionStrategy(() -> selecting(chatModel(OpenAiChatOptions.builder().model("gpt-6-luna").build())));
         SecurityEvent event = SecurityEvent.builder().eventId("event-w42-selected").metadata(new LinkedHashMap<>()).build();
         when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V1);
@@ -936,7 +937,7 @@ class AbstractTieredStrategyTest {
         assertThat(request.getParameter("minimumActionSettings", MinimumActionRules.Settings.class)).isEqualTo(settings);
     }
 
-    /** W4-2: the v19 bundle keeps its format, and without native structured output the system text states the schema. */
+    /** W4-2: without native structured output the system text states the schema, and the request carries none. */
     @Test
     void aRequestWithoutNativeStructuredOutputCarriesNoSchema() {
         SecurityEvent converter = SecurityEvent.builder()
@@ -956,6 +957,10 @@ class AbstractTieredStrategyTest {
         }
     }
 
+    /**
+     * D3: the similarity search of the similar cases runs beside the exact lookup; its failure is kept in the one audit
+     * of both searches, whose requested count is both searches' (this store has no exact lookup either).
+     */
     @Test
     @DisplayName("searchRelatedContextBase should capture prompt audit fallback when vector search fails")
     void searchRelatedContextBase_vectorFailure_capturesPromptAuditFallback() {
@@ -979,11 +984,13 @@ class AbstractTieredStrategyTest {
                 .capture(ArgumentMatchers.same(event), retrievalPurposeCaptor.capture(), promptContextCaptor.capture());
         assertThat(retrievalPurposeCaptor.getValue()).isEqualTo("security_investigation");
         assertThat(promptContextCaptor.getValue().documents()).isEmpty();
-        assertThat(promptContextCaptor.getValue().requestedDocumentCount()).isEqualTo(3);
+        assertThat(promptContextCaptor.getValue().requestedDocumentCount()).isEqualTo(3 + 3);
         assertThat(promptContextCaptor.getValue().deniedReasons())
-                .contains("VECTOR_STORE_SEARCH_FAILED", "RuntimeException", "Similarity search failed");
+                .contains("VECTOR_STORE_SEARCH_FAILED", "RuntimeException", "Similarity search failed",
+                        "EXACT_PAST_RECORD_LOOKUP_UNAVAILABLE");
     }
 
+    /** D3: both searches refuse an event without a user, and the one audit of both keeps the reason. */
     @Test
     @DisplayName("searchRelatedContextBase should capture prompt audit fallback when userId is missing")
     void searchRelatedContextBase_missingUserId_capturesPromptAuditFallback() {
@@ -1006,8 +1013,9 @@ class AbstractTieredStrategyTest {
                 .capture(ArgumentMatchers.same(event), retrievalPurposeCaptor.capture(), promptContextCaptor.capture());
         assertThat(retrievalPurposeCaptor.getValue()).isEqualTo("security_investigation");
         assertThat(promptContextCaptor.getValue().documents()).isEmpty();
-        assertThat(promptContextCaptor.getValue().requestedDocumentCount()).isEqualTo(2);
-        assertThat(promptContextCaptor.getValue().deniedReasons()).contains("USER_ID_MISSING");
+        assertThat(promptContextCaptor.getValue().requestedDocumentCount()).isEqualTo(2 + 2);
+        assertThat(promptContextCaptor.getValue().deniedReasons()).containsExactly("USER_ID_MISSING");
+        verify(unifiedVectorService, never()).pastRecordQuery();
     }
 
     @Test
@@ -1035,12 +1043,18 @@ class AbstractTieredStrategyTest {
 
         strategy.callSearchRelatedContextBase(event, 3, 0.7d);
 
+        // D3: the similarity search of the similar cases reads the baseline on its copy of the event.
         verify(baselineLearningService).describeBaselineMaturity(ArgumentMatchers.eq("persona_tenant_only"),
-                ArgumentMatchers.isNull(), ArgumentMatchers.same(event));
+                ArgumentMatchers.isNull(), ArgumentMatchers.argThat(copy -> copy != null
+                        && "event-tenant-only".equals(copy.getEventId())));
         verify(baselineLearningService, never()).describeBaselineMaturity(ArgumentMatchers.anyString(),
                 ArgumentMatchers.eq("demo"), any());
     }
 
+    /**
+     * D3: the similarity search of the similar cases falls back to the same user's baseline when its strict searches
+     * find nothing; what it finds reaches the prompt as a similar case, and the event keeps the exact lookup's state.
+     */
     @Test
     @DisplayName("searchRelatedContextBase should use same-user baseline fallback when strict RAG search returns zero")
     void searchRelatedContextBase_zeroStrictResults_usesSameUserBaselineFallback() {
@@ -1099,10 +1113,15 @@ class AbstractTieredStrategyTest {
                             "security_investigation",
                             List.of());
                 });
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(new RecordingPastRecordQuery(List.of(), List.of()));
 
         List<Document> result = strategy.callSearchRelatedContextBase(event, 3, 0.7d);
 
-        assertThat(result).containsExactly(learnedContext);
+        assertThat(result).singleElement().satisfies(document -> {
+            assertThat(document.getText()).isEqualTo(learnedContext.getText());
+            assertThat(document.getMetadata()).containsAllEntriesOf(learnedContext.getMetadata());
+            assertThat(SimilarCases.isSimilarCase(document)).isTrue();
+        });
         ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         // The personal, broad and baseline searches, then the organization's supporting search and, as it finds
         // nothing in this user's scope, its supporting fallback. With the user ID in the query text the stub matched
@@ -1122,9 +1141,9 @@ class AbstractTieredStrategyTest {
                 .contains("resourceId", "resource-001")
                 .doesNotContain("/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
         assertThat(event.getMetadata())
-                .containsEntry("ragRetrievalState", "AVAILABLE")
-                .containsEntry("relatedDocumentCount", 1)
-                .containsEntry("ragProjectedToFinalPrompt", true);
+                .containsEntry("ragSearchMode", "EXACT_PAST_RECORD_LOOKUP")
+                .containsEntry("ragRetrievalState", "ZERO_RESULTS")
+                .containsEntry("relatedDocumentCount", 0);
     }
 
     @Test
@@ -1519,6 +1538,7 @@ class AbstractTieredStrategyTest {
                         "personalBaselineEstablished", true)))
                 .build();
         Document document = exportRecord("GB-500");
+        chooses(event, MeasuredVariant.FALLBACK_EXACT);
 
         strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of(document));
 
@@ -1530,8 +1550,8 @@ class AbstractTieredStrategyTest {
     }
 
     /**
-     * Plan 2.3 B2 (D1): a v1.0 fallback variant takes the v19 canonical ALLOW explanation as v19 does; a record
-     * variant keeps the model's explanation.
+     * Plan 2.3 B2 (D1, D6): a version with the decision rules takes the canonical ALLOW explanation (the sentence the
+     * response rules fix); a version without them keeps the model's explanation.
      */
     @Test
     void theCanonicalExplanationIsTakenByAVersionWithTheDecisionRulesOnly() {
@@ -1597,6 +1617,7 @@ class AbstractTieredStrategyTest {
                         "personalBaselineEstablished", false)))
                 .build();
         Document document = exportRecord("GB-500");
+        chooses(event, MeasuredVariant.FALLBACK_EXACT);
 
         strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of(document));
 
@@ -1618,6 +1639,7 @@ class AbstractTieredStrategyTest {
         SecurityEvent event = SecurityEvent.builder()
                 .metadata(new LinkedHashMap<>(Map.of("personalBaselineEstablished", false)))
                 .build();
+        chooses(event, MeasuredVariant.FALLBACK_EXACT);
 
         strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of());
 
@@ -1640,6 +1662,7 @@ class AbstractTieredStrategyTest {
         SecurityEvent event = SecurityEvent.builder()
                 .metadata(new LinkedHashMap<>(Map.of("personalBaselineEstablished", true)))
                 .build();
+        chooses(event, MeasuredVariant.FALLBACK_EXACT);
 
         strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of());
 
@@ -1647,9 +1670,9 @@ class AbstractTieredStrategyTest {
         assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "MODEL");
     }
 
-    /** W4-3 (Q-57 decision 2): a v20 decision keeps the model's reason; no fixed sentence replaces it. */
+    /** W4-3 (Q-57 decision 2): the product version keeps the model's reason; no fixed sentence replaces it. */
     @Test
-    void applyCanonicalDecisionReasoning_keepsTheReasonOfAV20Decision() {
+    void applyCanonicalDecisionReasoning_keepsTheReasonOfTheProductVersion() {
         SecurityDecision decision = SecurityDecision.builder()
                 .action(ZeroTrustAction.ALLOW)
                 .reasoning("Same project exports as usual, and the assignment covers this target.")
@@ -1661,7 +1684,7 @@ class AbstractTieredStrategyTest {
                         "ragProjectedToFinalPrompt", true,
                         "personalBaselineEstablished", true)))
                 .build();
-        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V1);
+        chooses(event, MeasuredVariant.RECORD_SIMILAR);
 
         strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of(exportRecord("GB-500")));
 
@@ -1684,6 +1707,7 @@ class AbstractTieredStrategyTest {
                         "ragProjectedToFinalPrompt", true,
                         "personalBaselineEstablished", true)))
                 .build();
+        chooses(event, MeasuredVariant.FALLBACK_EXACT);
 
         strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of(exportRecord("PLM-OPS")));
 
@@ -1708,6 +1732,7 @@ class AbstractTieredStrategyTest {
                         "ragProjectedToFinalPrompt", true,
                         "personalBaselineEstablished", false)))
                 .build();
+        chooses(event, MeasuredVariant.FALLBACK_EXACT);
 
         strategy.applyCanonicalDecisionReasoningForTest(decision, event,
                 List.of(exportRecord("GB-500"), exportRecord("PLM-OPS")));
@@ -1894,9 +1919,12 @@ class AbstractTieredStrategyTest {
     private static final String EXPORTS = "/api/projects/{projectKey}/exports";
     private static final String GB500 = "/api/projects/GB-500/exports";
 
-    /** W3-18: a v20 request reads its past records by the exact lookup of its action family, without a similarity search. */
+    /**
+     * W3-18: a version without the similar cases reads its past records by the exact lookup of the request's action
+     * family, without a similarity search.
+     */
     @Test
-    void aV20RequestReadsItsPastRecordsByTheExactLookupOfItsActionFamily() {
+    void anExactVersionReadsItsPastRecordsByTheExactLookupOfItsActionFamily() {
         SecurityEvent event = exportEvent("event-w318-exact", true);
         chooses(event, MeasuredVariant.RECORD_EXACT);
         Document sameTarget = new Document("00000000-0000-0000-0000-000000000002", "record same target",
@@ -1967,7 +1995,7 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
-    void aV20RequestWithoutAnExactLookupSaysThePastRecordsWereNotRetrieved() {
+    void anExactVersionWithoutAnExactLookupSaysThePastRecordsWereNotRetrieved() {
         SecurityEvent event = exportEvent("event-w318-unavailable", true);
         chooses(event, MeasuredVariant.RECORD_EXACT);
         when(unifiedVectorService.pastRecordQuery()).thenReturn(PastRecordQuery.unavailable());
@@ -1980,7 +2008,7 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
-    void aV20RequestWithoutAnActionFamilyIsNotLookedUp() {
+    void anExactVersionWithoutAnActionFamilyIsNotLookedUp() {
         SecurityEvent event = exportEvent("event-w318-no-action", false);
         chooses(event, MeasuredVariant.RECORD_EXACT);
         RecordingPastRecordQuery query = new RecordingPastRecordQuery(List.of(), List.of());
@@ -1995,7 +2023,7 @@ class AbstractTieredStrategyTest {
     }
 
     /**
-     * v1.0 (D3): a similar-case variant adds the v19 similarity search beside the exact lookup. The event's search state
+     * v1.0 (D3): a version with the similar cases adds the similarity search beside the exact lookup. The event's state
      * stays the exact lookup's, the similar cases it did not find come marked, and one audit holds every document.
      */
     @Test
@@ -2445,7 +2473,7 @@ class AbstractTieredStrategyTest {
 
     /**
      * N-MISS-1 (D8): a search after one that timed out on the same event (Layer2 after Layer1) writes what it found and
-     * keeps the earlier timeout as a fact of its own.
+     * keeps the earlier timeout as a fact of its own. The past record lookup writes the event's state (D3).
      */
     @Test
     void aSearchAfterATimedOutSearchWritesWhatItFoundAndKeepsTheTimeoutApart() {
@@ -2454,7 +2482,8 @@ class AbstractTieredStrategyTest {
         event.getMetadata().put("ragRetrievalState", "TIMEOUT");
         event.getMetadata().put("ragAbsenceReason", "TIMEOUT");
         event.getMetadata().put("relatedDocumentCount", 0);
-        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of(pastRecord("found-1")));
+        chooses(event, MeasuredVariant.RECORD_EXACT);
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(pastRecordsReading(() -> List.of(pastRecord("found-1"))));
         authorizeEveryRecord();
 
         List<Document> result = strategy.callSearchRelatedContextBase(event, 3, 0.7d);
@@ -2475,12 +2504,13 @@ class AbstractTieredStrategyTest {
         SecurityEvent event = pastRecordEvent("event-late");
         event.getMetadata().put("ragTimedOut", false);
         event.getMetadata().put("ragRetrievalState", "NOT_REQUESTED");
-        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenAnswer(invocation -> {
+        chooses(event, MeasuredVariant.RECORD_EXACT);
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(pastRecordsReading(() -> {
             // The waiting layer gives up while the search still runs on the event it writes.
             event.getMetadata().put("ragTimedOut", true);
             event.getMetadata().put("ragRetrievalState", "TIMEOUT");
             return List.of(pastRecord("late-1"));
-        });
+        }));
         authorizeEveryRecord();
 
         strategy.callSearchRelatedContextBase(event, 3, 0.7d);
@@ -2497,9 +2527,10 @@ class AbstractTieredStrategyTest {
         SecurityEvent event = pastRecordEvent("event-overtaken");
         AtomicBoolean newerStarted = new AtomicBoolean();
         AtomicBoolean newerRunning = new AtomicBoolean();
-        when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
-                .thenAnswer(invocation -> newerRunning.get() ? List.of() : List.of(pastRecord("older-1")));
-        // The searches of one event run in parallel: the newer one starts after all of them, where the older one is authorized.
+        chooses(event, MeasuredVariant.RECORD_EXACT);
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(pastRecordsReading(
+                () -> newerRunning.get() ? List.of() : List.of(pastRecord("older-1"))));
+        // The newer search starts where the older one's records are authorized, before the older one writes.
         when(promptContextAuthorizationService.authorize(
                 any(SecurityEvent.class),
                 any(),
@@ -2521,6 +2552,27 @@ class AbstractTieredStrategyTest {
         assertThat(event.getMetadata())
                 .containsEntry("ragRetrievalState", "ZERO_RESULTS")
                 .containsEntry("relatedDocumentCount", 0);
+    }
+
+    /** The exact lookup of a store with one past record group on the request's target, reading the records given. */
+    private static PastRecordQuery pastRecordsReading(Supplier<List<Document>> records) {
+        return new PastRecordQuery() {
+            @Override
+            public boolean available() {
+                return true;
+            }
+
+            @Override
+            public List<PastRecordGroup> groups(PastRecordScope scope) {
+                return List.of(new PastRecordGroup("/api/documents/{documentId}", "/api/documents/resource-001", "GET",
+                        1, LocalDateTime.of(2026, 9, 24, 9, 0)));
+            }
+
+            @Override
+            public List<Document> records(PastRecordScope scope, List<String> firstPaths, int limit) {
+                return records.get();
+            }
+        };
     }
 
     private static Document pastRecord(String eventId) {
