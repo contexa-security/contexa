@@ -43,6 +43,7 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -106,7 +107,7 @@ public class PromptVersionService {
      */
     public List<Saved> registerProducts(String scope) {
         List<Saved> made = new ArrayList<>();
-        Map<String, List<ProductPromptRelease>> byPrompt = new java.util.LinkedHashMap<>();
+        Map<String, List<ProductPromptRelease>> byPrompt = new LinkedHashMap<>();
         products.forEach(release -> byPrompt.computeIfAbsent(release.prompt(), key -> new ArrayList<>()).add(release));
         for (Map.Entry<String, List<ProductPromptRelease>> prompt : byPrompt.entrySet()) {
             List<ProductPromptRelease> releases = prompt.getValue();
