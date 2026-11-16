@@ -31,6 +31,7 @@ import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.ObservedPromptTokenUsageRegistry;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
+import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.LLMOperations;
 import io.contexa.contexacore.std.llm.observation.LlmObservationContext;
@@ -472,9 +473,12 @@ public class LLMExecutionStep implements PipelineStep {
                     context.addMetadata("securityDecisionOutputRetryReason", retryReason);
                     // Plan 6-1: the answer is asked again in the words of the prompt document: a floor the host
                     // enforces, a decision rule of a version that includes them, else the output contract (K31, K32, D6).
+                    // Plan 3.4: the correction is the one of the version the decision runs.
                     ExecutionContext retryContext = buildExecutionContext(
                             truncated ? prompt
-                                    : correctivePromptV1(prompt, rawResponse, retryReason, correctionKey(initial, v1Rules)),
+                                    : correctivePromptV1(prompt, rawResponse, retryReason, correctionKey(initial, v1Rules),
+                                    request.getParameter(SecurityDecisionPromptDocument.VERSION_PARAMETER,
+                                            AssembledPrompt.class)),
                             request,
                             context,
                             null,
@@ -639,14 +643,16 @@ public class LLMExecutionStep implements PipelineStep {
 
     /**
      * Plan 6-1: the v1.0 prompt again with the answer it got and the correction of its prompt document, with what was
-     * wrong with the answer in it.
+     * wrong with the answer in it; plan 3.4: the document of the version the decision runs, the product's without one.
      */
-    static Prompt correctivePromptV1(Prompt prompt, String previousAnswer, String violation, String correction) {
-        String text = SecurityDecisionPromptDocument.product().correction(correction,
+    static Prompt correctivePromptV1(Prompt prompt, String previousAnswer, String violation, String correction,
+                                     AssembledPrompt version) {
+        AssembledPrompt drawnWith = version != null ? version : SecurityDecisionPromptDocument.product();
+        String text = drawnWith.correction(correction,
                 Map.of("violation", violation != null ? violation : "",
                         "keys", String.join(", ", SecurityDecisionOutputContractV5.KEYS)));
         if (text == null) {
-            throw new IllegalStateException("The product prompt document has no correction " + correction);
+            throw new IllegalStateException("The prompt version " + drawnWith + " has no correction " + correction);
         }
         List<Message> messages = new ArrayList<>(prompt.getInstructions());
         messages.add(new AssistantMessage(previousAnswer != null ? previousAnswer : ""));

@@ -69,10 +69,11 @@ public final class SecurityDecisionPromptDocument {
     }
 
     /**
-     * The event metadata that names the version a decision runs, fixed for its later prompts (1st and 2nd pass, the
-     * correction); without it the product version runs.
+     * The request parameter of the version a decision's model call runs (plan 3.4): the correction that asks the model
+     * again is the one of that version, the version fixed on the event when the decision started
+     * ({@link SecurityDecisionPromptSections#EVENT_BUNDLE_VERSION}). Without it the product version's runs.
      */
-    public static final String EVENT_PROMPT_VERSION = "promptBundleSelection.promptVersion";
+    public static final String VERSION_PARAMETER = "securityDecisionPromptVersion";
 
     /** The product version of the latest release this build ships. */
     public static AssembledPrompt product() {

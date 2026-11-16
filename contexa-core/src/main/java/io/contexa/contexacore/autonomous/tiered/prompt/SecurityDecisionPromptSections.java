@@ -182,8 +182,8 @@ public class SecurityDecisionPromptSections {
     /** The default bundle's descriptor, for what every bundle shares: the prompt key and the template key. */
     private final PromptGovernanceDescriptor defaultDescriptor;
     private final PromptBundleSelector promptBundleSelector;
-    /** Bundle versions a selector chose that this build cannot run, each reported once. */
-    private final Set<String> reportedUnrunnableBundles = ConcurrentHashMap.newKeySet();
+    /** Version names a selector chose or an event names that the store cannot find, each reported once. */
+    private final Set<String> reportedUnfoundVersions = ConcurrentHashMap.newKeySet();
     private final PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver;
     private final PromptRuntimeGovernanceRuleProvider promptRuntimeGovernanceRuleProvider;
     private final PromptRuntimeGovernanceRuleApplier promptRuntimeGovernanceRuleApplier;
@@ -222,11 +222,14 @@ public class SecurityDecisionPromptSections {
     /** The v1.0 user prompt layout: the v1.0 dictionary blocks (the v21 records and the facts v1.0 adds). */
     public static final String USER_PROMPT_LAYOUT_V1 = "v1.0-dictionary-blocks";
     /**
-     * The event metadata of the bundle the event's first prompt was drawn with (W3-16): a later prompt of the same
-     * event, a Layer2 prompt or a second pass, is drawn with the same bundle.
+     * The event metadata of the version a decision runs (plan 3.4), fixed when the decision starts: its name
+     * ({@code v2.0}; the release of the product document when no version was chosen), what chose it and its content
+     * hash. Every later prompt of the decision, a Layer2 prompt, a second pass, a correction or a judgement again, is
+     * drawn with that version, wherever the label moved meanwhile.
      */
     public static final String EVENT_BUNDLE_VERSION = "promptBundleSelection.version";
-    static final String EVENT_BUNDLE_SOURCE = "promptBundleSelection.source";
+    public static final String EVENT_BUNDLE_SOURCE = "promptBundleSelection.source";
+    public static final String EVENT_BUNDLE_CONTENT_HASH = "promptBundleSelection.contentHash";
     private static final String SECOND_PASS_LAYOUT = "v20-second-pass";
     /** PR-91: the canonical contexts kept may take a thirty-second of the maximum heap, within these bounds. */
     private static final int CANONICAL_CONTEXT_HEAP_SHARE_DIVISOR = 32;
@@ -255,8 +258,9 @@ public class SecurityDecisionPromptSections {
     }
 
     /**
-     * @param promptBundleSelector chooses the bundle each request runs (W3-16); null for the configured bundle
-     *                             ({@code contexa.security.tiered.prompt-bundle.active})
+     * @param promptBundleSelector chooses the version each decision runs (plan 3.4, the version resolver of the
+     *                             console); null for the name the configuration gives
+     *                             ({@code contexa.security.tiered.prompt-bundle.active}), found in the version store
      */
     public SecurityDecisionPromptSections(
             SecurityEventEnricher eventEnricher,
@@ -395,7 +399,7 @@ public class SecurityDecisionPromptSections {
         PromptGovernanceResolutionContext runtimeResolutionContext = promptGovernanceResolutionContext(buildContext);
         SelectedBundle selected = selectBundle(buildContext != null ? buildContext.getEvent() : null,
                 runtimeResolutionContext);
-        DictionaryKit kit = dictionaryKit(promptVersionOf(buildContext != null ? buildContext.getEvent() : null));
+        DictionaryKit kit = dictionaryKit(selected.version());
         if (buildContext != null && buildContext.getCanonicalSecurityContext() != null) {
             // The decision rules, the response check and the minimum action record read the core's conclusions; they
             // stay in memory beside the records, which the sealed context keeps.
@@ -475,6 +479,9 @@ public class SecurityDecisionPromptSections {
         long metadataStartedNanos = System.nanoTime();
         Map<String, Object> supplementalMetadata = new LinkedHashMap<>();
         supplementalMetadata.put("promptBundleSelectionSource", selected.source().name());
+        // Plan 3.8 (9): the version the prompt was drawn with and its content hash, which the sealed package keeps.
+        supplementalMetadata.put(PromptExecutionMetadata.PROMPT_VERSION_NAME, selected.versionName());
+        supplementalMetadata.put(PromptExecutionMetadata.PROMPT_CONTENT_HASH, selected.version().contentHash());
         // The layout says which user prompt was drawn, next to the bundle that drew it.
         supplementalMetadata.put(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION, kit.layoutName());
         supplementalMetadata.putAll(userSections.metadata());
@@ -587,34 +594,54 @@ public class SecurityDecisionPromptSections {
     }
 
     /**
-     * The bundle this prompt is drawn with (W3-16). A later prompt of an event is drawn with the bundle of the event's
-     * first prompt. Otherwise the selector chooses; without a choice, or with a bundle this build cannot run, the build's
-     * default bundle runs, and a bundle that cannot run is reported as an error once.
-     */
-    /**
-     * The bundle the event runs, fixed on the event when it is asked first (W3-18): the strategy asks before its past
-     * record search, since a v20 bundle reads its past records by an exact lookup, and the prompt keeps that bundle.
+     * The bundle the event runs, with its version fixed on the event when it is asked first (W3-18, plan 3.4): the
+     * strategy asks before its past record search, since the version decides how the past records are read, and every
+     * prompt of the decision keeps that version.
      */
     public SecurityDecisionPromptBundles.Bundle bundleOf(SecurityEvent event) {
         return selectBundle(event, promptGovernanceResolutionContext(event)).bundle();
     }
 
+    /**
+     * The version this prompt is drawn with (plan 3.4, 3.8). A later prompt of a decision is drawn with the version
+     * fixed on its event. Otherwise the selector chooses and the choice is fixed on the event: its name, what chose it
+     * and its content hash. A choice the store cannot find, or no choice, runs the product version, and a name the store
+     * cannot find is reported as an error once (plan 3.8, 7).
+     */
     private SelectedBundle selectBundle(SecurityEvent event, PromptGovernanceResolutionContext resolutionContext) {
-        Map<String, Object> metadata = event != null ? event.getMetadata() : null;
-        if (metadata != null) {
-            Optional<SecurityDecisionPromptBundles.Bundle> earlier =
-                    SecurityDecisionPromptBundles.find(metadataText(metadata.get(EVENT_BUNDLE_VERSION)));
-            PromptBundleSelectionSource earlierSource = selectionSource(metadata.get(EVENT_BUNDLE_SOURCE));
-            if (earlier.isPresent() && earlierSource != null) {
-                return new SelectedBundle(earlier.get(), earlierSource);
-            }
+        Optional<SelectedBundle> fixed = fixedOn(event);
+        if (fixed.isPresent()) {
+            return fixed.get();
         }
         SelectedBundle selected = runnable(choose(resolutionContext, subjectKey(event)));
         if (event != null) {
-            event.addMetadata(EVENT_BUNDLE_VERSION, selected.bundle().version());
+            event.addMetadata(EVENT_BUNDLE_VERSION, selected.versionName());
             event.addMetadata(EVENT_BUNDLE_SOURCE, selected.source().name());
+            event.addMetadata(EVENT_BUNDLE_CONTENT_HASH, selected.version().contentHash());
         }
         return selected;
+    }
+
+    /**
+     * The version fixed on the event when its decision started; empty before that. The content hash follows the version
+     * the name finds, so a copy that names another version (a shadow run's) states that version's hash.
+     */
+    private Optional<SelectedBundle> fixedOn(SecurityEvent event) {
+        Map<String, Object> metadata = event != null ? event.getMetadata() : null;
+        if (metadata == null) {
+            return Optional.empty();
+        }
+        String name = metadataText(metadata.get(EVENT_BUNDLE_VERSION));
+        PromptBundleSelectionSource source = selectionSource(metadata.get(EVENT_BUNDLE_SOURCE));
+        if (name == null || source == null) {
+            return Optional.empty();
+        }
+        Optional<AssembledPrompt> version = findVersion(name, source);
+        if (version.isPresent() && !version.get().contentHash().equals(metadata.get(EVENT_BUNDLE_CONTENT_HASH))) {
+            event.addMetadata(EVENT_BUNDLE_CONTENT_HASH, version.get().contentHash());
+        }
+        return Optional.of(new SelectedBundle(SecurityDecisionPromptBundles.DEFAULT, source, name,
+                version.orElseGet(SecurityDecisionPromptDocument::product)));
     }
 
     private PromptBundleSelection choose(PromptGovernanceResolutionContext resolutionContext, String subjectKey) {
@@ -623,25 +650,41 @@ public class SecurityDecisionPromptSections {
             return selection != null ? selection : PromptBundleSelection.none();
         }
         catch (RuntimeException exception) {
-            log.error("Prompt bundle selection failed; the build default bundle {} runs",
-                    SecurityDecisionPromptBundles.DEFAULT.version(), exception);
+            log.error("Prompt version selection failed; the product version {} runs",
+                    SecurityDecisionPromptDocument.product().release(), exception);
             return PromptBundleSelection.none();
         }
     }
 
     private SelectedBundle runnable(PromptBundleSelection selection) {
-        if (selection.bundleVersion() == null) {
-            return new SelectedBundle(SecurityDecisionPromptBundles.DEFAULT, PromptBundleSelectionSource.BUILD_DEFAULT);
+        AssembledPrompt product = SecurityDecisionPromptDocument.product();
+        if (selection.bundleVersion() == null || selection.bundleVersion().isBlank()) {
+            return new SelectedBundle(SecurityDecisionPromptBundles.DEFAULT, PromptBundleSelectionSource.BUILD_DEFAULT,
+                    product.release(), product);
         }
-        Optional<SecurityDecisionPromptBundles.Bundle> bundle = SecurityDecisionPromptBundles.find(selection.bundleVersion());
-        if (bundle.isPresent()) {
-            return new SelectedBundle(bundle.get(), selection.source());
+        String name = selection.bundleVersion().trim();
+        Optional<AssembledPrompt> version = findVersion(name, selection.source());
+        if (version.isPresent()) {
+            return new SelectedBundle(SecurityDecisionPromptBundles.DEFAULT, selection.source(), name, version.get());
         }
-        if (reportedUnrunnableBundles.add(selection.bundleVersion())) {
-            log.error("Prompt bundle {} chosen by {} is not a bundle this build runs; the build default bundle {} runs",
-                    selection.bundleVersion(), selection.source(), SecurityDecisionPromptBundles.DEFAULT.version());
+        return new SelectedBundle(SecurityDecisionPromptBundles.DEFAULT, PromptBundleSelectionSource.BUILD_DEFAULT,
+                product.release(), product);
+    }
+
+    /** The version of the name in the store; empty, reported as an error once per name, when the store has none. */
+    private Optional<AssembledPrompt> findVersion(String name, PromptBundleSelectionSource source) {
+        Optional<AssembledPrompt> version;
+        try {
+            version = promptVersionStore.find(SecurityDecisionPromptDocument.PROMPT, name);
         }
-        return new SelectedBundle(SecurityDecisionPromptBundles.DEFAULT, PromptBundleSelectionSource.BUILD_DEFAULT);
+        catch (RuntimeException exception) {
+            version = Optional.empty();
+        }
+        if (version.isEmpty() && reportedUnfoundVersions.add(name)) {
+            log.error("Prompt version {} chosen by {} cannot be found; the product version {} runs", name, source,
+                    SecurityDecisionPromptDocument.product().release());
+        }
+        return version;
     }
 
     /** The requester a canary share is drawn by: the user, else the session, else the event. */
@@ -671,8 +714,9 @@ public class SecurityDecisionPromptSections {
         return null;
     }
 
-    /** The bundle a prompt is drawn with and what chose it. */
-    private record SelectedBundle(SecurityDecisionPromptBundles.Bundle bundle, PromptBundleSelectionSource source) {
+    /** The bundle a prompt is drawn with, what chose its version, the version's name and the version. */
+    private record SelectedBundle(SecurityDecisionPromptBundles.Bundle bundle, PromptBundleSelectionSource source,
+                                  String versionName, AssembledPrompt version) {
     }
 
     private PromptGovernanceResolutionContext promptGovernanceResolutionContext(SecurityPromptBuildContext buildContext) {
@@ -1779,27 +1823,25 @@ public class SecurityDecisionPromptSections {
         systemSectionsCache.invalidateAll();
     }
 
-    /** Plan 6-2: the store the version an event names is read from; the product versions when null. */
+    /**
+     * Plan 6-2, 6-3: the store the version a selector chooses or an event names is read from (the database versions,
+     * plan 3.8 11); the product versions when null.
+     */
     public void setPromptVersionStore(PromptVersionStore store) {
         this.promptVersionStore = store != null ? store : SecurityDecisionPromptDocument.productStore();
         systemSectionsCache.invalidateAll();
     }
 
     /**
-     * The version of the security decision prompt the event runs: the one its metadata names when the store has it,
-     * else the product version.
+     * The version of the security decision prompt the event runs (plan 3.4): the one fixed on the event when its
+     * decision started; an event whose decision has not chosen one yet chooses it now and keeps it. The product version
+     * without an event, or when the store cannot find the fixed one.
      */
     public AssembledPrompt promptVersionOf(SecurityEvent event) {
-        Object named = event != null && event.getMetadata() != null
-                ? event.getMetadata().get(SecurityDecisionPromptDocument.EVENT_PROMPT_VERSION) : null;
-        if (named != null && !named.toString().isBlank()) {
-            Optional<AssembledPrompt> version = promptVersionStore.find(SecurityDecisionPromptDocument.PROMPT,
-                    named.toString().trim());
-            if (version.isPresent()) {
-                return version.get();
-            }
+        if (event == null) {
+            return SecurityDecisionPromptDocument.product();
         }
-        return SecurityDecisionPromptDocument.product();
+        return fixedOn(event).orElseGet(() -> selectBundle(event, promptGovernanceResolutionContext(event))).version();
     }
 
     /**

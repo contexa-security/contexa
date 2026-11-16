@@ -41,8 +41,10 @@ import java.util.function.Supplier;
  * version ({@code v2.0}) that exists and is not hidden;</li>
  * <li>the newest version Contexa provided.</li>
  * </ol>
- * A setting that names no such version, or an earlier bundle, is logged once as a warning and passed over. A label or a
- * setting that names an earlier bundle is not a version: earlier bundles are gone.
+ * A setting that names no such version is logged once as a warning and passed over until the version exists; one that
+ * names an earlier bundle is logged once as a warning whatever runs. A label or a setting that names an earlier bundle
+ * is not a version: earlier bundles are gone. The resolver is the decision's selector in every installation with the
+ * console's database; without the registry (prompt governance turned off) it reads the setting and the newest version.
  */
 public class PromptVersionResolver implements PromptBundleSelector {
 
@@ -79,20 +81,26 @@ public class PromptVersionResolver implements PromptBundleSelector {
         if (prompt == null || prompt.isBlank()) {
             return PromptBundleSelection.none();
         }
+        String configuredName = configured.get();
+        String setting = configuredName != null && !configuredName.isBlank() ? configuredName.trim() : null;
+        if (setting != null && PromptVersionNames.number(setting).isEmpty() && warned.add(prompt + "|" + setting)) {
+            // Plan 3.4: a setting that names an earlier bundle is said once, whatever runs.
+            log.warn("contexa.security.tiered.prompt-bundle.active names {}, an earlier bundle of {}: earlier bundles"
+                    + " are gone and a version is named v1.0, v2.0 and so on; the label of the screen, else the newest"
+                    + " Contexa version runs", setting, prompt);
+        }
         PromptBundleSelection labelled = selection(() -> registry.select(context, subjectKey));
         if (labelled != null && isVersion(prompt, labelled.bundleVersion())) {
             return new PromptBundleSelection(PromptVersionNames.name(number(labelled.bundleVersion())), labelled.source());
         }
-        String setting = configured.get();
-        if (setting != null && !setting.isBlank()) {
+        if (setting != null && PromptVersionNames.number(setting).isPresent()) {
             if (isVersion(prompt, setting)) {
                 return new PromptBundleSelection(PromptVersionNames.name(number(setting)),
                         PromptBundleSelectionSource.CONFIGURATION);
             }
-            if (warned.add(prompt + "|" + setting.trim())) {
+            if (warned.add(prompt + "|" + setting)) {
                 log.warn("contexa.security.tiered.prompt-bundle.active names {}, which is not a version of {} that"
-                        + " exists and is shown (earlier bundles are gone); the newest Contexa version runs",
-                        setting.trim(), prompt);
+                        + " exists and is shown; the newest Contexa version runs until it is", setting, prompt);
             }
         }
         return latest(prompt)

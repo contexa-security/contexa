@@ -1,0 +1,164 @@
+/*
+ * Copyright 2026 The Contexa Project
+ *
+ * The Contexa Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+package io.contexa.autoconfigure.iam.admin;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
+import io.contexa.autoconfigure.core.scope.ContexaScopedAnnotationAutoConfiguration;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
+import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernanceDescriptorResolver;
+import io.contexa.contexaiam.admin.promptquality.version.AuditLogPromptVersionAudit;
+import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionStore;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionFolderScanner;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionResolver;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionService;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionStartup;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.core.env.Environment;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.TaskScheduler;
+
+import java.nio.file.Path;
+import java.time.Clock;
+import java.util.Map;
+
+/**
+ * The versions of the prompts in the database (plan 3.3, 3.4, 3.7, 3.8): the version service with the product documents
+ * of the build and the registry row each version gets, the store the engine finds a version in (the database first,
+ * the product documents behind it, plan 3.8 11), the resolver that chooses the version of every decision (the label of
+ * the screen, the setting, the newest Contexa version, plan 3.4), the audit log of what is done to a version, the start
+ * of a node (the product versions registered, the rows of earlier bundles retired) and, with
+ * {@code contexa.prompt.versions.directory}, the document folder read at start and every minute.
+ *
+ * <p>Ordered before the prompt governance: the resolver is the decision's {@link PromptBundleSelector} in every
+ * installation with the console's database, so the registry selector of
+ * {@code contexa.security.tiered.prompt-bundle.selector=registry} stands aside and the resolver reads the registry
+ * itself. With prompt governance turned off there is no registry and the resolver reads the setting and the newest
+ * version. Without the console's database none of this is registered and the engine runs the configured name against
+ * the product documents.
+ */
+@AutoConfiguration(after = CoreDataAutoConfiguration.class, before = PromptGovernanceAutoConfiguration.class)
+@ConditionalOnBean(name = "contexaJdbcTemplate")
+public class PromptVersionAutoConfiguration {
+
+    /** The setting of the document folder (plan 3.8, 8); no folder is read without it. */
+    static final String FOLDER_PROPERTY = "contexa.prompt.versions.directory";
+
+    /** Plan 3.7: the console's audit log, else no record (a host without the audit facade). */
+    @Bean(name = "contexaPromptVersionAudit")
+    @ConditionalOnMissingBean(PromptVersionAudit.class)
+    public PromptVersionAudit promptVersionAudit(ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+        CentralAuditFacade facade = centralAuditFacade.getIfAvailable();
+        return facade != null ? new AuditLogPromptVersionAudit(facade) : PromptVersionAudit.none();
+    }
+
+    /**
+     * The versions of the database, with the product documents of the security decision this build ships and the
+     * registry row of its versions, named as the template that runs them is.
+     */
+    @Bean(name = "contexaPromptVersionService")
+    @ConditionalOnMissingBean
+    public PromptVersionService promptVersionService(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                     PromptVersionAudit contexaPromptVersionAudit) {
+        PromptGovernanceDescriptor descriptor = SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE;
+        Map<String, PromptVersionService.RegistryTarget> targets = Map.of(descriptor.promptKey(),
+                new PromptVersionService.RegistryTarget(descriptor.templateKey(), descriptor.contractVersion(),
+                        descriptor.templateClassName(), descriptor.owner()));
+        return new PromptVersionService(() -> jdbcTemplate, SecurityDecisionPromptDocument.productReleases(), targets,
+                contexaPromptVersionAudit, Clock.systemUTC());
+    }
+
+    /** Plan 3.8 (2, 7, 11): the store the engine reads a version from, the product documents behind the database. */
+    @Bean(name = "contexaPromptVersionStore")
+    @ConditionalOnMissingBean(PromptVersionStore.class)
+    public PromptVersionStore promptVersionStore(PromptVersionService contexaPromptVersionService) {
+        return new JdbcPromptVersionStore(contexaPromptVersionService, SecurityDecisionPromptDocument.productStore());
+    }
+
+    /**
+     * Plan 3.4: the version of every decision, from the label of the request's scope (else the platform's), the setting
+     * {@code contexa.security.tiered.prompt-bundle.active} read for each decision, and the newest Contexa version. The
+     * registry is the one the descriptor resolver reads, so both share its cached releases and invalidation poll.
+     */
+    @Bean(name = "contexaPromptVersionResolver")
+    @ConditionalOnMissingBean(PromptBundleSelector.class)
+    public PromptVersionResolver promptVersionResolver(
+            PromptVersionService contexaPromptVersionService,
+            ObjectProvider<PromptGovernanceDescriptorResolver> promptGovernanceDescriptorResolver,
+            ObjectProvider<TieredStrategyProperties> tieredStrategyProperties,
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+            @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
+        PromptGovernanceDescriptorResolver descriptorResolver = promptGovernanceDescriptorResolver.getIfAvailable();
+        PromptBundleSelector registry = null;
+        if (descriptorResolver instanceof JdbcPromptGovernanceDescriptorResolver jdbcResolver) {
+            registry = jdbcResolver.registrySelector();
+        }
+        else if (descriptorResolver != null) {
+            registry = new JdbcPromptGovernanceDescriptorResolver(jdbcTemplate,
+                    objectMapper.getIfAvailable(ObjectMapper::new)).registrySelector();
+        }
+        TieredStrategyProperties properties = tieredStrategyProperties.getIfAvailable(TieredStrategyProperties::new);
+        return new PromptVersionResolver(registry, contexaPromptVersionService,
+                () -> properties.getPromptBundle().getActive(), Clock.systemUTC());
+    }
+
+    /** Plan 3.8 (8): the document folder of this node, when the setting names one. */
+    @Bean(name = "contexaPromptVersionFolderScanner")
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(name = FOLDER_PROPERTY)
+    public PromptVersionFolderScanner promptVersionFolderScanner(
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+            PromptVersionService contexaPromptVersionService, Environment environment) {
+        return new PromptVersionFolderScanner(() -> jdbcTemplate, contexaPromptVersionService,
+                Path.of(environment.getRequiredProperty(FOLDER_PROPERTY).trim()), ZeroTrustCoverageCounter.hostNodeId(),
+                null);
+    }
+
+    /**
+     * The start of a node: the product versions registered, the rows of earlier bundles retired, the folder read now
+     * and every minute. Last among the runners, after the registry's own start registered the build's bundle row it
+     * retires.
+     */
+    @Bean(name = "contexaPromptVersionStartupRunner")
+    @ConditionalOnMissingBean(name = "contexaPromptVersionStartupRunner")
+    @Order(Ordered.LOWEST_PRECEDENCE)
+    public ApplicationRunner promptVersionStartupRunner(
+            PromptVersionService contexaPromptVersionService,
+            ObjectProvider<PromptVersionFolderScanner> promptVersionFolderScanner,
+            @Qualifier(ContexaScopedAnnotationAutoConfiguration.TASK_SCHEDULER) ObjectProvider<TaskScheduler> scheduler) {
+        PromptVersionStartup startup = new PromptVersionStartup(contexaPromptVersionService,
+                promptVersionFolderScanner.getIfAvailable());
+        return args -> startup.start(scheduler.getIfAvailable());
+    }
+}

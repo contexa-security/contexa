@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.context.decision.Deviation;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV4;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.util.SensitiveValueSanitizer;
 
 import java.time.Instant;
@@ -61,7 +62,8 @@ public final class DecisionConsoleColumns {
     /** The decision's console columns, in the order the writer inserts them. */
     public record Values(String attemptKind, String originalEventId, String decisionStage, String analysisDepth,
                          String decisionSource, String decisionChangeCause, String enforcementTiming, String actorKind,
-                         String resourceClass, String promptBundleVersion, String mostLikelyHypothesis,
+                         String resourceClass, String promptBundleVersion, String promptContentHash,
+                         String mostLikelyHypothesis,
                          String contextCoverageLevel, String baselineStatus, Integer unknownFactCount, Long promptTokens,
                          Long cachedPromptTokens, Long outputTokens, Integer modelCallCount, Long userWaitMs,
                          Long providerThrottleWaitMs, Boolean providerThrottleAcquired, String providerThrottleReason,
@@ -106,7 +108,9 @@ public final class DecisionConsoleColumns {
                 timing,
                 actorKind(text(meta.get("executionSubjectKind"))),
                 resourceClass(context, meta),
-                text(meta.get("promptBundleSelection.version")),
+                // Plan 3.7: the version the decision ran (v2.0) and its content hash, as fixed when it started.
+                text(meta.get(SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION)),
+                text(meta.get(SecurityDecisionPromptSections.EVENT_BUNDLE_CONTENT_HASH)),
                 mostLikely(result),
                 context != null && context.getCoverage() != null && context.getCoverage().level() != null
                         ? context.getCoverage().level().name() : null,

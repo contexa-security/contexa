@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentReader;
@@ -185,7 +186,8 @@ class PreparedPartsEquivalenceTest {
 
     private static SecurityPromptBuildContext contextOf() {
         SecurityEvent event = SecurityEvent.builder().eventId("prepared-parts").metadata(new LinkedHashMap<>()).build();
-        event.addMetadata(SecurityDecisionPromptDocument.EVENT_PROMPT_VERSION, V2);
+        event.addMetadata(SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION, V2);
+        event.addMetadata(SecurityDecisionPromptSections.EVENT_BUNDLE_SOURCE, PromptBundleSelectionSource.CONFIGURATION.name());
         return new SecurityPromptBuildContext(event, null, null, List.of(), null, null, null, null, null, null, null);
     }
 }

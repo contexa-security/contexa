@@ -63,7 +63,8 @@ class ZeroTrustConsoleDataPostgresTest {
     private static final String SCHEMA = "META-INF/contexa/db/schema.sql";
     private static final List<String> CONSOLE_COLUMNS = List.of("attempt_kind", "original_event_id", "decision_stage",
             "analysis_depth", "decision_source", "decision_change_cause", "enforcement_result", "enforcement_timing",
-            "actor_kind", "resource_class", "prompt_bundle_version", "most_likely_hypothesis", "context_coverage_level",
+            "actor_kind", "resource_class", "prompt_bundle_version", "prompt_content_hash", "most_likely_hypothesis",
+            "context_coverage_level",
             "baseline_status", "unknown_fact_count", "prompt_tokens", "cached_prompt_tokens", "output_tokens",
             "model_call_count", "user_wait_ms", "decision_summary_json");
     private static final List<String> CONSOLE_TABLES = List.of("ctxa_zt_decision_reason", "ctxa_zt_decision_outcome",
@@ -166,7 +167,8 @@ class ZeroTrustConsoleDataPostgresTest {
                 .userId("alice")
                 .metadata(Map.of("requestId", "request-1", "protectableDeclared", true,
                         "executionSubjectKind", "HUMAN", "protectableSync", true,
-                        "promptBundleSelection.version", "2026.11.15-v1.0",
+                        "promptBundleSelection.version", "v2.0",
+                        "promptBundleSelection.contentHash", "c".repeat(64),
                         "modelCallStages", List.of("LAYER1", "LAYER2")))
                 .build();
         ProcessingResult result = ProcessingResult.builder()
@@ -181,11 +183,13 @@ class ZeroTrustConsoleDataPostgresTest {
         String observationId = writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
 
         Map<String, Object> row = jdbc.queryForMap("SELECT attempt_kind, decision_source, enforcement_timing, actor_kind, "
-                + "prompt_bundle_version, model_call_count, decision_summary_json "
+                + "prompt_bundle_version, prompt_content_hash, model_call_count, decision_summary_json "
                 + "FROM ctxa_ai_security_decision_observation WHERE observation_id = ?", observationId);
         assertThat(row).containsEntry("attempt_kind", "FIRST").containsEntry("decision_source", "MODEL")
                 .containsEntry("enforcement_timing", "BEFORE_RESPONSE").containsEntry("actor_kind", "HUMAN")
-                .containsEntry("prompt_bundle_version", "2026.11.15-v1.0").containsEntry("model_call_count", 2);
+                .containsEntry("prompt_bundle_version", "v2.0").containsEntry("model_call_count", 2)
+                // Plan 3.7: the version the decision ran is named v2.0, beside its content hash.
+                .containsEntry("prompt_content_hash", "c".repeat(64));
         assertThat(String.valueOf(row.get("decision_summary_json"))).contains("DEVIATION_DEVICE");
         List<Map<String, Object>> reasons = jdbc.queryForList("SELECT reason_rank, reason_code, fact_id "
                 + "FROM ctxa_zt_decision_reason WHERE observation_id = ? ORDER BY reason_rank", observationId);

@@ -9,8 +9,10 @@ import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEviden
 import io.contexa.contexacore.autonomous.learning.evidence.RetrievedBehaviorEvidence;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.prompt.PastRecordLineValues;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.verification.replay.SealedDecisionReplayInputs;
+import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
@@ -234,6 +236,27 @@ class SealedEvidencePackageAssemblerInspectionSourcesTest {
         assertThat(replayed).extracting(Document::getId).containsExactly("doc-exact", "doc-similar");
         assertThat(SimilarCases.isSimilarCase(replayed.get(0))).isFalse();
         assertThat(SimilarCases.isSimilarCase(replayed.get(1))).isTrue();
+    }
+
+    /**
+     * Plan 3.8 (9): the sealed package keeps the version the prompt was drawn with and its content hash beside the
+     * prompt; a prompt that did not state them is sealed with the version fixed on the event when the decision started.
+     */
+    @Test
+    void theSealedPackageNamesTheVersionTheDecisionRanAndItsContentHash() throws Exception {
+        String hash = "a".repeat(64);
+        SealedEvidencePackage drawn = seal("req-version", Map.of(PromptExecutionMetadata.PROMPT_VERSION_NAME, "v2.0",
+                PromptExecutionMetadata.PROMPT_CONTENT_HASH, hash), List.of());
+        SealedEvidencePackage fixed = seal("req-version-event", Map.of(), List.of(), Map.of(
+                SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION, "v3.0",
+                SecurityDecisionPromptSections.EVENT_BUNDLE_CONTENT_HASH, "b".repeat(64)));
+
+        assertThat(JSON.readValue(drawn.getPromptExecutionMetadataJson(), MAP))
+                .containsEntry(PromptExecutionMetadata.PROMPT_VERSION_NAME, "v2.0")
+                .containsEntry(PromptExecutionMetadata.PROMPT_CONTENT_HASH, hash);
+        assertThat(JSON.readValue(fixed.getPromptExecutionMetadataJson(), MAP))
+                .containsEntry(PromptExecutionMetadata.PROMPT_VERSION_NAME, "v3.0")
+                .containsEntry(PromptExecutionMetadata.PROMPT_CONTENT_HASH, "b".repeat(64));
     }
 
     private SealedEvidencePackage seal(String requestId, Map<String, Object> promptMetadata, List<Document> documents) {

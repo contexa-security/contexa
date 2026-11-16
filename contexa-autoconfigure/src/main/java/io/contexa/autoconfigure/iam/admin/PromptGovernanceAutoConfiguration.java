@@ -46,6 +46,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -279,9 +281,14 @@ public class PromptGovernanceAutoConfiguration {
                 promptGovernanceEvaluationRecordRepository);
     }
 
+    /**
+     * Plan 6-3: before the start of the prompt versions ({@link PromptVersionAutoConfiguration}, the last runner), which
+     * retires the bundle rows this registration writes.
+     */
     @Bean(name = "contexaPromptGovernanceRegistryBootstrapRunner")
     @ConditionalOnMissingBean(name = "contexaPromptGovernanceRegistryBootstrapRunner")
     @ConditionalOnBean(PromptGovernanceRegistryService.class)
+    @Order(Ordered.LOWEST_PRECEDENCE - 100)
     public ApplicationRunner promptGovernanceRegistryBootstrapRunner(
             PromptGovernanceRegistryService contexaPromptGovernanceRegistryService,
             ObjectProvider<PromptGovernanceLifecycleLedgerService> promptGovernanceLifecycleLedgerService,

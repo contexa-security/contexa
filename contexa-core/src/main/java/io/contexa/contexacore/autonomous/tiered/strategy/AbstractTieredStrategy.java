@@ -1229,8 +1229,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
     /** Plan 6-2: the features of the version of the prompt the event runs (decision D6). */
     protected SecurityDecisionVersionFeatures versionFeatures(SecurityEvent event) {
+        return SecurityDecisionVersionFeatures.of(promptVersionOf(event));
+    }
+
+    /** Plan 3.4: the version of the prompt fixed on the event when its decision started; the product without a template. */
+    protected AssembledPrompt promptVersionOf(SecurityEvent event) {
         AssembledPrompt version = promptTemplate != null ? promptTemplate.promptVersion(event) : null;
-        return SecurityDecisionVersionFeatures.of(version != null ? version : SecurityDecisionPromptDocument.product());
+        return version != null ? version : SecurityDecisionPromptDocument.product();
     }
 
     /** The minimum-action rule settings the host configured and how a weaker decision is handled (W4-4). */
@@ -2248,9 +2253,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (structuredOutputMode == StructuredOutputMode.NATIVE_STRUCTURED) {
             request.withParameter(ExecutionContext.OUTPUT_SCHEMA, SecurityDecisionOutputContractV5.providerSchema());
         }
+        // Plan 3.4: the model call asks again with the correction of the version fixed when the decision started.
+        AssembledPrompt version = promptVersionOf(event);
+        request.withParameter(SecurityDecisionPromptDocument.VERSION_PARAMETER, version);
         // Plan 6-2 (D6): a version with the decision rules replaces an answer that still breaks one.
         request.withParameter(SecurityDecisionV1OutputInspector.FALLBACK_PARAMETER,
-                versionFeatures(event).fallbackOnViolation());
+                SecurityDecisionVersionFeatures.of(version).fallbackOnViolation());
         request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
         request.withParameter("structuredOutputValidationMaxAttempts", 1);
         request.withParameter("strictResponsePostprocessing", true);

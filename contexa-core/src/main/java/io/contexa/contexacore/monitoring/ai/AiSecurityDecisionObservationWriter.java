@@ -275,6 +275,7 @@ public class AiSecurityDecisionObservationWriter {
                     console.actorKind(),
                     console.resourceClass(),
                     truncate(console.promptBundleVersion(), 64),
+                    truncate(console.promptContentHash(), 64),
                     console.mostLikelyHypothesis(),
                     console.contextCoverageLevel(),
                     truncate(console.baselineStatus(), 48),
@@ -317,13 +318,13 @@ public class AiSecurityDecisionObservationWriter {
             llm_decision_present, parser_failure, technical_fallback, timeout_failure, model_unavailable, failure_type,
             fallback_category, fallback_reason, outcome_class, metadata_json, success, created_at, decided_at,
             attempt_kind, original_event_id, decision_stage, analysis_depth, decision_source, decision_change_cause,
-            enforcement_timing, actor_kind, resource_class, prompt_bundle_version, most_likely_hypothesis,
-            context_coverage_level, baseline_status, unknown_fact_count, prompt_tokens, cached_prompt_tokens,
-            output_tokens, model_call_count, user_wait_ms, decision_summary_json, provider_throttle_wait_ms,
-            provider_throttle_acquired, provider_throttle_reason, provider_estimated_tokens""";
+            enforcement_timing, actor_kind, resource_class, prompt_bundle_version, prompt_content_hash,
+            most_likely_hypothesis, context_coverage_level, baseline_status, unknown_fact_count, prompt_tokens,
+            cached_prompt_tokens, output_tokens, model_call_count, user_wait_ms, decision_summary_json,
+            provider_throttle_wait_ms, provider_throttle_acquired, provider_throttle_reason, provider_estimated_tokens""";
 
     /** How many values a decision row has. */
-    private static final int OBSERVATION_VALUES = 71;
+    private static final int OBSERVATION_VALUES = 72;
 
     /**
      * The insert of a decision row; with reason codes, one statement inserts the row and its reason rows (console

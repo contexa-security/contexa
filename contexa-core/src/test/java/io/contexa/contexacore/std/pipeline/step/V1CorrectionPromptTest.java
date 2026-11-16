@@ -16,6 +16,9 @@
 package io.contexa.contexacore.std.pipeline.step;
 
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
+import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
+import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentReader;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV1OutputInspector;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.Message;
@@ -40,7 +43,7 @@ class V1CorrectionPromptTest {
     @Test
     void k31TheContractCorrectionAsksForTheExplanationJudgedMostLikely() {
         String text = lastText(LLMExecutionStep.correctivePromptV1(PROMPT, "{\"action\":\"ALLOW\"}",
-                "REASON_CODE_UNSUPPORTED: DEVIATION_DEVICE", SecurityDecisionPromptDocument.CORRECTION_CONTRACT));
+                "REASON_CODE_UNSUPPORTED: DEVIATION_DEVICE", SecurityDecisionPromptDocument.CORRECTION_CONTRACT, null));
 
         assertThat(text).isEqualTo("The previous answer did not follow the output contract or cited what the lines do"
                 + " not state (REASON_CODE_UNSUPPORTED: DEVIATION_DEVICE). Answer again with one JSON object with"
@@ -74,7 +77,7 @@ class V1CorrectionPromptTest {
                 .isEqualTo(SecurityDecisionPromptDocument.CORRECTION_CONTRACT);
 
         String text = lastText(LLMExecutionStep.correctivePromptV1(PROMPT, "{}", floor.ruleViolation(),
-                SecurityDecisionPromptDocument.CORRECTION_MINIMUM_ACTION));
+                SecurityDecisionPromptDocument.CORRECTION_MINIMUM_ACTION, null));
         assertThat(text).startsWith("The previous answer chose a response weaker than the floor of a minimum action"
                         + " rule that applies (MINIMUM_ACTION_VIOLATION: MIN_P1_IDENTITY_DEVIATION requires CHALLENGE or"
                         + " a stronger action).")
@@ -84,12 +87,31 @@ class V1CorrectionPromptTest {
     @Test
     void theCorrectionFollowsThePromptAndTheAnswerItGot() {
         Prompt corrected = LLMExecutionStep.correctivePromptV1(PROMPT, "{\"action\":\"BLOCK\"}", "X",
-                SecurityDecisionPromptDocument.CORRECTION_RULES);
+                SecurityDecisionPromptDocument.CORRECTION_RULES, null);
         List<Message> messages = corrected.getInstructions();
 
         assertThat(messages).hasSize(4);
         assertThat(messages.get(2).getText()).isEqualTo("{\"action\":\"BLOCK\"}");
         assertThat(messages.get(3).getText()).startsWith("The previous answer was rejected (X).");
+    }
+
+    /**
+     * Plan 3.4: the correction is the one of the version the decision runs, which the strategy hands to the call; a
+     * version of another product release asks in its own words.
+     */
+    @Test
+    void theCorrectionIsTheOneOfTheVersionTheDecisionRuns() {
+        AssembledPrompt later = new PromptAssembler().product(new PromptVersionDocumentReader().read(
+                SecurityDecisionPromptDocument.resource("2026.11.16")
+                        .replace("release: 2026.11.16-v1.0", "release: 2026.12.01-v1.1")
+                        .replace("The previous answer did not follow the output contract",
+                                "The earlier answer did not follow the output contract")));
+
+        String text = lastText(LLMExecutionStep.correctivePromptV1(PROMPT, "{}", "X",
+                SecurityDecisionPromptDocument.CORRECTION_CONTRACT, later));
+
+        assertThat(text).startsWith("The earlier answer did not follow the output contract or cited what the lines do"
+                + " not state (X).");
     }
 
     private static String lastText(Prompt prompt) {
