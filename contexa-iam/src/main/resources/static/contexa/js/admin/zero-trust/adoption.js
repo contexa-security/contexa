@@ -208,9 +208,8 @@
             const current = criterion.current || {};
             const reason = current.value == null && current.noDataReason ? ZT.reason(current.noDataReason) : null;
             table.append(
-                el('span', {title: shown.name}, el('div', {text: shown.name}),
-                    el('div', {class: 'zt-muted', text: t(P + 'criteria.recommended', shown.bound), title: shown.bound}),
-                    reason ? el('div', {class: 'zt-muted', text: reason, title: reason}) : null),
+                el('span', {title: reason ? shown.name + ' · ' + reason : shown.name}, el('div', {text: shown.name}),
+                    el('div', {class: 'zt-muted', text: t(P + 'criteria.recommended', shown.bound), title: shown.bound})),
                 el('span', {}, ZT.bar(shown.bar.value, shown.bar.max, {mark: shown.bar.mark,
                     color: statusColor(criterion.status), label: shown.name + ' ' + shown.text + ' / ' + shown.bound})),
                 el('span', {class: 'zt-num', text: shown.text, title: shown.text}),

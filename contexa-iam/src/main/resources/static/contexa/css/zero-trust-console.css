@@ -841,7 +841,7 @@
 
 .zt-filter-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
     gap: 0.75rem 1.25rem;
 }
 
@@ -1253,4 +1253,31 @@
     margin: 0;
     padding: 0;
     list-style: none;
+}
+
+/* The tables' cells: the modern-table's head in a denser padding and spacing, so five columns keep inside a half card. */
+.zt-page .zt-table th {
+    padding-left: 0.875rem;
+    padding-right: 0.875rem;
+    letter-spacing: 0.03em;
+}
+
+.zt-page .zt-table td {
+    padding-left: 0.875rem;
+    padding-right: 0.875rem;
+}
+
+@media (max-width: 480px) {
+    /* A phone keeps every column inside the card: half the padding, no letter spacing. */
+    .zt-page .zt-table th, .zt-page .zt-table td {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        letter-spacing: 0;
+    }
+
+    .zt-page .zt-heat .zt-table th, .zt-page .zt-heat .zt-table td {
+        padding-left: 0.125rem;
+        padding-right: 0.125rem;
+        font-size: 0.6875rem;
+    }
 }

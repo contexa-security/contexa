@@ -93,7 +93,8 @@
             ZT.kpiMetric(source.model, {tone: 'green', icon: 'fa-robot', href: decisions({source: 'MODEL'}),
                 sub: m('kpi.model.sub', ZT.metricText(source.engineChanged), ZT.metricText(source.modelLess))}),
             ZT.kpiMetric(baseline, {tone: 'teal', icon: 'fa-user-shield',
-                sub: m('baseline.users', ZT.count(evidence.usersEstablished), ZT.count(evidence.users))}),
+                sub: m('kpi.baseline.sub', ZT.count(evidence.usersEstablished), ZT.count(evidence.users)),
+                title: m('baseline.users', ZT.count(evidence.usersEstablished), ZT.count(evidence.users))}),
             ZT.kpiMetric(review, {tone: 'indigo', icon: 'fa-clipboard-check',
                 sub: rangeText(outcomes.reviewValid) || m('outcomes.pending', ZT.count(outcomes.reviewPending)),
                 href: ZT.consoleLink('/decisions', {view: 'review'})}),
@@ -169,7 +170,7 @@
         if (!decided) {
             return ZT.card(m('baseline.title'), null, ZT.empty('NO_DECISIONS'));
         }
-        return ZT.card(m('baseline.title'), m('baseline.users', ZT.count(evidence.usersEstablished), ZT.count(evidence.users)),
+        return ZT.card(m('baseline.title'), m('kpi.baseline.sub', ZT.count(evidence.usersEstablished), ZT.count(evidence.users)),
             ZT.stacked(parts), ZT.valueRows(parts.map(part => ({label: part.label, color: part.color,
                 value: countShare(part.count, decided)}))));
     }

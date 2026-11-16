@@ -48,6 +48,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -288,15 +289,22 @@ class ZeroTrustConsolePostgresTest {
         }
         ZeroTrustConsoleRange week = service.range("week", null, null);
 
-        DecisionPage first = records.list(week, null, null, null);
-        DecisionPage second = records.list(week, null, null, first.nextCursor());
+        // Every page read in turn: each but the last is a whole page, none repeats a row, all 60 decisions of the
+        // week (the 50 above and the 10 the setup writes) are read once.
+        List<DecisionPage> pages = new ArrayList<>();
+        DecisionPage page = records.list(week, null, null, null);
+        pages.add(page);
+        while (page.nextCursor() != null) {
+            page = records.list(week, null, null, page.nextCursor());
+            pages.add(page);
+        }
 
-        assertThat(first.rows()).hasSize(ZeroTrustDecisionRecords.PAGE);
-        assertThat(first.nextCursor()).isNotNull();
-        assertThat(second.rows()).hasSize(10);
-        assertThat(second.nextCursor()).isNull();
-        assertThat(first.rows()).extracting(row -> row.observationId())
-                .doesNotContainAnyElementsOf(second.rows().stream().map(row -> row.observationId()).toList());
+        assertThat(pages.size()).isGreaterThan(1);
+        pages.subList(0, pages.size() - 1).forEach(whole -> assertThat(whole.rows())
+                .hasSize(ZeroTrustDecisionRecords.PAGE));
+        assertThat(pages.get(pages.size() - 1).rows()).isNotEmpty();
+        assertThat(pages.stream().flatMap(read -> read.rows().stream()).map(row -> row.observationId()).toList())
+                .doesNotHaveDuplicates().hasSize(60);
         assertThat(records.list(week, null, new ZeroTrustDecisionRecords.Filter("CHALLENGE", null, null, null, null,
                 null, null, null), null).rows()).hasSize(2);
         assertThat(records.list(week, null, new ZeroTrustDecisionRecords.Filter("NO_DECISION", null, null, null, null,
