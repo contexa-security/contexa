@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
 import io.contexa.contexacore.verification.inspection.FactAccuracyCheck;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCheckResult;
@@ -17,14 +18,16 @@ import java.util.function.Consumer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The fact accuracy check on the DECISION FACTS lines the block draws from other sealed fields than the resolver's
- * facts: the authorization effect, the trusted signal, the client signals, the blocked user, break-glass, the recent
- * permission changes and the temporary elevation.
+ * The fact accuracy check on the DECISION FACTS lines (titled RECORDS AND COMPARISONS by v1.0) the block draws from
+ * other sealed fields than the resolver's facts: the authorization effect, the server-issued signal, the client
+ * signals, the blocked user, break-glass, the recent permission changes and the temporary elevation.
  */
 class PromptInspectionDecisionLineFactsTest {
 
     private static final PromptInspector INSPECTOR =
             new PromptInspector(List.of(new FactAccuracyCheck()), InspectionGolden.JSON);
+    /** The header v1.0 draws the DECISION FACTS block under. */
+    private static final String RECORDS_HEADER = "=== " + PromptBlock.DECISION_FACTS.v21Title();
 
     @Test
     void theAuthorizationEffectIsComparedUpToTheUnsealedProvenance() {
@@ -39,19 +42,32 @@ class PromptInspectionDecisionLineFactsTest {
                 "canonicalContext.authorization.authorizationEffect");
     }
 
-    /** R4-T (Q-78 request 4): the server-issued trusted signal is no fact of the v20 prompt or its dictionary. */
+    /**
+     * R4-T (Q-78 request 4): the former TrustedSignal line is no line of the prompt or its dictionary; v1.0 (D5) draws
+     * the server-issued signal as the VerifiedSignal line, compared with the sealed intent.
+     */
     @Test
-    void theFormerTrustedSignalIsNoFactOfThePrompt() {
-        InspectionGolden.Render base = InspectionGolden.render(text -> text.contains("=== DECISION FACTS"));
+    void theServerIssuedSignalIsTheVerifiedSignalLineComparedWithTheSealedIntent() {
+        InspectionGolden.Render base = InspectionGolden.render(text -> text.contains(RECORDS_HEADER));
         InspectionGolden.Render render = InspectionGolden.renderWith(base, context -> {
             CanonicalSecurityContext.Intent intent = intent(context);
             intent.setAnomalySignal("CREDENTIAL_STUFFING");
-            intent.setAnomalySignalSource("OFFICIAL_VERIFICATION_INTERNAL");
+            intent.setAnomalySignalSource(V1LineValues.TRUSTED_SIGNAL_SOURCE);
         });
 
         assertThat(InspectionGolden.hasLine(render.userPrompt(), "TrustedSignal: ")).isFalse();
-        assertThat(SecurityDecisionPromptDictionary.ENTRIES).extracting(PromptDictionaryEntry::name)
+        assertThat(SecurityDecisionPromptDictionary.V1_ENTRIES).extracting(PromptDictionaryEntry::name)
                 .doesNotContain("TrustedSignal");
+        String line = InspectionGolden.lineStarting(render.userPrompt(), "VerifiedSignal: ");
+        assertThat(InspectionGolden.bare(line)).isEqualTo("VerifiedSignal: CREDENTIAL_STUFFING (server-issued"
+                + " verification input " + V1LineValues.TRUSTED_SIGNAL_SOURCE + ")");
+        assertThat(mismatches(check(render.userPrompt(), render, render.used()))).isEmpty();
+
+        String broken = render.userPrompt().replace(line, line.replace("CREDENTIAL_STUFFING", "ACCOUNT_TAKEOVER"));
+        List<PromptInspectionFinding> found = mismatches(check(broken, render, render.used()));
+        assertThat(found).hasSize(1);
+        assertThat(found.get(0).entry()).isEqualTo("VerifiedSignal");
+        assertThat(found.get(0).sourceRef()).isEqualTo("canonicalContext.intent.anomalySignal");
     }
 
     @Test
@@ -126,7 +142,7 @@ class PromptInspectionDecisionLineFactsTest {
      */
     @Test
     void theDrawnLinesAreWhatTheInspectorExpects() {
-        InspectionGolden.Render base = InspectionGolden.render(text -> text.contains("=== DECISION FACTS"));
+        InspectionGolden.Render base = InspectionGolden.render(text -> text.contains(RECORDS_HEADER));
         InspectionGolden.Render render = InspectionGolden.renderWith(base, context -> {
             CanonicalSecurityContext.Authorization authorization = authorization(context);
             authorization.setAuthorizationEffect(" ALLOW ");
@@ -160,7 +176,7 @@ class PromptInspectionDecisionLineFactsTest {
     /** A kept line has no mismatch; a broken line is the single mismatch, of the given source. */
     private static void assertLine(Consumer<CanonicalSecurityContext> sealedSource, String kept, String broken,
                                    String sourceRef) {
-        InspectionGolden.Render render = InspectionGolden.render(text -> text.contains("=== DECISION FACTS"));
+        InspectionGolden.Render render = InspectionGolden.render(text -> text.contains(RECORDS_HEADER));
         CanonicalSecurityContext context = InspectionGolden.SERIALIZER.deserialize(
                 InspectionGolden.SERIALIZER.serialize(render.used()));
         sealedSource.accept(context);
@@ -184,7 +200,7 @@ class PromptInspectionDecisionLineFactsTest {
             text = text.replace(existing + "\n", "");
         }
         // The header names the time zone when a fact of the block is on the event clock (W3-13).
-        String header = Arrays.stream(text.split("\n")).filter(drawn -> drawn.startsWith("=== DECISION FACTS"))
+        String header = Arrays.stream(text.split("\n")).filter(drawn -> drawn.startsWith(RECORDS_HEADER))
                 .findFirst().orElseThrow();
         return text.replace(header + "\n", header + "\n" + line + "\n");
     }

@@ -26,10 +26,10 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The prompt inspector with the core checks against the v20 prompt quality faults (W3-14, the faults that reached a
- * model): on every golden render each line a fault writes or changes is pointed at on its line as a mismatch and each
- * line it takes away is pointed at by its entry; a render without faults, or with a harmless change, has no mismatch;
- * and what the golden renders leave uncheckable is a fixed list.
+ * The prompt inspector with the core checks against the prompt quality faults (W3-14, the faults that reached a model):
+ * on every golden render of the product version each line a fault writes or changes is pointed at on its line as a
+ * mismatch and each line it takes away is pointed at by its entry; a render without faults, or with a harmless change,
+ * has no mismatch; and what the golden renders leave uncheckable is a fixed list.
  */
 class PromptInspectionFaultDetectionTest {
 
@@ -85,14 +85,16 @@ class PromptInspectionFaultDetectionTest {
 
     /**
      * What the golden renders leave uncheckable, each for a source that is not sealed: the learning evidence, which no
-     * package seals (the two baseline comparison facts and the peer reference the organization baseline draws, as the
-     * sealed prompts do since the golden render builds the learning evidence, N-GOLD-1; the baseline status is
-     * compared with the sealed state since R1b-1, the usual-behaviour lines with the sealed view). The golden cases taken
-     * from the P5 gate measurement (2026-10-16) carry the sealed authentication state, so the login method is compared.
+     * package seals (the two baseline comparison facts, the seen combination v1.0 adds (F6) and the peer reference the
+     * organization baseline draws, as the sealed prompts do since the golden render builds the learning evidence,
+     * N-GOLD-1; the baseline status is compared with the sealed state since R1b-1, the usual-behaviour lines with the
+     * sealed view). The golden cases taken from the P5 gate measurement (2026-10-16) carry the sealed authentication
+     * state, so the login method is compared.
      */
     private static final List<String> UNCHECKABLE_ON_THE_GOLDEN_RENDERS = List.of(
             "DECISION_FACT_MATCH DECISION FACTS.DeviationsFromBaseline <- learningContextEvidence",
             "DECISION_FACT_MATCH DECISION FACTS.SameAsBaseline <- learningContextEvidence",
+            "FACT_ACCURACY DECISION FACTS.SeenCombination <- learningContextEvidence",
             "FACT_ACCURACY USER BASELINE.PeerReference <- learningContextEvidence");
 
     /**

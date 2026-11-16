@@ -17,8 +17,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * The past record check of the prompt inspector: the state line counts the drawn records, each record line has the
- * twelve fields, and the lines are ordered same target first, then latest first. These are the findings read from
- * the lines alone (no source); the comparison with the sealed records is {@link PromptInspectionPastRecordSourceTest}.
+ * thirteen fields of v1.0 (fourteen with the arguments field), and the lines are ordered same target first, then latest
+ * first. These are the findings read from the lines alone (no source); the comparison with the sealed records is
+ * {@link PromptInspectionPastRecordSourceTest}.
  */
 class PromptInspectionPastRecordTest {
 
@@ -28,7 +29,7 @@ class PromptInspectionPastRecordTest {
     private static final Pattern OVERFLOW = Pattern.compile("\nPastRecord\\d+: \\+\\d+ more");
 
     @Test
-    void everyV20RenderOfTheGoldenCasesKeepsThePastRecordNotation() {
+    void everyGoldenRenderKeepsThePastRecordNotation() {
         int matched = 0;
         for (InspectionGolden.Render render : InspectionGolden.renders()) {
             PromptInspectionCheckResult check = check(render.userPrompt(), render);
@@ -96,17 +97,20 @@ class PromptInspectionPastRecordTest {
                 .allMatch(finding -> finding.outcome() == PromptInspectionOutcome.UNVERIFIABLE);
     }
 
+    /** BR-C6: a v1.0 record line has thirteen fields with the learned one, fourteen with the arguments field. */
     @Test
-    void aRecordLineWithoutItsTwelveFieldsIsPointedAt() {
+    void aRecordLineWithoutItsFieldsIsPointedAt() {
         InspectionGolden.Render render = InspectionGolden.render(text -> InspectionGolden.hasLine(text, "PastRecord1: "));
         String record = lineStarting(render.userPrompt(), "PastRecord1: ");
+        assertThat(valueOf(record).split(" / ", -1)).hasSize(PastRecordLineValues.FIELDS_V21);
         String shortened = record.substring(0, record.lastIndexOf(" / "));
         String broken = render.userPrompt().replace(record + "\n", shortened + "\n");
 
         PromptInspectionFinding finding = single(check(broken, render));
         assertThat(finding.entry()).isEqualTo("PastRecord1");
-        assertThat(finding.expected()).isEqualTo("12 fields");
-        assertThat(finding.actual()).isEqualTo("11 fields");
+        assertThat(finding.expected()).isEqualTo(PastRecordLineValues.FIELDS_V21 + " or "
+                + PastRecordLineValues.FIELDS_V21_WITH_ARGS + " fields");
+        assertThat(finding.actual()).isEqualTo((PastRecordLineValues.FIELDS_V21 - 1) + " fields");
     }
 
     @Test

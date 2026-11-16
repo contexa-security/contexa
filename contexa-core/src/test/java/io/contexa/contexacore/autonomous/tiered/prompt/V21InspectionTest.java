@@ -28,9 +28,10 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The sealed packages of v21 decisions read by the prompt inspector (V-6 of the v21 plan): every golden case's v21
- * package is read as a dictionary prompt with the v21 dictionary, its decision facts computed again in the records
- * notation, and its reason codes checked against the output contract v4; none says other than its sources.
+ * The sealed packages of the decisions the product version draws, read by the prompt inspector (V-6 of the v21 plan, the
+ * v21 lines v1.0 keeps): every golden case's L1 package is read as a dictionary prompt with the v1.0 records dictionary,
+ * its decision facts computed again in the records notation, and its reason codes checked against the output contract
+ * v4; none says other than its sources.
  */
 class V21InspectionTest {
 
@@ -38,13 +39,14 @@ class V21InspectionTest {
             InspectionGolden.JSON);
 
     @Test
-    void everyV21GoldenPackageIsReadWithTheV21DictionaryAndSaysNothingElseThanItsSources() {
+    void everyGoldenPackageIsReadWithTheV1RecordsDictionaryAndSaysNothingElseThanItsSources() {
         assertThat(InspectionGolden.v21Renders()).hasSize(27);
         for (InspectionGolden.Render render : InspectionGolden.v21Renders()) {
             PromptInspectionResult result = INSPECTOR.inspect(render.sealed());
 
-            assertThat(result.layoutVersion()).as(render.caseKey()).isEqualTo(PromptInspector.V21_LAYOUT);
-            assertThat(result.dictionaryVersion()).as(render.caseKey()).isEqualTo(PromptInspector.V21_DICTIONARY_VERSION);
+            assertThat(result.layoutVersion()).as(render.caseKey()).isEqualTo(PromptInspector.V1_LAYOUT);
+            // The product version states the records, not the conclusions of the decision rules (D6).
+            assertThat(result.dictionaryVersion()).as(render.caseKey()).isEqualTo(PromptInspector.V1_DICTIONARY_VERSION);
             assertThat(result.verdict()).as(render.caseKey() + " " + mismatches(result))
                     .isIn(PromptInspectionVerdict.PASS, PromptInspectionVerdict.INCOMPLETE);
             assertThat(result.matchedCount()).as(render.caseKey()).isPositive();
@@ -52,7 +54,7 @@ class V21InspectionTest {
     }
 
     @Test
-    void theReasonCodesOfAV21DecisionAreCheckedAgainstTheOutputContractV4() {
+    void theReasonCodesOfADecisionAreCheckedAgainstTheOutputContractV4() {
         InspectionGolden.Render a3 = InspectionGolden.v21Renders().stream()
                 .filter(render -> render.caseKey().equals("A3")).findFirst().orElseThrow();
 
