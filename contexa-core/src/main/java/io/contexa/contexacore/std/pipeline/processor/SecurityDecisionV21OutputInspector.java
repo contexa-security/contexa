@@ -127,7 +127,8 @@ public final class SecurityDecisionV21OutputInspector {
             parts.add(SecurityDecisionV21FactChecks.REASON_CODES_MISSING);
             otherThanCodes = true;
         }
-        else {
+        else if (check.context() != null) {
+            // Plan 6-2: without the canonical context the prompt was drawn from, its facts cannot be checked.
             List<SecurityDecisionFactChecks.ReasonFinding> findings = SecurityDecisionV21FactChecks.reasonFindings(
                     check.context(), drawn, response.getReasonCodes());
             String reasons = SecurityDecisionFactChecks.reasonViolation(findings);

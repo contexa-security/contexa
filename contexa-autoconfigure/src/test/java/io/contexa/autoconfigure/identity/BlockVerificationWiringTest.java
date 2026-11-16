@@ -100,7 +100,7 @@ class BlockVerificationWiringTest {
                 mock(BlockedUserJpaRepository.class), mock(AdminOverrideService.class),
                 mock(ZeroTrustActionRepository.class), mock(ApplicationEventPublisher.class), mock(CentralAuditFacade.class),
                 mock(BlockingSignalBroadcaster.class), mock(MessageSource.class), provider(null), provider(store),
-                new StaticListableBeanFactory(Map.of("zeroTrust", zeroTrust)).getBeanProvider(SecurityZeroTrustProperties.class));
+                new StaticListableBeanFactory(Map.of("zeroTrust", zeroTrust)).getBeanProvider(SecurityZeroTrustProperties.class), provider(null));
 
         assertThat(ReflectionTestUtils.getField(service, "blockMfaStateStore")).isSameAs(store);
         zeroTrust.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);

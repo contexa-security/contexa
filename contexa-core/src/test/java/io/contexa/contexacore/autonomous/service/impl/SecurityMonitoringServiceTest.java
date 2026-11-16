@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.service.impl;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -203,6 +204,8 @@ class SecurityMonitoringServiceTest {
         AtomicInteger attempts = new AtomicInteger();
 
         service = new SecurityMonitoringService(eventCollector, properties);
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        service.setCoverageCounter(coverage);
         service.setBatchProcessor(events -> {
             attempts.incrementAndGet();
             attemptsLatch.countDown();
@@ -215,6 +218,7 @@ class SecurityMonitoringServiceTest {
         SecurityEventListener listener = listenerCaptor.getValue();
 
         SecurityEvent event = SecurityEvent.builder().eventId("evt-requeue-budget").userId("user-1").build();
+        event.addMetadata("zerotrust.category", "AUTHORIZATION");
         listener.onSecurityEvent(event);
 
         assertThat(attemptsLatch.await(2, TimeUnit.SECONDS)).isTrue();
@@ -226,6 +230,8 @@ class SecurityMonitoringServiceTest {
                 .containsEntry("batchDispatchFailureCount", 2)
                 .containsEntry("batchRequeueExhausted", true)
                 .containsEntry("batchRequeueExhaustedReason", "max_batch_requeue_attempts_exceeded");
+        // Console design 7.5: the protected call the dropped event was for is a skip.
+        assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.BATCH_REQUEUE_EXHAUSTED)).isEqualTo(1);
     }
 
     @Test

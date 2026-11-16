@@ -24,6 +24,7 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -108,6 +109,23 @@ class SecurityZeroTrustPropertiesTest {
         properties.setMode(SecurityZeroTrustProperties.EnforcementMode.OBSERVE);
         assertThat(properties.allowsLlmAnalysis()).isFalse();
         assertThat(properties.isEnforcementEnabled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("a configured OBSERVE is read as DISABLED, and the other modes stay as they are (console design 11.2)")
+    void observeIsReadAsDisabled() {
+        SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
+
+        properties.setMode(SecurityZeroTrustProperties.EnforcementMode.OBSERVE);
+        assertThat(properties.getMode()).isEqualTo(SecurityZeroTrustProperties.EnforcementMode.DISABLED);
+
+        for (SecurityZeroTrustProperties.EnforcementMode mode : List.of(
+                SecurityZeroTrustProperties.EnforcementMode.DISABLED,
+                SecurityZeroTrustProperties.EnforcementMode.SHADOW,
+                SecurityZeroTrustProperties.EnforcementMode.ENFORCE)) {
+            properties.setMode(mode);
+            assertThat(properties.getMode()).isEqualTo(mode);
+        }
     }
 
     @Test

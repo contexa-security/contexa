@@ -23,6 +23,7 @@ import io.contexa.contexacommon.security.HeldBean;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;
@@ -112,7 +113,8 @@ public class IamInfrastructureAutoConfiguration {
             ObjectProvider<ProtectableLlmSuppressionWriter> protectableLlmSuppressionWriterProvider,
             ObjectProvider<AuthorizationDenialRecorder> authorizationDenialRecorderProvider,
             ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties,
-            ObjectProvider<DelegatorAuthority> delegatorAuthorityProvider) {
+            ObjectProvider<DelegatorAuthority> delegatorAuthorityProvider,
+            ObjectProvider<ZeroTrustCoverageCounter> coverageCounterProvider) {
 
         Pointcut pointcut = new ComposablePointcut(classOrMethod());
         AtomicReference<AuthorizationManagerMethodInterceptor> advisor = new AtomicReference<>();
@@ -127,6 +129,7 @@ public class IamInfrastructureAutoConfiguration {
             authorizationDenialRecorderProvider.ifAvailable(resolving::setAuthorizationDenialRecorder);
             resolving.setSecurityZeroTrustProperties(securityZeroTrustProperties.getObject());
             delegatorAuthorityProvider.ifAvailable(resolving::setDelegatorAuthority);
+            coverageCounterProvider.ifAvailable(resolving::setCoverageCounter);
         });
         advisor.set(interceptor);
         return interceptor;

@@ -1,7 +1,7 @@
 {
   "promptKey" : "cortex.security-decision",
   "bundleVersion" : "2026.10.30-v21.19",
-  "bundleHash" : "1604256bfa57c166d95ff1e2da953c69356616125c315cd43a9ca0f6f7d88586",
+  "bundleHash" : "d8098c82195ded5d4977b7f86a9f82f499b0d8639acb8680d7ea0c6a1b2c64ae",
   "elements" : [ {
     "id" : "B1",
     "state" : "PRESENT",
@@ -30,7 +30,7 @@
   }, {
     "id" : "B6",
     "state" : "PRESENT",
-    "hash" : "7eb3ecbae1a2805c231b2ba3cf0c15e5a2abdc9eba01e57eea76c51ffdb2517e",
+    "hash" : "2a071a9070487f9386c62652f40d78645a62c67b6b0508ea20ae37253c3986b6",
     "detail" : "v21 response check sources: the citation and honesty checks, no action check (V-5)"
   }, {
     "id" : "B7",

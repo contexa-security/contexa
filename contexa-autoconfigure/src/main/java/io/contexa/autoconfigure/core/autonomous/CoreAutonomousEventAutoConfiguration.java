@@ -51,6 +51,11 @@ import io.contexa.contexacore.autonomous.service.LearningPromotionService;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustConsoleRetention;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustHourlyStats;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustReviewSampler;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.properties.SecurityColdPathProperties;
@@ -137,9 +142,11 @@ public class CoreAutonomousEventAutoConfiguration {
         public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
                 @Qualifier("contexaKafkaTemplate") KafkaTemplate<String, Object> contexaKafkaTemplate,
                 SecurityKafkaProperties securityKafkaProperties,
-                ObjectProvider<KafkaSecurityEventCollector> kafkaSecurityEventCollector) {
+                ObjectProvider<KafkaSecurityEventCollector> kafkaSecurityEventCollector,
+                ObjectProvider<ZeroTrustCoverageCounter> coverageCounter) {
             KafkaSecurityEventPublisher publisher =
                     new KafkaSecurityEventPublisher(contexaKafkaTemplate, securityKafkaProperties);
+            publisher.setCoverageCounter(coverageCounter.getIfAvailable());
             // Q-26: what Kafka does not take is analysed on this node.
             publisher.setLocalAnalysis(event -> kafkaSecurityEventCollector.ifAvailable(
                     collector -> collector.analyseHere(event)));
@@ -211,10 +218,12 @@ public class CoreAutonomousEventAutoConfiguration {
             ZeroTrustActionRepository actionRepository,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
-            ObjectProvider<ShadowDecisionMemory> shadowMemory) {
+            ObjectProvider<ShadowDecisionMemory> shadowMemory,
+            ObjectProvider<ZeroTrustCoverageCounter> coverageCounter) {
         ZeroTrustEventListener listener = new ZeroTrustEventListener(securityEventPublisher,
                 ShadowDecisionMemory.answersOf(shadowMemory.getIfAvailable(), actionRepository), securityZeroTrustProperties);
         listener.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        listener.setCoverageCounter(coverageCounter.getIfAvailable());
         return listener;
     }
 
@@ -340,6 +349,55 @@ public class CoreAutonomousEventAutoConfiguration {
                 objectMapper,
                 defaultModelProvider(environment),
                 defaultModelId(environment));
+    }
+
+    /**
+     * Console design 7.5: this node's counts of the protected calls, the calls a decision in force answered and the
+     * calls the analysis skipped, under the node's host name.
+     */
+    @Bean(name = "contexaZeroTrustCoverageCounter")
+    @ConditionalOnMissingBean
+    public ZeroTrustCoverageCounter zeroTrustCoverageCounter(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider) {
+        return new ZeroTrustCoverageCounter(jdbcOperationsProvider::getIfAvailable, ZeroTrustCoverageCounter.hostNodeId(),
+                null);
+    }
+
+    /** Console design 7.3: what became of a decision afterwards (step-up, release, review). */
+    @Bean(name = "contexaZeroTrustDecisionOutcomes")
+    @ConditionalOnMissingBean
+    public ZeroTrustDecisionOutcomes zeroTrustDecisionOutcomes(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider) {
+        return new ZeroTrustDecisionOutcomes(jdbcOperationsProvider::getIfAvailable);
+    }
+
+    /** Console design 7.4 and 7.5: the hourly decision table, and the coverage counts each node adds. */
+    @Bean(name = "contexaZeroTrustHourlyStats")
+    @ConditionalOnMissingBean
+    public ZeroTrustHourlyStats zeroTrustHourlyStats(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ObjectProvider<ZeroTrustCoverageCounter> coverageCounter) {
+        return new ZeroTrustHourlyStats(jdbcOperationsProvider::getIfAvailable, securityZeroTrustProperties,
+                coverageCounter.getIfAvailable(), null);
+    }
+
+    /** Console design 7.6: the decision rows and the aggregates past their retention go. */
+    @Bean(name = "contexaZeroTrustConsoleRetention")
+    @ConditionalOnMissingBean
+    public ZeroTrustConsoleRetention zeroTrustConsoleRetention(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new ZeroTrustConsoleRetention(jdbcOperationsProvider::getIfAvailable, securityZeroTrustProperties, null);
+    }
+
+    /** Console decision 11.3: the stopped decisions of a day an administrator is asked to review. */
+    @Bean(name = "contexaZeroTrustReviewSampler")
+    @ConditionalOnMissingBean
+    public ZeroTrustReviewSampler zeroTrustReviewSampler(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new ZeroTrustReviewSampler(jdbcOperationsProvider::getIfAvailable, securityZeroTrustProperties, null);
     }
 
     private static String defaultModelProvider(Environment environment) {

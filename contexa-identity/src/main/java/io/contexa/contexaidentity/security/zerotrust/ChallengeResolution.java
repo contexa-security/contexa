@@ -20,6 +20,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
@@ -53,6 +54,8 @@ public class ChallengeResolution {
     private final BlockingSignalBroadcaster blockingSignalBroadcaster;
     private final IBlockedUserRecorder blockedUserRecorder;
     private final BlockMfaStateStore blockMfaStateStore;
+    /** Console design 7.3: the passed challenge is the decision's outcome; null records none. */
+    private ZeroTrustDecisionOutcomes decisionOutcomes;
 
     public ChallengeResolution(ZeroTrustActionRepository actionRepository,
                                SecurityLearningService securityLearningService,
@@ -68,6 +71,10 @@ public class ChallengeResolution {
         this.blockingSignalBroadcaster = blockingSignalBroadcaster;
         this.blockedUserRecorder = blockedUserRecorder;
         this.blockMfaStateStore = blockMfaStateStore;
+    }
+
+    public void setDecisionOutcomes(ZeroTrustDecisionOutcomes decisionOutcomes) {
+        this.decisionOutcomes = decisionOutcomes;
     }
 
     /** Records that the user passed a step-up at the given time (the engine reads it as a fact of later requests). */
@@ -109,6 +116,12 @@ public class ChallengeResolution {
                 actionRepository.holdChallengeForOtherSessions(userId, contextBindingHash);
                 actionRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
                 learnStepUp(userId, request, originalIp, challengedRequestId);
+                // Console design 7.3: the account owner answered the challenge; a session that holds a challenge
+                // answered elsewhere (below) adds no outcome of its own.
+                if (decisionOutcomes != null) {
+                    decisionOutcomes.record(challengedRequestId, userId, null,
+                            ZeroTrustDecisionOutcomes.Kind.CHALLENGE_PASSED, userId, null);
+                }
             } else if (actionRepository.getCurrentAction(userId, contextBindingHash) == ZeroTrustAction.CHALLENGE) {
                 actionRepository.holdChallengeForOtherSessions(userId, contextBindingHash);
                 actionRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
@@ -138,6 +151,33 @@ public class ChallengeResolution {
             }
         } catch (Exception e) {
             log.error("[MFA] Failed to keep the passed step-up as a fact of its context: userId={}", userId, e);
+        }
+    }
+
+    /**
+     * Console design 7.3: the user used up the answers of the challenge in force without passing it, which is the
+     * decision's outcome. Nothing is recorded when no challenge is in force for the user: a failed sign-in MFA is no
+     * answer to a decision.
+     */
+    public void recordChallengeFailure(String userId) {
+        recordChallengeFailure(actionRepository, decisionOutcomes, userId);
+    }
+
+    /** The same record for a caller that has the decision store and the outcomes but no resolution of its own. */
+    public static void recordChallengeFailure(ZeroTrustActionRepository actionRepository,
+                                              ZeroTrustDecisionOutcomes decisionOutcomes, String userId) {
+        if (decisionOutcomes == null || actionRepository == null || userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            if (actionRepository.getActionFromHash(userId) != ZeroTrustAction.CHALLENGE) {
+                return;
+            }
+            ZeroTrustActionRepository.ZeroTrustAnalysisData analysis = actionRepository.getAnalysisData(userId);
+            decisionOutcomes.record(analysis != null ? analysis.requestId() : null, userId, null,
+                    ZeroTrustDecisionOutcomes.Kind.CHALLENGE_FAILED, userId, "answers used up");
+        } catch (Exception e) {
+            log.error("[MFA] Failed to record the failed challenge of user: {}", userId, e);
         }
     }
 

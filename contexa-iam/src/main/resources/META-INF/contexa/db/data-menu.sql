@@ -56,6 +56,16 @@ DELETE FROM ctxa_admin_menu_role r
 
 DELETE FROM ctxa_admin_menu
  WHERE data_page = 'ai-monitor-operations';
+
+-- Console plan 5-1: the AI monitor's four pages became the Zero Trust console's screens; their addresses now open
+-- the console (AiMonitorController), so their menus go.
+DELETE FROM ctxa_admin_menu_role r
+ USING ctxa_admin_menu m
+ WHERE r.menu_id = m.id
+   AND m.data_page IN ('ai-monitor-overview', 'ai-monitor-llm', 'ai-monitor-failures', 'ai-monitor-readiness');
+
+DELETE FROM ctxa_admin_menu
+ WHERE data_page IN ('ai-monitor-overview', 'ai-monitor-llm', 'ai-monitor-failures', 'ai-monitor-readiness');
 DELETE FROM ctxa_admin_menu_role r
  USING ctxa_admin_menu m
  WHERE r.menu_id = m.id
@@ -121,16 +131,18 @@ WITH seed(name, url, icon, parent_data_page, menu_order, enabled, menu_type, dat
     ('menu.iam.password.policy',     '/contexa/admin/password-policy',        '',                'iam',        6,  TRUE, 'CORE',       'password-policy'),
     ('menu.iam.system.settings',     '/contexa/admin/system-settings',        '',                'iam',        7,  TRUE, 'CORE',       'system-settings'),
     ('menu.iam.menu.management',     '/contexa/admin/menu-management',        '',                'iam',        8,  TRUE, 'CORE',       'menu-management'),
-    ('menu.zerotrust.monitor',       '/contexa/admin/security-monitor',       '',                'security',   1,  TRUE, 'CORE',       'security-monitor'),
+    ('menu.security.events',         '/contexa/admin/security-monitor',       '',                'security',   1,  TRUE, 'CORE',       'security-monitor'),
     ('menu.zerotrust.blacklist',     '/contexa/admin/blacklist',              '',                'security',   2,  TRUE, 'CORE',       'blacklist'),
     ('menu.security.sessions',       '/contexa/admin/session-management',     '',                'security',   3,  TRUE, 'CORE',       'session-management'),
     ('menu.security.ip',             '/contexa/admin/ip-management',          '',                'security',   4,  TRUE, 'CORE',       'ip-management'),
     ('menu.security.company.records', '/contexa/admin/company-records',      '',                'security',   5,  TRUE, 'CORE',       'company-records'),
     ('menu.agents.list',             '/contexa/admin/agents',                 '',                'agents',     1,  TRUE, 'CORE',       'agents-list'),
-    ('menu.aiMonitor.overview',      '/contexa/admin/ai-monitor',             '',                'ai-monitor', 1,  TRUE, 'CORE',       'ai-monitor-overview'),
-    ('menu.aiMonitor.llm',           '/contexa/admin/ai-monitor/llm',         '',                'ai-monitor', 2,  TRUE, 'CORE',       'ai-monitor-llm'),
-    ('menu.aiMonitor.failures',      '/contexa/admin/ai-monitor/failures',    '',                'ai-monitor', 3,  TRUE, 'CORE',       'ai-monitor-failures'),
-    ('menu.aiMonitor.readiness',     '/contexa/admin/ai-monitor/readiness',   '',                'ai-monitor', 4,  TRUE, 'CORE',       'ai-monitor-readiness'),
+    ('menu.zerotrust.overview',      '/contexa/admin/zero-trust',             '',                'ai-monitor', 1,  TRUE, 'CORE',       'zero-trust-overview'),
+    ('menu.zerotrust.impact',        '/contexa/admin/zero-trust/impact',      '',                'ai-monitor', 2,  TRUE, 'CORE',       'zero-trust-impact'),
+    ('menu.zerotrust.trust',         '/contexa/admin/zero-trust/trust',       '',                'ai-monitor', 3,  TRUE, 'CORE',       'zero-trust-trust'),
+    ('menu.zerotrust.decisions',     '/contexa/admin/zero-trust/decisions',   '',                'ai-monitor', 4,  TRUE, 'CORE',       'zero-trust-decisions'),
+    ('menu.zerotrust.adoption',      '/contexa/admin/zero-trust/adoption',    '',                'ai-monitor', 5,  TRUE, 'CORE',       'zero-trust-adoption'),
+    ('menu.zerotrust.operations',    '/contexa/admin/zero-trust/operations',  '',                'ai-monitor', 6,  TRUE, 'CORE',       'zero-trust-operations'),
     ('menu.pqa.resources',           '/contexa/admin/prompt-quality/resources', '',              'prompt-quality', 1, TRUE, 'CORE',       'prompt-quality-resources'),
     ('menu.pqa.runtimeEvidence',     '/contexa/admin/prompt-quality/runtime-evidence', '',       'prompt-quality', 2, TRUE, 'CORE',       'prompt-quality-runtime-evidence'),
     ('menu.pqa.inspection.overview', '/contexa/admin/prompt-inspection',               '',       'prompt-quality', 3, TRUE, 'CORE',       'prompt-inspection-overview'),

@@ -742,8 +742,124 @@ class ProviderAwareChatOptionsFactoryTest {
         }
     }
 
+    /**
+     * K13: every call asks for the same context, 16,384 tokens by default, so one model runner serves them all (Ollama
+     * reloads the model for another length); a short prompt fits it.
+     */
+    @Test
+    void anOllamaCallAsksForTheConfiguredContextWhenItsPromptFits() {
+        ExecutionContext context = ollamaContext("qwen3:8b");
+
+        OllamaChatOptions options = (OllamaChatOptions) ProviderAwareChatOptionsFactory.buildRuntimeOptions(context,
+                ollamaModel("qwen3:8b"));
+
+        assertThat(options.getNumCtx()).isEqualTo(16_384);
+        assertThat(context.getMetadata().get(ExecutionContext.PROVIDER_CONTEXT_LENGTH)).isEqualTo(16_384);
+        assertThat(context.getMetadata().get(ExecutionContext.ESTIMATED_PROMPT_TOKENS)).isEqualTo(5);
+    }
+
+    /**
+     * K13: a decision prompt of about 6,800 tokens with a 4,096-token answer limit was cut to the server's 4,096 tokens;
+     * it fits the default context, and a longer one gets the context doubled until it fits.
+     */
+    @Test
+    void anOllamaCallAsksForAContextItsPromptAndAnswerFitIn() {
+        ExecutionContext decision = ollamaContext("qwen3:8b", "x".repeat(27_000));
+        decision.setMaxTokens(4_096);
+        ExecutionContext longer = ollamaContext("qwen3:8b", "x".repeat(45_000));
+        longer.setMaxTokens(4_096);
+
+        OllamaChatOptions fits = (OllamaChatOptions) ProviderAwareChatOptionsFactory.buildRuntimeOptions(decision,
+                ollamaModel("qwen3:8b"));
+        OllamaChatOptions doubled = (OllamaChatOptions) ProviderAwareChatOptionsFactory.buildRuntimeOptions(longer,
+                ollamaModel("qwen3:8b"));
+
+        // 27,000 bytes are estimated at 9,000 tokens; with 4,096 for the answer and 256 for the template, 13,352
+        assertThat(decision.getMetadata().get(ExecutionContext.ESTIMATED_PROMPT_TOKENS)).isEqualTo(9_000);
+        assertThat(fits.getNumCtx()).isEqualTo(16_384);
+        assertThat(fits.getNumPredict()).isEqualTo(4_096);
+        // 45,000 bytes: 15,000 + 4,096 + 256 = 19,352
+        assertThat(doubled.getNumCtx()).isEqualTo(32_768);
+    }
+
+    /** K13: the configured context replaces the default one. */
+    @Test
+    void anOllamaCallAsksForTheContextTheConfigurationNames() {
+        ProviderAwareChatOptionsFactory.configureOllamaContextLength(8_192);
+        try {
+            OllamaChatOptions options = (OllamaChatOptions) ProviderAwareChatOptionsFactory.buildRuntimeOptions(
+                    ollamaContext("qwen3:8b"), ollamaModel("qwen3:8b"));
+
+            assertThat(options.getNumCtx()).isEqualTo(8_192);
+        } finally {
+            ProviderAwareChatOptionsFactory.configureOllamaContextLength(null);
+        }
+    }
+
+    /** K13: a Korean syllable takes three bytes and about one token, so the estimate stays above the true count. */
+    @Test
+    void theEstimateCountsAKoreanSyllableAsAToken() {
+        assertThat(ProviderAwareChatOptionsFactory.estimatedPromptTokens(new Prompt("가".repeat(300)))).isEqualTo(300);
+        assertThat(ProviderAwareChatOptionsFactory.estimatedPromptTokens(null)).isZero();
+    }
+
+    /** K13: an operator's num_ctx is where the call starts; it grows from there when the prompt needs more. */
+    @Test
+    void anOllamaCallStartsFromTheConfiguredContext() {
+        ChatModel model = new StubChatModel(OllamaChatOptions.builder().model("qwen3:8b").numCtx(8_192).build());
+
+        OllamaChatOptions small = (OllamaChatOptions) ProviderAwareChatOptionsFactory.buildRuntimeOptions(
+                ollamaContext("qwen3:8b"), model);
+        ExecutionContext large = ollamaContext("qwen3:8b", "x".repeat(30_000));
+        large.setMaxTokens(4_096);
+        OllamaChatOptions grown = (OllamaChatOptions) ProviderAwareChatOptionsFactory.buildRuntimeOptions(large, model);
+
+        assertThat(small.getNumCtx()).isEqualTo(8_192);
+        assertThat(grown.getNumCtx()).isEqualTo(16_384);
+    }
+
+    /** K13: the context stops at the configured largest one; the prompt that does not fit it is logged as cut. */
+    @Test
+    void anOllamaCallStopsAtTheLargestConfiguredContext() {
+        ProviderAwareChatOptionsFactory.configureOllamaContextLength(4_096);
+        ProviderAwareChatOptionsFactory.configureOllamaMaxContextLength(8_192);
+        try {
+            ExecutionContext context = ollamaContext("qwen3:8b", "x".repeat(60_000));
+
+            OllamaChatOptions options = (OllamaChatOptions) ProviderAwareChatOptionsFactory.buildRuntimeOptions(context,
+                    ollamaModel("qwen3:8b"));
+
+            assertThat(options.getNumCtx()).isEqualTo(8_192);
+        } finally {
+            ProviderAwareChatOptionsFactory.configureOllamaMaxContextLength(null);
+            ProviderAwareChatOptionsFactory.configureOllamaContextLength(null);
+        }
+    }
+
+    /** K13: a server that read its whole context as input cut the prompt; the call says so. */
+    @Test
+    void aModelServerThatReadItsWholeContextCutThePrompt() {
+        ExecutionContext cut = ollamaContext("qwen3:8b");
+        cut.addMetadata(ExecutionContext.PROVIDER_CONTEXT_LENGTH, 4_096);
+        ExecutionContext whole = ollamaContext("qwen3:8b");
+        whole.addMetadata(ExecutionContext.PROVIDER_CONTEXT_LENGTH, 16_384);
+        ExecutionContext unknown = ollamaContext("qwen3:8b");
+
+        UnifiedLLMOrchestrator.recordProviderTruncation(cut, 4_096);
+        UnifiedLLMOrchestrator.recordProviderTruncation(whole, 6_805);
+        UnifiedLLMOrchestrator.recordProviderTruncation(unknown, 6_805);
+
+        assertThat(cut.getMetadata().get(ExecutionContext.PROMPT_TRUNCATED_BY_PROVIDER)).isEqualTo(true);
+        assertThat(whole.getMetadata()).doesNotContainKey(ExecutionContext.PROMPT_TRUNCATED_BY_PROVIDER);
+        assertThat(unknown.getMetadata()).doesNotContainKey(ExecutionContext.PROMPT_TRUNCATED_BY_PROVIDER);
+    }
+
     private static ExecutionContext ollamaContext(String model) {
-        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        return ollamaContext(model, "security prompt");
+    }
+
+    private static ExecutionContext ollamaContext(String model, String promptText) {
+        ExecutionContext context = ExecutionContext.from(new Prompt(promptText));
         context.setMaxTokens(2048);
         context.setTemperature(0.0d);
         context.setPreferredModel(model);

@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
         '/contexa/admin/users': 'iam', '/contexa/admin/groups': 'iam', '/contexa/admin/roles': 'iam',
         '/contexa/admin/permissions': 'iam', '/contexa/admin/role-hierarchies': 'iam', '/contexa/admin/password-policy': 'iam',
         '/contexa/admin/security-monitor': 'security',
-        '/contexa/admin/ai-monitor': 'ai-monitor',
+        '/contexa/admin/zero-trust': 'ai-monitor',
         '/contexa/admin/blacklist': 'security', '/contexa/admin/session-management': 'security', '/contexa/admin/ip-management': 'security',
         '/contexa/admin/enterprise/zerotrust': 'security', '/contexa/admin/enterprise/incidents': 'security',
         '/contexa/admin/enterprise': 'enterprise',
@@ -77,10 +77,21 @@ document.addEventListener('DOMContentLoaded', function() {
         if (mainLink) mainLink.classList.add('active');
     }
 
-    document.querySelectorAll('.submenu-link').forEach(function(link) {
+    // Only the longest address that holds the page lights up: the Zero Trust overview's address starts every
+    // console screen's, and the screen's own menu is the one meant.
+    var submenuLinks = Array.prototype.slice.call(document.querySelectorAll('.submenu-link'));
+    var longest = -1;
+    submenuLinks.forEach(function(link) {
         var href = link.getAttribute('href');
         href = href ? withinApp(href) : href;
-        if (href && (path === href || path.startsWith(href + '/'))) {
+        if (href && (path === href || path.startsWith(href + '/')) && href.length > longest) {
+            longest = href.length;
+        }
+    });
+    submenuLinks.forEach(function(link) {
+        var href = link.getAttribute('href');
+        href = href ? withinApp(href) : href;
+        if (href && href.length === longest && (path === href || path.startsWith(href + '/'))) {
             link.classList.add('active');
         }
     });

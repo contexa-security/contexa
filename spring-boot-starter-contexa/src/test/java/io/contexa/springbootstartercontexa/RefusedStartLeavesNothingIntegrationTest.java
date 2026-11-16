@@ -72,6 +72,12 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 @Timeout(300)
 class RefusedStartLeavesNothingIntegrationTest {
 
+    /**
+     * The tables of Contexa's schema: 152, the Zero Trust console's seven (console plan stage 2) and the prompt versions'
+     * five (implementation plan 6-3).
+     */
+    private static final int CONTEXA_TABLES = 164;
+
     private static final String PROBLEM_BEFORE = "Contexa owns the sign-in of this application, but the application declares its own"
             + " security chain(s) [";
     private static final String PROBLEM_AFTER = "]. Contexa's chain takes every request first, so they would never run and what"
@@ -157,7 +163,7 @@ class RefusedStartLeavesNothingIntegrationTest {
         assertThat(refused.action()).isEqualTo(ACTION);
         assertThat(sessionsOfTheStart()).isPositive();
         assertThat(dataSources).isNotEmpty();
-        assertThat(contexaTables()).isEqualTo(152);
+        assertThat(contexaTables()).isEqualTo(CONTEXA_TABLES);
     }
 
     /** Registered in code, the chain says nothing of what it builds: it is refused as before, once it is built. */
@@ -203,7 +209,7 @@ class RefusedStartLeavesNothingIntegrationTest {
     void aChainWithoutFiltersStillStarts() throws Exception {
         try (ConfigurableApplicationContext context = run(List.of(ChainOnACondition.class), List.of(), "host.security.enabled=false")) {
             assertThat(context.containsBeanDefinition(CHECK)).isTrue();
-            assertThat(contexaTables()).isEqualTo(152);
+            assertThat(contexaTables()).isEqualTo(CONTEXA_TABLES);
         }
     }
 
@@ -217,7 +223,7 @@ class RefusedStartLeavesNothingIntegrationTest {
             after = answer(context, "/host/ping");
             beansAfter = beanNames(context);
         }
-        assertThat(contexaTables()).isEqualTo(152);
+        assertThat(contexaTables()).isEqualTo(CONTEXA_TABLES);
         dropIt();
         aDatabaseOfItsOwn();
         Answer before;
@@ -244,7 +250,7 @@ class RefusedStartLeavesNothingIntegrationTest {
             assertThat(answer.status()).isEqualTo(200);
             assertThat(answer.body()).isEqualTo("the application answers");
         }
-        assertThat(contexaTables()).isEqualTo(152);
+        assertThat(contexaTables()).isEqualTo(CONTEXA_TABLES);
     }
 
     private void assertRefusedBeforeTheDatabase(Throwable failure, String chain) throws Exception {

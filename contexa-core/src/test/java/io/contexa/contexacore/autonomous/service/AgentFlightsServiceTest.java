@@ -29,6 +29,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService.AsyncProtectableGate;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService.SyncDecisionResult;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
@@ -238,6 +239,8 @@ class AgentFlightsServiceTest {
     @RepeatedTest(20)
     void aBlockOnASynchronousRequestBlocksTheOthersWithoutAnalysingThem() throws Exception {
         SynchronousProtectableDecisionService service = service(true, 3, 20, 20_000, 3);
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        service.setCoverageCounter(coverage);
         verdict = order -> ZeroTrustAction.BLOCK;
         analysisMillis = 40;
 
@@ -247,6 +250,7 @@ class AgentFlightsServiceTest {
         assertThat(answers(outcomes)).hasSize(5).allSatisfy(r -> assertThat(r.action()).isEqualTo(ZeroTrustAction.BLOCK));
         // the four that were not analysed are recorded as requests that reached no analysis
         verify(recorder, times(4)).record(any(ZeroTrustSpringEvent.class), eq(ZeroTrustAction.BLOCK));
+        assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.REUSED)).isEqualTo(4);
     }
 
     // SV-03
@@ -279,6 +283,8 @@ class AgentFlightsServiceTest {
     @Test
     void whenTheAgentHasNoPlaceLeftTheRequestIsRefusedAsBusyAndNeverPassed() throws Exception {
         SynchronousProtectableDecisionService service = service(true, 1, 0, 200, 3);
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        service.setCoverageCounter(coverage);
         analysisMillis = 800;
         List<Map<String, Object>> requests = new ArrayList<>();
         for (int i = 1; i <= 3; i++) {
@@ -294,6 +300,7 @@ class AgentFlightsServiceTest {
             assertThat(denied.getErrorCode()).isEqualTo("ZERO_TRUST_ANALYSIS_BUSY");
             assertThat(denied.getBusyRetryAfterSeconds()).isPositive();
         });
+        assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.ANALYSIS_BUSY)).isEqualTo(2);
     }
 
     // SV-05 (GT-01)
@@ -375,6 +382,8 @@ class AgentFlightsServiceTest {
         assertThat(first.publishesEvent()).as("the first pass is analysed in the background").isTrue();
         assertThat(second.passed()).isTrue();
         assertThat(second.publishesEvent()).as("the others are only recorded").isFalse();
+        assertThat(first.coverage()).as("the first is decided by its own analysis").isNull();
+        assertThat(second.coverage()).isEqualTo(ZeroTrustCoverageCounter.PASSED_WITH_LEADING_REQUEST);
         assertThat(third.passed()).isTrue();
         assertThat(third.publishesEvent()).isFalse();
         assertThat(fourth.passed()).isFalse();

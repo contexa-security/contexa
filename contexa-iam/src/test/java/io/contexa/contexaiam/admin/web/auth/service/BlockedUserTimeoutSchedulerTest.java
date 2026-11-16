@@ -19,6 +19,7 @@ import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.soar.event.SecurityActionEvent;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
@@ -109,5 +110,21 @@ class BlockedUserTimeoutSchedulerTest {
         assertThat(record.getClientIp()).isEqualTo("192.168.1.100");
         assertThat(record.getOutcome()).isEqualTo("AUTO_BLOCKED");
         assertThat(record.getRiskScore()).isEqualTo(75.5);
+    }
+
+    /** Console design 7.3: nobody asked for a release within the answer time, so the block stays. */
+    @Test
+    void aBlockNobodyAnsweredIsKept() {
+        ZeroTrustDecisionOutcomes outcomes = mock(ZeroTrustDecisionOutcomes.class);
+        scheduler.setDecisionOutcomes(outcomes);
+        BlockedUser user = BlockedUser.builder().id(2L).userId("quiet-user").requestId("req-456").tenantId("tenant-a")
+                .blockedAt(LocalDateTime.now().minusHours(25)).status(BlockedUserStatus.BLOCKED).build();
+        when(blockedUserJpaRepository.findByStatusAndBlockedAtBefore(eq(BlockedUserStatus.BLOCKED), any(LocalDateTime.class)))
+                .thenReturn(List.of(user));
+
+        scheduler.checkBlockedUserTimeout();
+
+        verify(outcomes).record(eq("req-456"), eq("quiet-user"), eq("tenant-a"),
+                eq(ZeroTrustDecisionOutcomes.Kind.BLOCK_KEPT), eq("contexa"), any());
     }
 }

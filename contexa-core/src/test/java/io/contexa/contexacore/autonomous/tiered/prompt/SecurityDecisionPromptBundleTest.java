@@ -79,6 +79,14 @@ class SecurityDecisionPromptBundleTest {
             "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionV1OutputInspector.java",
             "src/main/java/io/contexa/contexacore/autonomous/tiered/prompt/SecurityDecisionFactChecks.java",
             "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionRawOutputContractInspector.java");
+    /** The v1.0 response check of the short output (K30): the check above, read through the short answer's adapter. */
+    private static final List<String> V1_COMPACT_INSPECTOR_SOURCES = List.of(
+            "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionV21OutputInspector.java",
+            "src/main/java/io/contexa/contexacore/autonomous/tiered/prompt/SecurityDecisionV21FactChecks.java",
+            "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionV1OutputInspector.java",
+            "src/main/java/io/contexa/contexacore/autonomous/tiered/prompt/SecurityDecisionFactChecks.java",
+            "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionRawOutputContractInspector.java",
+            "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionCompactAnswer.java");
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
     private static SecurityDecisionGoldenRender golden;
@@ -312,7 +320,11 @@ class SecurityDecisionPromptBundleTest {
         elements.add(PromptBundleHashes.presentHash("B3", SecurityDecisionGoldenRender.digest(rendered),
                 "golden render digest: " + golden.cases().size() + " cases x L1/L2"
                         + (v20 ? " and " + secondPasses + " second passes" : "") + ", inputs " + golden.contentSha256()));
-        elements.add(v1
+        boolean compact = v1 && bundle.features().compactOutput();
+        elements.add(compact
+                ? PromptBundleHashes.present("B4", outputContractV1Compact(bundle),
+                        "format instructions, the output contract v5 schema and the response fields (K30)")
+                : v1
                 ? PromptBundleHashes.present("B4", outputContractV1(),
                         "format instructions, the output contract v4 schema and the response fields (plan 2.3 A4)")
                 : v21
@@ -333,7 +345,11 @@ class SecurityDecisionPromptBundleTest {
                         StandardCharsets.UTF_8) + MinimumActionRules.Settings.DEFAULTS,
                         "minimum action rules P1-P3 (dictionary 6): the rule source and the default settings")
                 : PromptBundleHashes.marker("B5", PromptBundleElementState.ABSENT, "no minimum response rules in v19 (W4-4)"));
-        elements.add(v1
+        elements.add(compact
+                ? PromptBundleHashes.present("B6", sources(V1_COMPACT_INSPECTOR_SOURCES),
+                        "v1.0 response check sources: the v21 check, the past record claim, the boundaries and the floors,"
+                                + " and the fallback actions, read through the short answer's adapter (K30)")
+                : v1
                 ? PromptBundleHashes.present("B6", sources(V1_INSPECTOR_SOURCES),
                         "v1.0 response check sources: the v21 check, the past record claim, the boundaries and the floors,"
                                 + " and the fallback actions (plan 2.2 B6)")
@@ -424,6 +440,12 @@ class SecurityDecisionPromptBundleTest {
         return SecurityDecisionContractSectionBuilder.formatInstructions(
                 SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS) + '\n'
                 + SecurityDecisionOutputContractV4.providerSchema() + '\n' + outputContract();
+    }
+
+    /** The output contract of a bundle with the short output (v1.0, K30): its format instructions and the v5 schema. */
+    private static String outputContractV1Compact(SecurityDecisionPromptBundles.Bundle bundle) {
+        return SecurityDecisionContractSectionBuilder.formatInstructions(bundle) + '\n'
+                + SecurityDecisionOutputContractV5.providerSchema() + '\n' + outputContract();
     }
 
     /** The v1.0 output: its format instructions, the output contract v4 schema and the response fields. */

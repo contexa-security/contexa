@@ -35,13 +35,17 @@ import org.springframework.core.env.Environment;
 public class OllamaChatModelOptionsAutoConfiguration {
 
     static final String DISABLE_THINKING_PATTERNS = "contexa.llm.model-capabilities.ollama.disable-thinking-patterns";
+    /** K13: the largest context (num_ctx) an Ollama call asks for; without it 32,768 tokens. */
+    static final String MAX_CONTEXT_LENGTH = "contexa.llm.model-capabilities.ollama.max-context-length";
+    /** K13: the context every Ollama call asks for unless its prompt needs more; without it 16,384 tokens. */
+    static final String CONTEXT_LENGTH = "contexa.llm.model-capabilities.ollama.context-length";
 
     @Bean(name = "contexaOllamaModelCapabilitiesEnvironmentBridge")
     public static CapabilitiesBridge ollamaModelCapabilitiesEnvironmentBridge() {
         return new CapabilitiesBridge();
     }
 
-    /** Hands the configured Ollama models whose thinking is turned off to the options factory. */
+    /** Hands the configured Ollama models whose thinking is turned off, and the largest context, to the options factory. */
     public static final class CapabilitiesBridge implements BeanFactoryPostProcessor, EnvironmentAware {
 
         private Environment environment;
@@ -56,6 +60,10 @@ public class OllamaChatModelOptionsAutoConfiguration {
             if (environment != null) {
                 ProviderAwareChatOptionsFactory.configureOllamaModelCapabilities(
                         environment.getProperty(DISABLE_THINKING_PATTERNS));
+                ProviderAwareChatOptionsFactory.configureOllamaMaxContextLength(
+                        environment.getProperty(MAX_CONTEXT_LENGTH, Integer.class));
+                ProviderAwareChatOptionsFactory.configureOllamaContextLength(
+                        environment.getProperty(CONTEXT_LENGTH, Integer.class));
             }
         }
     }

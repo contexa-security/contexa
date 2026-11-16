@@ -171,6 +171,20 @@ class SystemRuntimeSettingsServiceTest {
     }
 
     @Test
+    @DisplayName("console design 11.2: a stored OBSERVE reads as DISABLED, and OBSERVE is not offered")
+    void observeReadsAsDisabledAndIsNotOffered() {
+        SystemSettingsRepository repository = mock(SystemSettingsRepository.class);
+        SystemRuntimeSettingsService service = new SystemRuntimeSettingsService(repository);
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder().securityZeroTrustMode("OBSERVE").build()));
+
+        assertThat(service.findSecurityZeroTrustMode()).contains(SecurityZeroTrustProperties.EnforcementMode.DISABLED);
+        assertThat(SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage("observe")).isEqualTo("DISABLED");
+        assertThat(SystemRuntimeSettingsService.zeroTrustModeOptions()).containsExactly(
+                SecurityZeroTrustProperties.EnforcementMode.DISABLED, SecurityZeroTrustProperties.EnforcementMode.SHADOW,
+                SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
+    }
+
+    @Test
     @DisplayName("should leave the zero trust mode unset on new settings rows")
     void newSettingsLeaveZeroTrustModeUnset() {
         assertThat(SystemRuntimeSettingsService.defaultSettings().getSecurityZeroTrustMode()).isNull();

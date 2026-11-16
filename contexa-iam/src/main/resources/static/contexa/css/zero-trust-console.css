@@ -1,0 +1,1283 @@
+/*
+ * Zero Trust console. The page is drawn with the admin console's own components, as the policy center and the
+ * dashboard draw theirs: the page card, the gradient title, the tab bar, the filter box, the buttons, the inputs and
+ * the table come from policy-center.css (modern-card, pc-header-gradient, pc-tab-nav, filter-container, modern-btn-*,
+ * modern-input, modern-select, modern-table, status-badge, pc-empty). This file only adds what the admin console has
+ * no component for (the 12-column grid of cards, the metrics, the charts and the bars), in the admin console's colours,
+ * type sizes and spacing. The colour names below are the admin palette the charts read; no other colour is used.
+ */
+:root {
+    --zt-text: #e2e8f0;
+    --zt-text-strong: #ffffff;
+    --zt-muted: #94a3b8;
+    --zt-dim: #64748b;
+    --zt-border: rgba(71, 85, 105, 0.3);
+    --zt-track: rgba(71, 85, 105, 0.3);
+    --zt-accent: #818cf8;
+
+    --zt-allow: #4ade80;
+    --zt-challenge: #fbbf24;
+    --zt-escalate: #a78bfa;
+    --zt-block: #f87171;
+    --zt-good: #4ade80;
+    --zt-warn: #fbbf24;
+    --zt-bad: #f87171;
+
+    --zt-chart-s: 160px;
+    --zt-chart-m: 200px;
+    --zt-chart-l: 240px;
+
+    /* The widest a text cell beside a table's fill column grows before it cuts its words. */
+    --zt-cell-max: 160px;
+}
+
+/* ----- the page: the policy center's card, title, tab bar and filter box ----- */
+
+.zt-page {
+    color: var(--zt-text);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    min-width: 0;
+}
+
+.zt-page *, .zt-page *::before, .zt-page *::after {
+    box-sizing: border-box;
+}
+
+.zt-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+}
+
+.zt-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* Six screens share the bar; on a narrower screen the tabs take a second row instead of a scroll. */
+.zt-tab-nav {
+    flex-wrap: wrap;
+}
+
+.zt-band-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.5rem;
+}
+
+.zt-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    width: 100%;
+    min-width: 0;
+}
+
+/* The period: the pills of the security event log's period bar. */
+.zt-period {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.zt-period button {
+    padding: 0.375rem 1rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    background: rgba(71, 85, 105, 0.2);
+    color: #94a3b8;
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.zt-period button:hover {
+    color: #e2e8f0;
+    border-color: rgba(99, 102, 241, 0.4);
+}
+
+.zt-period button[aria-pressed="true"] {
+    background: rgba(99, 102, 241, 0.3);
+    border-color: rgba(99, 102, 241, 0.5);
+    color: #a5b4fc;
+    font-weight: 600;
+}
+
+.zt-band {
+    display: flex;
+    flex: 1 1 360px;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    align-items: center;
+    min-width: 0;
+    font-size: 0.875rem;
+    color: var(--zt-muted);
+}
+
+.zt-band > * {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.zt-band-note {
+    width: 100%;
+    font-size: 0.75rem;
+    color: var(--zt-dim);
+}
+
+.zt-band-info {
+    color: var(--zt-dim);
+    cursor: help;
+}
+
+.zt-band-info:hover, .zt-band-info:focus {
+    color: #a5b4fc;
+}
+
+/* The standalone warning in the band: one compact line. */
+.zt-band .zt-warning {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+}
+
+/* The mode badge is a status-badge; its colour by the mode. */
+.zt-mode[data-mode="ENFORCE"] { background: rgba(34, 197, 94, 0.2); color: #4ade80; border-color: rgba(34, 197, 94, 0.3); }
+.zt-mode[data-mode="SHADOW"] { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border-color: rgba(56, 189, 248, 0.3); }
+.zt-mode[data-mode="DISABLED"], .zt-mode[data-mode=""] { background: rgba(100, 116, 139, 0.2); color: #94a3b8; border-color: rgba(100, 116, 139, 0.3); }
+
+/* A warning, as the admin console states one. */
+.zt-warning {
+    padding: 0.5rem 0.875rem;
+    border-radius: 0.5rem;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fcd34d;
+    font-size: 0.8125rem;
+}
+
+/* ----- the sentence of the period: one line, an accent bar beside it ----- */
+
+.zt-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    padding: 0.25rem 0 0.25rem 1rem;
+    border-left: 3px solid #6366f1;
+}
+
+.zt-summary-main {
+    margin: 0;
+    font-size: 1.125rem;
+    line-height: 1.6;
+    font-weight: 600;
+    color: var(--zt-text);
+}
+
+.zt-summary-sub {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--zt-muted);
+}
+
+/* ----- the key numbers: the dashboard's gradient cards ----- */
+
+.zt-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.25rem;
+}
+
+@media (max-width: 1024px) {
+    .zt-kpi-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 480px) {
+    .zt-kpi-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.zt-kpi {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    color: #ffffff;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.zt-kpi:hover {
+    transform: translateY(-2px);
+}
+
+.zt-kpi[data-tone="indigo"] { background: linear-gradient(135deg, #4f46e5, #3730a3); box-shadow: 0 4px 20px rgba(79, 70, 229, 0.3); }
+.zt-kpi[data-tone="purple"] { background: linear-gradient(135deg, #7c3aed, #5b21b6); box-shadow: 0 4px 20px rgba(124, 58, 237, 0.3); }
+.zt-kpi[data-tone="teal"] { background: linear-gradient(135deg, #0891b2, #155e75); box-shadow: 0 4px 20px rgba(8, 145, 178, 0.3); }
+.zt-kpi[data-tone="green"] { background: linear-gradient(135deg, #059669, #065f46); box-shadow: 0 4px 20px rgba(5, 150, 105, 0.3); }
+
+.zt-kpi-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.zt-kpi-label {
+    min-width: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.75);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.zt-kpi-head i {
+    font-size: 1.25rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.zt-kpi-value {
+    font-size: 1.875rem;
+    line-height: 1.2;
+    font-weight: 700;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+}
+
+.zt-kpi-sub {
+    margin-top: 0.375rem;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.65);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.zt-kpi-spark {
+    margin-top: auto;
+    padding-top: 1rem;
+    opacity: 0.9;
+}
+
+/* ----- the decisions by action: the dashboard's donut with the total in its centre, and its rows ----- */
+
+.zt-result {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+.zt-donut {
+    position: relative;
+    width: 12rem;
+    height: 12rem;
+    flex-shrink: 0;
+}
+
+.zt-donut svg {
+    width: 100%;
+    height: 100%;
+}
+
+.zt-donut-centre {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.zt-donut-value {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+}
+
+.zt-donut-caption {
+    font-size: 0.75rem;
+    color: var(--zt-muted);
+}
+
+.zt-result-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.zt-result-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.4);
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.zt-result-row:hover {
+    background: rgba(30, 41, 59, 0.7);
+}
+
+.zt-result-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    font-size: 0.875rem;
+    color: var(--zt-text);
+}
+
+.zt-result-value {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--zt-text);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.zt-dot {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* ----- why the requests were stopped: a name, its share, its bar ----- */
+
+.zt-reason-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.zt-reason-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.zt-reason-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+}
+
+.zt-reason-name {
+    color: var(--zt-text);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.zt-reason-value {
+    color: var(--zt-muted);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* ----- what to look at: the dashboard's indicator rows, the border's colour by urgency ----- */
+
+.zt-indicators {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.zt-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.4);
+    border-left: 3px solid #94a3b8;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.zt-indicator:hover {
+    background: rgba(30, 41, 59, 0.7);
+}
+
+.zt-indicator[data-severity="BAD"] { border-left-color: #f87171; }
+.zt-indicator[data-severity="WARN"] { border-left-color: #fbbf24; }
+.zt-indicator[data-severity="GOOD"] { border-left-color: #4ade80; }
+
+.zt-indicator-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.zt-indicator-title {
+    font-size: 0.875rem;
+    color: var(--zt-text);
+    overflow-wrap: anywhere;
+}
+
+.zt-indicator-rule {
+    font-size: 0.75rem;
+    color: var(--zt-dim);
+    overflow-wrap: anywhere;
+}
+
+.zt-link-arrow {
+    margin-left: 0.375rem;
+    font-size: 0.6875rem;
+}
+
+/* ----- the 12-column grid of cards ----- */
+
+.zt-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1.5rem;
+    align-items: stretch;
+}
+
+.zt-span-3 { grid-column: span 3; }
+.zt-span-4 { grid-column: span 4; }
+.zt-span-6 { grid-column: span 6; }
+.zt-span-8 { grid-column: span 8; }
+.zt-span-12 { grid-column: span 12; }
+
+@media (max-width: 1024px) {
+    .zt-span-3, .zt-span-4, .zt-span-6, .zt-span-8, .zt-span-12 {
+        grid-column: span 12;
+    }
+}
+
+/* ----- cards: the dashboard's card ----- */
+
+.zt-page .dash-card {
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.zt-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.zt-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+    height: 1.75rem;
+    min-width: 0;
+}
+
+.zt-card-head h2 {
+    margin: 0;
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    font-weight: 700;
+    color: var(--zt-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.zt-card-head .zt-aside {
+    font-size: 0.75rem;
+    line-height: 1.75rem;
+    color: var(--zt-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.zt-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.zt-card-foot {
+    margin-top: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    font-size: 0.8125rem;
+}
+
+/* The sentence a screen opens with, in the admin console's highlight panel. */
+.zt-verdict {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.zt-verdict p {
+    margin: 0;
+    font-size: 1.25rem;
+    line-height: 1.6;
+    font-weight: 700;
+    color: var(--zt-text);
+    overflow-wrap: anywhere;
+}
+
+/* ----- metrics: a name, a value and its definition ----- */
+
+.zt-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.zt-metric-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--zt-muted);
+}
+
+.zt-metric-value {
+    font-size: 1.875rem;
+    line-height: 1.2;
+    font-weight: 700;
+    color: var(--zt-text-strong);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.zt-metric-value.zt-small {
+    font-size: 1.5rem;
+}
+
+.zt-metric-definition, .zt-muted {
+    font-size: 0.75rem;
+    color: var(--zt-dim);
+    overflow-wrap: anywhere;
+}
+
+.zt-metric-ratio {
+    font-size: 0.75rem;
+    color: var(--zt-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.zt-none {
+    color: var(--zt-muted);
+}
+
+/* A small box of numbers inside a card: the dashboard's stat tile. */
+.zt-tile {
+    padding: 1rem;
+    border-radius: 0.75rem;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    min-width: 0;
+}
+
+.zt-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.zt-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.4);
+    font-size: 0.875rem;
+    min-width: 0;
+}
+
+.zt-row > :first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.zt-row > :last-child {
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    font-weight: 600;
+}
+
+/* ----- badges: a status-badge, its colour by the action or the status, words and colour together ----- */
+
+.zt-chip {
+    white-space: nowrap;
+    background: rgba(100, 116, 139, 0.2);
+    color: #94a3b8;
+    border-color: rgba(100, 116, 139, 0.3);
+}
+
+.zt-chip[data-action="ALLOW"] { background: rgba(34, 197, 94, 0.2); color: #4ade80; border-color: rgba(34, 197, 94, 0.3); }
+.zt-chip[data-action="CHALLENGE"] { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
+.zt-chip[data-action="ESCALATE"] { background: rgba(139, 92, 246, 0.2); color: #a78bfa; border-color: rgba(139, 92, 246, 0.3); }
+.zt-chip[data-action="BLOCK"] { background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+.zt-chip[data-status="MET"], .zt-chip[data-status="RECOMMENDED"], .zt-chip[data-status="GOOD"] { background: rgba(34, 197, 94, 0.2); color: #4ade80; border-color: rgba(34, 197, 94, 0.3); }
+.zt-chip[data-status="UNMET"], .zt-chip[data-status="CONDITIONS_UNMET"], .zt-chip[data-status="BAD"] { background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+.zt-chip[data-status="INSUFFICIENT"], .zt-chip[data-status="DATA_INSUFFICIENT"], .zt-chip[data-status="WARN"] { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
+
+/* A badge whose words come from the data (a bundle, a cause): cut inside its line, the full text in its title. */
+.zt-chip.zt-fit {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ----- tables: the modern-table of the policy center; numbers right, words left ----- */
+
+.zt-table-wrap {
+    overflow-x: auto;
+    min-width: 0;
+}
+
+.zt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+/* A cell never widens the table past its card: it shrinks and cuts its words, the full words in its title. The head
+   keeps the modern-table's colours and capitals with the denser padding the policy center's wide tables use. */
+.zt-page .zt-table th {
+    padding: 0.75rem 1rem;
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.zt-table td {
+    padding: 0.875rem 1rem;
+    color: var(--zt-text);
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.zt-table td > a, .zt-table td > span:not(.zt-chip), .zt-table td > div {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The long form of a cell that has a short one is cut inside the cell as the cell's own words are. */
+.zt-table td .zt-long {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* A cell of several badges stacks them as its width allows, each whole or cut inside the cell. */
+.zt-table td.zt-cell-chips {
+    white-space: normal;
+}
+
+.zt-table td.zt-cell-chips .zt-chip {
+    margin: 0 0.25rem 0.25rem 0;
+}
+
+.zt-table td .zt-chip {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+}
+
+.zt-table .zt-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.zt-table tr[data-selected="true"] td {
+    background: rgba(99, 102, 241, 0.12);
+}
+
+/* The one text column of a table that takes the room the numbers leave, its text cut with an ellipsis. */
+.zt-table td.zt-fill {
+    width: 100%;
+    max-width: 0;
+}
+
+/* Beside that column the others keep their whole content: a number or a column head is never cut. */
+.zt-table:has(td.zt-fill) th,
+.zt-table:has(td.zt-fill) td:not(.zt-fill) {
+    width: 1%;
+    max-width: none;
+}
+
+/* A text cell there grows to --zt-cell-max and then cuts its words, the whole words in its title. */
+.zt-table:has(td.zt-fill) td:not(.zt-fill):not(.zt-num) {
+    max-width: var(--zt-cell-max);
+}
+
+.zt-table .zt-short {
+    display: none;
+}
+
+/* A line of a short form, cut on its own. */
+.zt-table .zt-short .zt-line {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* A list row that selects its decision for the preview. */
+.zt-table tbody tr[data-selectable] {
+    cursor: pointer;
+}
+
+/* ----- links and controls (the buttons and inputs are modern-btn-* and modern-input / modern-select) ----- */
+
+.zt-link {
+    color: #818cf8;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.zt-link:hover {
+    color: #a5b4fc;
+}
+
+.zt-textarea {
+    min-height: 80px;
+    width: 100%;
+    resize: vertical;
+}
+
+.zt-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.zt-filters fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.zt-filters legend {
+    font-size: 0.75rem;
+    color: var(--zt-muted);
+    margin-bottom: 0.25rem;
+}
+
+.zt-filters label {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    min-height: 28px;
+    font-size: 0.875rem;
+}
+
+/* The decision list's filters in the policy center's filter box: each name beside its choice, then the search row. */
+.zt-filter-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.zt-filter-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin: 0;
+}
+
+.zt-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+    gap: 0.75rem 1.25rem;
+}
+
+.zt-filter-field {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.625rem;
+    min-width: 0;
+}
+
+.zt-filter-name {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    white-space: nowrap;
+}
+
+.zt-filter-search {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.625rem;
+}
+
+.zt-filter-search .modern-input {
+    flex: 1 1 280px;
+    width: auto;
+    min-width: 0;
+}
+
+.zt-filter-search .modern-btn-primary,
+.zt-filter-search .modern-btn-secondary {
+    white-space: nowrap;
+}
+
+/* A view switch inside a screen: the tab bar of the policy center, one size smaller. */
+.zt-tabs {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    padding: 0.375rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    border-radius: 0.75rem;
+}
+
+.zt-tabs button {
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    border: 0;
+    background: transparent;
+    color: #94a3b8;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.zt-tabs button:hover {
+    color: #e2e8f0;
+    background: rgba(71, 85, 105, 0.2);
+}
+
+.zt-tabs button[aria-selected="true"] {
+    color: #ffffff;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+}
+
+/* ----- charts: three box heights, the legend top left ----- */
+
+.zt-chart {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.zt-chart-s { height: var(--zt-chart-s); }
+.zt-chart-m { height: var(--zt-chart-m); }
+.zt-chart-l { height: var(--zt-chart-l); }
+
+.zt-chart canvas, .zt-chart svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.zt-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    font-size: 0.75rem;
+    color: var(--zt-muted);
+}
+
+.zt-legend span::before {
+    content: "";
+    display: inline-block;
+    width: 0.625rem;
+    height: 0.625rem;
+    margin-right: 0.375rem;
+    border-radius: 50%;
+    background: var(--zt-legend-color, var(--zt-muted));
+}
+
+/* The empty state inside a card or a chart box: the policy center's, a little lower. */
+.zt-page .pc-empty {
+    padding: 2rem 1rem;
+}
+
+/* ----- bars ----- */
+
+.zt-bar {
+    position: relative;
+    height: 0.5rem;
+    background: var(--zt-track);
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+.zt-bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    border-radius: 9999px;
+}
+
+.zt-bar-mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--zt-text);
+}
+
+.zt-stacked {
+    display: flex;
+    height: 0.625rem;
+    border-radius: 9999px;
+    overflow: hidden;
+    background: var(--zt-track);
+}
+
+.zt-stacked > span {
+    display: block;
+    height: 100%;
+    min-width: 0;
+}
+
+.zt-criteria {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) minmax(0, 2fr) minmax(0, 2fr);
+    gap: 0.75rem 1rem;
+    align-items: center;
+    font-size: 0.875rem;
+}
+
+.zt-criteria > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.zt-criteria .zt-num {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.zt-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.75rem;
+}
+
+/* A warning row: its badge in one column, its sentence in the other, as the dashboard's indicator rows. */
+.zt-alert {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.625rem;
+    align-items: start;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.4);
+    border-left: 3px solid rgba(245, 158, 11, 0.6);
+    font-size: 0.875rem;
+}
+
+.zt-fact {
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.4);
+    font-size: 0.875rem;
+    overflow-wrap: anywhere;
+}
+
+/* A block of lines that belong together (a fact, an outcome, one explanation): name, value, note. */
+.zt-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.zt-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* ----- the glossary every screen opens from its title row: the dashboard's card over the content ----- */
+
+.zt-glossary {
+    position: relative;
+}
+
+.zt-glossary summary {
+    list-style: none;
+}
+
+.zt-glossary summary::-webkit-details-marker {
+    display: none;
+}
+
+.zt-glossary-list {
+    position: absolute;
+    right: 0;
+    z-index: 10;
+    width: min(480px, calc(100vw - 4rem));
+    max-height: 480px;
+    overflow-y: auto;
+    margin: 0.5rem 0 0;
+    padding: 1.5rem;
+    background: rgba(15, 23, 42, 0.97);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    border-radius: 1rem;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    font-size: 0.875rem;
+}
+
+.zt-glossary-list dt {
+    font-weight: 700;
+    color: var(--zt-text);
+}
+
+.zt-glossary-list dd {
+    margin: 0.25rem 0 0.875rem;
+    color: var(--zt-muted);
+    overflow-wrap: anywhere;
+}
+
+/* ----- a phone ----- */
+
+@media (max-width: 480px) {
+    .zt-criteria {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .zt-split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* A phone shows a table's name and its main numbers; the other columns stay in the wider layouts. */
+    .zt-table .zt-wide, .zt-table td .zt-chip.zt-wide {
+        display: none;
+    }
+
+    /* A phone leaves its fill column more room: a text cell beside it cuts its words sooner. */
+    .zt-table {
+        --zt-cell-max: 104px;
+    }
+
+    /* A heat map's cells keep their numbers inside the card on a phone: a smaller size and the short heads. */
+    .zt-heat .zt-table th, .zt-heat .zt-table td {
+        padding: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    /* Its coloured cells carry their number centred, edge to edge. */
+    .zt-heat .zt-table td {
+        padding-left: 0;
+        padding-right: 0;
+        text-align: center;
+    }
+
+    /* A cell with a short form (a heat map's head, a decision's time and user) shows it on a phone. */
+    .zt-table .zt-long, .zt-table td .zt-long {
+        display: none;
+    }
+
+    .zt-table th .zt-short {
+        display: inline;
+    }
+
+    .zt-table td .zt-short {
+        display: block;
+    }
+}
+
+/* A card that stays in view beside a long list (the decision preview), as tall as its own content. */
+.zt-sticky {
+    position: sticky;
+    top: 1.5rem;
+    align-self: start;
+}
+
+/* The other two colours of the dashboard's key cards. */
+.zt-kpi[data-tone="amber"] { background: linear-gradient(135deg, #d97706, #92400e); box-shadow: 0 4px 20px rgba(217, 119, 6, 0.3); }
+.zt-kpi[data-tone="red"] { background: linear-gradient(135deg, #dc2626, #991b1b); box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3); }
+
+/* A small heading between groups of rows inside a card. */
+.zt-subhead {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--zt-muted);
+}
+
+/* ----- one decision: the conclusion, its facts in a grid, the model's words as a quote ----- */
+
+.zt-conclusion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+}
+
+.zt-facts {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.75rem 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(71, 85, 105, 0.3);
+}
+
+@media (max-width: 1024px) {
+    .zt-facts {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 480px) {
+    .zt-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.zt-facts-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.zt-facts-name {
+    font-size: 0.75rem;
+    color: var(--zt-muted);
+}
+
+.zt-facts-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--zt-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.zt-quote {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-left: 3px solid #6366f1;
+    border-radius: 0.5rem;
+    background: rgba(99, 102, 241, 0.08);
+}
+
+.zt-quote figcaption {
+    font-size: 0.75rem;
+    color: var(--zt-muted);
+    margin-bottom: 0.25rem;
+}
+
+.zt-quote blockquote {
+    margin: 0;
+    font-size: 0.875rem;
+    font-style: italic;
+    color: var(--zt-text);
+    overflow-wrap: anywhere;
+}
+
+.zt-fact-value {
+    font-size: 0.875rem;
+    color: var(--zt-text);
+    overflow-wrap: anywhere;
+}
+
+.zt-fact-id {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: var(--zt-muted);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.zt-outcomes {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* The tables' cells: the modern-table's head in a denser padding and spacing, so five columns keep inside a half card. */
+.zt-page .zt-table th {
+    padding-left: 0.875rem;
+    padding-right: 0.875rem;
+    letter-spacing: 0.03em;
+}
+
+.zt-page .zt-table td {
+    padding-left: 0.875rem;
+    padding-right: 0.875rem;
+}
+
+@media (max-width: 480px) {
+    /* A phone keeps every column inside the card: half the padding, no letter spacing. */
+    .zt-page .zt-table th, .zt-page .zt-table td {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        letter-spacing: 0;
+    }
+
+    .zt-page .zt-heat .zt-table th, .zt-page .zt-heat .zt-table td {
+        padding-left: 0.125rem;
+        padding-right: 0.125rem;
+        font-size: 0.6875rem;
+    }
+}

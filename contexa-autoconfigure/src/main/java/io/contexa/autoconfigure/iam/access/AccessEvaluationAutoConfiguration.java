@@ -20,6 +20,7 @@ import io.contexa.autoconfigure.core.autonomous.CoreAutonomousEventAutoConfigura
 import io.contexa.contexacore.autonomous.access.AccessEvaluationService;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.access.web.AccessEvaluationController;
 import org.springframework.beans.factory.ObjectProvider;
@@ -45,8 +46,11 @@ public class AccessEvaluationAutoConfiguration {
     @ConditionalOnMissingBean
     public AccessEvaluationService accessEvaluationService(ZeroTrustEventPublisher events,
                                                            SynchronousProtectableDecisionService decisions,
-                                                           ObjectProvider<SecurityZeroTrustProperties> properties) {
-        return new AccessEvaluationService(events, decisions, properties.getIfAvailable(), null);
+                                                           ObjectProvider<SecurityZeroTrustProperties> properties,
+                                                           ObjectProvider<ZeroTrustCoverageCounter> coverageCounter) {
+        AccessEvaluationService service = new AccessEvaluationService(events, decisions, properties.getIfAvailable(), null);
+        service.setCoverageCounter(coverageCounter.getIfAvailable());
+        return service;
     }
 
     @Bean(name = "contexaAccessEvaluationController")

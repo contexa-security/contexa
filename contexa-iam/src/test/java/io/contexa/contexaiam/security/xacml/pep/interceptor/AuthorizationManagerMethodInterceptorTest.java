@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.store.ContexaStores;
@@ -363,6 +364,119 @@ class AuthorizationManagerMethodInterceptorTest {
 
             assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
             verify(methodInvocation).proceed();
+        }
+    }
+
+    @Nested
+    @DisplayName("Console design 7.5: each protected call is counted, and how it is settled here, once")
+    class CoverageCountTests {
+
+        private ZeroTrustCoverageCounter coverage;
+
+        @BeforeEach
+        void counting() {
+            coverage = new ZeroTrustCoverageCounter(null, "node", null);
+            interceptor.setCoverageCounter(coverage);
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+        }
+
+        private void mode(SecurityZeroTrustProperties.EnforcementMode mode,
+                          SynchronousProtectableDecisionService.AsyncProtectableGate gate) {
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+            SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
+            properties.setMode(mode);
+            interceptor.setSecurityZeroTrustProperties(properties);
+            when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication)).thenReturn(gate);
+        }
+
+        private long settled() {
+            return coverage.pending(ZeroTrustCoverageCounter.Kind.REUSED)
+                    + coverage.pending(ZeroTrustCoverageCounter.Kind.SKIPPED);
+        }
+
+        @Test
+        void aCallWhoseEventIsPublishedIsAProtectedCallAndNothingElse() throws Throwable {
+            when(methodInvocation.proceed()).thenReturn("ok");
+
+            interceptor.invoke(methodInvocation);
+
+            assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.PROTECTED_CALL)).isEqualTo(1);
+            assertThat(settled()).as("its decision row counts it").isZero();
+        }
+
+        @Test
+        void aRapidReEntryIsASkip() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(false);
+            when(methodInvocation.proceed()).thenReturn("ok");
+
+            interceptor.invoke(methodInvocation);
+
+            assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.PROTECTED_CALL)).isEqualTo(1);
+            assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.RAPID_REENTRY)).isEqualTo(1);
+            assertThat(settled()).isEqualTo(1);
+        }
+
+        @Test
+        void aRestrictionInForceThatStopsTheCallIsAReuse() {
+            mode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE,
+                    new SynchronousProtectableDecisionService.AsyncProtectableGate(ZeroTrustAction.CHALLENGE, false,
+                            false, false, ZeroTrustCoverageCounter.REUSED_OUTCOME));
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation)).isInstanceOf(ZeroTrustAccessDeniedException.class);
+
+            assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.REUSED)).isEqualTo(1);
+            assertThat(settled()).isEqualTo(1);
+        }
+
+        /** In SHADOW the call runs and its event is published: the listener counts the answer, not the interceptor. */
+        @Test
+        void aRestrictionInForceInShadowIsLeftToTheListener() throws Throwable {
+            when(methodInvocation.proceed()).thenReturn("ok");
+            mode(SecurityZeroTrustProperties.EnforcementMode.SHADOW,
+                    new SynchronousProtectableDecisionService.AsyncProtectableGate(ZeroTrustAction.CHALLENGE, false,
+                            false, false, ZeroTrustCoverageCounter.REUSED_OUTCOME));
+
+            interceptor.invoke(methodInvocation);
+
+            assertThat(settled()).isZero();
+            verify(zeroTrustEventPublisher).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
+        }
+
+        @Test
+        void aPassThatFollowsTheLeadingRequestIsASkip() throws Throwable {
+            when(methodInvocation.proceed()).thenReturn("ok");
+            mode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE,
+                    new SynchronousProtectableDecisionService.AsyncProtectableGate(null, false, true, false,
+                            ZeroTrustCoverageCounter.PASSED_WITH_LEADING_REQUEST));
+
+            interceptor.invoke(methodInvocation);
+
+            assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.PASSED_WITH_LEADING_REQUEST)).isEqualTo(1);
+            assertThat(settled()).isEqualTo(1);
+        }
+
+        @Test
+        void aRefusalOfTheMethodPoliciesIsASkip() {
+            doThrow(new AuthorizationDeniedException("denied")).when(authorizationManager)
+                    .protectable(any(), eq(methodInvocation));
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation)).isInstanceOf(AuthorizationDeniedException.class);
+
+            assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.POLICY_DENIED)).isEqualTo(1);
+            assertThat(settled()).isEqualTo(1);
+        }
+
+        @Test
+        void aModeWithoutAnalysisCountsNoProtectedCall() throws Throwable {
+            when(methodInvocation.proceed()).thenReturn("ok");
+            SecurityZeroTrustProperties disabled = new SecurityZeroTrustProperties();
+            disabled.setMode(SecurityZeroTrustProperties.EnforcementMode.DISABLED);
+            interceptor.setSecurityZeroTrustProperties(disabled);
+
+            interceptor.invoke(methodInvocation);
+
+            assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.PROTECTED_CALL)).isZero();
+            assertThat(settled()).isZero();
         }
     }
 

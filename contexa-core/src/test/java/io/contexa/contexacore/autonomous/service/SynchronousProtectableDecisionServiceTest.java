@@ -30,6 +30,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
@@ -367,6 +368,8 @@ class SynchronousProtectableDecisionServiceTest {
     void analyze_restrictionInForce_isRecordedWithoutAnalysis() {
         UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
         service.setUnanalysedRequestRecorder(unanalysed);
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        service.setCoverageCounter(coverage);
         ZeroTrustSpringEvent event = methodEvent("/admin/reports");
         when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
         when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
@@ -381,6 +384,39 @@ class SynchronousProtectableDecisionServiceTest {
         verify(securityPlaneAgent, never()).processSecurityEvent(any(SecurityEvent.class));
         verify(unanalysed).record(event, ZeroTrustAction.CHALLENGE);
         verify(eventListener, never()).shouldPublishAuthorizationEvent(any());
+        assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.REUSED)).isEqualTo(1);
+    }
+
+    /** Without a restriction in force it is the decision waiting for its audit record that held the analysis back. */
+    @Test
+    void analyze_aDecisionWaitingForItsAuditRecordIsASkipNotAReuse() {
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        service.setCoverageCounter(coverage);
+        ZeroTrustSpringEvent event = methodEvent("/admin/reports");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+        when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        when(eventListener.shouldPublishSynchronousAuthorizationEvent(event)).thenReturn(false);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.ALLOW);
+        when(actionRepository.getAnalysisData(USER_ID)).thenReturn(ZeroTrustActionRepository.ZeroTrustAnalysisData.pending());
+
+        service.analyze(methodInvocation, authentication);
+
+        assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.DECISION_AUDIT_PENDING)).isEqualTo(1);
+        assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.REUSED)).isZero();
+    }
+
+    /** The gate tells the interceptor that the restriction in force answered the call without a new analysis. */
+    @Test
+    void asyncGate_aRestrictionInForceIsAReuse() {
+        ZeroTrustSpringEvent event = methodEvent("/api/reports");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+        when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.BLOCK);
+
+        SynchronousProtectableDecisionService.AsyncProtectableGate gate = service.asyncGate(methodInvocation, authentication);
+
+        assertThat(gate.restriction()).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(gate.coverage()).isEqualTo(ZeroTrustCoverageCounter.REUSED_OUTCOME);
     }
 
     @Test

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
-    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle='Security Monitor')}"></th:block>
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.security.monitor.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <link rel="stylesheet" th:href="@{/contexa/css/policy-center.css}" />
 </head>
@@ -194,6 +194,10 @@
                             <span class="text-xs font-bold"
                                   th:style="${log.decision == 'ALLOW' ? 'color: #4ade80;' : log.decision == 'DENY' ? 'color: #f87171;' : log.decision == 'ERROR' ? 'color: #f87171;' : 'color: #fbbf24;'}"
                                   th:text="${log.decision}"></span>
+                            <a th:if="${log.eventCategory == 'SECURITY_DECISION' and log.correlationId != null}"
+                               th:href="@{/contexa/admin/zero-trust/decisions/request/{id}(id=${log.correlationId})}"
+                               class="block text-xs" style="color: #818cf8; text-decoration: none;" onclick="event.stopPropagation()"
+                               th:text="#{admin.security.monitor.decision.link}">Decision</a>
                         </td>
                         <td class="px-4 py-3 text-xs" style="color: #94a3b8; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
                             th:text="${log.requestUri ?: log.resourceIdentifier}"></td>

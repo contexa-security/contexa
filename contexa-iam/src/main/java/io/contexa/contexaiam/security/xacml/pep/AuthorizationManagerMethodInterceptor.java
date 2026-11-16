@@ -28,6 +28,7 @@ import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDenied
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.security.HostOwnedIdentityNotice;
 import jakarta.servlet.http.HttpServletRequest;
@@ -82,6 +83,7 @@ public class AuthorizationManagerMethodInterceptor
     private ProtectableLlmSuppressionWriter protectableLlmSuppressionWriter;
     private AuthorizationDenialRecorder authorizationDenialRecorder;
     private ContexaStores contexaStores = new ContexaStores();
+    private ZeroTrustCoverageCounter coverageCounter;
     private AuthenticationTrustResolver authenticationTrustResolver = new AuthenticationTrustResolverImpl();
 
     public AuthorizationManagerMethodInterceptor(
@@ -138,6 +140,11 @@ public class AuthorizationManagerMethodInterceptor
         // Q-17: where a console session lifts a restriction no decision stands in its way.
         boolean llmAnalysisAllowed = isLlmAnalysisAllowed() && !ConsoleSession.onReleasePath(currentRequest());
         boolean rapidReentryAllowed = true;
+        // Console design 7.5: how this call is settled here without an analysis of its own, counted once at the end.
+        String settledHere = null;
+        if (llmAnalysisAllowed && coverageCounter != null) {
+            coverageCounter.protectedCall();
+        }
 
         RequestPathScope.enter();
         try {
@@ -149,10 +156,12 @@ public class AuthorizationManagerMethodInterceptor
                 rapidReentryAllowed = rapidReentryGuard.tryAcquire(authentication, mi, securityZeroTrustMode());
                 if (!rapidReentryAllowed && (protectable == null || !protectable.sync())) {
                     publishEvent = false;
+                    settledHere = ZeroTrustCoverageCounter.RAPID_REENTRY;
                     recordSuppressedProtectable(authentication, mi, "RAPID_REENTRY_ACTOR_SESSION");
                     log.debug("[ZeroTrust] Rapid re-entry detected for async protectable. Access will proceed and analysis will be skipped.");
                 } else if (!rapidReentryAllowed) {
                     publishEvent = false;
+                    settledHere = ZeroTrustCoverageCounter.RAPID_REENTRY_SYNC;
                     recordSuppressedProtectable(authentication, mi, "RAPID_REENTRY_ACTOR_SESSION_SYNC");
                     if (isEnforcementDisabled()) {
                         log.debug("[ZeroTrust][SHADOW] Actor-session protectable analysis is already in progress. Access will proceed and duplicate analysis will be skipped.");
@@ -190,6 +199,7 @@ public class AuthorizationManagerMethodInterceptor
                                 buildResourceId(mi, protectable), restriction);
                     } else {
                         publishEvent = false;
+                        settledHere = gate.coverage();
                         throw toZeroTrustAccessDeniedException(restriction, buildResourceId(mi, protectable));
                     }
                 } else if (gate.passed()) {
@@ -197,6 +207,8 @@ public class AuthorizationManagerMethodInterceptor
                     // first is decided. The first publishes its event, which is the analysis that decides; the others
                     // are recorded by the gate and publish nothing, so one question is asked once.
                     publishEvent = gate.publishesEvent();
+                    // A call whose event is published is decided by its analysis; one that only passes, by the gate.
+                    settledHere = publishEvent ? null : gate.coverage();
                 } else if (gate.decideInPlace()) {
                     // A1-5: an agent request with no decision on record is not let through; it is decided here as a
                     // synchronous method's request is. One already being analysed for the same session waits.
@@ -255,12 +267,17 @@ public class AuthorizationManagerMethodInterceptor
             return proceed(mi);
 
         } catch (AuthorizationDeniedException denied) {
+            boolean wouldPublish = publishEvent;
             granted = false;
             publishEvent = false;
             denialReason = denied.getMessage();
             if (denied instanceof RapidProtectableReentryDeniedException || denied instanceof ZeroTrustAccessDeniedException) {
                 publishEvent = false;
                 throw denied;
+            }
+            if (llmAnalysisAllowed && wouldPublish && settledHere == null) {
+                // The refusal keeps the call's event from the analysis.
+                settledHere = ZeroTrustCoverageCounter.POLICY_DENIED;
             }
             if (llmAnalysisAllowed && authorizationDenialRecorder != null) {
                 // A real refusal is not analysed, but it is a fact of the session and of the user's scope.
@@ -291,6 +308,9 @@ public class AuthorizationManagerMethodInterceptor
             throw e;
 
         } finally {
+            if (llmAnalysisAllowed && coverageCounter != null) {
+                coverageCounter.settled(settledHere);
+            }
             try {
                 if (publishEvent && llmAnalysisAllowed) {
                     String executionOutcome = invoked
@@ -455,6 +475,10 @@ public class AuthorizationManagerMethodInterceptor
                 resourceId,
                 decision.state(),
                 decision.message());
+        if (coverageCounter != null) {
+            // The call is refused before its event is published: no analysis tells of it.
+            coverageCounter.skipped(ZeroTrustCoverageCounter.UNCERTIFIED_RESOURCE);
+        }
         throw ZeroTrustAccessDeniedException.pendingReview(resourceId);
     }
 
@@ -611,6 +635,11 @@ public class AuthorizationManagerMethodInterceptor
     /** The stores a decision needs, and the record of the calls that went on without one (Q-7). */
     public void setContexaStores(ContexaStores contexaStores) {
         this.contexaStores = contexaStores;
+    }
+
+    /** Console design 7.5: counts the protected calls and those settled here without an analysis; null counts none. */
+    public void setCoverageCounter(ZeroTrustCoverageCounter coverageCounter) {
+        this.coverageCounter = coverageCounter;
     }
 
     private void recordSuppressedProtectable(Authentication authentication, MethodInvocation mi, String reason) {

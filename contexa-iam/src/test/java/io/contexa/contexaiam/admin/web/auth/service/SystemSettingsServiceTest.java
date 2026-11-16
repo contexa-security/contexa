@@ -190,6 +190,31 @@ class SystemSettingsServiceTest {
             assertThat(existing.getMissingMethodPolicyDecision()).isEqualTo("DENY");
         }
 
+        @Test
+        @DisplayName("console plan 5-6: a console value the operator changed is stored; one out of range changes nothing")
+        void theConsoleSettingsAreStoredAsChosen() {
+            running(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
+            SystemSettings row = SystemSettings.builder().build();
+            when(repository.findAll()).thenReturn(List.of(row));
+            SystemSettingsForm form = validForm();
+            form.getZeroTrustConsole().put("decisionRetentionDays", "90");
+            form.getZeroTrustConsole().put("reviewDailySample", "30");
+
+            service.updateSettings(form);
+
+            verify(repository).save(row);
+            assertThat(row.getZeroTrustConsoleSettings()).isEqualTo("{\"reviewDailySample\":30}");
+
+            SystemSettingsForm refused = validForm();
+            refused.setDefaultRole("ROLE_MEMBER");
+            refused.getZeroTrustConsole().put("adoption.minModelDecidedRatio", "120");
+            assertThatThrownBy(() -> service.updateSettings(refused))
+                    .isInstanceOf(SystemSettingsService.SettingRefusedException.class)
+                    .satisfies(error -> assertThat(((SystemSettingsService.SettingRefusedException) error).getLabelKey())
+                            .isEqualTo("admin.system.settings.zt.minModelDecidedRatio"));
+            assertThat(row.getDefaultRole()).isNotEqualTo("ROLE_MEMBER");
+        }
+
         private SecurityZeroTrustProperties running(SecurityZeroTrustProperties.EnforcementMode mode) {
             SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
             properties.setMode(mode);

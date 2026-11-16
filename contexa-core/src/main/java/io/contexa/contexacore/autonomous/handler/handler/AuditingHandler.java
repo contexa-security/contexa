@@ -64,8 +64,13 @@ public class AuditingHandler implements SecurityEventHandler {
             details.put("eventId", event.getEventId());
             details.put("decision", result.getAction());
             details.put("llmProposedAction", result.getProposedAction());
-            details.put("riskScore", result.getRiskScore());
-            details.put("confidence", result.getConfidence());
+            // G26 (console design 7.7): the decision's score is the model's audit score when the decision itself keeps
+            // none; it is kept for the audit only and decides nothing.
+            Double riskScore = auditRiskScore(result);
+            Double confidence = auditConfidence(result);
+            details.put("riskScore", riskScore);
+            details.put("confidence", confidence);
+            details.put("llmAuditRiskScore", result.resolveAuditRiskScore());
             details.put("llmAuditConfidence", result.resolveAuditConfidence());
             details.put("reasoning", result.getReasoning());
             details.put("technicalFallbackApplied", result.getTechnicalFallbackApplied());
@@ -118,7 +123,7 @@ public class AuditingHandler implements SecurityEventHandler {
                     .decision(decision)
                     .reason(result.getReasoning())
                     .outcome(result.isSuccess() ? "COMPLETED" : "FAILED")
-                    .riskScore(result.getRiskScore())
+                    .riskScore(riskScore)
                     .details(details)
                     .build());
 
@@ -142,6 +147,16 @@ public class AuditingHandler implements SecurityEventHandler {
         }
         String id = value.toString().trim();
         return id.length() > 64 ? id.substring(0, 64) : id;
+    }
+
+    /** The decision's risk score, else the model's audit score (G26). */
+    static Double auditRiskScore(ProcessingResult result) {
+        return result.getRiskScore() != null ? result.getRiskScore() : result.resolveAuditRiskScore();
+    }
+
+    /** The decision's confidence, else the model's audit confidence (G26). */
+    static Double auditConfidence(ProcessingResult result) {
+        return result.getConfidence() != null ? result.getConfidence() : result.resolveAuditConfidence();
     }
 
     private static String metadataText(SecurityEvent event, String key) {

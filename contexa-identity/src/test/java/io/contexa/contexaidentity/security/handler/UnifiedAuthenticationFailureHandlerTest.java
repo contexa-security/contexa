@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
@@ -28,6 +29,7 @@ import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -49,6 +51,7 @@ import org.springframework.security.authentication.CredentialsExpiredException;
 import org.springframework.security.authentication.BadCredentialsException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -154,6 +157,30 @@ class UnifiedAuthenticationFailureHandlerTest {
 
         verify(actionRepository).incrementBlockMfaFailCount(own);
         verify(actionRepository, never()).incrementBlockMfaFailCount("console::rcboss");
+    }
+
+    /** Console design 7.3: an MFA under a challenge in force that used up its retries is the challenge's failure. */
+    @Test
+    void anMfaThatUsedUpItsRetriesUnderAChallengeIsTheChallengesFailure() throws Exception {
+        ZeroTrustDecisionOutcomes outcomes = mock(ZeroTrustDecisionOutcomes.class);
+        handler.setDecisionOutcomes(outcomes);
+        String key = ZeroTrustUserKey.person("alice");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login/mfa-ott");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FactorContext context = mock(FactorContext.class);
+        when(context.getUsername()).thenReturn("alice");
+        when(context.getMfaSessionId()).thenReturn("mfa-session-2");
+        when(context.getCurrentProcessingFactor()).thenReturn(AuthType.MFA_OTT);
+        when(context.getCurrentState()).thenReturn(MfaState.FACTOR_VERIFICATION_PENDING, MfaState.MFA_RETRY_LIMIT_EXCEEDED);
+        when(stateMachineIntegrator.loadFactorContextFromRequest(request)).thenReturn(context);
+        when(sessionRepository.existsSession("mfa-session-2")).thenReturn(true);
+        when(actionRepository.getActionFromHash(key)).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(actionRepository.getAnalysisData(key)).thenReturn(ZeroTrustActionRepository.ZeroTrustAnalysisData.pending());
+
+        handler.onAuthenticationFailure(request, response, new BadCredentialsException("bad code"));
+
+        verify(outcomes).record(any(), eq(key), any(), eq(ZeroTrustDecisionOutcomes.Kind.CHALLENGE_FAILED), eq(key),
+                any());
     }
 
     /**

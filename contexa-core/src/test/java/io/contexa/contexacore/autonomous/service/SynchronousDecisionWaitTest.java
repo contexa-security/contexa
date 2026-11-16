@@ -28,6 +28,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -219,11 +220,15 @@ class SynchronousDecisionWaitTest {
     void noRoomForTheAnalysisAnswersAtOnce() {
         when(agent.processSecurityEventOffThread(any()))
                 .thenReturn(CompletableFuture.failedFuture(new RejectedExecutionException("full")));
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        service.setCoverageCounter(coverage);
 
         long began = System.nanoTime();
         assertThat(service.analyze(person()).action()).isEqualTo(ZeroTrustAction.CHALLENGE);
 
         assertThat((System.nanoTime() - began) / 1_000_000).isLessThan(WAIT.toMillis());
+        // The analysis never ran, so no decision row tells of the request.
+        assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.SYNC_ANALYSIS_REJECTED)).isEqualTo(1);
     }
 
     @Test

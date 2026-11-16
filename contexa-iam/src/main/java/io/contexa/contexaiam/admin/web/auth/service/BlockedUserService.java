@@ -33,6 +33,7 @@ import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
@@ -72,6 +73,12 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private VerificationLearningService verificationLearningService;
     private BlockMfaStateStore blockMfaStateStore;
     private BooleanSupplier enforcing = () -> true;
+    /** Console design 7.3: records an unblock request as the block decision's outcome; null records none. */
+    private ZeroTrustDecisionOutcomes decisionOutcomes;
+
+    public void setDecisionOutcomes(ZeroTrustDecisionOutcomes decisionOutcomes) {
+        this.decisionOutcomes = decisionOutcomes;
+    }
 
     /** Learns, after an administrator's ALLOW, the blocked request from its own facts (W5-2). */
     public void setVerificationLearningService(VerificationLearningService verificationLearningService) {
@@ -216,6 +223,16 @@ public class BlockedUserService implements IBlockedUserRecorder {
     public void recordBlock(String requestId, String userId, String username,
                             String action, String reasoning,
                             String sourceIp, String userAgent, String tenantId) {
+        recordBlock(requestId, userId, username, action, reasoning, sourceIp, userAgent, tenantId, null, null);
+    }
+
+    /** G27 (console design 7.7): the block with the decision's audit risk score and confidence. */
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager")
+    public void recordBlock(String requestId, String userId, String username,
+                            String action, String reasoning,
+                            String sourceIp, String userAgent, String tenantId,
+                            Double riskScore, Double confidence) {
         int blockCount = blockedUserJpaRepository.countByUserId(userId) + 1;
 
         Optional<BlockedUser> existingOpt = blockedUserJpaRepository
@@ -224,8 +241,8 @@ public class BlockedUserService implements IBlockedUserRecorder {
         if (existingOpt.isPresent()) {
             BlockedUser existing = existingOpt.get();
             existing.setRequestId(requestId);
-            existing.setRiskScore(null);
-            existing.setConfidence(null);
+            existing.setRiskScore(riskScore);
+            existing.setConfidence(confidence);
             existing.setReasoning(reasoning);
             existing.setBlockedAt(LocalDateTime.now());
             existing.setBlockCount(blockCount);
@@ -238,8 +255,8 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     .userId(userId)
                     .username(username)
                     .requestId(requestId)
-                    .riskScore(null)
-                    .confidence(null)
+                    .riskScore(riskScore)
+                    .confidence(confidence)
                     .reasoning(reasoning)
                     .blockedAt(LocalDateTime.now())
                     .blockCount(blockCount)
@@ -330,6 +347,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
         blocked.setUnblockRequestedAt(LocalDateTime.now());
         blocked.setUnblockReason(reason);
         blockedUserJpaRepository.save(blocked);
+        recordUnblockRequested(blocked, reason);
 
         // Audit: unblock requested
         centralAuditFacade.recordAsync(AuditRecord.builder()
@@ -362,6 +380,15 @@ public class BlockedUserService implements IBlockedUserRecorder {
             blocked.setMfaVerifiedAt(LocalDateTime.now());
         }
         blockedUserJpaRepository.save(blocked);
+        recordUnblockRequested(blocked, reason);
+    }
+
+    /** Console design 7.3: the blocked user asked to be unblocked, an outcome of the block decision. */
+    private void recordUnblockRequested(BlockedUser blocked, String reason) {
+        if (decisionOutcomes != null) {
+            decisionOutcomes.record(blocked.getRequestId(), blocked.getUserId(), blocked.getTenantId(),
+                    ZeroTrustDecisionOutcomes.Kind.UNBLOCK_REQUESTED, blocked.getUserId(), reason);
+        }
     }
 
     @Override

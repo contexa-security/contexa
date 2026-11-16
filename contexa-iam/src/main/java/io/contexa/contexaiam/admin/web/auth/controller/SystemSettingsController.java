@@ -22,6 +22,7 @@ import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService
 import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService.PolicyDecisionSettings;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
+import io.contexa.contexaiam.admin.web.auth.service.ZeroTrustConsoleSettings;
 import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
@@ -81,14 +82,18 @@ public class SystemSettingsController {
     @GetMapping
     public String showSettings(Model model) {
         model.addAttribute("activePage", "system-settings");
-        model.addAttribute("settings", SystemSettingsForm.from(systemSettingsService.getSettings(),
+        SystemSettingsForm settings = SystemSettingsForm.from(systemSettingsService.getSettings(),
                 zeroTrustProperties != null ? zeroTrustProperties.getMode() : null,
-                policyCombiningProperties.getNoMatchingUrlPolicyDecision()));
+                policyCombiningProperties.getNoMatchingUrlPolicyDecision());
+        // the console's settings in effect, stored or configured, in the screen's units
+        settings.setZeroTrustConsole(ZeroTrustConsoleSettings.formValues(zeroTrustProperties));
+        model.addAttribute("settings", settings);
+        model.addAttribute("zeroTrustConsoleSettings", ZeroTrustConsoleSettings.SETTINGS);
         model.addAttribute("roles", systemSettingsService.getDefaultRoleOptions());
         model.addAttribute("algorithms", CombiningAlgorithm.values());
         model.addAttribute("noMatchingUrlPolicyDecisionOptions", NoPolicyDecision.values());
         model.addAttribute("noPolicyDecisionOptions", SystemRuntimeSettingsService.missingMethodPolicyDecisionOptions());
-        model.addAttribute("zeroTrustModeOptions", SecurityZeroTrustProperties.EnforcementMode.values());
+        model.addAttribute("zeroTrustModeOptions", SystemRuntimeSettingsService.zeroTrustModeOptions());
         return "contexa/admin/system-settings";
     }
 

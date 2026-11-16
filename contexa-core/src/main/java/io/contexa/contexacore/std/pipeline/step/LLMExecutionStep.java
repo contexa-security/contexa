@@ -24,6 +24,8 @@ import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV5;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
@@ -45,6 +47,7 @@ import io.contexa.contexacore.std.pipeline.observation.SecurityDecisionObservati
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector.Inspection;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV1OutputInspector;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionCompactAnswer;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV21OutputInspector;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -106,6 +109,9 @@ public class LLMExecutionStep implements PipelineStep {
             "cachedPromptTokens",
             ExecutionContext.DETERMINISM_NOT_APPLIED,
             ExecutionContext.PROVIDER_REASONING_EFFORT,
+            ExecutionContext.PROVIDER_CONTEXT_LENGTH,
+            ExecutionContext.ESTIMATED_PROMPT_TOKENS,
+            ExecutionContext.PROMPT_TRUNCATED_BY_PROVIDER,
             ExecutionContext.PROVIDER_THINKING_REQUESTED,
             ExecutionContext.PROVIDER_EFFORT_REQUESTED,
             ExecutionContext.PROVIDER_THINKING,
@@ -522,13 +528,16 @@ public class LLMExecutionStep implements PipelineStep {
             AtomicReference<ExecutionContext> lastCall) {
         context.addMetadata(SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT,
                 SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT_V4);
+        // K30: a v1.0 answer (output contract v5) is read by the v21 check with its one explanation as the list.
+        boolean compact = Boolean.TRUE.equals(request.getParameter(SecurityDecisionCompactAnswer.REQUEST_PARAMETER,
+                Boolean.class));
         return securityDecisionCall(executionContext, context, lastCall)
                 .onErrorResume(error -> truncatedAtTheOutputLimit(executionContext) && emptyAnswer(error)
                         ? Mono.just("")
                         : Mono.error(error))
                 .flatMap(rawResponse -> {
                     SecurityDecisionV1OutputInspector.V1Inspection initial = inspectV21(
-                            rawResponse, request.getRequestId(), "initial", v21Check, v1Rules);
+                            rawResponse, request.getRequestId(), "initial", v21Check, v1Rules, compact);
                     Inspection initialCheck = initial.inspection();
                     if (!initialCheck.requiresRetry()) {
                         context.addMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, initial.hypotheses());
@@ -544,14 +553,23 @@ public class LLMExecutionStep implements PipelineStep {
                         return Mono.just(rawResponse);
                     }
                     recordInitialSecurityDecisionFailure(context, initialCheck, rawResponse);
+                    if (compact) {
+                        context.addMetadata("securityDecisionInitialRawOutputHash",
+                                SecurityDecisionCompactAnswer.hashOf(rawResponse));
+                        context.addMetadata("securityDecisionInitialRawOutputLength",
+                                rawResponse != null ? rawResponse.length() : 0);
+                    }
                     boolean truncated = truncatedAtTheOutputLimit(executionContext);
                     String retryReason = truncated ? OUTPUT_TRUNCATED : initialCheck.retryReason();
                     context.addMetadata("securityDecisionOutputRetryAttempted", true);
                     context.addMetadata("securityDecisionOutputRetryReason", retryReason);
                     // v1.0 with the fallback: an answer that breaks a decision rule is asked again as v20 asked it,
                     // naming the rule; without it, as v21 asks, the action staying the model's to choose.
+                    // v1.0 (plan 6-1): the short answer is asked again in the words of its prompt document (K31, K32).
                     ExecutionContext retryContext = buildExecutionContext(
-                            truncated ? prompt : initial.ruleViolation() != null && v1Rules != null && v1Rules.fallback()
+                            truncated ? prompt : compact
+                                    ? correctivePromptV1(prompt, rawResponse, retryReason, correctionKey(initial, v1Rules))
+                                    : initial.ruleViolation() != null && v1Rules != null && v1Rules.fallback()
                                     ? correctivePrompt(prompt, rawResponse, retryReason)
                                     : correctivePromptV21(prompt, rawResponse, retryReason),
                             request,
@@ -566,7 +584,7 @@ public class LLMExecutionStep implements PipelineStep {
                     return outputRetryCall(retryContext, truncated, request, context, lastCall)
                             .map(retryResponse -> {
                                 SecurityDecisionV1OutputInspector.V1Inspection retry = inspectV21(
-                                        retryResponse, request.getRequestId(), "retry", v21Check, v1Rules);
+                                        retryResponse, request.getRequestId(), "retry", v21Check, v1Rules, compact);
                                 Inspection retryCheck = retry.inspection();
                                 boolean succeeded = !retryCheck.requiresRetry();
                                 context.addMetadata("securityDecisionOutputRetrySucceeded", succeeded);
@@ -643,12 +661,15 @@ public class LLMExecutionStep implements PipelineStep {
                 ? metadata.supplementalMetadata().get(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION) : null;
         boolean v1 = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1.equals(layout);
         if (!(v1 || SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21.equals(layout))
-                || !(request.getContext() instanceof SecurityDecisionContext decision)
-                || decision.getSecurityEvent() == null || decision.getSecurityEvent().getMetadata() == null
-                || !(decision.getSecurityEvent().getMetadata().get("sealedEvidence.canonicalContext")
-                        instanceof CanonicalSecurityContext canonical)) {
+                || !(request.getContext() instanceof SecurityDecisionContext decision)) {
             return null;
         }
+        // Plan 6-2: a v1.0 or v21 prompt is checked as one even without the canonical context it was drawn from (the
+        // v19 and v20 checks read lines of another form and would refuse it); without the context the checks of the
+        // facts are left out and the form is still checked.
+        Object sealed = decision.getSecurityEvent() != null && decision.getSecurityEvent().getMetadata() != null
+                ? decision.getSecurityEvent().getMetadata().get("sealedEvidence.canonicalContext") : null;
+        CanonicalSecurityContext canonical = sealed instanceof CanonicalSecurityContext drawnFrom ? drawnFrom : null;
         return new SecurityDecisionV21OutputInspector.V21Check(canonical, generated.getUserPrompt(),
                 Boolean.TRUE.equals(metadata.supplementalMetadata().get("layer2SecondPass")));
     }
@@ -676,22 +697,26 @@ public class LLMExecutionStep implements PipelineStep {
                 .map(SecurityDecisionPromptBundles.Bundle::features)
                 .orElse(SecurityDecisionPromptBundles.Features.NONE);
         CanonicalSecurityContext canonical = check.context();
-        DecisionFacts conclusions = canonical.getConclusionFacts();
+        DecisionFacts conclusions = canonical != null ? canonical.getConclusionFacts() : null;
         // Every v1.0 variant checks the boundaries on the facts its prompt states; only a fallback variant replaces
         // an answer that still breaks one (plan 2.4, D1).
         return new SecurityDecisionV1OutputInspector.V1Rules(conclusions, conclusions != null,
-                v1MinimumActionCheck(request, canonical, conclusions), features.fallbackOnViolation());
+                v1MinimumActionCheck(request, canonical, conclusions), features.fallbackOnViolation()
+                || Boolean.TRUE.equals(request.getParameter(SecurityDecisionV1OutputInspector.FALLBACK_PARAMETER,
+                Boolean.class)));
     }
 
     /** The v21 check of an answer, with the v1.0 rules after it for a v1.0 prompt. */
     private SecurityDecisionV1OutputInspector.V1Inspection inspectV21(String rawResponse, String requestId,
                                                                     String attempt,
                                                                     SecurityDecisionV21OutputInspector.V21Check check,
-                                                                    SecurityDecisionV1OutputInspector.V1Rules rules) {
+                                                                    SecurityDecisionV1OutputInspector.V1Rules rules,
+                                                                    boolean compact) {
+        String answer = compact ? SecurityDecisionCompactAnswer.withExplanations(rawResponse) : rawResponse;
         return rules != null
-                ? v1OutputInspector.inspect(rawResponse, requestId, attempt, check, rules)
+                ? v1OutputInspector.inspect(answer, requestId, attempt, check, rules)
                 : SecurityDecisionV1OutputInspector.V1Inspection.of(
-                        v21OutputInspector.inspect(rawResponse, requestId, attempt, check));
+                        v21OutputInspector.inspect(answer, requestId, attempt, check));
     }
 
     /** v1.0 (B4): the minimum action check on the conclusions when the host enforces the floors; null otherwise. */
@@ -717,6 +742,39 @@ public class LLMExecutionStep implements PipelineStep {
             return false;
         }
         return ruleViolation.startsWith(SecurityDecisionV1OutputInspector.MINIMUM_ACTION_VIOLATION) || rules.fallback();
+    }
+
+    /**
+     * Which correction of the prompt document asks again: a floor the host enforces (K32), a decision rule of a version
+     * that includes them (D6), else the output contract (K31).
+     */
+    static String correctionKey(SecurityDecisionV1OutputInspector.V1Inspection initial,
+                                SecurityDecisionV1OutputInspector.V1Rules v1Rules) {
+        String rule = initial != null ? initial.ruleViolation() : null;
+        if (rule != null && rule.startsWith(SecurityDecisionV1OutputInspector.MINIMUM_ACTION_VIOLATION)) {
+            return SecurityDecisionPromptDocument.CORRECTION_MINIMUM_ACTION;
+        }
+        if (rule != null && v1Rules != null && v1Rules.fallback()) {
+            return SecurityDecisionPromptDocument.CORRECTION_RULES;
+        }
+        return SecurityDecisionPromptDocument.CORRECTION_CONTRACT;
+    }
+
+    /**
+     * Plan 6-1: the v1.0 prompt again with the answer it got and the correction of its prompt document, with what was
+     * wrong with the answer in it.
+     */
+    static Prompt correctivePromptV1(Prompt prompt, String previousAnswer, String violation, String correction) {
+        String text = SecurityDecisionPromptDocument.product().correction(correction,
+                Map.of("violation", violation != null ? violation : "",
+                        "keys", String.join(", ", SecurityDecisionOutputContractV5.KEYS)));
+        if (text == null) {
+            throw new IllegalStateException("The product prompt document has no correction " + correction);
+        }
+        List<Message> messages = new ArrayList<>(prompt.getInstructions());
+        messages.add(new AssistantMessage(previousAnswer != null ? previousAnswer : ""));
+        messages.add(new UserMessage(text));
+        return new Prompt(messages, prompt.getOptions());
     }
 
     /**

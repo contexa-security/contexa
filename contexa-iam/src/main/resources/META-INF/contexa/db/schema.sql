@@ -1457,6 +1457,9 @@ alter table ctxa_system_settings add column if not exists no_matching_url_policy
 alter table ctxa_system_settings alter column no_matching_url_policy_decision drop not null;
 alter table ctxa_system_settings alter column no_matching_url_policy_decision drop default;
 alter table ctxa_system_settings add column if not exists missing_method_policy_decision varchar(20) default 'PERMIT' not null;
+-- Console plan 5-6: the Zero Trust console's settings an operator chose, as one JSON object; NULL, or a key left out,
+-- leaves the matching contexa.security.zerotrust.console.* property in effect.
+alter table ctxa_system_settings add column if not exists zero_trust_console_settings text;
 
 -- docs/agent A3-3 (R-01): the tenant of a blocked request, so that an administrator's release learns within it.
 alter table ctxa_blocked_user add column if not exists tenant_id varchar(255);
@@ -1874,6 +1877,226 @@ CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_event
 
 CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_test_run
     ON ctxa_ai_security_decision_observation (test_run_id, created_at);
+
+-- ----------------------------------------------------------------
+-- Zero Trust console data (console plan stage 2, design 7.1 to 7.6 and 11.3).
+-- The console reads the hourly tables only; the decision rows are read by index for the decision list and detail.
+-- ----------------------------------------------------------------
+ALTER TABLE ctxa_ai_security_decision_observation
+    ADD COLUMN IF NOT EXISTS attempt_kind VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS original_event_id VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS decision_stage VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS analysis_depth VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS decision_source VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS decision_change_cause VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS enforcement_result VARCHAR(48),
+    ADD COLUMN IF NOT EXISTS enforcement_timing VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS actor_kind VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS resource_class VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS prompt_bundle_version VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS most_likely_hypothesis VARCHAR(16),
+    ADD COLUMN IF NOT EXISTS context_coverage_level VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS baseline_status VARCHAR(48),
+    ADD COLUMN IF NOT EXISTS unknown_fact_count INTEGER,
+    ADD COLUMN IF NOT EXISTS prompt_tokens BIGINT,
+    ADD COLUMN IF NOT EXISTS cached_prompt_tokens BIGINT,
+    ADD COLUMN IF NOT EXISTS output_tokens BIGINT,
+    ADD COLUMN IF NOT EXISTS model_call_count INTEGER,
+    ADD COLUMN IF NOT EXISTS user_wait_ms BIGINT,
+    ADD COLUMN IF NOT EXISTS decision_summary_json TEXT;
+
+-- Plan 6-3 (3.7): the content hash of the prompt version a decision ran, beside its number in prompt_bundle_version.
+ALTER TABLE ctxa_ai_security_decision_observation ADD COLUMN IF NOT EXISTS prompt_content_hash VARCHAR(64);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_user_created
+    ON ctxa_ai_security_decision_observation (user_id, created_at);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_request
+    ON ctxa_ai_security_decision_observation (request_id);
+
+CREATE TABLE IF NOT EXISTS ctxa_zt_decision_reason (
+    observation_id VARCHAR(64) NOT NULL,
+    reason_rank SMALLINT NOT NULL,
+    reason_code VARCHAR(64) NOT NULL,
+    reason_group VARCHAR(48),
+    fact_id VARCHAR(16),
+    fact_name VARCHAR(160),
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (observation_id, reason_rank)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_reason_code_created
+    ON ctxa_zt_decision_reason (reason_code, created_at);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_reason_created
+    ON ctxa_zt_decision_reason (created_at);
+
+CREATE TABLE IF NOT EXISTS ctxa_zt_decision_outcome (
+    outcome_id VARCHAR(64) PRIMARY KEY,
+    observation_id VARCHAR(64),
+    request_id VARCHAR(160),
+    user_id VARCHAR(160),
+    tenant_id VARCHAR(160),
+    outcome_kind VARCHAR(48) NOT NULL,
+    evaluation_reason VARCHAR(64),
+    actor VARCHAR(255),
+    note VARCHAR(1024),
+    occurred_at TIMESTAMP(6) NOT NULL,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_outcome_observation
+    ON ctxa_zt_decision_outcome (observation_id);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_outcome_request
+    ON ctxa_zt_decision_outcome (request_id);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_outcome_kind_occurred
+    ON ctxa_zt_decision_outcome (outcome_kind, occurred_at);
+
+CREATE TABLE IF NOT EXISTS ctxa_zt_stats_hourly (
+    bucket_start TIMESTAMP(6) NOT NULL,
+    tenant_id VARCHAR(160) NOT NULL DEFAULT '',
+    decision_boundary_mode VARCHAR(32) NOT NULL DEFAULT '',
+    final_action VARCHAR(64) NOT NULL DEFAULT '',
+    decision_source VARCHAR(32) NOT NULL DEFAULT '',
+    decision_change_cause VARCHAR(64) NOT NULL DEFAULT '',
+    decision_stage VARCHAR(64) NOT NULL DEFAULT '',
+    most_likely_hypothesis VARCHAR(16) NOT NULL DEFAULT '',
+    resource_class VARCHAR(32) NOT NULL DEFAULT '',
+    actor_kind VARCHAR(32) NOT NULL DEFAULT '',
+    enforcement_timing VARCHAR(32) NOT NULL DEFAULT '',
+    prompt_bundle_version VARCHAR(64) NOT NULL DEFAULT '',
+    model_id VARCHAR(160) NOT NULL DEFAULT '',
+    decision_count BIGINT NOT NULL DEFAULT 0,
+    protected_decision_count BIGINT NOT NULL DEFAULT 0,
+    baseline_established_count BIGINT NOT NULL DEFAULT 0,
+    baseline_provisional_count BIGINT NOT NULL DEFAULT 0,
+    baseline_none_count BIGINT NOT NULL DEFAULT 0,
+    environment_context_count BIGINT NOT NULL DEFAULT 0,
+    identity_context_count BIGINT NOT NULL DEFAULT 0,
+    scope_context_count BIGINT NOT NULL DEFAULT 0,
+    business_context_count BIGINT NOT NULL DEFAULT 0,
+    unknown_fact_sum BIGINT NOT NULL DEFAULT 0,
+    retried_count BIGINT NOT NULL DEFAULT 0,
+    latency_sum_ms BIGINT NOT NULL DEFAULT 0,
+    latency_le_1s BIGINT NOT NULL DEFAULT 0,
+    latency_le_2s BIGINT NOT NULL DEFAULT 0,
+    latency_le_5s BIGINT NOT NULL DEFAULT 0,
+    latency_le_10s BIGINT NOT NULL DEFAULT 0,
+    latency_le_30s BIGINT NOT NULL DEFAULT 0,
+    latency_le_60s BIGINT NOT NULL DEFAULT 0,
+    latency_le_90s BIGINT NOT NULL DEFAULT 0,
+    latency_gt_90s BIGINT NOT NULL DEFAULT 0,
+    user_wait_count BIGINT NOT NULL DEFAULT 0,
+    user_wait_sum_ms BIGINT NOT NULL DEFAULT 0,
+    user_wait_le_1s BIGINT NOT NULL DEFAULT 0,
+    user_wait_le_2s BIGINT NOT NULL DEFAULT 0,
+    user_wait_le_5s BIGINT NOT NULL DEFAULT 0,
+    user_wait_le_10s BIGINT NOT NULL DEFAULT 0,
+    user_wait_le_30s BIGINT NOT NULL DEFAULT 0,
+    user_wait_gt_30s BIGINT NOT NULL DEFAULT 0,
+    prompt_tokens_sum BIGINT NOT NULL DEFAULT 0,
+    cached_prompt_tokens_sum BIGINT NOT NULL DEFAULT 0,
+    output_tokens_sum BIGINT NOT NULL DEFAULT 0,
+    model_call_sum BIGINT NOT NULL DEFAULT 0,
+    challenge_passed_count BIGINT NOT NULL DEFAULT 0,
+    challenge_failed_count BIGINT NOT NULL DEFAULT 0,
+    challenge_expired_count BIGINT NOT NULL DEFAULT 0,
+    unblock_requested_count BIGINT NOT NULL DEFAULT 0,
+    admin_released_count BIGINT NOT NULL DEFAULT 0,
+    block_kept_count BIGINT NOT NULL DEFAULT 0,
+    evaluated_valid_count BIGINT NOT NULL DEFAULT 0,
+    evaluated_invalid_count BIGINT NOT NULL DEFAULT 0,
+    computed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (bucket_start, tenant_id, decision_boundary_mode, final_action, decision_source,
+                 decision_change_cause, decision_stage, most_likely_hypothesis, resource_class, actor_kind,
+                 enforcement_timing, prompt_bundle_version, model_id)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_stats_hourly_bucket
+    ON ctxa_zt_stats_hourly (bucket_start);
+
+CREATE TABLE IF NOT EXISTS ctxa_zt_coverage_hourly (
+    bucket_start TIMESTAMP(6) NOT NULL,
+    tenant_id VARCHAR(160) NOT NULL DEFAULT '',
+    node_id VARCHAR(160) NOT NULL DEFAULT '',
+    counter_kind VARCHAR(32) NOT NULL,
+    reason VARCHAR(64) NOT NULL DEFAULT '',
+    counted BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (bucket_start, tenant_id, node_id, counter_kind, reason)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_coverage_hourly_bucket
+    ON ctxa_zt_coverage_hourly (bucket_start);
+
+CREATE TABLE IF NOT EXISTS ctxa_zt_review_queue (
+    observation_id VARCHAR(64) PRIMARY KEY,
+    sample_day DATE NOT NULL,
+    sampled_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    review_status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    reviewed_by VARCHAR(255),
+    reviewed_at TIMESTAMP(6)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_review_queue_day
+    ON ctxa_zt_review_queue (sample_day, review_status);
+
+-- The lists the console ranks and the people it counts, by hour: decisions per user and action, challenges passed
+-- per user, stopped decisions per resource, first reasons, unknown facts, paths without a decision. They name users,
+-- so they are kept as long as the decision rows.
+CREATE TABLE IF NOT EXISTS ctxa_zt_item_hourly (
+    bucket_start TIMESTAMP(6) NOT NULL,
+    tenant_id VARCHAR(160) NOT NULL DEFAULT '',
+    decision_boundary_mode VARCHAR(32) NOT NULL DEFAULT '',
+    dimension VARCHAR(32) NOT NULL,
+    item VARCHAR(512) NOT NULL,
+    detail VARCHAR(64) NOT NULL DEFAULT '',
+    counted BIGINT NOT NULL DEFAULT 0,
+    computed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (bucket_start, tenant_id, decision_boundary_mode, dimension, item, detail)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_item_hourly_dimension
+    ON ctxa_zt_item_hourly (dimension, bucket_start);
+
+-- The time each stage of a decision took, by hour, in buckets that add up across hours.
+CREATE TABLE IF NOT EXISTS ctxa_zt_latency_hourly (
+    bucket_start TIMESTAMP(6) NOT NULL,
+    tenant_id VARCHAR(160) NOT NULL DEFAULT '',
+    decision_boundary_mode VARCHAR(32) NOT NULL DEFAULT '',
+    stage VARCHAR(16) NOT NULL,
+    measured BIGINT NOT NULL DEFAULT 0,
+    sum_ms BIGINT NOT NULL DEFAULT 0,
+    le_100ms BIGINT NOT NULL DEFAULT 0,
+    le_250ms BIGINT NOT NULL DEFAULT 0,
+    le_500ms BIGINT NOT NULL DEFAULT 0,
+    le_1s BIGINT NOT NULL DEFAULT 0,
+    le_2s BIGINT NOT NULL DEFAULT 0,
+    le_5s BIGINT NOT NULL DEFAULT 0,
+    le_10s BIGINT NOT NULL DEFAULT 0,
+    le_30s BIGINT NOT NULL DEFAULT 0,
+    le_60s BIGINT NOT NULL DEFAULT 0,
+    gt_60s BIGINT NOT NULL DEFAULT 0,
+    computed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (bucket_start, tenant_id, decision_boundary_mode, stage)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_zt_latency_hourly_bucket
+    ON ctxa_zt_latency_hourly (bucket_start);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_audit_log_timestamp
+    ON ctxa_audit_log (timestamp);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_audit_log_category_timestamp
+    ON ctxa_audit_log (event_category, timestamp);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_audit_log_correlation
+    ON ctxa_audit_log (correlation_id);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_blocked_user_user_status
+    ON ctxa_blocked_user (user_id, status);
 
 CREATE TABLE IF NOT EXISTS ctxa_ai_security_monitoring_session_summary (
     session_id VARCHAR(64) PRIMARY KEY,
@@ -4226,6 +4449,107 @@ create index if not exists ctxa_idx_prompt_governance_cache_invalidation_prompt
 
 create index if not exists ctxa_idx_prompt_governance_cache_invalidation_pending
     on ctxa_prompt_governance_runtime_cache_invalidation (consumed, published_at desc);
+
+-- ------------------------------------------------------------
+-- Plan 6-3 (3.7): prompt versions. A version is a snapshot that does not change once made: the product document of
+-- a Contexa release, or the changes of an organization to a base version. Its number counts up within its scope and
+-- prompt (v1.0, v2.0 and so on). The document it was made from is kept as it was read; its parts are written out from
+-- it for the screens. A version is hidden, never deleted: decision records, sealed evidence and replays name it.
+-- ------------------------------------------------------------
+create table if not exists ctxa_prompt_version (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    version_number integer not null check (version_number > 0),
+    title varchar(256) not null,
+    description varchar(2000),
+    based_on_number integer,
+    based_on_hash varchar(64),
+    provider varchar(32) not null,
+    origin varchar(32) not null,
+    origin_name varchar(512) not null,
+    origin_content_hash varchar(64) not null,
+    content_hash varchar(64) not null,
+    document text not null,
+    hidden boolean not null default false,
+    created_by varchar(128) not null,
+    created_at timestamp(6) not null default current_timestamp
+);
+
+create unique index if not exists ctxa_idx_prompt_version_number
+    on ctxa_prompt_version (registry_scope, prompt_key, version_number);
+
+-- The same document from the same origin is one version, however many nodes read it.
+create unique index if not exists ctxa_idx_prompt_version_origin
+    on ctxa_prompt_version (registry_scope, prompt_key, origin, origin_name, origin_content_hash);
+
+create index if not exists ctxa_idx_prompt_version_content
+    on ctxa_prompt_version (registry_scope, prompt_key, content_hash);
+
+create table if not exists ctxa_prompt_version_part (
+    id bigserial primary key,
+    version_id bigint not null references ctxa_prompt_version (id),
+    part_list varchar(16) not null,
+    part_key varchar(128) not null,
+    part_action varchar(16) not null,
+    locked boolean,
+    title varchar(256),
+    body text,
+    add_after varchar(128),
+    position integer not null
+);
+
+create index if not exists ctxa_idx_prompt_version_part_version
+    on ctxa_prompt_version_part (version_id, part_list, position);
+
+create table if not exists ctxa_prompt_version_folder_scan (
+    id bigserial primary key,
+    node_name varchar(256) not null,
+    folder varchar(1024) not null,
+    scanned_at timestamp(6) not null,
+    document_count integer not null,
+    registered_count integer not null,
+    errors text
+);
+
+create index if not exists ctxa_idx_prompt_version_folder_scan_at
+    on ctxa_prompt_version_folder_scan (scanned_at desc);
+
+-- Plan 6-5 (3.10 4): a trial decides recent sealed decisions again with a candidate and a reference version.
+create table if not exists ctxa_prompt_version_trial (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    candidate_number integer not null,
+    reference_number integer not null,
+    requested_count integer not null,
+    actual_count integer,
+    status varchar(16) not null,
+    started_at timestamp(6),
+    finished_at timestamp(6),
+    failure varchar(2000),
+    created_by varchar(128) not null,
+    created_at timestamp(6) not null default current_timestamp
+);
+
+create index if not exists ctxa_idx_prompt_version_trial_scope
+    on ctxa_prompt_version_trial (registry_scope, prompt_key, created_at desc);
+
+create table if not exists ctxa_prompt_version_trial_case (
+    id bigserial primary key,
+    trial_id bigint not null references ctxa_prompt_version_trial (id),
+    sealed_package_id varchar(128),
+    observation_id varchar(128),
+    version_number integer not null,
+    action varchar(16),
+    format_error boolean not null default false,
+    decision_ms bigint,
+    answer_tokens integer,
+    reason varchar(2000)
+);
+
+create index if not exists ctxa_idx_prompt_version_trial_case_trial
+    on ctxa_prompt_version_trial_case (trial_id, version_number);
 
 create index if not exists ctxa_idx_prompt_runtime_slot_contract_label
     on ctxa_prompt_runtime_slot_contract (contract_version, label_key, active);

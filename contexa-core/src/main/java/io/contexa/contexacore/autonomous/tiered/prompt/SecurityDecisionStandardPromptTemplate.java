@@ -35,6 +35,8 @@ import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContex
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackSnapshot;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
 import io.contexa.contexacore.std.components.prompt.*;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionContext;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
@@ -217,25 +219,29 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
                     + "on the exact past record lookup only.");
 
     /**
-     * v1.0, the production bundle (plan 1-9): the variant record-similar promoted after the measurement against v19,
-     * v20 and v21 (2026-11-15), so the build default keeps the similarity search of v19, with the sentence on which line
-     * a difference code cites. Its rollback is v19.
+     * v1.0, the production bundle and the build default (2026-11-16, K30): the variant record-similar promoted after the
+     * measurement against v19, v20 and v21, with the sentence on which line a difference code cites, answering in the
+     * short output contract v5: about 120 tokens a decision instead of the 600-1,000 of the contract v4, which the first
+     * v1.0 (2026.11.15) asked for and which took 20-34 s to write on the measured GPU. That first v1.0 is no longer run;
+     * its manifest stays as the record. Its rollback is v19.
      */
     public static final PromptGovernanceDescriptor SECURITY_DECISION_V1_PROMPT_GOVERNANCE = new PromptGovernanceDescriptor(
             "cortex.security-decision",
             STANDARD_TEMPLATE_KEY,
-            "2026.11.15-v1.0",
-            "CORTEX_PROMPT_CONTRACT_V4",
+            "2026.11.16-v1.0",
+            "CORTEX_PROMPT_CONTRACT_V5",
             PromptReleaseStatus.PRODUCTION,
             "contexa-cortex-core",
-            "V1-2026-11-15",
-            "SELF-MEASURED-2026-11-15",
+            "V1-2026-11-16",
+            "SELF-MEASURED-2026-11-16",
             SECURITY_DECISION_PROMPT_GOVERNANCE.promptVersion(),
             V1_SUMMARY + "Promoted from the variant record-similar: no decision rule in the system text; a response "
                     + "that breaks a boundary stays the model's and the breach is recorded for a person's review; the "
                     + "similar cases join the exact past record lookup; a difference code cites the comparison line, "
                     + "not the line with the current value; another person's similar work does not explain a difference of "
-                    + "this account's device, network, time or login method.",
+                    + "this account's device, network, time or login method. The answer is the short output contract v5 in "
+                    + "place of v4: the action, the risk score, the explanation judged most likely, one to three reason "
+                    + "codes each citing one fact and one sentence of at most 25 words.",
             List.of(
                     "STRICT_JSON_SCHEMA",
                     "LOW_TEMPERATURE_SECURITY_DECISION",
@@ -342,6 +348,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         promptSections.setMinimumActionSettings(settings);
     }
 
+    /** K32: the settings and whether the host enforces them, which the v1.0 system text states when it does. */
+    public void setMinimumActionSettings(MinimumActionRules.Settings settings, String mode) {
+        promptSections.setMinimumActionSettings(settings, mode);
+    }
+
     public SecurityDecisionStandardPromptTemplate(SecurityDecisionPromptSections promptSections) {
         super(SecurityDecisionResponseLite.class);
         this.promptSections = promptSections;
@@ -355,16 +366,21 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
         String domainPrompt = generateDomainSystemPrompt(request, systemMetadata);
         String formatInstructions = shouldIncludeFormatInstructions(request)
-                ? SecurityDecisionContractSectionBuilder.formatInstructions(layout(request)) : null;
+                ? SecurityDecisionContractSectionBuilder.formatInstructions(bundle(request)) : null;
         return assembleSystemPrompt(domainPrompt, formatInstructions, null);
     }
 
     /** The user prompt layout of the request's bundle; its bundle is fixed on the event by its first prompt. */
     private SecurityDecisionPromptBundles.UserPromptLayout layout(AIRequest<? extends DomainContext> request) {
+        return bundle(request).layout();
+    }
+
+    /** The request's bundle; its bundle is fixed on the event by its first prompt. */
+    private SecurityDecisionPromptBundles.Bundle bundle(AIRequest<? extends DomainContext> request) {
         return request instanceof SecurityDecisionRequest securityDecisionRequest
                 && securityDecisionRequest.getContext() != null
-                ? promptBundle(securityDecisionRequest.getContext().getSecurityEvent()).layout()
-                : SecurityDecisionPromptBundles.DEFAULT.layout();
+                ? promptBundle(securityDecisionRequest.getContext().getSecurityEvent())
+                : SecurityDecisionPromptBundles.DEFAULT;
     }
 
     @Override
@@ -410,6 +426,16 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
 
     public SecurityDecisionPromptBundles.Bundle promptBundle(SecurityEvent event) {
         return promptSections.bundleOf(event);
+    }
+
+    /** Plan 6-2: the version of the prompt the event runs, whose parts and effects draw and check its decision. */
+    public AssembledPrompt promptVersion(SecurityEvent event) {
+        return promptSections.promptVersionOf(event);
+    }
+
+    /** Plan 6-2: the store the version an event names is read from; the product versions when null. */
+    public void setPromptVersionStore(PromptVersionStore store) {
+        promptSections.setPromptVersionStore(store);
     }
 
     @Override

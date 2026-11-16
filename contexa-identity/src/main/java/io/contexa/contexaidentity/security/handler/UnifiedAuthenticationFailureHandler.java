@@ -30,6 +30,7 @@ import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
@@ -37,6 +38,7 @@ import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegra
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import io.contexa.contexaidentity.security.zerotrust.ChallengeResolution;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -79,8 +81,14 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
 
     @Nullable
     private volatile MfaFlowUrlRegistry flowUrlRegistry;
+    /** Console design 7.3: records a failed challenge as the decision's outcome; null records none. */
+    private volatile ZeroTrustDecisionOutcomes decisionOutcomes;
 
     /** The addresses of each MFA flow, so that a failed password step returns to the sign-in page of its own flow. */
+    public void setDecisionOutcomes(@Nullable ZeroTrustDecisionOutcomes decisionOutcomes) {
+        this.decisionOutcomes = decisionOutcomes;
+    }
+
     public void setFlowUrlRegistry(@Nullable MfaFlowUrlRegistry flowUrlRegistry) {
         this.flowUrlRegistry = flowUrlRegistry;
     }
@@ -203,6 +211,12 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                 && factorContext.getCurrentState() == MfaState.MFA_RETRY_LIMIT_EXCEEDED) {
             handleBlockMfaFailure(request, response, factorContext);
             return;
+        }
+        // Console design 7.3: a challenge in force whose MFA used up its retries failed.
+        if (factorContext.getCurrentState() == MfaState.MFA_RETRY_LIMIT_EXCEEDED
+                && factorContext.getUsername() != null) {
+            ChallengeResolution.recordChallengeFailure(actionRedisRepository, decisionOutcomes,
+                    ZeroTrustUserKey.person(factorContext.getUsername()));
         }
 
         int attempts = factorContext.getRetryCount();

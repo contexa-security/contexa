@@ -34,6 +34,7 @@ import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -190,6 +191,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     private volatile QueuedEventRecheck queuedEventRecheck;
+    private volatile ZeroTrustCoverageCounter coverageCounter;
     private final Cache<String, Boolean> decidedSessions = ContexaCaffeine.newBuilder()
             .maximumSize(MAX_DECIDED_SESSIONS)
             .expireAfterWrite(DECIDED_SESSION_TTL)
@@ -213,6 +215,26 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         this.queuedEventRecheck = queuedEventRecheck;
     }
 
+    /** Console design 7.5: counts the protected calls whose event the line settles without an analysis; null counts none. */
+    public void setCoverageCounter(ZeroTrustCoverageCounter coverageCounter) {
+        this.coverageCounter = coverageCounter;
+    }
+
+    /**
+     * Counts how the event of a protected call was settled here without an analysis. Only the event of a protected call
+     * counts (a sign-in, a session or a threat event is no protected call), and once: an event asked about again is a
+     * copy of one that was analysed.
+     */
+    private void settledWithoutAnalysis(SecurityEvent event, String outcome) {
+        ZeroTrustCoverageCounter counter = coverageCounter;
+        Map<String, Object> metadata = event.getMetadata();
+        if (counter == null || metadata == null || metadata.containsKey(JUDGED_AGAIN_EVENT)
+                || !"AUTHORIZATION".equals(metadata.get("zerotrust.category"))) {
+            return;
+        }
+        counter.settled(outcome);
+    }
+
     public void setAiSecurityDecisionObservationWriterSupplier(
             Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier) {
         this.aiSecurityDecisionObservationWriterSupplier = aiSecurityDecisionObservationWriterSupplier != null
@@ -234,7 +256,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         this.analysisLineBound = analysisLineBound;
     }
 
-    int analysisLineBound() {
+    /** How many analyses may be accepted and not finished (the console's operations screen shows it). */
+    public int analysisLineBound() {
         return analysisLineBound;
     }
 
@@ -367,11 +390,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 // comes back to be tried again. If that analysis decides nothing, the session stays without a decision
                 // and its next request is published and analysed again.
                 event.addMetadata("analysisSkipped", "SESSION_ALREADY_IN_LINE");
+                settledWithoutAnalysis(event, ZeroTrustCoverageCounter.SESSION_ALREADY_IN_LINE);
                 leftOut(event);
                 continue;
             }
             if (!takeAPlace(share)) {
                 event.addMetadata("analysisSkipped", "PAST_THE_USERS_SHARE");
+                settledWithoutAnalysis(event, ZeroTrustCoverageCounter.PAST_THE_USERS_SHARE);
                 leftOut(event);
                 continue;
             }
@@ -390,6 +415,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     event.addMetadata("analysisStartedAt", System.currentTimeMillis());
                     if (answeredWhileQueued(event)) {
                         event.addMetadata("analysisSkipped", "ANSWERED_BY_DECISION_IN_FORCE");
+                        settledWithoutAnalysis(event, ZeroTrustCoverageCounter.REUSED_OUTCOME);
                         event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
                         over = true;
                         return;
@@ -408,6 +434,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     }
                     // What stopped the analysis with an Error may stop the node: the event stays to be delivered again.
                     over = !hasCause(e, Error.class);
+                    if (over && deferExhaustedWithoutRecord(event)) {
+                        settledWithoutAnalysis(event, ZeroTrustCoverageCounter.DEFER_EXHAUSTED);
+                    }
                     if (!isProcessingFailureReported(event)) {
                         log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
                     }
@@ -526,6 +555,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
      */
     private void lineIsFull(SecurityEvent event) {
         event.addMetadata("analysisSkipped", "PAST_THE_ANALYSIS_LINE");
+        settledWithoutAnalysis(event, ZeroTrustCoverageCounter.PAST_THE_ANALYSIS_LINE);
         long leftOutSoFar = analysesLeftOut.incrementAndGet();
         long now = System.currentTimeMillis();
         long reportedAt = lineFullReportedAt.get();
@@ -534,6 +564,16 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     + "not analysed and are kept only in their sessions.", analysisLineBound, leftOutSoFar);
         }
         leftOut(event);
+    }
+
+    /**
+     * Whether the analysis ended for good after its tries and no decision row tells of it: a timed-out or rejected
+     * try records its own row, which counts the call as a technical failure.
+     */
+    private static boolean deferExhaustedWithoutRecord(SecurityEvent event) {
+        Map<String, Object> metadata = event.getMetadata();
+        return metadata != null && Boolean.TRUE.equals(metadata.get("deferExhausted"))
+                && !metadata.containsKey("decisionFailureCategory");
     }
 
     /** The event is not analysed: it ends here, whatever became of it, and holds nothing back. */

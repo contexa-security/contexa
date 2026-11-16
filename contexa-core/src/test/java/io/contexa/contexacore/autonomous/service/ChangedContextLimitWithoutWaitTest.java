@@ -10,6 +10,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService.AsyncProtectableGate;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.testsupport.AdjustableClock;
 import org.aopalliance.intercept.MethodInvocation;
@@ -120,6 +121,7 @@ class ChangedContextLimitWithoutWaitTest {
         AsyncProtectableGate past = gate("context-new-6");
 
         assertThat(past.restriction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(past.coverage()).as("set without the model").isEqualTo(ZeroTrustCoverageCounter.NEW_CONTEXT_LIMIT);
         assertThat(repository.getCurrentAction(USER, HOME)).isEqualTo(ZeroTrustAction.ALLOW);
         assertThat(gate(HOME).restriction()).as("the context on record goes on").isNull();
     }
@@ -183,11 +185,15 @@ class ChangedContextLimitWithoutWaitTest {
     @Test
     @DisplayName("the analysis of a changed context is started once, however many calls of it are turned away")
     void theAnalysisIsStartedOncePerContext() {
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        service.setCoverageCounter(coverage);
         for (int i = 0; i < 5; i++) {
             assertThatThrownBy(() -> gate("context-new-0", true)).isInstanceOf(ZeroTrustAccessDeniedException.class);
         }
 
         verify(publisher, times(1)).publishMethodAuthorization(any(), any(), anyBoolean(), any(), eq(ZeroTrustEventPublisher.METHOD_NOT_RUN), any());
+        // The first call asked for the analysis; the four after it wait for that verdict.
+        assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.CONTEXT_CHANGE_WAITS)).isEqualTo(4);
     }
 
     @Test

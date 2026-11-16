@@ -1,7 +1,7 @@
 {
   "promptKey" : "cortex.security-decision",
   "bundleVersion" : "2026.11.14-v1.0-record-exact",
-  "bundleHash" : "999c3a34b1a3cb5e79b5baef5714953e134891f226d9b6575de52a5e58205889",
+  "bundleHash" : "89a11f7c6eda6c06147e549bc9624762469ba4e5a6068118113c153d2c4b163b",
   "elements" : [ {
     "id" : "B1",
     "state" : "PRESENT",
@@ -10,7 +10,7 @@
   }, {
     "id" : "B2",
     "state" : "PRESENT",
-    "hash" : "00afb7c5ad32fb98f30e26a33334059f5cd1e953fb739c95a2ef2f68d5d9409d",
+    "hash" : "9be8d7816d8d98ec36d70515e8850245203576973f23d50c1e1336ba66f72e10",
     "detail" : "prompt dictionary v1.0: every entry with all its fields, the block header labels and the block titles (plan 2.9)"
   }, {
     "id" : "B3",
@@ -30,7 +30,7 @@
   }, {
     "id" : "B6",
     "state" : "PRESENT",
-    "hash" : "076b9acc7b25ea7a3598213fc3910f0df49eea24763c9545a7c5f49fcb497aff",
+    "hash" : "6e8796ce9929b3795f8e6257c72589bf0236a02f77314d1e4636ba401eb724c3",
     "detail" : "v1.0 response check sources: the v21 check, the past record claim, the boundaries and the floors, and the fallback actions (plan 2.2 B6)"
   }, {
     "id" : "B7",

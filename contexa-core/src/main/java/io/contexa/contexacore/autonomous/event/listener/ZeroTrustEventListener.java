@@ -22,6 +22,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -34,6 +35,8 @@ public class ZeroTrustEventListener {
     private final ZeroTrustActionRepository actionRepository;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
+    private ZeroTrustCoverageCounter coverageCounter;
+
     public ZeroTrustEventListener(
             SecurityEventPublisher securityEventPublisher,
             ZeroTrustActionRepository actionRepository,
@@ -45,6 +48,11 @@ public class ZeroTrustEventListener {
 
     public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
         this.unanalysedRequestRecorder = unanalysedRequestRecorder;
+    }
+
+    /** Console design 7.5: counts the protected calls the decision in force settles here; null counts none. */
+    public void setCoverageCounter(ZeroTrustCoverageCounter coverageCounter) {
+        this.coverageCounter = coverageCounter;
     }
 
     @EventListener
@@ -142,8 +150,13 @@ public class ZeroTrustEventListener {
     }
 
     private void processAuthorizationEvent(ZeroTrustSpringEvent event) {
-        if (!shouldPublishAuthorizationEvent(event)) {
+        String settled = skipReason(event, generateAuthorizationContextBindingHash(event), true);
+        if (settled != null) {
             recordUnanalysed(event);
+            ZeroTrustCoverageCounter counter = coverageCounter;
+            if (counter != null) {
+                counter.settled(settled);
+            }
             return;
         }
         securityEventPublisher.publishGenericSecurityEvent(event);
@@ -190,9 +203,18 @@ public class ZeroTrustEventListener {
      * @param allowAnswers whether an ALLOW in force answers the request without analysis
      */
     private boolean shouldSkipPublishing(ZeroTrustSpringEvent event, String contextBindingHash, boolean allowAnswers) {
+        return skipReason(event, contextBindingHash, allowAnswers) != null;
+    }
+
+    /**
+     * Why the request is not analysed: {@link ZeroTrustCoverageCounter#REUSED_OUTCOME} when the decision in force
+     * answers it, {@link ZeroTrustCoverageCounter#DECISION_AUDIT_PENDING} when a decision of its context waits for its
+     * audit record; null when it is analysed.
+     */
+    private String skipReason(ZeroTrustSpringEvent event, String contextBindingHash, boolean allowAnswers) {
         String key = decisionKey(event);
         if (key == null || key.isBlank()) {
-            return false;
+            return null;
         }
 
         try {
@@ -205,14 +227,15 @@ public class ZeroTrustEventListener {
                     : actionRepository.getCurrentAction(key, contextBindingHash);
             if (currentAction != ZeroTrustAction.PENDING_ANALYSIS
                     && (allowAnswers || currentAction != ZeroTrustAction.ALLOW)) {
-                return true;
+                return ZeroTrustCoverageCounter.REUSED_OUTCOME;
             }
             // A decision for this actor context is waiting for its audit record; a new analysis
             // would only repeat the LLM call while the observation store keeps rejecting writes.
-            return actionRepository.isDecisionAuditPending(key, contextBindingHash);
+            return actionRepository.isDecisionAuditPending(key, contextBindingHash)
+                    ? ZeroTrustCoverageCounter.DECISION_AUDIT_PENDING : null;
         } catch (Exception e) {
             log.error("[ZeroTrustEventListener] Failed to check skip condition: userId={}", key, e);
-            return false;
+            return null;
         }
     }
 }

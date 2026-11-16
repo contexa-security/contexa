@@ -169,12 +169,23 @@ public class SystemRuntimeSettingsService {
     public static SecurityZeroTrustProperties.EnforcementMode normalizeSecurityZeroTrustMode(String rawValue) {
         String value = StringUtils.hasText(rawValue) ? rawValue.trim() : DEFAULT_SECURITY_ZEROTRUST_MODE.name();
         String name = value.replace('-', '_').toUpperCase(Locale.ROOT);
+        // Console design 11.2: a stored OBSERVE is still accepted and read as DISABLED, as the engine reads it
+        if (SecurityZeroTrustProperties.EnforcementMode.OBSERVE.name().equals(name)) {
+            return SecurityZeroTrustProperties.EnforcementMode.DISABLED;
+        }
         for (SecurityZeroTrustProperties.EnforcementMode mode : SecurityZeroTrustProperties.EnforcementMode.values()) {
             if (mode.name().equals(name)) {
                 return mode;
             }
         }
         throw new IllegalArgumentException("securityZeroTrustMode has an unsupported value: " + rawValue);
+    }
+
+    /** The modes an operator can choose (console design 11.2): off, SHADOW and ENFORCE; OBSERVE is not offered. */
+    public static List<SecurityZeroTrustProperties.EnforcementMode> zeroTrustModeOptions() {
+        return List.of(SecurityZeroTrustProperties.EnforcementMode.DISABLED,
+                SecurityZeroTrustProperties.EnforcementMode.SHADOW,
+                SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
     }
 
     public static String normalizeSecurityZeroTrustModeForStorage(String rawValue) {

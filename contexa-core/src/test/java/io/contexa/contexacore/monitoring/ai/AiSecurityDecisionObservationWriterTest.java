@@ -395,9 +395,16 @@ class AiSecurityDecisionObservationWriterTest {
         for (int i = 0; i < sqlValues.size(); i++) {
             if (sqlValues.get(i).contains("INSERT INTO ctxa_ai_security_decision_observation")) {
                 String sql = sqlValues.get(i);
-                String[] columns = sql.substring(sql.indexOf('(') + 1, sql.indexOf(')')).split(",");
+                // The observation's columns follow its INSERT; with reason codes the statement goes on to insert
+                // them, and their arguments come after the observation's.
+                int insert = sql.indexOf("INSERT INTO ctxa_ai_security_decision_observation");
+                int open = sql.indexOf('(', insert);
+                String[] columns = sql.substring(open + 1, sql.indexOf(')', open)).split(",");
                 Object[] values = argValues.get(i);
-                assertThat(values).hasSize(columns.length);
+                int reasonArguments = sql.contains("INSERT INTO ctxa_zt_decision_reason")
+                        ? values.length - columns.length : 0;
+                assertThat(values).hasSize(columns.length + reasonArguments);
+                assertThat(reasonArguments % 6).as("six arguments per reason code").isZero();
                 Map<String, Object> row = new LinkedHashMap<>();
                 for (int column = 0; column < columns.length; column++) {
                     row.put(columns[column].trim(), values[column]);

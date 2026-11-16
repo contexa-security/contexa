@@ -73,6 +73,14 @@ public class SystemSettings {
     @Builder.Default
     private String missingMethodPolicyDecision = "PERMIT";
 
+    /**
+     * The Zero Trust console's settings an operator chose, as one JSON object (retention, review sample, token prices,
+     * adoption criteria). {@code null}, or a key left out, means nobody chose it, so the matching
+     * {@code contexa.security.zerotrust.console.*} property stays in effect.
+     */
+    @Column(name = "zero_trust_console_settings", columnDefinition = "text")
+    private String zeroTrustConsoleSettings;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

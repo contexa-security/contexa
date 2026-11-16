@@ -28,6 +28,7 @@ import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
@@ -146,7 +147,7 @@ final class SecurityDecisionGoldenRender {
 
     /** Renders the bundle the given selector chooses (W3-16). */
     RenderedCase render(JsonNode goldenCase, PromptBudgetProfile profile, PromptBundleSelector selector) {
-        return renderInZone(goldenCase, profile, new TieredStrategyProperties(), null, Map.of(), selector);
+        return renderInZone(goldenCase, profile, new TieredStrategyProperties(), null, Map.of(), selector, null, null);
     }
 
     /** Renders with the given settings and a behaviour analysis (the threat matches of W3-6, for example). */
@@ -159,17 +160,28 @@ final class SecurityDecisionGoldenRender {
     RenderedCase render(JsonNode goldenCase, PromptBudgetProfile profile, TieredStrategyProperties properties,
                         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
                         Map<String, String> requestParameters) {
-        return renderInZone(goldenCase, profile, properties, behaviorAnalysis, requestParameters, null);
+        return renderInZone(goldenCase, profile, properties, behaviorAnalysis, requestParameters, null, null, null);
+    }
+
+    /**
+     * Plan 6-2: renders the version the store holds under the name, as an event that names it runs it, with request
+     * parameters as well.
+     */
+    RenderedCase renderVersion(JsonNode goldenCase, PromptBudgetProfile profile, TieredStrategyProperties properties,
+                               PromptVersionStore store, String version, Map<String, String> requestParameters) {
+        return renderInZone(goldenCase, profile, properties, null, requestParameters, null, store, version);
     }
 
     private RenderedCase renderInZone(JsonNode goldenCase, PromptBudgetProfile profile,
                                       TieredStrategyProperties properties,
                                       SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
-                                      Map<String, String> requestParameters, PromptBundleSelector selector) {
+                                      Map<String, String> requestParameters, PromptBundleSelector selector,
+                                      PromptVersionStore store, String version) {
         TimeZone original = TimeZone.getDefault();
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         try {
-            return renderInDefaultZone(goldenCase, profile, properties, behaviorAnalysis, requestParameters, selector);
+            return renderInDefaultZone(goldenCase, profile, properties, behaviorAnalysis, requestParameters, selector,
+                    store, version);
         }
         finally {
             TimeZone.setDefault(original);
@@ -179,7 +191,8 @@ final class SecurityDecisionGoldenRender {
     private RenderedCase renderInDefaultZone(JsonNode goldenCase, PromptBudgetProfile profile,
                                              TieredStrategyProperties properties,
                                              SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
-                                             Map<String, String> requestParameters, PromptBundleSelector selector) {
+                                             Map<String, String> requestParameters, PromptBundleSelector selector,
+                                             PromptVersionStore store, String version) {
         CanonicalSecurityContext canonicalContext = new CanonicalSecurityContextSerializer(OBJECT_MAPPER)
                 .deserialize(goldenCase.path("canonicalContext").toString());
         if (canonicalContext == null) {
@@ -193,8 +206,12 @@ final class SecurityDecisionGoldenRender {
                 selector,
                 null,
                 null);
+        sections.setPromptVersionStore(store);
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(sections);
         SecurityEvent event = event(goldenCase);
+        if (version != null) {
+            event.addMetadata(SecurityDecisionPromptDocument.EVENT_PROMPT_VERSION, version);
+        }
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = behaviorAnalysis != null ? behaviorAnalysis
                 : SecurityDecisionGoldenLearning.analysis(goldenCase, event, OBJECT_MAPPER);
         SecurityDecisionRequest request = new SecurityDecisionRequest(new SecurityDecisionContext(

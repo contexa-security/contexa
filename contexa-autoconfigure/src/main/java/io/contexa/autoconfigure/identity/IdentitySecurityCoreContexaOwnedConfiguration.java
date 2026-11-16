@@ -28,6 +28,7 @@ import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.handler.MfaFactorProcessingSuccessHandler;
@@ -120,13 +121,16 @@ public class IdentitySecurityCoreContexaOwnedConfiguration {
             IBlockedUserRecorder contexaBlockedUserRecorder,
             @Autowired(required = false) CentralAuditFacade contexaCentralAuditFacade,
             @Autowired(required = false) SecurityContextDataStore securityContextDataStore,
-            ObjectProvider<MfaFlowUrlRegistry> mfaFlowUrlRegistry) {
+            ObjectProvider<MfaFlowUrlRegistry> mfaFlowUrlRegistry,
+            ObjectProvider<ZeroTrustDecisionOutcomes> decisionOutcomes) {
         UnifiedAuthenticationFailureHandler handler = new UnifiedAuthenticationFailureHandler(
                 contexaAuthResponseWriter, contexaMfaStateMachineIntegrator,
                 contexaMfaSessionRepository, actionRedisRepository, authContextProperties.getMfa(),
                 contexaBlockedUserRecorder, contexaCentralAuditFacade, securityContextDataStore);
         // a failed password step goes back to the sign-in page of its own flow
         handler.setFlowUrlRegistry(mfaFlowUrlRegistry.getIfAvailable());
+        // console design 7.3: a challenge whose MFA used up its retries is recorded as failed
+        handler.setDecisionOutcomes(decisionOutcomes.getIfAvailable());
         return handler;
     }
 

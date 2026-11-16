@@ -19,7 +19,12 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.execution.ObjectiveResourceCompatibilityCatalog;
+import jakarta.annotation.PostConstruct;
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
@@ -29,6 +34,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Data
 @ConfigurationProperties(prefix = "contexa.security.zerotrust")
 public class SecurityZeroTrustProperties {
@@ -39,6 +45,11 @@ public class SecurityZeroTrustProperties {
     private boolean enabled = true;
 
     private EnforcementMode mode = EnforcementMode.ENFORCE;
+
+    /** Whether the configured mode was OBSERVE, which is read as DISABLED (console design 11.2). */
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    private boolean observeReadAsDisabled;
 
     private int maxBlockMfaAttempts = 2;
 
@@ -70,6 +81,25 @@ public class SecurityZeroTrustProperties {
         }
     }
 
+    /**
+     * The mode Contexa runs. OBSERVE analysed nothing and kept no decision data, like DISABLED (console design 1.6), so
+     * it is accepted for the configurations that name it and read as DISABLED (design 11.2); the console offers off,
+     * SHADOW and ENFORCE only.
+     */
+    public void setMode(EnforcementMode mode) {
+        this.observeReadAsDisabled = mode == EnforcementMode.OBSERVE;
+        this.mode = observeReadAsDisabled ? EnforcementMode.DISABLED : mode;
+    }
+
+    /** Names a configured OBSERVE once at start: it runs as DISABLED. */
+    @PostConstruct
+    void reportObserveReadAsDisabled() {
+        if (observeReadAsDisabled) {
+            log.warn("contexa.security.zerotrust.mode=OBSERVE is read as DISABLED: no request is analysed or recorded; "
+                    + "use SHADOW to analyse without enforcement");
+        }
+    }
+
     public boolean allowsLlmAnalysis() {
         return enabled && mode != null && mode.allowsLlmAnalysis();
     }
@@ -98,6 +128,9 @@ public class SecurityZeroTrustProperties {
 
     /** docs/agent B4: the OpenID AuthZEN evaluation API other enforcement points ask Contexa's decision through. */
     private Authzen authzen = new Authzen();
+
+    /** The data of the Zero Trust console (console design 7). */
+    private Console console = new Console();
 
     @NestedConfigurationProperty
     private RedisSettings redis = new RedisSettings();
@@ -544,6 +577,61 @@ public class SecurityZeroTrustProperties {
      * default; on, an authenticated caller holding {@code requiredAuthority} (the enforcement point) asks Contexa's
      * decision about a request it received.
      */
+    /**
+     * The data the Zero Trust console reads (console design 7, 11.3): how long the decision rows and the hourly tables
+     * are kept, how often the hourly tables are brought up to date, and how many stopped decisions are sampled each day
+     * for a person's review.
+     */
+    @Data
+    public static class Console {
+        /** Whether the hourly tables, the coverage counts, the retention and the review sampling run. */
+        private boolean enabled = true;
+        /** How long a decision row, its reason codes, its outcomes and its review entry are kept, in days. */
+        private int decisionRetentionDays = 90;
+        /** How long the hourly tables are kept, in days. */
+        private int aggregateRetentionDays = 730;
+        /** How often the hourly tables and the coverage counts are written, in milliseconds. */
+        private long aggregationIntervalMs = 60_000L;
+        /** How many stopped decisions of a day are sampled for a person's review. */
+        private int reviewDailySample = 20;
+        /** Console design 6.6: the price of a million prompt tokens, for the estimated cost; null shows no cost. */
+        private Double promptTokenPricePerMillion;
+        /** The price of a million cached prompt tokens; null prices them as prompt tokens. */
+        private Double cachedPromptTokenPricePerMillion;
+        /** The price of a million output tokens; null shows no cost. */
+        private Double outputTokenPricePerMillion;
+        /** The currency the prices are in, as it is shown. */
+        private String priceCurrency = "USD";
+        /** Console design 6.5 and decision 11.5: the recommended criteria for moving from SHADOW to ENFORCE. */
+        private Adoption adoption = new Adoption();
+    }
+
+    /**
+     * The recommended criteria the adoption screen weighs (console design 6.5). They are recommendations an operator
+     * may change, not a guarantee of the product.
+     */
+    @Data
+    public static class Adoption {
+        /** The days of observed decisions at least. */
+        private int minObservedDays = 14;
+        /** The decisions at least. */
+        private long minDecisions = 5_000L;
+        /** The share of decisions the model set, at least. */
+        private double minModelDecidedRatio = 0.95;
+        /** The share of decisions set without the model, at most. */
+        private double maxModelLessRatio = 0.05;
+        /** The share of decisions of users with an established baseline, at least. */
+        private double minBaselineEstablishedRatio = 0.70;
+        /** The lower bound (95%) of the share of reviewed decisions found valid, at least. */
+        private double minReviewValidLowerBound = 0.90;
+        /** The reviewed decisions at least, for the review criterion to count. */
+        private int minReviewSample = 30;
+        /** The challenges of the 95th percentile user in a week, at most. */
+        private double maxBurdenP95PerWeek = 3.0;
+        /** The 95th percentile of a user's wait for a synchronous decision, at most, in milliseconds. */
+        private long maxUserWaitP95Ms = 10_000L;
+    }
+
     @Data
     public static class Authzen {
         private boolean enabled = false;

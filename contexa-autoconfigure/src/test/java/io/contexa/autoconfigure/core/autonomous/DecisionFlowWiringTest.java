@@ -67,7 +67,7 @@ class DecisionFlowWiringTest {
     private static SynchronousProtectableDecisionService service(SecurityZeroTrustProperties properties) {
         return new CoreAutonomousAutoConfiguration().synchronousProtectableDecisionService(
                 mock(ZeroTrustEventPublisher.class), mock(ZeroTrustEventListener.class), mock(SecurityPlaneAgent.class),
-                mock(ZeroTrustActionRepository.class), none(), properties, none(), none(), none(), none());
+                mock(ZeroTrustActionRepository.class), none(), properties, none(), none(), none(), none(), none());
     }
 
     /** Calls from a changed context take from one window of the person's decisions, whose size is the setting's. */
@@ -80,7 +80,7 @@ class DecisionFlowWiringTest {
         SynchronousProtectableDecisionService service = new CoreAutonomousAutoConfiguration()
                 .synchronousProtectableDecisionService(mock(ZeroTrustEventPublisher.class), mock(ZeroTrustEventListener.class),
                         mock(SecurityPlaneAgent.class), mock(ZeroTrustActionRepository.class), none(), properties, none(),
-                        none(), one(NewContextDecisionLimit.class, limit), none());
+                        none(), one(NewContextDecisionLimit.class, limit), none(), none());
 
         assertThat(ReflectionTestUtils.getField(service, "newContextDecisionLimit")).isSameAs(limit);
         for (int i = 0; i < 4; i++) {
@@ -113,7 +113,7 @@ class DecisionFlowWiringTest {
 
         KafkaSecurityEventPublisher publisher = new CoreAutonomousEventAutoConfiguration.KafkaEventConfiguration()
                 .kafkaSecurityEventPublisher(template(), new SecurityKafkaProperties(),
-                        one(KafkaSecurityEventCollector.class, collector));
+                        one(KafkaSecurityEventCollector.class, collector), none());
 
         Object analysis = ReflectionTestUtils.getField(publisher, "localAnalysis");
         assertThat(analysis).isInstanceOf(Consumer.class);
@@ -132,7 +132,8 @@ class DecisionFlowWiringTest {
         SecurityPlaneAgent agent = new CoreAutonomousAutoConfiguration().securityPlaneAgent(
                 mock(SecurityMonitoringService.class), mock(SecurityContextDataStore.class), mock(CentralAuditFacade.class),
                 mock(SecurityEventProcessor.class), new SecurityPlaneProperties(), Runnable::run, none(),
-                mock(ZeroTrustActionRepository.class), none(), one(QueuedAgentEventRecheck.class, recheck), none(), none());
+                mock(ZeroTrustActionRepository.class), none(), one(QueuedAgentEventRecheck.class, recheck), none(), none(),
+                none());
 
         SecurityPlaneAgent.QueuedEventRecheck wired = (SecurityPlaneAgent.QueuedEventRecheck)
                 ReflectionTestUtils.getField(agent, "queuedEventRecheck");
@@ -145,7 +146,7 @@ class DecisionFlowWiringTest {
         SecurityPlaneAgent agent = new CoreAutonomousAutoConfiguration().securityPlaneAgent(
                 mock(SecurityMonitoringService.class), mock(SecurityContextDataStore.class), mock(CentralAuditFacade.class),
                 mock(SecurityEventProcessor.class), new SecurityPlaneProperties(), Runnable::run, none(),
-                mock(ZeroTrustActionRepository.class), none(), none(), gates, none());
+                mock(ZeroTrustActionRepository.class), none(), none(), gates, none(), none());
         agent.initialize();
         return agent;
     }

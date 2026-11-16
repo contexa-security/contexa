@@ -26,6 +26,7 @@ import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionCompactAnswer;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV1OutputInspector;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV21OutputInspector;
 import io.contexa.contexacore.std.pipeline.step.LLMExecutionStep;
@@ -67,6 +68,49 @@ class V1RetryFallbackTest {
                 .isEqualTo(SecurityDecisionRawOutputContractInspector.fallbackActionFor(
                         SecurityDecisionFactChecks.BLOCK_WITHOUT_EVIDENCE));
         assertThat(context.getMetadata(SecurityDecisionV1OutputInspector.V1_RULE_BREACH, String.class)).isNull();
+    }
+
+    /**
+     * Plan 6-2 (D6): v1.0 whose version includes the decision rules replaces the answer as the fallback variant did; the
+     * strategy names it on the request, as it names the short answer.
+     */
+    @Test
+    void aVersionWithTheDecisionRulesReplacesAnAnswerThatStillBreaksABoundaryAsTheFallbackVariantDid() {
+        SecurityDecisionGoldenRender.RenderedCase rendered = render(SecurityDecisionPromptBundles.V1);
+        AnsweringClient client = new AnsweringClient(UNSUPPORTED_BLOCK);
+        PipelineExecutionContext context = contextOf(rendered, "exec-v1-version-fallback");
+        SecurityDecisionRequest request = requestOf(rendered, SecurityDecisionPromptBundles.V1);
+        request.withParameter(SecurityDecisionCompactAnswer.REQUEST_PARAMETER, true);
+        request.withParameter(SecurityDecisionV1OutputInspector.FALLBACK_PARAMETER, true);
+
+        new LLMExecutionStep(client).execute(request, context).block();
+
+        assertThat(client.calls).isEqualTo(2);
+        assertThat(context.getMetadata("securityDecisionOutputRetryFailureReason", String.class))
+                .contains(SecurityDecisionFactChecks.BLOCK_WITHOUT_EVIDENCE);
+        assertThat(context.getMetadata(SecurityDecisionRawOutputContractInspector.CONTRACT_FALLBACK_ACTION, String.class))
+                .isEqualTo(SecurityDecisionRawOutputContractInspector.fallbackActionFor(
+                        SecurityDecisionFactChecks.BLOCK_WITHOUT_EVIDENCE));
+        assertThat(context.getMetadata(SecurityDecisionV1OutputInspector.V1_RULE_BREACH, String.class)).isNull();
+    }
+
+    /** Plan 6-2: the product version, without the decision rules, keeps the answer and records the breach. */
+    @Test
+    void theProductVersionKeepsTheAnswerAndRecordsTheBreachAsTheRecordVariantDid() {
+        SecurityDecisionGoldenRender.RenderedCase rendered = render(SecurityDecisionPromptBundles.V1);
+        AnsweringClient client = new AnsweringClient(UNSUPPORTED_BLOCK);
+        PipelineExecutionContext context = contextOf(rendered, "exec-v1-version-record");
+        SecurityDecisionRequest request = requestOf(rendered, SecurityDecisionPromptBundles.V1);
+        request.withParameter(SecurityDecisionCompactAnswer.REQUEST_PARAMETER, true);
+
+        Object response = new LLMExecutionStep(client).execute(request, context).block();
+
+        assertThat(response).as("the model's answer stays").isEqualTo(UNSUPPORTED_BLOCK);
+        assertThat(client.calls).isEqualTo(2);
+        assertThat(context.getMetadata(SecurityDecisionV1OutputInspector.V1_RULE_BREACH, String.class))
+                .isEqualTo(SecurityDecisionFactChecks.BLOCK_WITHOUT_EVIDENCE);
+        assertThat(context.getMetadata(SecurityDecisionRawOutputContractInspector.CONTRACT_FALLBACK_ACTION, String.class))
+                .isNull();
     }
 
     @Test

@@ -30,6 +30,7 @@ import io.contexa.contexacore.autonomous.saas.ThreatOutcomeForwardingService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -48,7 +49,12 @@ public class AdminOverrideService {
     private final DecisionFeedbackForwardingService decisionFeedbackForwardingService;
     private final ThreatOutcomeForwardingService threatOutcomeForwardingService;
     private final BlockingSignalBroadcaster blockingSignalBroadcaster;
+    /** Console design 7.3: records an administrator's release or keeping of a block; null records none. */
+    private ZeroTrustDecisionOutcomes decisionOutcomes;
 
+    public void setDecisionOutcomes(ZeroTrustDecisionOutcomes decisionOutcomes) {
+        this.decisionOutcomes = decisionOutcomes;
+    }
 
     public AdminOverrideService(SecurityLearningService securityLearningService,
                                 ZeroTrustActionRepository actionRedisRepository,
@@ -127,7 +133,24 @@ public class AdminOverrideService {
         auditAdminOverride(override, originalEvent);
         captureDecisionFeedback(override, originalEvent);
         captureThreatOutcome(override, originalEvent);
+        recordOutcome(override, originalEvent);
         return override;
+    }
+
+    /**
+     * Console design 7.3: the administrator released the block (the clearest sign the decision was wrong) or kept it.
+     * A BLOCK overridden to BLOCK is kept; any other response releases it.
+     */
+    private void recordOutcome(AdminOverride override, SecurityEvent originalEvent) {
+        if (decisionOutcomes == null) {
+            return;
+        }
+        boolean kept = ZeroTrustAction.BLOCK.name().equalsIgnoreCase(override.getOverriddenAction());
+        Object tenant = originalEvent != null && originalEvent.getMetadata() != null
+                ? originalEvent.getMetadata().get("tenantId") : null;
+        decisionOutcomes.record(override.getRequestId(), override.getUserId(), tenant != null ? tenant.toString() : null,
+                kept ? ZeroTrustDecisionOutcomes.Kind.BLOCK_KEPT : ZeroTrustDecisionOutcomes.Kind.ADMIN_RELEASED,
+                override.getAdminId(), override.getReason());
     }
 
     private void captureDecisionFeedback(AdminOverride override, SecurityEvent originalEvent) {

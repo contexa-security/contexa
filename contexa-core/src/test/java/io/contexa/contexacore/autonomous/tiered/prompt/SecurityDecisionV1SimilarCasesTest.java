@@ -97,7 +97,7 @@ class SecurityDecisionV1SimilarCasesTest {
     @Test
     void onlyTheSimilarCaseVariantsReadTheSimilarCases() {
         JsonNode a1 = goldenCase("A1");
-        String reading = SecurityDecisionPromptSections.V1_SIMILAR_CASES_READING.strip();
+        String reading = SecurityDecisionV1BundleTest.partText("similar-case-reading").strip();
 
         assertThat(render(a1, SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR).systemText()).contains(reading);
         assertThat(render(a1, SecurityDecisionPromptBundles.V1_RECORD_SIMILAR).systemText()).contains(reading);

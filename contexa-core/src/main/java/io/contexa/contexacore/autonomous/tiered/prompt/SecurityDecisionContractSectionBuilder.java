@@ -28,6 +28,18 @@ public class SecurityDecisionContractSectionBuilder implements SecurityPromptSec
         return formatInstructions(false);
     }
 
+    /**
+     * The output format of the bundle: a bundle with the short output (v1.0, K30) states the output contract v5 in the
+     * words of the product prompt document (plan 6-1), the other bundles as their layout does.
+     */
+    static String formatInstructions(SecurityDecisionPromptBundles.Bundle bundle) {
+        if (bundle != null && bundle.layout().recordsNotation() && bundle.features().compactOutput()) {
+            // Worked out once with the product version; a request does no work for it.
+            return SecurityDecisionPromptDocument.productOutputFormat();
+        }
+        return formatInstructions(bundle != null ? bundle.layout() : SecurityDecisionPromptBundles.DEFAULT.layout());
+    }
+
     /** The output format of the layout's bundle: v21 states the output contract v4, v20 the v3, v19 its own format. */
     static String formatInstructions(SecurityDecisionPromptBundles.UserPromptLayout layout) {
         if (layout.recordsNotation()) {

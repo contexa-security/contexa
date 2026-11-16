@@ -38,6 +38,7 @@ import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.LLMOperations;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionCompactAnswer;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionResponseProcessor;
 import io.contexa.contexacore.std.pipeline.step.ContextRetrievalStep;
 import io.contexa.contexacore.std.pipeline.step.LLMExecutionStep;
@@ -64,26 +65,23 @@ class SecurityDecisionStructuredOutputPipelineIntegrationTest {
     @Test
     void rawGuardedPipelineShouldProduceSecurityDecisionResponseWithoutSpringEntityParsing() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
+        // Plan 6-2: the build default v1.0 is answered in its short form, which the v1.0 check reads in one call even
+        // without the canonical context of a strategy.
         llmClient.rawResponse = """
-                {
-                  "action": "ALLOW",
-                  "confidence": 0.81,
-                  "riskScore": 0.16,
-                  "reasoning": "Verified identity and scope align with a low-risk post-auth request.",
-                  "mitre": "UNKNOWN"
-                }
+                {"action":"ALLOW","riskScore":0.16,"hypothesis":"H1","reasonCodes":[{"code":"BASELINE_MATCH","fact":"F1"}],"reason":"Verified identity and scope align with a low-risk post-auth request."}
                 """;
 
         UniversalPipelineExecutor executor = buildExecutor(llmClient);
+        SecurityDecisionRequest compactRequest = buildRequest();
+        compactRequest.withParameter(SecurityDecisionCompactAnswer.REQUEST_PARAMETER, true);
         SecurityDecisionResponse response = executor.execute(
-                        buildRequest(),
+                        compactRequest,
                         PipelineConfiguration.createPipelineConfig(),
                         SecurityDecisionResponse.class)
                 .block();
 
         assertThat(response).isNotNull();
         assertThat(response.getAction()).isEqualTo("ALLOW");
-        assertThat(response.getConfidence()).isEqualTo(0.81d);
         assertThat(response.getRiskScore()).isEqualTo(0.16d);
         assertThat(response.getMetadata("entityExecutionAttempted", Boolean.class)).isFalse();
         assertThat(response.getMetadata("entityExecutionSucceeded", Boolean.class)).isFalse();

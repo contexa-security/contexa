@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
@@ -107,6 +108,22 @@ class BlockedUserServiceTest {
     @Nested
     @DisplayName("recordBlock")
     class RecordBlock {
+
+        /** G27 (console design 7.7): the block keeps the decision's audit risk score and confidence. */
+        @Test
+        void aBlockKeepsTheRiskScoreAndConfidenceOfItsDecision() {
+            when(blockedUserJpaRepository.countByUserId("user1")).thenReturn(0);
+            when(blockedUserJpaRepository.findFirstByUserIdAndStatusOrderByBlockedAtDesc("user1", BlockedUserStatus.BLOCKED))
+                    .thenReturn(Optional.empty());
+
+            service.recordBlock("req-1", "user1", "testuser", "BLOCK", "Suspicious", "10.0.0.1", "Agent/1.0",
+                    "tenant-a", 0.92, 0.8);
+
+            ArgumentCaptor<BlockedUser> captor = ArgumentCaptor.forClass(BlockedUser.class);
+            verify(blockedUserJpaRepository).save(captor.capture());
+            assertThat(captor.getValue().getRiskScore()).isEqualTo(0.92);
+            assertThat(captor.getValue().getConfidence()).isEqualTo(0.8);
+        }
 
         @Test
         @DisplayName("should create new block record when no existing BLOCKED entry")
@@ -315,6 +332,37 @@ class BlockedUserServiceTest {
             verify(blockedUserJpaRepository).save(blocked);
             assertThat(blocked.getStatus()).isEqualTo(BlockedUserStatus.UNBLOCK_REQUESTED);
             assertThat(blocked.getUnblockReason()).isEqualTo("Please unblock me");
+        }
+
+        /** Console design 7.3: the blocked user asking to be unblocked is an outcome of the block. */
+        @Test
+        void anUnblockRequestIsAnOutcomeOfTheBlock() {
+            ZeroTrustDecisionOutcomes outcomes = mock(ZeroTrustDecisionOutcomes.class);
+            service.setDecisionOutcomes(outcomes);
+            BlockedUser blocked = buildBlockedUser(1L, "user1", BlockedUserStatus.BLOCKED);
+            when(blockedUserJpaRepository.findFirstByUserIdAndStatusOrderByBlockedAtDesc("user1", BlockedUserStatus.BLOCKED))
+                    .thenReturn(Optional.of(blocked));
+
+            service.requestUnblock("user1", "Please unblock me");
+            service.requestUnblockWithMfa("user1", "MFA verified", true);
+
+            verify(outcomes).record("req-1", "user1", null, ZeroTrustDecisionOutcomes.Kind.UNBLOCK_REQUESTED, "user1",
+                    "Please unblock me");
+            verify(outcomes).record("req-1", "user1", null, ZeroTrustDecisionOutcomes.Kind.UNBLOCK_REQUESTED, "user1",
+                    "MFA verified");
+        }
+
+        @Test
+        @DisplayName("a request without a block records no outcome")
+        void noBlockNoOutcome() {
+            ZeroTrustDecisionOutcomes outcomes = mock(ZeroTrustDecisionOutcomes.class);
+            service.setDecisionOutcomes(outcomes);
+            when(blockedUserJpaRepository.findFirstByUserIdAndStatusOrderByBlockedAtDesc("user1", BlockedUserStatus.BLOCKED))
+                    .thenReturn(Optional.empty());
+
+            service.requestUnblock("user1", "Reason");
+
+            verify(outcomes, never()).record(any(), any(), any(), any(), any(), any());
         }
 
         @Test

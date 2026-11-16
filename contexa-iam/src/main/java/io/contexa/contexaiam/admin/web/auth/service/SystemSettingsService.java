@@ -91,6 +91,9 @@ public class SystemSettingsService {
         SystemSettings existing = repository.findAll().stream()
                 .findFirst()
                 .orElseGet(() -> repository.save(SystemRuntimeSettingsService.defaultSettings()));
+        // a console value out of its range is refused before any setting changes
+        String consoleSettings = ZeroTrustConsoleSettings.merge(existing.getZeroTrustConsoleSettings(),
+                form.getZeroTrustConsole(), zeroTrustProperties);
         NoPolicyDecision chosenUrlDecision = chosenNoMatchingUrlDecision(existing, form);
         existing.setAuditLogRetentionDays(form.getAuditLogRetentionDays());
         existing.setDefaultRole(form.getDefaultRole());
@@ -107,6 +110,7 @@ public class SystemSettingsService {
         }
         existing.setMvcResourceScannerBasePackages(
                 SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(form.getMvcResourceScannerBasePackages()));
+        existing.setZeroTrustConsoleSettings(consoleSettings);
         repository.save(existing);
     }
 

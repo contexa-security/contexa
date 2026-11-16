@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
@@ -123,6 +124,26 @@ class SecurityPlaneAgentAnalysisLineTest {
             events.add(signIn(user));
         }
         return events;
+    }
+
+    /** Console design 7.5: a protected call past the line is a skip; a sign-in past it is no protected call. */
+    @Test
+    void theProtectedCallsPastTheLineAreCountedAsSkipsAndASignInIsNot() {
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        agent.setCoverageCounter(coverage);
+        agent.setAnalysisLineBound(2);
+        List<SecurityEvent> events = new ArrayList<>(signIns(0, 3));
+        // The bound holds two analyses: the third sign-in and the four calls are past it.
+        for (int user = 10; user < 14; user++) {
+            SecurityEvent call = signIn(user);
+            call.addMetadata("zerotrust.category", "AUTHORIZATION");
+            events.add(call);
+        }
+
+        batches.processBatch(events);
+
+        assertThat(leftOut).hasSize(5);
+        assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.PAST_THE_ANALYSIS_LINE)).isEqualTo(4);
     }
 
     @Test

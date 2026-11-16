@@ -20,6 +20,7 @@ import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepos
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -132,5 +133,35 @@ class ChallengeResolutionTest {
         assertThat(resolution(actions).releaseChallenge("mail-k5", VICTIM, request, null)).isTrue();
 
         assertThat(actions.getAnalysisData("mail-k5").action()).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS.name());
+    }
+
+    /** Console design 7.3: the account owner passing the challenge is the decision's outcome. */
+    @Test
+    void passingTheChallengeIsRecordedAsItsOutcome() {
+        ZeroTrustDecisionOutcomes outcomes = mock(ZeroTrustDecisionOutcomes.class);
+        ChallengeResolution resolution = resolution(actions);
+        resolution.setDecisionOutcomes(outcomes);
+        challenged();
+
+        assertThat(resolution.releaseChallenge("mail-k5", VICTIM, request, null)).isTrue();
+
+        verify(outcomes).record(any(), eq("mail-k5"), eq(null), eq(ZeroTrustDecisionOutcomes.Kind.CHALLENGE_PASSED),
+                eq("mail-k5"), eq(null));
+    }
+
+    /** Answers used up count against a challenge in force only: a failed sign-in MFA answers no decision. */
+    @Test
+    void aFailureIsRecordedOnlyUnderAChallengeInForce() {
+        ZeroTrustDecisionOutcomes outcomes = mock(ZeroTrustDecisionOutcomes.class);
+        ChallengeResolution resolution = resolution(actions);
+        resolution.setDecisionOutcomes(outcomes);
+
+        resolution.recordChallengeFailure("mail-k5");
+        verify(outcomes, never()).record(any(), any(), any(), any(), any(), any());
+
+        challenged();
+        resolution.recordChallengeFailure("mail-k5");
+        verify(outcomes).record(any(), eq("mail-k5"), eq(null), eq(ZeroTrustDecisionOutcomes.Kind.CHALLENGE_FAILED),
+                eq("mail-k5"), eq("answers used up"));
     }
 }

@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
@@ -141,10 +142,14 @@ class SecurityPlaneAgentFairShareTest {
     void aRequestPastTheShareIsKeptInItsSessionAndNotAnalysed() {
         SecurityPlaneAgent.QueuedEventRecheck recheck = mock(SecurityPlaneAgent.QueuedEventRecheck.class);
         agent.setQueuedEventRecheck(recheck);
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        agent.setCoverageCounter(coverage);
 
         sessions("flooder", SecurityPlaneAgent.USER_SHARE + 2);
 
         Awaitility.await().untilAsserted(() -> verify(recheck, times(2)).leftOut(any()));
+        // Console design 7.5: each protected call past the share is a skip of its own.
+        assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.PAST_THE_USERS_SHARE)).isEqualTo(2);
     }
 
     @Test
@@ -208,11 +213,14 @@ class SecurityPlaneAgentFairShareTest {
     void aRequestOfASessionThatIsAlreadyInLineTakesNoPlaceInTheLine() {
         SecurityPlaneAgent.QueuedEventRecheck recheck = mock(SecurityPlaneAgent.QueuedEventRecheck.class);
         agent.setQueuedEventRecheck(recheck);
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        agent.setCoverageCounter(coverage);
 
         batches.processBatch(List.of(request("alice", "session-1"), request("alice", "session-1"),
                 request("alice", "session-1")));
 
         Awaitility.await().untilAsserted(() -> verify(recheck, times(2)).leftOut(any()));
+        assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.SESSION_ALREADY_IN_LINE)).isEqualTo(2);
         assertThat(agent.analysesInProgress()).isEqualTo(1);
         Awaitility.await().untilAsserted(() -> assertThat(analysed).hasSize(1));
     }
@@ -307,11 +315,61 @@ class SecurityPlaneAgentFairShareTest {
         agent.setQueuedEventRecheck(recheck);
         SecurityEvent again = request("alice", "session-1");
         again.addMetadata("judgedAgainEvent", "first-event");
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        agent.setCoverageCounter(coverage);
 
         batches.processBatch(List.of(request("alice", "session-1"), again));
 
         Awaitility.await().untilAsserted(() -> assertThat(agent.analysesInProgress()).isEqualTo(2));
         verify(recheck, never()).leftOut(any());
+        assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.SKIPPED)).isZero();
+    }
+
+    /** A protected call the stored decisions answer at its turn is a reuse; a sign-in answered so is no protected call. */
+    @Test
+    void aProtectedCallAnsweredAtItsTurnIsCountedAsAReuse() {
+        SecurityPlaneAgent.QueuedEventRecheck recheck = mock(SecurityPlaneAgent.QueuedEventRecheck.class);
+        when(recheck.answeredWithoutAnalysis(any())).thenReturn(true);
+        agent.setQueuedEventRecheck(recheck);
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        agent.setCoverageCounter(coverage);
+
+        batches.processBatch(List.of(request("alice", "session-1"), event("bob", "session-2", "AUTHENTICATION")));
+
+        Awaitility.await().untilAsserted(() -> verify(recheck, times(2)).answeredWithoutAnalysis(any()));
+        Awaitility.await().untilAsserted(() -> assertThat(agent.analysesInProgress()).isZero());
+        assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.REUSED)).isEqualTo(1);
+        assertThat(analysed).isEmpty();
+    }
+
+    /** An analysis that failed for good, with no decision row written, is a skip of the call it was for. */
+    @Test
+    void anAnalysisThatFailedForGoodIsCountedAsASkip() {
+        properties.getAgent().setMaxDeferredRetries(0);
+        when(processor.process(any(SecurityEvent.class))).thenThrow(new IllegalStateException("the model is down"));
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        agent.setCoverageCounter(coverage);
+
+        batches.processBatch(List.of(request("alice", "session-1")));
+
+        Awaitility.await().untilAsserted(() ->
+                assertThat(coverage.pendingSkipped(ZeroTrustCoverageCounter.DEFER_EXHAUSTED)).isEqualTo(1));
+    }
+
+    /** A sign-in is no protected call: past the share or behind its session it counts nothing for the coverage. */
+    @Test
+    void anEventOfNoProtectedCallCountsNothingForTheCoverage() {
+        ZeroTrustCoverageCounter coverage = new ZeroTrustCoverageCounter(null, "node", null);
+        agent.setCoverageCounter(coverage);
+        batches.processBatch(List.of(request("alice", "session-1")));
+        Awaitility.await().untilAsserted(() -> assertThat(analysed).hasSize(1));
+
+        SecurityEvent signIn = event("alice", "session-1", "AUTHENTICATION");
+        batches.processBatch(List.of(signIn));
+
+        Awaitility.await().untilAsserted(() -> assertThat(agent.analysesInProgress()).isEqualTo(2));
+        assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.SKIPPED)).isZero();
+        assertThat(coverage.pending(ZeroTrustCoverageCounter.Kind.REUSED)).isZero();
     }
 
     // ----- what comes first -----

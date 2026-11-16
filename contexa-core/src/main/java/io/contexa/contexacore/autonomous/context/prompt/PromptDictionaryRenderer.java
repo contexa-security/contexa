@@ -55,6 +55,8 @@ public final class PromptDictionaryRenderer {
     private final PromptSlotRenderer lineRenderer = new PromptSlotRenderer();
     /** Whether the headers carry the titles the v21 bundle draws ({@link PromptBlock#v21Title()}). */
     private final boolean v21Titles;
+    /** The title each block is drawn with, from the prompt version (plan 6-1); a block it does not name keeps its own. */
+    private final Map<PromptBlock, String> titles;
 
     public PromptDictionaryRenderer(List<PromptDictionaryEntry> entries, PromptSlotPlanProvider plans) {
         this(entries, plans, false);
@@ -67,6 +69,17 @@ public final class PromptDictionaryRenderer {
         this.dictionaryPlans = new PromptDictionarySlotPlanProvider(this.entries, "renderer");
         this.plans = plans == null ? dictionaryPlans : plans;
         this.v21Titles = v21Titles;
+        this.titles = Map.of();
+    }
+
+    /** A renderer whose headers carry the titles of the prompt version (the product prompt document, plan 6-1). */
+    public PromptDictionaryRenderer(List<PromptDictionaryEntry> entries, PromptSlotPlanProvider plans,
+                                    Map<PromptBlock, String> titles) {
+        this.entries = List.copyOf(entries);
+        this.dictionaryPlans = new PromptDictionarySlotPlanProvider(this.entries, "renderer");
+        this.plans = plans == null ? dictionaryPlans : plans;
+        this.v21Titles = true;
+        this.titles = Map.copyOf(titles);
     }
 
     public PromptEntryValues.Builder values() {
@@ -148,7 +161,8 @@ public final class PromptDictionaryRenderer {
             String grade = block != PromptBlock.UNKNOWN && grades.size() == 1 ? grades.iterator().next().word() : null;
             // Dictionary 1.1: a block that drew a value on the event clock names the clock's time zone once (W3-13).
             String zone = clocked && values.timeZone() != null ? "time zone " + values.timeZone().getId() : null;
-            text.append(header(block, v21Titles ? block.v21Title() : block.title(), grade,
+            String title = titles.containsKey(block) ? titles.get(block) : v21Titles ? block.v21Title() : block.title();
+            text.append(header(block, title, grade,
                     values.headerQualifier(block), zone)).append(body);
             slots.addAll(blockSlots);
             blocks.add(block);

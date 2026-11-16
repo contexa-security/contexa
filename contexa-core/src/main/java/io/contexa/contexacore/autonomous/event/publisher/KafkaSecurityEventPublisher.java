@@ -18,8 +18,10 @@ package io.contexa.contexacore.autonomous.event.publisher;
 import io.contexa.contexacore.autonomous.event.SecurityEventOrigin;
 import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.SecurityEventTopics;
+import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
 import io.contexa.contexacore.util.ErrorLogThrottle;
 import lombok.Builder;
@@ -77,6 +79,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher, Disp
     private final AtomicLong dlqDispatchFailedCount = new AtomicLong(0);
     private final AtomicLong analysedHereCount = new AtomicLong(0);
     private volatile Consumer<ZeroTrustSpringEvent> localAnalysis;
+    private volatile ZeroTrustCoverageCounter coverageCounter;
 
     public KafkaSecurityEventPublisher(KafkaTemplate<String, Object> kafkaTemplate,
                                        SecurityKafkaProperties securityKafkaProperties) {
@@ -93,6 +96,11 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher, Disp
     /** Q-26: where an event Kafka did not take is analysed. */
     public void setLocalAnalysis(Consumer<ZeroTrustSpringEvent> localAnalysis) {
         this.localAnalysis = localAnalysis;
+    }
+
+    /** Console design 7.5: counts the protected calls whose event never left the node; null counts none. */
+    public void setCoverageCounter(ZeroTrustCoverageCounter coverageCounter) {
+        this.coverageCounter = coverageCounter;
     }
 
     /** The event with an id of its own, which it keeps however it reaches the analysis (Q-26). */
@@ -134,6 +142,10 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher, Disp
         } catch (RejectedExecutionException noRoom) {
             publishFailedCount.incrementAndGet();
             reportFailure(event, "the publisher's queue is full or shut down", queuedAt, noRoom);
+            ZeroTrustCoverageCounter counter = coverageCounter;
+            if (counter != null && event.isCategory(ZeroTrustEventCategory.AUTHORIZATION)) {
+                counter.skipped(ZeroTrustCoverageCounter.PUBLISH_QUEUE_FULL);
+            }
         }
     }
 

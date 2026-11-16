@@ -23,14 +23,17 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -88,6 +91,23 @@ public final class ProviderAwareChatOptionsFactory {
             new AtomicReference<>();
     /** Set when the Anthropic API version refuses every sampling value on every model (2026-10-21 and later). */
     private static final AtomicBoolean ANTHROPIC_SAMPLING_NEVER_SENT = new AtomicBoolean();
+    /**
+     * K13: the context every Ollama call asks for unless its prompt needs more, so one model runner serves all calls:
+     * Ollama reloads the model when a call asks for another context length (about 3 s on the measured GPU).
+     */
+    static final int DEFAULT_OLLAMA_CONTEXT_LENGTH = 16_384;
+    /** K13: the largest context an Ollama call asks for, unless configured otherwise. */
+    static final int DEFAULT_OLLAMA_MAX_CONTEXT_LENGTH = 32_768;
+    /** K13: the smallest context an Ollama call asks for (the server's own default). */
+    static final int OLLAMA_MIN_CONTEXT_LENGTH = 4_096;
+    /** K13: the room an Ollama call keeps for its answer when it sets no answer limit. */
+    static final int OLLAMA_DEFAULT_ANSWER_ROOM = 2_048;
+    /** K13: the room kept for the chat template's own tokens around the messages. */
+    static final int OLLAMA_TEMPLATE_ROOM = 256;
+    private static final AtomicInteger CONFIGURED_OLLAMA_MAX_CONTEXT_LENGTH =
+            new AtomicInteger(DEFAULT_OLLAMA_MAX_CONTEXT_LENGTH);
+    private static final AtomicInteger CONFIGURED_OLLAMA_CONTEXT_LENGTH =
+            new AtomicInteger(DEFAULT_OLLAMA_CONTEXT_LENGTH);
 
     private ProviderAwareChatOptionsFactory() {
     }
@@ -106,6 +126,21 @@ public final class ProviderAwareChatOptionsFactory {
     /** The Ollama models whose thinking is turned off (from the application configuration). */
     public static void configureOllamaModelCapabilities(String disableThinkingPatterns) {
         setIfText(CONFIGURED_OLLAMA_DISABLE_THINKING_PATTERNS, disableThinkingPatterns);
+    }
+
+    /** K13: the largest context an Ollama call asks for (from the application configuration); none keeps the default. */
+    public static void configureOllamaMaxContextLength(Integer maxContextLength) {
+        CONFIGURED_OLLAMA_MAX_CONTEXT_LENGTH.set(maxContextLength != null && maxContextLength >= OLLAMA_MIN_CONTEXT_LENGTH
+                ? maxContextLength : DEFAULT_OLLAMA_MAX_CONTEXT_LENGTH);
+    }
+
+    /**
+     * K13: the context every Ollama call asks for unless its prompt needs more (from the application configuration);
+     * none keeps the default. A num_ctx set on the Ollama options stands before it.
+     */
+    public static void configureOllamaContextLength(Integer contextLength) {
+        CONFIGURED_OLLAMA_CONTEXT_LENGTH.set(contextLength != null && contextLength >= OLLAMA_MIN_CONTEXT_LENGTH
+                ? contextLength : DEFAULT_OLLAMA_CONTEXT_LENGTH);
     }
 
     /** The Claude models that take only the default sampling; without a configured list, the documented ones. */
@@ -939,12 +974,65 @@ public final class ProviderAwareChatOptionsFactory {
             if (shouldDisableOllamaThinking(context, modelName)) {
                 disableOllamaThinking(optionsClass, options);
             }
+            applyOllamaContextLength(context, defaultOptions, optionsClass, options);
 
             return (ChatOptions) options;
         } catch (Exception e) {
             log.error("Failed to build Ollama options via reflection", e);
             return selectedModel.getDefaultOptions();
         }
+    }
+
+    /**
+     * K13: an Ollama server reads a prompt within its context length (num_ctx), 4,096 tokens unless a call asks for more,
+     * and cuts the front of a longer prompt in silence, the system text first. A call therefore asks for one context,
+     * the num_ctx of the Ollama options or else the configured context (16,384 tokens by default), so one model runner
+     * serves every call (Ollama reloads the model for another length), and doubles it only for a prompt and answer that
+     * do not fit, up to the largest configured context. Ollama's own refusal of a cut (truncate false) is not sent:
+     * Spring AI 1.1 puts it among the model options, which Ollama ignores as an unknown option; a cut is found from the
+     * input tokens the server reports (UnifiedLLMOrchestrator).
+     */
+    static void applyOllamaContextLength(ExecutionContext context, ChatOptions defaultOptions, Class<?> optionsClass,
+                                         Object options) throws ReflectiveOperationException {
+        Integer configured = defaultOptions != null && optionsClass.isInstance(defaultOptions)
+                ? (Integer) optionsClass.getMethod("getNumCtx").invoke(defaultOptions) : null;
+        int estimated = estimatedPromptTokens(context.getPrompt());
+        int answer = context.getMaxTokens() != null && context.getMaxTokens() > 0
+                ? context.getMaxTokens() : OLLAMA_DEFAULT_ANSWER_ROOM;
+        long needed = (long) estimated + answer + OLLAMA_TEMPLATE_ROOM;
+        int start = Math.max(OLLAMA_MIN_CONTEXT_LENGTH,
+                configured != null && configured > 0 ? configured : CONFIGURED_OLLAMA_CONTEXT_LENGTH.get());
+        int largest = Math.max(CONFIGURED_OLLAMA_MAX_CONTEXT_LENGTH.get(), start);
+        int length = start;
+        while (length < needed && length < largest) {
+            length = (int) Math.min(largest, length * 2L);
+        }
+        if (needed > length) {
+            log.error("[ProviderAwareChatOptionsFactory] The prompt of about {} tokens with room for a {}-token answer"
+                    + " does not fit the largest context {} an Ollama call asks for; the server will cut it",
+                    estimated, answer, length);
+        }
+        optionsClass.getMethod("setNumCtx", Integer.class).invoke(options, length);
+        context.addMetadata(ExecutionContext.PROVIDER_CONTEXT_LENGTH, length);
+        context.addMetadata(ExecutionContext.ESTIMATED_PROMPT_TOKENS, estimated);
+    }
+
+    /**
+     * K13: the input tokens of a prompt, estimated from above without the model's tokenizer: one token per three UTF-8
+     * bytes (English text runs near four bytes a token; a Korean syllable takes three bytes and about one token).
+     */
+    static int estimatedPromptTokens(Prompt prompt) {
+        if (prompt == null || prompt.getInstructions() == null) {
+            return 0;
+        }
+        long bytes = 0;
+        for (Message message : prompt.getInstructions()) {
+            String text = message != null ? message.getText() : null;
+            if (text != null) {
+                bytes += text.getBytes(StandardCharsets.UTF_8).length;
+            }
+        }
+        return (int) Math.min(Integer.MAX_VALUE, (bytes + 2) / 3);
     }
 
     /**
