@@ -32,7 +32,6 @@ import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRunt
 import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseApiController;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseConsole;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseConsoleApiController;
-import io.contexa.contexaiam.admin.promptquality.governance.PromptReleasePageController;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
 import io.contexa.contexaiam.admin.promptquality.official.application.JdbcPromptRuntimeGovernanceDescriptorVerifier;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptRuntimeGovernanceDescriptorVerifier;
@@ -44,7 +43,6 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -261,14 +259,8 @@ public class PromptGovernanceAutoConfiguration {
         return new PromptReleaseConsoleApiController(contexaPromptReleaseConsole, Clock.systemUTC());
     }
 
-    /** W7-14: the version screens of the prompt quality console. */
-    @Bean(name = "contexaPromptReleasePageController")
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(PromptReleaseConsole.class)
-    public PromptReleasePageController promptReleasePageController(MessageSource messageSource,
-                                                                   @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
-        return new PromptReleasePageController(messageSource, objectMapper);
-    }
+    // Plan 6-6 (3): the addresses of the release screens open the prompt version screens
+    // (PromptVersionConsoleController), so the release page controller is no longer registered.
 
     @Bean(name = "contexaPromptGovernanceEmpiricalEvalService")
     @ConditionalOnMissingBean

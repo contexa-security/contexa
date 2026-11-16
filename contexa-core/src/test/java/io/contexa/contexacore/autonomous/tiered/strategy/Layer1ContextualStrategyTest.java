@@ -24,7 +24,7 @@ import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
 import io.contexa.contexacore.autonomous.tiered.prompt.MeasuredVariant;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -831,7 +831,7 @@ class Layer1ContextualStrategyTest {
                 properties
         );
         SecurityEvent event = buildTestEvent();
-        event.getMetadata().put(SecurityDecisionPromptDocument.EVENT_PROMPT_VERSION, MeasuredVariant.VERSION);
+        event.getMetadata().put(SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION, MeasuredVariant.VERSION);
 
         exactStrategy.evaluate(event);
 

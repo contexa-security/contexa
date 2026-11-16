@@ -60,15 +60,15 @@ public class PromptVersionFolderScanner {
     private final PromptVersionService versions;
     private final Path folder;
     private final String node;
-    private final PromptAssembler.LengthLimit limit;
+    private final Supplier<PromptAssembler.LengthLimit> limit;
 
     public PromptVersionFolderScanner(Supplier<JdbcTemplate> jdbc, PromptVersionService versions, Path folder,
-                                      String node, PromptAssembler.LengthLimit limit) {
+                                      String node, Supplier<PromptAssembler.LengthLimit> limit) {
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
         this.versions = Objects.requireNonNull(versions, "versions");
         this.folder = Objects.requireNonNull(folder, "folder");
         this.node = node != null && !node.isBlank() ? node : "node";
-        this.limit = limit;
+        this.limit = limit != null ? limit : () -> null;
     }
 
     /** Reads the folder once and records what it found. */
@@ -98,7 +98,7 @@ public class PromptVersionFolderScanner {
                     }
                     String text = Files.readString(file, StandardCharsets.UTF_8);
                     PromptVersionService.Saved saved = versions.create(PromptVersionService.PLATFORM_SCOPE, text,
-                            PromptVersionRecord.FOLDER, name, "folder:" + node, limit);
+                            PromptVersionRecord.FOLDER, name, "folder:" + node, limit.get());
                     if (saved.made()) {
                         registered++;
                     }

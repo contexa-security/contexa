@@ -188,6 +188,51 @@ public class PromptVersionService {
                         false);
             }
         }
+        Checked checked = checked(scopeName, document, origin, limit);
+        if (!checked.problems().isEmpty()) {
+            throw new PromptVersionDocumentException(checked.problems());
+        }
+        AssembledPrompt version = assembler.apply(checked.base(), document);
+        String name = originName != null && !originName.isBlank() ? originName.trim()
+                : "screen:" + UUID.randomUUID();
+        Saved saved = save(scopeName, document.prompt(), document, yaml, version, checked.record().number(),
+                checked.base().contentHash(), PromptVersionRecord.ORGANIZATION, origin, name, createdBy);
+        if (saved.made() && PromptVersionRecord.FOLDER.equals(origin)) {
+            audit.record(PromptVersionAudit.FOLDER_REGISTERED, scopeName, document.prompt(), saved.name(), createdBy,
+                    name);
+        }
+        return saved;
+    }
+
+    /**
+     * What the checks before saving find in an organization's document (plan 3.5): every problem, none when it can be
+     * saved, with the estimated system prompt tokens of its base and of the version it would make. A document that
+     * cannot be read, a rendered copy or one whose base this server does not have is refused at once.
+     *
+     * @param origin SCREEN for a version made on the screen (its base cannot have come from a document)
+     */
+    public Preview check(String scope, String yaml, String origin, PromptAssembler.LengthLimit limit) {
+        PromptVersionDocument document = reader.read(yaml);
+        Checked checked = checked(scopeOf(scope), document, origin, limit);
+        return new Preview(checked.record(), checked.problems(), checked.check().baseSystemTokens(),
+                checked.check().systemTokens());
+    }
+
+    /** What a check found: the base version, the problems, and the system prompt tokens of the base and the version. */
+    public record Preview(PromptVersionRecord base, List<PromptVersionProblem> problems, int baseSystemTokens,
+                          int systemTokens) {
+
+        public Preview {
+            problems = List.copyOf(problems);
+        }
+    }
+
+    private record Checked(PromptVersionRecord record, AssembledPrompt base, PromptAssembler.Check check,
+                           List<PromptVersionProblem> problems) {
+    }
+
+    private Checked checked(String scopeName, PromptVersionDocument document, String origin,
+                            PromptAssembler.LengthLimit limit) {
         List<PromptVersionProblem> problems = new ArrayList<>();
         if (document.kind() == PromptVersionDocument.Kind.RENDERED) {
             throw new PromptVersionDocumentException(List.of(new PromptVersionProblem(
@@ -207,19 +252,12 @@ public class PromptVersionService {
                         + " cannot be assembled"));
         PromptAssembler.Check check = assembler.check(baseVersion, document, limit);
         problems.addAll(check.problems());
-        if (!problems.isEmpty()) {
-            throw new PromptVersionDocumentException(problems);
-        }
-        AssembledPrompt version = assembler.apply(baseVersion, document);
-        String name = originName != null && !originName.isBlank() ? originName.trim()
-                : "screen:" + UUID.randomUUID();
-        Saved saved = save(scopeName, document.prompt(), document, yaml, version, base.get().number(),
-                baseVersion.contentHash(), PromptVersionRecord.ORGANIZATION, origin, name, createdBy);
-        if (saved.made() && PromptVersionRecord.FOLDER.equals(origin)) {
-            audit.record(PromptVersionAudit.FOLDER_REGISTERED, scopeName, document.prompt(), saved.name(), createdBy,
-                    name);
-        }
-        return saved;
+        return new Checked(base.get(), baseVersion, check, problems);
+    }
+
+    /** The prompts the build ships product documents for, in the order of the build's list. */
+    public List<String> prompts() {
+        return products.stream().map(ProductPromptRelease::prompt).distinct().toList();
     }
 
     /** The base an organization's document names: by its content hash first, then by its number. */

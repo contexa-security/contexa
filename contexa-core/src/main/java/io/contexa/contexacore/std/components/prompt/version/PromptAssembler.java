@@ -297,7 +297,7 @@ public final class PromptAssembler {
      * The estimated system prompt tokens of a version (a quarter of the characters, as the heuristic estimator
      * counts): every part it draws under any condition, with its longest text.
      */
-    static int systemTokens(AssembledPrompt version) {
+    public static int systemTokens(AssembledPrompt version) {
         long characters = 0;
         for (PromptVersionDocument.Part part : version.system()) {
             if (part.prepared()) {

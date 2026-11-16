@@ -468,6 +468,32 @@ final class ZeroTrustConsoleReader {
         return first == null ? null : first.toInstant();
     }
 
+    /**
+     * Plan 3.10 (2): the decision times of a prompt version in the period, counted per bucket of the hourly table
+     * ({@link ZeroTrustConsoleMetrics#HOURLY_LATENCY_BOUNDS} and one past the last); decisions only.
+     */
+    long[] latencyOfBundle(ZeroTrustConsoleRange range, String tenant, String bundleVersion) {
+        JdbcOperations operations = jdbc.get();
+        if (operations == null) {
+            return new long[ZeroTrustConsoleMetrics.HOURLY_LATENCY_BOUNDS.length + 1];
+        }
+        List<Object> args = new ArrayList<>(List.of(range.fromHour(), range.toTimestamp(), bundleVersion,
+                ZeroTrustConsoleService.NO_DECISION));
+        String tenantClause = tenantClause(tenant, args);
+        return operations.query("""
+                SELECT SUM(latency_le_1s), SUM(latency_le_2s), SUM(latency_le_5s), SUM(latency_le_10s),
+                       SUM(latency_le_30s), SUM(latency_le_60s), SUM(latency_le_90s), SUM(latency_gt_90s)
+                  FROM ctxa_zt_stats_hourly
+                 WHERE bucket_start >= ? AND bucket_start < ? AND prompt_bundle_version = ? AND final_action <> ?"""
+                + tenantClause, (rs, row) -> {
+                    long[] buckets = new long[8];
+                    for (int i = 0; i < buckets.length; i++) {
+                        buckets[i] = rs.getLong(i + 1);
+                    }
+                    return buckets;
+                }, args.toArray()).stream().findFirst().orElse(new long[8]);
+    }
+
     private static String tenantClause(String tenant, List<Object> args) {
         if (tenant == null) {
             return "";

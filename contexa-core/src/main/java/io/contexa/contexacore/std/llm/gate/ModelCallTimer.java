@@ -41,6 +41,7 @@ public final class ModelCallTimer {
     private final long startNanos = System.nanoTime();
     private volatile long deadline;
     private volatile boolean firstInLine;
+    private volatile boolean behindDecisions;
     private int waits;
     private long waitStartedNanos;
     private long excludedNanos;
@@ -82,6 +83,20 @@ public final class ModelCallTimer {
     /** Q-23: whether this timer or a parent marks the work as the first decision of a session. */
     public boolean firstInLine() {
         return firstInLine || (parent != null && parent.firstInLine());
+    }
+
+    /**
+     * Plan 3.10 (4): marks the work as one that waits behind the decisions at a model server's gate (a trial of a prompt
+     * version replaying sealed decisions): it shares the server's slots, but a decision waiting in line goes first.
+     */
+    public ModelCallTimer behindDecisions(boolean behind) {
+        this.behindDecisions = behind;
+        return this;
+    }
+
+    /** Whether this timer or a parent marks the work as one that waits behind the decisions. */
+    public boolean behindDecisions() {
+        return behindDecisions || (parent != null && parent.behindDecisions());
     }
 
     /** The earliest deadline of this timer and its parents (epoch milliseconds), or 0 when none has one. */

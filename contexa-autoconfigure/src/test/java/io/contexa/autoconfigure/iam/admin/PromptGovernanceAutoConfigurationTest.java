@@ -21,7 +21,6 @@ import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQue
 import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRuntimeCacheInvalidationService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseConsole;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseConsoleApiController;
-import io.contexa.contexaiam.admin.promptquality.governance.PromptReleasePageController;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptRuntimeGovernanceDescriptorVerifier;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import org.junit.jupiter.api.Test;
@@ -52,10 +51,9 @@ class PromptGovernanceAutoConfigurationTest {
             PromptGovernanceReleaseGateService.class,
             PromptGovernanceEmpiricalEvalService.class,
             PromptRuntimeGovernanceDescriptorVerifier.class,
-            // W7-14: the version screens with their read API.
+            // W7-14: the read API of the release screens; their pages open the prompt version screens (plan 6-6).
             PromptReleaseConsole.class,
-            PromptReleaseConsoleApiController.class,
-            PromptReleasePageController.class);
+            PromptReleaseConsoleApiController.class);
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(PromptGovernanceAutoConfiguration.class))

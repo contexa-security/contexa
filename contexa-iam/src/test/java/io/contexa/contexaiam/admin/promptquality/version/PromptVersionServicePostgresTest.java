@@ -223,7 +223,7 @@ class PromptVersionServicePostgresTest {
                       You are our analyst.
                 """));
         Files.writeString(folder.resolve("notes.txt"), "not a document");
-        PromptVersionFolderScanner node1 = new PromptVersionFolderScanner(() -> jdbc, versions, folder, "node-1", null);
+        PromptVersionFolderScanner node1 = new PromptVersionFolderScanner(() -> jdbc, versions, folder, "node-1", () -> null);
         PromptVersionFolderScanner node2 = new PromptVersionFolderScanner(() -> jdbc, service(
                 SecurityDecisionPromptDocument.productReleases()), folder, "node-2", null);
 
@@ -409,7 +409,7 @@ class PromptVersionServicePostgresTest {
         Files.writeString(folder.resolve("finance.yaml"), organization("v1.0", JUDGE));
         TaskScheduler scheduler = mock(TaskScheduler.class);
 
-        new PromptVersionStartup(versions, new PromptVersionFolderScanner(() -> jdbc, versions, folder, "node-1", null))
+        new PromptVersionStartup(versions, new PromptVersionFolderScanner(() -> jdbc, versions, folder, "node-1", () -> null))
                 .start(scheduler);
         new PromptVersionStartup(service(SecurityDecisionPromptDocument.productReleases()), null).start(null);
 

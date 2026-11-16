@@ -116,6 +116,12 @@ SELECT s.name, s.url, s.icon, s.parent_id, s.menu_order, s.enabled, s.menu_type,
  WHERE NOT EXISTS (SELECT 1 FROM updated u WHERE u.data_page = s.data_page)
    AND NOT EXISTS (SELECT 1 FROM ctxa_admin_menu m WHERE m.data_page = s.data_page);
 
+-- Plan 6-6: the release screens became the prompt version screens. An installation keeps its menu row, and the
+-- roles given to it, under the new page; the seed below then renames it and points it at the new address.
+UPDATE ctxa_admin_menu SET data_page = 'prompt-quality-versions'
+ WHERE data_page = 'prompt-quality-releases'
+   AND NOT EXISTS (SELECT 1 FROM ctxa_admin_menu m WHERE m.data_page = 'prompt-quality-versions');
+
 -- ----------------------------------------------------------------
 -- Submenu items (parent_id resolved by data_page for stability under regenerated IDs)
 -- ----------------------------------------------------------------
@@ -147,7 +153,7 @@ WITH seed(name, url, icon, parent_data_page, menu_order, enabled, menu_type, dat
     ('menu.pqa.runtimeEvidence',     '/contexa/admin/prompt-quality/runtime-evidence', '',       'prompt-quality', 2, TRUE, 'CORE',       'prompt-quality-runtime-evidence'),
     ('menu.pqa.inspection.overview', '/contexa/admin/prompt-inspection',               '',       'prompt-quality', 3, TRUE, 'CORE',       'prompt-inspection-overview'),
     ('menu.pqa.inspection.packages', '/contexa/admin/prompt-inspection/packages',      '',       'prompt-quality', 4, TRUE, 'CORE',       'prompt-inspection-packages'),
-    ('menu.pqa.releases',            '/contexa/admin/prompt-quality/releases',         '',       'prompt-quality', 5, TRUE, 'CORE',       'prompt-quality-releases')
+    ('menu.pqa.versions',            '/contexa/admin/prompt-quality/versions',         '',       'prompt-quality', 5, TRUE, 'CORE',       'prompt-quality-versions')
 ),
 resolved AS (
     SELECT s.name, s.url, s.icon, p.id AS parent_id, s.menu_order, s.enabled, s.menu_type, s.data_page

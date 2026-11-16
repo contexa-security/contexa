@@ -21,17 +21,23 @@ import io.contexa.autoconfigure.core.scope.ContexaScopedAnnotationAutoConfigurat
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
+import io.contexa.contexacore.std.llm.client.ProviderAwareChatOptionsFactory;
+import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
+import io.contexa.contexacore.std.llm.model.ModelDescriptor;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernanceDescriptorResolver;
 import io.contexa.contexaiam.admin.promptquality.version.AuditLogPromptVersionAudit;
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionStore;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionFolderScanner;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionLengthLimits;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionResolver;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionService;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionStartup;
@@ -52,6 +58,7 @@ import org.springframework.scheduling.TaskScheduler;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The versions of the prompts in the database (plan 3.3, 3.4, 3.7, 3.8): the version service with the product documents
@@ -133,16 +140,52 @@ public class PromptVersionAutoConfiguration {
                 () -> properties.getPromptBundle().getActive(), Clock.systemUTC());
     }
 
+    /** Plan 3.5 (check 4): the context of the model that decides first, the answer and the longest recent input. */
+    @Bean(name = "contexaPromptVersionLengthLimits")
+    @ConditionalOnMissingBean
+    public PromptVersionLengthLimits promptVersionLengthLimits(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                               ObjectProvider<TieredLLMProperties> llmProperties,
+                                                               ObjectProvider<DynamicModelRegistry> models,
+                                                               ObjectProvider<TieredStrategyProperties> strategy) {
+        int systemTokens = PromptAssembler.systemTokens(SecurityDecisionPromptDocument.product());
+        return new PromptVersionLengthLimits(() -> jdbcTemplate,
+                () -> firstLayerModel(llmProperties, models).map(ModelDescriptor::getProvider).orElse(null),
+                () -> firstLayerModel(llmProperties, models).map(ModelDescriptor::getCapabilities)
+                        .map(ModelDescriptor.ModelCapabilities::getContextWindow).orElse(null),
+                ProviderAwareChatOptionsFactory::ollamaMaxContextLength,
+                () -> {
+                    TieredStrategyProperties properties = strategy.getIfAvailable();
+                    return properties == null ? 0 : Math.max(properties.getLayer1().getMaxOutputTokens(),
+                            properties.getLayer2().getMaxOutputTokens());
+                },
+                () -> systemTokens);
+    }
+
+    private static Optional<ModelDescriptor> firstLayerModel(ObjectProvider<TieredLLMProperties> llmProperties,
+                                                             ObjectProvider<DynamicModelRegistry> models) {
+        TieredLLMProperties properties = llmProperties.getIfAvailable();
+        DynamicModelRegistry registry = models.getIfAvailable();
+        if (properties == null || registry == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(registry.getDescriptor(properties.getModelNameForTier(1)));
+    }
+
     /** Plan 3.8 (8): the document folder of this node, when the setting names one. */
     @Bean(name = "contexaPromptVersionFolderScanner")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(name = FOLDER_PROPERTY)
     public PromptVersionFolderScanner promptVersionFolderScanner(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            PromptVersionService contexaPromptVersionService, Environment environment) {
+            PromptVersionService contexaPromptVersionService, Environment environment,
+            ObjectProvider<PromptVersionLengthLimits> limits) {
+        // A document of the folder is checked against the length limit as a version saved on the screen is.
         return new PromptVersionFolderScanner(() -> jdbcTemplate, contexaPromptVersionService,
                 Path.of(environment.getRequiredProperty(FOLDER_PROPERTY).trim()), ZeroTrustCoverageCounter.hostNodeId(),
-                null);
+                () -> {
+                    PromptVersionLengthLimits limit = limits.getIfAvailable();
+                    return limit != null ? limit.get() : null;
+                });
     }
 
     /**

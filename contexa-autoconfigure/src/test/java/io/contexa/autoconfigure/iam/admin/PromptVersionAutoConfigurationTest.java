@@ -33,6 +33,7 @@ import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionStore;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionFolderScanner;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionResolver;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionLengthLimits;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.ApplicationRunner;
@@ -87,6 +88,8 @@ class PromptVersionAutoConfigurationTest {
         runner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(PromptVersionService.class);
+            // Plan 3.5 (check 4): one length limit for every save, on the screen and from the folder.
+            assertThat(context).hasSingleBean(PromptVersionLengthLimits.class);
             assertThat(context.getBean(PromptVersionStore.class)).isInstanceOf(JdbcPromptVersionStore.class);
             assertThat(context.getBean(PromptBundleSelector.class)).isInstanceOf(PromptVersionResolver.class);
             // Without the audit facade nothing records; the runner still starts the versions.

@@ -132,6 +132,7 @@ io.contexa.autoconfigure.iam.admin.SealedEvidenceStoreAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PqaSealedEvidenceAutoConfiguration
 io.contexa.autoconfigure.iam.admin.SealedEvidenceAdvisorAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PromptInspectionAutoConfiguration
+io.contexa.autoconfigure.iam.admin.PromptVersionConsoleAutoConfiguration
 
 # IAM Security Core
 io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration

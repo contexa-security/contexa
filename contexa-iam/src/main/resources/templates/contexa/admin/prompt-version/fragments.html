@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  The frame of every prompt version screen (plan 3.10), in the admin console's own components as the policy center and
+  the Zero Trust console draw them: the page card, the gradient title and its sentence, the tab bar of the screens,
+  the choice of the prompt and the scope in a filter box, the notices, the place the screen draws in, the policy
+  center's confirmation, and the screens' messages for their script.
+-->
+<div th:fragment="console(title, question, tab)" class="zt-page modern-card" id="zt-console"
+     th:data-api-base="${apiBase}" th:data-pages-base="${pagesBase}" th:data-screen="${screen}"
+     th:data-version-number="${versionNumber}" th:data-trial-id="${trialId}"
+     th:data-csrf-token="${_csrf != null ? _csrf.token : ''}"
+     th:data-csrf-header="${_csrf != null ? _csrf.headerName : 'X-CSRF-TOKEN'}">
+    <script type="application/json" id="zt-messages" th:utext="${scriptMessagesJson}"></script>
+    <div class="zt-title-row pv-title-row mb-6">
+        <div class="min-w-0">
+            <nav class="pv-crumbs" id="pv-crumbs" th:attr="aria-label=#{pv.ui.crumbs}"></nav>
+            <h1 class="text-3xl font-bold pc-header-gradient" id="pv-title" th:text="${title}">Prompt versions</h1>
+            <p class="text-dark-muted mt-1" id="pv-question" th:text="${question}">Question</p>
+        </div>
+        <div class="zt-toolbar" id="pv-toolbar"></div>
+    </div>
+
+    <nav class="pc-tab-nav zt-tab-nav mb-6" th:attr="aria-label=#{pv.ui.tabs}">
+        <a th:href="@{/contexa/admin/prompt-quality/versions}" class="pc-tab-btn" data-pv-tab="list"
+           th:classappend="${tab == 'list'} ? ' active' : ''"
+           th:attr="aria-current=${tab == 'list'} ? 'page' : null">
+            <i class="fas fa-code-branch" aria-hidden="true"></i><span th:text="#{pv.ui.tab.list}">Versions</span>
+        </a>
+        <a th:href="@{/contexa/admin/prompt-quality/versions/trials}" class="pc-tab-btn" data-pv-tab="trials"
+           th:classappend="${tab == 'trials'} ? ' active' : ''"
+           th:attr="aria-current=${tab == 'trials'} ? 'page' : null">
+            <i class="fas fa-vial" aria-hidden="true"></i><span th:text="#{pv.ui.tab.trials}">Trial decisions</span>
+        </a>
+        <a th:href="@{/contexa/admin/prompt-quality/versions/advanced}" class="pc-tab-btn" data-pv-tab="advanced"
+           th:classappend="${tab == 'advanced'} ? ' active' : ''"
+           th:attr="aria-current=${tab == 'advanced'} ? 'page' : null">
+            <i class="fas fa-sliders-h" aria-hidden="true"></i><span th:text="#{pv.ui.tab.advanced}">Advanced</span>
+        </a>
+    </nav>
+
+    <div class="filter-container zt-band-box mb-6" id="pv-band" aria-live="polite"></div>
+    <div class="pv-notice" id="pv-notice" aria-live="polite"></div>
+    <div class="zt-stack" id="zt-content"></div>
+
+    <div class="ai-confirm-overlay hidden" id="pv-confirm-overlay" role="dialog" aria-modal="true">
+        <div class="ai-confirm-modal pv-confirm-modal"></div>
+    </div>
+</div>
+</body>
+</html>
