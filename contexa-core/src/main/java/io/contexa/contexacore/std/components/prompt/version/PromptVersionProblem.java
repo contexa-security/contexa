@@ -47,6 +47,15 @@ public record PromptVersionProblem(Code code, String where, String detail) {
         RENDERED_DOCUMENT,
         /** An organization's document names no base version, or one this server does not have. */
         NO_BASE,
+        /**
+         * The screen makes a version on a base that came from a document (an import or the document folder): the
+         * document is where that version is changed (plan 3.3).
+         */
+        BASE_FROM_DOCUMENT,
+        /** The document is one version of the same origin already registered. */
+        ALREADY_REGISTERED,
+        /** A version that a decision uses, a canary or a shadow runs, cannot be hidden. */
+        IN_USE,
         /** A part Contexa fixed is changed or deleted. */
         LOCKED_PART,
         /** A part or block the base does not have is changed, deleted or included. */

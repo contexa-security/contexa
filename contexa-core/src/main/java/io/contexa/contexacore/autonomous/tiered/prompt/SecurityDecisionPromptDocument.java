@@ -19,6 +19,7 @@ import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
 import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
+import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
 import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocument;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentReader;
@@ -76,6 +77,17 @@ public final class SecurityDecisionPromptDocument {
     /** The product version of the latest release this build ships. */
     public static AssembledPrompt product() {
         return Holder.PRODUCT;
+    }
+
+    /** The product documents of the security decision this build ships, oldest first (plan 6-3, 3.3). */
+    public static List<ProductPromptRelease> productReleases() {
+        List<ProductPromptRelease> releases = new ArrayList<>();
+        for (String release : RELEASES) {
+            String text = resource(release);
+            PromptVersionDocument document = new PromptVersionDocumentReader().read(text);
+            releases.add(new ProductPromptRelease(PROMPT, document.release(), text));
+        }
+        return List.copyOf(releases);
     }
 
     /** The store of the product versions this build ships, named by their release. */

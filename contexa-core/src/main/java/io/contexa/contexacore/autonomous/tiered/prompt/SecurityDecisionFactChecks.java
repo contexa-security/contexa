@@ -164,8 +164,13 @@ public final class SecurityDecisionFactChecks {
         if (read.requiredBlock()) {
             return "BLOCK".equals(action) ? null : REQUIRED_BLOCK;
         }
-        if ("BLOCK".equals(action)) {
+        // K36 (decision D5): a signal the server itself confirmed, drawn on the VerifiedSignal line, is decisive evidence
+        // a BLOCK may rest on; it does not ask for one (the verified signal boundary part says when to).
+        if ("BLOCK".equals(action) && !verifiedSignalStated(context, prompt)) {
             return BLOCK_WITHOUT_EVIDENCE;
+        }
+        if ("BLOCK".equals(action)) {
+            return null;
         }
         if (read.lowRisk()) {
             return "ALLOW".equals(action) ? null : REQUIRED_LOW_RISK;
@@ -174,6 +179,15 @@ public final class SecurityDecisionFactChecks {
             return "ALLOW".equals(action) ? null : REQUIRED_COVERED_WORK;
         }
         return null;
+    }
+
+    /**
+     * K36: whether the prompt states the anomaly signal the server itself issued for the request (the VerifiedSignal
+     * line, drawn only for the trusted verification source).
+     */
+    static boolean verifiedSignalStated(CanonicalSecurityContext context, DrawnPrompt prompt) {
+        return prompt.states(PromptBlock.DECISION_FACTS, "VerifiedSignal")
+                && V1LineValues.verifiedSignal(context.getIntent()) != null;
     }
 
     /**

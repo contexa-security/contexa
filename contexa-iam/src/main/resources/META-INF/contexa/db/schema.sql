@@ -1905,6 +1905,9 @@ ALTER TABLE ctxa_ai_security_decision_observation
     ADD COLUMN IF NOT EXISTS user_wait_ms BIGINT,
     ADD COLUMN IF NOT EXISTS decision_summary_json TEXT;
 
+-- Plan 6-3 (3.7): the content hash of the prompt version a decision ran, beside its number in prompt_bundle_version.
+ALTER TABLE ctxa_ai_security_decision_observation ADD COLUMN IF NOT EXISTS prompt_content_hash VARCHAR(64);
+
 CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_user_created
     ON ctxa_ai_security_decision_observation (user_id, created_at);
 
@@ -4446,6 +4449,107 @@ create index if not exists ctxa_idx_prompt_governance_cache_invalidation_prompt
 
 create index if not exists ctxa_idx_prompt_governance_cache_invalidation_pending
     on ctxa_prompt_governance_runtime_cache_invalidation (consumed, published_at desc);
+
+-- ------------------------------------------------------------
+-- Plan 6-3 (3.7): prompt versions. A version is a snapshot that does not change once made: the product document of
+-- a Contexa release, or the changes of an organization to a base version. Its number counts up within its scope and
+-- prompt (v1.0, v2.0 and so on). The document it was made from is kept as it was read; its parts are written out from
+-- it for the screens. A version is hidden, never deleted: decision records, sealed evidence and replays name it.
+-- ------------------------------------------------------------
+create table if not exists ctxa_prompt_version (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    version_number integer not null check (version_number > 0),
+    title varchar(256) not null,
+    description varchar(2000),
+    based_on_number integer,
+    based_on_hash varchar(64),
+    provider varchar(32) not null,
+    origin varchar(32) not null,
+    origin_name varchar(512) not null,
+    origin_content_hash varchar(64) not null,
+    content_hash varchar(64) not null,
+    document text not null,
+    hidden boolean not null default false,
+    created_by varchar(128) not null,
+    created_at timestamp(6) not null default current_timestamp
+);
+
+create unique index if not exists ctxa_idx_prompt_version_number
+    on ctxa_prompt_version (registry_scope, prompt_key, version_number);
+
+-- The same document from the same origin is one version, however many nodes read it.
+create unique index if not exists ctxa_idx_prompt_version_origin
+    on ctxa_prompt_version (registry_scope, prompt_key, origin, origin_name, origin_content_hash);
+
+create index if not exists ctxa_idx_prompt_version_content
+    on ctxa_prompt_version (registry_scope, prompt_key, content_hash);
+
+create table if not exists ctxa_prompt_version_part (
+    id bigserial primary key,
+    version_id bigint not null references ctxa_prompt_version (id),
+    part_list varchar(16) not null,
+    part_key varchar(128) not null,
+    part_action varchar(16) not null,
+    locked boolean,
+    title varchar(256),
+    body text,
+    add_after varchar(128),
+    position integer not null
+);
+
+create index if not exists ctxa_idx_prompt_version_part_version
+    on ctxa_prompt_version_part (version_id, part_list, position);
+
+create table if not exists ctxa_prompt_version_folder_scan (
+    id bigserial primary key,
+    node_name varchar(256) not null,
+    folder varchar(1024) not null,
+    scanned_at timestamp(6) not null,
+    document_count integer not null,
+    registered_count integer not null,
+    errors text
+);
+
+create index if not exists ctxa_idx_prompt_version_folder_scan_at
+    on ctxa_prompt_version_folder_scan (scanned_at desc);
+
+-- Plan 6-5 (3.10 4): a trial decides recent sealed decisions again with a candidate and a reference version.
+create table if not exists ctxa_prompt_version_trial (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    candidate_number integer not null,
+    reference_number integer not null,
+    requested_count integer not null,
+    actual_count integer,
+    status varchar(16) not null,
+    started_at timestamp(6),
+    finished_at timestamp(6),
+    failure varchar(2000),
+    created_by varchar(128) not null,
+    created_at timestamp(6) not null default current_timestamp
+);
+
+create index if not exists ctxa_idx_prompt_version_trial_scope
+    on ctxa_prompt_version_trial (registry_scope, prompt_key, created_at desc);
+
+create table if not exists ctxa_prompt_version_trial_case (
+    id bigserial primary key,
+    trial_id bigint not null references ctxa_prompt_version_trial (id),
+    sealed_package_id varchar(128),
+    observation_id varchar(128),
+    version_number integer not null,
+    action varchar(16),
+    format_error boolean not null default false,
+    decision_ms bigint,
+    answer_tokens integer,
+    reason varchar(2000)
+);
+
+create index if not exists ctxa_idx_prompt_version_trial_case_trial
+    on ctxa_prompt_version_trial_case (trial_id, version_number);
 
 create index if not exists ctxa_idx_prompt_runtime_slot_contract_label
     on ctxa_prompt_runtime_slot_contract (contract_version, label_key, active);
