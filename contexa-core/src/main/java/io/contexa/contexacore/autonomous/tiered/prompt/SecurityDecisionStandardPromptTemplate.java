@@ -346,6 +346,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         promptSections.setMinimumActionSettings(settings);
     }
 
+    /** K32: the settings and whether the host enforces them, which the v1.0 system text states when it does. */
+    public void setMinimumActionSettings(MinimumActionRules.Settings settings, String mode) {
+        promptSections.setMinimumActionSettings(settings, mode);
+    }
+
     public SecurityDecisionStandardPromptTemplate(SecurityDecisionPromptSections promptSections) {
         super(SecurityDecisionResponseLite.class);
         this.promptSections = promptSections;

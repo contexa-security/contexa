@@ -555,8 +555,10 @@ public class CoreAutonomousAutoConfiguration {
                 promptGovernanceDescriptorResolver.getIfAvailable(PromptGovernanceDescriptorResolver::identity),
                 promptRuntimeGovernanceRuleProvider.getIfAvailable(PromptRuntimeGovernanceRuleProvider::none),
                 promptBundleSelector.getIfAvailable());
-        // W4-4: the system text states the minimum action rules the strategies check, with the host's settings.
-        template.setMinimumActionSettings(securityZeroTrustProperties.getMinimumAction().toRules());
+        // W4-4: the system text states the minimum action rules the strategies check, with the host's settings; K32:
+        // the v1.0 text states them when the host enforces them, as the response check then holds an answer to them.
+        template.setMinimumActionSettings(securityZeroTrustProperties.getMinimumAction().toRules(),
+                securityZeroTrustProperties.getMinimumAction().getMode().name());
         return template;
     }
 

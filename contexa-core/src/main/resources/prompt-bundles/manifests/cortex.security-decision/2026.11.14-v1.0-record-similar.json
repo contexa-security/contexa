@@ -1,7 +1,7 @@
 {
   "promptKey" : "cortex.security-decision",
   "bundleVersion" : "2026.11.14-v1.0-record-similar",
-  "bundleHash" : "93e5163d375cc134b43123f78cad0584bdbfca47f8c0989719e1fee66eb281da",
+  "bundleHash" : "afdcb3d620cec825a3e7390c6fcc231b923e6e0037dbce5df0ceea25af50ac88",
   "elements" : [ {
     "id" : "B1",
     "state" : "PRESENT",
@@ -10,7 +10,7 @@
   }, {
     "id" : "B2",
     "state" : "PRESENT",
-    "hash" : "00afb7c5ad32fb98f30e26a33334059f5cd1e953fb739c95a2ef2f68d5d9409d",
+    "hash" : "9be8d7816d8d98ec36d70515e8850245203576973f23d50c1e1336ba66f72e10",
     "detail" : "prompt dictionary v1.0: every entry with all its fields, the block header labels and the block titles (plan 2.9)"
   }, {
     "id" : "B3",

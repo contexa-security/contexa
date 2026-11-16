@@ -1192,8 +1192,12 @@ public final class SecurityDecisionPromptDictionary {
                 List.of());
     }
 
-    /** The v1.0 dictionary entries, in render order. */
-    public static final List<PromptDictionaryEntry> V1_ENTRIES = v1Entries();
+    /**
+     * The v1.0 dictionary entries, in render order, with the meaning and use of each line from the product prompt
+     * document (plan 6-1); the start fails when the document's lines are not these.
+     */
+    public static final List<PromptDictionaryEntry> V1_ENTRIES = SecurityDecisionPromptDocument.withDocumentLines(
+            SecurityDecisionPromptDocument.product(), v1Entries());
 
     /** The slot plans of the v1.0 dictionary. */
     public static PromptDictionarySlotPlanProvider v1SlotPlanProvider() {

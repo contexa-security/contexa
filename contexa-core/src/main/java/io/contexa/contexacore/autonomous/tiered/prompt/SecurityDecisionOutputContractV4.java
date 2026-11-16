@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,178 +60,138 @@ public final class SecurityDecisionOutputContractV4 {
         }
     }
 
+    /**
+     * The meaning of each code, from the product prompt document (plan 6-1): the sentences of the prompt are the
+     * document's, the identifiers, groups and cited lines the engine's.
+     */
+    private static final Map<String, String> MEANINGS = SecurityDecisionPromptDocument.reasonMeanings(
+            SecurityDecisionPromptDocument.product());
+
     public static final List<ReasonCode> REASON_CODES = List.of(
             // v21.15 (RL-2): the delegation and the company policy are records too; a model that finds the work covered by
             // either cites the line that says so under this code.
             code(Group.BUSINESS_RECORDS, "RECORD_COVERS_WORK",
-                    "you judged that this record, delegation or company policy covers this work by its target, purpose,"
-                            + " period, limit and decision time",
                     List.of("DECISION_FACTS.Approval", "DECISION_FACTS.Ticket", "DECISION_FACTS.RecordProvenance",
                             "DECISION_FACTS.Delegation", "DECISION_FACTS.Policy")),
             code(Group.BUSINESS_RECORDS, "RECORD_DECIDED_AFTER_REQUEST",
-                    "the record was decided after this request",
                     List.of("DECISION_FACTS.Approval")),
             code(Group.BUSINESS_RECORDS, "RECORD_OUTSIDE_PERIOD",
-                    "this request is outside the record's period",
                     List.of("DECISION_FACTS.Approval", "DECISION_FACTS.Ticket")),
             code(Group.BUSINESS_RECORDS, "RECORD_OTHER_TARGET",
-                    "the record is for another target or purpose than this request",
                     List.of("DECISION_FACTS.Approval", "DECISION_FACTS.Ticket")),
             code(Group.BUSINESS_RECORDS, "RECORD_OVER_LIMIT",
-                    "this request asks for more than the record allows",
                     List.of("DECISION_FACTS.Approval")),
             code(Group.BUSINESS_RECORDS, "RECORD_CUMULATIVE_OVER_LIMIT",
-                    "what was already used under the record and this request together exceed its limit",
                     List.of("DECISION_FACTS.Approval", "DECISION_FACTS.RepeatInSession")),
             code(Group.BUSINESS_RECORDS, "NO_COVERING_RECORD",
-                    "you judged that no record stated for this request covers the work the policy asks a record for",
                     List.of("DECISION_FACTS.Policy", "DECISION_FACTS.Approval", "DECISION_FACTS.Ticket")),
             code(Group.BUSINESS_RECORDS, "POLICY_NOT_KNOWN",
-                    "the company policy for this work is not known",
                     List.of("DECISION_FACTS.Policy", "UNKNOWN.Unknown")),
             code(Group.BUSINESS_RECORDS, "TICKET_CLAIM_FALSE",
-                    "the ticket the requester names does not exist",
                     List.of("DECISION_FACTS.Ticket")),
             code(Group.BUSINESS_RECORDS, "ASSIGNED_TARGET",
-                    "the requester is assigned to the target",
                     List.of("DECISION_FACTS.Assignment")),
             code(Group.BUSINESS_RECORDS, "ON_CALL",
-                    "the requester is on call at the request time",
                     List.of("DECISION_FACTS.OnCall")),
             code(Group.BUSINESS_RECORDS, "TRAVEL_EXPLAINS_NETWORK",
-                    "you judged that a trip explains the network of this request",
                     List.of("DECISION_FACTS.Travel")),
             code(Group.BUSINESS_RECORDS, "BREAK_GLASS",
-                    "an emergency access is declared",
                     List.of("DECISION_FACTS.BreakGlass")),
             code(Group.DEVIATION, "DEVIATION_TIME",
-                    "the time is not among the usual ones",
                     List.of("DECISION_FACTS.DeviationsFromBaseline")),
             code(Group.DEVIATION, "DEVIATION_DAY",
-                    "the day is not among the usual ones",
                     List.of("DECISION_FACTS.DeviationsFromBaseline")),
             code(Group.DEVIATION, "DEVIATION_NETWORK",
-                    "the network is not among the usual ones",
                     List.of("DECISION_FACTS.DeviationsFromBaseline")),
             code(Group.DEVIATION, "DEVIATION_DEVICE",
-                    "the device is not among the usual ones",
                     List.of("DECISION_FACTS.DeviationsFromBaseline")),
             code(Group.DEVIATION, "DEVIATION_LOGIN_METHOD",
-                    "the login method is not among the usual ones",
                     List.of("DECISION_FACTS.DeviationsFromBaseline")),
             code(Group.DEVIATION, "DEVIATION_TARGET",
-                    "the target is not among the usual ones",
                     List.of("DECISION_FACTS.DeviationsFromBaseline")),
             code(Group.DEVIATION, "DEVIATION_ACTION",
-                    "the action is not among the usual ones",
                     List.of("DECISION_FACTS.DeviationsFromBaseline")),
             code(Group.DEVIATION, "DEVIATION_RESOURCE_CLASS",
-                    "the resource class is not among the usual ones",
                     List.of("DECISION_FACTS.DeviationsFromBaseline")),
             code(Group.DEVIATION, "DEVIATION_SIZE",
-                    "the size is beyond the usual sizes",
                     List.of("DECISION_FACTS.DeviationsFromBaseline")),
             code(Group.DEVIATION, "DEVIATION_RATE",
-                    "the request rate is beyond the usual rate",
                     List.of("DECISION_FACTS.DeviationsFromBaseline")),
             code(Group.DEVIATION, "DEVIATION_MOVEMENT",
-                    "the movement from the previous place",
                     List.of("DECISION_FACTS.Movement")),
             code(Group.DEVIATION, "SESSION_DEVICE_CHANGE",
-                    "the device changed within the session",
                     List.of("DECISION_FACTS.SessionDeviceChange")),
             code(Group.DEVIATION, "SESSION_NETWORK_CHANGE",
-                    "the network address changed within the session",
                     List.of("DECISION_FACTS.SessionNetworkChange")),
             code(Group.AS_USUAL, "BASELINE_MATCH",
-                    "the compared dimensions are among the usual ones",
                     List.of("DECISION_FACTS.SameAsBaseline")),
             code(Group.AS_USUAL, "BASELINE_NOT_ESTABLISHED",
-                    "the personal baseline is not established, so a comparison shows little",
                     List.of("USER_BASELINE.BaselineStatus")),
             code(Group.DATA_AND_SCOPE, "DATA_NATURE_MISMATCH",
-                    "you judged that what the data is does not fit the requester's role, assignment or usual work",
                     List.of("REQUEST.Target", "REQUEST.ResourceClass", "DECISION_FACTS.Assignment",
                             "DECISION_FACTS.RoleScope", "DECISION_FACTS.DeviationsFromBaseline")),
             code(Group.DATA_AND_SCOPE, "ROLE_SCOPE_OUTSIDE",
-                    "you judged that the action or category is not among what the scope group does",
                     List.of("DECISION_FACTS.RoleScope")),
             code(Group.DATA_AND_SCOPE, "RECENT_PERMISSION_CHANGE",
-                    "a recent permission change",
                     List.of("DECISION_FACTS.RecentPermissionChanges")),
             code(Group.DATA_AND_SCOPE, "TEMPORARY_ELEVATION",
-                    "a temporary elevation is active",
                     List.of("DECISION_FACTS.TemporaryElevation")),
             // v21.18 (CQ-1): the host states where a value of the call first appeared; what that means is the model's.
             code(Group.DATA_AND_SCOPE, "VALUE_FROM_UNTRUSTED_OUTPUT",
-                    "a value of this request's call arguments first appeared in the output of a tool, and neither the"
-                            + " user's request nor the company's records name it",
                     List.of("DECISION_FACTS.ArgumentOrigin")),
             // v21.9 (A2-9): what the agent did so far in its session is part of its delegated run and its session.
             code(Group.DELEGATION, "DELEGATION_SCOPE_DRIFT",
-                    "the comparison of this request with the delegation says drift: it leaves the allowed operations,"
-                            + " resources or stated limits",
                     List.of("DECISION_FACTS.Delegation", "SESSION.DelegationActivity")),
             // v21.15 (RL-2): what the delegation's objective calls for is read from its words and the amounts the lines
             // state; that reading is the model's judgment, apart from the core's own comparison above.
             code(Group.DELEGATION, "DELEGATION_OBJECTIVE_EXCEEDED",
-                    "you judged that the amount, breadth or purpose of this request goes beyond what the delegation's"
-                            + " objective calls for",
                     List.of("DECISION_FACTS.Delegation", "SESSION.DelegationActivity")),
             code(Group.SESSION, "SESSION_SEQUENCE",
-                    "you judged that the order, pace or amount of this session's requests changes the story",
                     List.of("SESSION.RequestsInSession", "SESSION.RecentRequests", "DECISION_FACTS.RepeatInSession",
                             "SESSION.DelegationActivity")),
             code(Group.SESSION, "REPEAT_IN_SESSION",
-                    "the same action repeats in the session",
                     List.of("DECISION_FACTS.RepeatInSession", "SESSION.RequestsInSession")),
             code(Group.SESSION, "PRIOR_CHALLENGE_IN_SESSION",
-                    "an earlier challenge or non-allow decision in this session",
                     List.of("SESSION.RequestsInSession")),
             code(Group.SESSION, "CHALLENGE_VERIFIED_IN_SESSION",
-                    "a challenge was passed in this session",
                     List.of("SESSION.ChallengeVerified")),
             code(Group.SESSION, "FAILED_LOGINS",
-                    "recent failed logins",
                     List.of("SESSION.FailedLogins")),
             code(Group.SESSION, "MFA_FAILURES",
-                    "recent MFA failures",
                     List.of("SESSION.MfaFailures")),
             // v21.5 (finding 12): the counted fact states the same target's earlier allowed records too, as the
             // dictionary's use of that entry says.
             code(Group.PAST_RECORDS, "PAST_RECORD_SAME_TARGET",
-                    "an earlier allowed record on the same target",
                     List.of("PAST_RECORDS.PastRecordCounts", "PAST_RECORDS.PastRecord{i}")),
             code(Group.PAST_RECORDS, "PAST_DENIED_SAME_ACTION",
-                    "a recent non-allow decision or refusal of the same action",
                     List.of("PAST_RECORDS.PastDeniedDecision{i}", "SESSION.RecentDenied")),
             code(Group.PAST_RECORDS, "VALIDATED_CASE_MATCH",
-                    "a validated case matches",
                     List.of("PAST_RECORDS.ValidatedCases")),
             code(Group.CONFLICTS, "CLIENT_SIGNAL_TAMPERING",
-                    "a measured client tampering signal",
                     List.of("DECISION_FACTS.ClientSignals")),
             code(Group.CONFLICTS, "TENANT_CONFLICT",
-                    "a tenant or organization conflict",
                     List.of("DECISION_FACTS.DataConflicts")),
             code(Group.CONFLICTS, "AUTHORIZATION_CONFLICT",
-                    "an authorization conflict",
                     List.of("DECISION_FACTS.DataConflicts", "DECISION_FACTS.AuthorizationEffect")),
             code(Group.CONFLICTS, "DATA_CONFLICT",
-                    "a data conflict",
                     List.of("DECISION_FACTS.DataConflicts")),
             code(Group.CONFLICTS, "THREAT_MATCH",
-                    "a match with threat knowledge",
                     List.of("DECISION_FACTS.ThreatMatch")),
             code(Group.ESCALATION, "MATERIAL_CONTRADICTION",
-                    "facts that weigh in the judgment contradict each other",
                     List.of("DECISION_FACTS.DataConflicts", "DECISION_FACTS.AuthorizationEffect",
                             "SESSION.LoginMethod", "REQUEST.Roles", "REQUEST.Credential")),
             code(Group.ESCALATION, "MATERIAL_MISSING_EVIDENCE",
-                    "a fact that would separate the explanations is missing",
                     List.of("UNKNOWN.Unknown")));
 
     private static final List<String> CODES = REASON_CODES.stream().map(ReasonCode::code).toList();
+
+    static {
+        // The start fails when the document names other codes than the engine (plan 6-1).
+        SecurityDecisionPromptDocument.verifyReasonCodes(SecurityDecisionPromptDocument.product(), CODES);
+    }
+
+    /** The line names each code may cite, by code, as the output block names them. */
+    private static final Map<String, List<String>> CITED_LINES = citedLinesByCode();
     private static final String PROVIDER_SCHEMA = writeProviderSchema(true);
     private static final String TEXT_SCHEMA = writeProviderSchema(false);
     private static final String OUTPUT_BLOCK = writeOutputBlock();
@@ -296,8 +257,22 @@ public final class SecurityDecisionOutputContractV4 {
         return fact.substring(fact.indexOf('.') + 1).replace("{i}", "");
     }
 
-    private static ReasonCode code(Group group, String code, String meaning, List<String> citedFacts) {
-        return new ReasonCode(code, group, meaning, citedFacts);
+    private static ReasonCode code(Group group, String code, List<String> citedFacts) {
+        return new ReasonCode(code, group, MEANINGS.get(code), citedFacts);
+    }
+
+    /** The line names each code may cite, by code, in the order of the codes. */
+    public static Map<String, List<String>> citedLines() {
+        return CITED_LINES;
+    }
+
+    private static Map<String, List<String>> citedLinesByCode() {
+        Map<String, List<String>> lines = new LinkedHashMap<>();
+        for (ReasonCode code : REASON_CODES) {
+            lines.put(code.code(), code.citedFacts().stream().map(SecurityDecisionOutputContractV4::citedName)
+                    .distinct().toList());
+        }
+        return Collections.unmodifiableMap(lines);
     }
 
     private static String writeProviderSchema(boolean withCodeMeanings) {

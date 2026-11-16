@@ -25,7 +25,8 @@ import java.util.stream.Collectors;
  * spent most of its time writing them. The v5 answer keeps what the decision and its record use: the action, the risk
  * score, the one explanation judged most likely, one to three reason codes each citing one fact, and one short
  * sentence. The reason codes, their meanings and their citations are those of v4, so the response check reads them the
- * same way; the confidence and the MITRE ids are not asked for.
+ * same way; the confidence and the MITRE ids are not asked for. The sentences that ask for the answer are the output
+ * parts of the product prompt document (plan 6-1); this class holds the answer's form.
  */
 public final class SecurityDecisionOutputContractV5 {
 
@@ -38,7 +39,6 @@ public final class SecurityDecisionOutputContractV5 {
 
     private static final String PROVIDER_SCHEMA = writeProviderSchema(true);
     private static final String TEXT_SCHEMA = writeProviderSchema(false);
-    private static final String OUTPUT_BLOCK = writeOutputBlock();
 
     private SecurityDecisionOutputContractV5() {
     }
@@ -48,44 +48,12 @@ public final class SecurityDecisionOutputContractV5 {
         return PROVIDER_SCHEMA;
     }
 
-    /** The schema as text for a provider without structured output; the output block states the code meanings. */
+    /**
+     * The schema as text for a provider without structured output; the output parts of the prompt document state the
+     * fields and the code meanings (plan 6-1).
+     */
     public static String textSchema() {
         return TEXT_SCHEMA;
-    }
-
-    /** The output block of the v1.0 system text: the fields, how a code cites a fact and the meaning of every code. */
-    public static String systemOutputBlock() {
-        return OUTPUT_BLOCK;
-    }
-
-    private static String writeOutputBlock() {
-        StringBuilder block = new StringBuilder();
-        block.append("=== OUTPUT ===\n");
-        block.append("Return one compact JSON object, on one line, with exactly these keys: ")
-                .append(String.join(", ", KEYS)).append(".\n");
-        block.append("action: ALLOW, CHALLENGE, ESCALATE or BLOCK.\n");
-        block.append("riskScore: a number from 0 to 1, kept for audit.\n");
-        block.append("hypothesis: the id of the explanation you judged most likely: H1, H2, H3, H4 or H5.\n");
-        block.append("reasonCodes: ").append(MIN_REASON_CODES).append(" to ").append(MAX_REASON_CODES)
-                .append(" objects {\"code\": ..., \"fact\": ...} for the facts that weigh most in your judgment, first the"
-                        + " strongest, each code once. code is one of the codes below; fact is the id at the start of the"
-                        + " line it cites (F1, B2, S3, R1, P1); MATERIAL_MISSING_EVIDENCE cites the id the UNKNOWN line"
-                        + " gives the missing fact (U1).\n");
-        block.append("reason: one sentence of at most ").append(MAX_REASON_WORDS)
-                .append(" words, in your own words, that names the facts behind your judgment.\n");
-        block.append("Reason codes (code: meaning; the lines it cites):\n");
-        for (SecurityDecisionOutputContractV4.ReasonCode code : SecurityDecisionOutputContractV4.REASON_CODES) {
-            block.append("- ").append(code.code()).append(": ").append(code.meaning()).append("; ")
-                    .append(String.join(", ", code.citedFacts().stream()
-                            .map(SecurityDecisionOutputContractV5::citedName).distinct().toList()))
-                    .append('\n');
-        }
-        return block.toString();
-    }
-
-    /** A cited entry as the output block names it: its line name. */
-    private static String citedName(String fact) {
-        return fact.substring(fact.indexOf('.') + 1).replace("{i}", "");
     }
 
     private static String writeProviderSchema(boolean withCodeMeanings) {

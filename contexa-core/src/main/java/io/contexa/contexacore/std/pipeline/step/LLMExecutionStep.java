@@ -24,6 +24,8 @@ import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV5;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
@@ -563,8 +565,11 @@ public class LLMExecutionStep implements PipelineStep {
                     context.addMetadata("securityDecisionOutputRetryReason", retryReason);
                     // v1.0 with the fallback: an answer that breaks a decision rule is asked again as v20 asked it,
                     // naming the rule; without it, as v21 asks, the action staying the model's to choose.
+                    // v1.0 (plan 6-1): the short answer is asked again in the words of its prompt document (K31, K32).
                     ExecutionContext retryContext = buildExecutionContext(
-                            truncated ? prompt : initial.ruleViolation() != null && v1Rules != null && v1Rules.fallback()
+                            truncated ? prompt : compact
+                                    ? correctivePromptV1(prompt, rawResponse, retryReason, correctionKey(initial, v1Rules))
+                                    : initial.ruleViolation() != null && v1Rules != null && v1Rules.fallback()
                                     ? correctivePrompt(prompt, rawResponse, retryReason)
                                     : correctivePromptV21(prompt, rawResponse, retryReason),
                             request,
@@ -732,6 +737,39 @@ public class LLMExecutionStep implements PipelineStep {
             return false;
         }
         return ruleViolation.startsWith(SecurityDecisionV1OutputInspector.MINIMUM_ACTION_VIOLATION) || rules.fallback();
+    }
+
+    /**
+     * Which correction of the prompt document asks again: a floor the host enforces (K32), a decision rule of a version
+     * that includes them (D6), else the output contract (K31).
+     */
+    static String correctionKey(SecurityDecisionV1OutputInspector.V1Inspection initial,
+                                SecurityDecisionV1OutputInspector.V1Rules v1Rules) {
+        String rule = initial != null ? initial.ruleViolation() : null;
+        if (rule != null && rule.startsWith(SecurityDecisionV1OutputInspector.MINIMUM_ACTION_VIOLATION)) {
+            return SecurityDecisionPromptDocument.CORRECTION_MINIMUM_ACTION;
+        }
+        if (rule != null && v1Rules != null && v1Rules.fallback()) {
+            return SecurityDecisionPromptDocument.CORRECTION_RULES;
+        }
+        return SecurityDecisionPromptDocument.CORRECTION_CONTRACT;
+    }
+
+    /**
+     * Plan 6-1: the v1.0 prompt again with the answer it got and the correction of its prompt document, with what was
+     * wrong with the answer in it.
+     */
+    static Prompt correctivePromptV1(Prompt prompt, String previousAnswer, String violation, String correction) {
+        String text = SecurityDecisionPromptDocument.product().correction(correction,
+                Map.of("violation", violation != null ? violation : "",
+                        "keys", String.join(", ", SecurityDecisionOutputContractV5.KEYS)));
+        if (text == null) {
+            throw new IllegalStateException("The product prompt document has no correction " + correction);
+        }
+        List<Message> messages = new ArrayList<>(prompt.getInstructions());
+        messages.add(new AssistantMessage(previousAnswer != null ? previousAnswer : ""));
+        messages.add(new UserMessage(text));
+        return new Prompt(messages, prompt.getOptions());
     }
 
     /**

@@ -172,8 +172,8 @@ class SecurityDecisionV1BundleTest {
         });
         String system = render.systemPrompt();
 
-        String reading = SecurityDecisionPromptSections.V1_READING.lines().findFirst().orElseThrow();
-        String honesty = SecurityDecisionPromptSections.V1_HONESTY.lines().findFirst().orElseThrow();
+        String reading = partText("more-reading").lines().findFirst().orElseThrow();
+        String honesty = partText("honesty-more").lines().findFirst().orElseThrow();
         assertThat(system).contains(reading, honesty).doesNotContain("Decision rules");
         assertThat(system.indexOf(reading)).isGreaterThan(system.indexOf("How to read the evidence:"))
                 .isLessThan(system.indexOf("How to judge:"));
@@ -217,6 +217,11 @@ class SecurityDecisionV1BundleTest {
 
         assertThat(fallback).contains("Minimum action rules", "P1: ", "P2: ", "P3: ").doesNotContain("MIN_P");
         assertThat(record).doesNotContain("Minimum action rules").doesNotContain("Decision rules");
+    }
+
+    /** The text of a part of the product prompt document (plan 6-1: the sentences are the document's). */
+    static String partText(String key) {
+        return SecurityDecisionPromptDocument.product().systemPart(key).orElseThrow().text();
     }
 
     private static List<String> keys(List<PromptDictionaryEntry> entries) {
