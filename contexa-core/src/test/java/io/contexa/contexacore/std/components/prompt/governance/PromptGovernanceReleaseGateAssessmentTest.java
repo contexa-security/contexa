@@ -171,7 +171,7 @@ class PromptGovernanceReleaseGateAssessmentTest {
                 VERSION).evidence();
 
         // The families the v1.0 manifest declares (N-GOV-2).
-        assertThat(evidence.requiredScenarioFamilies()).containsExactly("PROMPT_INJECTION", "MEMORY_POISONING");
+        assertThat(evidence.requiredScenarioFamilies()).containsExactly("MEMORY_POISONING", "PROMPT_INJECTION");
         assertThat(evidence.coveredScenarioFamilies()).containsExactly("PROMPT_INJECTION");
         assertThat(evidence.uncoveredScenarioFamilies()).containsExactly("MEMORY_POISONING");
     }
