@@ -1,8 +1,10 @@
 /*
- * Zero Trust console, adoption (console design 6.5, decision 11.5): "can we move to ENFORCE?". The verdict of the
- * SHADOW trial (apply recommended, conditions not met, not enough data), each criterion against its recommended bound,
- * what SHADOW would have stopped and the mode history. The bounds are recommendations, not guarantees; the mode is
- * changed in the system settings, not here.
+ * Zero Trust console, adoption (console design 6.5, decision 11.5): "can we move to ENFORCE?". Drawn as the admin
+ * dashboard draws: four key cards (the verdict of the SHADOW trial, the criteria met, what enforcing would have
+ * stopped and the accounts it would have blocked), then the verdict in words beside the criteria's ring, each criterion
+ * against its recommended bound, the days of the trial beside the burden it would have put on the users, and the mode
+ * history. The bounds are recommendations, not guarantees; the mode is changed in the system settings, not here. A
+ * caption is a tooltip.
  */
 (function (ZT) {
     'use strict';
@@ -125,6 +127,33 @@
         }
     }
 
+    // ----- the four key cards -----
+
+    const VERDICT_TONES = {RECOMMENDED: 'green', CONDITIONS_UNMET: 'amber', DATA_INSUFFICIENT: 'red'};
+
+    function keyCards(adoption, weighed) {
+        const verdict = adoption.verdict || 'DATA_INSUFFICIENT';
+        const met = weighed.filter(criterion => criterion.status === 'MET').length;
+        const unmet = weighed.filter(criterion => criterion.status === 'UNMET').length;
+        const insufficient = weighed.filter(criterion => criterion.status === 'INSUFFICIENT').length;
+        const would = adoption.wouldHave || {};
+        return ZT.kpiRow(
+            ZT.kpi({tone: VERDICT_TONES[verdict] || 'indigo', icon: 'fa-flag-checkered', label: t(P + 'verdict.title'),
+                value: t('zt.console.ui.status.' + verdict), sub: observation(adoption),
+                title: t(P + 'verdict.recommendation')}),
+            ZT.kpi({tone: 'indigo', icon: 'fa-tasks', label: t(P + 'gauge.title'),
+                value: t(P + 'gauge.centre', met, weighed.length),
+                sub: t(P + 'kpi.criteriaSub', ZT.count(unmet), ZT.count(insufficient))}),
+            ZT.kpi({tone: 'purple', icon: 'fa-hand-paper', label: t(P + 'wouldHave.stopped'),
+                value: would.stopped == null ? null : ZT.count(would.stopped),
+                sub: t(P + 'kpi.usersSub', would.users == null ? '—' : ZT.count(would.users)),
+                title: t(P + 'wouldHave.stoppedDefinition')}),
+            ZT.kpi({tone: 'red', icon: 'fa-user-lock', label: t(P + 'wouldHave.blockedAccounts'),
+                value: would.blockedAccounts == null ? null : ZT.count(would.blockedAccounts),
+                sub: t(P + 'links.shadowBlocks'), href: shadowBlocksUrl(adoption),
+                title: t(P + 'wouldHave.blockedAccountsDefinition')}));
+    }
+
     // ----- the verdict and the gauge of the criteria -----
 
     function observation(adoption) {
@@ -161,11 +190,10 @@
             el('div', {class: 'zt-verdict'}, el('div', {class: 'zt-toolbar'}, ZT.statusChip(verdict)),
                 el('p', {text: t(P + 'verdict.' + verdict, ZT.count(adoption.unmet))})),
             unmet.length ? el('div', {text: t(P + 'verdict.unmetList', unmet.join(' · '))}) : null,
-            insufficient.length ? el('div', {text: t(P + 'verdict.insufficientList', insufficient.join(' · '))}) : null,
-            muted(t(P + 'verdict.recommendation')));
+            insufficient.length ? el('div', {text: t(P + 'verdict.insufficientList', insufficient.join(' · '))}) : null);
         card.append(foot(link(PAGES + '/decisions?view=review', t(P + 'links.review')),
             link(SETTINGS, t(P + 'links.switchMode'))));
-        return card;
+        return ZT.withTip(card, t(P + 'verdict.recommendation'));
     }
 
     // ----- the criteria against their recommended bounds -----
@@ -189,9 +217,9 @@
                 el('span', {}, ZT.statusChip(criterion.status)));
         });
         const card = ZT.card(t(P + 'criteria.title'), t(P + 'criteria.aside'),
-            criteria.length ? table : ZT.empty('NO_DECISIONS'), muted(t(P + 'criteria.note')));
+            criteria.length ? table : ZT.empty('NO_DECISIONS'));
         card.append(foot(link(SETTINGS, t(P + 'links.bounds'))));
-        return card;
+        return ZT.withTip(card, t(P + 'criteria.note'));
     }
 
     // ----- what SHADOW would have stopped -----
@@ -216,8 +244,8 @@
         const shares = days.map(point => point.baselineEstablished);
         const present = shares.filter(share => share != null);
         const baseline = present.length >= 2 ? el('div', {class: 'zt-item'},
-            el('div', {class: 'zt-row'}, el('span', {text: t(P + 'trend.baseline')}),
-                el('span', {text: t(P + 'trend.baselineChange', ZT.percent(present[0], 0),
+            el('div', {class: 'zt-reason-head'}, el('span', {class: 'zt-reason-name', text: t(P + 'trend.baseline')}),
+                el('span', {class: 'zt-reason-value', text: t(P + 'trend.baselineChange', ZT.percent(present[0], 0),
                     ZT.percent(present[present.length - 1], 0))})),
             ZT.sparkline(shares, {min: 0, max: 1, color: ZT.COLORS.GOOD,
                 label: t(P + 'trend.baseline')})) : null;
@@ -243,17 +271,16 @@
 
     function wouldHaveCard(adoption) {
         const would = adoption.wouldHave || {};
-        const tile = (key, value) => el('div', {class: 'zt-tile'}, ZT.metric({key, label: t(P + 'wouldHave.' + key),
-            value, unit: 'COUNT', description: t(P + 'wouldHave.' + key + 'Definition')}, {small: true}));
-        const blocked = tile('blockedAccounts', would.blockedAccounts);
-        blocked.append(link(shadowBlocksUrl(adoption), t(P + 'links.shadowBlocks')));
-        const burden = el('div', {class: 'zt-tile'}, ZT.metric(would.burdenMedianPerWeek, {small: true, hideDefinition: true}));
-        if (would.burdenP95PerWeek && would.burdenP95PerWeek.value != null) {
-            burden.append(el('div', {class: 'zt-metric-ratio', text: t(P + 'wouldHave.burdenP95',
-                ZT.metricText(would.burdenP95PerWeek))}));
-        }
-        return ZT.card(t(P + 'wouldHave.title'), t(P + 'wouldHave.aside'),
-            el('div', {class: 'zt-split'}, tile('stopped', would.stopped), tile('users', would.users), blocked, burden));
+        const count = (key, value) => ({label: t(P + 'wouldHave.' + key), value: value == null ? '—' : ZT.count(value),
+            title: t(P + 'wouldHave.' + key + 'Definition')});
+        const median = would.burdenMedianPerWeek || {};
+        const top = would.burdenP95PerWeek || {};
+        return ZT.card(t(P + 'wouldHave.title'), t(P + 'wouldHave.aside'), ZT.valueRows([
+            count('stopped', would.stopped), count('users', would.users),
+            Object.assign(count('blockedAccounts', would.blockedAccounts), {href: shadowBlocksUrl(adoption)}),
+            {label: median.label || '', value: ZT.metricText(median), title: median.description || null},
+            {label: top.label || t(P + 'wouldHave.burdenP95', ''), value: ZT.metricText(top),
+                title: top.description || null}]));
     }
 
     // ----- the mode history -----
@@ -264,14 +291,14 @@
 
     function historyCard(adoption) {
         const history = adoption.modeHistory || [];
-        const body = history.length ? ZT.rows(history, change => {
+        const body = history.length ? ZT.valueRows(history.map(change => {
             const text = t(P + 'history.change', modeName(change.from), modeName(change.to), change.by || '—');
-            return [el('span', {text, title: text}), el('span', {class: 'zt-muted', text: ZT.time(change.at)})];
-        }) : muted(t(P + 'history.none'));
+            return {label: text, title: text, value: ZT.time(change.at)};
+        })) : ZT.emptyNote(t(P + 'history.none'));
         const card = ZT.card(t(P + 'history.title'), history.length ? t(P + 'history.aside', ZT.count(history.length))
-            : null, body, muted(t(P + 'history.note')));
+            : null, body);
         card.append(foot(link(SETTINGS, t(P + 'links.settings'))));
-        return card;
+        return ZT.withTip(card, t(P + 'history.note'));
     }
 
     // ----- the AI monitor's past measuring windows (console plan 5-2 ⑤) -----
@@ -293,9 +320,9 @@
                 el('td', {class: 'zt-wide', text: known(P + 'past.recommendation.' + past.recommendation,
                     t(P + 'past.recommendation.other'))}));
         });
-        return ZT.card(t(P + 'past.title'), t(P + 'past.aside', ZT.count(windows.length)),
-            el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table'}, el('thead', {}, head),
-                el('tbody', {}, rows))), muted(t(P + 'past.note')));
+        return ZT.withTip(ZT.card(t(P + 'past.title'), t(P + 'past.aside', ZT.count(windows.length)),
+            el('div', {class: 'modern-table zt-table-wrap'}, el('table', {class: 'zt-table'}, el('thead', {}, head),
+                el('tbody', {}, rows)))), t(P + 'past.note'));
     }
 
     function render(content, adoption) {
@@ -303,12 +330,13 @@
         const weighed = criteria.filter(criterion => criterion.status !== 'INFO');
         const windows = adoption.pastWindows || [];
         content.append(
-            grid(span(gaugeCard(weighed), 4), span(verdictCard(adoption, criteria), 8)),
-            grid(span(criteriaCard(adoption), 12)),
+            keyCards(adoption, weighed),
+            grid(span(verdictCard(adoption, criteria), 8), span(gaugeCard(weighed), 4)),
+            criteriaCard(adoption),
             grid(span(trendCard(adoption), 8), span(wouldHaveCard(adoption), 4)),
-            grid(span(historyCard(adoption), 12)));
+            historyCard(adoption));
         if (windows.length) {
-            content.append(grid(span(pastWindowsCard(windows), 12)));
+            content.append(pastWindowsCard(windows));
         }
     }
 

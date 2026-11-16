@@ -1303,6 +1303,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         context.addMetadata("actualTokenUsageAvailable", usageAvailable);
         if (promptTokens != null) {
             context.addMetadata("actualPromptTokens", promptTokens);
+            recordProviderTruncation(context, promptTokens);
         }
         if (completionTokens != null) {
             context.addMetadata("actualCompletionTokens", completionTokens);
@@ -1316,6 +1317,20 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         if (cachedPromptTokens != null) {
             context.addMetadata("cachedPromptTokens", cachedPromptTokens);
             context.addMetadata("promptCacheHit", cachedPromptTokens > 0);
+        }
+    }
+
+    /**
+     * K13: a model server that read its whole context as input cut the prompt to fit it (Ollama keeps the last tokens
+     * and drops the front, the system text first): the answer was given on part of the prompt. It is recorded on the
+     * call so the decision's record shows it.
+     */
+    static void recordProviderTruncation(ExecutionContext context, int promptTokens) {
+        Object asked = context.getMetadata().get(ExecutionContext.PROVIDER_CONTEXT_LENGTH);
+        if (asked instanceof Number contextLength && promptTokens >= contextLength.intValue()) {
+            context.addMetadata(ExecutionContext.PROMPT_TRUNCATED_BY_PROVIDER, true);
+            log.error("[UnifiedLLMOrchestrator] The model server read {} input tokens, its whole context of {}: the prompt"
+                    + " was cut and the answer covers part of it", promptTokens, contextLength);
         }
     }
 

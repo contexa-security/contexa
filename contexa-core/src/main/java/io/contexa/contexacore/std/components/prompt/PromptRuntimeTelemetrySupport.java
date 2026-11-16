@@ -182,6 +182,10 @@ public final class PromptRuntimeTelemetrySupport {
             "platformDeterminismTemperature",
             "platformDeterminismSeed",
             "determinismNotApplied",
+            // K13: the context the model server was asked for, the prompt estimate and a cut the server made.
+            "providerContextLength",
+            "estimatedPromptTokens",
+            "promptTruncatedByProvider",
             // Design 4.6: what the call sent for Anthropic thinking, recorded with every decision.
             "providerThinkingRequested",
             "providerEffortRequested",

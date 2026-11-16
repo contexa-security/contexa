@@ -1,8 +1,10 @@
 /*
- * Zero Trust console, overview (console design 6.1): "are we protecting what we should, right now?". The period's
- * protection flow in a sentence and four steps, four key cards with their daily trend, the decisions of each day, the
- * warnings to look at and the reasons the stopped decisions gave. In SHADOW a stopped request is one ENFORCE would
- * have stopped, and the screen says so.
+ * Zero Trust console, overview (console design 6.1): "are we protecting what we should, right now?". Drawn as the
+ * admin dashboard draws its first screen: one sentence of the period, four key numbers on gradient cards (each with its
+ * daily trend and a link to the screen that explains it), the decisions of each day beside their share by action, and
+ * the reasons the stopped requests gave beside the warnings to look at. The detail behind each number (the outcomes,
+ * the timing, the burden, the reasons without a decision) stays on the screen the card links to. In SHADOW a stopped
+ * request is one ENFORCE would have stopped, and the screen says so.
  */
 (function (ZT) {
     'use strict';
@@ -51,33 +53,6 @@
 
     function decisions(params) {
         return ZT.consoleLink('/decisions', params);
-    }
-
-    /** A number beside the main one: its definition stays in its tooltip. */
-    function minor(value) {
-        const node = ZT.metric(value, {small: true, hideDefinition: true});
-        if (value && value.description) {
-            node.title = value.description;
-        }
-        return node;
-    }
-
-    function minorRanged(range) {
-        const node = ZT.ranged(range, {small: true, hideDefinition: true});
-        if (range && range.metric && range.metric.description) {
-            node.title = range.metric.description;
-        }
-        return node;
-    }
-
-    /** A count of the response (not a ratio) shown as the console shows a metric; "—" and the reason without one. */
-    function counted(label, value, reasonCode) {
-        return ZT.metric({key: null, label, description: null, value: value == null ? null : value, numerator: null,
-            denominator: null, unit: 'COUNT', noDataReason: value == null ? reasonCode : null}, {small: true});
-    }
-
-    function countShare(value, whole) {
-        return m('countShare', ZT.count(value), ZT.percent(whole > 0 ? value / whole : null));
     }
 
     function ordered(shares, keys) {
@@ -154,30 +129,16 @@
         return all === 0 ? null : point.model / all;
     }
 
-    /** A small trend line of a daily series and its lowest and highest day in words. */
-    function trend(name, values, format, color) {
-        const present = values.filter(value => value != null);
-        if (present.length < 2) {
-            return el('div', {class: 'zt-metric-definition', text: m('spark.tooFew', name)});
-        }
-        const text = m('spark.range', name, format(Math.min(...present)), format(Math.max(...present)));
-        return el('div', {class: 'zt-metric'}, ZT.sparkline(values, {label: text, color}),
-            el('div', {class: 'zt-metric-definition', text}));
-    }
+    // ----- the sentence of the period -----
 
-    const ratioText = value => ZT.percent(value);
-    const countText = value => ZT.count(value);
-
-    // ----- the protection flow -----
-
-    function verdict(summary) {
-        const node = el('div', {class: 'zt-verdict'});
+    function summaryLine(summary) {
+        const node = el('div', {class: 'zt-summary'});
         if (!summary.decisions) {
-            node.append(el('p', {text: ZT.reason('NO_DECISIONS')}));
+            node.append(el('p', {class: 'zt-summary-main', text: ZT.reason('NO_DECISIONS')}));
             return node;
         }
-        node.append(el('p', {text: s('flow.sentence', ZT.count(summary.decisions), ZT.count(summary.stopped),
-            ZT.percent(summary.stoppedRatio))}));
+        node.append(el('p', {class: 'zt-summary-main', text: s('flow.sentence', ZT.count(summary.decisions),
+            ZT.count(summary.stopped), ZT.percent(summary.stoppedRatio))}));
         const after = [];
         if (shadow) {
             if (summary.challenges > 0 || summary.blocks > 0) {
@@ -193,139 +154,53 @@
             }
         }
         if (after.length) {
-            node.append(el('div', {class: 'zt-metric-label', text: after.join(' ')}));
+            node.append(el('p', {class: 'zt-summary-sub', text: after.join(' ')}));
         }
         return node;
     }
 
-    function step(title, ...body) {
-        return el('div', {class: 'zt-tile'}, el('div', {class: 'zt-card-body'},
-            el('div', {class: 'zt-metric-label', text: title}), ...body));
+    // ----- the four key numbers: the dashboard's gradient cards (ZT.kpiMetric) -----
+
+    /** A key card of a metric: it opens the screen that explains the number and draws the number's daily trend. */
+    function keyCard(tone, icon, value, sub, trendValues, href) {
+        const metric = value || {};
+        return ZT.kpiMetric(metric, {tone, icon, sub, href, trend: trendValues,
+            trendLabel: m('kpi.trend', metric.label || '')});
     }
 
-    function partRows(parts, whole) {
-        return ZT.rows(parts, part => [el('span', {text: part.label}),
-            part.href ? link(part.href, countShare(part.count, whole)) : el('span', {text: countShare(part.count, whole)})]);
+    function keyCards(value, days) {
+        const coverage = (value.coverage && value.coverage.coverage) || {};
+        const stoppedCard = value.stopped || {};
+        const stopped = shadow ? Object.assign({}, stoppedCard.stopped, {label: m('stopped.metric.shadow')})
+            : (stoppedCard.stopped || {});
+        const byAction = ordered(stoppedCard.byAction, STOPPED);
+        const count = key => ZT.count(byAction.find(share => share.key === key).count);
+        const pass = (value.impact && value.impact.challengePass && value.impact.challengePass.metric) || {};
+        const perUser = (value.impact && value.impact.challengesPerUserWeek) || {};
+        const model = (value.trust && value.trust.modelDecided) || {};
+        const modelLess = (value.trust && value.trust.modelLess) || {};
+        return ZT.kpiRow(
+            keyCard('indigo', 'fa-shield-alt', coverage,
+                m('kpi.coverage.sub', ZT.count(coverage.numerator), ZT.count(coverage.denominator)),
+                series(days, coverageOf), ZT.consoleLink('/operations')),
+            keyCard('purple', 'fa-hand-paper', stopped,
+                m('kpi.stopped.sub', ZT.count(stopped.numerator), count('CHALLENGE'), count('BLOCK')),
+                series(days, stoppedOf), ZT.consoleLink('/impact')),
+            keyCard('teal', 'fa-user-check', pass,
+                m('kpi.pass.sub', ZT.metricText(perUser)),
+                series(days, point => point.challenge), ZT.consoleLink('/impact')),
+            keyCard('green', 'fa-robot', model,
+                m('kpi.trust.sub', ZT.metricText(modelLess)),
+                series(days, modelOf), ZT.consoleLink('/trust')));
     }
 
-    /** ① The protected calls and the share a decision answered. */
-    function protectedStep(coverage) {
-        const ratio = coverage.coverage;
-        const body = [ZT.metric(ratio, {small: true, hideDefinition: true})];
-        if (ratio.value != null) {
-            const noDecision = coverage.noDecision && coverage.noDecision.value != null ? coverage.noDecision.value : 0;
-            const parts = [{label: m('flow.answered'), count: ratio.numerator, color: C.ACCENT},
-                {label: m('flow.noDecision'), count: noDecision, color: C.MUTED}];
-            body.push(ZT.stacked(parts), ZT.legend(parts), partRows(parts, ratio.denominator));
-        }
-        body.push(link(ZT.consoleLink('/operations'), m('flow.noDecisionLink')));
-        return step(m('flow.step1'), ...body);
-    }
-
-    /** ② The decisions and the share that was stopped. */
-    function decidedStep(summary) {
-        if (!summary.decisions) {
-            return step(m('flow.step2'), counted(m('flow.decisions'), null, 'NO_DECISIONS'));
-        }
-        const parts = [{label: m('flow.notStopped'), count: summary.decisions - summary.stopped, color: C.ALLOW},
-            {label: s('flow.stopped'), count: summary.stopped, color: C.CHALLENGE}];
-        return step(m('flow.step2'), counted(m('flow.decisions'), summary.decisions), ZT.stacked(parts),
-            ZT.legend(parts), partRows(parts, summary.decisions));
-    }
-
-    /** ③ How the stopped requests were stopped: the action chips are the legend. */
-    function stoppedStep(card, summary) {
-        if (!summary.decisions) {
-            return step(s('flow.step3'), counted(s('flow.stopped'), null, 'NO_DECISIONS'));
-        }
-        const shares = ordered(card.byAction, STOPPED);
-        const parts = shares.map(share => ({label: t('zt.console.ui.action.' + share.key), count: share.count,
-            color: C[share.key]}));
-        return step(s('flow.step3'), counted(s('flow.stopped'), summary.stopped), ZT.stacked(parts),
-            ZT.rows(shares, share => [ZT.chip(share.key),
-                link(decisions({action: share.key}), countShare(share.count, summary.stopped))]));
-    }
-
-    /** ④ What came after: the step-ups the account owner passed, the blocks an administrator released. */
-    function afterStep(summary) {
-        if (!summary.decisions) {
-            return step(m('flow.step4'), counted(m('flow.outcomes'), null, 'NO_DECISIONS'));
-        }
-        const challenges = [{label: m('flow.passed'), count: summary.challengesPassed, color: C.GOOD,
-            href: decisions({action: 'CHALLENGE', outcome: 'CHALLENGE_PASSED'})},
-            {label: m('flow.notPassed'), count: Math.max(0, summary.challenges - summary.challengesPassed),
-                color: C.CHALLENGE}];
-        const blocks = [{label: m('flow.released'), count: summary.blocksReleased, color: C.ACCENT,
-            href: decisions({action: 'BLOCK', outcome: 'ADMIN_RELEASED'})},
-            {label: m('flow.notReleased'), count: Math.max(0, summary.blocks - summary.blocksReleased), color: C.BLOCK}];
-        const body = [ZT.stacked(challenges.concat(blocks)), ZT.legend(challenges.concat(blocks)),
-            el('div', {class: 'zt-metric-label', text: m('flow.ofChallenges', ZT.count(summary.challenges))}),
-            partRows(challenges, summary.challenges),
-            el('div', {class: 'zt-metric-label', text: m('flow.ofBlocks', ZT.count(summary.blocks))}),
-            partRows(blocks, summary.blocks)];
-        if (shadow) {
-            body.push(el('div', {class: 'zt-metric-definition', text: m('flow.after.shadow')}));
-        }
-        return step(m('flow.step4'), ...body);
-    }
-
-    function flowCard(value) {
-        const summary = value.summary || {};
-        return ZT.card(s('flow.title'), m('flow.aside'), verdict(summary),
-            grid(span(protectedStep(value.coverage), 3), span(decidedStep(summary), 3),
-                span(stoppedStep(value.stopped, summary), 3), span(afterStep(summary), 3)));
-    }
-
-    // ----- the four key cards -----
-
-    function noDecisionReasons(shares) {
-        const top = (shares || []).filter(share => share.count > 0).slice(0, 3);
-        if (!top.length) {
-            return null;
-        }
-        return ZT.rows(top, share => [el('span', {text: ZT.keyLabel(P + 'noDecisionReason.', share.key)}),
-            el('span', {text: m('countShareRatio', ZT.count(share.count), ZT.percent(share.ratio))})]);
-    }
-
-    function coverageCard(card, days) {
-        return foot(ZT.card(m('coverage.title'), null, ZT.metric(card.coverage),
-            trend(m('coverage.trend'), series(days, coverageOf), ratioText, C.ACCENT),
-            minor(card.noDecision), noDecisionReasons(card.noDecisionReasons)),
-        link(ZT.consoleLink('/operations'), m('coverage.link')));
-    }
-
-    function stoppedCard(card, days) {
-        const stopped = shadow ? Object.assign({}, card.stopped, {label: m('stopped.metric.shadow')}) : card.stopped;
-        return foot(ZT.card(s('stopped.title'), null, ZT.metric(stopped),
-            trend(s('stopped.trend'), series(days, stoppedOf), ratioText, C.CHALLENGE), minor(card.beforeResponse)),
-        link(ZT.consoleLink('/impact'), m('stopped.link')));
-    }
-
-    function impactCard(card, days) {
-        const perUser = shadow ? Object.assign({}, card.challengesPerUserWeek, {label: m('impact.perUserWeek.shadow')})
-            : card.challengesPerUserWeek;
-        return foot(ZT.card(m('impact.title'), null, ZT.metric(perUser),
-            trend(s('impact.trend'), series(days, point => point.challenge), countText, C.CHALLENGE),
-            el('div', {class: 'zt-split'}, minorRanged(card.challengePass), minor(card.userWaitP95)),
-            minorRanged(card.blockRelease)),
-        link(ZT.consoleLink('/impact'), m('impact.link')));
-    }
-
-    function trustCard(card, days) {
-        return foot(ZT.card(m('trust.title'), null, ZT.metric(card.modelDecided),
-            trend(m('trust.trend'), series(days, modelOf), ratioText, C.GOOD),
-            el('div', {class: 'zt-split'}, minor(card.baselineEstablished), minor(card.modelLess)),
-            trend(m('trust.baselineTrend'), series(days, point => point.baselineEstablished), ratioText, C.ACCENT),
-            minorRanged(card.reviewValid)),
-        link(ZT.consoleLink('/trust'), m('trust.link')));
-    }
-
-    // ----- the decisions of each day -----
+    // ----- the decisions of each day, and their share by action -----
 
     function trendCard(days) {
         const has = days.some(day => day.point && decided(day.point) + day.point.noDecision > 0);
         const datasets = ACTIONS.map(action => ({type: 'bar', label: t('zt.console.ui.action.' + action),
-            data: series(days, point => point[action.toLowerCase()]), backgroundColor: C[action], stack: 'decisions'}));
+            data: series(days, point => point[action.toLowerCase()]), backgroundColor: C[action], stack: 'decisions',
+            borderRadius: 4, maxBarThickness: 48}));
         datasets.push({type: 'line', label: m('trend.noDecision'), data: series(days, point => point.noDecision),
             borderColor: C.MUTED, backgroundColor: C.MUTED, borderDash: [4, 4], pointRadius: 2, stack: 'noDecision'});
         const box = el('div');
@@ -335,7 +210,7 @@
         }
         body.push(box);
         if (has && shadow) {
-            body.push(el('div', {class: 'zt-metric-definition', text: m('trend.shadow')}));
+            body.push(el('div', {class: 'zt-muted', text: m('trend.shadow')}));
         }
         charts.push(() => ZT.chart(box, 'l', {type: 'bar', label: m('trend.label'),
             data: {labels: days.map(day => ZT.day(day.day)), datasets},
@@ -343,19 +218,27 @@
         return ZT.card(m('trend.title'), m('trend.aside'), ...body);
     }
 
-    // ----- what to look at -----
-
-    function alertsCard(alerts) {
-        const body = alerts.length ? el('ul', {class: 'zt-rows'}, alerts.map(alert => {
-            const rule = ZT.keyLabel(P + 'alerts.rule.', alert.key);
-            return el('li', {class: 'zt-alert'}, ZT.statusChip(alert.severity),
-                el('div', {class: 'zt-item'}, link(ZT.keepPeriod(alert.link), m('alerts.open', alert.message)),
-                    rule !== alert.key ? el('div', {class: 'zt-metric-definition', text: rule}) : null));
-        })) : el('div', {class: 'zt-metric-label', text: m('alerts.none')});
-        return ZT.card(m('alerts.title'), m('alerts.count', ZT.count(alerts.length)), body);
+    /** The decisions of the period by their action: the dashboard's donut with the total in its centre. */
+    function resultCard(summary, stoppedCard) {
+        if (!summary.decisions) {
+            return ZT.card(m('result.title'), null, ZT.empty('NO_DECISIONS'));
+        }
+        const byAction = ordered(stoppedCard && stoppedCard.byAction, STOPPED);
+        const parts = [{key: 'ALLOW', count: Math.max(0, summary.decisions - summary.stopped)}]
+            .concat(byAction.map(share => ({key: share.key, count: share.count})))
+            .map(part => Object.assign(part, {label: t('zt.console.ui.action.' + part.key), color: C[part.key]}));
+        const ring = el('div', {class: 'zt-donut'}, ZT.donut(parts, {label: m('result.title')}),
+            el('div', {class: 'zt-donut-centre'}, el('div', {class: 'zt-donut-value', text: ZT.count(summary.decisions)}),
+                el('div', {class: 'zt-donut-caption', text: m('result.total')})));
+        const rows = el('div', {class: 'zt-result-rows'}, parts.map(part => el('a', {class: 'zt-result-row',
+            href: decisions({action: part.key})},
+            el('span', {class: 'zt-result-name'}, el('span', {class: 'zt-dot', style: {background: part.color}}), part.label),
+            el('span', {class: 'zt-result-value', text: m('countShare', ZT.count(part.count),
+                ZT.percent(summary.decisions > 0 ? part.count / summary.decisions : null))}))));
+        return ZT.card(m('result.title'), m('result.aside'), el('div', {class: 'zt-result'}, ring, rows));
     }
 
-    // ----- why the requests were stopped -----
+    // ----- why the requests were stopped, and what to look at -----
 
     function reasonsCard(groups, summary) {
         const total = groups.reduce((sum, group) => sum + group.count, 0);
@@ -363,15 +246,30 @@
             return ZT.card(s('reasons.title'), null,
                 summary.decisions ? ZT.emptyNote(s('reasons.none')) : ZT.empty('NO_DECISIONS'));
         }
-        const parts = groups.map((group, index) => ({label: ZT.keyLabel('zt.console.reasonGroup.', group.key),
-            count: group.count, ratio: group.ratio, color: ZT.SERIES[index % ZT.SERIES.length]}));
-        const max = Math.max(...parts.map(part => part.count));
-        const table = el('div', {class: 'zt-criteria'}, parts.flatMap(part => [el('span', {text: part.label}),
-            ZT.bar(part.count, max, {color: part.color, label: part.label}),
-            el('span', {class: 'zt-num', text: ZT.percent(part.ratio)}),
-            el('span', {class: 'zt-num', text: ZT.count(part.count)})]));
-        return foot(ZT.card(s('reasons.title'), s('reasons.aside', ZT.count(total)), ZT.stacked(parts),
-            ZT.legend(parts), table), link(ZT.consoleLink('/impact'), m('reasons.link')));
+        const max = Math.max(...groups.map(group => group.count));
+        const rows = el('div', {class: 'zt-reason-rows'}, groups.map((group, index) => {
+            const label = ZT.keyLabel('zt.console.reasonGroup.', group.key);
+            return el('div', {class: 'zt-reason-row'},
+                el('div', {class: 'zt-reason-head'}, el('span', {class: 'zt-reason-name', text: label}),
+                    el('span', {class: 'zt-reason-value', text: m('countShare', ZT.count(group.count),
+                        ZT.percent(group.ratio))})),
+                ZT.bar(group.count, max, {color: ZT.SERIES[index % ZT.SERIES.length], label}));
+        }));
+        return foot(ZT.card(s('reasons.title'), s('reasons.aside', ZT.count(total)), rows),
+            link(ZT.consoleLink('/impact'), m('reasons.link')));
+    }
+
+    /** The warnings as the dashboard's indicator rows: the colour of its border says how urgent it is. */
+    function alertsCard(alerts) {
+        const body = alerts.length ? el('div', {class: 'zt-indicators'}, alerts.map(alert => {
+            const rule = ZT.keyLabel(P + 'alerts.rule.', alert.key);
+            return el('a', {class: 'zt-indicator', 'data-severity': alert.severity || 'INFO',
+                href: ZT.keepPeriod(alert.link)},
+                el('div', {class: 'zt-indicator-text'}, el('span', {class: 'zt-indicator-title', text: alert.message}),
+                    rule !== alert.key ? el('span', {class: 'zt-indicator-rule', text: rule}) : null),
+                ZT.statusChip(alert.severity));
+        })) : ZT.emptyNote(m('alerts.none'));
+        return ZT.card(m('alerts.title'), m('alerts.count', ZT.count(alerts.length)), body);
     }
 
     function render(content, value) {
@@ -383,11 +281,10 @@
         const days = calendar(header.period, value.trend || []);
         const summary = value.summary || {};
         content.append(
-            grid(span(flowCard(value), 12)),
-            grid(span(coverageCard(value.coverage, days), 3), span(stoppedCard(value.stopped, days), 3),
-                span(impactCard(value.impact, days), 3), span(trustCard(value.trust, days), 3)),
-            grid(span(trendCard(days), 8), span(alertsCard(value.alerts || []), 4)),
-            grid(span(reasonsCard(value.stopReasonGroups || [], summary), 12)));
+            summaryLine(summary),
+            keyCards(value, days),
+            grid(span(trendCard(days), 8), span(resultCard(summary, value.stopped), 4)),
+            grid(span(reasonsCard(value.stopReasonGroups || [], summary), 6), span(alertsCard(value.alerts || []), 6)));
         // Chart.js sizes a chart from its box, so the charts are drawn once their boxes are on the page.
         drawn = charts.map(draw => draw());
     }

@@ -114,18 +114,21 @@
 
     // ----- the header: the search and the CSV of the current filters (design 6.0) -----
 
-    const toolbar = document.querySelector('#zt-console .zt-toolbar');
-    const searchBox = el('input', {class: 'zt-input', type: 'search', name: 'q', maxlength: '200',
+    // The search and the CSV sit in the filter box, as the policy center's search does (filterBox below).
+    const searchBox = el('input', {class: 'modern-input', type: 'search', name: 'q', maxlength: '200',
         'aria-label': t(P + 'search.label'), placeholder: t(P + 'search.placeholder')});
-    const csvLink = el('a', {class: 'zt-button', text: t(P + 'csv'), title: t(P + 'csvTitle')});
-    if (toolbar) {
-        toolbar.append(searchBox, csvLink);
+    const csvLink = el('a', {class: 'modern-btn-secondary', title: t(P + 'csvTitle')},
+        el('i', {class: 'fas fa-download', 'aria-hidden': 'true'}), t(P + 'csv'));
+
+    function search() {
+        rewrite({q: searchBox.value.trim(), view: null});
+        refresh();
     }
+
     searchBox.addEventListener('keydown', event => {
         if (event.key === 'Enter') {
             event.preventDefault();
-            rewrite({q: searchBox.value.trim(), view: null});
-            refresh();
+            search();
         }
     });
 
@@ -137,11 +140,14 @@
         const state = {stack: [null], next: null, token: 0, previewToken: 0, overview};
         screen = state;
         state.tabs = tabsRow(state);
-        state.filters = filterCard(overview);
+        state.filters = filterBox(overview);
         state.list = listCard(state);
         state.preview = previewCard();
-        // The filters run across the top so the list keeps the width its five columns need beside the preview.
-        content.append(state.tabs.node, el('div', {class: 'zt-grid'}, span(state.filters.card, 12)),
+        // The preview stays beside the rows while the list scrolls, its height its own, never the list's.
+        state.preview.card.classList.add('zt-sticky');
+        // The filters run across the top in the policy center's filter box, so the list keeps the width its five
+        // columns need beside the preview.
+        content.append(state.tabs.node, state.filters.card,
             el('div', {class: 'zt-grid'}, span(state.list.card, 8), span(state.preview.card, 4)));
         sync(state);
         loadCounts(state);
@@ -250,18 +256,36 @@
         return counts;
     }
 
-    /** One choice per filter (the list takes one value each), the period's count beside each action. */
-    function filterCard(overview) {
+    /**
+     * The policy center's filter box: one choice per filter, its name beside it (the list takes one value each, the
+     * period's count beside each action), then the search with its button, the clearing of every filter and the CSV.
+     */
+    function filterBox(overview) {
         const counts = actionCounts(overview);
-        const form = el('form', {class: 'zt-toolbar', 'aria-label': t(P + 'filters.title')});
+        const grid = el('div', {class: 'zt-filter-grid'});
+        const form = el('form', {class: 'zt-filter-form', 'aria-label': t(P + 'filters.title')}, grid);
         const selects = FILTERS.map(filter => {
-            const select = el('select', {class: 'zt-select', name: filter.key},
+            const select = el('select', {class: 'modern-select', name: filter.key,
+                'aria-label': t(P + 'filter.' + filter.key)},
                 el('option', {value: '', text: t(P + 'filter.all')}),
                 filter.values.map(value => el('option', {value, text: filter.key === 'action' && counts[value] != null
                     ? t(P + 'filter.withCount', filter.label(value), ZT.count(counts[value])) : filter.label(value)})));
-            form.append(el('label', {class: 'zt-item'}, el('span', {class: 'zt-muted', text: t(P + 'filter.' + filter.key)}),
-                select));
+            grid.append(el('label', {class: 'zt-filter-field'},
+                el('span', {class: 'zt-filter-name', text: t(P + 'filter.' + filter.key)}), select));
             return select;
+        });
+        const searchButton = el('button', {type: 'submit', class: 'modern-btn-primary'},
+            el('i', {class: 'fas fa-search', 'aria-hidden': 'true'}), t(P + 'filters.search'));
+        const clearButton = el('button', {type: 'button', class: 'modern-btn-secondary'},
+            el('i', {class: 'fas fa-times', 'aria-hidden': 'true'}), t(P + 'filters.clear'));
+        clearButton.addEventListener('click', () => {
+            rewrite(Object.assign(clearedFilters(), {q: null, view: null}));
+            refresh();
+        });
+        form.append(el('div', {class: 'zt-filter-search'}, searchBox, searchButton, clearButton, csvLink));
+        form.addEventListener('submit', event => {
+            event.preventDefault();
+            search();
         });
         form.addEventListener('change', event => {
             const select = event.target;
@@ -270,9 +294,8 @@
                 refresh();
             }
         });
-        form.addEventListener('submit', event => event.preventDefault());
         const reviewNote = muted(t(P + 'filters.reviewNote'));
-        const card = ZT.card(t(P + 'filters.title'), t(P + 'filters.aside'), form, reviewNote);
+        const card = el('div', {class: 'filter-container zt-filter-box'}, form, reviewNote);
         return {card, form, selects, reviewNote};
     }
 
@@ -280,8 +303,10 @@
 
     function listCard(state) {
         const holder = el('div', {class: 'zt-item'});
-        const previous = el('button', {type: 'button', class: 'zt-button', text: t(P + 'list.previous')});
-        const next = el('button', {type: 'button', class: 'zt-button', text: t(P + 'list.next')});
+        const previous = el('button', {type: 'button', class: 'modern-btn-secondary'},
+            el('i', {class: 'fas fa-chevron-left', 'aria-hidden': 'true'}), t(P + 'list.previous'));
+        const next = el('button', {type: 'button', class: 'modern-btn-secondary'},
+            t(P + 'list.next'), el('i', {class: 'fas fa-chevron-right', 'aria-hidden': 'true'}));
         const page = el('span', {class: 'zt-muted'});
         const pager = el('div', {class: 'zt-card-foot'}, previous, next, page);
         previous.addEventListener('click', () => {
@@ -350,7 +375,7 @@
             class: [column.number ? 'zt-num' : '', column.wide ? 'zt-wide' : ''].join(' ').trim() || null,
             text: t(P + 'column.' + column.key)})))));
         node.append(el('tbody', {}, rows));
-        return el('div', {class: 'zt-table-wrap'}, node);
+        return el('div', {class: 'modern-table zt-table-wrap'}, node);
     }
 
     function cell(text, attributes) {

@@ -58,7 +58,8 @@ public class ZeroTrustDecisionRecords {
                          String outcome, String mode, String query) {
     }
 
-    static final int PAGE = 50;
+    /** The decisions a page of the list shows: the admin console's lists keep one screen of rows, not fifty. */
+    static final int PAGE = 20;
     /** The slowest decisions the list shows in its slowest-first order. */
     static final int SLOWEST = 20;
     /** The most rows one CSV carries. */

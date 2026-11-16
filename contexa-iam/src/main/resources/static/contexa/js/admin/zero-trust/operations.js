@@ -1,7 +1,8 @@
 /*
- * Zero Trust console, operations (console design 6.6): "can we carry it?". The parts a decision passes through and
- * their state, the throughput by hour, why protected calls got no decision, the latency of each stage, the failures by
- * kind, the cost and the storage.
+ * Zero Trust console, operations (console design 6.6): "can we carry it?". Drawn as the admin dashboard draws: four
+ * key cards (the protected calls a minute, the time of a whole decision, the failures, the tokens of a decision), then
+ * the parts a decision passes through and their state, the throughput by hour, why protected calls got no decision,
+ * the latency of each stage, the failures by kind, the cost and the storage. A caption is a tooltip.
  */
 (function (ZT) {
     'use strict';
@@ -40,6 +41,34 @@
 
     function foot(...children) {
         return el('div', {class: 'zt-card-foot'}, children);
+    }
+
+    function metricRow(metric) {
+        return {label: (metric && metric.label) || '', value: ZT.metricText(metric),
+            title: (metric && metric.description) || null};
+    }
+
+    /** The failures of the period, every kind summed. */
+    function failureTotal(operations) {
+        return (operations.failureTrend || []).reduce((sum, point) => sum + Object.values(point.byKind || {})
+            .reduce((all, count) => all + count, 0), 0);
+    }
+
+    function keyCards(operations) {
+        const throughput = operations.throughput || {};
+        const total = (operations.latency || []).find(stage => stage.stage === 'TOTAL') || {};
+        const cost = operations.cost || {};
+        const failures = failureTotal(operations);
+        return ZT.kpiRow(
+            ZT.kpiMetric(throughput.protectedPerMinute, {tone: 'indigo', icon: 'fa-shield-alt',
+                sub: t(P + 'kpi.decisionsPerMinute', ZT.metricText(throughput.decisionsPerMinute))}),
+            ZT.kpi({tone: 'teal', icon: 'fa-stopwatch', label: t(P + 'kpi.totalP95'),
+                value: total.p95Ms != null ? ZT.seconds(total.p95Ms) : null,
+                sub: total.p50Ms != null ? t(P + 'kpi.totalP50', ZT.seconds(total.p50Ms)) : ZT.reason('NO_DECISIONS')}),
+            ZT.kpi({tone: failures > 0 ? 'red' : 'green', icon: 'fa-exclamation-triangle', label: t(P + 'kpi.failures'),
+                value: ZT.count(failures), sub: t(P + 'kpi.failuresSub'), href: decisionsUrl({action: 'NO_DECISION'})}),
+            ZT.kpiMetric(cost.tokensPerDecision, {tone: 'purple', icon: 'fa-coins',
+                sub: t(P + 'kpi.costPerDay', ZT.metricText(cost.costPerDay))}));
     }
 
     function perMinute(value) {
@@ -100,14 +129,14 @@
         const counts = STATES.map(state => [state, components.filter(component => component.status === state).length])
             .filter(([, count]) => count > 0)
             .map(([state, count]) => t(P + 'components.count', t('zt.console.ui.status.' + state), ZT.count(count)));
-        const list = el('ol', {class: 'zt-rows'});
-        components.forEach(component => {
+        const list = el('div', {class: 'zt-indicators'}, components.map(component => {
             const name = known(P + 'component.' + component.key, component.key);
             const value = componentValue(component);
-            list.append(el('li', {class: 'zt-item'},
-                el('div', {class: 'zt-row'}, el('strong', {text: name, title: name}), stateChip(component.status)),
-                el('div', {class: 'zt-muted', text: value, title: value})));
-        });
+            const state = STATES.includes(component.status) ? component.status : 'UNKNOWN';
+            return el('div', {class: 'zt-indicator', 'data-severity': state, title: value},
+                el('div', {class: 'zt-indicator-text'}, el('span', {class: 'zt-indicator-title', text: name}),
+                    el('span', {class: 'zt-indicator-rule', text: value})), stateChip(component.status));
+        }));
         return ZT.card(t(P + 'components.title'), counts.join(' · ') || null,
             components.length ? list : ZT.empty('NOT_RECORDED'));
     }
@@ -121,12 +150,8 @@
         const inLine = {key: 'inLine', label: t(P + 'throughput.inLine'), value: throughput.inLine, unit: 'COUNT',
             description: t(P + 'throughput.inLineDefinition'),
             noDataReason: throughput.inLine == null ? 'NOT_RECORDED' : null};
-        const metrics = el('div', {class: 'zt-grid'},
-            [ZT.metric(throughput.protectedPerMinute, {small: true}), ZT.metric(throughput.decisionsPerMinute,
-                {small: true}), ZT.metric(inLine, {small: true})].map(node => {
-                node.classList.add('zt-span-4');
-                return node;
-            }));
+        const metrics = ZT.valueRows([metricRow(throughput.protectedPerMinute), metricRow(throughput.decisionsPerMinute),
+            metricRow(inLine)]);
         const box = el('div');
         const hasData = hourly.some(point => point.decisions > 0);
         ZT.chart(box, 'm', {
@@ -179,14 +204,9 @@
                 color: ZT.COLORS.MUTED, title: rest.map(share => known(P + 'noDecisionReason.' + share.key, share.key)
                     + ' ' + ZT.count(share.count)).join(', ')});
         }
-        const list = ZT.rows(parts, part => [ZT.legend([{label: part.label, color: part.color}]),
-            el('span', {text: t(P + 'share', ZT.count(part.count), ZT.percent(part.count / total, 0))})]);
-        parts.forEach((part, index) => {
-            if (part.title) {
-                list.children[index].setAttribute('title', part.title);
-            }
-        });
-        return ZT.card(title, t(P + 'noDecision.aside'), ZT.stacked(parts), list, muted(t(P + 'noDecision.note')));
+        const list = ZT.valueRows(parts.map(part => ({label: part.label, color: part.color, title: part.title || null,
+            value: t(P + 'share', ZT.count(part.count), ZT.percent(part.count / total, 0))})));
+        return ZT.withTip(ZT.card(title, t(P + 'noDecision.aside'), ZT.stacked(parts), list), t(P + 'noDecision.note'));
     }
 
     // ----- latency of each stage: the bar reaches the 95th percentile, its mark is the median; one scale -----
@@ -198,7 +218,7 @@
             return ZT.card(t(P + 'latency.title'), null, ZT.empty('NO_DECISIONS'));
         }
         const max = Math.max(...measured.map(stage => stage.p95Ms));
-        const list = el('div', {class: 'zt-rows', role: 'img', 'aria-label': measured.map(stage =>
+        const list = el('div', {class: 'zt-reason-rows', role: 'img', 'aria-label': measured.map(stage =>
             t(P + 'stage.' + stage.stage) + ' ' + t(P + 'latency.range', ZT.seconds(stage.p50Ms),
                 ZT.seconds(stage.p95Ms))).join(', ')});
         stages.forEach(stage => {
@@ -208,13 +228,13 @@
                 ? t(P + 'latency.rangeAverage', ZT.seconds(stage.p50Ms), ZT.seconds(stage.p95Ms), ZT.seconds(stage.averageMs))
                 : t(P + 'latency.range', ZT.seconds(stage.p50Ms), ZT.seconds(stage.p95Ms));
             const text = has ? range : t(P + 'latency.notMeasured');
-            list.append(el('div', {class: 'zt-row', title: has ? t(P + 'latency.measured', ZT.count(stage.measured)) : null},
-                stage.stage === 'TOTAL' ? el('strong', {text: name}) : el('span', {text: name}),
-                el('span', {text})));
-            list.append(ZT.bar(has ? stage.p95Ms : null, max, {color: ZT.COLORS.ACCENT,
-                mark: has ? stage.p50Ms : null, label: name + ' ' + text}));
+            list.append(el('div', {class: 'zt-reason-row', title: has ? t(P + 'latency.measured', ZT.count(stage.measured)) : null},
+                el('div', {class: 'zt-reason-head'}, el('span', {class: 'zt-reason-name', text: name}),
+                    el('span', {class: 'zt-reason-value', text})),
+                ZT.bar(has ? stage.p95Ms : null, max, {color: ZT.COLORS.ACCENT, mark: has ? stage.p50Ms : null,
+                    label: name + ' ' + text})));
         });
-        return ZT.card(t(P + 'latency.title'), t(P + 'latency.aside'), list, muted(t(P + 'latency.note')));
+        return ZT.withTip(ZT.card(t(P + 'latency.title'), t(P + 'latency.aside'), list), t(P + 'latency.note'));
     }
 
     // ----- the analysis time of the decisions, by bucket -----
@@ -300,15 +320,16 @@
                 const peak = Math.max(...values);
                 const name = kindLabel(kind);
                 return el('div', {class: 'zt-tile zt-item'},
-                    el('div', {class: 'zt-row'}, el('span', {text: name, title: name}), el('strong', {text: ZT.count(count)})),
+                    el('div', {class: 'zt-reason-head'}, el('span', {class: 'zt-reason-name', text: name, title: name}),
+                        el('span', {class: 'zt-reason-value', text: ZT.count(count)})),
                     ZT.sparkline(values, {min: 0, max, color: ZT.COLORS.ACCENT, label: t(P + 'failure.label', name,
                         ZT.count(count))}),
                     muted(t(P + 'failure.peak', ZT.day(dayKeys[values.indexOf(peak)]), ZT.count(peak))));
             }));
         }
-        const card = ZT.card(t(P + 'failure.title'), kinds.length ? t(P + 'failure.aside', ZT.count(total)) : null, body,
-            kinds.length > KINDS_SHOWN ? muted(t(P + 'failure.more', ZT.count(kinds.length - KINDS_SHOWN))) : null,
-            muted(t(P + 'failure.note')));
+        const card = ZT.withTip(ZT.card(t(P + 'failure.title'), kinds.length ? t(P + 'failure.aside', ZT.count(total)) : null,
+            body, kinds.length > KINDS_SHOWN ? muted(t(P + 'failure.more', ZT.count(kinds.length - KINDS_SHOWN))) : null),
+        t(P + 'failure.note'));
         card.append(links);
         return card;
     }
@@ -324,7 +345,7 @@
                 return el('tr', {}, el('td', {title: detail ? item.item + ' · ' + detail : item.item, text: item.item}),
                     el('td', {class: 'zt-num', text: ZT.count(item.count)}));
             });
-            body = el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table'},
+            body = el('div', {class: 'modern-table zt-table-wrap'}, el('table', {class: 'zt-table'},
                 el('thead', {}, el('tr', {}, el('th', {scope: 'col', text: t(P + 'failedPaths.path')}),
                     el('th', {scope: 'col', class: 'zt-num', text: t(P + 'failedPaths.count')}))),
                 el('tbody', {}, rows)));
@@ -339,15 +360,11 @@
 
     function costCard(operations) {
         const cost = operations.cost || {};
-        const price = ZT.metric(cost.costPerDay, {small: true});
+        const price = metricRow(cost.costPerDay);
         if (cost.costPerDay && cost.costPerDay.value != null && cost.currency) {
-            price.append(el('div', {class: 'zt-metric-ratio', text: t(P + 'cost.currency', cost.currency)}));
+            price.value = price.value + ' · ' + t(P + 'cost.currency', cost.currency);
         }
-        const metrics = el('div', {class: 'zt-grid'}, [ZT.metric(cost.tokensPerDecision, {small: true}),
-            ZT.metric(cost.callsPerDecision, {small: true}), price].map(node => {
-            node.classList.add('zt-span-4');
-            return node;
-        }));
+        const metrics = ZT.valueRows([metricRow(cost.tokensPerDecision), metricRow(cost.callsPerDecision), price]);
         const days = operations.trend || [];
         const hasData = days.some(point => point.tokens > 0);
         const box = el('div');
@@ -358,10 +375,9 @@
             axes: {yFormat: ZT.compact},
             label: t(P + 'cost.label', ZT.count(days.reduce((sum, point) => sum + point.tokens, 0)))
         }, hasData, 'NO_DECISIONS');
-        return ZT.card(t(P + 'cost.title'), hasData ? t(P + 'cost.aside',
+        return ZT.withTip(ZT.card(t(P + 'cost.title'), hasData ? t(P + 'cost.aside',
             ZT.count(days.reduce((sum, point) => sum + point.tokens, 0))) : null, metrics,
-            hasData ? ZT.legend([{label: t(P + 'cost.tokens'), color: ZT.COLORS.ACCENT}]) : null, box,
-            muted(t(P + 'cost.note')));
+            hasData ? ZT.legend([{label: t(P + 'cost.tokens'), color: ZT.COLORS.ACCENT}]) : null, box), t(P + 'cost.note'));
     }
 
     function usageCard(operations) {
@@ -381,7 +397,7 @@
                     el('td', {class: 'zt-num zt-wide', text: ZT.percent(row.stoppedRatio)}),
                     el('td', {class: 'zt-num', text: ZT.percent(row.modelLessRatio)}));
             });
-            body = el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table'},
+            body = el('div', {class: 'modern-table zt-table-wrap'}, el('table', {class: 'zt-table'},
                 el('thead', {}, el('tr', {}, columns.map(([key, number, wide]) => el('th', {scope: 'col',
                     class: [number ? 'zt-num' : '', wide ? 'zt-wide' : ''].join(' ').trim() || null,
                     text: t(P + 'usage.' + key)})))),
@@ -400,14 +416,11 @@
         if (!whole) {
             return null;
         }
-        return el('div', {class: 'zt-rows'}, el('div', {class: 'zt-metric-label', text: t(P + 'providers.title')}),
-            ZT.rows(providers, item => {
-                const models = Object.keys(item.byDetail || {}).filter(Boolean).join(', ') || '—';
-                const name = known(P + 'provider.' + item.item, item.item);
-                return [el('span', {text: name, title: t(P + 'providers.models', models)}),
-                    el('span', {class: 'zt-num', text: t(P + 'share', ZT.count(item.count),
-                        ZT.percent(item.count / whole, 0))})];
-            }));
+        return el('div', {class: 'zt-card-body'}, ZT.subhead(t(P + 'providers.title')), ZT.valueRows(providers.map(item => {
+            const models = Object.keys(item.byDetail || {}).filter(Boolean).join(', ') || '—';
+            return {label: known(P + 'provider.' + item.item, item.item), title: t(P + 'providers.models', models),
+                value: t(P + 'share', ZT.count(item.count), ZT.percent(item.count / whole, 0))};
+        })));
     }
 
     // ----- storage -----
@@ -415,9 +428,9 @@
     function storageCard(operations) {
         const storage = operations.storage || {};
         const card = ZT.card(t(P + 'storage.title'), null,
-            ZT.rows([[t(P + 'storage.decisions'), t(P + 'storage.days', ZT.count(storage.decisionRetentionDays))],
-                [t(P + 'storage.aggregates'), t(P + 'storage.days', ZT.count(storage.aggregateRetentionDays))]],
-            ([name, value]) => [el('span', {text: name}), el('span', {text: value})]),
+            ZT.valueRows([{label: t(P + 'storage.decisions'),
+                value: t(P + 'storage.days', ZT.count(storage.decisionRetentionDays))},
+            {label: t(P + 'storage.aggregates'), value: t(P + 'storage.days', ZT.count(storage.aggregateRetentionDays))}]),
             storage.standalone ? el('div', {class: 'zt-warning', role: 'note', text: t('zt.console.ui.band.standalone')})
                 : null);
         card.append(foot(link(SETTINGS, t(P + 'storage.settings'))));
@@ -426,12 +439,13 @@
 
     function render(content, operations) {
         content.append(
+            keyCards(operations),
             grid(span(componentsCard(operations), 4), span(throughputCard(operations), 8)),
             grid(span(noDecisionCard(operations), 6), span(latencyCard(operations), 6)),
             grid(span(histogramCard(operations), 6), span(p95Card(operations), 6)),
             grid(span(failureCard(operations), 8), span(failedPathsCard(operations), 4)),
             grid(span(costCard(operations), 6), span(usageCard(operations), 6)),
-            grid(span(storageCard(operations), 12)));
+            storageCard(operations));
     }
 
     ZT.start('/operations', render);

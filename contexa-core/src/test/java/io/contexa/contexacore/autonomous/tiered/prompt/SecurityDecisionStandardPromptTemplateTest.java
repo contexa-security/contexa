@@ -407,14 +407,14 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(executionMetadata.toMetadataMap().get("promptRenderCacheSystemHash"))
                 .asString()
                 .startsWith("sha256:");
-        // Plan 1-9 (C13): the template's own descriptor is the build default v1.0; the chosen v19 bundle above draws
-        // the v19 prompt with its own descriptor in the execution metadata.
+        // Plan 1-9 (C13) and K30: the template's own descriptor is the build default v1.0; the chosen v19 bundle above
+        // draws the v19 prompt with its own descriptor in the execution metadata.
         assertThat(descriptor).isEqualTo(SecurityDecisionPromptBundles.DEFAULT.descriptor());
-        assertThat(descriptor.promptVersion()).isEqualTo("2026.11.15-v1.0");
-        assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V4");
+        assertThat(descriptor.promptVersion()).isEqualTo("2026.11.16-v1.0");
+        assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V5");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(descriptor.releaseApprovalReference()).isEqualTo("V1-2026-11-15");
-        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("SELF-MEASURED-2026-11-15");
+        assertThat(descriptor.releaseApprovalReference()).isEqualTo("V1-2026-11-16");
+        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("SELF-MEASURED-2026-11-16");
         assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.10.24-v19.21");
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
         // P2 renders computed facts in the v19 format; the former rollback target 2026.07.26-v5 has no prompt text in

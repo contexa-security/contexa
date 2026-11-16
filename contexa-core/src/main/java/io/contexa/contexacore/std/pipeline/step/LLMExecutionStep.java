@@ -45,6 +45,7 @@ import io.contexa.contexacore.std.pipeline.observation.SecurityDecisionObservati
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector.Inspection;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV1OutputInspector;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionCompactAnswer;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV21OutputInspector;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -106,6 +107,9 @@ public class LLMExecutionStep implements PipelineStep {
             "cachedPromptTokens",
             ExecutionContext.DETERMINISM_NOT_APPLIED,
             ExecutionContext.PROVIDER_REASONING_EFFORT,
+            ExecutionContext.PROVIDER_CONTEXT_LENGTH,
+            ExecutionContext.ESTIMATED_PROMPT_TOKENS,
+            ExecutionContext.PROMPT_TRUNCATED_BY_PROVIDER,
             ExecutionContext.PROVIDER_THINKING_REQUESTED,
             ExecutionContext.PROVIDER_EFFORT_REQUESTED,
             ExecutionContext.PROVIDER_THINKING,
@@ -522,13 +526,16 @@ public class LLMExecutionStep implements PipelineStep {
             AtomicReference<ExecutionContext> lastCall) {
         context.addMetadata(SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT,
                 SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT_V4);
+        // K30: a v1.0 answer (output contract v5) is read by the v21 check with its one explanation as the list.
+        boolean compact = Boolean.TRUE.equals(request.getParameter(SecurityDecisionCompactAnswer.REQUEST_PARAMETER,
+                Boolean.class));
         return securityDecisionCall(executionContext, context, lastCall)
                 .onErrorResume(error -> truncatedAtTheOutputLimit(executionContext) && emptyAnswer(error)
                         ? Mono.just("")
                         : Mono.error(error))
                 .flatMap(rawResponse -> {
                     SecurityDecisionV1OutputInspector.V1Inspection initial = inspectV21(
-                            rawResponse, request.getRequestId(), "initial", v21Check, v1Rules);
+                            rawResponse, request.getRequestId(), "initial", v21Check, v1Rules, compact);
                     Inspection initialCheck = initial.inspection();
                     if (!initialCheck.requiresRetry()) {
                         context.addMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, initial.hypotheses());
@@ -544,6 +551,12 @@ public class LLMExecutionStep implements PipelineStep {
                         return Mono.just(rawResponse);
                     }
                     recordInitialSecurityDecisionFailure(context, initialCheck, rawResponse);
+                    if (compact) {
+                        context.addMetadata("securityDecisionInitialRawOutputHash",
+                                SecurityDecisionCompactAnswer.hashOf(rawResponse));
+                        context.addMetadata("securityDecisionInitialRawOutputLength",
+                                rawResponse != null ? rawResponse.length() : 0);
+                    }
                     boolean truncated = truncatedAtTheOutputLimit(executionContext);
                     String retryReason = truncated ? OUTPUT_TRUNCATED : initialCheck.retryReason();
                     context.addMetadata("securityDecisionOutputRetryAttempted", true);
@@ -566,7 +579,7 @@ public class LLMExecutionStep implements PipelineStep {
                     return outputRetryCall(retryContext, truncated, request, context, lastCall)
                             .map(retryResponse -> {
                                 SecurityDecisionV1OutputInspector.V1Inspection retry = inspectV21(
-                                        retryResponse, request.getRequestId(), "retry", v21Check, v1Rules);
+                                        retryResponse, request.getRequestId(), "retry", v21Check, v1Rules, compact);
                                 Inspection retryCheck = retry.inspection();
                                 boolean succeeded = !retryCheck.requiresRetry();
                                 context.addMetadata("securityDecisionOutputRetrySucceeded", succeeded);
@@ -687,11 +700,13 @@ public class LLMExecutionStep implements PipelineStep {
     private SecurityDecisionV1OutputInspector.V1Inspection inspectV21(String rawResponse, String requestId,
                                                                     String attempt,
                                                                     SecurityDecisionV21OutputInspector.V21Check check,
-                                                                    SecurityDecisionV1OutputInspector.V1Rules rules) {
+                                                                    SecurityDecisionV1OutputInspector.V1Rules rules,
+                                                                    boolean compact) {
+        String answer = compact ? SecurityDecisionCompactAnswer.withExplanations(rawResponse) : rawResponse;
         return rules != null
-                ? v1OutputInspector.inspect(rawResponse, requestId, attempt, check, rules)
+                ? v1OutputInspector.inspect(answer, requestId, attempt, check, rules)
                 : SecurityDecisionV1OutputInspector.V1Inspection.of(
-                        v21OutputInspector.inspect(rawResponse, requestId, attempt, check));
+                        v21OutputInspector.inspect(answer, requestId, attempt, check));
     }
 
     /** v1.0 (B4): the minimum action check on the conclusions when the host enforces the floors; null otherwise. */

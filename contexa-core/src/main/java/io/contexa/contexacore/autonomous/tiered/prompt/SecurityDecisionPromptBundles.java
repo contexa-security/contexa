@@ -23,7 +23,7 @@ import java.util.Optional;
 
 /**
  * The security decision bundles this build runs (W3-16). v1.0 is the build's default bundle (plan 1-9): it runs when
- * nothing chooses a bundle. A customer can still choose any bundle of this list by its version, and v19, v20 and v21
+ * nothing chooses a bundle; it answers in the short output contract v5 (K30, 2026-11-16). A customer can still choose any bundle of this list by its version, and v19, v20 and v21
  * also serve the replay of sealed decisions and as rollback targets. A bundle is its descriptor, whose version names
  * its manifest, and the user prompt layout its code draws.
  * Older manifests of the catalog are records of bundles no code of this build renders, so they cannot be run.
@@ -82,9 +82,12 @@ public final class SecurityDecisionPromptBundles {
      *                               measured variants cited the request's network and device lines); with the similar
      *                               cases, the reading also says that another person's similar work does not explain a
      *                               difference of this account's device, network, time or login method
+     * @param compactOutput          the answer is the short output contract v5 (v1.0, K30): the action, the risk score,
+     *                               the explanation judged most likely, one to three reason codes and one short sentence,
+     *                               instead of the five weighed explanations with their fact lists of v4
      */
     public record Features(boolean decisionRules, boolean fallbackOnViolation, boolean similarCases,
-                           boolean comparisonCitations) {
+                           boolean comparisonCitations, boolean compactOutput) {
 
         /** The features of v19, v20 and v21: none. */
         public static final Features NONE = new Features(false, false, false);
@@ -92,6 +95,12 @@ public final class SecurityDecisionPromptBundles {
         /** The features of a measured v1.0 variant, without the comparison citation sentence. */
         public Features(boolean decisionRules, boolean fallbackOnViolation, boolean similarCases) {
             this(decisionRules, fallbackOnViolation, similarCases, false);
+        }
+
+        /** The features of a v1.0 bundle, which answers in the output contract v4. */
+        public Features(boolean decisionRules, boolean fallbackOnViolation, boolean similarCases,
+                        boolean comparisonCitations) {
+            this(decisionRules, fallbackOnViolation, similarCases, comparisonCitations, false);
         }
     }
 
@@ -158,9 +167,9 @@ public final class SecurityDecisionPromptBundles {
      */
     public static final Bundle V1 = new Bundle(
             SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_V1_PROMPT_GOVERNANCE,
-            UserPromptLayout.V1_BLOCKS, new Features(false, false, true, true));
+            UserPromptLayout.V1_BLOCKS, new Features(false, false, true, true, true));
 
-    /** The build's default bundle: the one a request runs when no selector chooses another (v1.0, plan 1-9). */
+    /** The build's default bundle: the one a request runs when no selector chooses another (v1.0, plan 1-9, K30). */
     public static final Bundle DEFAULT = V1;
 
     public static final List<Bundle> ALL = List.of(V1, V19, V20, V21, V1_FALLBACK_SIMILAR, V1_FALLBACK_EXACT,

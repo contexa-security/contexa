@@ -79,28 +79,20 @@
         const subject = [detail.user, detail.resource,
             detail.resourceClass ? known(D + 'resourceClass.' + detail.resourceClass, detail.resourceClass) : null]
             .filter(Boolean).join(' · ');
-        parts.conclusion = el('p', {text: detail.conclusion || '—'});
-        const chips = el('div', {class: 'zt-toolbar'});
-        chips.append(ZT.chip(detail.action, t(P + 'chip.final', actionLabel(detail.action))));
-        if (detail.proposedAction) {
-            chips.append(detail.proposedAction === detail.action ? ZT.statusChip('INFO', t(P + 'chip.proposedSame'))
-                : ZT.chip(detail.proposedAction, t(P + 'chip.proposed', actionLabel(detail.proposedAction))));
-        }
-        if (detail.source) {
-            chips.append(ZT.statusChip('INFO', sourceText(detail)));
-        }
-        if (detail.timing) {
-            chips.append(ZT.statusChip('INFO', known(D + 'timing.' + detail.timing, detail.timing)));
-        }
-        chips.append(ZT.statusChip('INFO', t(P + 'chip.total', ZT.seconds(detail.totalMs))));
-        chips.append(ZT.statusChip('INFO', t(P + 'chip.bundle', detail.bundle || '—', detail.model || '—')));
-        // Words from the data can be long: each chip keeps to its line and shows the whole in its title.
-        Array.from(chips.children).forEach(chip => {
-            chip.classList.add('zt-fit');
-            chip.setAttribute('title', chip.textContent);
-        });
-        return ZT.card(t(P + 'conclusion.title'), subject || null, el('div', {class: 'zt-verdict'}, parts.conclusion),
-            chips);
+        parts.conclusion = el('p', {class: 'zt-summary-main', text: detail.conclusion || '—'});
+        const facts = [
+            [t(P + 'fact.proposed'), detail.proposedAction ? (detail.proposedAction === detail.action
+                ? t(P + 'chip.proposedSame') : actionLabel(detail.proposedAction)) : '—'],
+            [t(P + 'fact.source'), detail.source ? sourceText(detail) : '—'],
+            [t(P + 'fact.timing'), detail.timing ? known(D + 'timing.' + detail.timing, detail.timing) : '—'],
+            [t(P + 'fact.total'), ZT.seconds(detail.totalMs)],
+            [t(P + 'fact.bundle'), t(P + 'fact.bundleValue', detail.bundle || '—', detail.model || '—')]];
+        // Words from the data can be long: each value keeps to its line and shows the whole in its title.
+        const grid = el('div', {class: 'zt-facts'}, facts.map(([name, value]) => el('div', {class: 'zt-facts-item'},
+            el('span', {class: 'zt-facts-name', text: name}), el('span', {class: 'zt-facts-value', text: value, title: value}))));
+        return ZT.card(t(P + 'conclusion.title'), subject || null,
+            el('div', {class: 'zt-conclusion'}, ZT.chip(detail.action, t(P + 'chip.final', actionLabel(detail.action))),
+                el('div', {class: 'zt-summary'}, parts.conclusion)), grid);
     }
 
     /** The model's own sentence, marked as its words (design 6.4). */
@@ -108,8 +100,8 @@
         if (!text) {
             return null;
         }
-        return el('div', {class: 'zt-item'}, el('div', {class: 'zt-toolbar'}, ZT.statusChip('INFO', t(P + 'modelWords'))),
-            el('div', {text: t(P + 'quote', text)}));
+        return el('figure', {class: 'zt-quote'}, el('figcaption', {text: t(P + 'modelWords')}),
+            el('blockquote', {text: t(P + 'quote', text)}));
     }
 
     // ----- (1) the reasons with the facts they cite -----
@@ -117,20 +109,21 @@
     function reasonsCard(detail) {
         const reasons = detail.reasons || [];
         const anchored = new Set();
-        const list = el('div', {class: 'zt-rows'});
+        const list = el('div', {class: 'zt-indicators'});
         reasons.forEach(reason => {
             const id = reason.fact && !anchored.has(reason.fact) ? 'zt-fact-' + reason.fact : null;
             if (reason.fact) {
                 anchored.add(reason.fact);
             }
             const group = known('zt.console.reasonGroup.' + (reason.group || 'OTHER'), reason.group || '');
-            list.append(el('div', {class: 'zt-fact zt-item', id},
-                el('div', {class: 'zt-row'}, el('strong', {text: reason.factName ? ZT.factName(reason.factName) : group,
-                    title: reason.factName ? ZT.factName(reason.factName) : group}),
-                    el('span', {class: 'zt-muted', text: reason.fact || '—'})),
-                el('div', {text: reason.factValue || t(P + 'reasons.noValue')}),
-                el('div', {class: 'zt-muted', text: t(P + 'reasons.code', group, ZT.reasonName(reason.code)),
-                    title: reason.code || ''})));
+            const name = reason.factName ? ZT.factName(reason.factName) : group;
+            list.append(el('div', {class: 'zt-indicator zt-fact-row', id, 'data-severity': 'INFO'},
+                el('div', {class: 'zt-indicator-text'},
+                    el('span', {class: 'zt-indicator-title', text: name, title: name}),
+                    el('span', {class: 'zt-fact-value', text: reason.factValue || t(P + 'reasons.noValue')}),
+                    el('span', {class: 'zt-indicator-rule', text: t(P + 'reasons.code', group, ZT.reasonName(reason.code)),
+                        title: reason.code || ''})),
+                el('span', {class: 'zt-fact-id', text: reason.fact || '—'})));
         });
         return ZT.card(t(P + 'reasons.title'), t(P + 'reasons.aside', ZT.count(reasons.length)),
             reasons.length ? list : muted(t(P + 'reasons.none')), modelWords(detail.modelReason));
@@ -196,7 +189,7 @@
                     deviation.usual || '—', deviation.current || '—', judgement(deviation)];
                 return el('tr', {}, values.map(value => el('td', {title: value, text: value})));
             });
-            body = el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table'}, el('thead', {}, head),
+            body = el('div', {class: 'modern-table zt-table-wrap'}, el('table', {class: 'zt-table'}, el('thead', {}, head),
                 el('tbody', {}, rows)));
         } else {
             body = muted(t(P + 'deviation.none'));
@@ -208,19 +201,18 @@
 
     function unknownCard(detail) {
         const entries = Object.entries(detail.unknown || {});
-        const body = entries.length ? ZT.rows(entries, ([fact, why]) => [
-            el('span', {text: ZT.factName(fact), title: fact}),
-            el('span', {class: 'zt-muted', text: known(P + 'unknown.' + why, String(why))})]) : muted(t(P + 'unknown.none'));
-        const integrate = entries.some(([, why]) => why === 'NOT_INTEGRATED') ? muted(t(P + 'unknown.note')) : null;
-        return ZT.card(t(P + 'unknown.title'), entries.length ? t(P + 'unknown.aside', ZT.count(entries.length)) : null,
-            body, integrate);
+        const body = entries.length ? ZT.valueRows(entries.map(([fact, why]) => ({label: ZT.factName(fact), title: fact,
+            value: known(P + 'unknown.' + why, String(why))}))) : ZT.emptyNote(t(P + 'unknown.none'));
+        const card = ZT.card(t(P + 'unknown.title'), entries.length ? t(P + 'unknown.aside', ZT.count(entries.length))
+            : null, body);
+        return entries.some(([, why]) => why === 'NOT_INTEGRATED') ? ZT.withTip(card, t(P + 'unknown.note')) : card;
     }
 
     // ----- (5) what came of it -----
 
     function outcomeItem(text, at, note) {
-        return el('li', {class: 'zt-item'}, el('div', {class: 'zt-row'}, el('span', {text, title: text}),
-            el('span', {class: 'zt-muted', text: ZT.time(at)})), note ? muted(t(P + 'quote', note)) : null);
+        return el('li', {class: 'zt-result-row zt-outcome', title: note ? t(P + 'quote', note) : text},
+            el('span', {class: 'zt-result-name', text}), el('span', {class: 'zt-muted', text: ZT.time(at)}));
     }
 
     function fillOutcomes(list, detail) {
@@ -233,12 +225,12 @@
             list.append(outcomeItem(text, outcome.at, outcome.note));
         });
         if (!outcomes.length) {
-            list.append(el('li', {class: 'zt-muted', text: t(P + 'outcomes.none')}));
+            list.append(el('li', {class: 'zt-muted zt-outcome-none', text: t(P + 'outcomes.none')}));
         }
     }
 
     function outcomesCard(detail, parts) {
-        parts.outcomes = el('ul', {class: 'zt-rows'});
+        parts.outcomes = el('ul', {class: 'zt-result-rows zt-outcomes'});
         fillOutcomes(parts.outcomes, detail);
         return ZT.card(t(P + 'outcomes.title'), null, parts.outcomes);
     }
@@ -283,9 +275,10 @@
             REASONS.map(reason => [reason, t(P + 'evaluation.reason.' + reason)]));
         reasons.disabled = true;
         const noteId = 'zt-evaluation-note';
-        const note = el('textarea', {class: 'zt-textarea', id: noteId, name: 'note', rows: '3',
+        const note = el('textarea', {class: 'modern-input zt-textarea', id: noteId, name: 'note', rows: '3',
             maxlength: String(NOTE_LIMIT)});
-        const save = el('button', {type: 'submit', class: 'zt-button zt-primary', text: t(P + 'evaluation.save')});
+        const save = el('button', {type: 'submit', class: 'modern-btn-primary'},
+            el('i', {class: 'fas fa-check', 'aria-hidden': 'true'}), t(P + 'evaluation.save'));
         save.disabled = true;
         const status = el('div', {class: 'zt-item', role: 'status', 'aria-live': 'polite'});
         form.append(verdict, reasons, el('label', {for: noteId, text: t(P + 'evaluation.note')}), note,

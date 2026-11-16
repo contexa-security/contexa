@@ -59,6 +59,8 @@ import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV4;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV5;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionCompactAnswer;
 import io.contexa.contexacore.std.llm.gate.ModelCallTimer;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV21OutputInspector;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
@@ -1332,6 +1334,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return bundle != null && bundle.layout().recordsNotation();
     }
 
+    /** Whether the event runs a bundle that answers in the short output contract v5 (v1.0, K30). */
+    protected boolean runsCompactOutputBundle(SecurityEvent event) {
+        SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
+        return bundle != null && bundle.layout().recordsNotation() && bundle.features().compactOutput();
+    }
+
     /** The bundle the event runs, fixed on the event for its later prompts; null without a template. */
     protected SecurityDecisionPromptBundles.Bundle promptBundleOf(SecurityEvent event) {
         return promptTemplate != null && event != null ? promptTemplate.promptBundle(event) : null;
@@ -2282,8 +2290,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         // W4-2: a v20 request with native structured output asks the provider to enforce the output contract v3; the
         // v19 bundle keeps its own format, and without native output the system text states the schema.
         if (structuredOutputMode == StructuredOutputMode.NATIVE_STRUCTURED && runsV20Bundle(event)) {
-            request.withParameter(ExecutionContext.OUTPUT_SCHEMA, runsRecordsBundle(event)
+            request.withParameter(ExecutionContext.OUTPUT_SCHEMA, runsCompactOutputBundle(event)
+                    ? SecurityDecisionOutputContractV5.providerSchema() : runsRecordsBundle(event)
                     ? SecurityDecisionOutputContractV4.providerSchema() : SecurityDecisionOutputContract.providerSchema());
+        }
+        if (runsCompactOutputBundle(event)) {
+            // K30: the response check reads a v1.0 answer with its one explanation as the list of explanations.
+            request.withParameter(SecurityDecisionCompactAnswer.REQUEST_PARAMETER, true);
         }
         request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
         request.withParameter("structuredOutputValidationMaxAttempts", 1);

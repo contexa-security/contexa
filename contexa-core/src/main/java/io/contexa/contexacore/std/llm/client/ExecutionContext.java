@@ -46,6 +46,12 @@ public class ExecutionContext {
     public static final String DETERMINISM_NOT_APPLIED = "determinismNotApplied";
     /** W4-6: the reasoning effort the provider options carried on the call. */
     public static final String PROVIDER_REASONING_EFFORT = "providerReasoningEffort";
+    /** K13: the context length (Ollama num_ctx) the call asked the model server for. */
+    public static final String PROVIDER_CONTEXT_LENGTH = "providerContextLength";
+    /** K13: the input tokens the prompt was estimated at before the call. */
+    public static final String ESTIMATED_PROMPT_TOKENS = "estimatedPromptTokens";
+    /** K13: set when the model server read fewer input tokens than the call sent (it cut the prompt). */
+    public static final String PROMPT_TRUNCATED_BY_PROVIDER = "promptTruncatedByProvider";
 
     /** The layer's Anthropic thinking setting ({@link AnthropicThinkingMode}), set by the platform and never a request. */
     public static final String ANTHROPIC_THINKING = "anthropicThinking";

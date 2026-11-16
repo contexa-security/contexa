@@ -485,7 +485,7 @@ public class SecurityDecisionPromptSections {
                     : secondPass != null
                     ? composeSecondPass(buildContext, secondPass, kit)
                     : composeDictionaryBlocks(buildContext,
-                    modelSystemPrompt(systemSections.composedText(), structuredOutputMode, layout), effectiveBudgetProfile,
+                    modelSystemPrompt(systemSections.composedText(), structuredOutputMode, selected.bundle()), effectiveBudgetProfile,
                     modelHint, kit);
             userRenderMicros = elapsedMicros(userRenderStartedNanos);
         }
@@ -544,7 +544,7 @@ public class SecurityDecisionPromptSections {
             supplementalMetadata.put(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION, kit.layoutName());
         }
         supplementalMetadata.putAll(userSections.metadata());
-        supplementalMetadata.put("promptCacheKey", promptCacheKey(modelSystemPrompt(systemText, structuredOutputMode, layout)));
+        supplementalMetadata.put("promptCacheKey", promptCacheKey(modelSystemPrompt(systemText, structuredOutputMode, selected.bundle())));
         supplementalMetadata.putAll(buildRagPromptMetadata(buildContext));
         supplementalMetadata.putAll(buildLearningPromptMetadata(buildContext, sectionSet));
         supplementalMetadata.putAll(buildPromptContractMetadata(promptContractAudit));
@@ -1402,6 +1402,15 @@ public class SecurityDecisionPromptSections {
                 null);
     }
 
+    /** As {@link #modelSystemPrompt(String, StructuredOutputMode)}, with the output format of the bundle (K30). */
+    static String modelSystemPrompt(String composedSystemPrompt, StructuredOutputMode structuredOutputMode,
+                                    SecurityDecisionPromptBundles.Bundle bundle) {
+        return AbstractStandardPromptTemplate.assembleSystemPrompt(composedSystemPrompt != null ? composedSystemPrompt : "",
+                structuredOutputMode != StructuredOutputMode.NATIVE_STRUCTURED
+                        ? SecurityDecisionContractSectionBuilder.formatInstructions(bundle) : null,
+                null);
+    }
+
     /**
      * V-4: the decision facts of a v21 prompt, computed again in the records notation from the same context and
      * evidence. The comparisons and record checks are the same as before; only their lines leave the core's
@@ -2170,9 +2179,13 @@ public class SecurityDecisionPromptSections {
             + " DEVIATION_SIZE and DEVIATION_RATE cite the DeviationsFromBaseline line that states the difference, not"
             + " the REQUEST or SESSION line with the current value.\n";
 
-    /** The v1.0 output block of the bundle's features: with the comparison citation sentence when they say so. */
+    /**
+     * The v1.0 output block of the bundle's features: the short output contract v5 when they say so (v1.0, K30), and
+     * the comparison citation sentence when they say so.
+     */
     String buildDecisionSectionV1(SecurityDecisionPromptBundles.Features features) {
-        String section = buildDecisionSectionV1();
+        String section = features != null && features.compactOutput()
+                ? "\n" + SecurityDecisionOutputContractV5.systemOutputBlock() + "\n" : buildDecisionSectionV1();
         return features != null && features.comparisonCitations() ? section + V1_COMPARISON_CITATIONS : section;
     }
 

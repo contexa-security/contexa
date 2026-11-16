@@ -1,7 +1,8 @@
 /*
  * Zero Trust console, threats and business impact (console design 6.2): "what was stopped, and what did it cost?".
- * What was stopped and why (the most likely explanation, when it took effect, where and when), and what the business
- * paid for it (the step-ups and their outcome, the wait, the review holds and blocks, the burden on each user). In
+ * Drawn as the admin dashboard draws: four key cards (the stopped requests, the step-ups the owner passed, the wait,
+ * the blocks), then what was suspected, how the step-ups ended and how the requests were stopped, when and why, where
+ * and how much each user bore, and the ranked lists under one tab bar. A definition or a caption is a tooltip. In
  * SHADOW a stopped request is one ENFORCE would have stopped, and the screen says so.
  */
 (function (ZT) {
@@ -54,22 +55,6 @@
         return ZT.consoleLink('/decisions', params);
     }
 
-    function minor(value) {
-        const node = ZT.metric(value, {small: true, hideDefinition: true});
-        if (value && value.description) {
-            node.title = value.description;
-        }
-        return node;
-    }
-
-    function note(text) {
-        return el('div', {class: 'zt-metric-definition', text});
-    }
-
-    function label(text) {
-        return el('div', {class: 'zt-metric-label', text});
-    }
-
     /** "—" and why: no decision in the period, or none of the kind the card counts. */
     function none(text) {
         return decided ? ZT.emptyNote(text) : ZT.empty('NO_DECISIONS');
@@ -117,119 +102,93 @@
             }
             return node;
         }))));
-        return el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table'}, el('thead', {}, head), body));
+        return el('div', {class: 'modern-table zt-table-wrap'}, el('table', {class: 'zt-table'}, el('thead', {}, head), body));
     }
 
-    // ----- what was stopped -----
+    // ----- the four key cards -----
 
-    function hypothesisParts(side) {
+    function keyCards(side, cost) {
+        const challenges = cost.challenges || {};
+        const blocks = cost.blocks || {};
+        const pass = challenges.passRate && challenges.passRate.metric;
+        return ZT.kpiRow(
+            ZT.kpi({tone: 'purple', icon: 'fa-hand-paper', label: s('kpi.stopped.label'), value: ZT.count(side.stopped || 0),
+                sub: m('kpi.stopped.sub', ZT.count(find(side.byAction, 'CHALLENGE').count),
+                    ZT.count(find(side.byAction, 'ESCALATE').count), ZT.count(find(side.byAction, 'BLOCK').count)),
+                href: decisions({})}),
+            ZT.kpiMetric(pass, {tone: 'teal', icon: 'fa-user-check',
+                sub: m('kpi.pass.sub', ZT.count(challenges.passed || 0), ZT.count(challenges.required || 0)),
+                href: decisions({action: 'CHALLENGE', outcome: 'CHALLENGE_PASSED'})}),
+            ZT.kpiMetric(cost.userWaitP50, {tone: 'indigo', icon: 'fa-hourglass-half',
+                sub: m('kpi.wait.sub', ZT.metricText(cost.userWaitP95))}),
+            ZT.kpi({tone: 'red', icon: 'fa-ban', label: t('zt.console.ui.action.BLOCK'), value: ZT.count(blocks.blocks || 0),
+                sub: m('kpi.blocks.sub', ZT.count(blocks.released || 0), ZT.count(blocks.kept || 0)),
+                title: blocks.releaseMedianHours ? blocks.releaseMedianHours.label + ' '
+                    + ZT.metricText(blocks.releaseMedianHours) : null,
+                href: decisions({action: 'BLOCK'})}));
+    }
+
+    // ----- what was suspected, how the step-ups ended, how the requests were stopped -----
+
+    function hypothesesCard(side) {
         const keys = keysOf((side.hypotheses || []).filter(share => share.count > 0).map(share => share.key), HYPOTHESES);
-        return keys.map(key => ({key, label: hypothesisName(key), count: find(side.hypotheses, key).count,
+        const parts = keys.map(key => ({key, label: hypothesisName(key), count: find(side.hypotheses, key).count,
             ratio: find(side.hypotheses, key).ratio, color: HYPOTHESIS_COLORS[key] || C.ACCENT}));
+        if (!side.stopped || side.explained === 0 || !parts.length) {
+            return ZT.card(s('stopped.hypotheses'), null, none(m('hypotheses.none')));
+        }
+        const tip = m('hypotheses.caption', ZT.count(side.explained))
+            + (find(side.hypotheses, 'H1').count > 0 ? ' ' + m('hypotheses.h1Note') : '');
+        return ZT.withTip(ZT.card(s('stopped.hypotheses'), s('stopped.aside', ZT.count(side.explained)),
+            ZT.donutBlock(parts, side.explained, s('stopped.hypotheses'), part => ({label: part.label,
+                color: part.color, value: m('shareCount', ZT.percent(part.ratio), ZT.count(part.count))}))), tip);
     }
 
-    function hypotheses(side) {
-        const parts = hypothesisParts(side);
-        if (side.explained === 0 || !parts.length) {
-            return [none(m('hypotheses.none'))];
+    function challengesCard(cost) {
+        const funnel = cost.challenges || {};
+        if (!funnel.required) {
+            return ZT.card(s('funnel.title'), null, none(s('funnel.none')));
         }
-        const list = el('div', {class: 'zt-card-body'}, ZT.legend(parts),
-            ZT.rows(parts, part => [el('span', {text: part.label}),
-                el('span', {text: m('shareCount', ZT.percent(part.ratio), ZT.count(part.count))})]));
-        const body = [el('div', {class: 'zt-split'},
-            el('div', {class: 'zt-chart zt-chart-s'}, ZT.donut(parts, {label: parts.map(part => part.label + ' '
-                + ZT.percent(part.ratio)).join(', ')})), list),
-        note(m('hypotheses.caption', ZT.count(side.explained)))];
-        if (find(side.hypotheses, 'H1').count > 0) {
-            body.push(note(m('hypotheses.h1Note')));
-        }
-        return body;
+        const code = funnel.codeRequests || {};
+        const tip = [m('funnel.codeRequests', code.label, ZT.reason(code.noDataReason)), m('funnel.note'),
+            shadow ? m('cost.shadowNote') : null].filter(Boolean).join(' ');
+        return ZT.withTip(ZT.card(s('funnel.title'), null,
+            ZT.funnel([{label: s('funnel.required'), count: funnel.required, color: C.CHALLENGE},
+                {label: code.label, count: code.value, color: C.MUTED},
+                {label: m('funnel.passed'), count: funnel.passed, color: C.GOOD}]),
+            ZT.valueRows([{label: m('funnel.failed'), color: C.BAD, value: countShare(funnel.failed, funnel.required),
+                href: decisions({action: 'CHALLENGE', outcome: 'CHALLENGE_FAILED'})},
+            {label: m('funnel.expired'), color: C.WARN, value: countShare(funnel.expired, funnel.required),
+                href: decisions({action: 'CHALLENGE', outcome: 'CHALLENGE_EXPIRED'})}])), tip);
     }
 
-    function stoppedCard(side) {
+    function stoppedCard(side, cost) {
         if (!side.stopped) {
-            return ZT.card(s('stopped.title'), s('stopped.aside', ZT.count(0)), none(s('stopped.none')));
+            return ZT.card(s('stopped.byAction'), null, none(s('stopped.none')));
         }
-        const body = [label(s('stopped.hypotheses'))].concat(hypotheses(side));
-        body.push(label(s('stopped.byAction')), ZT.rows(STOPPED.map(key => find(side.byAction, key)), share => [
-            ZT.chip(share.key), link(decisions({action: share.key}), countShare(share.count, side.stopped))]));
         const timing = TIMINGS.concat((side.timing || []).map(share => share.key).filter(key => !TIMINGS.includes(key)))
             .map(key => find(side.timing, key));
-        body.push(label(m('stopped.timing')), ZT.rows(timing, share => [
-            el('span', {text: ZT.keyLabel(P + 'timing.', share.key)}),
-            el('span', {text: countShare(share.count, side.stopped)})]));
-        if (find(side.timing, 'NEXT_REQUEST').count > 0) {
-            body.push(note(m('timing.nextRequestNote')));
+        const blocks = cost.blocks || {};
+        const body = [ZT.valueRows(STOPPED.map(key => find(side.byAction, key)).map(share => ({chip: ZT.chip(share.key),
+            value: countShare(share.count, side.stopped), href: decisions({action: share.key})}))),
+        ZT.subhead(m('stopped.timing'), find(side.timing, 'NEXT_REQUEST').count > 0 ? m('timing.nextRequestNote') : null),
+        ZT.valueRows(timing.map(share => ({label: ZT.keyLabel(P + 'timing.', share.key),
+            value: countShare(share.count, side.stopped)})))];
+        if (blocks.blocks) {
+            body.push(ZT.subhead(s('blocks.title', ZT.count(blocks.blocks))), ZT.valueRows([
+                {label: m('blocks.released'), value: countShare(blocks.released, blocks.blocks),
+                    href: decisions({action: 'BLOCK', outcome: 'ADMIN_RELEASED'})},
+                {label: m('blocks.kept'), value: countShare(blocks.kept, blocks.blocks),
+                    href: decisions({action: 'BLOCK', outcome: 'BLOCK_KEPT'})},
+                {label: blocks.releaseMedianHours ? blocks.releaseMedianHours.label : '',
+                    value: ZT.metricText(blocks.releaseMedianHours)}]));
         }
-        const classes = keysOf((side.resourceClasses || []).filter(share => share.count > 0).map(share => share.key),
-            CLASSES).map((key, index) => ({label: className(key), count: find(side.resourceClasses, key).count,
-            color: ZT.SERIES[index % ZT.SERIES.length]}));
-        if (classes.length) {
-            body.push(label(m('stopped.classes')), ZT.stacked(classes), ZT.legend(classes.map(part => ({
-                label: m('legendCount', part.label, ZT.count(part.count)), color: part.color}))));
-        }
-        return ZT.card(s('stopped.title'), s('stopped.aside', ZT.count(side.stopped)), ...body);
+        body.push(ZT.valueRows([{label: s('cost.escalations'), value: m('count', ZT.count(cost.escalations || 0)),
+            href: decisions({action: 'ESCALATE'})}]));
+        return ZT.card(s('stopped.byAction'), s('stopped.aside', ZT.count(side.stopped)), ...body);
     }
 
-    // ----- what it cost -----
-
-    function funnelBlock(funnel) {
-        if (funnel.required === 0) {
-            return [none(s('funnel.none'))];
-        }
-        const code = funnel.codeRequests;
-        const body = [ZT.funnel([{label: s('funnel.required'), count: funnel.required, color: C.CHALLENGE},
-            {label: code.label, count: code.value, color: C.MUTED},
-            {label: m('funnel.passed'), count: funnel.passed, color: C.GOOD}])];
-        const missing = note(m('funnel.codeRequests', code.label, ZT.reason(code.noDataReason)));
-        if (code.description) {
-            missing.title = code.description;
-        }
-        body.push(missing, ZT.ranged(funnel.passRate, {small: true}),
-            ZT.rows([{label: m('funnel.failed'), count: funnel.failed, outcome: 'CHALLENGE_FAILED'},
-                {label: m('funnel.expired'), count: funnel.expired, outcome: 'CHALLENGE_EXPIRED'}], row => [
-                el('span', {text: row.label}),
-                link(decisions({action: 'CHALLENGE', outcome: row.outcome}), countShare(row.count, funnel.required))]),
-            note(m('funnel.note')));
-        return body;
-    }
-
-    function blockBlock(blocks) {
-        if (blocks.blocks === 0) {
-            return [label(s('blocks.title', ZT.count(0)))];
-        }
-        return [label(s('blocks.title', ZT.count(blocks.blocks))),
-            ZT.rows([{label: m('blocks.released'), count: blocks.released, outcome: 'ADMIN_RELEASED'},
-                {label: m('blocks.kept'), count: blocks.kept, outcome: 'BLOCK_KEPT'}], row => [
-                el('span', {text: row.label}),
-                link(decisions({action: 'BLOCK', outcome: row.outcome}), countShare(row.count, blocks.blocks))]),
-            minor(blocks.releaseMedianHours)];
-    }
-
-    function costCard(cost) {
-        const body = [label(s('funnel.title'))].concat(funnelBlock(cost.challenges));
-        if (shadow) {
-            body.push(note(m('cost.shadowNote')));
-        }
-        body.push(label(m('cost.wait')), el('div', {class: 'zt-split'}, minor(cost.userWaitP50), minor(cost.userWaitP95)),
-            ZT.rows([{label: s('cost.escalations'), count: cost.escalations}], row => [el('span', {text: row.label}),
-                link(decisions({action: 'ESCALATE'}), m('count', ZT.count(row.count)))]));
-        return ZT.card(s('cost.title'), m('cost.aside'), ...body.concat(blockBlock(cost.blocks)));
-    }
-
-    // ----- where and when -----
-
-    function matrixCard(cells) {
-        const used = cells.filter(cell => cell.count > 0);
-        if (!used.length) {
-            return ZT.card(m('matrix.title'), s('matrix.aside'), none(s('stopped.none')));
-        }
-        const rows = keysOf([...new Set(used.map(cell => cell.row))], HYPOTHESES);
-        const columns = keysOf([...new Set(used.map(cell => cell.column))], CLASSES);
-        return ZT.card(m('matrix.title'), s('matrix.aside'),
-            el('div', {class: 'zt-heat'}, ZT.heatmap(rows, columns, used, hypothesisName, className)),
-            note(m('matrix.caption')));
-    }
+    // ----- when, and why -----
 
     function whenCard(cells) {
         const used = cells.filter(cell => cell.count > 0);
@@ -239,14 +198,68 @@
         const total = used.reduce((sum, cell) => sum + cell.count, 0);
         const off = used.filter(cell => WEEKEND.includes(cell.row) || NIGHT.includes(cell.column))
             .reduce((sum, cell) => sum + cell.count, 0);
-        return ZT.card(s('when.title'), m('when.aside'),
+        return ZT.withTip(ZT.card(s('when.title'), m('when.aside'),
             el('div', {class: 'zt-heat'}, ZT.heatmap(WEEKDAYS, BANDS, used, key => m('weekday.' + key),
                 key => m('band.' + key), key => m('bandStart', Number(key) * 4))),
-            label(s('when.offHours', ZT.percent(off / total), ZT.count(off), ZT.count(total))),
-            note(m('matrix.caption')));
+            el('div', {class: 'zt-muted', text: s('when.offHours', ZT.percent(off / total), ZT.count(off),
+                ZT.count(total))})), m('matrix.caption'));
     }
 
-    // ----- the ranked lists -----
+    function reasonsCard(side) {
+        const items = side.topReasons || [];
+        if (!items.length) {
+            return ZT.card(s('reasons.title'), m('reasons.aside'), none(s('stopped.none')));
+        }
+        const max = Math.max(...items.map(item => item.count));
+        const rows = el('div', {class: 'zt-reason-rows'}, items.map(item => {
+            const name = ZT.reasonName(item.item);
+            const title = m('reasons.item', ZT.keyLabel('zt.console.reasonGroup.', item.note || 'OTHER'), name);
+            return el('div', {class: 'zt-reason-row', title},
+                el('div', {class: 'zt-reason-head'}, el('span', {class: 'zt-reason-name', text: name}),
+                    el('span', {class: 'zt-reason-value', text: m('countShare', ZT.count(item.count),
+                        ZT.percent(side.stopped > 0 ? item.count / side.stopped : null))})),
+                ZT.bar(item.count, max, {color: C.ACCENT, label: name}));
+        }));
+        return ZT.withTip(ZT.card(s('reasons.title'), m('reasons.aside'), rows), s('reasons.caption'));
+    }
+
+    // ----- where, and how much each user bore -----
+
+    function matrixCard(cells, side) {
+        const used = cells.filter(cell => cell.count > 0);
+        if (!used.length) {
+            return ZT.card(m('matrix.title'), s('matrix.aside'), none(s('stopped.none')));
+        }
+        const rows = keysOf([...new Set(used.map(cell => cell.row))], HYPOTHESES);
+        const columns = keysOf([...new Set(used.map(cell => cell.column))], CLASSES);
+        const body = [el('div', {class: 'zt-heat'}, ZT.heatmap(rows, columns, used, hypothesisName, className))];
+        const classes = keysOf((side.resourceClasses || []).filter(share => share.count > 0).map(share => share.key),
+            CLASSES).map((key, index) => ({label: className(key), count: find(side.resourceClasses, key).count,
+            color: ZT.SERIES[index % ZT.SERIES.length]}));
+        if (classes.length) {
+            body.push(ZT.subhead(m('stopped.classes')), ZT.stacked(classes), ZT.legend(classes.map(part => ({
+                label: m('legendCount', part.label, ZT.count(part.count)), color: part.color}))));
+        }
+        return ZT.withTip(ZT.card(m('matrix.title'), s('matrix.aside'), ...body), m('matrix.caption'));
+    }
+
+    function burdenCard(cost, histogram) {
+        const counts = BURDEN.map(key => find(histogram, key).count);
+        const total = counts.reduce((sum, value) => sum + value, 0);
+        const box = el('div');
+        charts.push(() => ZT.chart(box, 'm', {type: 'bar', label: BURDEN.map((key, index) => m('burden.bucket.' + key)
+            + ' ' + ZT.count(counts[index])).join(', '),
+        data: {labels: BURDEN.map(key => m('burden.bucket.' + key)),
+            datasets: [{label: m('burden.series'), data: counts, backgroundColor: C.ACCENT, borderRadius: 4,
+                maxBarThickness: 56}]}}, total > 0, 'NO_DECISIONS'));
+        const median = cost.burdenMedianPerWeek || {};
+        const top = cost.burdenP95PerWeek || {};
+        return ZT.card(s('burden.title'), m('burden.aside'), box, ZT.valueRows([
+            {label: median.label || '', value: ZT.metricText(median), title: median.description || null},
+            {label: top.label || '', value: ZT.metricText(top), title: top.description || null}]));
+    }
+
+    // ----- the ranked lists, one tab bar -----
 
     function rankedTable(items, name, href) {
         return table([{label: name, fill: true}, {label: s('column.stopped'), num: true},
@@ -258,64 +271,26 @@
             ZT.count((item.byDetail || {}).BLOCK || 0)]);
     }
 
-    function resourcesCard(side) {
-        const items = side.topResources || [];
-        return ZT.card(s('resources.title'), items.length ? m('top.aside', ZT.count(items.length)) : null,
-            items.length ? rankedTable(items, m('column.resource')) : none(s('stopped.none')));
-    }
-
-    function usersCard(side) {
-        const items = side.topUsers || [];
-        return ZT.card(s('users.title'), items.length ? m('top.aside', ZT.count(items.length)) : null,
-            items.length ? rankedTable(items, m('column.user'), item => decisions({q: item.item})) : none(s('stopped.none')));
-    }
-
-    function reasonsCard(side) {
-        const items = side.topReasons || [];
-        if (!items.length) {
-            return ZT.card(s('reasons.title'), m('reasons.aside'), none(s('stopped.none')));
-        }
-        const max = Math.max(...items.map(item => item.count));
-        const rows = el('div', {class: 'zt-criteria'}, items.flatMap(item => {
-            const name = ZT.reasonName(item.item);
-            const title = m('reasons.item', ZT.keyLabel('zt.console.reasonGroup.', item.note || 'OTHER'), name);
-            return [el('span', {text: name, title}), ZT.bar(item.count, max, {color: C.ACCENT, label: name}),
-                el('span', {class: 'zt-num', text: ZT.percent(side.stopped > 0 ? item.count / side.stopped : null)}),
-                el('span', {class: 'zt-num', text: ZT.count(item.count)})];
-        }));
-        return ZT.card(s('reasons.title'), m('reasons.aside'), rows, note(s('reasons.caption')));
-    }
-
-    // ----- the burden on the users -----
-
-    function burdenCard(cost, histogram) {
-        const counts = BURDEN.map(key => find(histogram, key).count);
-        const total = counts.reduce((sum, value) => sum + value, 0);
-        const box = el('div');
-        const body = [];
-        if (total > 0) {
-            body.push(ZT.legend([{label: m('burden.series'), color: C.ACCENT}]));
-        }
-        body.push(box, el('div', {class: 'zt-split'}, minor(cost.burdenMedianPerWeek), minor(cost.burdenP95PerWeek)));
-        charts.push(() => ZT.chart(box, 'm', {type: 'bar', label: BURDEN.map((key, index) => m('burden.bucket.' + key)
-            + ' ' + ZT.count(counts[index])).join(', '),
-        data: {labels: BURDEN.map(key => m('burden.bucket.' + key)),
-            datasets: [{label: m('burden.series'), data: counts, backgroundColor: C.ACCENT}]}}, total > 0,
-        'NO_DECISIONS'));
-        return ZT.card(s('burden.title'), m('burden.aside'), ...body);
-    }
-
-    function challengedCard(users) {
-        if (!users.length) {
-            return ZT.card(s('challenged.title'), null, none(s('funnel.none')));
-        }
-        return ZT.card(s('challenged.title'), m('top.aside', ZT.count(users.length)), table([
-            {label: m('column.user'), fill: true}, {label: s('column.challenges'), num: true},
+    function challengedTable(users) {
+        return table([{label: m('column.user'), fill: true}, {label: s('column.challenges'), num: true},
             {label: m('column.passed'), num: true}, {label: m('column.mainReason'), wide: true},
             {label: m('column.baseline'), wide: true}], users, user => [
             link(decisions({q: user.user, action: 'CHALLENGE'}), user.user), ZT.count(user.challenges),
             ZT.count(user.passed), ZT.reasonName(user.mainReason),
-            user.baseline ? ZT.keyLabel(P + 'baseline.', user.baseline) : '—']));
+            user.baseline ? ZT.keyLabel(P + 'baseline.', user.baseline) : '—']);
+    }
+
+    function listsCard(side, cost) {
+        const users = side.topUsers || [];
+        const resources = side.topResources || [];
+        const challenged = cost.topChallengedUsers || [];
+        return ZT.tabbedCard(m('lists.title'), m('top.aside', ZT.count(Math.max(users.length, resources.length,
+            challenged.length))), [
+            {label: s('users.title'), node: users.length
+                ? rankedTable(users, m('column.user'), item => decisions({q: item.item})) : none(s('stopped.none'))},
+            {label: s('resources.title'), node: resources.length
+                ? rankedTable(resources, m('column.resource')) : none(s('stopped.none'))},
+            {label: s('challenged.title'), node: challenged.length ? challengedTable(challenged) : none(s('funnel.none'))}]);
     }
 
     function render(content, value) {
@@ -328,11 +303,12 @@
         const side = value.stopped || {};
         const cost = value.cost || {};
         content.append(
-            grid(span(stoppedCard(side), 6), span(costCard(cost), 6)),
-            grid(span(matrixCard(value.hypothesisByClass || []), 6), span(whenCard(value.whenStopped || []), 6)),
-            grid(span(resourcesCard(side), 6), span(burdenCard(cost, value.burdenHistogram || []), 6)),
-            grid(span(reasonsCard(side), 6), span(usersCard(side), 6)),
-            grid(span(challengedCard(cost.topChallengedUsers || []), 12)));
+            keyCards(side, cost),
+            grid(span(hypothesesCard(side), 4), span(challengesCard(cost), 4), span(stoppedCard(side, cost), 4)),
+            grid(span(whenCard(value.whenStopped || []), 8), span(reasonsCard(side), 4)),
+            grid(span(matrixCard(value.hypothesisByClass || [], side), 6),
+                span(burdenCard(cost, value.burdenHistogram || []), 6)),
+            listsCard(side, cost));
         // Chart.js sizes a chart from its box, so the charts are drawn once their boxes are on the page.
         drawn = charts.map(draw => draw());
     }

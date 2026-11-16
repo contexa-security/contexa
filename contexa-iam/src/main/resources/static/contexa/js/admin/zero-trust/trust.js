@@ -1,9 +1,9 @@
 /*
- * Zero Trust console, decision trust (console design 6.3): "can the decisions be trusted?". Who set the action (the
- * model, the engine over the model, the engine without the model, and why), whether the evidence was enough (the
- * baseline, the context, the facts the model lacked), how the decisions turned out afterwards (step-ups passed, blocks
- * released, administrator reviews with their 95% ranges), the answers' quality and how each prompt bundle and model
- * decided.
+ * Zero Trust console, decision trust (console design 6.3): "can the decisions be trusted?". Drawn as the admin
+ * dashboard draws: four key cards (the model set the action, the baseline was known, the administrators judged it
+ * right, the owner passed the step-up), then who set the action and why, how the decisions turned out, whether the
+ * evidence was enough (the baseline, the context, the facts the model lacked) and the answers' quality beside each
+ * prompt bundle and model. A definition or a caption is a tooltip.
  */
 (function (ZT) {
     'use strict';
@@ -48,14 +48,6 @@
         return ZT.consoleLink('/decisions', params);
     }
 
-    function note(text) {
-        return el('div', {class: 'zt-metric-definition', text});
-    }
-
-    function label(text) {
-        return el('div', {class: 'zt-metric-label', text});
-    }
-
     function none(text) {
         return decided ? ZT.emptyNote(text) : ZT.empty('NO_DECISIONS');
     }
@@ -85,51 +77,40 @@
             noDataReason: whole > 0 ? null : 'NO_DECISIONS'};
     }
 
-    /** A ring of a ratio beside its number: the arc is the numerator's share of the denominator. */
-    function ringTile(title, metric, node, color, ...below) {
-        if (!metric || metric.value == null) {
-            return ZT.card(title, null, node, ...below);
-        }
-        const ring = ZT.donut([{label: metric.label, count: metric.numerator, color},
-            {label: m('ring.rest'), count: Math.max(0, metric.denominator - metric.numerator), color: C.TRACK}],
-        {label: metric.label + ' ' + ZT.metricText(metric)});
-        return ZT.card(title, null, el('div', {class: 'zt-split'},
-            el('div', {class: 'zt-chart zt-chart-s'}, ring), node), ...below);
+    function rangeText(range) {
+        return range && range.metric && range.metric.value != null && range.lower95 != null
+            ? t('zt.console.ui.range95', ZT.percent(range.lower95, 0), ZT.percent(range.upper95, 0), ZT.count(range.sample))
+            : null;
     }
 
-    // ----- the three key numbers -----
+    // ----- the four key cards -----
 
-    function modelTile(source) {
-        return ringTile(m('model.title'), source.model, ZT.metric(source.model), C.GOOD);
+    function keyCards(source, evidence, outcomes) {
+        const baseline = shareMetric('baselineEstablished', find(evidence.baseline, 'ESTABLISHED'), decided);
+        const review = outcomes.reviewValid && outcomes.reviewValid.metric;
+        const pass = outcomes.challengePass && outcomes.challengePass.metric;
+        return ZT.kpiRow(
+            ZT.kpiMetric(source.model, {tone: 'green', icon: 'fa-robot', href: decisions({source: 'MODEL'}),
+                sub: m('kpi.model.sub', ZT.metricText(source.engineChanged), ZT.metricText(source.modelLess))}),
+            ZT.kpiMetric(baseline, {tone: 'teal', icon: 'fa-user-shield',
+                sub: m('baseline.users', ZT.count(evidence.usersEstablished), ZT.count(evidence.users))}),
+            ZT.kpiMetric(review, {tone: 'indigo', icon: 'fa-clipboard-check',
+                sub: rangeText(outcomes.reviewValid) || m('outcomes.pending', ZT.count(outcomes.reviewPending)),
+                href: ZT.consoleLink('/decisions', {view: 'review'})}),
+            ZT.kpiMetric(pass, {tone: 'purple', icon: 'fa-user-check',
+                sub: m('kpi.release.sub', ZT.metricText(outcomes.blockRelease && outcomes.blockRelease.metric)),
+                href: decisions({action: 'CHALLENGE', outcome: 'CHALLENGE_PASSED'})}));
     }
 
-    function baselineTile(evidence) {
-        const metric = shareMetric('baselineEstablished', find(evidence.baseline, 'ESTABLISHED'), decided);
-        const parts = BASELINES.map(key => ({label: ZT.keyLabel(P + 'baseline.', key), count: find(evidence.baseline, key).count,
-            color: BASELINE_COLORS[key]})).filter(part => part.count > 0);
-        const below = [label(m('baseline.users', ZT.count(evidence.usersEstablished), ZT.count(evidence.users)))];
-        if (decided > 0) {
-            below.push(ZT.stacked(parts), ZT.legend(parts.map(part => ({label: m('legendShare', part.label,
-                ZT.percent(part.count / decided)), color: part.color}))));
-        }
-        return ringTile(m('baseline.title'), metric, ZT.metric(metric), C.GOOD, ...below);
-    }
-
-    function reviewTile(outcomes) {
-        const range = outcomes.reviewValid;
-        return ringTile(m('review.title'), range && range.metric, ZT.ranged(range), C.GOOD,
-            note(m('review.how')));
-    }
-
-    // ----- who set the action -----
+    // ----- who set the action, and why -----
 
     function causeRows(shares, whole) {
         const items = (shares || []).filter(share => share.count > 0);
         if (!items.length) {
-            return note(m('source.noCause'));
+            return ZT.emptyNote(m('source.noCause'));
         }
-        return ZT.rows(items, share => [el('span', {text: ZT.causeName(share.key, P + 'cause.'), title: share.key}),
-            el('span', {text: countShare(share.count, whole)})]);
+        return ZT.valueRows(items.map(share => ({label: ZT.causeName(share.key, P + 'cause.'), title: share.key,
+            value: countShare(share.count, whole)})));
     }
 
     function sourceCard(source) {
@@ -137,49 +118,81 @@
         if (!whole) {
             return ZT.card(m('source.title'), null, ZT.empty(source.model ? source.model.noDataReason : 'NO_DECISIONS'));
         }
-        const parts = [{metric: source.model, color: C.GOOD}, {metric: source.engineChanged, color: C.WARN},
-            {metric: source.modelLess, color: C.BAD}].map(part => ({label: part.metric.label,
-            count: part.metric.numerator || 0, color: part.color, text: ZT.metricText(part.metric)}));
-        const engine = el('div', {class: 'zt-tile'}, el('div', {class: 'zt-card-body'},
-            ZT.metric(source.engineChanged, {small: true}), label(m('source.engineCauses')),
-            causeRows(source.engineCauses, source.engineChanged.numerator),
-            link(decisions({source: 'ENGINE_CHANGED'}), m('source.engineLink'))));
-        const modelLess = el('div', {class: 'zt-tile'}, el('div', {class: 'zt-card-body'},
-            ZT.metric(source.modelLess, {small: true}), label(m('source.modelLessCauses')),
-            causeRows(source.modelLessCauses, source.modelLess.numerator),
-            link(decisions({source: 'MODEL_LESS', action: 'BLOCK'}), s('source.modelLessBlocks',
-                ZT.count(source.modelLessBlocks))),
-            link(decisions({source: 'MODEL_LESS'}), m('source.modelLessLink'))));
+        const parts = [{metric: source.model, color: C.GOOD, href: decisions({source: 'MODEL'})},
+            {metric: source.engineChanged, color: C.WARN, href: decisions({source: 'ENGINE_CHANGED'})},
+            {metric: source.modelLess, color: C.BAD, href: decisions({source: 'MODEL_LESS'})}]
+            .map(part => ({label: part.metric.label, count: part.metric.numerator || 0, color: part.color,
+                text: ZT.metricText(part.metric), href: part.href, title: part.metric.description}));
         return ZT.card(m('source.title'), m('source.aside', ZT.count(whole)), ZT.stacked(parts),
-            ZT.legend(parts.map(part => ({label: m('legendShare', part.label, part.text), color: part.color}))),
-            grid(span(engine, 6), span(modelLess, 6)));
+            ZT.valueRows(parts.map(part => ({label: part.label, color: part.color, value: part.text, href: part.href,
+                title: part.title}))),
+            ZT.subhead(m('source.engineCauses')), causeRows(source.engineCauses, source.engineChanged.numerator),
+            ZT.subhead(m('source.modelLessCauses')), causeRows(source.modelLessCauses, source.modelLess.numerator),
+            el('div', {class: 'zt-card-foot'}, link(decisions({source: 'MODEL_LESS', action: 'BLOCK'}),
+                s('source.modelLessBlocks', ZT.count(source.modelLessBlocks)))));
+    }
+
+    // ----- how the decisions turned out -----
+
+    function outcomesCard(outcomes) {
+        const reasons = keysOf(outcomes.invalidReasons, INVALID).map(key => find(outcomes.invalidReasons, key))
+            .filter(share => share.count > 0);
+        const metricRow = (range, href) => {
+            const metric = (range && range.metric) || {};
+            return {label: metric.label || '', value: ZT.metricText(metric), href,
+                title: [metric.description, rangeText(range)].filter(Boolean).join(' · ') || null};
+        };
+        const body = [ZT.valueRows([metricRow(outcomes.challengePass,
+            decisions({action: 'CHALLENGE', outcome: 'CHALLENGE_PASSED'})),
+        metricRow(outcomes.blockRelease, decisions({action: 'BLOCK', outcome: 'ADMIN_RELEASED'})),
+        metricRow(outcomes.reviewValid, ZT.consoleLink('/decisions', {view: 'review'}))])];
+        const range = outcomes.reviewValid;
+        if (range && range.metric && range.metric.value != null && range.lower95 != null) {
+            body.push(ZT.subhead(m('outcomes.reviewRange'), rangeText(range)),
+                ZT.bar(range.metric.value, 1, {lower: range.lower95, upper: range.upper95, color: C.GOOD,
+                    label: ZT.metricText(range.metric) + ', ' + rangeText(range)}));
+        }
+        body.push(ZT.subhead(m('outcomes.invalidTitle')), reasons.length
+            ? ZT.valueRows(reasons.map(share => ({label: ZT.keyLabel(P + 'invalid.', share.key),
+                value: m('countShareRatio', ZT.count(share.count), ZT.percent(share.ratio))})))
+            : ZT.emptyNote(m('outcomes.invalidNone')));
+        return ZT.withTip(ZT.card(m('outcomes.title'), m('outcomes.pending', ZT.count(outcomes.reviewPending)), ...body),
+            [m('outcomes.challengeNote'), m('review.how')].join(' '));
     }
 
     // ----- was the evidence enough -----
+
+    function baselineCard(evidence) {
+        const parts = BASELINES.map(key => ({key, label: ZT.keyLabel(P + 'baseline.', key),
+            count: find(evidence.baseline, key).count, color: BASELINE_COLORS[key]}))
+            .filter(part => part.count > 0 || part.key !== 'UNKNOWN');
+        if (!decided) {
+            return ZT.card(m('baseline.title'), null, ZT.empty('NO_DECISIONS'));
+        }
+        return ZT.card(m('baseline.title'), m('baseline.users', ZT.count(evidence.usersEstablished), ZT.count(evidence.users)),
+            ZT.stacked(parts), ZT.valueRows(parts.map(part => ({label: part.label, color: part.color,
+                value: countShare(part.count, decided)}))));
+    }
 
     function contextCard(evidence) {
         // A level nothing recorded is left out only when no decision lacks its level.
         const items = keysOf(evidence.context, CONTEXTS).map(key => find(evidence.context, key))
             .filter(share => share.key !== 'UNKNOWN' || share.count > 0);
         const box = el('div');
-        const body = [];
+        const body = [box];
         if (decided > 0) {
-            body.push(ZT.legend([{label: m('context.series'), color: C.ACCENT}]));
-        }
-        body.push(box);
-        if (decided > 0) {
-            body.push(ZT.rows(items, share => [el('span', {text: m('context.hintLine',
-                ZT.keyLabel(P + 'context.', share.key), ZT.keyLabel(P + 'context.hint.', share.key))}),
-            el('span', {text: countShare(share.count, decided)})]), note(m('context.note')));
+            body.push(ZT.valueRows(items.map(share => ({label: ZT.keyLabel(P + 'context.', share.key),
+                title: ZT.keyLabel(P + 'context.hint.', share.key), value: countShare(share.count, decided)}))));
         }
         charts.push(() => ZT.chart(box, 'm', {type: 'bar', label: items.map(share => ZT.keyLabel(P + 'context.', share.key)
             + ' ' + ZT.percent(share.ratio)).join(', '),
         data: {labels: items.map(share => ZT.keyLabel(P + 'context.', share.key)),
-            datasets: [{label: m('context.series'), data: items.map(share => share.ratio), backgroundColor: C.ACCENT}]},
+            datasets: [{label: m('context.series'), data: items.map(share => share.ratio), backgroundColor: C.ACCENT,
+                borderRadius: 4, maxBarThickness: 56}]},
         axes: {y: {max: 1}, yFormat: value => ZT.percent(value, 0)},
         options: {plugins: {tooltip: {callbacks: {label: item => m('context.tooltip', ZT.percent(item.raw),
             ZT.count(items[item.dataIndex].count))}}}}}, decided > 0, 'NO_DECISIONS'));
-        return ZT.card(m('context.title'), m('context.aside'), ...body);
+        return ZT.withTip(ZT.card(m('context.title'), m('context.aside'), ...body), m('context.note'));
     }
 
     /** What to do about a fact the model lacked: connect it, or look at what could not fetch it. */
@@ -187,7 +200,7 @@
         if (reason === 'UNAVAILABLE_NOW') {
             return link(ZT.consoleLink('/operations'), m('unknown.operationsLink'));
         }
-        return reason === 'NOT_INTEGRATED' ? note(m('unknown.integrateHint')) : null;
+        return reason === 'NOT_INTEGRATED' ? el('span', {class: 'zt-muted', text: m('unknown.integrateHint')}) : '—';
     }
 
     function unknownCard(evidence) {
@@ -195,48 +208,26 @@
         if (!facts.length) {
             return ZT.card(m('unknown.title'), m('unknown.aside'), none(m('unknown.none')));
         }
-        const tiles = facts.map(fact => span(el('div', {class: 'zt-tile'}, el('div', {class: 'zt-card-body'},
-            ZT.rows([fact], item => [el('span', {text: ZT.factName(item.fact), title: item.fact}),
-                el('span', {text: m('decisionsCount', ZT.count(item.decisions))})]),
-            label(ZT.keyLabel(P + 'unknownReason.', fact.reason || 'UNKNOWN')), unknownNext(fact.reason))), 4));
-        return ZT.card(m('unknown.title'), m('unknown.aside'), grid(...tiles));
-    }
-
-    // ----- how the decisions turned out -----
-
-    function reviewRange(range) {
-        if (!range || !range.metric || range.metric.value == null || range.lower95 == null) {
-            return [];
-        }
-        const text = t('zt.console.ui.range95', ZT.percent(range.lower95, 0), ZT.percent(range.upper95, 0),
-            ZT.count(range.sample));
-        return [label(m('outcomes.reviewRange')),
-            ZT.bar(range.metric.value, 1, {lower: range.lower95, upper: range.upper95, color: C.GOOD,
-                label: ZT.metricText(range.metric) + ', ' + text}),
-            ZT.rows([[ZT.percent(0, 0), ZT.percent(1, 0)]], ends => [el('span', {text: ends[0]}),
-                el('span', {text: ends[1]})])];
-    }
-
-    function outcomesCard(outcomes) {
-        const reasons = keysOf(outcomes.invalidReasons, INVALID).map(key => find(outcomes.invalidReasons, key))
-            .filter(share => share.count > 0);
-        const body = [ZT.ranged(outcomes.challengePass, {small: true}), note(m('outcomes.challengeNote')),
-            ZT.ranged(outcomes.blockRelease, {small: true})].concat(reviewRange(outcomes.reviewValid));
-        body.push(label(m('outcomes.invalidTitle')), reasons.length
-            ? ZT.rows(reasons, share => [el('span', {text: ZT.keyLabel(P + 'invalid.', share.key)}),
-                el('span', {text: m('countShareRatio', ZT.count(share.count), ZT.percent(share.ratio))})])
-            : note(m('outcomes.invalidNone')));
-        const card = ZT.card(m('outcomes.title'), m('outcomes.aside'), ...body);
-        card.append(el('div', {class: 'zt-card-foot'}, label(m('outcomes.pending', ZT.count(outcomes.reviewPending)))));
-        return card;
+        const head = el('tr', {}, el('th', {scope: 'col', text: m('unknown.column.fact')}),
+            el('th', {scope: 'col', text: m('unknown.column.reason')}),
+            el('th', {scope: 'col', class: 'zt-num', text: m('unknown.column.decisions')}),
+            el('th', {scope: 'col', class: 'zt-wide', text: m('unknown.column.next')}));
+        const body = el('tbody', {}, facts.map(fact => el('tr', {},
+            el('td', {class: 'zt-fill', title: fact.fact, text: ZT.factName(fact.fact)}),
+            el('td', {text: ZT.keyLabel(P + 'unknownReason.', fact.reason || 'UNKNOWN')}),
+            el('td', {class: 'zt-num', text: ZT.count(fact.decisions)}),
+            el('td', {class: 'zt-wide'}, unknownNext(fact.reason)))));
+        return ZT.card(m('unknown.title'), m('unknown.aside'), el('div', {class: 'modern-table zt-table-wrap'},
+            el('table', {class: 'zt-table'}, el('thead', {}, head), body)));
     }
 
     // ----- the answers' quality and what changed -----
 
     function qualityCard(quality) {
-        return ZT.card(m('quality.title'), null, ZT.metric(quality.corrected, {small: true}),
-            ZT.metric(quality.formatFallback, {small: true}), ZT.metric(quality.contractFallback, {small: true}),
-            note(m('quality.note')));
+        const row = metric => ({label: (metric || {}).label || '', value: ZT.metricText(metric),
+            title: (metric || {}).description || null});
+        return ZT.withTip(ZT.card(m('quality.title'), null, ZT.valueRows([row(quality.corrected),
+            row(quality.formatFallback), row(quality.contractFallback)])), m('quality.note'));
     }
 
     function named(value) {
@@ -274,8 +265,8 @@
                 el('td', {class: 'zt-num'}, ratioCell(row.stoppedRatio, row.decisions)),
                 el('td', {class: 'zt-num zt-wide'}, ratioCell(row.modelLessRatio, row.decisions)));
         }));
-        return ZT.card(m('changes.title'), m('changes.aside'), el('div', {class: 'zt-table-wrap'},
-            el('table', {class: 'zt-table'}, el('thead', {}, head), body)), note(m('changes.note')));
+        return ZT.withTip(ZT.card(m('changes.title'), m('changes.aside'), el('div', {class: 'modern-table zt-table-wrap'},
+            el('table', {class: 'zt-table'}, el('thead', {}, head), body))), m('changes.note'));
     }
 
     function render(content, value) {
@@ -289,11 +280,11 @@
         const evidence = value.evidence || {};
         const outcomes = value.outcomes || {};
         content.append(
-            grid(span(modelTile(source), 4), span(baselineTile(evidence), 4), span(reviewTile(outcomes), 4)),
-            grid(span(sourceCard(source), 12)),
-            grid(span(contextCard(evidence), 6), span(outcomesCard(outcomes), 6)),
-            grid(span(unknownCard(evidence), 12)),
-            grid(span(qualityCard(value.quality || {}), 6), span(changesCard(value.changes || []), 6)));
+            keyCards(source, evidence, outcomes),
+            grid(span(sourceCard(source), 6), span(outcomesCard(outcomes), 6)),
+            grid(span(baselineCard(evidence), 4), span(contextCard(evidence), 8)),
+            unknownCard(evidence),
+            grid(span(qualityCard(value.quality || {}), 4), span(changesCard(value.changes || []), 8)));
         // Chart.js sizes a chart from its box, so the charts are drawn once their boxes are on the page.
         drawn = charts.map(draw => draw());
     }

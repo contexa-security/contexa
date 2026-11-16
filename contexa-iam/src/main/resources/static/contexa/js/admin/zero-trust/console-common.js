@@ -266,7 +266,7 @@
             return;
         }
         const mode = value.mode || '';
-        band.append(el('span', {class: 'zt-mode', 'data-mode': mode},
+        band.append(el('span', {class: 'status-badge zt-mode', 'data-mode': mode},
             (mode === 'ENFORCE' ? '● ' : mode === 'SHADOW' ? '◐ ' : '○ ') + t('zt.console.ui.mode.' + (mode || 'NONE')),
             value.modeSince ? ' · ' + t('zt.console.ui.since', day(value.modeSince)) : ''));
         band.append(el('span', {text: t('zt.console.ui.band.decisions', count(value.decisions))}));
@@ -277,7 +277,10 @@
         if (value.models && value.models.length) {
             band.append(el('span', {text: t('zt.console.ui.band.model', value.models[0].key)}));
         }
-        band.append(el('span', {class: 'zt-band-note', text: t('zt.console.ui.band.note')}));
+        // How the decisions are counted is the band's tooltip, not a sentence on every screen.
+        band.append(el('span', {class: 'zt-band-info', title: t('zt.console.ui.band.note'), tabindex: '0',
+            role: 'note', 'aria-label': t('zt.console.ui.band.note')}, el('i', {class: 'fas fa-info-circle',
+            'aria-hidden': 'true'})));
         if (mode === 'SHADOW') {
             band.append(el('span', {class: 'zt-band-note', text: t('zt.console.ui.band.shadow')}));
         }
@@ -289,7 +292,7 @@
     // ----- cards -----
 
     function card(title, aside, ...body) {
-        const node = el('section', {class: 'zt-card'});
+        const node = el('section', {class: 'dash-card zt-card'});
         const head = el('div', {class: 'zt-card-head'}, el('h2', {text: title}));
         if (aside) {
             head.append(el('span', {class: 'zt-aside', text: aside}));
@@ -298,17 +301,18 @@
         return node;
     }
 
+    /** No value: the policy center's empty state, "—" and the reason under its icon. */
     function empty(reasonCode) {
-        return el('div', {class: 'zt-empty', role: 'note'}, el('strong', {text: '—'}),
-            el('span', {text: reason(reasonCode || 'NO_DECISIONS')}));
+        return el('div', {class: 'pc-empty', role: 'note'}, el('i', {class: 'fas fa-inbox', 'aria-hidden': 'true'}),
+            el('p', {text: '— ' + reason(reasonCode || 'NO_DECISIONS')}));
     }
 
     function chip(action, text) {
-        return el('span', {class: 'zt-chip', 'data-action': action, text: text || t('zt.console.ui.action.' + action)});
+        return el('span', {class: 'status-badge zt-chip', 'data-action': action, text: text || t('zt.console.ui.action.' + action)});
     }
 
     function statusChip(status, text) {
-        return el('span', {class: 'zt-chip', 'data-status': status, text: text || t('zt.console.ui.status.' + status)});
+        return el('span', {class: 'status-badge zt-chip', 'data-status': status, text: text || t('zt.console.ui.status.' + status)});
     }
 
     function rows(items, render) {
@@ -334,7 +338,7 @@
         defaults.responsive = true;
         defaults.animation = false;
         defaults.plugins.legend.display = false;
-        defaults.plugins.tooltip.backgroundColor = '#0b1220';
+        defaults.plugins.tooltip.backgroundColor = '#0f172a';
         defaults.plugins.tooltip.borderColor = COLORS.BORDER;
         defaults.plugins.tooltip.borderWidth = 1;
         defaults.layout.padding = {top: PADDING.top, right: PADDING.right, bottom: 0, left: 0};
@@ -533,7 +537,7 @@
             body.append(line);
         });
         table.append(body);
-        return el('div', {class: 'zt-table-wrap'}, table);
+        return el('div', {class: 'modern-table zt-table-wrap'}, table);
     }
 
     /** The time a decision took, stage after stage: each bar starts where the previous ended. */
@@ -556,8 +560,9 @@
     }
 
     function failed(container, error) {
-        container.replaceChildren(el('div', {class: 'zt-empty', role: 'alert'}, el('strong', {text: '—'}),
-            el('span', {text: t('zt.console.ui.loadFailed', error && error.message ? error.message : '')})));
+        container.replaceChildren(el('div', {class: 'pc-empty', role: 'alert'},
+            el('i', {class: 'fas fa-exclamation-triangle', 'aria-hidden': 'true'}),
+            el('p', {text: '— ' + t('zt.console.ui.loadFailed', error && error.message ? error.message : '')})));
     }
 
     /** The terms of the console, the business word beside the engine's (design principle 6). */
@@ -575,8 +580,26 @@
             list.append(el('dt', {text: t('zt.console.glossary.' + term + '.label')}),
                 el('dd', {text: t('zt.console.glossary.' + term + '.help')}));
         });
-        return el('details', {class: 'zt-glossary'}, el('summary', {class: 'zt-button',
-            text: t('zt.console.glossary.title')}), list);
+        return el('details', {class: 'zt-glossary'}, el('summary', {class: 'modern-btn-secondary'},
+            el('i', {class: 'fas fa-book', 'aria-hidden': 'true'}), t('zt.console.glossary.title')), list);
+    }
+
+    /** The parameters the tab bar's links keep, so another screen opens on the same period and tenant. */
+    const TAB_KEPT = ['period', 'from', 'to', 'tenant'];
+
+    function keepPeriodOnTabs(root) {
+        const params = query();
+        root.querySelectorAll('a[data-zt-tab]').forEach(link => {
+            const target = new URL(link.getAttribute('href'), global.location.origin);
+            TAB_KEPT.forEach(name => {
+                if (params.get(name)) {
+                    target.searchParams.set(name, params.get(name));
+                } else {
+                    target.searchParams.delete(name);
+                }
+            });
+            link.setAttribute('href', target.pathname + target.search);
+        });
     }
 
     /** Starts a screen: its band, its period buttons and its render, again on each change of the period. */
@@ -588,8 +611,9 @@
         const toolbar = root ? root.querySelector('.zt-toolbar') : null;
         // Console plan 5-2 ⑥: a screen of numbers gives them as a CSV of its period, as the AI monitor's tabs did.
         const screen = root ? root.dataset.screen : null;
-        const csv = CSV_SCREENS.includes(screen) ? el('a', {class: 'zt-button', text: t('zt.console.ui.csv'),
-            title: t('zt.console.ui.csvTitle')}) : null;
+        const csv = CSV_SCREENS.includes(screen) ? el('a', {class: 'modern-btn-secondary',
+            title: t('zt.console.ui.csvTitle')}, el('i', {class: 'fas fa-download', 'aria-hidden': 'true'}),
+            t('zt.console.ui.csv')) : null;
         if (toolbar && csv && !toolbar.querySelector('.zt-screen-csv')) {
             csv.classList.add('zt-screen-csv');
             toolbar.append(csv);
@@ -600,6 +624,9 @@
         const draw = async () => {
             if (csv) {
                 csv.setAttribute('href', apiUrl('/' + screen + '.csv'));
+            }
+            if (root) {
+                keepPeriodOnTabs(root);
             }
             try {
                 const value = await load(path);
@@ -836,4 +863,112 @@
 
     ZT.hypothesisBoard = hypothesisBoard;
     ZT.compact = compact;
+})(window);
+
+/*
+ * Zero Trust console: the admin dashboard's parts, shared by every screen so they read alike. The key cards (the
+ * dashboard's gradient cards: a name, an icon, the number, one line under it and an optional daily trend), the rows of
+ * a value (a dot or a badge, a name, a value, a link), the donut with its total in the centre and its rows, and a card
+ * whose views switch with the tab bar of the policy center. A definition is a tooltip, never a sentence on the screen.
+ */
+(function (global) {
+    'use strict';
+
+    const ZT = global.ZT;
+    if (!ZT) {
+        return;
+    }
+    const el = ZT.el;
+    const SPARK = 'rgba(255, 255, 255, 0.85)';
+
+    /**
+     * A key card. options: tone (indigo, purple, teal, green, amber, red), icon (a Font Awesome name), label, value
+     * (its text), sub (the line under it), title (the definition, a tooltip), href, trend (daily values for the line).
+     */
+    function kpi(options) {
+        const card = el(options.href ? 'a' : 'div', {class: 'zt-kpi', 'data-tone': options.tone || 'indigo',
+            href: options.href || null, title: options.title || null},
+            el('div', {class: 'zt-kpi-head'}, el('span', {class: 'zt-kpi-label', text: options.label || ''}),
+                el('i', {class: 'fas ' + (options.icon || 'fa-chart-line'), 'aria-hidden': 'true'})),
+            el('div', {class: 'zt-kpi-value', text: options.value == null ? '—' : options.value}),
+            el('div', {class: 'zt-kpi-sub', text: options.sub || ''}));
+        const trend = options.trend || [];
+        if (trend.filter(point => point != null).length >= 2) {
+            card.append(el('div', {class: 'zt-kpi-spark'}, ZT.sparkline(trend,
+                {label: options.trendLabel || options.label || '', color: SPARK})));
+        }
+        return card;
+    }
+
+    /** A key card of a console metric: its label, its value or "—", its definition or its no-data reason as tooltip. */
+    function kpiMetric(metric, options) {
+        const value = metric || {};
+        const missing = value.value == null;
+        return kpi(Object.assign({label: value.label, value: ZT.metricText(value),
+            title: missing && value.noDataReason ? ZT.reason(value.noDataReason) : value.description,
+            sub: missing ? ZT.reason(value.noDataReason || 'NO_DECISIONS') : options.sub}, options,
+        missing ? {sub: ZT.reason(value.noDataReason || 'NO_DECISIONS')} : {}));
+    }
+
+    function kpiRow(...cards) {
+        return el('div', {class: 'zt-kpi-row'}, ...cards.filter(Boolean));
+    }
+
+    /**
+     * Rows of a value. Each row: label, value, and optionally color (a dot), chip (a badge node instead of the label),
+     * href (the row opens it), title (a tooltip).
+     */
+    function valueRows(rows) {
+        return el('div', {class: 'zt-result-rows'}, rows.map(row => el(row.href ? 'a' : 'div', {class: 'zt-result-row',
+            href: row.href || null, title: row.title || null},
+            row.chip ? row.chip : el('span', {class: 'zt-result-name'},
+                row.color ? el('span', {class: 'zt-dot', style: {background: row.color}}) : null, row.label),
+            el('span', {class: 'zt-result-value', text: row.value}))));
+    }
+
+    /** A small heading inside a card, between groups of rows. */
+    function subhead(text, title) {
+        return el('div', {class: 'zt-subhead', text, title: title || null});
+    }
+
+    /** The donut with the total in its centre, and its parts as rows under it. */
+    function donutBlock(parts, total, caption, rowOf) {
+        const ring = el('div', {class: 'zt-donut'}, ZT.donut(parts, {label: caption}),
+            el('div', {class: 'zt-donut-centre'}, el('div', {class: 'zt-donut-value', text: ZT.count(total)}),
+                el('div', {class: 'zt-donut-caption', text: caption})));
+        return el('div', {class: 'zt-result'}, ring, valueRows(parts.map(rowOf)));
+    }
+
+    /** A card whose views switch with a tab bar; the first view shows first. */
+    function tabbedCard(title, aside, views) {
+        const bar = el('div', {class: 'zt-tabs', role: 'tablist'});
+        const holder = el('div', {class: 'zt-card-body'});
+        const buttons = views.map((view, index) => {
+            const button = el('button', {type: 'button', role: 'tab', 'aria-selected': String(index === 0),
+                text: view.label});
+            button.addEventListener('click', () => {
+                buttons.forEach(other => other.setAttribute('aria-selected', String(other === button)));
+                holder.replaceChildren(view.node);
+            });
+            bar.append(button);
+            return button;
+        });
+        holder.append(views.length ? views[0].node : ZT.empty('NO_DECISIONS'));
+        return ZT.card(title, aside, bar, holder);
+    }
+
+    /** A card's head aside with its definition as tooltip and an info mark. */
+    function withTip(card, text) {
+        if (!text) {
+            return card;
+        }
+        const head = card.querySelector('.zt-card-head');
+        if (head) {
+            head.append(el('span', {class: 'zt-band-info', title: text, tabindex: '0', role: 'note', 'aria-label': text},
+                el('i', {class: 'fas fa-info-circle', 'aria-hidden': 'true'})));
+        }
+        return card;
+    }
+
+    Object.assign(ZT, {kpi, kpiMetric, kpiRow, valueRows, subhead, donutBlock, tabbedCard, withTip});
 })(window);

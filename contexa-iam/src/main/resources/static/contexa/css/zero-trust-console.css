@@ -1,34 +1,27 @@
 /*
- * Zero Trust console (console plan 1.1, 1.2, 1.3). Every spacing, radius, type size and colour is a token of :root;
- * no other value is used below.
+ * Zero Trust console. The page is drawn with the admin console's own components, as the policy center and the
+ * dashboard draw theirs: the page card, the gradient title, the tab bar, the filter box, the buttons, the inputs and
+ * the table come from policy-center.css (modern-card, pc-header-gradient, pc-tab-nav, filter-container, modern-btn-*,
+ * modern-input, modern-select, modern-table, status-badge, pc-empty). This file only adds what the admin console has
+ * no component for (the 12-column grid of cards, the metrics, the charts and the bars), in the admin console's colours,
+ * type sizes and spacing. The colour names below are the admin palette the charts read; no other colour is used.
  */
 :root {
-    --zt-space-1: 4px;
-    --zt-space-2: 8px;
-    --zt-space-3: 12px;
-    --zt-space-4: 16px;
-    --zt-space-5: 24px;
-    --zt-space-6: 32px;
+    --zt-text: #e2e8f0;
+    --zt-text-strong: #ffffff;
+    --zt-muted: #94a3b8;
+    --zt-dim: #64748b;
+    --zt-border: rgba(71, 85, 105, 0.3);
+    --zt-track: rgba(71, 85, 105, 0.3);
+    --zt-accent: #818cf8;
 
-    --zt-page-padding: var(--zt-space-5);
-    --zt-section-gap: var(--zt-space-5);
-    --zt-card-gap: var(--zt-space-4);
-    --zt-card-padding: 20px;
-    --zt-card-title-gap: var(--zt-space-3);
-    --zt-grid-gap: var(--zt-space-4);
-
-    --zt-radius-card: 12px;
-    --zt-radius-chip: 6px;
-
-    --zt-font-12: 12px;
-    --zt-font-13: 13px;
-    --zt-font-14: 14px;
-    --zt-font-16: 16px;
-    --zt-font-20: 20px;
-    --zt-font-26: 26px;
-    --zt-line-body: 1.5;
-    --zt-line-number: 1.2;
-    --zt-title-line: 24px;
+    --zt-allow: #4ade80;
+    --zt-challenge: #fbbf24;
+    --zt-escalate: #a78bfa;
+    --zt-block: #f87171;
+    --zt-good: #4ade80;
+    --zt-warn: #fbbf24;
+    --zt-bad: #f87171;
 
     --zt-chart-s: 160px;
     --zt-chart-m: 200px;
@@ -36,133 +29,97 @@
 
     /* The widest a text cell beside a table's fill column grows before it cuts its words. */
     --zt-cell-max: 160px;
-
-    --zt-bg: #0b1220;
-    --zt-card: #121c30;
-    --zt-card-sunk: #0f1830;
-    --zt-border: #23304a;
-    --zt-text: #e5e7eb;
-    --zt-text-strong: #ffffff;
-    --zt-muted: #9aa7bd;
-    --zt-track: #1c2a48;
-
-    --zt-allow: #34d399;
-    --zt-challenge: #fbbf24;
-    --zt-escalate: #a78bfa;
-    --zt-block: #f87171;
-    --zt-allow-bg: #0f2e24;
-    --zt-challenge-bg: #33270a;
-    --zt-escalate-bg: #241a3d;
-    --zt-block-bg: #3a1518;
-
-    --zt-good: #6ee7b7;
-    --zt-warn: #fcd34d;
-    --zt-bad: #fca5a5;
-    --zt-good-bg: #0f2e24;
-    --zt-warn-bg: #33270a;
-    --zt-bad-bg: #3a1518;
-
-    --zt-accent: #a5b4fc;
-    --zt-shadow-mode: #93c5fd;
-    --zt-shadow-mode-bg: #142a4a;
 }
+
+/* ----- the page: the policy center's card, title, tab bar and filter box ----- */
 
 .zt-page {
-    background: var(--zt-bg);
     color: var(--zt-text);
-    font-size: var(--zt-font-14);
-    line-height: var(--zt-line-body);
-    padding: var(--zt-page-padding);
-    box-sizing: border-box;
+    font-size: 0.875rem;
+    line-height: 1.5;
     min-width: 0;
-}
-
-@media (min-width: 1440px) {
-    .zt-page {
-        --zt-page-padding: var(--zt-space-6);
-    }
 }
 
 .zt-page *, .zt-page *::before, .zt-page *::after {
     box-sizing: border-box;
 }
 
-.zt-stack {
-    display: flex;
-    flex-direction: column;
-    gap: var(--zt-section-gap);
-    width: 100%;
-    max-width: 1280px;
-    margin: 0 auto;
-    min-width: 0;
-}
-
-/* ----- the band above every screen (6.0) ----- */
-
-.zt-header {
+.zt-title-row {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: flex-end;
-    gap: var(--zt-space-3);
-}
-
-.zt-header-eyebrow {
-    font-size: var(--zt-font-12);
-    color: var(--zt-muted);
-}
-
-.zt-header h1 {
-    margin: var(--zt-space-1) 0 0;
-    font-size: var(--zt-font-26);
-    line-height: var(--zt-line-number);
-    font-weight: 700;
-    color: var(--zt-text-strong);
-}
-
-.zt-header-question {
-    margin: var(--zt-space-2) 0 0;
-    font-size: var(--zt-font-14);
-    color: var(--zt-muted);
+    gap: 1rem;
 }
 
 .zt-toolbar {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--zt-space-2);
+    gap: 0.5rem;
     align-items: center;
 }
 
+/* Six screens share the bar; on a narrower screen the tabs take a second row instead of a scroll. */
+.zt-tab-nav {
+    flex-wrap: wrap;
+}
+
+.zt-band-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.5rem;
+}
+
+.zt-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    width: 100%;
+    min-width: 0;
+}
+
+/* The period: the pills of the security event log's period bar. */
 .zt-period {
     display: inline-flex;
-    border: 1px solid var(--zt-border);
-    border-radius: var(--zt-radius-chip);
-    overflow: hidden;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .zt-period button {
-    min-height: 40px;
-    padding: 0 var(--zt-space-3);
-    background: transparent;
-    color: var(--zt-text);
-    border: 0;
+    padding: 0.375rem 1rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    background: rgba(71, 85, 105, 0.2);
+    color: #94a3b8;
     font: inherit;
-    font-size: var(--zt-font-13);
+    font-size: 0.8125rem;
+    font-weight: 500;
     cursor: pointer;
+    transition: all 0.2s;
+}
+
+.zt-period button:hover {
+    color: #e2e8f0;
+    border-color: rgba(99, 102, 241, 0.4);
 }
 
 .zt-period button[aria-pressed="true"] {
-    background: var(--zt-text);
-    color: var(--zt-bg);
-    font-weight: 700;
+    background: rgba(99, 102, 241, 0.3);
+    border-color: rgba(99, 102, 241, 0.5);
+    color: #a5b4fc;
+    font-weight: 600;
 }
 
 .zt-band {
     display: flex;
+    flex: 1 1 360px;
     flex-wrap: wrap;
-    gap: var(--zt-space-2) var(--zt-space-4);
+    gap: 0.5rem 1.25rem;
     align-items: center;
-    font-size: var(--zt-font-13);
+    min-width: 0;
+    font-size: 0.875rem;
     color: var(--zt-muted);
 }
 
@@ -174,38 +131,334 @@
 
 .zt-band-note {
     width: 100%;
-    font-size: var(--zt-font-12);
+    font-size: 0.75rem;
+    color: var(--zt-dim);
+}
+
+.zt-band-info {
+    color: var(--zt-dim);
+    cursor: help;
+}
+
+.zt-band-info:hover, .zt-band-info:focus {
+    color: #a5b4fc;
+}
+
+/* The standalone warning in the band: one compact line. */
+.zt-band .zt-warning {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+}
+
+/* The mode badge is a status-badge; its colour by the mode. */
+.zt-mode[data-mode="ENFORCE"] { background: rgba(34, 197, 94, 0.2); color: #4ade80; border-color: rgba(34, 197, 94, 0.3); }
+.zt-mode[data-mode="SHADOW"] { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border-color: rgba(56, 189, 248, 0.3); }
+.zt-mode[data-mode="DISABLED"], .zt-mode[data-mode=""] { background: rgba(100, 116, 139, 0.2); color: #94a3b8; border-color: rgba(100, 116, 139, 0.3); }
+
+/* A warning, as the admin console states one. */
+.zt-warning {
+    padding: 0.5rem 0.875rem;
+    border-radius: 0.5rem;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fcd34d;
+    font-size: 0.8125rem;
+}
+
+/* ----- the sentence of the period: one line, an accent bar beside it ----- */
+
+.zt-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    padding: 0.25rem 0 0.25rem 1rem;
+    border-left: 3px solid #6366f1;
+}
+
+.zt-summary-main {
+    margin: 0;
+    font-size: 1.125rem;
+    line-height: 1.6;
+    font-weight: 600;
+    color: var(--zt-text);
+}
+
+.zt-summary-sub {
+    margin: 0;
+    font-size: 0.875rem;
     color: var(--zt-muted);
 }
 
-.zt-mode {
+/* ----- the key numbers: the dashboard's gradient cards ----- */
+
+.zt-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.25rem;
+}
+
+@media (max-width: 1024px) {
+    .zt-kpi-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 480px) {
+    .zt-kpi-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.zt-kpi {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    color: #ffffff;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.zt-kpi:hover {
+    transform: translateY(-2px);
+}
+
+.zt-kpi[data-tone="indigo"] { background: linear-gradient(135deg, #4f46e5, #3730a3); box-shadow: 0 4px 20px rgba(79, 70, 229, 0.3); }
+.zt-kpi[data-tone="purple"] { background: linear-gradient(135deg, #7c3aed, #5b21b6); box-shadow: 0 4px 20px rgba(124, 58, 237, 0.3); }
+.zt-kpi[data-tone="teal"] { background: linear-gradient(135deg, #0891b2, #155e75); box-shadow: 0 4px 20px rgba(8, 145, 178, 0.3); }
+.zt-kpi[data-tone="green"] { background: linear-gradient(135deg, #059669, #065f46); box-shadow: 0 4px 20px rgba(5, 150, 105, 0.3); }
+
+.zt-kpi-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.zt-kpi-label {
+    min-width: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.75);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.zt-kpi-head i {
+    font-size: 1.25rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.zt-kpi-value {
+    font-size: 1.875rem;
+    line-height: 1.2;
+    font-weight: 700;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+}
+
+.zt-kpi-sub {
+    margin-top: 0.375rem;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.65);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.zt-kpi-spark {
+    margin-top: auto;
+    padding-top: 1rem;
+    opacity: 0.9;
+}
+
+/* ----- the decisions by action: the dashboard's donut with the total in its centre, and its rows ----- */
+
+.zt-result {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+.zt-donut {
+    position: relative;
+    width: 12rem;
+    height: 12rem;
+    flex-shrink: 0;
+}
+
+.zt-donut svg {
+    width: 100%;
+    height: 100%;
+}
+
+.zt-donut-centre {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.zt-donut-value {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+}
+
+.zt-donut-caption {
+    font-size: 0.75rem;
+    color: var(--zt-muted);
+}
+
+.zt-result-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.zt-result-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.4);
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.zt-result-row:hover {
+    background: rgba(30, 41, 59, 0.7);
+}
+
+.zt-result-name {
     display: inline-flex;
     align-items: center;
-    gap: var(--zt-space-1);
-    padding: var(--zt-space-1) var(--zt-space-3);
-    border-radius: var(--zt-radius-chip);
-    font-size: var(--zt-font-13);
+    gap: 0.625rem;
+    font-size: 0.875rem;
+    color: var(--zt-text);
+}
+
+.zt-result-value {
+    font-size: 0.875rem;
     font-weight: 700;
+    color: var(--zt-text);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
-.zt-mode[data-mode="ENFORCE"] { background: var(--zt-good-bg); color: var(--zt-good); }
-.zt-mode[data-mode="SHADOW"] { background: var(--zt-shadow-mode-bg); color: var(--zt-shadow-mode); }
-.zt-mode[data-mode="DISABLED"], .zt-mode[data-mode=""] { background: var(--zt-track); color: var(--zt-muted); }
-
-.zt-warning {
-    padding: var(--zt-space-2) var(--zt-space-3);
-    border-radius: var(--zt-radius-chip);
-    background: var(--zt-warn-bg);
-    color: var(--zt-warn);
-    font-size: var(--zt-font-13);
+.zt-dot {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
 
-/* ----- the 12-column grid (1.2) ----- */
+/* ----- why the requests were stopped: a name, its share, its bar ----- */
+
+.zt-reason-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.zt-reason-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.zt-reason-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+}
+
+.zt-reason-name {
+    color: var(--zt-text);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.zt-reason-value {
+    color: var(--zt-muted);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* ----- what to look at: the dashboard's indicator rows, the border's colour by urgency ----- */
+
+.zt-indicators {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.zt-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.4);
+    border-left: 3px solid #94a3b8;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.zt-indicator:hover {
+    background: rgba(30, 41, 59, 0.7);
+}
+
+.zt-indicator[data-severity="BAD"] { border-left-color: #f87171; }
+.zt-indicator[data-severity="WARN"] { border-left-color: #fbbf24; }
+.zt-indicator[data-severity="GOOD"] { border-left-color: #4ade80; }
+
+.zt-indicator-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.zt-indicator-title {
+    font-size: 0.875rem;
+    color: var(--zt-text);
+    overflow-wrap: anywhere;
+}
+
+.zt-indicator-rule {
+    font-size: 0.75rem;
+    color: var(--zt-dim);
+    overflow-wrap: anywhere;
+}
+
+.zt-link-arrow {
+    margin-left: 0.375rem;
+    font-size: 0.6875rem;
+}
+
+/* ----- the 12-column grid of cards ----- */
 
 .zt-grid {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: var(--zt-grid-gap);
+    gap: 1.5rem;
     align-items: stretch;
 }
 
@@ -221,42 +474,47 @@
     }
 }
 
-/* ----- cards ----- */
+/* ----- cards: the dashboard's card ----- */
+
+.zt-page .dash-card {
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
 
 .zt-card {
     display: flex;
     flex-direction: column;
-    gap: var(--zt-card-title-gap);
+    gap: 1rem;
     min-width: 0;
-    background: var(--zt-card);
-    border: 1px solid var(--zt-border);
-    border-radius: var(--zt-radius-card);
-    padding: var(--zt-card-padding);
 }
 
 .zt-card-head {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: var(--zt-space-2);
-    height: var(--zt-title-line);
+    gap: 0.75rem;
+    height: 1.75rem;
     min-width: 0;
 }
 
 .zt-card-head h2 {
     margin: 0;
-    font-size: var(--zt-font-16);
-    line-height: var(--zt-title-line);
+    font-size: 1.125rem;
+    line-height: 1.75rem;
     font-weight: 700;
-    color: var(--zt-text-strong);
+    color: var(--zt-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .zt-card-head .zt-aside {
-    font-size: var(--zt-font-13);
-    line-height: var(--zt-title-line);
+    font-size: 0.75rem;
+    line-height: 1.75rem;
     color: var(--zt-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -268,7 +526,7 @@
 .zt-card-body {
     display: flex;
     flex-direction: column;
-    gap: var(--zt-space-3);
+    gap: 0.75rem;
     flex: 1 1 auto;
     min-width: 0;
 }
@@ -277,38 +535,45 @@
     margin-top: auto;
     display: flex;
     flex-wrap: wrap;
-    gap: var(--zt-space-2);
+    gap: 0.5rem 1rem;
     align-items: center;
-    font-size: var(--zt-font-13);
+    font-size: 0.8125rem;
 }
 
+/* The sentence a screen opens with, in the admin console's highlight panel. */
 .zt-verdict {
     display: flex;
     flex-direction: column;
-    gap: var(--zt-space-2);
+    gap: 0.5rem;
 }
 
 .zt-verdict p {
     margin: 0;
-    font-size: var(--zt-font-20);
-    line-height: var(--zt-line-body);
+    font-size: 1.25rem;
+    line-height: 1.6;
     font-weight: 700;
-    color: var(--zt-text-strong);
+    color: var(--zt-text);
     overflow-wrap: anywhere;
 }
 
-/* ----- metrics: a name, a value and its definition (2.2) ----- */
+/* ----- metrics: a name, a value and its definition ----- */
 
 .zt-metric {
     display: flex;
     flex-direction: column;
-    gap: var(--zt-space-1);
+    gap: 0.25rem;
     min-width: 0;
 }
 
+.zt-metric-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--zt-muted);
+}
+
 .zt-metric-value {
-    font-size: var(--zt-font-26);
-    line-height: var(--zt-line-number);
+    font-size: 1.875rem;
+    line-height: 1.2;
     font-weight: 700;
     color: var(--zt-text-strong);
     font-variant-numeric: tabular-nums;
@@ -316,22 +581,17 @@
 }
 
 .zt-metric-value.zt-small {
-    font-size: var(--zt-font-20);
-}
-
-.zt-metric-label {
-    font-size: var(--zt-font-13);
-    color: var(--zt-text);
+    font-size: 1.5rem;
 }
 
 .zt-metric-definition, .zt-muted {
-    font-size: var(--zt-font-12);
-    color: var(--zt-muted);
+    font-size: 0.75rem;
+    color: var(--zt-dim);
     overflow-wrap: anywhere;
 }
 
 .zt-metric-ratio {
-    font-size: var(--zt-font-12);
+    font-size: 0.75rem;
     color: var(--zt-muted);
     font-variant-numeric: tabular-nums;
 }
@@ -340,10 +600,19 @@
     color: var(--zt-muted);
 }
 
+/* A small box of numbers inside a card: the dashboard's stat tile. */
+.zt-tile {
+    padding: 1rem;
+    border-radius: 0.75rem;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    min-width: 0;
+}
+
 .zt-rows {
     display: flex;
     flex-direction: column;
-    gap: var(--zt-space-2);
+    gap: 0.5rem;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -352,8 +621,11 @@
 .zt-row {
     display: flex;
     justify-content: space-between;
-    gap: var(--zt-space-3);
-    font-size: var(--zt-font-13);
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.4);
+    font-size: 0.875rem;
     min-width: 0;
 }
 
@@ -368,32 +640,35 @@
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
     text-align: right;
+    font-weight: 600;
 }
 
-/* ----- action chips: colour and words together (1.1) ----- */
+/* ----- badges: a status-badge, its colour by the action or the status, words and colour together ----- */
 
 .zt-chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 0 var(--zt-space-2);
-    min-height: 24px;
-    border-radius: var(--zt-radius-chip);
-    font-size: var(--zt-font-12);
-    font-weight: 700;
     white-space: nowrap;
+    background: rgba(100, 116, 139, 0.2);
+    color: #94a3b8;
+    border-color: rgba(100, 116, 139, 0.3);
 }
 
-.zt-chip[data-action="ALLOW"] { background: var(--zt-allow-bg); color: var(--zt-allow); }
-.zt-chip[data-action="CHALLENGE"] { background: var(--zt-challenge-bg); color: var(--zt-challenge); }
-.zt-chip[data-action="ESCALATE"] { background: var(--zt-escalate-bg); color: var(--zt-escalate); }
-.zt-chip[data-action="BLOCK"] { background: var(--zt-block-bg); color: var(--zt-block); }
-.zt-chip[data-action="NO_DECISION"] { background: var(--zt-track); color: var(--zt-muted); }
-.zt-chip[data-status="MET"], .zt-chip[data-status="RECOMMENDED"] { background: var(--zt-good-bg); color: var(--zt-good); }
-.zt-chip[data-status="UNMET"], .zt-chip[data-status="CONDITIONS_UNMET"] { background: var(--zt-bad-bg); color: var(--zt-bad); }
-.zt-chip[data-status="INSUFFICIENT"], .zt-chip[data-status="DATA_INSUFFICIENT"] { background: var(--zt-warn-bg); color: var(--zt-warn); }
-.zt-chip[data-status="INFO"] { background: var(--zt-track); color: var(--zt-muted); }
+.zt-chip[data-action="ALLOW"] { background: rgba(34, 197, 94, 0.2); color: #4ade80; border-color: rgba(34, 197, 94, 0.3); }
+.zt-chip[data-action="CHALLENGE"] { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
+.zt-chip[data-action="ESCALATE"] { background: rgba(139, 92, 246, 0.2); color: #a78bfa; border-color: rgba(139, 92, 246, 0.3); }
+.zt-chip[data-action="BLOCK"] { background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+.zt-chip[data-status="MET"], .zt-chip[data-status="RECOMMENDED"], .zt-chip[data-status="GOOD"] { background: rgba(34, 197, 94, 0.2); color: #4ade80; border-color: rgba(34, 197, 94, 0.3); }
+.zt-chip[data-status="UNMET"], .zt-chip[data-status="CONDITIONS_UNMET"], .zt-chip[data-status="BAD"] { background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+.zt-chip[data-status="INSUFFICIENT"], .zt-chip[data-status="DATA_INSUFFICIENT"], .zt-chip[data-status="WARN"] { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
 
-/* ----- tables: numbers right, words left (1.1) ----- */
+/* A badge whose words come from the data (a bundle, a cause): cut inside its line, the full text in its title. */
+.zt-chip.zt-fit {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ----- tables: the modern-table of the policy center; numbers right, words left ----- */
 
 .zt-table-wrap {
     overflow-x: auto;
@@ -403,15 +678,13 @@
 .zt-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--zt-font-13);
+    font-size: 0.875rem;
 }
 
-/* A cell never widens the table past its card (1.4 check 1): it shrinks and cuts its words, the full words in its title. */
-.zt-table th {
-    padding: var(--zt-space-2) var(--zt-space-3);
-    color: var(--zt-muted);
-    font-weight: 500;
-    text-align: left;
+/* A cell never widens the table past its card: it shrinks and cuts its words, the full words in its title. The head
+   keeps the modern-table's colours and capitals with the denser padding the policy center's wide tables use. */
+.zt-page .zt-table th {
+    padding: 0.75rem 1rem;
     max-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -419,8 +692,8 @@
 }
 
 .zt-table td {
-    padding: var(--zt-space-3);
-    border-top: 1px solid var(--zt-border);
+    padding: 0.875rem 1rem;
+    color: var(--zt-text);
     max-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -442,13 +715,13 @@
     text-overflow: ellipsis;
 }
 
-/* A cell of several chips stacks them as its width allows, each chip whole or cut inside the cell. */
+/* A cell of several badges stacks them as its width allows, each whole or cut inside the cell. */
 .zt-table td.zt-cell-chips {
     white-space: normal;
 }
 
 .zt-table td.zt-cell-chips .zt-chip {
-    margin: 0 var(--zt-space-1) var(--zt-space-1) 0;
+    margin: 0 0.25rem 0.25rem 0;
 }
 
 .zt-table td .zt-chip {
@@ -457,7 +730,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     vertical-align: middle;
-    line-height: var(--zt-title-line);
 }
 
 .zt-table .zt-num {
@@ -466,68 +738,68 @@
 }
 
 .zt-table tr[data-selected="true"] td {
-    background: var(--zt-track);
+    background: rgba(99, 102, 241, 0.12);
 }
 
-/* ----- controls ----- */
+/* The one text column of a table that takes the room the numbers leave, its text cut with an ellipsis. */
+.zt-table td.zt-fill {
+    width: 100%;
+    max-width: 0;
+}
 
-.zt-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 40px;
-    padding: 0 var(--zt-space-4);
-    border-radius: var(--zt-radius-chip);
-    border: 1px solid var(--zt-border);
-    background: var(--zt-track);
-    color: var(--zt-text-strong);
-    font: inherit;
-    font-size: var(--zt-font-13);
-    text-decoration: none;
+/* Beside that column the others keep their whole content: a number or a column head is never cut. */
+.zt-table:has(td.zt-fill) th,
+.zt-table:has(td.zt-fill) td:not(.zt-fill) {
+    width: 1%;
+    max-width: none;
+}
+
+/* A text cell there grows to --zt-cell-max and then cuts its words, the whole words in its title. */
+.zt-table:has(td.zt-fill) td:not(.zt-fill):not(.zt-num) {
+    max-width: var(--zt-cell-max);
+}
+
+.zt-table .zt-short {
+    display: none;
+}
+
+/* A line of a short form, cut on its own. */
+.zt-table .zt-short .zt-line {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* A list row that selects its decision for the preview. */
+.zt-table tbody tr[data-selectable] {
     cursor: pointer;
 }
 
-.zt-button.zt-primary {
-    background: var(--zt-text);
-    color: var(--zt-bg);
-    border-color: var(--zt-text);
-    font-weight: 700;
-}
-
-.zt-button[disabled] {
-    background: transparent;
-    color: var(--zt-muted);
-    cursor: default;
-}
+/* ----- links and controls (the buttons and inputs are modern-btn-* and modern-input / modern-select) ----- */
 
 .zt-link {
-    color: var(--zt-accent);
-    font-size: var(--zt-font-13);
+    color: #818cf8;
+    font-size: 0.875rem;
+    font-weight: 500;
     text-decoration: none;
+    transition: color 0.2s;
 }
 
-.zt-input, .zt-select, .zt-textarea {
-    min-height: 40px;
-    padding: 0 var(--zt-space-3);
-    border: 1px solid var(--zt-border);
-    border-radius: var(--zt-radius-chip);
-    background: var(--zt-card-sunk);
-    color: var(--zt-text);
-    font: inherit;
-    font-size: var(--zt-font-13);
-    min-width: 0;
+.zt-link:hover {
+    color: #a5b4fc;
 }
 
 .zt-textarea {
-    padding: var(--zt-space-2) var(--zt-space-3);
     min-height: 80px;
     width: 100%;
+    resize: vertical;
 }
 
 .zt-filters {
     display: flex;
     flex-direction: column;
-    gap: var(--zt-space-4);
+    gap: 1rem;
 }
 
 .zt-filters fieldset {
@@ -536,24 +808,111 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--zt-space-1);
+    gap: 0.375rem;
 }
 
 .zt-filters legend {
-    font-size: var(--zt-font-12);
+    font-size: 0.75rem;
     color: var(--zt-muted);
-    margin-bottom: var(--zt-space-1);
+    margin-bottom: 0.25rem;
 }
 
 .zt-filters label {
     display: flex;
-    gap: var(--zt-space-2);
+    gap: 0.5rem;
     align-items: center;
     min-height: 28px;
-    font-size: var(--zt-font-13);
+    font-size: 0.875rem;
 }
 
-/* ----- charts (1.3): three box heights, legend top left ----- */
+/* The decision list's filters in the policy center's filter box: each name beside its choice, then the search row. */
+.zt-filter-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.zt-filter-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin: 0;
+}
+
+.zt-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.75rem 1.25rem;
+}
+
+.zt-filter-field {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.625rem;
+    min-width: 0;
+}
+
+.zt-filter-name {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    white-space: nowrap;
+}
+
+.zt-filter-search {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.625rem;
+}
+
+.zt-filter-search .modern-input {
+    flex: 1 1 280px;
+    width: auto;
+    min-width: 0;
+}
+
+.zt-filter-search .modern-btn-primary,
+.zt-filter-search .modern-btn-secondary {
+    white-space: nowrap;
+}
+
+/* A view switch inside a screen: the tab bar of the policy center, one size smaller. */
+.zt-tabs {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    padding: 0.375rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(71, 85, 105, 0.3);
+    border-radius: 0.75rem;
+}
+
+.zt-tabs button {
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    border: 0;
+    background: transparent;
+    color: #94a3b8;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.zt-tabs button:hover {
+    color: #e2e8f0;
+    background: rgba(71, 85, 105, 0.2);
+}
+
+.zt-tabs button[aria-selected="true"] {
+    color: #ffffff;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+}
+
+/* ----- charts: three box heights, the legend top left ----- */
 
 .zt-chart {
     position: relative;
@@ -575,43 +934,33 @@
 .zt-legend {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--zt-space-1) var(--zt-space-3);
-    font-size: var(--zt-font-12);
+    gap: 0.25rem 1rem;
+    font-size: 0.75rem;
     color: var(--zt-muted);
 }
 
 .zt-legend span::before {
     content: "";
     display: inline-block;
-    width: 8px;
-    height: 8px;
-    margin-right: var(--zt-space-1);
-    border-radius: 2px;
+    width: 0.625rem;
+    height: 0.625rem;
+    margin-right: 0.375rem;
+    border-radius: 50%;
     background: var(--zt-legend-color, var(--zt-muted));
 }
 
-.zt-empty {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: var(--zt-space-1);
-    min-height: var(--zt-chart-s);
-    color: var(--zt-muted);
-    font-size: var(--zt-font-13);
+/* The empty state inside a card or a chart box: the policy center's, a little lower. */
+.zt-page .pc-empty {
+    padding: 2rem 1rem;
 }
 
-.zt-empty strong {
-    font-size: var(--zt-font-20);
-    color: var(--zt-muted);
-}
-
-/* ----- custom visualisations (1.3) ----- */
+/* ----- bars ----- */
 
 .zt-bar {
     position: relative;
-    height: 12px;
+    height: 0.5rem;
     background: var(--zt-track);
-    border-radius: var(--zt-radius-chip);
+    border-radius: 9999px;
     overflow: hidden;
 }
 
@@ -620,7 +969,7 @@
     top: 0;
     left: 0;
     bottom: 0;
-    border-radius: var(--zt-radius-chip);
+    border-radius: 9999px;
 }
 
 .zt-bar-mark {
@@ -633,8 +982,8 @@
 
 .zt-stacked {
     display: flex;
-    height: 12px;
-    border-radius: var(--zt-radius-chip);
+    height: 0.625rem;
+    border-radius: 9999px;
     overflow: hidden;
     background: var(--zt-track);
 }
@@ -648,9 +997,9 @@
 .zt-criteria {
     display: grid;
     grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) minmax(0, 2fr) minmax(0, 2fr);
-    gap: var(--zt-space-3) var(--zt-space-4);
+    gap: 0.75rem 1rem;
     align-items: center;
-    font-size: var(--zt-font-13);
+    font-size: 0.875rem;
 }
 
 .zt-criteria > span {
@@ -666,58 +1015,36 @@
 .zt-split {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: var(--zt-space-3);
+    gap: 0.75rem;
 }
 
-.zt-tile {
-    padding: var(--zt-space-3);
-    border-radius: var(--zt-radius-chip);
-    background: var(--zt-card-sunk);
-    min-width: 0;
-}
-
-.zt-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--zt-space-2);
-}
-
-.zt-tabs button {
-    min-height: 40px;
-    padding: 0 var(--zt-space-4);
-    border-radius: var(--zt-radius-chip);
-    border: 1px solid var(--zt-border);
-    background: var(--zt-card);
-    color: var(--zt-text);
-    font: inherit;
-    font-size: var(--zt-font-14);
-    cursor: pointer;
-}
-
-.zt-tabs button[aria-selected="true"] {
-    background: var(--zt-text);
-    color: var(--zt-bg);
-    font-weight: 700;
-}
-
-/* A warning: its chip in one column, its sentence and rule in the other, so the two never cover each other. */
+/* A warning row: its badge in one column, its sentence in the other, as the dashboard's indicator rows. */
 .zt-alert {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--zt-space-2);
+    gap: 0.625rem;
     align-items: start;
-    padding: var(--zt-space-2) var(--zt-space-3);
-    border-radius: var(--zt-radius-chip);
-    background: var(--zt-card-sunk);
-    font-size: var(--zt-font-13);
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.4);
+    border-left: 3px solid rgba(245, 158, 11, 0.6);
+    font-size: 0.875rem;
 }
 
 .zt-fact {
-    padding: var(--zt-space-2) var(--zt-space-3);
-    border-radius: var(--zt-radius-chip);
-    background: var(--zt-card-sunk);
-    font-size: var(--zt-font-13);
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.5rem;
+    background: rgba(30, 41, 59, 0.4);
+    font-size: 0.875rem;
     overflow-wrap: anywhere;
+}
+
+/* A block of lines that belong together (a fact, an outcome, one explanation): name, value, note. */
+.zt-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
 }
 
 .zt-sr-only {
@@ -729,6 +1056,49 @@
     white-space: nowrap;
 }
 
+/* ----- the glossary every screen opens from its title row: the dashboard's card over the content ----- */
+
+.zt-glossary {
+    position: relative;
+}
+
+.zt-glossary summary {
+    list-style: none;
+}
+
+.zt-glossary summary::-webkit-details-marker {
+    display: none;
+}
+
+.zt-glossary-list {
+    position: absolute;
+    right: 0;
+    z-index: 10;
+    width: min(480px, calc(100vw - 4rem));
+    max-height: 480px;
+    overflow-y: auto;
+    margin: 0.5rem 0 0;
+    padding: 1.5rem;
+    background: rgba(15, 23, 42, 0.97);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    border-radius: 1rem;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    font-size: 0.875rem;
+}
+
+.zt-glossary-list dt {
+    font-weight: 700;
+    color: var(--zt-text);
+}
+
+.zt-glossary-list dd {
+    margin: 0.25rem 0 0.875rem;
+    color: var(--zt-muted);
+    overflow-wrap: anywhere;
+}
+
+/* ----- a phone ----- */
+
 @media (max-width: 480px) {
     .zt-criteria {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -737,33 +1107,7 @@
     .zt-split {
         grid-template-columns: minmax(0, 1fr);
     }
-}
 
-/*
- * Zero Trust console: what the overview, the threats and business impact and the trust screens add to
- * zero-trust-console.css (console plan 1.1 to 1.3). Only the :root tokens are used.
- */
-
-
-/* The one text column of a table that takes the room the numbers leave, its text cut with an ellipsis. */
-.zt-table td.zt-fill {
-    width: 100%;
-    max-width: 0;
-}
-
-/* Beside that column the others keep their whole content: a number or a column head is never cut (1.4 check 8). */
-.zt-table:has(td.zt-fill) th,
-.zt-table:has(td.zt-fill) td:not(.zt-fill) {
-    width: 1%;
-    max-width: none;
-}
-
-/* A text cell there grows to --zt-cell-max and then cuts its words, the whole words in its title. */
-.zt-table:has(td.zt-fill) td:not(.zt-fill):not(.zt-num) {
-    max-width: var(--zt-cell-max);
-}
-
-@media (max-width: 480px) {
     /* A phone shows a table's name and its main numbers; the other columns stay in the wider layouts. */
     .zt-table .zt-wide, .zt-table td .zt-chip.zt-wide {
         display: none;
@@ -776,8 +1120,8 @@
 
     /* A heat map's cells keep their numbers inside the card on a phone: a smaller size and the short heads. */
     .zt-heat .zt-table th, .zt-heat .zt-table td {
-        padding: var(--zt-space-1);
-        font-size: var(--zt-font-12);
+        padding: 0.25rem;
+        font-size: 0.75rem;
     }
 
     /* Its coloured cells carry their number centred, edge to edge. */
@@ -801,90 +1145,112 @@
     }
 }
 
-.zt-table .zt-short {
-    display: none;
+/* A card that stays in view beside a long list (the decision preview), as tall as its own content. */
+.zt-sticky {
+    position: sticky;
+    top: 1.5rem;
+    align-self: start;
 }
 
-/* A line of a short form, cut on its own. */
-.zt-table .zt-short .zt-line {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+/* The other two colours of the dashboard's key cards. */
+.zt-kpi[data-tone="amber"] { background: linear-gradient(135deg, #d97706, #92400e); box-shadow: 0 4px 20px rgba(217, 119, 6, 0.3); }
+.zt-kpi[data-tone="red"] { background: linear-gradient(135deg, #dc2626, #991b1b); box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3); }
+
+/* A small heading between groups of rows inside a card. */
+.zt-subhead {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--zt-muted);
 }
 
-/*
- * Zero Trust console, screens B (decision records, decision detail, adoption, operations): the few rules the shared
- * stylesheet lacks. Tokens of zero-trust-console.css only.
- */
+/* ----- one decision: the conclusion, its facts in a grid, the model's words as a quote ----- */
 
-/* A block of lines that belong together (a fact, an outcome, one explanation): name, value, note. */
-.zt-item {
+.zt-conclusion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+}
+
+.zt-facts {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.75rem 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(71, 85, 105, 0.3);
+}
+
+@media (max-width: 1024px) {
+    .zt-facts {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 480px) {
+    .zt-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.zt-facts-item {
     display: flex;
     flex-direction: column;
-    gap: var(--zt-space-1);
+    gap: 0.25rem;
     min-width: 0;
 }
 
-/* The state of a component the decision passes through (6.6): colour with its symbol and word. */
-.zt-chip[data-status="GOOD"] { background: var(--zt-good-bg); color: var(--zt-good); }
-.zt-chip[data-status="WARN"] { background: var(--zt-warn-bg); color: var(--zt-warn); }
-.zt-chip[data-status="BAD"] { background: var(--zt-bad-bg); color: var(--zt-bad); }
-.zt-chip[data-status="UNKNOWN"] { background: var(--zt-track); color: var(--zt-muted); }
+.zt-facts-name {
+    font-size: 0.75rem;
+    color: var(--zt-muted);
+}
 
-/* A chip whose words come from the data (a bundle, a cause): cut with an ellipsis inside its line, full text in its title. */
-.zt-chip.zt-fit {
-    display: inline-block;
-    max-width: 100%;
+.zt-facts-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--zt-text);
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: var(--zt-title-line);
 }
 
-/* A list row that selects its decision for the preview (6.4). */
-.zt-table tbody tr[data-selectable] {
-    cursor: pointer;
+.zt-quote {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-left: 3px solid #6366f1;
+    border-radius: 0.5rem;
+    background: rgba(99, 102, 241, 0.08);
 }
 
-.zt-table tbody tr[data-selectable]:hover td {
-    background: var(--zt-card-sunk);
-}
-
-/* The glossary every screen opens from its toolbar (design principle 6): over the content, inside the page. */
-.zt-glossary {
-    position: relative;
-}
-
-.zt-glossary summary {
-    list-style: none;
-}
-
-.zt-glossary summary::-webkit-details-marker {
-    display: none;
-}
-
-.zt-glossary-list {
-    position: absolute;
-    right: 0;
-    z-index: 10;
-    width: min(480px, calc(100vw - 2 * var(--zt-page-padding)));
-    max-height: 480px;
-    overflow-y: auto;
-    margin: var(--zt-space-2) 0 0;
-    padding: var(--zt-card-padding);
-    background: var(--zt-card);
-    border: 1px solid var(--zt-border);
-    border-radius: var(--zt-radius-card);
-    font-size: var(--zt-font-13);
-}
-
-.zt-glossary-list dt {
-    font-weight: 700;
-    color: var(--zt-text-strong);
-}
-
-.zt-glossary-list dd {
-    margin: var(--zt-space-1) 0 var(--zt-space-3);
+.zt-quote figcaption {
+    font-size: 0.75rem;
     color: var(--zt-muted);
+    margin-bottom: 0.25rem;
+}
+
+.zt-quote blockquote {
+    margin: 0;
+    font-size: 0.875rem;
+    font-style: italic;
+    color: var(--zt-text);
     overflow-wrap: anywhere;
+}
+
+.zt-fact-value {
+    font-size: 0.875rem;
+    color: var(--zt-text);
+    overflow-wrap: anywhere;
+}
+
+.zt-fact-id {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: var(--zt-muted);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.zt-outcomes {
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }

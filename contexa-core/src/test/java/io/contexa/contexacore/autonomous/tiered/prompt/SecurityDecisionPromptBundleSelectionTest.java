@@ -65,12 +65,14 @@ class SecurityDecisionPromptBundleSelectionTest {
         // Plan 1-9: v1.0 (the variant record-similar promoted, with the comparison citation sentence) is the build
         // default, the bundle that runs when nothing chooses one; a customer can still choose v19, v20, v21 or a variant
         // by its version (2026-11-15).
+        // K30 (2026-11-16): v1.0 answers in the short output contract v5; the first v1.0 (2026.11.15, contract v4) is no
+        // longer run.
         assertThat(SecurityDecisionPromptBundles.DEFAULT).isSameAs(SecurityDecisionPromptBundles.V1);
-        assertThat(SecurityDecisionPromptBundles.V1.version()).isEqualTo("2026.11.15-v1.0");
+        assertThat(SecurityDecisionPromptBundles.V1.version()).isEqualTo("2026.11.16-v1.0");
         assertThat(SecurityDecisionPromptBundles.V1.layout())
                 .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS);
         assertThat(SecurityDecisionPromptBundles.V1.features())
-                .isEqualTo(new SecurityDecisionPromptBundles.Features(false, false, true, true));
+                .isEqualTo(new SecurityDecisionPromptBundles.Features(false, false, true, true, true));
         assertThat(SecurityDecisionPromptBundles.V1_BUNDLES)
                 .allSatisfy(variant -> assertThat(variant.features().comparisonCitations()).isFalse());
         assertThat(SecurityDecisionPromptBundles.V1.descriptor().releaseStatus()).isEqualTo(PromptReleaseStatus.PRODUCTION);
