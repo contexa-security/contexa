@@ -59,7 +59,7 @@
             el('a', {class: 'zt-link', href: PAGES + '/decisions', text: t(P + 'band.back')}),
             el('span', {text: t(P + 'band.request', detail.requestId || '—')}),
             el('span', {text: ZT.time(detail.createdAt)}),
-            detail.mode ? el('span', {class: 'zt-mode', 'data-mode': detail.mode, text: t(P + 'band.mode', detail.mode)})
+            detail.mode ? el('span', {class: 'status-badge zt-mode', 'data-mode': detail.mode, text: t(P + 'band.mode', detail.mode)})
                 : null,
             detail.actor ? el('span', {text: known(D + 'actor.' + detail.actor, detail.actor)}) : null);
         if (detail.mode === 'SHADOW') {
