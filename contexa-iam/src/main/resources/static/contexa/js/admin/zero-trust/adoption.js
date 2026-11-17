@@ -281,9 +281,10 @@
         const params = new URLSearchParams({mode: 'SHADOW', action: 'STOPPED'});
         const period = adoption.header && adoption.header.period;
         if (period && period.from) {
-            // The trial's own period: from its first day (the server reads the day in its zone) to today.
+            // K87: the trial's own period from the moment it starts (the list reads it from that hour, as the
+            // number counts it) to today.
             params.set('period', 'custom');
-            params.set('from', String(period.from).slice(0, 10));
+            params.set('from', String(period.from));
         }
         if (adoption.header && adoption.header.tenant) {
             params.set('tenant', adoption.header.tenant);

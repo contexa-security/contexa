@@ -115,7 +115,8 @@
             ZT.kpi({tone: 'purple', icon: 'fa-hand-paper', label: s('kpi.stopped.label'), value: ZT.count(side.stopped || 0),
                 sub: m('kpi.stopped.sub', ZT.count(find(side.byAction, 'CHALLENGE').count),
                     ZT.count(find(side.byAction, 'ESCALATE').count), ZT.count(find(side.byAction, 'BLOCK').count)),
-                href: decisions({})}),
+                // K86: the number counts the stopped decisions, and opens them
+                href: decisions({action: 'STOPPED'})}),
             ZT.kpiMetric(pass, {tone: 'teal', icon: 'fa-user-check',
                 sub: m('kpi.pass.sub', ZT.count(challenges.passed || 0), ZT.count(challenges.required || 0)),
                 href: decisions({action: 'CHALLENGE', outcome: 'CHALLENGE_PASSED'})}),

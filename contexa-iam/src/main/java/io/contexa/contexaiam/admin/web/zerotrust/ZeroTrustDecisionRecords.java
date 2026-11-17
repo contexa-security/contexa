@@ -81,6 +81,21 @@ public class ZeroTrustDecisionRecords {
     /** The action filter of the stopped decisions: a challenge, an escalation or a block. */
     static final String STOPPED = "STOPPED";
     /**
+     * The action filter of the failures the operations screen counts (console design 6.6): the requests no decision
+     * answered for a technical failure and the decisions set without the model.
+     */
+    static final String FAILED = "FAILED";
+    /**
+     * A request no decision answered (console design 5), as the hourly table counts it: a try that timed out or was
+     * rejected, of a request that got no decision of its own.
+     */
+    private static final String NO_DECISION_ROWS = "o.attempt_kind IN ('TIMEOUT', 'REJECTED')"
+            + " AND NOT EXISTS (SELECT 1 FROM ctxa_ai_security_decision_observation n WHERE n.event_id = o.event_id"
+            + " AND n.attempt_kind = 'FIRST' AND n.final_action IN ('ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK'))";
+    /** A decision: a first attempt that reached an action. */
+    private static final String DECISION_ROWS =
+            "o.attempt_kind = 'FIRST' AND o.final_action IN ('ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK')";
+    /**
      * K81, console design 6.1 and 6.4: the outcome filter of the decisions no administrator has reviewed, no release,
      * no kept block and no evaluation; a user's request to be unblocked is no review. The overview's unreviewed blocks
      * count the same decisions.
@@ -96,7 +111,7 @@ public class ZeroTrustDecisionRecords {
     /** The most rows one CSV carries. */
     static final int CSV_LIMIT = 10_000;
     private static final Set<String> ACTIONS = Set.of("ALLOW", "CHALLENGE", "ESCALATE", "BLOCK",
-            ZeroTrustConsoleService.NO_DECISION, STOPPED);
+            ZeroTrustConsoleService.NO_DECISION, STOPPED, FAILED);
     private static final Set<String> BASELINES = Set.of("ESTABLISHED", "PROVISIONAL", "NONE", BASELINE_NOT_ESTABLISHED);
     private static final Set<String> REVIEW_REASONS = Set.of("SAMPLE", "RULE_BREACH", "SHADOW_BLOCK");
     private static final Set<String> SOURCES = Set.of("MODEL", "ENGINE_CHANGED", "MODEL_LESS");
@@ -184,13 +199,18 @@ public class ZeroTrustDecisionRecords {
             return List.of();
         }
         Filter given = filter != null ? filter : new Filter(null, null, null, null, null, null, null, null);
-        List<Object> args = new ArrayList<>(List.of(range.fromTimestamp(), range.toTimestamp()));
+        // K87: the period starts at the hour it starts in, as the screens' hourly numbers count it, so a number opens
+        // the decisions it counted.
+        List<Object> args = new ArrayList<>(List.of(range.fromHour(), range.toTimestamp()));
         StringBuilder where = new StringBuilder(" WHERE o.created_at >= ? AND o.created_at < ? AND o.test_run_id IS NULL");
         String action = allowed(given.action(), ACTIONS);
         if (ZeroTrustConsoleService.NO_DECISION.equals(action)) {
-            where.append(" AND o.attempt_kind IN ('TIMEOUT', 'REJECTED')");
+            where.append(" AND ").append(NO_DECISION_ROWS);
+        } else if (FAILED.equals(action)) {
+            where.append(" AND ((").append(NO_DECISION_ROWS).append(") OR (").append(DECISION_ROWS)
+                    .append(" AND o.decision_source = 'MODEL_LESS'))");
         } else {
-            where.append(" AND o.attempt_kind = 'FIRST' AND o.final_action IN ('ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK')");
+            where.append(" AND ").append(DECISION_ROWS);
             if (STOPPED.equals(action)) {
                 where.append(" AND o.final_action IN ('CHALLENGE', 'ESCALATE', 'BLOCK')");
             } else if (action != null) {
@@ -226,7 +246,7 @@ public class ZeroTrustDecisionRecords {
                     + " AND c.final_action = 'CHALLENGE' AND c.test_run_id IS NULL"
                     + (tenant != null ? " AND c.tenant_id = ?" : "")
                     + " GROUP BY c.user_id HAVING COUNT(*) >= ?)");
-            args.add(range.fromTimestamp());
+            args.add(range.fromHour());
             args.add(range.toTimestamp());
             if (tenant != null) {
                 args.add(tenant);

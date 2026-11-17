@@ -66,7 +66,8 @@
                 value: total.p95Ms != null ? ZT.seconds(total.p95Ms) : null,
                 sub: total.p50Ms != null ? t(P + 'kpi.totalP50', ZT.seconds(total.p50Ms)) : ZT.reason('NO_DECISIONS')}),
             ZT.kpi({tone: failures > 0 ? 'red' : 'green', icon: 'fa-exclamation-triangle', label: t(P + 'kpi.failures'),
-                value: ZT.count(failures), sub: t(P + 'kpi.failuresSub'), href: decisionsUrl({action: 'NO_DECISION'})}),
+                // the number counts both kinds of failure the failure card draws, and opens them both
+                value: ZT.count(failures), sub: t(P + 'kpi.failuresSub'), href: decisionsUrl({action: 'FAILED'})}),
             ZT.kpiMetric(cost.tokensPerDecision, {tone: 'purple', icon: 'fa-coins',
                 sub: t(P + 'kpi.costPerDay', ZT.metricText(cost.costPerDay))}));
     }

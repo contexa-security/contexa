@@ -177,8 +177,11 @@
         state.filters.selects.forEach(select => {
             const value = filterValue(select.name) || '';
             if (!Array.from(select.options).some(option => option.value === value)) {
-                // A value from a link the list does not offer (a class added later): shown as it is, never hidden.
-                select.append(el('option', {value, text: value}));
+                // A value from a link the list does not offer (the stopped or failed decisions, a class added later):
+                // shown by its words when it has some, else as it is, never hidden.
+                const filter = FILTERS.find(candidate => candidate.key === select.name);
+                const words = filter ? filter.label(value) : value;
+                select.append(el('option', {value, text: words.indexOf('zt.console.') === 0 ? value : words}));
             }
             select.value = value;
             select.disabled = view === 'review';
