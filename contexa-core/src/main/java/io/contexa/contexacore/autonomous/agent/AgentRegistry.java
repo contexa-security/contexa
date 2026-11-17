@@ -15,7 +15,9 @@
  */
 package io.contexa.contexacore.autonomous.agent;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -54,6 +56,21 @@ public interface AgentRegistry {
 
     /** The tenant's agents (every tenant's for {@code null}), latest seen first, at most {@code limit}. */
     List<AgentRegistration> list(String tenantId, int limit);
+
+    /**
+     * How many of the tenant's agents (every tenant's for {@code null}) are in each status: what a summary shows without
+     * reading every agent. A status no agent is in is left out. A registry that does not override it reads every agent
+     * it holds.
+     */
+    default Map<AgentStatus, Long> countByStatus(String tenantId) {
+        Map<AgentStatus, Long> counts = new EnumMap<>(AgentStatus.class);
+        for (AgentRegistration agent : list(tenantId, Integer.MAX_VALUE)) {
+            if (agent.status() != null) {
+                counts.merge(agent.status(), 1L, Long::sum);
+            }
+        }
+        return counts;
+    }
 
     /**
      * What decides who the registry names as an agent in service, which {@link #findByClientId} answers one client at a

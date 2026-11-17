@@ -139,6 +139,15 @@ public class JdbcDelegationRegistry implements DelegationRegistry {
         return jdbc.query(sql.toString(), JdbcDelegationRegistry::delegation, arguments.toArray());
     }
 
+    /** N10: the delegations that hold at the moment, counted by the rule {@link #current} reads them with. */
+    @Override
+    public long countValidAt(Instant at) {
+        Timestamp when = timestamp(at != null ? at : clock.instant());
+        Long count = jdbc.queryForObject("select count(*) from ctxa_agent_delegation_record where valid_from <= ? "
+                + "and expires_at > ? and (revoked_at is null or revoked_at > ?)", Long.class, when, when, when);
+        return count == null ? 0 : count;
+    }
+
     @Override
     public Optional<AgentDelegation> revoke(String delegationId, String revokedBy, @Nullable String reason) {
         Optional<AgentDelegation> found = find(delegationId);

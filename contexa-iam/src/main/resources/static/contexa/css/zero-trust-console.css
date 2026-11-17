@@ -1678,3 +1678,26 @@ input[type="file"].modern-input::file-selector-button {
 .zt-page .zt-table th.pv-keep-case {
     text-transform: none;
 }
+
+/*
+ * K62: a phone (390) keeps every console screen's words whole, the Zero Trust console's, the prompt versions' and the
+ * dashboard's: the page card takes 16 inside instead of 24, so a card is 32px wider, and a card's head takes two lines
+ * of 28, the title on its own and the aside, a state or a definition mark under it.
+ */
+@media (max-width: 480px) {
+    .zt-page.modern-card {
+        padding: 1rem;
+    }
+
+    .zt-page .zt-card-head {
+        flex-wrap: wrap;
+        align-content: flex-start;
+        height: auto;
+        min-height: 3.5rem;
+        row-gap: 0;
+    }
+
+    .zt-page .zt-card-head h2 {
+        flex: 1 0 100%;
+    }
+}

@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.zerotrust;
 
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.PastWindow;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.UserChallenges;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
 
@@ -502,6 +503,27 @@ final class ZeroTrustConsoleReader {
     }
 
     /** The mode changes an operator made, latest first (console design 7.6). */
+    /**
+     * N17: the users challenged at least {@code atLeast} times in the period, in every tenant and mode, the most
+     * challenged first and a tie by name, at most {@code limit}; with the start of the latest hour of a challenge.
+     */
+    List<UserChallenges> challengedAtLeast(ZeroTrustConsoleRange range, long atLeast, int limit) {
+        JdbcOperations operations = jdbc.get();
+        if (operations == null || limit <= 0) {
+            return List.of();
+        }
+        return operations.query("""
+                SELECT item, SUM(counted), MAX(bucket_start)
+                  FROM ctxa_zt_item_hourly
+                 WHERE dimension = 'USER' AND detail = 'CHALLENGE' AND bucket_start >= ? AND bucket_start < ?
+                 GROUP BY item
+                HAVING SUM(counted) >= ?
+                 ORDER BY SUM(counted) DESC, item
+                 LIMIT ?
+                """, (rs, row) -> new UserChallenges(rs.getString(1), rs.getLong(2), String.valueOf(instant(rs, 3))),
+                range.fromHour(), range.toTimestamp(), Math.max(1, atLeast), limit);
+    }
+
     List<String[]> modeChanges(int limit) {
         JdbcOperations operations = jdbc.get();
         if (operations == null) {

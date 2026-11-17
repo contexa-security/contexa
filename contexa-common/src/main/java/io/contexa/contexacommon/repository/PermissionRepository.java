@@ -28,7 +28,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-
+
 public interface PermissionRepository extends JpaRepository<Permission, Long> {
 
     @Query(value = "SELECT p FROM Permission p LEFT JOIN FETCH p.managedResource mr " +
@@ -95,6 +95,16 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
     /** How many roles given to accounts carry the permission with them. */
     @Query("SELECT COUNT(urp) FROM UserRolePermission urp WHERE urp.permission.id = :permissionId")
     long countAccountAssignments(@Param("permissionId") Long permissionId);
+
+    /**
+     * N5: the names of the permissions no resource links and no role carries, by itself, to a group or to an account:
+     * the ones the policy center's cleanup keeps only when a policy names them.
+     */
+    @Query("SELECT p.name FROM Permission p WHERE p.managedResource IS NULL "
+            + "AND NOT EXISTS (SELECT rp FROM RolePermission rp WHERE rp.permission = p) "
+            + "AND NOT EXISTS (SELECT grp FROM GroupRolePermission grp WHERE grp.permission = p) "
+            + "AND NOT EXISTS (SELECT urp FROM UserRolePermission urp WHERE urp.permission = p)")
+    List<String> findNamesWithoutResourceOrAssignment();
 
     @Modifying
     @Query("DELETE FROM Permission p WHERE p.id IN :ids")

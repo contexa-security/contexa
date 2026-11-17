@@ -63,6 +63,15 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
     boolean existsByRecordHash(String recordHash);
 
+    /**
+     * N7: the records of the category written in the window, after the record {@code afterId}, by their ID: a window's
+     * records a batch at a time, the next batch after the last ID of the one before.
+     */
+    @Query("SELECT a FROM AuditLog a WHERE a.eventCategory = :category AND a.timestamp >= :from AND a.timestamp < :to "
+            + "AND a.id > :afterId ORDER BY a.id")
+    List<AuditLog> findSealedBatch(@Param("category") String category, @Param("from") LocalDateTime from,
+                                   @Param("to") LocalDateTime to, @Param("afterId") long afterId, Pageable pageable);
+
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.resourceIdentifier = :resourceId")
     long countByResourceIdentifier(@Param("resourceId") String resourceId);
 
@@ -86,9 +95,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT a FROM AuditLog a WHERE a.principalName = :userId ORDER BY a.timestamp DESC")
     List<AuditLog> findRecentLogsByPrincipalName(@Param("userId") String userId);
 
-
-    @Query("SELECT COUNT(a) FROM AuditLog a WHERE (a.decision = 'DENY' OR a.decision = 'BLOCK') AND a.timestamp >= :since")
-    long countDeniedAttemptsSince(@Param("since") LocalDateTime since);
 
 
     @Query("SELECT a FROM AuditLog a WHERE a.clientIp = :remoteIp ORDER BY a.timestamp DESC")
@@ -170,37 +176,17 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                                            @Param("since") LocalDateTime since);
 
 
-    @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since ORDER BY a.timestamp DESC")
-    List<AuditLog> findByCreatedAtAfter(@Param("since") LocalDateTime since);
-
 
     @Query("SELECT a FROM AuditLog a WHERE a.principalName = :userId " +
             "AND a.timestamp >= :since ORDER BY a.timestamp DESC")
     List<AuditLog> findByPrincipalNameAndCreatedAtAfter(@Param("userId") String userId,
                                                         @Param("since") LocalDateTime since);
 
-    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.decision = 'ALLOW' AND a.timestamp >= :since")
-    long countAllowedSince(@Param("since") LocalDateTime since);
-
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = :category AND a.timestamp >= :since")
     long countByEventCategoryAndTimestampAfter(@Param("category") String category, @Param("since") LocalDateTime since);
 
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'ADMIN_OVERRIDE' AND a.timestamp >= :since")
     long countAdminOverridesSince(@Param("since") LocalDateTime since);
-
-    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'SECURITY_ERROR' AND a.timestamp >= :since")
-    long countSecurityErrorsSince(@Param("since") LocalDateTime since);
-
-    @Query("SELECT AVG(a.riskScore) FROM AuditLog a WHERE a.riskScore IS NOT NULL AND a.timestamp >= :since")
-    Double avgRiskScoreSince(@Param("since") LocalDateTime since);
-
-    @Query(value = "SELECT COUNT(*) FROM ctxa_audit_log WHERE timestamp >= :since " +
-            "AND (EXTRACT(hour FROM timestamp) < 9 OR EXTRACT(hour FROM timestamp) >= 18 " +
-            "OR EXTRACT(isodow FROM timestamp) IN (6, 7))", nativeQuery = true)
-    long countAfterHoursAccessSince(@Param("since") LocalDateTime since);
-
-    @Query("SELECT COUNT(DISTINCT a.clientIp) FROM AuditLog a WHERE a.timestamp >= :since")
-    long countDistinctIpsSince(@Param("since") LocalDateTime since);
 
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'SECURITY_DECISION' AND a.decision = :decision AND a.timestamp >= :since")
     long countZeroTrustDecisionSince(@Param("decision") String decision, @Param("since") LocalDateTime since);
@@ -216,9 +202,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
     @Query("SELECT a FROM AuditLog a WHERE a.eventCategory = 'SECURITY_DECISION' AND a.timestamp >= :since ORDER BY a.timestamp DESC")
     List<AuditLog> findRecentSecurityDecisions(@Param("since") LocalDateTime since);
-
-    @Query("SELECT a FROM AuditLog a WHERE a.eventCategory IN ('USER_BLOCKED', 'MFA_VERIFICATION_FAILED', 'SOAR_AUTO_RESPONSE', 'HTTP_ACCESS_BLOCKED') AND a.timestamp >= :since ORDER BY a.timestamp DESC")
-    List<AuditLog> findRecentThreatEvents(@Param("since") LocalDateTime since);
 
     @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since ORDER BY a.timestamp DESC")
     Page<AuditLog> findByTimestampAfter(@Param("since") LocalDateTime since, Pageable pageable);
@@ -260,21 +243,9 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.timestamp >= :since AND (a.decision = 'DENY' OR a.decision = 'BLOCK')")
     long countDeniedSince(@Param("since") LocalDateTime since);
 
-    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory IN ('POLICY_CREATED', 'POLICY_UPDATED', 'POLICY_DELETED') AND a.timestamp >= :since")
-    long countPolicyChangesSince(@Param("since") LocalDateTime since);
-
-    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory IN ('USER_MODIFIED', 'USER_DELETED', 'ROLE_CREATED', 'ROLE_UPDATED', 'ROLE_DELETED') AND a.timestamp >= :since")
-    long countIamChangesSince(@Param("since") LocalDateTime since);
-
     @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since AND lower(a.principalName) LIKE :keyword ORDER BY a.timestamp DESC")
     Page<AuditLog> findByTimestampAfterAndPrincipalNameLike(@Param("since") LocalDateTime since, @Param("keyword") String keyword, Pageable pageable);
 
     @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since AND a.eventCategory = :category AND lower(a.principalName) LIKE :keyword ORDER BY a.timestamp DESC")
     Page<AuditLog> findByTimestampAfterAndCategoryAndPrincipalNameLike(@Param("since") LocalDateTime since, @Param("category") String category, @Param("keyword") String keyword, Pageable pageable);
-
-    @Query("SELECT a.eventCategory, COUNT(a) FROM AuditLog a WHERE a.timestamp >= :since AND a.eventCategory IN :cats GROUP BY a.eventCategory")
-    List<Object[]> countByEventCategoriesGrouped(@Param("since") LocalDateTime since, @Param("cats") List<String> cats);
-
-    @Query("SELECT a.decision, COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'SECURITY_DECISION' AND a.timestamp >= :since GROUP BY a.decision")
-    List<Object[]> countZeroTrustGroupByDecision(@Param("since") LocalDateTime since);
 }

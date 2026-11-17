@@ -317,6 +317,24 @@ class ZeroTrustConsolePostgresTest {
                 null, "/api/exp"), null).rows()).hasSize(2);
     }
 
+    /**
+     * K80: the dashboard opens a user's step-ups as the decision records' own filters read them (action=CHALLENGE and
+     * the search q=user): the user's step-ups of the period, nobody else's and no other action.
+     */
+    @Test
+    void theDashboardsStepUpLinkOpensTheUsersStepUpsAlone() {
+        ZeroTrustConsoleRange week = service.range("week", null, null);
+
+        assertThat(records.list(week, null, new ZeroTrustDecisionRecords.Filter("CHALLENGE", null, null, null, null,
+                null, null, "u1"), null).rows()).extracting(DecisionRow::observationId, DecisionRow::user)
+                .containsExactly(tuple("challenge-1", "u1"));
+        assertThat(records.list(week, null, new ZeroTrustDecisionRecords.Filter("CHALLENGE", null, null, null, null,
+                null, null, "u2"), null).rows()).extracting(DecisionRow::observationId, DecisionRow::user)
+                .containsExactly(tuple("challenge-2", "u2"));
+        assertThat(records.list(week, null, new ZeroTrustDecisionRecords.Filter("CHALLENGE", null, null, null, null,
+                null, null, "u6"), null).rows()).isEmpty();
+    }
+
     @Test
     void theDetailTellsTheConclusionTheReasonsAndWhatCameOfIt() {
         DecisionDetail detail = records.detail("challenge-1", Locale.ENGLISH);

@@ -35,7 +35,9 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -188,6 +190,31 @@ public class JdbcAgentRegistry implements AgentRegistry {
         return jdbc.query("select " + COLUMNS + " from ctxa_agent_registration where tenant_key = ? "
                         + "order by last_seen_at desc nulls last, agent_id limit ?",
                 ROW_MAPPER, AgentRegistrations.tenantKey(tenantId), rows);
+    }
+
+    /** N10: one statement that counts by status, instead of reading every agent. */
+    @Override
+    public Map<AgentStatus, Long> countByStatus(String tenantId) {
+        Map<AgentStatus, Long> counts = new EnumMap<>(AgentStatus.class);
+        String sql = "select status, count(*) as agents from ctxa_agent_registration"
+                + (tenantId == null ? "" : " where tenant_key = ?") + " group by status";
+        Object[] arguments = tenantId == null ? new Object[0] : new Object[] {AgentRegistrations.tenantKey(tenantId)};
+        jdbc.query(sql, (ResultSet rs) -> {
+            AgentStatus status = statusOf(rs.getString("status"));
+            if (status != null) {
+                counts.merge(status, rs.getLong("agents"), Long::sum);
+            }
+        }, arguments);
+        return counts;
+    }
+
+    private static AgentStatus statusOf(String name) {
+        for (AgentStatus status : AgentStatus.values()) {
+            if (status.name().equals(name)) {
+                return status;
+            }
+        }
+        return null;
     }
 
     @Override

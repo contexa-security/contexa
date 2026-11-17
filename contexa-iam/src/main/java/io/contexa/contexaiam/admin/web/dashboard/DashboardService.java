@@ -13,15 +13,20 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package io.contexa.contexaiam.admin.web.monitoring.dto;
+package io.contexa.contexaiam.admin.web.dashboard;
 
-public record StatisticsDto(
-        long totalUsers,
-        long totalGroups,
-        long totalRoles,
-        long totalPermissions,
-        long totalPolicies,
-        long activePolicies,
-        long mfaEnabledUsers,
-        long mfaDisabledUsers
-) {}
+import io.contexa.contexaiam.admin.web.dashboard.DashboardDtos.DashboardView;
+
+import java.util.Locale;
+
+/** The admin dashboard's numbers (plan step 9, N1): every card's, for the period. */
+public interface DashboardService {
+
+    /**
+     * The dashboard of the period: the last 24 hours ({@code day}), 7 days ({@code week}, the default), 30 days
+     * ({@code month}) or 90 days ({@code quarter}).
+     *
+     * @throws IllegalArgumentException when the period cannot be read
+     */
+    DashboardView dashboard(String period, Locale locale);
+}

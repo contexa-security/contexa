@@ -159,11 +159,6 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
 
     long countBySourceIn(List<Policy.PolicySource> sources);
 
-    long countBySourceInAndApprovalStatus(
-        List<Policy.PolicySource> sources,
-        Policy.ApprovalStatus status
-    );
-
     long countBySourceInAndApprovalStatusInAndUpdatedAtAfter(
         List<Policy.PolicySource> sources,
         List<Policy.ApprovalStatus> statuses,
@@ -175,10 +170,6 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
         Policy.ApprovalStatus status,
         LocalDateTime since
     );
-
-    @Query("SELECT AVG(p.confidenceScore) FROM Policy p " +
-           "WHERE p.source IN ('AI_GENERATED', 'AI_EVOLVED') AND p.confidenceScore IS NOT NULL")
-    Double calculateAverageConfidenceScoreForAIPolicies();
 
     @Query("SELECT p FROM Policy p " +
            "WHERE p.source IN ('AI_GENERATED', 'AI_EVOLVED') " +
@@ -198,8 +189,6 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
 
     long countByIsActiveTrue();
 
-    List<Policy> findTop5ByOrderByCreatedAtDesc();
-
     @Query("SELECT COUNT(p) FROM Policy p JOIN p.targets t " +
            "WHERE t.targetType = :targetType AND t.targetIdentifier = :targetIdentifier " +
            "AND p.id <> :excludePolicyId")
@@ -207,9 +196,6 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
             @Param("targetType") String targetType,
             @Param("targetIdentifier") String targetIdentifier,
             @Param("excludePolicyId") Long excludePolicyId);
-
-    @Query("SELECT p.source, COUNT(p) FROM Policy p GROUP BY p.source")
-    List<Object[]> countGroupBySource();
 
     @Query("SELECT p.approvalStatus, COUNT(p) FROM Policy p WHERE p.source IN :sources GROUP BY p.approvalStatus")
     List<Object[]> countAIApprovalGroupByStatus(@Param("sources") List<Policy.PolicySource> sources);

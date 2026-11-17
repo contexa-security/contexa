@@ -512,6 +512,20 @@ public class PolicyCenterCommandService {
         }
     }
 
+    /**
+     * N5: how many permissions nothing uses, by the rule of the cleanup ({@link #isInUse}): no resource links it, no
+     * role, group role or account role carries it, and no policy condition names it.
+     */
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public long countUnusedPermissions() {
+        List<String> candidates = permissionRepository.findNamesWithoutResourceOrAssignment();
+        if (candidates.isEmpty()) {
+            return 0;
+        }
+        Set<String> namedInPolicies = authoritiesNamedInPolicies();
+        return candidates.stream().filter(name -> name == null || !namedInPolicies.contains(name)).count();
+    }
+
     /** Whether a permission is still linked, granted or named by a policy, and so not an old one to delete. */
     private boolean isInUse(Permission perm, Set<String> namedInPolicies) {
         return perm.getManagedResource() != null

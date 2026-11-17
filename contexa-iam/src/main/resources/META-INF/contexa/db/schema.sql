@@ -2107,6 +2107,34 @@ CREATE TABLE IF NOT EXISTS ctxa_zt_latency_hourly (
 CREATE INDEX IF NOT EXISTS ctxa_idx_zt_latency_hourly_bucket
     ON ctxa_zt_latency_hourly (bucket_start);
 
+-- Plan step 9 (N20): the admin dashboard's refused requests of signed-in users (the URL authorization's
+-- AUTHORIZATION_DENIED records), by hour, counted by resource and by user. They name users, so they are kept as long
+-- as the decision rows. A database installed before it gains the table at the next start.
+CREATE TABLE IF NOT EXISTS ctxa_dashboard_denial_hourly (
+    bucket_start TIMESTAMP(6) NOT NULL,
+    dimension VARCHAR(16) NOT NULL,
+    item VARCHAR(512) NOT NULL,
+    counted BIGINT NOT NULL DEFAULT 0,
+    computed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (bucket_start, dimension, item)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_dashboard_denial_hourly_dimension
+    ON ctxa_dashboard_denial_hourly (dimension, bucket_start);
+
+-- Plan step 9 (N7): the seal check of the decision records, by hour: how many were checked, how many did not match
+-- their seal and how many could not be verified. The hours checked longest ago are checked again.
+CREATE TABLE IF NOT EXISTS ctxa_dashboard_seal_hourly (
+    bucket_start TIMESTAMP(6) NOT NULL PRIMARY KEY,
+    checked BIGINT NOT NULL DEFAULT 0,
+    mismatched BIGINT NOT NULL DEFAULT 0,
+    unverifiable BIGINT NOT NULL DEFAULT 0,
+    computed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_dashboard_seal_hourly_computed
+    ON ctxa_dashboard_seal_hourly (computed_at);
+
 CREATE INDEX IF NOT EXISTS ctxa_idx_audit_log_timestamp
     ON ctxa_audit_log (timestamp);
 

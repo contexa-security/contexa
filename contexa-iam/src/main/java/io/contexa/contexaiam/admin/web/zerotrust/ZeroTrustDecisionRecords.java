@@ -507,6 +507,17 @@ public class ZeroTrustDecisionRecords {
         return reviewPage(null, null).items();
     }
 
+    /** How many decisions wait in the review queue, for every reason: what {@link #reviewPage} counts, alone. */
+    public long reviewPending() {
+        JdbcOperations operations = jdbc.get();
+        if (operations == null) {
+            return 0;
+        }
+        Long pending = operations.queryForObject(
+                "SELECT COUNT(*) FROM ctxa_zt_review_queue q WHERE q.review_status = 'PENDING'", Long.class);
+        return pending == null ? 0 : pending;
+    }
+
     /**
      * A page of the review queue (design 6.4: pages of the list's rows), the latest sample day first, read on from a
      * cursor; only the entries waiting for one reason when it is given (the daily sample, a broken rule, a block SHADOW

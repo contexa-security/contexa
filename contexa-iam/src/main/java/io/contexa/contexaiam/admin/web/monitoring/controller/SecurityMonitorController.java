@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.web.monitoring.controller;
 
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationAuditReason;
 import io.contexa.contexaiam.admin.web.monitoring.dto.DecisionRecordIntegrity;
+import io.contexa.contexaiam.admin.web.monitoring.service.DecisionRecordSealCheck;
 import java.util.Locale;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
@@ -50,7 +51,6 @@ import java.util.stream.Stream;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import org.springframework.lang.Nullable;
-import io.contexa.contexacore.autonomous.audit.DecisionRecordSeal;
 import io.contexa.contexacore.verification.evidence.EvidenceSigner;
 
 /**
@@ -71,6 +71,8 @@ public class SecurityMonitorController {
     private final DelegationRegistry delegationRegistry;
     /** docs/agent A5-6: the signer the decision records are verified with; none reads them as not verifiable. */
     private EvidenceSigner evidenceSigner;
+    /** docs/agent A5-6: the seal check, with the signer set on this controller. */
+    private final DecisionRecordSealCheck sealCheck;
     private MessageSource messageSource;
 
     public SecurityMonitorController(AuditLogRepository auditLogRepository, CsvExportService csvExportService) {
@@ -86,6 +88,7 @@ public class SecurityMonitorController {
         this.auditLogRepository = auditLogRepository;
         this.csvExportService = csvExportService;
         this.delegationRegistry = delegationRegistry;
+        this.sealCheck = new DecisionRecordSealCheck(auditLogRepository, () -> this.evidenceSigner);
     }
 
     /** IAM-D05: the notices of the screen in the administrator's language; without it they are in English. */
@@ -230,21 +233,9 @@ public class SecurityMonitorController {
     private DecisionRecordIntegrity integrityOf(List<AuditLog> records) {
         DecisionRecordIntegrity integrity = new DecisionRecordIntegrity();
         for (AuditLog record : records) {
-            if (record.getId() == null || !"SECURITY_DECISION".equals(record.getEventCategory())) {
-                continue;
-            }
-            try {
+            if (DecisionRecordSealCheck.sealed(record)) {
                 // The oldest kept record names a previous record the audit retention deleted: not a mismatch.
-                integrity.found(record.getId(), DecisionRecordSeal.evaluate(record, evidenceSigner,
-                        auditLogRepository::existsByRecordHash, kept -> auditLogRepository
-                                .existsByEventCategoryAndRecordHashIsNotNullAndIdLessThan("SECURITY_DECISION",
-                                        kept.getId()),
-                        kept -> evidenceSigner != null && auditLogRepository
-                                .existsByEventCategoryAndSignatureKeyIdAndIdLessThan("SECURITY_DECISION",
-                                        evidenceSigner.activeKeyId(), kept.getId())).name());
-            } catch (RuntimeException e) {
-                log.error("Integrity check failed for audit log {}", record.getId(), e);
-                integrity.found(record.getId(), "UNVERIFIABLE");
+                integrity.found(record.getId(), sealCheck.check(record).name());
             }
         }
         return integrity;

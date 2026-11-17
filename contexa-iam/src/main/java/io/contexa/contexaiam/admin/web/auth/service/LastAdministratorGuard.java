@@ -113,6 +113,31 @@ public class LastAdministratorGuard {
     }
 
     /**
+     * How many active administrators the console has now, by the rule of {@link #activeAdministrator}: what a summary
+     * of the console counts as its administrators.
+     */
+    public long administratorCount() {
+        Set<Long> administratorRoles = administratorRoles(hierarchy);
+        return administratorRoles.isEmpty() ? 0 : users.countEnabledOwnAccountsHoldingAnyRole(administratorRoles);
+    }
+
+    /** How many of the active administrators have not turned MFA on. */
+    public long administratorsWithoutMfaCount() {
+        Set<Long> administratorRoles = administratorRoles(hierarchy);
+        return administratorRoles.isEmpty() ? 0
+                : users.countEnabledOwnAccountsHoldingAnyRoleWithoutMfa(administratorRoles);
+    }
+
+    /** The active administrators that have not turned MFA on, by user name, at most {@code limit}. */
+    public List<String> administratorsWithoutMfa(int limit) {
+        Set<Long> administratorRoles = administratorRoles(hierarchy);
+        if (administratorRoles.isEmpty() || limit <= 0) {
+            return List.of();
+        }
+        return users.findEnabledOwnUsernamesHoldingAnyRoleWithoutMfa(administratorRoles, PageRequest.of(0, limit));
+    }
+
+    /**
      * Refuses the change made to the user when it took the console's last active administrator.
      *
      * @param wasActiveAdministrator whether the user was one before the change

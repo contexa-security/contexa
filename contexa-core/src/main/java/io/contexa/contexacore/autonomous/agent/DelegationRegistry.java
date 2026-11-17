@@ -51,6 +51,14 @@ public interface DelegationRegistry {
     List<AgentDelegation> list(@Nullable String tenantId, @Nullable String delegatorId, @Nullable String agentId,
                                int limit);
 
+    /**
+     * How many delegations of every tenant hold at the moment ({@link AgentDelegation#validAt}): what a summary shows
+     * without reading them. A registry that does not override it reads every delegation it holds.
+     */
+    default long countValidAt(Instant at) {
+        return list(null, null, null, Integer.MAX_VALUE).stream().filter(delegation -> delegation.validAt(at)).count();
+    }
+
     /** Revokes the delegation at once; an ended one stays as it was. Empty when it is unknown. */
     Optional<AgentDelegation> revoke(String delegationId, String revokedBy, @Nullable String reason);
 

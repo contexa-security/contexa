@@ -45,6 +45,7 @@ import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Operations
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.OutcomeSection;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Overview;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.OverviewSummary;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Period;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.QualitySection;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.RangedMetric;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.RankedItem;
@@ -57,6 +58,7 @@ import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.StoppedSid
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Throughput;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Trust;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.TrustCard;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.UserChallenges;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Previous;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.UnknownFact;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.WouldHave;
@@ -128,6 +130,32 @@ public class ZeroTrustConsoleService {
 
     ZeroTrustConsoleRange range(String period, String from, String to) {
         return ZeroTrustConsoleRange.of(period, from, to, clock);
+    }
+
+    /**
+     * The period a page reads as the band names it (the last 24 hours, 7, 30 or 90 days): for a page that reads other
+     * numbers over the same period, the dashboard's.
+     */
+    public Period period(String period) {
+        return range(period, null, null).period();
+    }
+
+    /**
+     * N13: the operator's latest change of the Zero Trust mode, as the adoption screen's history reads it, or null when
+     * the mode was never changed in the console.
+     */
+    public ModeChange lastModeChange() {
+        List<ModeChange> changes = modeHistory(1);
+        return changes.isEmpty() ? null : changes.get(0);
+    }
+
+    /**
+     * N17: the users the period challenged at least {@code atLeast} times, the most challenged first (a tie by name), at
+     * most {@code limit}, each with the latest hour of a challenge; read from the hourly table the impact screen ranks
+     * its users from.
+     */
+    public List<UserChallenges> challengedAtLeast(String period, long atLeast, int limit) {
+        return reader.challengedAtLeast(range(period, null, null), atLeast, limit);
     }
 
     // ----- the band above every screen (6.0) -----
@@ -780,8 +808,12 @@ public class ZeroTrustConsoleService {
     }
 
     List<ModeChange> modeHistory() {
+        return modeHistory(20);
+    }
+
+    private List<ModeChange> modeHistory(int limit) {
         List<ModeChange> history = new ArrayList<>();
-        for (String[] change : reader.modeChanges(20)) {
+        for (String[] change : reader.modeChanges(limit)) {
             String previous = null;
             String reason = null;
             try {
@@ -811,17 +843,8 @@ public class ZeroTrustConsoleService {
         List<StatsRow> rows = reader.stats(range, tenant);
         long decisions = decisions(rows);
         CoverageCard coverage = coverage(range, tenant, rows, metrics);
-        Map<String, Long> counts = tenant == null ? reader.coverage(range) : Map.of();
         SecurityPlaneAgent planeAgent = agent.get();
-        Throughput throughput = new Throughput(
-                tenant == null ? metrics.value("protectedPerMinute",
-                        counts.getOrDefault("PROTECTED_CALL", 0L) / (double) range.minutes(), "PER_MINUTE", null)
-                        : metrics.unavailable("protectedPerMinute", "PER_MINUTE", ZeroTrustConsoleMetrics.TENANT_FILTERED),
-                metrics.value("decisionsPerMinute", decisions / (double) range.minutes(), "PER_MINUTE", null),
-                planeAgent != null ? planeAgent.analysesInProgress() : null,
-                // Design 6.6: the headroom is the line's bound less the analyses in it; an unbounded line has none.
-                planeAgent != null && planeAgent.analysisLineBound() > 0 && planeAgent.analysisLineBound() < Integer.MAX_VALUE
-                        ? planeAgent.analysisLineBound() : null);
+        Throughput throughput = throughput(range, tenant, metrics, decisions, planeAgent);
         Map<LocalDate, Map<String, Long>> failures = new TreeMap<>();
         for (DayRow row : reader.days(range, tenant)) {
             boolean noDecision = NO_DECISION.equals(row.action());
@@ -881,6 +904,36 @@ public class ZeroTrustConsoleService {
                 costs, bundleModels(rows), ranked(range, tenant, "PROVIDER", null), triggers(range, tenant, decisions),
                 new Storage(console.getDecisionRetentionDays(), console.getAggregateRetentionDays(), standalone,
                         reader.decisionRowsEstimate(), nextCleanup(console.getRetentionCron())));
+    }
+
+    /** The protected calls and the decisions of a minute in the period, and the analyses in the line now. */
+    private Throughput throughput(ZeroTrustConsoleRange range, String tenant, ZeroTrustConsoleMetrics metrics,
+                                  long decisions, SecurityPlaneAgent planeAgent) {
+        Map<String, Long> counts = tenant == null ? reader.coverage(range) : Map.of();
+        return new Throughput(
+                tenant == null ? metrics.value("protectedPerMinute",
+                        counts.getOrDefault("PROTECTED_CALL", 0L) / (double) range.minutes(), "PER_MINUTE", null)
+                        : metrics.unavailable("protectedPerMinute", "PER_MINUTE", ZeroTrustConsoleMetrics.TENANT_FILTERED),
+                metrics.value("decisionsPerMinute", decisions / (double) range.minutes(), "PER_MINUTE", null),
+                planeAgent != null ? planeAgent.analysesInProgress() : null,
+                // Design 6.6: the headroom is the line's bound less the analyses in it; an unbounded line has none.
+                planeAgent != null && planeAgent.analysisLineBound() > 0 && planeAgent.analysisLineBound() < Integer.MAX_VALUE
+                        ? planeAgent.analysisLineBound() : null);
+    }
+
+    /**
+     * N12: the parts of the decision path and their state alone, as the operations screen shows them, for a page that
+     * shows the states without the rest of the operations screen (the dashboard). It reads only what the states need.
+     */
+    public List<Component> components(String period, Locale locale) {
+        return reader.screen(() -> {
+            ZeroTrustConsoleRange range = range(period, null, null);
+            ZeroTrustConsoleMetrics metrics = new ZeroTrustConsoleMetrics(messages, locale);
+            List<StatsRow> rows = reader.stats(range, null);
+            SecurityPlaneAgent planeAgent = agent.get();
+            Throughput throughput = throughput(range, null, metrics, decisions(rows), planeAgent);
+            return components(range, null, rows, throughput, latency(range, null, null), planeAgent);
+        });
     }
 
     /** When the retention pass runs next, in the server's zone, or null when its cron cannot be read. */
