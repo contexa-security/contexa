@@ -92,6 +92,15 @@ public final class ZeroTrustConsoleMetrics {
                 value == null ? (noDataReason != null ? noDataReason : EMPTY_DENOMINATOR) : null);
     }
 
+    /**
+     * A value shown as the bucket of a histogram it falls in (the unit names the buckets' words): the bucket's index,
+     * with the count it was read from; without a count, "—" and why.
+     */
+    MetricValue bucket(String key, Integer index, long counted, String unit, String noDataReason) {
+        return new MetricValue(key, label(key), description(key), index == null ? null : index.doubleValue(),
+                counted, null, unit, index == null ? noDataReason : null);
+    }
+
     MetricValue unavailable(String key, String unit, String reason) {
         return new MetricValue(key, label(key), description(key), null, null, null, unit, reason);
     }
@@ -129,6 +138,29 @@ public final class ZeroTrustConsoleMetrics {
     static final long[] HOURLY_LATENCY_BOUNDS = {1_000, 2_000, 5_000, 10_000, 30_000, 60_000, 90_000};
 
     /** As {@link #percentile(long[], double)}, for a histogram of the given bounds. */
+    /**
+     * The bucket of a histogram the p-th percentile falls in: the first bucket whose running count reaches p of the
+     * whole, so the median of an even count is the bucket of the lower of the two middle values. Null for no count.
+     */
+    static Integer bucketOf(long[] buckets, double p) {
+        long total = 0;
+        for (long count : buckets) {
+            total += count;
+        }
+        if (total == 0) {
+            return null;
+        }
+        double rank = p * total;
+        long below = 0;
+        for (int i = 0; i < buckets.length; i++) {
+            below += buckets[i];
+            if (buckets[i] > 0 && below >= rank) {
+                return i;
+            }
+        }
+        return buckets.length - 1;
+    }
+
     static Long percentile(long[] buckets, long[] bounds, double p) {
         long total = 0;
         for (long count : buckets) {

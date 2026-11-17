@@ -219,7 +219,7 @@ class ZeroTrustConsolePostgresTest {
         assertThat(impact.cost().userWaitP50().value()).isBetween(1000.0, 2000.0);
         assertThat(impact.cost().userWaitP95().value()).isBetween(2000.0, 5000.0);
         assertThat(impact.cost().blocks().released()).isEqualTo(1);
-        assertThat(impact.cost().blocks().releaseMedianHours().value()).isNotNull();
+        assertThat(impact.cost().blocks().releaseMedian().value()).isNotNull();
         assertThat(impact.cost().topChallengedUsers()).extracting(user -> user.user())
                 .containsExactlyInAnyOrder("u1", "u2");
         assertThat(impact.cost().topChallengedUsers()).filteredOn(user -> "u1".equals(user.user())).first()
@@ -616,8 +616,9 @@ class ZeroTrustConsolePostgresTest {
 
         Impact impact = service.impact("week", null, null, null, Locale.ENGLISH);
         assertThat(impact.stopped().reasoned()).as("the stopped decisions with a reason code").isEqualTo(2);
-        // block-1 was decided two hours ago and released a minute ago: in the bucket of 60 to 120 minutes
-        assertThat(impact.cost().blocks().releaseMedianHours().value()).isEqualTo(1.5);
+        // block-1 was decided two hours ago and released a minute ago: in the bucket of 60 to 120 minutes (index 3)
+        assertThat(impact.cost().blocks().releaseMedian().value()).isEqualTo(3.0);
+        assertThat(impact.cost().blocks().releaseMedian().unit()).isEqualTo(ZeroTrustConsoleService.RELEASE_BUCKET);
         assertThat(impact.cost().challenges().codeRequests().value()).isEqualTo(1.0);
 
         Trust trust = service.trust("week", null, null, null, Locale.ENGLISH);
@@ -720,6 +721,49 @@ class ZeroTrustConsolePostgresTest {
             assertThat(change.from()).isEqualTo("SHADOW");
             assertThat(change.reason()).isEqualTo("pilot done");
         });
+    }
+
+    /**
+     * The user's choice (2026-11-17): a release at exactly 60 minutes is in the bucket up to an hour, at 61 minutes in
+     * the one up to two hours, past 7 days in the last; of the four releases of the week (60, 61 and 119 minutes and
+     * past 7 days) the median is the lower middle one, between 1 and 2 hours. A week without a release has no bucket.
+     */
+    @Test
+    void theReleaseMedianIsTheBucketItFallsInAndItsBucketsHaveTheirEdges() {
+        Instant decided = now.minus(Duration.ofHours(5)).truncatedTo(ChronoUnit.HOURS);
+        released("released-60", decided, Duration.ofMinutes(60));
+        released("released-61", decided, Duration.ofMinutes(61));
+        released("released-late", decided, Duration.ofDays(7).plusMinutes(1));
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+
+        Map<String, Object> hour = jdbc.queryForMap("SELECT SUM(release_le_1h) AS le_1h, SUM(release_le_2h) AS le_2h, "
+                + "SUM(release_gt_7d) AS gt_7d, SUM(release_le_7d) AS le_7d FROM ctxa_zt_stats_hourly WHERE bucket_start = ?",
+                Timestamp.from(decided));
+        assertThat(((Number) hour.get("le_1h")).longValue()).as("exactly 60 minutes").isEqualTo(1);
+        assertThat(((Number) hour.get("le_2h")).longValue()).as("61 minutes").isEqualTo(1);
+        assertThat(((Number) hour.get("gt_7d")).longValue()).as("past 7 days").isEqualTo(1);
+        assertThat(((Number) hour.get("le_7d")).longValue()).isZero();
+
+        Impact impact = service.impact("week", null, null, null, Locale.ENGLISH);
+        assertThat(impact.cost().blocks().releaseMedian().value()).as("the second of four: 61 minutes").isEqualTo(3.0);
+        assertThat(impact.cost().blocks().releaseMedian().numerator()).isEqualTo(4L);
+
+        jdbc.update("DELETE FROM ctxa_zt_decision_outcome WHERE outcome_kind = 'ADMIN_RELEASED'");
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+        assertThat(service.impact("week", null, null, null, Locale.ENGLISH).cost().blocks().releaseMedian())
+                .satisfies(median -> {
+                    assertThat(median.value()).isNull();
+                    assertThat(median.noDataReason()).isEqualTo(ZeroTrustConsoleMetrics.EMPTY_DENOMINATOR);
+                });
+    }
+
+    /** A block decided at the time given, released by an administrator after the time given. */
+    private static void released(String observationId, Instant decided, Duration after) {
+        decision(Map.of("observation_id", observationId, "final_action", "BLOCK"), decided);
+        Instant at = decided.plus(after);
+        jdbc.update("INSERT INTO ctxa_zt_decision_outcome (outcome_id, observation_id, request_id, user_id, outcome_kind, "
+                + "actor, occurred_at, created_at) VALUES (?, ?, ?, 'u0', 'ADMIN_RELEASED', 'admin', ?, ?)",
+                "outcome-" + observationId, observationId, "request-" + observationId, Timestamp.from(at), Timestamp.from(at));
     }
 
     private List<String> rows(ZeroTrustConsoleRange range, ZeroTrustDecisionRecords.Filter filter) {
