@@ -111,7 +111,16 @@ public final class PromptVersionConsoleDtos {
                           boolean drawnAgain, String notDrawn) {
     }
 
-    public record Size(int systemTokens, Integer baseSystemTokens) {
+    /**
+     * The size of a version (plan 3.10 (2), K69): its system prompt and the blocks it adds to the user prompt as the
+     * prompt draws them, in estimated tokens, against its base's; null for the base's of a product version.
+     *
+     * @param estimatedDeltaMs how much longer (or shorter) a decision is estimated to take than with the base, from the
+     *                         size difference and the median time per input token of the latest decisions; null for a
+     *                         product version, another prompt than the security decision or without recent decisions
+     */
+    public record Size(int systemTokens, Integer baseSystemTokens, int addedUserTokens, Integer baseAddedUserTokens,
+                       Long estimatedDeltaMs) {
     }
 
     public record VersionView(String scope, String prompt, boolean decisionPrompt, boolean trialsOffered,

@@ -53,6 +53,7 @@ import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 
 /**
  * The versions of the prompts in the database (plan 3.3, 3.6, 3.7): the product documents a build ships registered as
@@ -260,9 +261,19 @@ public class PromptVersionService {
         // prompt count as the prompt draws them (K64).
         boolean decision = SecurityDecisionPromptDocument.PROMPT.equals(base.get().prompt());
         PromptAssembler.Check check = assembler.check(baseVersion, document, decision ? limit : null,
-                decision ? SecurityDecisionPromptDocument::organizationBlockTokens : PromptAssembler::addedUserTokens);
+                addedUserTokens(base.get().prompt()));
         problems.addAll(check.problems());
         return new Checked(base.get(), baseVersion, check, problems);
+    }
+
+    /**
+     * K64, K69: how the blocks an organization added to the user prompt of a version of the prompt are counted, as the
+     * prompt draws them: the security decision's with their headers, another prompt's under their titles.
+     */
+    public static ToIntFunction<AssembledPrompt> addedUserTokens(String prompt) {
+        return SecurityDecisionPromptDocument.PROMPT.equals(prompt)
+                ? SecurityDecisionPromptDocument::organizationBlockTokens
+                : PromptAssembler::addedUserTokens;
     }
 
     /** The prompts the build ships product documents for, in the order of the build's list. */

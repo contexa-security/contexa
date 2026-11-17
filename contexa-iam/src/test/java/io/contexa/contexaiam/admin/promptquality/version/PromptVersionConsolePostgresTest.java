@@ -50,6 +50,7 @@ import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDto
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.PartView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Preview;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Receipt;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Size;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.VersionView;
 import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import org.junit.jupiter.api.AfterAll;
@@ -509,6 +510,57 @@ class PromptVersionConsolePostgresTest {
         }
         finally {
             jdbc.update("delete from ctxa_ai_security_decision_observation where observation_id = 'obs-k64'");
+        }
+    }
+
+    /**
+     * K69 (plan 3.10 (2)): the size of a version counts the blocks it adds to the user prompt with its system prompt, as
+     * the prompt draws them, against its base, and the decision time that size is estimated to add counts them too.
+     */
+    @Test
+    void theSizeAndTheTimeOfAVersionCountTheBlocksItAddsToTheUserPrompt() {
+        int blockTokens = PromptAssembler.tokensOf(1 + CLOSING_BLOCK.length());
+        int productSystem = PromptAssembler.systemTokens(SecurityDecisionPromptDocument.product());
+        console.create(null, form(1, List.of(), List.of(add("org-closing", "Finance closing", CLOSING, "REQUEST"))),
+                "admin");
+        console.create(null, form(2, List.of(), List.of(add("org-desk", "Security desk",
+                "The desk answers within an hour.", "org-closing"))), "admin");
+        int deskTokens = PromptAssembler.tokensOf(2L + CLOSING_BLOCK.length()
+                + "=== Security desk (reference written by your organization) ===\n".length()
+                + "The desk answers within an hour.\n".length()) - blockTokens;
+
+        Size product = console.version(null, PROMPT, 1).orElseThrow().size();
+        assertThat(product.systemTokens()).isEqualTo(productSystem);
+        assertThat(product.addedUserTokens()).isZero();
+        assertThat(product.baseSystemTokens()).isNull();
+        assertThat(product.estimatedDeltaMs()).isNull();
+
+        Size closing = console.version(null, PROMPT, 2).orElseThrow().size();
+        assertThat(closing.systemTokens()).isEqualTo(productSystem);
+        assertThat(closing.baseSystemTokens()).isEqualTo(productSystem);
+        assertThat(closing.addedUserTokens()).isEqualTo(blockTokens);
+        assertThat(closing.baseAddedUserTokens()).isZero();
+        // Nothing to estimate the time from without recent decisions.
+        assertThat(closing.estimatedDeltaMs()).isNull();
+
+        // On a base that added a block already, the base's block is counted on both sides.
+        Size desk = console.version(null, PROMPT, 3).orElseThrow().size();
+        assertThat(desk.baseAddedUserTokens()).isEqualTo(blockTokens);
+        assertThat(desk.addedUserTokens()).isEqualTo(blockTokens + deskTokens);
+
+        jdbc.update("insert into ctxa_ai_security_decision_observation (observation_id, request_id, user_id,"
+                + " http_method, request_path, created_at, llm_latency_ms, prompt_tokens) values ('obs-k69', 'req-k69',"
+                + " 'alice', 'GET', '/api/ledger', ?, 10000, 5000)", Timestamp.from(CLOCK.instant()));
+        try {
+            // Two milliseconds a token, the median of the latest decisions.
+            assertThat(console.version(null, PROMPT, 2).orElseThrow().size().estimatedDeltaMs())
+                    .isEqualTo(2L * blockTokens);
+            assertThat(console.version(null, PROMPT, 3).orElseThrow().size().estimatedDeltaMs())
+                    .isEqualTo(2L * deskTokens);
+            assertThat(console.version(null, PROMPT, 1).orElseThrow().size().estimatedDeltaMs()).isNull();
+        }
+        finally {
+            jdbc.update("delete from ctxa_ai_security_decision_observation where observation_id = 'obs-k69'");
         }
     }
 

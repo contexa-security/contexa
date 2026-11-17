@@ -91,6 +91,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -285,10 +286,26 @@ public class PromptVersionConsole {
         return Optional.of(new VersionView(scopeName, key, decisionPrompt(key), PromptVersionTrials.offeredFor(key),
                 writable(), row(record, state(record, states, used(scopeName, key, records))), record.contentHash(),
                 record.basedOnNumber() != null ? PromptVersionNames.name(record.basedOnNumber()) : null, changes, system,
-                user, preview(key, mine.get(), record.name(), user),
-                new Size(PromptAssembler.systemTokens(mine.get()),
-                        base != null ? PromptAssembler.systemTokens(base) : null),
+                user, preview(key, mine.get(), record.name(), user), size(key, mine.get(), base),
                 made, !record.fromDocument() && !record.hidden()));
+    }
+
+    /**
+     * K69: the size of a version against its base, its system prompt and the blocks it adds to the user prompt as the
+     * prompt draws them, and for the security decision the decision time that size is estimated to add.
+     */
+    private Size size(String prompt, AssembledPrompt version, AssembledPrompt base) {
+        ToIntFunction<AssembledPrompt> userTokens = PromptVersionService.addedUserTokens(prompt);
+        int system = PromptAssembler.systemTokens(version);
+        int user = userTokens.applyAsInt(version);
+        if (base == null) {
+            return new Size(system, null, user, null, null);
+        }
+        int baseSystem = PromptAssembler.systemTokens(base);
+        int baseUser = userTokens.applyAsInt(base);
+        Double msPerToken = decisionPrompt(prompt) ? msPerInputToken() : null;
+        Long estimate = msPerToken != null ? Math.round((system - baseSystem + user - baseUser) * msPerToken) : null;
+        return new Size(system, baseSystem, user, baseUser, estimate);
     }
 
     /**

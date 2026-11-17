@@ -21,6 +21,7 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
+import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionInUse;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
 import io.contexa.contexacore.std.components.prompt.version.VersionedPrompt;
@@ -170,6 +171,16 @@ class PromptVersionOtherPromptsPostgresTest {
         assertThat(naming.preview().user()).contains("identifier: /api/users/{id}");
         assertThat(query.preview().system()).isNull();
         assertThat(query.preview().user()).contains("Original Query: who exported the payroll report last night");
+
+        // K69: another prompt's size counts a block added to its user prompt as that prompt draws it, under its title.
+        versions.create(null, "prompt: ResourceNaming\nbasedOn: v1.0\ntitle: Finance names\nuser:\n"
+                + "  - key: finance-terms\n    add-after: reference\n    title: Finance terms\n    text: |\n"
+                + "      A ledger is a book of accounts.\n", PromptVersionRecord.SCREEN, null, "admin", null);
+        VersionView terms = console.version(null, "ResourceNaming", 2).orElseThrow();
+        assertThat(terms.size().addedUserTokens()).isEqualTo(PromptAssembler.tokensOf(1 + "Finance terms:\n".length()
+                + "A ledger is a book of accounts.\n".length()));
+        assertThat(terms.size().baseAddedUserTokens()).isZero();
+        assertThat(terms.size().estimatedDeltaMs()).isNull();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

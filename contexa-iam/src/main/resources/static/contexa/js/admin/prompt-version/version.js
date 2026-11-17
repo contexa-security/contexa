@@ -101,21 +101,31 @@
                 : t('pv.version.product')});
     }
 
+    /** K69: the system prompt and the blocks the version adds to the user prompt, with their headers. */
     function sizeCard(view) {
         const size = view.size || {};
-        const delta = size.baseSystemTokens != null ? size.systemTokens - size.baseSystemTokens : null;
+        const added = size.addedUserTokens || 0;
+        const delta = size.baseSystemTokens != null
+            ? size.systemTokens + added - size.baseSystemTokens - (size.baseAddedUserTokens || 0) : null;
+        const signedDelta = delta == null ? null : PV.signed(delta, value => PV.tokens(value));
         return ZT.kpi({tone: 'teal', icon: 'fa-ruler-horizontal', label: t('pv.version.size'),
-            value: PV.tokens(size.systemTokens),
+            value: PV.tokens(size.systemTokens + added),
             sub: delta == null ? t('pv.version.sizeProduct')
-                : t('pv.version.sizeDelta', view.version.basedOn, PV.signed(delta, value => PV.tokens(value))),
+                : added ? t('pv.version.sizeDeltaBlocks', view.version.basedOn, signedDelta, PV.tokens(added))
+                    : t('pv.version.sizeDelta', view.version.basedOn, signedDelta),
             title: t('pv.version.sizeHelp')});
     }
 
     function timeCard(view) {
         const made = view.decisions;
+        const estimate = view.size && view.size.estimatedDeltaMs != null && view.version.basedOn
+            ? PV.signed(view.size.estimatedDeltaMs, value => ZT.seconds(value)) : null;
         return ZT.kpi({tone: 'purple', icon: 'fa-stopwatch', label: t('pv.version.time'),
             value: made && made.medianMs != null ? ZT.seconds(made.medianMs) : '—',
-            sub: made ? t('pv.version.timeSub', ZT.count(made.decisions)) : t('pv.version.noDecisions'),
+            sub: made
+                ? estimate ? t('pv.version.timeSubEstimate', ZT.count(made.decisions), view.version.basedOn, estimate)
+                    : t('pv.version.timeSub', ZT.count(made.decisions))
+                : estimate ? t('pv.version.timeEstimate', view.version.basedOn, estimate) : t('pv.version.noDecisions'),
             title: t('pv.version.timeHelp')});
     }
 
