@@ -213,11 +213,13 @@ public class ZeroTrustConsoleService {
 
     /**
      * Design 6.1: the four key numbers of the period of the same length just before this one, so each card says how
-     * it changed. Read from the same hourly tables.
+     * it changed. Read from the same hourly tables, which count whole hours from the hour a period starts in, so the
+     * period before ends where that hour starts (K82): an hour is counted in one of the two periods, never in both.
      */
     Previous previous(ZeroTrustConsoleRange range, String tenant, ZeroTrustConsoleMetrics metrics) {
         Duration length = Duration.between(range.from(), range.to());
-        ZeroTrustConsoleRange before = new ZeroTrustConsoleRange(range.key(), range.from().minus(length), range.from());
+        Instant end = range.fromHour().toInstant();
+        ZeroTrustConsoleRange before = new ZeroTrustConsoleRange(range.key(), end.minus(length), end);
         List<StatsRow> rows = reader.stats(before, tenant);
         long decisions = decisions(rows);
         long stopped = sum(rows, r -> STOPPED.contains(r.action()), StatsRow::decisions);
@@ -295,7 +297,8 @@ public class ZeroTrustConsoleService {
         }
         // The coverage counts are the nodes' over every tenant, and SHADOW's decisions are no coverage of their own.
         Map<LocalDate, Map<String, Long>> coverage = tenant == null && mode == null ? reader.coverageDays(range) : Map.of();
-        Map<LocalDate, long[]> latency = reader.latencyDays(range, tenant, "TOTAL");
+        // K83: the daily p95 is of the decisions of the mode the other values of the day count.
+        Map<LocalDate, long[]> latency = reader.latencyDays(range, tenant, mode, "TOTAL");
         List<DayPoint> points = new ArrayList<>();
         days.forEach((day, n) -> {
             Map<String, Long> counts = coverage.get(day);
@@ -340,14 +343,14 @@ public class ZeroTrustConsoleService {
      */
     List<Alert> alerts(ZeroTrustConsoleRange range, String tenant, List<StatsRow> rows, ZeroTrustConsoleMetrics metrics) {
         List<Alert> alerts = new ArrayList<>();
-        long blocks = sum(rows, r -> "BLOCK".equals(r.action()), StatsRow::decisions);
-        long answeredBlocks = sum(rows, r -> "BLOCK".equals(r.action()), r -> r.released() + r.kept()
-                + r.valid() + r.invalid());
-        long unreviewed = Math.max(0, blocks - answeredBlocks);
+        // K81, design 6.1 and 6.4: each block counted once when no administrator released, kept or evaluated it, a
+        // request to be unblocked or not; the list it opens holds the same decisions.
+        long unreviewed = sum(rows, r -> "BLOCK".equals(r.action()), StatsRow::unreviewedBlocks);
         if (unreviewed > 0) {
             alerts.add(new Alert("unreviewedBlocks", "WARN",
                     metrics.message("zt.console.alert.unreviewedBlocks", unreviewed + " blocks no administrator has "
-                            + "reviewed", unreviewed), "/contexa/admin/zero-trust/decisions?action=BLOCK&outcome=NONE"));
+                            + "reviewed", unreviewed), "/contexa/admin/zero-trust/decisions?action=BLOCK&outcome="
+                    + ZeroTrustDecisionRecords.UNREVIEWED));
         }
         ZeroTrustConsoleRange today = new ZeroTrustConsoleRange("day", clock.instant().minus(Duration.ofHours(24)),
                 clock.instant());

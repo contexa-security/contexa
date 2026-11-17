@@ -24,6 +24,7 @@ import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -53,6 +54,8 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
     private final PromptGovernanceModelCompatibilityRepository modelCompatibilityRepository;
     private final PromptGovernanceBudgetProfileRepository budgetProfileRepository;
     private final PromptVersionCatalog versions;
+    /** Plan 3.11: the prompts other than the security decision whose products declare the policy of their versions. */
+    private final VersionedPrompts versionedPrompts;
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     /** N-GOV-5: the gate state of a deprecation, by a transition or by the activation of the bundle in its place. */
     private static final String SUPERSEDED = "SUPERSEDED";
@@ -83,11 +86,7 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                 budgetProfileRepository, PromptVersionCatalog.none());
     }
 
-    /**
-     * Plan 3.9: the gate of the bundles and of the versions of the database. A release named as a version
-     * ({@code v2.0}) is read from the version table and its product policy; the start fails when the product of a
-     * prompt the build ships does not declare the policy its versions inherit.
-     */
+    /** Plan 3.9: the gate of the bundles and of the versions of the security decision alone. */
     public PromptGovernanceReleaseGateService(
             PromptGovernanceLifecycleLedgerService lifecycleLedgerService,
             PromptGovernanceRegistryRepository registryRepository,
@@ -99,7 +98,34 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             PromptGovernanceModelCompatibilityRepository modelCompatibilityRepository,
             PromptGovernanceBudgetProfileRepository budgetProfileRepository,
             PromptVersionCatalog versions) {
-        ProductPromptPolicy.verify();
+        this(lifecycleLedgerService, registryRepository, changeRepository, evaluationRepository,
+                releaseApprovalRepository, rollbackRepository, workflowRepository, modelCompatibilityRepository,
+                budgetProfileRepository, versions, null);
+    }
+
+    /**
+     * Plan 3.9, 3.11: the gate of the bundles and of the versions of the database. A release named as a version
+     * ({@code v2.0}) is read from the version table and the product policy of its prompt, the security decision or one
+     * of the other prompts; the start fails when the product of a prompt the build ships does not declare the policy
+     * its versions inherit.
+     *
+     * @param versionedPrompts the prompts other than the security decision that run from their versions, none when
+     *                         null
+     */
+    public PromptGovernanceReleaseGateService(
+            PromptGovernanceLifecycleLedgerService lifecycleLedgerService,
+            PromptGovernanceRegistryRepository registryRepository,
+            PromptGovernanceChangeRecordRepository changeRepository,
+            PromptGovernanceEvaluationRecordRepository evaluationRepository,
+            PromptGovernanceReleaseApprovalRepository releaseApprovalRepository,
+            PromptGovernanceRollbackRecordRepository rollbackRepository,
+            PromptGovernanceReleaseWorkflowRepository workflowRepository,
+            PromptGovernanceModelCompatibilityRepository modelCompatibilityRepository,
+            PromptGovernanceBudgetProfileRepository budgetProfileRepository,
+            PromptVersionCatalog versions,
+            VersionedPrompts versionedPrompts) {
+        this.versionedPrompts = versionedPrompts != null ? versionedPrompts : new VersionedPrompts(List.of());
+        ProductPromptPolicy.verify(this.versionedPrompts);
         this.versions = versions != null ? versions : PromptVersionCatalog.none();
         this.lifecycleLedgerService = lifecycleLedgerService;
         this.registryRepository = registryRepository;
@@ -519,7 +545,7 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                 .map(SecurityDecisionPromptDocument::keepsInjectionGuard).orElse(false);
         VersionEvidence version = new VersionEvidence(entry, versions.trialFinished(registryScope, promptKey,
                 promptVersion), rollbackTarget, decidesNow, onlyVersion, injectionGuardKept);
-        ProductPromptPolicy.Policy policy = ProductPromptPolicy.of(promptKey).orElse(null);
+        ProductPromptPolicy.Policy policy = ProductPromptPolicy.of(promptKey, versionedPrompts).orElse(null);
         List<String> gaps = policy != null ? policy.gaps() : List.of("MODEL_COMPATIBILITY_MISSING",
                 "BUDGET_PROFILE_MISSING", "TOKEN_COUNTING_POLICY_MISSING", "CACHE_POLICY_MISSING",
                 "COMPACTION_POLICY_MISSING");

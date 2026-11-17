@@ -17,6 +17,8 @@ package io.contexa.contexacore.std.components.prompt.governance;
 
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompt;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -30,7 +32,9 @@ import java.util.Optional;
  * policies that govern them. The release gate reads it for a version where it reads the compatibility and budget
  * ledgers for a bundle, so MODEL_COMPATIBILITY_MISSING, BUDGET_PROFILE_MISSING, TOKEN_COUNTING_POLICY_MISSING,
  * CACHE_POLICY_MISSING and COMPACTION_POLICY_MISSING are always met by a version; the gate does not start when the
- * product declares one of them not ({@link #verify()}).
+ * product declares one of them not ({@link #verify(VersionedPrompts)}). The products are those of every prompt the
+ * build ships: the security decision's bundles and the prompts other than it that run from their versions (plan 3.11),
+ * each with the descriptor of its registry row.
  */
 public final class ProductPromptPolicy {
 
@@ -77,12 +81,29 @@ public final class ProductPromptPolicy {
     private ProductPromptPolicy() {
     }
 
-    /** The product policy of the prompt, from the descriptor of the product the build ships; empty for another prompt. */
-    public static Optional<Policy> of(String promptKey) {
-        return PromptGovernanceRegistryService.platformStandardDescriptors().stream()
+    /**
+     * The product policy of the prompt, from the descriptor of the product the build ships: a bundle of the security
+     * decision or one of the other prompts; empty for a prompt the build does not ship.
+     *
+     * @param others the prompts other than the security decision that run from their versions, none without them
+     */
+    public static Optional<Policy> of(String promptKey, VersionedPrompts others) {
+        return products(others).stream()
                 .filter(descriptor -> descriptor.promptKey().equals(promptKey))
                 .findFirst()
                 .map(ProductPromptPolicy::of);
+    }
+
+    /** The descriptors of the products of every prompt the build ships, the security decision's bundles first. */
+    private static List<PromptGovernanceDescriptor> products(VersionedPrompts others) {
+        List<PromptGovernanceDescriptor> products =
+                new ArrayList<>(PromptGovernanceRegistryService.platformStandardDescriptors());
+        if (others != null) {
+            for (VersionedPrompt prompt : others.prompts()) {
+                products.add(prompt.registryDescriptor());
+            }
+        }
+        return products;
     }
 
     static Policy of(PromptGovernanceDescriptor descriptor) {
@@ -97,9 +118,12 @@ public final class ProductPromptPolicy {
                 PromptGovernanceModelCompatibilityRegistryService.COMPACTION_POLICY_KEY);
     }
 
-    /** Fails when the product of a prompt the build ships does not declare its whole policy. */
-    public static void verify() {
-        for (PromptGovernanceDescriptor descriptor : PromptGovernanceRegistryService.platformStandardDescriptors()) {
+    /**
+     * Fails when the product of a prompt the build ships does not declare its whole policy: a bundle of the security
+     * decision or one of the other prompts.
+     */
+    public static void verify(VersionedPrompts others) {
+        for (PromptGovernanceDescriptor descriptor : products(others)) {
             verify(of(descriptor));
         }
     }

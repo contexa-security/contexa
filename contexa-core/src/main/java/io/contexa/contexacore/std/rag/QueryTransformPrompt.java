@@ -57,7 +57,7 @@ public final class QueryTransformPrompt implements VersionedPrompt {
     private QueryTransformPrompt(String prompt) {
         this.prompt = prompt;
         this.documents = new ProductPromptDocuments(QueryTransformPrompt.class, prompt, RELEASES);
-        this.descriptor = PromptGovernanceSupport.buildDefaultDescriptor(prompt, QueryTransformPrompt.class);
+        this.descriptor = PromptGovernanceSupport.buildVersionedPromptDescriptor(prompt, QueryTransformPrompt.class);
     }
 
     /** The prompt that rewrites the query, from the version the versions choose. */

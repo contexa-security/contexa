@@ -21,6 +21,7 @@ import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustHourlyStats;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Adoption;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Alert;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionDetail;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionPage;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionRow;
@@ -47,6 +48,7 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -659,6 +661,122 @@ class ZeroTrustConsolePostgresTest {
                 null, null, null, 2))).as("nobody was challenged twice").isEmpty();
         assertThat(rows(week, new ZeroTrustDecisionRecords.Filter(null, null, null, null, null, null, null, "res-77")))
                 .containsExactly("named-resource");
+    }
+
+    /**
+     * K81, design 6.1 and 6.4: one definition of an unreviewed block, no release, no kept block and no evaluation. The
+     * overview's warning counts each such block once, a request to be unblocked or not, and the list it opens holds
+     * the same decisions; "no outcome yet" stays its own filter.
+     */
+    @Test
+    void theOverviewAndTheListCountTheSameUnreviewedBlocks() {
+        Instant at = now.minus(Duration.ofHours(3));
+        for (String id : List.of("block-asked", "block-open", "block-twice", "block-kept", "block-judged")) {
+            decision(Map.of("observation_id", id, "final_action", "BLOCK"), at);
+        }
+        outcomes.record("block-asked", "request-block-asked", "u0", null,
+                ZeroTrustDecisionOutcomes.Kind.UNBLOCK_REQUESTED, null, "u0", "let me in");
+        outcomes.record("block-twice", "request-block-twice", "u0", null, ZeroTrustDecisionOutcomes.Kind.ADMIN_RELEASED,
+                null, "admin", null);
+        outcomes.evaluate("block-twice", "request-block-twice", "u0", null, true, null, "admin", null);
+        outcomes.record("block-kept", "request-block-kept", "u0", null, ZeroTrustDecisionOutcomes.Kind.BLOCK_KEPT, null,
+                "admin", null);
+        outcomes.evaluate("block-judged", "request-block-judged", "u0", null, false,
+                ZeroTrustDecisionOutcomes.EvaluationReason.OVERREACTION, "admin", null);
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+        ZeroTrustConsoleRange week = service.range("week", null, null);
+
+        Overview overview = service.overview("week", null, null, null, Locale.ENGLISH);
+        Alert alert = overview.alerts().stream()
+                .filter(candidate -> "unreviewedBlocks".equals(candidate.key())).findFirst().orElseThrow();
+        List<String> listed = rows(week, new ZeroTrustDecisionRecords.Filter("BLOCK", null, null, null, null,
+                ZeroTrustDecisionRecords.UNREVIEWED, null, null));
+
+        // block-1 of every test was released; block-twice was released and evaluated, and counts once.
+        assertThat(listed).containsExactlyInAnyOrder("block-asked", "block-open");
+        assertThat(alert.message()).isEqualTo("2 blocks no administrator has reviewed");
+        assertThat(alert.link()).isEqualTo("/contexa/admin/zero-trust/decisions?action=BLOCK&outcome=UNREVIEWED");
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter("BLOCK", null, null, null, null, "NONE", null, null)))
+                .containsExactly("block-open");
+    }
+
+    /**
+     * K82: the period before ends where the first hour of the period starts, so the hour a period starts in is counted
+     * in that period alone and not again in the one before.
+     */
+    @Test
+    void theHourAPeriodStartsInIsNotCountedInThePeriodBefore() {
+        Instant firstHour = now.minus(Duration.ofHours(24)).truncatedTo(ChronoUnit.HOURS);
+        // Before the period's first moment (now - 24 h, half past the hour) but in its first hour.
+        decision(Map.of("observation_id", "boundary-block", "final_action", "BLOCK"), firstHour.plus(Duration.ofMinutes(10)));
+        decision(Map.of("observation_id", "before-allow", "final_action", "ALLOW"), firstHour.minus(Duration.ofHours(6)));
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+
+        Overview overview = service.overview("day", null, null, null, Locale.ENGLISH);
+
+        assertThat(overview.summary().decisions()).as("ten decisions and the hour's block").isEqualTo(11);
+        assertThat(Instant.parse(overview.previous().period().to())).isEqualTo(firstHour);
+        assertThat(overview.previous().stopped()).as("one decision before, an allow").isEqualTo(0.0);
+    }
+
+    /** K83: the adoption trend's daily p95 is of the SHADOW decisions, as the other values of the day are. */
+    @Test
+    void theAdoptionTrendsDailyP95IsOfTheShadowDecisions() {
+        properties.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
+        Instant at = now.minus(Duration.ofHours(1));
+        for (int i = 0; i < 4; i++) {
+            decision(Map.of("observation_id", "shadow-" + i, "final_action", "ALLOW", "decision_boundary_mode", "SHADOW"),
+                    at);
+        }
+        for (int i = 0; i < 10; i++) {
+            decision(Map.of("observation_id", "slow-" + i, "final_action", "ALLOW", "total_analysis_ms", 55_000L), at);
+        }
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+        String day = LocalDate.ofInstant(at, ZoneId.systemDefault()).toString();
+
+        Adoption adoption = service.adoption(null, Locale.ENGLISH);
+        Overview overview = service.overview("week", null, null, null, Locale.ENGLISH);
+
+        assertThat(adoption.trend()).filteredOn(point -> day.equals(point.day())).singleElement().satisfies(point -> {
+            assertThat(point.allow()).as("the SHADOW decisions alone").isEqualTo(4);
+            assertThat(point.totalP95Ms()).as("the SHADOW decisions took 1.5 s").isNotNull().isLessThanOrEqualTo(2_000L);
+        });
+        assertThat(overview.trend()).filteredOn(point -> day.equals(point.day())).singleElement()
+                .satisfies(point -> assertThat(point.totalP95Ms()).as("every mode").isGreaterThan(30_000L));
+    }
+
+    /** K84: a challenge's code request is a value of the outcome filter. */
+    @Test
+    void theListFiltersTheChallengesWhoseCodeWasRequested() {
+        outcomes.record("challenge-2", "request-challenge-2", "u2", null,
+                ZeroTrustDecisionOutcomes.Kind.CHALLENGE_CODE_REQUESTED, null, "u2", null);
+        ZeroTrustConsoleRange week = service.range("week", null, null);
+
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter("CHALLENGE", null, null, null, null,
+                "CHALLENGE_CODE_REQUESTED", null, null))).containsExactly("challenge-2");
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter(null, null, null, null, null,
+                "CHALLENGE_CODE_REQUESTED", null, null))).containsExactly("challenge-2");
+    }
+
+    /**
+     * K85: the links of the threats and impact screen to the stopped decisions of an explanation, a resource class, a
+     * user or a resource open those stopped decisions alone.
+     */
+    @Test
+    void theImpactLinksOpenTheStoppedDecisionsAlone() {
+        ZeroTrustConsoleRange week = service.range("week", null, null);
+
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter("STOPPED", null, "H2", null, null, null, null, null)))
+                .containsExactlyInAnyOrder("challenge-1", "challenge-2");
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter("STOPPED", null, null, null, "SENSITIVE", null, null,
+                null))).containsExactlyInAnyOrder("challenge-1", "challenge-2");
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter("STOPPED", null, null, null, null, null, null, "u1")))
+                .containsExactly("challenge-1");
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter("STOPPED", null, null, null, null, null, null,
+                "/api/export"))).containsExactlyInAnyOrder("challenge-1", "challenge-2");
+        // Without it the user's link opened the user's allowed decisions too.
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter(null, null, null, null, null, null, null, "u1")))
+                .containsExactlyInAnyOrder("allow-0", "challenge-1");
     }
 
     /** Design 6.4: the review queue is read a page of 20 at a time, by its reason when one is asked. */

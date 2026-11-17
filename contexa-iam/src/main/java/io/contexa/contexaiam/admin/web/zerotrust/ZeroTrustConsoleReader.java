@@ -48,7 +48,7 @@ final class ZeroTrustConsoleReader {
                     long business, long unknownFacts, long retried, long latencySum, long promptTokens,
                     long cachedTokens, long outputTokens, long modelCalls, long passed, long failed, long expired,
                     long unblockRequested, long released, long kept, long valid, long invalid, Instant first,
-                    Instant last, long[] releases, long codeRequested) {
+                    Instant last, long[] releases, long codeRequested, long unreviewedBlocks) {
 
         boolean decision() {
             return !ZeroTrustConsoleService.NO_DECISION.equals(action);
@@ -141,7 +141,8 @@ final class ZeroTrustConsoleReader {
                        SUM(block_kept_count), SUM(evaluated_valid_count), SUM(evaluated_invalid_count),
                        MIN(bucket_start), MAX(bucket_start), SUM(release_le_15m), SUM(release_le_30m), SUM(release_le_1h),
                        SUM(release_le_2h), SUM(release_le_4h), SUM(release_le_8h), SUM(release_le_24h),
-                       SUM(release_le_72h), SUM(release_le_7d), SUM(release_gt_7d), SUM(challenge_code_requested_count)
+                       SUM(release_le_72h), SUM(release_le_7d), SUM(release_gt_7d), SUM(challenge_code_requested_count),
+                       SUM(block_unreviewed_count)
                   FROM ctxa_zt_stats_hourly
                  WHERE bucket_start >= ? AND bucket_start < ?""" + tenantClause + """
 
@@ -155,7 +156,8 @@ final class ZeroTrustConsoleReader {
                 rs.getLong(23), rs.getLong(24), rs.getLong(25), rs.getLong(26), rs.getLong(27), rs.getLong(28),
                 rs.getLong(29), rs.getLong(30), rs.getLong(31), rs.getLong(32), rs.getLong(33), rs.getLong(34),
                 rs.getLong(35), instant(rs, 36), instant(rs, 37), releases(rs, 38),
-                rs.getLong(38 + RELEASE_BOUNDS_MINUTES.length + 1)), args.toArray());
+                rs.getLong(38 + RELEASE_BOUNDS_MINUTES.length + 1), rs.getLong(38 + RELEASE_BOUNDS_MINUTES.length + 2)),
+                args.toArray());
     }
 
     /** The release time buckets of a stats row, from its column on (console design 6.2). */
@@ -364,15 +366,15 @@ final class ZeroTrustConsoleReader {
         return days;
     }
 
-    /** One stage's latency buckets of each day. */
-    Map<LocalDate, long[]> latencyDays(ZeroTrustConsoleRange range, String tenant, String stage) {
+    /** One stage's latency buckets of each day, of the decisions of one mode when one is given (K83). */
+    Map<LocalDate, long[]> latencyDays(ZeroTrustConsoleRange range, String tenant, String mode, String stage) {
         JdbcOperations operations = jdbc.get();
         Map<LocalDate, long[]> days = new LinkedHashMap<>();
         if (operations == null) {
             return days;
         }
         List<Object> args = new ArrayList<>(List.of(stage, range.fromHour(), range.toTimestamp()));
-        String tenantClause = tenantClause(tenant, args);
+        String tenantClause = tenantClause(tenant, args) + modeClause(mode, args);
         operations.query("""
                 SELECT CAST(date_trunc('day', bucket_start) AS DATE), SUM(le_100ms), SUM(le_250ms), SUM(le_500ms),
                        SUM(le_1s), SUM(le_2s), SUM(le_5s), SUM(le_10s), SUM(le_30s), SUM(le_60s), SUM(gt_60s)

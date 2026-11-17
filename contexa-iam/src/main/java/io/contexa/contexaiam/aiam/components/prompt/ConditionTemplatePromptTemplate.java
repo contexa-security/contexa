@@ -54,7 +54,7 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
             new ProductPromptDocuments(ConditionTemplatePromptTemplate.class, PROMPT, RELEASES);
     /** The default descriptor of the template, the version of the call in place of its bundle version. */
     private static final PromptGovernanceDescriptor DESCRIPTOR =
-            PromptGovernanceSupport.buildDefaultDescriptor(PROMPT, ConditionTemplatePromptTemplate.class);
+            PromptGovernanceSupport.buildVersionedPromptDescriptor(PROMPT, ConditionTemplatePromptTemplate.class);
 
     private final PromptVersionPin pin = new PromptVersionPin();
     private PromptVersionInUse versions = PromptVersionInUse.productOnly();

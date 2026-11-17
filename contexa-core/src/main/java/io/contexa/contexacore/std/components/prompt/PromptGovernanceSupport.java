@@ -25,8 +25,14 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
-
+
 public final class PromptGovernanceSupport {
+
+    /**
+     * Plan 3.9: the model profile that declares a prompt compatible with the model providers, the model compatibility
+     * of its product policy (the security decision declares the same profile).
+     */
+    public static final String PROVIDER_COMPATIBLE_MODEL_PROFILE = "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI";
 
     private static final PromptTokenEstimatorRegistry PROMPT_TOKEN_ESTIMATOR_REGISTRY =
             PromptTokenEstimatorRegistry.defaultRegistry();
@@ -243,6 +249,20 @@ public final class PromptGovernanceSupport {
      * prompt key (the template key), or UNVERSIONED when there is none.
      */
     public static PromptGovernanceDescriptor buildDefaultDescriptor(String templateKey, Class<?> templateClass) {
+        return defaultDescriptor(templateKey, templateClass, List.of());
+    }
+
+    /**
+     * The descriptor of a prompt other than the security decision that runs from its versions (plan 3.11): the default
+     * descriptor, declaring the prompt compatible with the model providers. Its text is drawn for the chat model of any
+     * provider, so its product declares the policy its versions inherit (plan 3.9) and the release gate finds it.
+     */
+    public static PromptGovernanceDescriptor buildVersionedPromptDescriptor(String templateKey, Class<?> templateClass) {
+        return defaultDescriptor(templateKey, templateClass, List.of(PROVIDER_COMPATIBLE_MODEL_PROFILE));
+    }
+
+    private static PromptGovernanceDescriptor defaultDescriptor(String templateKey, Class<?> templateClass,
+                                                                List<String> supportedModelProfiles) {
         String normalizedTemplateKey = templateKey != null && !templateKey.isBlank()
                 ? templateKey
                 : templateClass.getSimpleName();
@@ -260,7 +280,7 @@ public final class PromptGovernanceSupport {
                 "unevaluated",
                 null,
                 "Default prompt governance descriptor",
-                List.of(),
+                supportedModelProfiles,
                 templateClass.getName());
     }
 

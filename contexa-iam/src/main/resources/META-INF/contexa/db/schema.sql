@@ -2031,7 +2031,9 @@ ALTER TABLE ctxa_zt_stats_hourly
     ADD COLUMN IF NOT EXISTS release_le_7d BIGINT NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS release_gt_7d BIGINT NOT NULL DEFAULT 0,
     -- Console design 6.2: the challenges whose owner was mailed a code (the funnel's code requested)
-    ADD COLUMN IF NOT EXISTS challenge_code_requested_count BIGINT NOT NULL DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS challenge_code_requested_count BIGINT NOT NULL DEFAULT 0,
+    -- Console design 6.1 (K81): the blocks no administrator released, kept or evaluated, each counted once
+    ADD COLUMN IF NOT EXISTS block_unreviewed_count BIGINT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS ctxa_zt_coverage_hourly (
     bucket_start TIMESTAMP(6) NOT NULL,

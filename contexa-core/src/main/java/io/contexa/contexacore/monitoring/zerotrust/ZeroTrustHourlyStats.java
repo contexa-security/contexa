@@ -258,7 +258,8 @@ public class ZeroTrustHourlyStats {
                 challenge_passed_count, challenge_failed_count, challenge_expired_count, unblock_requested_count,
                 admin_released_count, block_kept_count, evaluated_valid_count, evaluated_invalid_count,
                 release_le_15m, release_le_30m, release_le_1h, release_le_2h, release_le_4h, release_le_8h,
-                release_le_24h, release_le_72h, release_le_7d, release_gt_7d, challenge_code_requested_count, computed_at)
+                release_le_24h, release_le_72h, release_le_7d, release_gt_7d, challenge_code_requested_count,
+                block_unreviewed_count, computed_at)
             SELECT ?,
                    COALESCE(o.tenant_id, ''), COALESCE(o.decision_boundary_mode, ''), COALESCE(o.final_action, ''),
                    COALESCE(o.decision_source, ''), COALESCE(o.decision_change_cause, ''),
@@ -313,10 +314,13 @@ public class ZeroTrustHourlyStats {
                    SUM(CASE WHEN r.release_minutes > 4320 AND r.release_minutes <= 10080 THEN 1 ELSE 0 END),
                    SUM(CASE WHEN r.release_minutes > 10080 THEN 1 ELSE 0 END),
                    SUM(COALESCE(r.code_requested, 0)),
+                   -- K81, console design 6.1: a block no administrator released, kept or evaluated, counted once
+                   SUM(CASE WHEN o.final_action = 'BLOCK' AND COALESCE(r.reviewed, 0) = 0 THEN 1 ELSE 0 END),
                    ?
               FROM ctxa_ai_security_decision_observation o
               LEFT JOIN (
                     SELECT d.observation_id,
+                           MAX(CASE WHEN d.outcome_kind IN (%s) THEN 1 ELSE 0 END) AS reviewed,
                            MAX(CASE WHEN d.outcome_kind = 'CHALLENGE_PASSED' THEN 1 ELSE 0 END) AS passed,
                            MAX(CASE WHEN d.outcome_kind = 'CHALLENGE_CODE_REQUESTED' THEN 1 ELSE 0 END) AS code_requested,
                            MAX(CASE WHEN d.outcome_kind = 'CHALLENGE_FAILED' THEN 1 ELSE 0 END) AS failed,
@@ -342,7 +346,7 @@ public class ZeroTrustHourlyStats {
                       COALESCE(o.most_likely_hypothesis, ''), COALESCE(o.resource_class, ''),
                       COALESCE(o.actor_kind, ''), COALESCE(o.enforcement_timing, ''),
                       COALESCE(o.prompt_bundle_version, ''), COALESCE(o.model_id, '')
-            """;
+            """.formatted(ZeroTrustDecisionOutcomes.REVIEWS_SQL);
 
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
     private final SecurityZeroTrustProperties properties;
