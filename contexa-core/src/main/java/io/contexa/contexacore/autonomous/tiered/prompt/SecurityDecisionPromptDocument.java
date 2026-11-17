@@ -336,6 +336,21 @@ public final class SecurityDecisionPromptDocument {
         return Map.copyOf(drawn);
     }
 
+    /**
+     * K64 (plan 3.5, check 4): the estimated tokens of the blocks an organization added to the user prompt of a version,
+     * as the prompt draws them (their headers and the blank line before each, {@link #organizationBlocks}); none for a
+     * version that draws none.
+     */
+    public static int organizationBlockTokens(AssembledPrompt version) {
+        long characters = 0;
+        for (List<String> blocks : organizationBlocks(version).values()) {
+            for (String block : blocks) {
+                characters += 1 + block.codePointCount(0, block.length());
+            }
+        }
+        return PromptAssembler.tokensOf(characters);
+    }
+
     private static Optional<PromptBlock> engineBlock(String key) {
         for (PromptBlock block : PromptBlock.values()) {
             if (block.name().equals(key)) {

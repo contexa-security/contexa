@@ -35,6 +35,7 @@ import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQue
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRuntimeCacheInvalidationService;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
+import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.ActionChange;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.AdvancedView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Carried;
@@ -115,6 +116,9 @@ public class PromptVersionConsole {
     static final String SHADOW = "SHADOW";
     static final String UNUSED = "UNUSED";
     static final String HIDDEN = "HIDDEN";
+    /** Why the finished prompt shows the latest decision as it was drawn (plan 3.10 (2)). */
+    static final String NOT_DRAWN_UNAVAILABLE = "UNAVAILABLE";
+    static final String NOT_DRAWN_FAILED = "FAILED";
     private static final int HISTORY_LIMIT = 50;
     private static final int SHADOW_CASE_LIMIT = 50;
 
@@ -150,6 +154,7 @@ public class PromptVersionConsole {
     private final Clock clock;
     private final PromptVersionDocumentReader reader = new PromptVersionDocumentReader();
     private VersionedPrompts versionedPrompts = new VersionedPrompts(List.of());
+    private Supplier<SealedDrawing> sealedDrawing = () -> null;
     private final PromptVersionDocumentWriter writer = new PromptVersionDocumentWriter();
 
     /**
@@ -188,6 +193,26 @@ public class PromptVersionConsole {
     /** Plan 3.11: the prompts other than the security decision, whose finished prompt is drawn with an example input. */
     public void setVersionedPrompts(VersionedPrompts versionedPrompts) {
         this.versionedPrompts = versionedPrompts != null ? versionedPrompts : new VersionedPrompts(List.of());
+    }
+
+    /**
+     * Plan 3.10 (2): draws a sealed decision of the security decision again with a version, the model not asked
+     * (SealedDecisionReplays.drawPackage).
+     */
+    @FunctionalInterface
+    public interface SealedDrawing {
+
+        /**
+         * The user prompt the sealed decision of the package draws with the version; empty when the package is gone.
+         *
+         * @throws SealedDecisionReplays.UnavailableException when the decision pipeline is not in this application
+         */
+        Optional<String> userPrompt(String packageId, String version);
+    }
+
+    /** Plan 3.10 (2): what draws a sealed decision again for the finished prompt; a supplier of null without one. */
+    public void setSealedDrawing(Supplier<SealedDrawing> sealedDrawing) {
+        this.sealedDrawing = orNone(sealedDrawing);
     }
 
     // ----- the list (screen 1) -----
@@ -348,8 +373,10 @@ public class PromptVersionConsole {
 
     /**
      * The finished prompt: the system text the version draws with the host's defaults, the output format, and the user
-     * prompt of the latest sealed decision of the prompt with the version it was drawn with. The user prompt's fixed
-     * blocks are the same in every version; the blocks this version adds are listed beside it.
+     * prompt of the latest sealed decision of the prompt drawn with this version (plan 3.10 (2)): the prompt the
+     * decision was drawn with when that was this version, else the decision drawn again with this version from its
+     * sealed inputs, the model not asked. A decision that cannot be drawn again is shown as it was drawn, with why and
+     * with the blocks this version adds listed beside it.
      */
     private Preview preview(String prompt, AssembledPrompt version, String name, List<PartView> user) {
         if (!decisionPrompt(prompt)) {
@@ -357,8 +384,10 @@ public class PromptVersionConsole {
             return versionedPrompts.find(prompt)
                     .map(found -> found.example(version))
                     .map(example -> new Preview(example.system() == null || example.system().isEmpty() ? null
-                            : example.system(), null, example.user(), null, null, name, true, List.of(), true))
-                    .orElseGet(() -> new Preview(null, null, null, null, null, null, false, List.of(), false));
+                            : example.system(), null, example.user(), null, null, name, true, List.of(), true, false,
+                            null))
+                    .orElseGet(() -> new Preview(null, null, null, null, null, null, false, List.of(), false, false,
+                            null));
         }
         String system = SecurityDecisionPromptDocument.systemPreview(version);
         String format = SecurityDecisionPromptDocument.outputFormatPreview();
@@ -366,18 +395,47 @@ public class PromptVersionConsole {
         List<Object[]> latest = jdbc.get().query("select p.raw_user_prompt, p.correlation_id, p.captured_at,"
                 + " coalesce(contexa_safe_jsonb(p.prompt_execution_metadata_json) ->> '" + PromptExecutionMetadata.PROMPT_VERSION_NAME
                 + "', contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{" + PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR
-                + ",promptBundleVersion}') from ctxa_sealed_evidence_package p where p.seal_state = 'SEALED' and"
-                + " coalesce(contexa_safe_jsonb(p.decision_json) ->> 'decisionAppliedStage', '') <> 'SHADOW' and"
+                + ",promptBundleVersion}'), p.package_id from ctxa_sealed_evidence_package p where p.seal_state = 'SEALED'"
+                + " and coalesce(contexa_safe_jsonb(p.decision_json) ->> 'decisionAppliedStage', '') <> 'SHADOW' and"
                 + " p.raw_user_prompt is not null order by p.captured_at desc limit 1", (rs, row) -> new Object[] {
                 rs.getString(1), rs.getString(2), rs.getTimestamp(3) != null ? rs.getTimestamp(3).toInstant() : null,
-                rs.getString(4)});
+                rs.getString(4), rs.getString(5)});
         if (latest.isEmpty()) {
-            return new Preview(system, format, null, null, null, null, false, added, false);
+            return new Preview(system, format, null, null, null, null, false, added, false, false, null);
         }
         Object[] row = latest.get(0);
         String drawnWith = (String) row[3];
-        return new Preview(system, format, (String) row[0], (String) row[1], (Instant) row[2], drawnWith,
-                name.equals(drawnWith), added, false);
+        if (name.equals(drawnWith)) {
+            return new Preview(system, format, (String) row[0], (String) row[1], (Instant) row[2], drawnWith, true,
+                    added, false, false, null);
+        }
+        String notDrawn;
+        SealedDrawing drawing = sealedDrawing.get();
+        if (drawing == null) {
+            notDrawn = NOT_DRAWN_UNAVAILABLE;
+        }
+        else {
+            try {
+                Optional<String> drawn = drawing.userPrompt((String) row[4], name);
+                if (drawn.isPresent()) {
+                    return new Preview(system, format, drawn.get(), (String) row[1], (Instant) row[2], name, true,
+                            added, false, true, null);
+                }
+                notDrawn = NOT_DRAWN_FAILED;
+                log.warn("[PromptVersionConsole] The sealed package {} is gone; {} is previewed with the prompt it was"
+                        + " drawn with", row[4], name);
+            }
+            catch (SealedDecisionReplays.UnavailableException unavailable) {
+                notDrawn = NOT_DRAWN_UNAVAILABLE;
+            }
+            catch (RuntimeException failure) {
+                notDrawn = NOT_DRAWN_FAILED;
+                log.error("[PromptVersionConsole] The sealed package {} could not be drawn with {}", row[4], name,
+                        failure);
+            }
+        }
+        return new Preview(system, format, (String) row[0], (String) row[1], (Instant) row[2], drawnWith, false,
+                added, false, false, notDrawn);
     }
 
     private VersionDecisions decisionsOf(String name, String scope) {
@@ -504,13 +562,14 @@ public class PromptVersionConsole {
             preview = versions.check(scopeName, yaml, PromptVersionRecord.SCREEN, lengthLimit);
         }
         catch (PromptVersionDocumentException refused) {
-            return checkView(refused.problems(), 0, 0, lengthLimit);
+            return checkView(refused.problems(), 0, 0, 0, 0, lengthLimit);
         }
-        return checkView(preview.problems(), preview.baseSystemTokens(), preview.systemTokens(), lengthLimit);
+        return checkView(preview.problems(), preview.baseSystemTokens(), preview.systemTokens(),
+                preview.baseAddedUserTokens(), preview.addedUserTokens(), lengthLimit);
     }
 
-    private CheckView checkView(List<PromptVersionProblem> problems, int baseTokens, int tokens,
-                                PromptAssembler.LengthLimit lengthLimit) {
+    private CheckView checkView(List<PromptVersionProblem> problems, int baseTokens, int tokens, int baseUserTokens,
+                                int userTokens, PromptAssembler.LengthLimit lengthLimit) {
         Set<PromptVersionProblem.Code> codes = problems.stream().map(PromptVersionProblem::code)
                 .collect(Collectors.toSet());
         List<CheckRow> checks = List.of(
@@ -525,11 +584,13 @@ public class PromptVersionConsole {
         Long delta = null;
         Double msPerToken = msPerInputToken();
         if (msPerToken != null && (tokens != 0 || baseTokens != 0)) {
-            delta = Math.round((tokens - baseTokens) * msPerToken);
+            // K64: the blocks added to the user prompt are read by the model as the system prompt is.
+            delta = Math.round((tokens - baseTokens + userTokens - baseUserTokens) * msPerToken);
         }
         return new CheckView(problems.isEmpty(), checks, problems.stream()
                 .map(problem -> new ProblemView(problem.code().name(), problem.where(), problem.detail())).toList(),
-                baseTokens, tokens, delta, lengthLimit != null ? lengthLimit.contextTokens() : null);
+                baseTokens, tokens, baseUserTokens, userTokens, delta,
+                lengthLimit != null ? lengthLimit.contextTokens() : null);
     }
 
     /** The median decision time per input token of the latest decisions; null without any. */

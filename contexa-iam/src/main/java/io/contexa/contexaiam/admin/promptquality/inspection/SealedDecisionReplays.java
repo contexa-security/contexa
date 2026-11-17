@@ -192,8 +192,66 @@ public class SealedDecisionReplays {
             throw new UnavailableException();
         }
         SealedEvidencePackage sealed = found.get();
-        BaselineVector user = vector(request.userBaseline());
-        BaselineVector organization = vector(request.organizationBaseline());
+        DrawnWith drawnWith = baselinesOf(sealed, request.userBaseline(), request.organizationBaseline());
+        SealedEvidencePackageIntegrity.Status state = integrity.evaluate(sealed);
+        SealedDecisionReplayService.Result result = replays.replay(sealed, drawnWith.user(), drawnWith.organization(),
+                bundle, TIMEOUT, models);
+        audit(actor, sealed, bundle, models, drawnWith.baselines(), state, result);
+        return Optional.of(new Replayed(result, drawnWith.baselines(), state));
+    }
+
+    /**
+     * What a drawing of a sealed decision gave (plan 3.10 (2)), with the baselines it was drawn with and the state of
+     * the sealed package it was drawn from.
+     */
+    public record Drawn(SealedDecisionReplayService.Drawing drawing, Baselines baselines,
+                        SealedEvidencePackageIntegrity.Status integrity) {
+    }
+
+    /**
+     * Plan 3.10 (2): the prompts the sealed decision of the package draws with the version, the model not asked, on the
+     * baselines Contexa keeps now, as a replay that is given none draws them; empty when there is no such package.
+     * Nothing is asked, so nothing is audited.
+     *
+     * @throws IllegalArgumentException when the version is no version of the security decision prompt
+     * @throws UnavailableException     when the engine's decision pipeline is not in this application
+     */
+    public Optional<Drawn> drawPackage(String packageId, String version) {
+        if (version == null || version.isBlank()) {
+            throw new IllegalArgumentException("A version is required");
+        }
+        String name = version.trim();
+        if (!replayable(name)) {
+            throw new IllegalArgumentException(PromptBundleCatalog.isVersionName(name)
+                    ? "Version " + name + " is not a version of the security decision prompt"
+                    : "Bundle " + name + " is not a bundle this build runs");
+        }
+        Optional<SealedEvidencePackage> found = packages.findByPackageId(packageId);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        SealedDecisionReplayService replays = service.get();
+        if (replays == null) {
+            throw new UnavailableException();
+        }
+        SealedEvidencePackage sealed = found.get();
+        DrawnWith drawnWith = baselinesOf(sealed, null, null);
+        SealedDecisionReplayService.Drawing drawing = replays.draw(sealed, drawnWith.user(), drawnWith.organization(),
+                name);
+        return Optional.of(new Drawn(drawing, drawnWith.baselines(), integrity.evaluate(sealed)));
+    }
+
+    private record DrawnWith(BaselineVector user, BaselineVector organization, Baselines baselines) {
+    }
+
+    /**
+     * The baselines a sealed decision is drawn again with: those given, else the person's and the organization's as
+     * Contexa keeps them now.
+     */
+    private DrawnWith baselinesOf(SealedEvidencePackage sealed, @Nullable JsonNode userBaseline,
+                                  @Nullable JsonNode organizationBaseline) {
+        BaselineVector user = vector(userBaseline);
+        BaselineVector organization = vector(organizationBaseline);
         Baselines drawnWith = user != null || organization != null ? Baselines.GIVEN : Baselines.CURRENT;
         if (drawnWith == Baselines.CURRENT && baselines != null) {
             // Copies, so that naming the user below leaves the kept baselines as they are.
@@ -206,10 +264,7 @@ public class SealedDecisionReplays {
             // The analysis reads the person's baseline under the sealed decision's user, as it did then.
             user.setUserId(sealed.getUserId());
         }
-        SealedEvidencePackageIntegrity.Status state = integrity.evaluate(sealed);
-        SealedDecisionReplayService.Result result = replays.replay(sealed, user, organization, bundle, TIMEOUT, models);
-        audit(actor, sealed, bundle, models, drawnWith, state, result);
-        return Optional.of(new Replayed(result, drawnWith, state));
+        return new DrawnWith(user, organization, drawnWith);
     }
 
     @Nullable

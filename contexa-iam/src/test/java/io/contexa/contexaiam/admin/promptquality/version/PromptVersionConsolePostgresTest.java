@@ -15,16 +15,32 @@
  */
 package io.contexa.contexaiam.admin.promptquality.version;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
 import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
 import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentException;
+import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
+import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
+import io.contexa.contexacore.verification.replay.SealedDecisionReplayService;
+import io.contexa.contexaiam.admin.promptquality.evidence.JdbcSealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRuntimeCacheInvalidationService;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
+import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.CheckView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Created;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Draft;
@@ -32,6 +48,7 @@ import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDto
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.FormPart;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.ListView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.PartView;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Preview;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Receipt;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.VersionView;
 import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
@@ -54,6 +71,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -77,6 +95,7 @@ class PromptVersionConsolePostgresTest {
     private static final Map<String, PromptVersionService.RegistryTarget> TARGETS = Map.of(PROMPT,
             new PromptVersionService.RegistryTarget("SecurityDecisionStandard", "CORTEX_PROMPT_CONTRACT_V5",
                     "SecurityDecisionStandardPromptTemplate", "contexa-cortex-core"));
+    private static final ObjectMapper JSON = new ObjectMapper().findAndRegisterModules();
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-17T09:00:00Z"), ZoneOffset.UTC);
     private static PostgresTestDatabase database;
     private static JdbcTemplate jdbc;
@@ -461,5 +480,138 @@ class PromptVersionConsolePostgresTest {
         assertThat(console.advanced(null, PROMPT).folder().enabled()).isFalse();
         assertThatThrownBy(console::rescan).isInstanceOfSatisfying(PromptVersionConsole.RefusedException.class,
                 refused -> assertThat(refused.code()).isEqualTo("FOLDER_NOT_SET"));
+    }
+
+    private static final String CLOSING = "Finance staff export the ledger on the last two business days of a month.";
+    private static final String CLOSING_BLOCK = "=== Finance closing (reference written by your organization) ===\n"
+            + CLOSING + "\n";
+
+    /**
+     * K64: the checks of the new version screen count a block added to the user prompt in the size and in the decision
+     * time they estimate, as the prompt draws it with its header.
+     */
+    @Test
+    void theChecksCountABlockAddedToTheUserPromptInTheSizeAndTheTime() {
+        int blockTokens = PromptAssembler.tokensOf(1 + CLOSING_BLOCK.length());
+        jdbc.update("insert into ctxa_ai_security_decision_observation (observation_id, request_id, user_id,"
+                + " http_method, request_path, created_at, llm_latency_ms, prompt_tokens) values ('obs-k64', 'req-k64',"
+                + " 'alice', 'GET', '/api/ledger', ?, 10000, 5000)", Timestamp.from(CLOCK.instant()));
+        try {
+            CheckView view = console.check(null, form(1, List.of(),
+                    List.of(add("org-closing", "Finance closing", CLOSING, "REQUEST"))));
+
+            assertThat(view.passed()).isTrue();
+            assertThat(view.systemTokens()).isEqualTo(view.baseSystemTokens());
+            assertThat(view.baseAddedUserTokens()).isZero();
+            assertThat(view.addedUserTokens()).isEqualTo(blockTokens);
+            // Two milliseconds a token, the median of the latest decisions.
+            assertThat(view.estimatedDeltaMs()).isEqualTo(2L * blockTokens);
+        }
+        finally {
+            jdbc.update("delete from ctxa_ai_security_decision_observation where observation_id = 'obs-k64'");
+        }
+    }
+
+    /**
+     * Plan 3.10 (2): the finished prompt of a version shows the latest sealed decision drawn with that version, the
+     * blocks it adds at their places, even when no decision ran it yet; the decision a version drew is shown as it was
+     * drawn. A decision that cannot be drawn again is shown as it was drawn, with why and the added blocks beside it;
+     * without any sealed decision there is no user prompt.
+     */
+    @Test
+    void theFinishedPromptDrawsTheLatestSealedDecisionWithTheVersionAndTheBlocksItAdds() {
+        console.create(null, form(1, List.of(), List.of(add("org-closing", "Finance closing", CLOSING, "REQUEST"))),
+                "admin");
+        sealedDecision("pkg-1", "req-1", "v1.0");
+        SealedDecisionReplays replays = replays();
+        console.setSealedDrawing(() -> (packageId, version) -> replays.drawPackage(packageId, version)
+                .map(drawn -> drawn.drawing().userPrompt()));
+
+        Preview product = console.version(null, PROMPT, 1).orElseThrow().preview();
+        assertThat(product.user()).isEqualTo("the user prompt v1.0 drew");
+        assertThat(product.drawnWithThisVersion()).isTrue();
+        assertThat(product.drawnAgain()).isFalse();
+
+        String productDrawn = replays.drawPackage("pkg-1", "v1.0").orElseThrow().drawing().userPrompt();
+        Preview organization = console.version(null, PROMPT, 2).orElseThrow().preview();
+        assertThat(organization.user()).isEqualTo(insertedAfter(productDrawn, "REQUEST", CLOSING_BLOCK));
+        assertThat(organization.drawnAgain()).isTrue();
+        assertThat(organization.drawnWithThisVersion()).isTrue();
+        assertThat(organization.drawnWith()).isEqualTo("v2.0");
+        assertThat(organization.requestId()).isEqualTo("req-1");
+        assertThat(organization.notDrawn()).isNull();
+
+        // Without the decision pipeline, or when the drawing fails, the decision is shown as it was drawn.
+        console.setSealedDrawing(() -> null);
+        Preview unavailable = console.version(null, PROMPT, 2).orElseThrow().preview();
+        assertThat(unavailable.user()).isEqualTo("the user prompt v1.0 drew");
+        assertThat(unavailable.drawnWith()).isEqualTo("v1.0");
+        assertThat(unavailable.drawnWithThisVersion()).isFalse();
+        assertThat(unavailable.drawnAgain()).isFalse();
+        assertThat(unavailable.notDrawn()).isEqualTo("UNAVAILABLE");
+        assertThat(unavailable.addedBlocks()).extracting(PartView::key).containsExactly("org-closing");
+        console.setSealedDrawing(() -> (packageId, version) -> {
+            throw new SealedDecisionReplays.UnavailableException();
+        });
+        assertThat(console.version(null, PROMPT, 2).orElseThrow().preview().notDrawn()).isEqualTo("UNAVAILABLE");
+        console.setSealedDrawing(() -> (packageId, version) -> {
+            throw new IllegalStateException("The sealed context does not read");
+        });
+        Preview failed = console.version(null, PROMPT, 2).orElseThrow().preview();
+        assertThat(failed.notDrawn()).isEqualTo("FAILED");
+        assertThat(failed.user()).isEqualTo("the user prompt v1.0 drew");
+
+        jdbc.execute("TRUNCATE ctxa_sealed_evidence_package CASCADE");
+        Preview none = console.version(null, PROMPT, 2).orElseThrow().preview();
+        assertThat(none.user()).isNull();
+        assertThat(none.notDrawn()).isNull();
+        assertThat(none.addedBlocks()).extracting(PartView::key).containsExactly("org-closing");
+    }
+
+    /** A sealed decision of the security decision drawn with the version, with a context the replay can draw from. */
+    private static void sealedDecision(String packageId, String requestId, String drawnWith) {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .actor(CanonicalSecurityContext.Actor.builder().userId("alice").organizationId("org-1").build())
+                .session(CanonicalSecurityContext.Session.builder().sessionId("session-1").clientIp("10.0.0.1")
+                        .build())
+                .resource(CanonicalSecurityContext.Resource.builder().resourceId("/api/ledger/export")
+                        .requestPath("/api/ledger/export").httpMethod("GET").actionFamily("EXPORT")
+                        .resourceClass("SENSITIVE").build())
+                .requestObservedAt(Instant.parse("2026-11-17T08:00:00Z"))
+                .build();
+        jdbc.update("insert into ctxa_sealed_evidence_package (package_id, correlation_id, user_id, captured_at,"
+                + " seal_state, package_hash, decision_json, raw_user_prompt, prompt_execution_metadata_json,"
+                + " canonical_context_json, request_facts_json) values (?, ?, 'alice', ?, 'SEALED', ?, ?, ?, ?, ?, ?)",
+                packageId, requestId, Timestamp.from(CLOCK.instant().minusSeconds(60)), "hash-" + packageId,
+                "{\"action\":\"ALLOW\"}", "the user prompt " + drawnWith + " drew",
+                "{\"" + PromptExecutionMetadata.PROMPT_VERSION_NAME + "\":\"" + drawnWith + "\"}",
+                new CanonicalSecurityContextSerializer(JSON).serialize(context),
+                "{\"userId\":\"alice\",\"sessionId\":\"session-1\",\"clientIp\":\"10.0.0.1\"}");
+    }
+
+    /** The replays as the engine runs them, drawing with the versions of the database; there is no pipeline to ask. */
+    private SealedDecisionReplays replays() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityDecisionPromptSections(new SecurityEventEnricher(), properties, event -> Optional.empty(),
+                        new PromptContextComposer(), null, null, null));
+        template.setPromptVersionStore(new JdbcPromptVersionStore(versions,
+                SecurityDecisionPromptDocument.productStore()));
+        SealedDecisionReplayService service = new SealedDecisionReplayService(template, null,
+                new BaselineLearningService(null, new SecurityZeroTrustProperties()), properties,
+                StructuredOutputCapabilityRegistry.defaultRegistry(), () -> null, null, "OBSERVE",
+                new CanonicalSecurityContextSerializer(JSON), JSON);
+        return new SealedDecisionReplays(new JdbcSealedEvidencePackageRepository(jdbc), () -> service, null, null, JSON,
+                new SealedEvidencePackageIntegrity(), () -> new JdbcPromptVersionCatalog(versions, () -> jdbc,
+                () -> null));
+    }
+
+    /** The text with the block drawn right after the block of the title: after a blank line, before the next one. */
+    private static String insertedAfter(String text, String title, String block) {
+        int header = text.startsWith("=== " + title + " ") ? 0 : text.indexOf("\n=== " + title + " ");
+        assertThat(header).as("the prompt draws the block " + title).isGreaterThanOrEqualTo(0);
+        int next = text.indexOf("\n=== ", header + 1);
+        return next < 0 ? text + "\n" + block
+                : text.substring(0, next + 1) + block + "\n" + text.substring(next + 1);
     }
 }
