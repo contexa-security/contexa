@@ -28,8 +28,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
 
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -50,6 +54,14 @@ public class AiSecurityDecisionObservationWriter {
     private static final String LEGACY_TRIGGER_SOURCE_NOT_APPLICABLE = "UNKNOWN";
     private static final String LEGACY_TRIGGER_RELATION_NOT_APPLICABLE = "NOT_APPLICABLE";
     private static final String LEGACY_OUTCOME_NOT_APPLICABLE = "NOT_APPLICABLE";
+
+    /** K17: why a decision waits in the review queue: a decision rule its model answer still broke. */
+    public static final String REVIEW_RULE_BREACH = "RULE_BREACH";
+    /**
+     * Console design 6.5 (G18): a block SHADOW would have made blocks nobody, so no blocked account is reviewed; it
+     * waits in the review queue instead.
+     */
+    public static final String REVIEW_SHADOW_BLOCK = "SHADOW_BLOCK";
 
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
     private final ObjectMapper objectMapper;
@@ -291,8 +303,10 @@ public class AiSecurityDecisionObservationWriter {
                     console.providerThrottleReason(),
                     console.providerEstimatedTokens()
             };
-            jdbcOperations.update(observationInsert(console.reasons().size()),
-                    observationArguments(observationArgs, console.reasons(), now));
+            // K17 (D11): a decision whose model answer still broke a decision rule waits for a person's review.
+            String review = reviewReason(console, testRunId, metadata, finalAction);
+            jdbcOperations.update(observationInsert(console.reasons().size(), review != null),
+                    observationArguments(observationArgs, console.reasons(), now, review));
 
             long observationInsertMs = System.currentTimeMillis() - persistStart;
             log.info("[AiSecurityDecisionObservationWriter.timing] eventId={} observationId={} insertMs={} totalPersistMs={}",
@@ -300,12 +314,45 @@ public class AiSecurityDecisionObservationWriter {
                     observationId,
                     observationInsertMs,
                     System.currentTimeMillis() - persistStart);
+            recordPersistTime(jdbcOperations, observationId, observationInsertMs);
             return observationId;
         } catch (DataAccessException ex) {
             log.error("[AiSecurityDecisionObservationWriter] Failed to record AI security decision observation: eventId={}",
                     event.getEventId(), ex);
             return null;
         }
+    }
+
+    /**
+     * K22: the time the row took to store (the release of a failed row's slot and the insert of the row with its
+     * reason rows), known only once it is stored; the operations screen's store stage reads it. The row is stored
+     * either way, so a failure here only leaves the time unmeasured.
+     */
+    private void recordPersistTime(JdbcOperations jdbcOperations, String observationId, long persistMs) {
+        try {
+            jdbcOperations.update("UPDATE ctxa_ai_security_decision_observation SET persist_ms = ? WHERE observation_id = ?",
+                    persistMs, observationId);
+        } catch (DataAccessException ex) {
+            log.error("[AiSecurityDecisionObservationWriter] Failed to record the store time of observation {}",
+                    observationId, ex);
+        }
+    }
+
+    /**
+     * Why the decision joins the review queue as it is written, or null: a rule its model answer still broke (K17), else
+     * a first block SHADOW would have made (G18). A test run is no decision to review.
+     */
+    static String reviewReason(DecisionConsoleColumns.Values console, String testRunId, Map<String, Object> metadata,
+                               ZeroTrustAction finalAction) {
+        if (testRunId != null) {
+            return null;
+        }
+        if (console.ruleBroken()) {
+            return REVIEW_RULE_BREACH;
+        }
+        boolean shadowBlock = finalAction == ZeroTrustAction.BLOCK && "SHADOW".equals(zeroTrustBoundary(metadata))
+                && DecisionConsoleColumns.ATTEMPT_FIRST.equals(console.attemptKind());
+        return shadowBlock ? REVIEW_SHADOW_BLOCK : null;
     }
 
     /** The columns of a decision row, in the order of {@code observationArgs}. */
@@ -331,15 +378,30 @@ public class AiSecurityDecisionObservationWriter {
      * design 7.2: in the same transaction), so a row never lacks the reasons it was decided on.
      */
     static String observationInsert(int reasons) {
+        return observationInsert(reasons, false);
+    }
+
+    /**
+     * The insert of a decision row with its reason rows and, for a decision whose model answer still broke a decision
+     * rule (K17), its entry in the review queue: one statement, so the row never lacks either.
+     */
+    static String observationInsert(int reasons, boolean review) {
         String values = String.join(", ", Collections.nCopies(OBSERVATION_VALUES, "?"));
         String insert = "INSERT INTO ctxa_ai_security_decision_observation (" + OBSERVATION_COLUMNS + ") VALUES ("
                 + values + ")";
-        if (reasons <= 0) {
+        if (reasons <= 0 && !review) {
             return insert;
+        }
+        String queue = "INSERT INTO ctxa_zt_review_queue (observation_id, sample_day, sampled_at, review_status, "
+                + "review_reason) SELECT decided.observation_id, CAST(? AS DATE), CAST(? AS TIMESTAMP), 'PENDING', "
+                + "CAST(? AS VARCHAR) FROM decided";
+        if (reasons <= 0) {
+            return "WITH decided AS (" + insert + " RETURNING observation_id) " + queue;
         }
         String reasonValues = String.join(", ", Collections.nCopies(reasons,
                 "(CAST(? AS SMALLINT), CAST(? AS VARCHAR), CAST(? AS VARCHAR), CAST(? AS VARCHAR), CAST(? AS VARCHAR))"));
-        return "WITH decided AS (" + insert + " RETURNING observation_id) "
+        return "WITH decided AS (" + insert + " RETURNING observation_id)"
+                + (review ? ", queued AS (" + queue + ")" : "") + " "
                 + "INSERT INTO ctxa_zt_decision_reason (observation_id, reason_rank, reason_code, reason_group, fact_id, "
                 + "fact_name, created_at) "
                 + "SELECT decided.observation_id, cited.reason_rank, cited.reason_code, cited.reason_group, cited.fact_id, "
@@ -350,14 +412,33 @@ public class AiSecurityDecisionObservationWriter {
     /** The arguments of {@link #observationInsert}: the row's values, then the creation time and each reason's. */
     static Object[] observationArguments(Object[] observationArgs, List<DecisionConsoleColumns.Reason> reasons,
                                          LocalDateTime now) {
+        return observationArguments(observationArgs, reasons, now, null);
+    }
+
+    /**
+     * The arguments of {@link #observationInsert(int, boolean)}: the row's values, then the review queue's day and
+     * time (UTC, as the daily sample's), then the creation time and each reason's.
+     */
+    static Object[] observationArguments(Object[] observationArgs, List<DecisionConsoleColumns.Reason> reasons,
+                                         LocalDateTime now, String review) {
         if (observationArgs.length != OBSERVATION_VALUES) {
             throw new IllegalStateException("A decision row has " + OBSERVATION_VALUES + " values, not "
                     + observationArgs.length);
         }
-        if (reasons == null || reasons.isEmpty()) {
+        boolean reasoned = reasons != null && !reasons.isEmpty();
+        if (!reasoned && review == null) {
             return observationArgs;
         }
         List<Object> arguments = new ArrayList<>(Arrays.asList(observationArgs));
+        if (review != null) {
+            Instant at = Instant.now();
+            arguments.add(Date.valueOf(LocalDate.ofInstant(at, ZoneOffset.UTC)));
+            arguments.add(Timestamp.from(at));
+            arguments.add(review);
+        }
+        if (!reasoned) {
+            return arguments.toArray();
+        }
         arguments.add(now);
         for (DecisionConsoleColumns.Reason reason : reasons) {
             arguments.add(reason.rank());

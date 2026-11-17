@@ -27,6 +27,7 @@ import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustHourlyStats;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustReviewSampler;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -38,6 +39,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
+import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
@@ -46,6 +48,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -138,6 +141,8 @@ class ZeroTrustConsoleDataPostgresTest {
             assertConsoleSchema(olderJdbc);
             assertThat(olderJdbc.queryForObject("SELECT final_action FROM ctxa_ai_security_decision_observation "
                     + "WHERE observation_id = 'kept-row'", String.class)).as("the rows stay").isEqualTo("ALLOW");
+            // K17: a review queue of an earlier version gains the reason at the next start.
+            olderJdbc.execute("ALTER TABLE ctxa_zt_review_queue DROP COLUMN review_reason");
             // A second start finds everything in place and changes nothing.
             IamSeedDataAutoConfiguration.applyCanonicalSchemaMaintenance(older.dataSource(), null, false);
             assertConsoleSchema(olderJdbc);
@@ -155,6 +160,9 @@ class ZeroTrustConsoleDataPostgresTest {
         List<String> indexes = target.queryForList("SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()",
                 String.class);
         assertThat(indexes).containsAll(CONSOLE_INDEXES);
+        // K17: why a decision waits for review
+        assertThat(target.queryForList("SELECT column_name FROM information_schema.columns WHERE table_schema = "
+                + "current_schema() AND table_name = 'ctxa_zt_review_queue'", String.class)).contains("review_reason");
     }
 
     /** The decision row and its reason rows are written by one statement, so a reason never lacks its decision. */
@@ -480,6 +488,71 @@ class ZeroTrustConsoleDataPostgresTest {
         assertThat(jdbc.queryForMap("SELECT observation_id, evaluation_reason, note FROM ctxa_zt_decision_outcome "
                 + "WHERE outcome_kind = 'EVALUATED_INVALID'")).containsEntry("observation_id", "earlier")
                 .containsEntry("evaluation_reason", "OVERREACTION").containsEntry("note", "too strict");
+    }
+
+    /**
+     * K17 (decision D11), quality gate Q5: every decision whose model answer still broke a decision rule after its
+     * retry keeps the rule in its row and waits in the review queue for it; a decision without one does not, nor does
+     * a test run. K22: every row keeps the time it took to store.
+     */
+    @Test
+    void everyDecisionWhoseAnswerBrokeARuleIsKeptAndQueuedForReview() {
+        AiSecurityDecisionObservationWriter writer = new AiSecurityDecisionObservationWriter(
+                () -> jdbc, new ObjectMapper(), "ollama", "qwen3:8b");
+        List<Map<String, Object>> breaches = List.of(Map.of("layer", "Layer1", "rule",
+                "REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH"));
+        ProcessingResult result = ProcessingResult.builder().success(true).action(ZeroTrustAction.ALLOW.name())
+                .reasonCodes(List.of(new SecurityDecisionOutputContract.Citation("DEVIATION_DEVICE", "F3")))
+                .llmDecisionPresent(true).build();
+        List<String> broken = new ArrayList<>();
+        List<String> kept = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            broken.add(writer.recordDecision(SecurityEvent.builder().eventId("event-broken-" + i).userId("alice")
+                    .metadata(Map.of("requestId", "request-broken-" + i,
+                            PromptRuntimeTelemetrySupport.RULE_BREACHES, breaches)).build(),
+                    result, ZeroTrustAction.ALLOW));
+            kept.add(writer.recordDecision(SecurityEvent.builder().eventId("event-kept-" + i).userId("alice")
+                    .metadata(Map.of("requestId", "request-kept-" + i)).build(), result, ZeroTrustAction.ALLOW));
+        }
+        String tested = writer.recordDecision(SecurityEvent.builder().eventId("event-tested").userId("alice")
+                .metadata(Map.of("requestId", "request-tested", "testRunId", "run-1",
+                        PromptRuntimeTelemetrySupport.RULE_BREACHES, breaches)).build(), result, ZeroTrustAction.ALLOW);
+
+        Long keptRule = jdbc.queryForObject("SELECT COUNT(*) FROM ctxa_ai_security_decision_observation "
+                + "WHERE observation_id IN (" + quoted(broken) + ") "
+                + "AND CAST(decision_summary_json AS jsonb) -> 'ruleBreaches' -> 0 ->> 'rule' "
+                + "= 'REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH'", Long.class);
+        assertThat(keptRule).as("the rule is kept in every row of a decision that broke it").isEqualTo(10L);
+        assertThat(jdbc.queryForList("SELECT observation_id FROM ctxa_zt_review_queue WHERE review_reason = 'RULE_BREACH' "
+                + "AND review_status = 'PENDING'", String.class)).as("every such decision waits for review, and only they")
+                .containsExactlyInAnyOrderElementsOf(broken).doesNotContain(tested);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ctxa_ai_security_decision_observation "
+                + "WHERE decision_summary_json LIKE '%ruleBreaches%' AND observation_id IN (" + quoted(kept) + ")",
+                Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ctxa_zt_decision_reason WHERE observation_id IN ("
+                + quoted(broken) + ")", Long.class)).as("the reason rows are written with them").isEqualTo(10L);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ctxa_ai_security_decision_observation "
+                + "WHERE persist_ms IS NOT NULL AND persist_ms >= 0", Long.class)).as("K22").isEqualTo(21L);
+    }
+
+    /** K17: a decision queued for the rule it broke is no part of its day's random sample. */
+    @Test
+    void theDailySampleIsDrawnApartFromTheDecisionsQueuedForABrokenRule() {
+        LocalDate day = LocalDate.now(clock.withZone(ZoneOffset.UTC)).minusDays(1);
+        Instant noon = day.atTime(12, 0).toInstant(ZoneOffset.UTC);
+        for (int i = 0; i < 25; i++) {
+            decision("stopped-" + i, noon, "FIRST", "CHALLENGE", null, null);
+        }
+        jdbc.update("INSERT INTO ctxa_zt_review_queue (observation_id, sample_day, review_reason) VALUES (?, ?, ?)",
+                "stopped-0", Date.valueOf(day), AiSecurityDecisionObservationWriter.REVIEW_RULE_BREACH);
+
+        assertThat(new ZeroTrustReviewSampler(() -> jdbc, properties, clock).sample(day)).isEqualTo(20);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ctxa_zt_review_queue WHERE review_reason = 'SAMPLE'",
+                Long.class)).isEqualTo(20L);
+    }
+
+    private static String quoted(List<String> ids) {
+        return String.join(", ", ids.stream().map(id -> "'" + id + "'").toList());
     }
 
     private static void decision(String observationId, Instant createdAt, String attemptKind, String finalAction,

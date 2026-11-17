@@ -30,6 +30,7 @@ import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Operations
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Overview;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Share;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Trust;
+import io.contexa.contexaiam.testsupport.I18nTestSupport;
 import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -213,8 +214,8 @@ class ZeroTrustConsolePostgresTest {
         });
         assertThat(impact.cost().challenges().required()).isEqualTo(2);
         assertThat(impact.cost().challenges().passed()).isEqualTo(1);
-        assertThat(impact.cost().challenges().codeRequests().noDataReason())
-                .isEqualTo(ZeroTrustConsoleMetrics.NOT_RECORDED);
+        // design 6.2: the code requests are counted now; no code was mailed for these challenges
+        assertThat(impact.cost().challenges().codeRequests().value()).isEqualTo(0.0);
         assertThat(impact.cost().userWaitP50().value()).isBetween(1000.0, 2000.0);
         assertThat(impact.cost().userWaitP95().value()).isBetween(2000.0, 5000.0);
         assertThat(impact.cost().blocks().released()).isEqualTo(1);
@@ -449,6 +450,292 @@ class ZeroTrustConsolePostgresTest {
         assertThat(records.observationOfRequest("request-timeout-1")).isEqualTo("timeout-1");
         assertThat(records.observationOfRequest("request-nobody-sent")).isNull();
         assertThat(records.observationOfRequest(" ")).isNull();
+    }
+
+    /**
+     * K24: a request judged again has a decision, an audit record and a sealed package per judgement; each decision
+     * opens its own, by its event, not the newest of the request.
+     */
+    @Test
+    void aDecisionJudgedAgainOpensItsOwnAuditRecordAndSealedPackage() {
+        Instant at = now.minus(Duration.ofMinutes(20));
+        decision(Map.of("observation_id", "judged-first", "request_id", "request-again", "event_id", "event-again",
+                "idempotency_key", "identity-first", "decision_source", "MODEL_LESS"), at);
+        decision(Map.of("observation_id", "judged-again", "request_id", "request-again", "event_id",
+                "event-again-again-1", "attempt_kind", "AGAIN", "idempotency_key", "identity-again"), at.plusSeconds(60));
+        decision(Map.of("observation_id", "judged-unkeyed", "request_id", "request-unkeyed", "event_id", "event-unkeyed",
+                "metadata_json", "{\"eventProcessingIdentity\":\"identity-unkeyed\"}"), at);
+        long firstAudit = audit("request-again", "event-again", at);
+        long againAudit = audit("request-again", "event-again-again-1", at.plusSeconds(60));
+        sealedPackage("package-first", "request-again", "identity-first", at);
+        sealedPackage("package-again", "request-again", "identity-again", at.plusSeconds(60));
+        sealedPackage("package-unkeyed", "request-unkeyed", "identity-unkeyed", at);
+
+        DecisionDetail first = records.detail("judged-first", Locale.ENGLISH);
+        DecisionDetail again = records.detail("judged-again", Locale.ENGLISH);
+
+        assertThat(first.auditId()).isEqualTo(firstAudit);
+        assertThat(first.packageId()).isEqualTo("package-first");
+        assertThat(again.auditId()).isEqualTo(againAudit);
+        assertThat(again.packageId()).isEqualTo("package-again");
+        assertThat(records.detail("judged-unkeyed", Locale.ENGLISH).packageId())
+                .as("a row without the identity column finds it in its metadata").isEqualTo("package-unkeyed");
+        assertThat(records.detail("judged-unkeyed", Locale.ENGLISH).auditId()).as("no audit record of its event")
+                .isNull();
+    }
+
+    /**
+     * K25: the model's sentence and the engine's are apart; a row stored before kept one sentence, read by who set the
+     * action.
+     */
+    @Test
+    void theModelsWordsAreNeverTheEngines() {
+        Instant at = now.minus(Duration.ofMinutes(20));
+        String ended = "Layer2 returned ESCALATE, so final autonomous action was terminalized to CHALLENGE by tiered "
+                + "strategy policy.";
+        decision(Map.of("observation_id", "kept-apart", "decision_summary_json",
+                "{\"modelReason\":\"A device the user never used.\",\"engineReason\":\"" + ended + "\"}",
+                "decision_source", "ENGINE_CHANGED", "decision_change_cause", "LAYER2_ESCALATE_TERMINALIZED"), at);
+        decision(Map.of("observation_id", "older-model-less", "decision_source", "MODEL_LESS", "decision_summary_json",
+                "{\"reason\":\"[AI Native] Layer 2 LLM call failed\"}"), at);
+        decision(Map.of("observation_id", "older-ended", "decision_source", "MODEL_LESS",
+                "decision_change_cause", "LAYER2_ESCALATE_TERMINALIZED", "decision_summary_json",
+                "{\"reason\":\"" + ended + "\"}"), at);
+        decision(Map.of("observation_id", "older-changed", "decision_source", "ENGINE_CHANGED",
+                "decision_summary_json", "{\"reason\":\"A device the user never used.\\n" + ended + "\"}"), at);
+        decision(Map.of("observation_id", "older-model", "decision_summary_json",
+                "{\"reason\":\"A device the user never used.\"}"), at);
+
+        assertThat(records.detail("kept-apart", Locale.ENGLISH)).satisfies(detail -> {
+            assertThat(detail.modelReason()).isEqualTo("A device the user never used.");
+            assertThat(detail.engineReason()).isEqualTo(ended);
+        });
+        assertThat(records.detail("older-model-less", Locale.ENGLISH)).satisfies(detail -> {
+            assertThat(detail.modelReason()).isNull();
+            assertThat(detail.engineReason()).isEqualTo("[AI Native] Layer 2 LLM call failed");
+        });
+        assertThat(records.detail("older-ended", Locale.ENGLISH).modelReason()).isNull();
+        assertThat(records.detail("older-changed", Locale.ENGLISH)).satisfies(detail -> {
+            assertThat(detail.modelReason()).isEqualTo("A device the user never used.");
+            assertThat(detail.engineReason()).isEqualTo(ended);
+        });
+        assertThat(records.detail("older-model", Locale.ENGLISH)).satisfies(detail -> {
+            assertThat(detail.modelReason()).isEqualTo("A device the user never used.");
+            assertThat(detail.engineReason()).isNull();
+        });
+    }
+
+    /** K26, K27: the comparison with the usual reads in words, with the usual values a row keeps from K27 on. */
+    @Test
+    void theComparisonWithTheUsualReadsInWords() {
+        ZeroTrustDecisionRecords worded = new ZeroTrustDecisionRecords(() -> jdbc, outcomes,
+                I18nTestSupport.englishMessageSource(), new ObjectMapper(), clock);
+        Instant at = now.minus(Duration.ofMinutes(20));
+        decision(Map.of("observation_id", "with-usual", "decision_summary_json", "{\"usualKept\":true,\"deviations\":["
+                + "{\"dimension\":\"DAY\",\"current\":\"Mon\",\"compared\":true,\"different\":true,"
+                + "\"explanation\":\"UNEXPLAINED\",\"usualValues\":[\"Tue\",\"Wed\"],\"seen\":0,\"of\":12},"
+                + "{\"dimension\":\"LOGIN_METHOD\",\"current\":\"PASSWORD+ONE_TIME_CODE\",\"compared\":true,"
+                + "\"different\":false,\"usual\":\"PASSWORD\",\"usualValues\":[\"PASSWORD\"]}]}"), at);
+        decision(Map.of("observation_id", "without-usual", "decision_summary_json", "{\"deviations\":["
+                + "{\"dimension\":\"ACTION\",\"current\":\"WRITE\",\"compared\":true,\"different\":false}]}"), at);
+
+        DecisionDetail with = worded.detail("with-usual", Locale.KOREAN);
+        DecisionDetail without = worded.detail("without-usual", Locale.KOREAN);
+
+        assertThat(with.usualKept()).isTrue();
+        assertThat(with.deviations()).extracting(row -> row.get("currentText"), row -> row.get("usualText"))
+                .containsExactly(tuple("월요일", "화, 수 · 이번 값은 12번 중 0번"), tuple("비밀번호 + 일회용 코드", "비밀번호"));
+        assertThat(without.usualKept()).as("stored before the usual values were kept").isFalse();
+        assertThat(without.deviations()).singleElement().satisfies(row -> {
+            assertThat(row.get("currentText")).isEqualTo("쓰기");
+            assertThat(row.get("usualText")).isNull();
+        });
+    }
+
+    /** K17 (D11): a decision whose model answer still broke a rule shows it and waits in the review queue for it. */
+    @Test
+    void aDecisionThatBrokeARuleShowsItAndWaitsForReview() {
+        decision(Map.of("observation_id", "broke-a-rule", "final_action", "ALLOW", "decision_summary_json",
+                "{\"ruleBreaches\":[{\"layer\":\"Layer1\",\"rule\":\"REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH\","
+                        + "\"codes\":[\"REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH\"]}]}"), now.minus(Duration.ofMinutes(20)));
+        jdbc.update("INSERT INTO ctxa_zt_review_queue (observation_id, sample_day, review_reason) "
+                + "VALUES ('broke-a-rule', CURRENT_DATE, 'RULE_BREACH')");
+        jdbc.update("INSERT INTO ctxa_zt_review_queue (observation_id, sample_day) VALUES ('block-1', CURRENT_DATE)");
+
+        DecisionDetail detail = records.detail("broke-a-rule", Locale.ENGLISH);
+
+        assertThat(detail.ruleBreaches()).singleElement()
+                .satisfies(breach -> assertThat(breach).containsEntry("layer", "Layer1"));
+        assertThat(detail.inReview()).isTrue();
+        assertThat(detail.reviewReason()).isEqualTo("RULE_BREACH");
+        assertThat(records.reviewQueue()).extracting(item -> item.observationId(), item -> item.reason())
+                .containsExactlyInAnyOrder(tuple("broke-a-rule", "RULE_BREACH"), tuple("block-1", "SAMPLE"));
+    }
+
+    /**
+     * K22: the store of the decisions is measured once the rows keep their store time; a period whose decisions were
+     * stored before says so, not that it had no decision.
+     */
+    @Test
+    void theDecisionStoreSaysWhyItHasNoTime() {
+        Operations before = service.operations("week", null, null, null, Locale.ENGLISH);
+        assertThat(before.components()).filteredOn(component -> "DECISION_STORE".equals(component.key())).singleElement()
+                .satisfies(component -> {
+                    assertThat(component.status()).isEqualTo("UNKNOWN");
+                    assertThat(component.noDataReason()).isEqualTo(ZeroTrustConsoleMetrics.NOT_MEASURED);
+                });
+
+        jdbc.update("UPDATE ctxa_ai_security_decision_observation SET persist_ms = 4");
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+        Operations after = service.operations("week", null, null, null, Locale.ENGLISH);
+
+        assertThat(after.components()).filteredOn(component -> "DECISION_STORE".equals(component.key())).singleElement()
+                .satisfies(component -> {
+                    assertThat(component.status()).isEqualTo("GOOD");
+                    assertThat(component.noDataReason()).isNull();
+                });
+        assertThat(after.latency()).filteredOn(stage -> "PERSIST".equals(stage.stage())).singleElement()
+                .satisfies(stage -> assertThat(stage.measured()).isEqualTo(10));
+    }
+
+    /**
+     * The screens' remaining elements (design 6.1 to 6.6): the change from the period before, every "no decision" of a
+     * day, the base of the main reasons, the release median and the code requests from the hourly table, the daily
+     * sources, the user's wait among the stages, the past records, the storage.
+     */
+    @Test
+    void theScreensFillTheirRemainingElements() {
+        outcomes.record("challenge-1", "request-c1", "u1", null, ZeroTrustDecisionOutcomes.Kind.CHALLENGE_CODE_REQUESTED,
+                null, "u1", null);
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+
+        Overview overview = service.overview("week", null, null, null, Locale.ENGLISH);
+        assertThat(overview.previous().period()).isNotNull();
+        assertThat(overview.previous().stopped()).as("no decision the week before").isNull();
+        assertThat(overview.trend()).anySatisfy(day -> assertThat(day.skipped()).isEqualTo(1L));
+
+        Impact impact = service.impact("week", null, null, null, Locale.ENGLISH);
+        assertThat(impact.stopped().reasoned()).as("the stopped decisions with a reason code").isEqualTo(2);
+        // block-1 was decided two hours ago and released a minute ago: in the bucket of 60 to 120 minutes
+        assertThat(impact.cost().blocks().releaseMedianHours().value()).isEqualTo(1.5);
+        assertThat(impact.cost().challenges().codeRequests().value()).isEqualTo(1.0);
+
+        Trust trust = service.trust("week", null, null, null, Locale.ENGLISH);
+        assertThat(trust.trend()).isNotEmpty();
+        assertThat(trust.trend().stream().mapToLong(day -> day.model() + day.engineChanged() + day.modelLess()).sum())
+                .isEqualTo(10);
+
+        Operations operations = service.operations("week", null, null, null, Locale.ENGLISH);
+        assertThat(operations.latency()).filteredOn(stage -> "USER_WAIT".equals(stage.stage())).singleElement()
+                .satisfies(stage -> assertThat(stage.measured()).isEqualTo(2));
+        assertThat(operations.components()).filteredOn(component -> "PAST_RECORDS".equals(component.key()))
+                .singleElement().satisfies(component -> assertThat(component.noDataReason())
+                        .isEqualTo(ZeroTrustConsoleMetrics.NOT_MEASURED));
+        assertThat(operations.storage().nextCleanup()).isNotNull();
+        assertThat(operations.throughput().lineBound()).as("no analysis line in this test").isNull();
+    }
+
+    /** Design 6.1, 6.2, 6.5: the filters the screens link the decision list with. */
+    @Test
+    void theListTakesTheFiltersTheScreensLinkWith() {
+        decision(Map.of("observation_id", "named-resource", "final_action", "ALLOW", "resource_id", "res-77"),
+                now.minus(Duration.ofHours(3)));
+        ZeroTrustConsoleRange week = service.range("week", null, null);
+        Instant at = now.minus(Duration.ofHours(2));
+        int weekday = at.atZone(ZoneId.systemDefault()).getDayOfWeek().getValue();
+        int band = at.atZone(ZoneId.systemDefault()).getHour() / 4;
+
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter("STOPPED", null, null, null, null, null, null, null)))
+                .containsExactlyInAnyOrder("challenge-1", "challenge-2", "block-1", "escalate-1");
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter(null, null, null, null, null, null, null, null,
+                ZeroTrustDecisionRecords.BASELINE_NOT_ESTABLISHED, null, null, null)))
+                .contains("allow-4", "allow-5", "challenge-1").doesNotContain("allow-0", "allow-3");
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter("STOPPED", null, null, null, null, null, null, null,
+                null, weekday, band, null))).hasSize(4);
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter("CHALLENGE", null, null, null, null, null, null, null,
+                null, null, null, 1))).containsExactlyInAnyOrder("challenge-1", "challenge-2");
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter(null, null, null, null, null, null, null, null,
+                null, null, null, 2))).as("nobody was challenged twice").isEmpty();
+        assertThat(rows(week, new ZeroTrustDecisionRecords.Filter(null, null, null, null, null, null, null, "res-77")))
+                .containsExactly("named-resource");
+    }
+
+    /** Design 6.4: the review queue is read a page of 20 at a time, by its reason when one is asked. */
+    @Test
+    void theReviewQueueReadsOnPageByPage() {
+        Instant at = now.minus(Duration.ofHours(5));
+        for (int i = 0; i < 25; i++) {
+            String id = String.format("queued-%02d", i);
+            decision(Map.of("observation_id", id, "final_action", "BLOCK"), at.minusSeconds(i));
+            jdbc.update("INSERT INTO ctxa_zt_review_queue (observation_id, sample_day, review_reason) VALUES (?, "
+                    + "CURRENT_DATE, ?)", id, i < 5 ? "SHADOW_BLOCK" : "SAMPLE");
+        }
+
+        ZeroTrustConsoleDtos.ReviewPage first = records.reviewPage(null, null);
+        ZeroTrustConsoleDtos.ReviewPage second = records.reviewPage(first.nextCursor(), null);
+
+        assertThat(first.pending()).isEqualTo(25);
+        assertThat(first.items()).hasSize(ZeroTrustDecisionRecords.REVIEW_PAGE);
+        assertThat(second.items()).hasSize(5);
+        assertThat(second.nextCursor()).isNull();
+        assertThat(first.items().stream().map(ZeroTrustConsoleDtos.ReviewItem::observationId))
+                .doesNotContainAnyElementsOf(second.items().stream().map(ZeroTrustConsoleDtos.ReviewItem::observationId)
+                        .toList());
+        assertThat(records.reviewPage(null, "SHADOW_BLOCK").items()).hasSize(5)
+                .allSatisfy(item -> assertThat(item.reason()).isEqualTo("SHADOW_BLOCK"));
+    }
+
+    /** Design 6.4: where the decision ended, what its model calls cost, what it was learned from, which version. */
+    @Test
+    void theDetailSaysWhereItEndedWhatItCostAndWhatItLearned() {
+        decision(Map.of("observation_id", "costed", "decision_stage", "LAYER1", "model_call_count", 2,
+                "prompt_tokens", 900L, "output_tokens", 120L, "prompt_bundle_version", "v3.0", "decision_summary_json",
+                "{\"usualKept\":true,\"baselineLearned\":46,\"baselineDays\":12}"), now.minus(Duration.ofMinutes(20)));
+        records.setStandalone(true);
+
+        DecisionDetail costed = records.detail("costed", Locale.ENGLISH);
+        DecisionDetail passed = records.detail("challenge-1", Locale.ENGLISH);
+
+        assertThat(costed.stage()).isEqualTo("LAYER1");
+        assertThat(costed.modelCalls()).isEqualTo(2);
+        assertThat(costed.retried()).as("two calls on the first analysis: asked again once").isTrue();
+        assertThat(costed.promptTokens()).isEqualTo(900L);
+        assertThat(costed.outputTokens()).isEqualTo(120L);
+        assertThat(costed.baselineLearned()).isEqualTo(46L);
+        assertThat(costed.baselineDays()).isEqualTo(12);
+        assertThat(costed.bundleNumber()).isEqualTo(3);
+        assertThat(costed.standalone()).isTrue();
+        assertThat(costed.learned()).isFalse();
+        assertThat(passed.learned()).as("a passed step-up learns its request").isTrue();
+    }
+
+    /** Design 6.5: the mode history names the reason its operator gave. */
+    @Test
+    void theModeHistoryNamesItsReason() {
+        jdbc.update("INSERT INTO ctxa_audit_log (timestamp, principal_name, resource_identifier, decision, event_category, "
+                + "details) VALUES (?, 'admin', 'contexa.security.zerotrust.mode', 'ENFORCE', 'ZERO_TRUST_MODE_CHANGED', ?)",
+                Timestamp.from(now.minus(Duration.ofDays(1))), "{\"previousMode\":\"SHADOW\",\"reason\":\"pilot done\"}");
+
+        assertThat(service.modeHistory()).first().satisfies(change -> {
+            assertThat(change.from()).isEqualTo("SHADOW");
+            assertThat(change.reason()).isEqualTo("pilot done");
+        });
+    }
+
+    private List<String> rows(ZeroTrustConsoleRange range, ZeroTrustDecisionRecords.Filter filter) {
+        return records.list(range, null, filter, null).rows().stream().map(DecisionRow::observationId).toList();
+    }
+
+    private static long audit(String requestId, String eventId, Instant at) {
+        return jdbc.queryForObject("INSERT INTO ctxa_audit_log (timestamp, principal_name, resource_identifier, decision, "
+                + "correlation_id, event_category, details) VALUES (?, 'u0', 'resource', 'CHALLENGE', ?, "
+                + "'SECURITY_DECISION', ?) RETURNING id", Long.class, Timestamp.from(at), requestId,
+                "{\"eventId\":\"" + eventId + "\",\"decision\":\"CHALLENGE\"}");
+    }
+
+    private static void sealedPackage(String packageId, String requestId, String identity, Instant at) {
+        jdbc.update("INSERT INTO ctxa_sealed_evidence_package (package_id, correlation_id, idempotency_key, captured_at, "
+                + "package_hash) VALUES (?, ?, ?, ?, 'hash')", packageId, requestId, identity, Timestamp.from(at));
     }
 
     private static void decision(Map<String, Object> values, Instant createdAt) {

@@ -57,6 +57,7 @@ import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.StoppedSid
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Throughput;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Trust;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.TrustCard;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Previous;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.UnknownFact;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.WouldHave;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.VersionDecisions;
@@ -67,11 +68,13 @@ import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleReader.StatsRow
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.scheduling.support.CronExpression;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -156,6 +159,11 @@ public class ZeroTrustConsoleService {
     // ----- overview (6.1) -----
 
     public Overview overview(String period, String from, String to, String tenant, Locale locale) {
+        // K29: the screen reads each item list once
+        return reader.screen(() -> overviewOf(period, from, to, tenant, locale));
+    }
+
+    private Overview overviewOf(String period, String from, String to, String tenant, Locale locale) {
         ZeroTrustConsoleRange range = range(period, from, to);
         ZeroTrustConsoleMetrics metrics = new ZeroTrustConsoleMetrics(messages, locale);
         List<StatsRow> rows = reader.stats(range, tenant);
@@ -198,7 +206,25 @@ public class ZeroTrustConsoleService {
                         StatsRow::decisions), decisions, ZeroTrustConsoleMetrics.NO_DECISIONS));
         List<Share> reasonGroups = reasonGroups(range, tenant, null);
         return new Overview(header(range, tenant, rows), summary, coverage, stoppedCard, impact, trust,
-                trend(range, tenant), reasonGroups, alerts(range, tenant, rows, metrics));
+                trend(range, tenant), reasonGroups, alerts(range, tenant, rows, metrics), previous(range, tenant, metrics));
+    }
+
+    /**
+     * Design 6.1: the four key numbers of the period of the same length just before this one, so each card says how
+     * it changed. Read from the same hourly tables.
+     */
+    Previous previous(ZeroTrustConsoleRange range, String tenant, ZeroTrustConsoleMetrics metrics) {
+        Duration length = Duration.between(range.from(), range.to());
+        ZeroTrustConsoleRange before = new ZeroTrustConsoleRange(range.key(), range.from().minus(length), range.from());
+        List<StatsRow> rows = reader.stats(before, tenant);
+        long decisions = decisions(rows);
+        long stopped = sum(rows, r -> STOPPED.contains(r.action()), StatsRow::decisions);
+        long challenges = sum(rows, r -> "CHALLENGE".equals(r.action()), StatsRow::decisions);
+        long passed = sum(rows, r -> "CHALLENGE".equals(r.action()), StatsRow::passed);
+        long model = sum(rows, r -> r.decision() && "MODEL".equals(r.source()), StatsRow::decisions);
+        Double coverage = coverage(before, tenant, rows, metrics).coverage().value();
+        return new Previous(before.period(), coverage, decisions == 0 ? null : (double) stopped / decisions,
+                challenges == 0 ? null : (double) passed / challenges, decisions == 0 ? null : (double) model / decisions);
     }
 
     /**
@@ -275,9 +301,24 @@ public class ZeroTrustConsoleService {
             points.add(new DayPoint(day.toString(), n[0], n[1], n[2], n[3], n[4], n[5] == 0 ? null : (double) n[6] / n[5],
                     n[7], n[8], n[9], n[10], n[11], counts == null ? null : counts.getOrDefault("PROTECTED_CALL", 0L),
                     counts == null ? null : counts.getOrDefault("REUSED", 0L),
-                    buckets == null ? null : ZeroTrustConsoleMetrics.percentile(buckets, 0.95), n[12]));
+                    buckets == null ? null : ZeroTrustConsoleMetrics.percentile(buckets, 0.95), n[12],
+                    counts == null ? null : counts.getOrDefault("SKIPPED", 0L)));
         });
         return points;
+    }
+
+    /**
+     * Console design 6.2: the stopped decisions whose model gave a reason code, the base the main reasons are shares
+     * of (a bundle that gives none, v19, is left out of them).
+     */
+    long reasoned(ZeroTrustConsoleRange range, String tenant) {
+        long total = 0;
+        for (ItemRow row : reader.items(range, tenant, null, "FIRST_REASON")) {
+            if (STOPPED.contains(row.detail())) {
+                total += row.counted();
+            }
+        }
+        return total;
     }
 
     /** The groups of the first reason of the stopped decisions (console design 6.1). */
@@ -310,14 +351,19 @@ public class ZeroTrustConsoleService {
                 clock.instant());
         ZeroTrustConsoleRange yesterday = new ZeroTrustConsoleRange("day", today.from().minus(Duration.ofHours(24)),
                 today.from());
-        long modelLessToday = sum(reader.stats(today, tenant), r -> r.decision() && "MODEL_LESS".equals(r.source()),
-                StatsRow::decisions);
+        List<StatsRow> todayRows = reader.stats(today, tenant);
+        long modelLessToday = sum(todayRows, r -> r.decision() && "MODEL_LESS".equals(r.source()), StatsRow::decisions);
         long modelLessYesterday = sum(reader.stats(yesterday, tenant),
                 r -> r.decision() && "MODEL_LESS".equals(r.source()), StatsRow::decisions);
         if (modelLessToday >= 10 && modelLessToday >= 3 * Math.max(1, modelLessYesterday)) {
+            // Design 6.1: the rise names its main cause (the model timed out, its answer had no usable form, ...).
+            String cause = group(todayRows, r -> r.decision() && "MODEL_LESS".equals(r.source()), StatsRow::cause)
+                    .entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse("NONE");
+            String causeText = metrics.message("zt.console.ui.trust.cause." + cause,
+                    metrics.message("zt.console.ui.operations.cause." + cause, cause));
             alerts.add(new Alert("modelLessRising", "WARN",
                     metrics.message("zt.console.alert.modelLessRising", "Decisions set without the model rose to "
-                            + modelLessToday + " in 24 hours", modelLessToday, modelLessYesterday),
+                            + modelLessToday + " in 24 hours", modelLessToday, modelLessYesterday, causeText),
                     "/contexa/admin/zero-trust/decisions?period=day&source=MODEL_LESS"));
         }
         long decisions = decisions(rows);
@@ -327,7 +373,8 @@ public class ZeroTrustConsoleService {
             alerts.add(new Alert("baselineNotEstablished", "INFO",
                     metrics.message("zt.console.alert.baselineNotEstablished", share
                             + "% of decisions without an established baseline", share),
-                    "/contexa/admin/zero-trust/trust"));
+                    // Design 6.1: a warning opens the decision list it counts.
+                    "/contexa/admin/zero-trust/decisions?baseline=" + ZeroTrustDecisionRecords.BASELINE_NOT_ESTABLISHED));
         }
         List<ItemRow> unknown = reader.top(range, tenant, null, "UNKNOWN_FACT", List.of("NOT_INTEGRATED"), 1);
         if (!unknown.isEmpty() && unknown.get(0).counted() > 0) {
@@ -344,6 +391,11 @@ public class ZeroTrustConsoleService {
     // ----- threats and business impact (6.2) -----
 
     public Impact impact(String period, String from, String to, String tenant, Locale locale) {
+        // K29: the screen reads each item list once
+        return reader.screen(() -> impactOf(period, from, to, tenant, locale));
+    }
+
+    private Impact impactOf(String period, String from, String to, String tenant, Locale locale) {
         ZeroTrustConsoleRange range = range(period, from, to);
         ZeroTrustConsoleMetrics metrics = new ZeroTrustConsoleMetrics(messages, locale);
         List<StatsRow> rows = reader.stats(range, tenant);
@@ -361,19 +413,31 @@ public class ZeroTrustConsoleService {
                 ZeroTrustConsoleMetrics.sharesOf(timing, stopped), explained,
                 ZeroTrustConsoleMetrics.sharesOf(hypotheses, explained), ZeroTrustConsoleMetrics.sharesOf(classes, stopped),
                 ranked(range, tenant, "FIRST_REASON", STOPPED), ranked(range, tenant, "RESOURCE", STOPPED),
-                ranked(range, tenant, "USER", STOPPED));
+                ranked(range, tenant, "USER", STOPPED), reasoned(range, tenant));
 
         long challenges = byAction.get("CHALLENGE");
         long passed = sum(rows, r -> "CHALLENGE".equals(r.action()), StatsRow::passed);
         long failed = sum(rows, r -> "CHALLENGE".equals(r.action()), StatsRow::failed);
         long expired = sum(rows, r -> "CHALLENGE".equals(r.action()), StatsRow::expired);
-        ChallengeFunnel funnel = new ChallengeFunnel(challenges,
-                metrics.unavailable("codeRequests", "COUNT", ZeroTrustConsoleMetrics.NOT_RECORDED), passed, failed,
+        // Design 6.2: the challenges whose owner was mailed a code; a factor without a mailed code counts none.
+        long codeRequests = sum(rows, r -> "CHALLENGE".equals(r.action()), StatsRow::codeRequested);
+        ChallengeFunnel funnel = new ChallengeFunnel(challenges, metrics.count("codeRequests", codeRequests), passed, failed,
                 expired, metrics.ranged("challengePass", passed, challenges, ZeroTrustConsoleMetrics.EMPTY_DENOMINATOR));
         long blocks = byAction.get("BLOCK");
         long released = sum(rows, r -> "BLOCK".equals(r.action()), StatsRow::released);
         long kept = sum(rows, r -> "BLOCK".equals(r.action()), StatsRow::kept);
-        Double releaseHours = reader.releaseMedianHours(range, tenant);
+        // Console design 6.2: the median time to a release, read from the release buckets of the blocks' hours.
+        long[] releases = new long[ZeroTrustConsoleReader.RELEASE_BOUNDS_MINUTES.length + 1];
+        for (StatsRow row : rows) {
+            if ("BLOCK".equals(row.action())) {
+                for (int i = 0; i < releases.length; i++) {
+                    releases[i] += row.releases()[i];
+                }
+            }
+        }
+        Long releaseMinutes = ZeroTrustConsoleMetrics.percentile(releases, ZeroTrustConsoleReader.RELEASE_BOUNDS_MINUTES,
+                0.5);
+        Double releaseHours = releaseMinutes == null ? null : releaseMinutes / 60.0;
         BlockOutcome blockOutcome = new BlockOutcome(blocks, released, kept,
                 metrics.value("releaseMedianHours", releaseHours, "HOURS", ZeroTrustConsoleMetrics.EMPTY_DENOMINATOR));
         LatencyRow wait = latency(range, tenant, null).get("USER_WAIT");
@@ -486,6 +550,11 @@ public class ZeroTrustConsoleService {
     // ----- trust (6.3) -----
 
     public Trust trust(String period, String from, String to, String tenant, Locale locale) {
+        // K29: the screen reads each item list once
+        return reader.screen(() -> trustOf(period, from, to, tenant, locale));
+    }
+
+    private Trust trustOf(String period, String from, String to, String tenant, Locale locale) {
         ZeroTrustConsoleRange range = range(period, from, to);
         ZeroTrustConsoleMetrics metrics = new ZeroTrustConsoleMetrics(messages, locale);
         List<StatsRow> rows = reader.stats(range, tenant);
@@ -550,7 +619,9 @@ public class ZeroTrustConsoleService {
                         && isResponseFormat(r.cause()), StatsRow::decisions), decisions, ZeroTrustConsoleMetrics.NO_DECISIONS),
                 metrics.ratio("contractFallback", sum(rows, r -> r.decision() && "CONTRACT_FALLBACK".equals(r.cause()),
                         StatsRow::decisions), decisions, ZeroTrustConsoleMetrics.NO_DECISIONS));
-        return new Trust(header(range, tenant, rows), source, evidence, outcomes, quality, bundleModels(rows));
+        // Design 6.3: the daily sources of the decisions beside their shares of the period.
+        return new Trust(header(range, tenant, rows), source, evidence, outcomes, quality, bundleModels(rows),
+                trend(range, tenant));
     }
 
     /** A fallback for an answer whose action had no usable form (console design 1.4). */
@@ -625,6 +696,11 @@ public class ZeroTrustConsoleService {
     // ----- adoption (6.5, decision 11.5) -----
 
     public Adoption adoption(String tenant, Locale locale) {
+        // K29: the screen reads each item list once
+        return reader.screen(() -> adoptionOf(tenant, locale));
+    }
+
+    private Adoption adoptionOf(String tenant, Locale locale) {
         ZeroTrustConsoleMetrics metrics = new ZeroTrustConsoleMetrics(messages, locale);
         SecurityZeroTrustProperties.Adoption criteria = properties.getConsole().getAdoption();
         String mode = properties.getMode() != null ? properties.getMode().name() : null;
@@ -702,14 +778,17 @@ public class ZeroTrustConsoleService {
         List<ModeChange> history = new ArrayList<>();
         for (String[] change : reader.modeChanges(20)) {
             String previous = null;
+            String reason = null;
             try {
                 JsonNode details = change[3] != null ? objectMapper.readTree(change[3]) : null;
                 previous = details != null && details.hasNonNull("previousMode") ? details.get("previousMode").asText()
                         : null;
+                // Design 6.5: why the operator changed the mode, as the settings screen asked it.
+                reason = details != null && details.hasNonNull("reason") ? details.get("reason").asText() : null;
             } catch (Exception unreadable) {
                 log.debug("[ZeroTrustConsole] The details of a mode change could not be read", unreadable);
             }
-            history.add(new ModeChange(change[0], previous, change[2], change[1]));
+            history.add(new ModeChange(change[0], previous, change[2], change[1], reason));
         }
         return history;
     }
@@ -717,6 +796,11 @@ public class ZeroTrustConsoleService {
     // ----- operations (6.6) -----
 
     public Operations operations(String period, String from, String to, String tenant, Locale locale) {
+        // K29: the screen reads each item list once
+        return reader.screen(() -> operationsOf(period, from, to, tenant, locale));
+    }
+
+    private Operations operationsOf(String period, String from, String to, String tenant, Locale locale) {
         ZeroTrustConsoleRange range = range(period, from, to);
         ZeroTrustConsoleMetrics metrics = new ZeroTrustConsoleMetrics(messages, locale);
         List<StatsRow> rows = reader.stats(range, tenant);
@@ -729,7 +813,10 @@ public class ZeroTrustConsoleService {
                         counts.getOrDefault("PROTECTED_CALL", 0L) / (double) range.minutes(), "PER_MINUTE", null)
                         : metrics.unavailable("protectedPerMinute", "PER_MINUTE", ZeroTrustConsoleMetrics.TENANT_FILTERED),
                 metrics.value("decisionsPerMinute", decisions / (double) range.minutes(), "PER_MINUTE", null),
-                planeAgent != null ? planeAgent.analysesInProgress() : null);
+                planeAgent != null ? planeAgent.analysesInProgress() : null,
+                // Design 6.6: the headroom is the line's bound less the analyses in it; an unbounded line has none.
+                planeAgent != null && planeAgent.analysisLineBound() > 0 && planeAgent.analysisLineBound() < Integer.MAX_VALUE
+                        ? planeAgent.analysisLineBound() : null);
         Map<LocalDate, Map<String, Long>> failures = new TreeMap<>();
         for (DayRow row : reader.days(range, tenant)) {
             boolean noDecision = NO_DECISION.equals(row.action());
@@ -743,7 +830,8 @@ public class ZeroTrustConsoleService {
         failures.forEach((day, kinds) -> failureTrend.add(new FailureDay(day.toString(), kinds)));
         List<StageLatency> latency = new ArrayList<>();
         Map<String, LatencyRow> stages = latency(range, tenant, null);
-        for (String stage : List.of("QUEUE", "PREPARE", "RAG", "MODEL", "PERSIST", "TOTAL")) {
+        // Design 6.6: the stages of a decision, and the wait of the person a synchronous decision held
+        for (String stage : List.of("QUEUE", "PREPARE", "RAG", "MODEL", "PERSIST", "TOTAL", "USER_WAIT")) {
             LatencyRow row = stages.get(stage);
             latency.add(new StageLatency(stage, row == null ? null : ZeroTrustConsoleMetrics.percentile(row.buckets(), 0.5),
                     row == null ? null : ZeroTrustConsoleMetrics.percentile(row.buckets(), 0.95),
@@ -786,7 +874,19 @@ public class ZeroTrustConsoleService {
                 components(range, tenant, rows, throughput, stages, planeAgent), throughput, hourly,
                 coverage.noDecisionReasons(), failureTrend, failedPaths, latency, histogram, trend(range, tenant),
                 costs, bundleModels(rows), ranked(range, tenant, "PROVIDER", null), triggers(range, tenant, decisions),
-                new Storage(console.getDecisionRetentionDays(), console.getAggregateRetentionDays(), standalone));
+                new Storage(console.getDecisionRetentionDays(), console.getAggregateRetentionDays(), standalone,
+                        reader.decisionRowsEstimate(), nextCleanup(console.getRetentionCron())));
+    }
+
+    /** When the retention pass runs next, in the server's zone, or null when its cron cannot be read. */
+    String nextCleanup(String cron) {
+        try {
+            ZonedDateTime next = CronExpression.parse(cron).next(ZonedDateTime.now(clock));
+            return next == null ? null : next.toInstant().toString();
+        } catch (IllegalArgumentException | NullPointerException unreadable) {
+            log.debug("[ZeroTrustConsole] The retention cron {} cannot be read", cron);
+            return null;
+        }
     }
 
     /** Console plan 5-2 ②: the decisions by what started their analysis, as shares of the decisions. */
@@ -815,7 +915,12 @@ public class ZeroTrustConsoleService {
         } else {
             components.add(new Component("ANALYSIS_LINE", "UNKNOWN", null, ZeroTrustConsoleMetrics.NOT_RECORDED));
         }
-        components.add(new Component("PAST_RECORDS", "UNKNOWN", null, ZeroTrustConsoleMetrics.NOT_RECORDED));
+        // Design 6.6: the past records the analysis searched, measured by their stage time as the store is.
+        LatencyRow past = stages.get("RAG");
+        Long pastMs = past == null ? null : ZeroTrustConsoleMetrics.percentile(past.buckets(), 0.5);
+        components.add(new Component("PAST_RECORDS", pastMs == null ? "UNKNOWN" : "GOOD",
+                pastMs == null ? null : String.valueOf(pastMs), pastMs != null ? null
+                : decisions(rows) == 0 ? ZeroTrustConsoleMetrics.NO_DECISIONS : ZeroTrustConsoleMetrics.NOT_MEASURED));
         long decisions = decisions(rows);
         long modelLess = sum(rows, r -> r.decision() && "MODEL_LESS".equals(r.source()), StatsRow::decisions);
         long failed = sum(rows, r -> !r.decision(), StatsRow::decisions);
@@ -825,9 +930,11 @@ public class ZeroTrustConsoleService {
         components.add(new Component("MODEL", modelStatus, String.valueOf(modelLess + failed), null));
         LatencyRow persist = stages.get("PERSIST");
         Long persistMs = persist == null ? null : ZeroTrustConsoleMetrics.percentile(persist.buckets(), 0.5);
+        // K22: without a measured store time the reason is that the period had no decision, or that its decisions were
+        // stored before the time was recorded.
         components.add(new Component("DECISION_STORE", persistMs == null ? "UNKNOWN" : "GOOD",
-                persistMs == null ? null : String.valueOf(persistMs), persistMs == null
-                ? ZeroTrustConsoleMetrics.NO_DECISIONS : null));
+                persistMs == null ? null : String.valueOf(persistMs), persistMs != null ? null
+                : decisions == 0 ? ZeroTrustConsoleMetrics.NO_DECISIONS : ZeroTrustConsoleMetrics.NOT_MEASURED));
         components.add(new Component("STATE_STORE", standalone ? "WARN" : "GOOD", standalone ? "MEMORY" : "REDIS",
                 null));
         Instant computed = reader.lastComputed();

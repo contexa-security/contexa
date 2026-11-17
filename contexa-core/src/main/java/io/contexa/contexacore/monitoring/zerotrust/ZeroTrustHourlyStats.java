@@ -256,7 +256,9 @@ public class ZeroTrustHourlyStats {
                 user_wait_le_30s, user_wait_gt_30s,
                 prompt_tokens_sum, cached_prompt_tokens_sum, output_tokens_sum, model_call_sum,
                 challenge_passed_count, challenge_failed_count, challenge_expired_count, unblock_requested_count,
-                admin_released_count, block_kept_count, evaluated_valid_count, evaluated_invalid_count, computed_at)
+                admin_released_count, block_kept_count, evaluated_valid_count, evaluated_invalid_count,
+                release_le_15m, release_le_30m, release_le_1h, release_le_2h, release_le_4h, release_le_8h,
+                release_le_24h, release_le_72h, release_le_7d, release_gt_7d, challenge_code_requested_count, computed_at)
             SELECT ?,
                    COALESCE(o.tenant_id, ''), COALESCE(o.decision_boundary_mode, ''), COALESCE(o.final_action, ''),
                    COALESCE(o.decision_source, ''), COALESCE(o.decision_change_cause, ''),
@@ -298,18 +300,34 @@ public class ZeroTrustHourlyStats {
                    SUM(COALESCE(r.passed, 0)), SUM(COALESCE(r.failed, 0)), SUM(COALESCE(r.expired, 0)),
                    SUM(COALESCE(r.unblock_requested, 0)), SUM(COALESCE(r.released, 0)), SUM(COALESCE(r.kept, 0)),
                    SUM(COALESCE(r.valid, 0)), SUM(COALESCE(r.invalid, 0)),
+                   -- Console design 6.2: the time from a decision to its release by an administrator, in buckets an hour
+                   -- adds to another, so the screen reads the median of any period from this table.
+                   SUM(CASE WHEN r.release_minutes <= 15 THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN r.release_minutes > 15 AND r.release_minutes <= 30 THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN r.release_minutes > 30 AND r.release_minutes <= 60 THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN r.release_minutes > 60 AND r.release_minutes <= 120 THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN r.release_minutes > 120 AND r.release_minutes <= 240 THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN r.release_minutes > 240 AND r.release_minutes <= 480 THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN r.release_minutes > 480 AND r.release_minutes <= 1440 THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN r.release_minutes > 1440 AND r.release_minutes <= 4320 THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN r.release_minutes > 4320 AND r.release_minutes <= 10080 THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN r.release_minutes > 10080 THEN 1 ELSE 0 END),
+                   SUM(COALESCE(r.code_requested, 0)),
                    ?
               FROM ctxa_ai_security_decision_observation o
               LEFT JOIN (
                     SELECT d.observation_id,
                            MAX(CASE WHEN d.outcome_kind = 'CHALLENGE_PASSED' THEN 1 ELSE 0 END) AS passed,
+                           MAX(CASE WHEN d.outcome_kind = 'CHALLENGE_CODE_REQUESTED' THEN 1 ELSE 0 END) AS code_requested,
                            MAX(CASE WHEN d.outcome_kind = 'CHALLENGE_FAILED' THEN 1 ELSE 0 END) AS failed,
                            MAX(CASE WHEN d.outcome_kind = 'CHALLENGE_EXPIRED' THEN 1 ELSE 0 END) AS expired,
                            MAX(CASE WHEN d.outcome_kind = 'UNBLOCK_REQUESTED' THEN 1 ELSE 0 END) AS unblock_requested,
                            MAX(CASE WHEN d.outcome_kind = 'ADMIN_RELEASED' THEN 1 ELSE 0 END) AS released,
                            MAX(CASE WHEN d.outcome_kind = 'BLOCK_KEPT' THEN 1 ELSE 0 END) AS kept,
                            MAX(CASE WHEN d.outcome_kind = 'EVALUATED_VALID' THEN 1 ELSE 0 END) AS valid,
-                           MAX(CASE WHEN d.outcome_kind = 'EVALUATED_INVALID' THEN 1 ELSE 0 END) AS invalid
+                           MAX(CASE WHEN d.outcome_kind = 'EVALUATED_INVALID' THEN 1 ELSE 0 END) AS invalid,
+                           EXTRACT(EPOCH FROM (MIN(CASE WHEN d.outcome_kind = 'ADMIN_RELEASED' THEN d.occurred_at END)
+                                               - MIN(od.created_at))) / 60 AS release_minutes
                       FROM ctxa_zt_decision_outcome d
                       JOIN ctxa_ai_security_decision_observation od ON od.observation_id = d.observation_id
                      WHERE od.created_at >= ? AND od.created_at < ?

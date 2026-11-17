@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.zerotrust;
 
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.PastWindow;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
 
 import java.sql.ResultSet;
@@ -24,6 +25,9 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,12 +48,15 @@ final class ZeroTrustConsoleReader {
                     long business, long unknownFacts, long retried, long latencySum, long promptTokens,
                     long cachedTokens, long outputTokens, long modelCalls, long passed, long failed, long expired,
                     long unblockRequested, long released, long kept, long valid, long invalid, Instant first,
-                    Instant last) {
+                    Instant last, long[] releases, long codeRequested) {
 
         boolean decision() {
             return !ZeroTrustConsoleService.NO_DECISION.equals(action);
         }
     }
+
+    /** The upper bounds of the release time buckets of the hourly table, in minutes, and one past the last. */
+    static final long[] RELEASE_BOUNDS_MINUTES = {15, 30, 60, 120, 240, 480, 1_440, 4_320, 10_080};
 
     /** One item of a ranked list and one of its details, summed over the period. */
     record ItemRow(String item, String detail, long counted) {
@@ -66,12 +73,52 @@ final class ZeroTrustConsoleReader {
 
     private final Supplier<JdbcOperations> jdbc;
 
+    /**
+     * K29: what one screen already read. A screen of a long period asks the same per-user items several times (the
+     * band's users, the ranked users, the challenges per user, the burden); each is read once per screen.
+     */
+    private final ThreadLocal<Map<List<Object>, Object>> screenReads = new ThreadLocal<>();
+
     ZeroTrustConsoleReader(Supplier<JdbcOperations> jdbc) {
         this.jdbc = jdbc == null ? () -> null : jdbc;
     }
 
     JdbcOperations jdbc() {
         return jdbc.get();
+    }
+
+    /** K29: one screen's answer, its item reads made once each; a screen inside another shares the outer's reads. */
+    <T> T screen(Supplier<T> answer) {
+        if (screenReads.get() != null) {
+            return answer.get();
+        }
+        screenReads.set(new HashMap<>());
+        try {
+            return answer.get();
+        } finally {
+            screenReads.remove();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T read(List<Object> key, Supplier<T> query) {
+        Map<List<Object>, Object> reads = screenReads.get();
+        if (reads == null) {
+            return query.get();
+        }
+        Object known = reads.get(key);
+        if (known != null) {
+            return (T) known;
+        }
+        T value = query.get();
+        reads.put(key, value);
+        return value;
+    }
+
+    private static List<Object> key(String what, ZeroTrustConsoleRange range, String tenant, String mode,
+                                    String dimension) {
+        return Arrays.asList(what, String.valueOf(range.fromHour()), String.valueOf(range.toTimestamp()), tenant, mode,
+                dimension);
     }
 
     List<StatsRow> stats(ZeroTrustConsoleRange range, String tenant) {
@@ -92,7 +139,9 @@ final class ZeroTrustConsoleReader {
                        SUM(model_call_sum), SUM(challenge_passed_count), SUM(challenge_failed_count),
                        SUM(challenge_expired_count), SUM(unblock_requested_count), SUM(admin_released_count),
                        SUM(block_kept_count), SUM(evaluated_valid_count), SUM(evaluated_invalid_count),
-                       MIN(bucket_start), MAX(bucket_start)
+                       MIN(bucket_start), MAX(bucket_start), SUM(release_le_15m), SUM(release_le_30m), SUM(release_le_1h),
+                       SUM(release_le_2h), SUM(release_le_4h), SUM(release_le_8h), SUM(release_le_24h),
+                       SUM(release_le_72h), SUM(release_le_7d), SUM(release_gt_7d), SUM(challenge_code_requested_count)
                   FROM ctxa_zt_stats_hourly
                  WHERE bucket_start >= ? AND bucket_start < ?""" + tenantClause + """
 
@@ -105,7 +154,17 @@ final class ZeroTrustConsoleReader {
                 rs.getLong(17), rs.getLong(18), rs.getLong(19), rs.getLong(20), rs.getLong(21), rs.getLong(22),
                 rs.getLong(23), rs.getLong(24), rs.getLong(25), rs.getLong(26), rs.getLong(27), rs.getLong(28),
                 rs.getLong(29), rs.getLong(30), rs.getLong(31), rs.getLong(32), rs.getLong(33), rs.getLong(34),
-                rs.getLong(35), instant(rs, 36), instant(rs, 37)), args.toArray());
+                rs.getLong(35), instant(rs, 36), instant(rs, 37), releases(rs, 38),
+                rs.getLong(38 + RELEASE_BOUNDS_MINUTES.length + 1)), args.toArray());
+    }
+
+    /** The release time buckets of a stats row, from its column on (console design 6.2). */
+    private static long[] releases(ResultSet rs, int first) throws SQLException {
+        long[] buckets = new long[RELEASE_BOUNDS_MINUTES.length + 1];
+        for (int i = 0; i < buckets.length; i++) {
+            buckets[i] = rs.getLong(first + i);
+        }
+        return buckets;
     }
 
     /** The coverage counts of the period, by kind and reason; the nodes' counts over every tenant. */
@@ -128,88 +187,111 @@ final class ZeroTrustConsoleReader {
         return counts;
     }
 
-    /** Every item and detail of a dimension in the period. */
+    /**
+     * Every item and detail of a dimension in the period, in the order of the items (the database's collation, the
+     * order a ranking breaks its ties in). Read once per screen (K29).
+     */
     List<ItemRow> items(ZeroTrustConsoleRange range, String tenant, String mode, String dimension) {
-        JdbcOperations operations = jdbc.get();
-        if (operations == null) {
-            return List.of();
-        }
-        List<Object> args = new ArrayList<>(List.of(dimension, range.fromHour(), range.toTimestamp()));
-        String clauses = tenantClause(tenant, args) + modeClause(mode, args);
-        return operations.query("""
-                SELECT item, detail, SUM(counted)
-                  FROM ctxa_zt_item_hourly
-                 WHERE dimension = ? AND bucket_start >= ? AND bucket_start < ?""" + clauses + """
+        return read(key("items", range, tenant, mode, dimension), () -> {
+            JdbcOperations operations = jdbc.get();
+            if (operations == null) {
+                return List.<ItemRow>of();
+            }
+            List<Object> args = new ArrayList<>(List.of(dimension, range.fromHour(), range.toTimestamp()));
+            String clauses = tenantClause(tenant, args) + modeClause(mode, args);
+            return List.copyOf(operations.query("""
+                    SELECT item, detail, SUM(counted)
+                      FROM ctxa_zt_item_hourly
+                     WHERE dimension = ? AND bucket_start >= ? AND bucket_start < ?""" + clauses + """
 
-                 GROUP BY item, detail
-                """, (rs, row) -> new ItemRow(rs.getString(1), rs.getString(2), rs.getLong(3)), args.toArray());
+                     GROUP BY item, detail
+                     ORDER BY item, detail
+                    """, (rs, row) -> new ItemRow(rs.getString(1), rs.getString(2), rs.getLong(3)), args.toArray()));
+        });
     }
 
-    /** The items of a dimension counted most often in the period, for the details given (all when none). */
+    /**
+     * The items of a dimension counted most often in the period, for the details given (all when none): the most
+     * counted first, an item before the ones after it in the items' order on a tie. K29: read from the screen's items
+     * of the dimension, so a screen that ranks the users and counts them reads them once.
+     */
     List<ItemRow> top(ZeroTrustConsoleRange range, String tenant, String mode, String dimension, List<String> details,
                       int limit) {
-        JdbcOperations operations = jdbc.get();
-        if (operations == null) {
-            return List.of();
+        Map<String, Long> totals = new LinkedHashMap<>();
+        for (ItemRow row : items(range, tenant, mode, dimension)) {
+            if (details == null || details.isEmpty() || details.contains(row.detail())) {
+                totals.merge(row.item(), row.counted(), Long::sum);
+            }
         }
-        List<Object> args = new ArrayList<>(List.of(dimension, range.fromHour(), range.toTimestamp()));
-        StringBuilder clauses = new StringBuilder(tenantClause(tenant, args)).append(modeClause(mode, args));
-        if (details != null && !details.isEmpty()) {
-            clauses.append(" AND detail IN (").append(String.join(", ", details.stream().map(d -> "?").toList()))
-                    .append(")");
-            args.addAll(details);
-        }
-        args.add(limit);
-        return operations.query("""
-                SELECT item, '' AS detail, SUM(counted) AS total
-                  FROM ctxa_zt_item_hourly
-                 WHERE dimension = ? AND bucket_start >= ? AND bucket_start < ?""" + clauses + """
-
-                 GROUP BY item
-                 ORDER BY total DESC, item
-                 LIMIT ?
-                """, (rs, row) -> new ItemRow(rs.getString(1), rs.getString(2), rs.getLong(3)), args.toArray());
+        List<ItemRow> ranked = new ArrayList<>();
+        totals.forEach((item, total) -> ranked.add(new ItemRow(item, "", total)));
+        // A stable sort: items of the same total keep the items' order.
+        ranked.sort(Comparator.comparingLong(ItemRow::counted).reversed());
+        return ranked.size() > limit ? List.copyOf(ranked.subList(0, limit)) : List.copyOf(ranked);
     }
 
-    /** The distinct items of a dimension in the period (the users judged, for the user dimension). */
+    /**
+     * The distinct items of a dimension in the period (the users judged, for the user dimension). K29: counted from
+     * the screen's items when it read them, else by a hash aggregate (a COUNT(DISTINCT) sorts every hour's rows).
+     */
     long distinct(ZeroTrustConsoleRange range, String tenant, String mode, String dimension, List<String> details) {
-        JdbcOperations operations = jdbc.get();
-        if (operations == null) {
-            return 0;
+        Map<List<Object>, Object> reads = screenReads.get();
+        if (reads != null && reads.containsKey(key("items", range, tenant, mode, dimension))) {
+            return items(range, tenant, mode, dimension).stream()
+                    .filter(row -> details == null || details.isEmpty() || details.contains(row.detail()))
+                    .map(ItemRow::item).distinct().count();
         }
-        List<Object> args = new ArrayList<>(List.of(dimension, range.fromHour(), range.toTimestamp()));
-        StringBuilder clauses = new StringBuilder(tenantClause(tenant, args)).append(modeClause(mode, args));
-        if (details != null && !details.isEmpty()) {
-            clauses.append(" AND detail IN (").append(String.join(", ", details.stream().map(d -> "?").toList()))
-                    .append(")");
-            args.addAll(details);
-        }
-        Long count = operations.queryForObject("""
-                SELECT COUNT(DISTINCT item)
-                  FROM ctxa_zt_item_hourly
-                 WHERE dimension = ? AND bucket_start >= ? AND bucket_start < ?""" + clauses, Long.class,
-                args.toArray());
-        return count == null ? 0 : count;
+        List<Object> key = new ArrayList<>(key("distinct", range, tenant, mode, dimension));
+        key.add(details == null ? null : List.copyOf(details));
+        return read(key, () -> {
+            JdbcOperations operations = jdbc.get();
+            if (operations == null) {
+                return 0L;
+            }
+            List<Object> args = new ArrayList<>(List.of(dimension, range.fromHour(), range.toTimestamp()));
+            StringBuilder clauses = new StringBuilder(tenantClause(tenant, args)).append(modeClause(mode, args));
+            if (details != null && !details.isEmpty()) {
+                clauses.append(" AND detail IN (").append(String.join(", ", details.stream().map(d -> "?").toList()))
+                        .append(")");
+                args.addAll(details);
+            }
+            Long count = operations.queryForObject("""
+                    SELECT COUNT(*)
+                      FROM (SELECT item
+                              FROM ctxa_zt_item_hourly
+                             WHERE dimension = ? AND bucket_start >= ? AND bucket_start < ?""" + clauses + """
+
+                             GROUP BY item) items
+                    """, Long.class, args.toArray());
+            return count == null ? 0L : count;
+        });
     }
 
-    /** The users whose latest decision in the period had an established baseline. */
+    /**
+     * The users whose latest decision in the period had the baseline status: the status of each user's latest hour,
+     * the most counted in that hour. K29: one hash aggregate, each user's latest hour and count folded into one number
+     * with whether its status is the one asked ({@code hour * 10^13 + count * 10 + 1}), in place of a sort of every
+     * hour's rows. Of two statuses as counted in the latest hour, the asked one is taken (the sort took either).
+     */
     long usersWithLatestBaseline(ZeroTrustConsoleRange range, String tenant, String status) {
         JdbcOperations operations = jdbc.get();
         if (operations == null) {
             return 0;
         }
-        List<Object> args = new ArrayList<>(List.of(range.fromHour(), range.toTimestamp()));
+        List<Object> args = new ArrayList<>(List.of(status, range.fromHour(), range.toTimestamp()));
         String tenantClause = tenantClause(tenant, args);
-        args.add(status);
         Long count = operations.queryForObject("""
                 SELECT COUNT(*)
-                  FROM (SELECT DISTINCT ON (item) item, detail
+                  FROM (SELECT item,
+                               MAX(CAST(EXTRACT(EPOCH FROM bucket_start) AS BIGINT) / 3600 * 10000000000000
+                                   + LEAST(counted, 999999999999) * 10
+                                   + CASE WHEN detail = ? THEN 1 ELSE 0 END) AS latest
                           FROM ctxa_zt_item_hourly
                          WHERE dimension = 'USER_BASELINE' AND bucket_start >= ? AND bucket_start < ?""" + tenantClause
                 + """
 
-                         ORDER BY item, bucket_start DESC, counted DESC) latest
-                 WHERE detail = ?
+                         GROUP BY item) users
+                 WHERE latest % 10 = 1
                 """, Long.class, args.toArray());
         return count == null ? 0 : count;
     }
@@ -390,24 +472,23 @@ final class ZeroTrustConsoleReader {
         return reasons;
     }
 
-    /** The median time from a block to its release by an administrator, in hours; null for no release. */
-    Double releaseMedianHours(ZeroTrustConsoleRange range, String tenant) {
+    /**
+     * Design 6.6: about how many decision rows are kept, the database's estimate of the table (no count of it, which
+     * reads every row); null when the database has not estimated it yet.
+     */
+    Long decisionRowsEstimate() {
         JdbcOperations operations = jdbc.get();
         if (operations == null) {
             return null;
         }
-        List<Object> args = new ArrayList<>(List.of(range.fromTimestamp(), range.toTimestamp()));
-        String tenantClause = tenant == null ? "" : " AND d.tenant_id = ?";
-        if (tenant != null) {
-            args.add(tenant);
+        try {
+            List<Long> found = operations.queryForList("SELECT CAST(reltuples AS BIGINT) FROM pg_class "
+                    + "WHERE oid = to_regclass('ctxa_ai_security_decision_observation')", Long.class);
+            Long rows = found.isEmpty() ? null : found.get(0);
+            return rows == null || rows < 0 ? null : rows;
+        } catch (DataAccessException unavailable) {
+            return null;
         }
-        Double seconds = operations.queryForObject("""
-                SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (d.occurred_at - o.created_at)))
-                  FROM ctxa_zt_decision_outcome d
-                  JOIN ctxa_ai_security_decision_observation o ON o.observation_id = d.observation_id
-                 WHERE d.outcome_kind = 'ADMIN_RELEASED' AND d.occurred_at >= ? AND d.occurred_at < ?""" + tenantClause,
-                Double.class, args.toArray());
-        return seconds == null ? null : seconds / 3600.0;
     }
 
     long reviewPending() {

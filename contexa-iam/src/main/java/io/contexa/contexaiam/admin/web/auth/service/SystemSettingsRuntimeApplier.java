@@ -94,12 +94,17 @@ public class SystemSettingsRuntimeApplier
      * in effect. The console's settings an operator chose replace their configured values the same way.
      */
     public void apply() {
+        apply(null);
+    }
+
+    /** Applies all stored settings; a mode the operator changed is audited with the reason given (design 6.5). */
+    public void apply(String modeChangeReason) {
         SecurityZeroTrustProperties zeroTrustProperties = zeroTrustPropertiesProvider.getIfAvailable();
         if (zeroTrustProperties != null) {
             SecurityZeroTrustProperties.EnforcementMode before = zeroTrustProperties.getMode();
             runtimeSettingsService.findSecurityZeroTrustMode()
                     .ifPresent(mode -> applyZeroTrustSettings(zeroTrustProperties, mode));
-            auditModeChange(before, zeroTrustProperties.getMode());
+            auditModeChange(before, zeroTrustProperties.getMode(), modeChangeReason);
             ZeroTrustConsoleSettings.apply(runtimeSettingsService.getSettings().getZeroTrustConsoleSettings(),
                     zeroTrustProperties);
         }
@@ -116,7 +121,7 @@ public class SystemSettingsRuntimeApplier
      * the same stored mode again without a person, and recording them would repeat the change.
      */
     private void auditModeChange(SecurityZeroTrustProperties.EnforcementMode before,
-                                 SecurityZeroTrustProperties.EnforcementMode after) {
+                                 SecurityZeroTrustProperties.EnforcementMode after, String reason) {
         if (centralAuditFacade == null || after == null || after == before) {
             return;
         }
@@ -129,6 +134,10 @@ public class SystemSettingsRuntimeApplier
             Map<String, Object> details = new LinkedHashMap<>();
             details.put("previousMode", before != null ? before.name() : null);
             details.put("mode", after.name());
+            if (reason != null && !reason.isBlank()) {
+                String given = reason.trim();
+                details.put("reason", given.length() > 255 ? given.substring(0, 255) : given);
+            }
             centralAuditFacade.recordAsync(AuditRecord.builder()
                     .eventCategory(AuditEventCategory.ZERO_TRUST_MODE_CHANGED)
                     .principalName(authentication.getName())

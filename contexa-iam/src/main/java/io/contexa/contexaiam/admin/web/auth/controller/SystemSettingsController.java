@@ -147,7 +147,8 @@ public class SystemSettingsController {
      */
     private void applyRuntimeSettings(SystemSettingsForm form) {
         if (runtimeApplier != null) {
-            runtimeApplier.apply();
+            // Console design 6.5: the reason the operator gave goes with a mode change into its audit record.
+            runtimeApplier.apply(form.getModeChangeReason());
         } else {
             SystemSettingsRuntimeApplier.applyPolicyDecisionSettings(policyCombiningProperties, authorizationManager,
                     new PolicyDecisionSettings(

@@ -2017,6 +2017,22 @@ CREATE TABLE IF NOT EXISTS ctxa_zt_stats_hourly (
 CREATE INDEX IF NOT EXISTS ctxa_idx_zt_stats_hourly_bucket
     ON ctxa_zt_stats_hourly (bucket_start);
 
+-- Console design 6.2: the time from a decision to its release by an administrator, in buckets (15 minutes to 7 days
+-- and past), so the median of any period is read from this table. A database installed before gains them here.
+ALTER TABLE ctxa_zt_stats_hourly
+    ADD COLUMN IF NOT EXISTS release_le_15m BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_30m BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_1h BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_2h BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_4h BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_8h BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_24h BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_72h BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_7d BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_gt_7d BIGINT NOT NULL DEFAULT 0,
+    -- Console design 6.2: the challenges whose owner was mailed a code (the funnel's code requested)
+    ADD COLUMN IF NOT EXISTS challenge_code_requested_count BIGINT NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS ctxa_zt_coverage_hourly (
     bucket_start TIMESTAMP(6) NOT NULL,
     tenant_id VARCHAR(160) NOT NULL DEFAULT '',
@@ -2042,6 +2058,11 @@ CREATE TABLE IF NOT EXISTS ctxa_zt_review_queue (
 
 CREATE INDEX IF NOT EXISTS ctxa_idx_zt_review_queue_day
     ON ctxa_zt_review_queue (sample_day, review_status);
+
+-- K17 (decision D11): why a decision waits for review: the daily sample, or a decision rule its model answer still
+-- broke after the retry. A database installed before it gains the column at the next start.
+ALTER TABLE ctxa_zt_review_queue
+    ADD COLUMN IF NOT EXISTS review_reason VARCHAR(32) NOT NULL DEFAULT 'SAMPLE';
 
 -- The lists the console ranks and the people it counts, by hour: decisions per user and action, challenges passed
 -- per user, stopped decisions per resource, first reasons, unknown facts, paths without a decision. They name users,

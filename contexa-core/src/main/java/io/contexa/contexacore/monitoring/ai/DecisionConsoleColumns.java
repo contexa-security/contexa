@@ -16,17 +16,23 @@
 package io.contexa.contexacore.monitoring.ai;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFact;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.context.decision.Deviation;
+import io.contexa.contexacore.autonomous.context.decision.DeviationDimension;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV4;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.util.SensitiveValueSanitizer;
 
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -34,6 +40,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The console columns of one decision row (console design 7.1), read from what the engine already put on the event and
@@ -59,6 +67,15 @@ public final class DecisionConsoleColumns {
     public static final String TIMING_BEFORE_RESPONSE = "BEFORE_RESPONSE";
     public static final String TIMING_NEXT_REQUEST = "NEXT_REQUEST";
 
+    /** The most usual values of one dimension a summary keeps; it says how many more there were. */
+    static final int USUAL_VALUES = 6;
+
+    /**
+     * A code in the text of a broken rule ({@code REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH}, {@code MIN_P1_...}); the
+     * action a floor names ({@code CHALLENGE}) has no underscore and is no code.
+     */
+    private static final Pattern RULE_CODE = Pattern.compile("\\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\\b");
+
     /** The decision's console columns, in the order the writer inserts them. */
     public record Values(String attemptKind, String originalEventId, String decisionStage, String analysisDepth,
                          String decisionSource, String decisionChangeCause, String enforcementTiming, String actorKind,
@@ -67,7 +84,8 @@ public final class DecisionConsoleColumns {
                          String contextCoverageLevel, String baselineStatus, Integer unknownFactCount, Long promptTokens,
                          Long cachedPromptTokens, Long outputTokens, Integer modelCallCount, Long userWaitMs,
                          Long providerThrottleWaitMs, Boolean providerThrottleAcquired, String providerThrottleReason,
-                         Long providerEstimatedTokens, Map<String, Object> summary, List<Reason> reasons) {
+                         Long providerEstimatedTokens, Map<String, Object> summary, List<Reason> reasons,
+                         boolean ruleBroken) {
     }
 
     /** One reason code the model gave, with the fact it cites. */
@@ -98,6 +116,7 @@ public final class DecisionConsoleColumns {
         Long throttleWait = longValue(meta.get("providerThrottleWaitMs"));
         Boolean throttleEnabled = bool(meta.get("providerThrottleEnabled"));
         Long waited = TIMING_BEFORE_RESPONSE.equals(timing) ? waitedSince(meta.get("ingestAt"), now) : null;
+        List<Map<String, Object>> breaches = ruleBreaches(meta);
         return new Values(
                 attempt,
                 originalEventId,
@@ -126,8 +145,47 @@ public final class DecisionConsoleColumns {
                 throttleEnabled == null ? null : Boolean.TRUE.equals(throttleEnabled) && throttleWait != null,
                 truncate(text(meta.get("providerThrottleSkippedReason")), 128),
                 longValue(meta.get("providerThrottleEstimatedTokens")),
-                summary(result, facts, meta, reasons),
-                reasons);
+                summary(result, facts, meta, reasons, context, source[0], breaches),
+                reasons,
+                !breaches.isEmpty());
+    }
+
+    /**
+     * K17 (decision D11): the decision rules the model's answers still broke after their retry, as the layers kept
+     * them on the event; each with the layer, the rule as the response check named it and its codes.
+     */
+    static List<Map<String, Object>> ruleBreaches(Map<String, Object> meta) {
+        List<Map<String, Object>> breaches = new ArrayList<>();
+        if (!(meta.get(PromptRuntimeTelemetrySupport.RULE_BREACHES) instanceof List<?> kept)) {
+            return breaches;
+        }
+        for (Object entry : kept) {
+            if (entry instanceof Map<?, ?> map && text(map.get("rule")) != null) {
+                String rule = text(map.get("rule"));
+                Map<String, Object> breach = new LinkedHashMap<>();
+                breach.put("layer", truncate(text(map.get("layer")), 32));
+                breach.put("rule", truncate(SensitiveValueSanitizer.sanitizeText(rule), 1_000));
+                breach.put("codes", ruleCodes(rule));
+                breaches.add(breach);
+            }
+        }
+        return breaches;
+    }
+
+    /**
+     * The codes of a broken rule: a boundary of the decision rules is named by its code, a minimum action floor by
+     * {@code MINIMUM_ACTION_VIOLATION} and the codes of its rules ({@code MIN_P1_IDENTITY_DEVIATION}).
+     */
+    static List<String> ruleCodes(String rule) {
+        List<String> codes = new ArrayList<>();
+        Matcher matcher = RULE_CODE.matcher(rule);
+        while (matcher.find()) {
+            String code = matcher.group();
+            if (!codes.contains(code)) {
+                codes.add(code);
+            }
+        }
+        return codes;
     }
 
     /**
@@ -289,6 +347,16 @@ public final class DecisionConsoleColumns {
      */
     static Map<String, Object> summary(ProcessingResult result, DecisionFacts facts, Map<String, Object> meta,
                                        List<Reason> reasons) {
+        return summary(result, facts, meta, reasons, null, null, List.of());
+    }
+
+    /**
+     * The summary with the usual values of the baseline view the prompt read (K27), the model's sentence apart from
+     * the engine's (K25) and the decision rules the model's answers still broke (K17).
+     */
+    static Map<String, Object> summary(ProcessingResult result, DecisionFacts facts, Map<String, Object> meta,
+                                       List<Reason> reasons, CanonicalSecurityContext context, String source,
+                                       List<Map<String, Object>> breaches) {
         Map<String, Object> summary = new LinkedHashMap<>();
         List<Map<String, Object>> cited = new ArrayList<>();
         for (Reason reason : reasons) {
@@ -318,6 +386,8 @@ public final class DecisionConsoleColumns {
             summary.put("hypotheses", hypotheses);
         }
         if (facts != null) {
+            BaselineView view = context != null && context.getWorkProfile() != null
+                    ? context.getWorkProfile().getBaselineView() : null;
             List<Map<String, Object>> deviations = new ArrayList<>();
             for (Deviation deviation : facts.deviations()) {
                 Map<String, Object> item = new LinkedHashMap<>();
@@ -328,9 +398,26 @@ public final class DecisionConsoleColumns {
                 item.put("different", deviation.different());
                 item.put("explanation", deviation.explanation() != null ? deviation.explanation().name() : null);
                 item.put("explainedBy", deviation.explainedBy());
+                // K27: how often the request's value was seen and what the usual values were, as the prompt read them.
+                item.put("seen", deviation.seen());
+                item.put("of", deviation.of());
+                List<String> usual = usualValues(view, deviation.dimension());
+                if (!usual.isEmpty()) {
+                    item.put("usualValues", usual.size() > USUAL_VALUES ? usual.subList(0, USUAL_VALUES) : usual);
+                    if (usual.size() > USUAL_VALUES) {
+                        item.put("usualMore", usual.size() - USUAL_VALUES);
+                    }
+                }
                 deviations.add(item);
             }
             summary.put("deviations", deviations);
+            // K27: a row stored from here on keeps the usual values; a row without this mark was stored before.
+            summary.put("usualKept", true);
+            if (view != null) {
+                // Design 6.4 (3): what the usual behaviour was learned from: the requests and the days it covers.
+                summary.put("baselineLearned", view.learnedUpdates());
+                summary.put("baselineDays", view.daysCovered());
+            }
             Map<String, Object> unknown = new LinkedHashMap<>();
             for (String name : facts.unknown()) {
                 unknown.put(name, facts.unavailable().containsKey(name) ? "UNAVAILABLE_NOW" : "NOT_INTEGRATED");
@@ -341,10 +428,102 @@ public final class DecisionConsoleColumns {
         else if (meta.get("promptEvidenceCompletenessReasons") instanceof Collection<?> unknownReasons) {
             summary.put("unknownReasons", List.copyOf(unknownReasons));
         }
-        if (result != null && result.getReasoning() != null) {
-            summary.put("reason", truncate(SensitiveValueSanitizer.sanitizeText(result.getReasoning()), 1_000));
+        // K25: the model's own sentence and the engine's are kept apart; only the model's is shown as its words.
+        String[] sentences = sentences(result, source);
+        if (sentences[0] != null) {
+            summary.put("modelReason", truncate(SensitiveValueSanitizer.sanitizeText(sentences[0]), 1_000));
+        }
+        if (sentences[1] != null) {
+            summary.put("engineReason", truncate(SensitiveValueSanitizer.sanitizeText(sentences[1]), 1_000));
+        }
+        if (breaches != null && !breaches.isEmpty()) {
+            summary.put("ruleBreaches", breaches);
         }
         return summary;
+    }
+
+    /**
+     * K25: the model's own sentence and the engine's, apart. The model's words are the reasoning its answer gave: the
+     * one kept before the engine replaced it with a sentence of its own, else the reasoning of a decision the model
+     * made, without the sentence the engine added when it changed the action. A decision made without the model, or a
+     * reasoning the platform wrote, holds only the engine's sentence.
+     *
+     * @return the model's sentence and the engine's, each null when there is none
+     */
+    static String[] sentences(ProcessingResult result, String source) {
+        if (result == null) {
+            return new String[] {null, null};
+        }
+        String reasoning = text(result.getReasoning());
+        String added = text(result.getAutonomyConstraintSummary());
+        String kept = text(result.getLlmReasoning());
+        String provenance = result.getFieldProvenance() != null ? text(result.getFieldProvenance().get("reasoning"))
+                : null;
+        if (kept != null) {
+            return new String[] {kept, reasoning != null && !reasoning.equals(kept) ? reasoning : null};
+        }
+        boolean platform = provenance != null && provenance.toUpperCase(Locale.ROOT).startsWith("PLATFORM");
+        if (reasoning == null || platform || SOURCE_MODEL_LESS.equals(source)) {
+            return new String[] {null, reasoning};
+        }
+        if (added != null && reasoning.equals(added)) {
+            return new String[] {null, added};
+        }
+        if (added != null && reasoning.endsWith("\n" + added)) {
+            return new String[] {text(reasoning.substring(0, reasoning.length() - added.length() - 1)), added};
+        }
+        return new String[] {reasoning, null};
+    }
+
+    /**
+     * K27: the usual values of a dimension in the baseline view the prompt read, in the notation the comparison names
+     * the request's value with, the most frequent first where the view counts them; none without a view.
+     */
+    static List<String> usualValues(BaselineView view, DeviationDimension dimension) {
+        List<String> values = new ArrayList<>();
+        if (view == null || dimension == null) {
+            return values;
+        }
+        switch (dimension) {
+            case TIME -> view.usualHours().forEach(hour -> values.add(String.format(Locale.ROOT, "%02d", hour)));
+            case DAY -> view.usualDays().stream().filter(day -> day >= 1 && day <= 7)
+                    .forEach(day -> values.add(DayOfWeek.of(day).getDisplayName(TextStyle.SHORT, Locale.ROOT)));
+            case NETWORK -> values.addAll(view.usualNetworks());
+            case DEVICE -> {
+                if (!view.usualDevices().isEmpty()) {
+                    values.addAll(view.usualDevices());
+                } else {
+                    values.addAll(view.usualBrowsers());
+                    values.addAll(view.usualOperatingSystems());
+                }
+            }
+            case LOGIN_METHOD -> values.addAll(view.usualLoginMethods());
+            case TARGET -> values.addAll(view.usualTargets());
+            case ACTION -> view.actionCounts().entrySet().stream()
+                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                    .forEach(entry -> values.add(entry.getKey()));
+            case RESOURCE_CLASS -> {
+                for (String entry : view.resourceClasses()) {
+                    int split = entry.lastIndexOf('=');
+                    String name = SecuritySemanticNormalizer.normalizeResourceClass(split > 0 ? entry.substring(0, split)
+                            : entry);
+                    if (name != null && !values.contains(name)) {
+                        values.add(name);
+                    }
+                }
+            }
+            default -> {
+                // The size and the rate say their usual value in the comparison itself.
+            }
+        }
+        List<String> bounded = new ArrayList<>();
+        for (String value : values) {
+            String text = truncate(SensitiveValueSanitizer.sanitizeText(value), 80);
+            if (text != null && !text.isBlank() && !bounded.contains(text)) {
+                bounded.add(text);
+            }
+        }
+        return bounded;
     }
 
     private static Long waitedSince(Object ingestAt, Instant now) {

@@ -48,6 +48,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 @Slf4j
@@ -87,6 +88,9 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
     private final StepUpOptionsStore claims;
     private final Duration resendInterval;
     private volatile Supplier<UserDetailsService> userStore = () -> null;
+    /** Console design 6.2: told the user a code was mailed to, so a challenge the code answers counts it. */
+    private volatile Consumer<String> codeMailed = username -> {
+    };
     /** Development and tests: the code is written to the log too, and a sign-in does not wait on a mail server. */
     private volatile boolean codeToConsole;
 
@@ -125,6 +129,11 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
      * table of Contexa's, and their name is the address they are mailed at. Where Contexa owns the sign-in it is Contexa's
      * own. Read when a code is asked for.
      */
+    public void setCodeMailed(Consumer<String> codeMailed) {
+        this.codeMailed = codeMailed != null ? codeMailed : username -> {
+        };
+    }
+
     public void setUserStore(Supplier<UserDetailsService> userStore) {
         this.userStore = userStore != null ? userStore : () -> null;
     }
@@ -208,6 +217,9 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
         try {
             OneTimeToken token = mfaCode ? generateMfaCode(username) : generateCode(username);
             mailed = mail(to, username, emailPurpose, token);
+            if (mailed) {
+                tellCodeMailed(username);
+            }
             return token;
         } finally {
             if (!mailed) {
@@ -247,6 +259,14 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
     }
 
     /** Whether the mail went out. */
+    private void tellCodeMailed(String username) {
+        try {
+            codeMailed.accept(username);
+        } catch (RuntimeException failure) {
+            log.error("[EmailOneTimeTokenService] Failed to record the code mailed to user {}", username, failure);
+        }
+    }
+
     private boolean mail(String to, String username, String emailPurpose, OneTimeToken token) {
         long tokenValidityMinutes = Duration.ofSeconds(authContextProperties.getMfa().getOtpTokenValiditySeconds()).toMinutes();
 

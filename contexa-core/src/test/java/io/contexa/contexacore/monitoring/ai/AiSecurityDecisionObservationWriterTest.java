@@ -26,6 +26,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcOperations;
 
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
+import java.sql.Date;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -33,6 +35,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -202,7 +205,90 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args.get("metadata_json")).asString().contains("\"contextBindingHash\"");
         assertThat(args.get("outcome_class")).isEqualTo("NOT_APPLICABLE");
         assertThat(args.get("success")).isEqualTo(true);
-        verify(jdbcOperations, times(1)).update(anyString(), any(Object[].class));
+        // one observation insert, then (K22) the update of the time it took to store
+        verify(jdbcOperations, times(2)).update(anyString(), any(Object[].class));
+    }
+
+    /** K22: the time the row took to store reaches its row once the row is stored. */
+    @Test
+    void theTimeTheRowTookToStoreReachesItsRow() {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        SecurityEvent event = SecurityEvent.builder().eventId("event-persist").userId("user-1")
+                .metadata(Map.of("requestId", "request-persist")).build();
+        ProcessingResult result = ProcessingResult.builder().success(true).action(ZeroTrustAction.ALLOW.name())
+                .llmDecisionPresent(true).build();
+
+        String observationId = writer.recordDecision(event, result, ZeroTrustAction.ALLOW);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcOperations, times(2)).update(sql.capture(), args.capture());
+        assertThat(sql.getAllValues().get(1)).contains("SET persist_ms = ?");
+        assertThat(args.getAllValues().get(1)[0]).isInstanceOf(Long.class);
+        assertThat((Long) args.getAllValues().get(1)[0]).isNotNegative();
+        assertThat(args.getAllValues().get(1)[1]).isEqualTo(observationId);
+    }
+
+    /**
+     * K17 (D11): a decision whose model answer still broke a decision rule is inserted with its review queue entry in
+     * one statement; a test run's is not queued.
+     */
+    @Test
+    void aDecisionWhoseAnswerBrokeARuleJoinsTheReviewQueueWithItsRow() {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        List<Map<String, Object>> breaches = List.of(Map.of("layer", "Layer1", "rule",
+                "REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH"));
+        ProcessingResult result = ProcessingResult.builder().success(true).action(ZeroTrustAction.ALLOW.name())
+                .llmDecisionPresent(true).build();
+
+        writer.recordDecision(SecurityEvent.builder().eventId("event-broken").userId("user-1")
+                .metadata(Map.of("requestId", "request-broken", PromptRuntimeTelemetrySupport.RULE_BREACHES, breaches))
+                .build(), result, ZeroTrustAction.ALLOW);
+        writer.recordDecision(SecurityEvent.builder().eventId("event-tested").userId("user-1")
+                .metadata(Map.of("requestId", "request-tested", "testRunId", "run-1",
+                        PromptRuntimeTelemetrySupport.RULE_BREACHES, breaches)).build(), result, ZeroTrustAction.ALLOW);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcOperations, times(4)).update(sql.capture(), args.capture());
+        assertThat(sql.getAllValues().get(0)).startsWith("WITH decided AS (INSERT INTO ctxa_ai_security_decision_observation")
+                .contains("INSERT INTO ctxa_zt_review_queue");
+        assertThat(args.getAllValues().get(0)).hasSize(75);
+        assertThat(args.getAllValues().get(0)[72]).as("the day of the queue").isInstanceOf(Date.class);
+        assertThat(args.getAllValues().get(0)[74]).isEqualTo(AiSecurityDecisionObservationWriter.REVIEW_RULE_BREACH);
+        assertThat(sql.getAllValues().get(2)).as("a test run is no decision to review")
+                .doesNotContain("ctxa_zt_review_queue");
+        assertThat(AiSecurityDecisionObservationWriter.observationInsert(2, true))
+                .contains("queued AS (INSERT INTO ctxa_zt_review_queue").contains("INSERT INTO ctxa_zt_decision_reason");
+    }
+
+    /** Console design 6.5 (G18): a first block SHADOW would have made waits for review; an ALLOW does not. */
+    @Test
+    void aBlockShadowWouldHaveMadeJoinsTheReviewQueue() {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        ProcessingResult block = ProcessingResult.builder().success(true).action(ZeroTrustAction.BLOCK.name())
+                .llmDecisionPresent(true).build();
+
+        writer.recordDecision(SecurityEvent.builder().eventId("event-shadow-block").userId("user-1")
+                .metadata(Map.of("requestId", "request-shadow-block", "runtimeEnforcementMode", "SHADOW")).build(),
+                block, ZeroTrustAction.BLOCK);
+        writer.recordDecision(SecurityEvent.builder().eventId("event-enforced-block").userId("user-1")
+                .metadata(Map.of("requestId", "request-enforced-block", "runtimeEnforcementMode", "ENFORCE")).build(),
+                block, ZeroTrustAction.BLOCK);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcOperations, times(4)).update(sql.capture(), args.capture());
+        assertThat(sql.getAllValues().get(0)).contains("INSERT INTO ctxa_zt_review_queue");
+        assertThat(args.getAllValues().get(0)[74]).isEqualTo(AiSecurityDecisionObservationWriter.REVIEW_SHADOW_BLOCK);
+        assertThat(sql.getAllValues().get(2)).as("an enforced block blocks the account; its review is the block list's")
+                .doesNotContain("ctxa_zt_review_queue");
     }
 
     @Test
@@ -389,21 +475,23 @@ class AiSecurityDecisionObservationWriterTest {
     private Map<String, Object> firstInsertArgs(JdbcOperations jdbcOperations) {
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
-        verify(jdbcOperations, times(1)).update(sqlCaptor.capture(), argsCaptor.capture());
+        // K22: the insert, then the update of the time it took to store
+        verify(jdbcOperations, atLeastOnce()).update(sqlCaptor.capture(), argsCaptor.capture());
         List<String> sqlValues = sqlCaptor.getAllValues();
         List<Object[]> argValues = argsCaptor.getAllValues();
         for (int i = 0; i < sqlValues.size(); i++) {
             if (sqlValues.get(i).contains("INSERT INTO ctxa_ai_security_decision_observation")) {
                 String sql = sqlValues.get(i);
                 // The observation's columns follow its INSERT; with reason codes the statement goes on to insert
-                // them, and their arguments come after the observation's.
+                // them, and their arguments come after the observation's (K17: after the review queue's three).
                 int insert = sql.indexOf("INSERT INTO ctxa_ai_security_decision_observation");
                 int open = sql.indexOf('(', insert);
                 String[] columns = sql.substring(open + 1, sql.indexOf(')', open)).split(",");
                 Object[] values = argValues.get(i);
+                int reviewArguments = sql.contains("INSERT INTO ctxa_zt_review_queue") ? 3 : 0;
                 int reasonArguments = sql.contains("INSERT INTO ctxa_zt_decision_reason")
-                        ? values.length - columns.length : 0;
-                assertThat(values).hasSize(columns.length + reasonArguments);
+                        ? values.length - columns.length - reviewArguments : 0;
+                assertThat(values).hasSize(columns.length + reviewArguments + reasonArguments);
                 assertThat(reasonArguments % 6).as("six arguments per reason code").isZero();
                 Map<String, Object> row = new LinkedHashMap<>();
                 for (int column = 0; column < columns.length; column++) {

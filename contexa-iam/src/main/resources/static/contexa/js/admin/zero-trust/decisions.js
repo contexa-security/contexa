@@ -9,8 +9,6 @@
     const {t, el} = ZT;
     const P = 'zt.console.ui.decisions.';
     const PAGES = '/contexa/admin/zero-trust';
-    /** The most entries the review queue returns at once (the server's bound). */
-    const REVIEW_LIMIT = 200;
     const OUTCOMES = ['CHALLENGE_PASSED', 'CHALLENGE_FAILED', 'CHALLENGE_EXPIRED', 'UNBLOCK_REQUESTED', 'ADMIN_RELEASED',
         'BLOCK_KEPT', 'EVALUATED_VALID', 'EVALUATED_INVALID'];
     /** The filters of the list, in the order of design 6.4; each names a parameter of /decisions. */
@@ -183,7 +181,9 @@
         });
         show(state.filters.reviewNote, view === 'review');
         searchBox.value = ZT.query().get('q') || '';
-        csvLink.setAttribute('href', ZT.apiUrl('/decisions.csv', {view: null, cursor: null}));
+        // the slowest decisions' CSV keeps their order, the slowest first
+        csvLink.setAttribute('href', ZT.apiUrl('/decisions.csv', {view: null, cursor: null,
+            order: currentView() === 'slowest' ? 'slowest' : null}));
     }
 
     // ----- tabs: all decisions, the review queue, the unreviewed blocks -----
@@ -217,13 +217,13 @@
     }
 
     /**
-     * The counts of the two tabs. The review queue is counted as read (the server returns at most REVIEW_LIMIT); the
+     * The counts of the two tabs. The review queue is counted by the server (every entry waiting); the
      * unreviewed blocks as the tab lists them: blocks of the period with no outcome, the first page and "more" past it.
      */
     function loadCounts(state) {
-        ZT.load('/review-queue').then(items => {
-            state.tabs.buttons.review.textContent = t(P + 'tab.review', countText(items.length,
-                items.length >= REVIEW_LIMIT));
+        ZT.load('/review-queue', {cursor: null}).then(page => {
+            // the server counts every entry waiting, past the page it returns
+            state.tabs.buttons.review.textContent = t(P + 'tab.review', ZT.count(page.pending));
         }).catch(() => {
             state.tabs.buttons.review.textContent = t(P + 'tab.review', '—');
         });
@@ -339,16 +339,20 @@
         list.holder.replaceChildren(muted(t(P + 'loading')));
         list.previous.disabled = true;
         list.next.disabled = true;
-        // the slowest decisions are one page: their order has no cursor
-        show(list.pager, !review && !slowest);
+        // the slowest decisions are one page: their order has no cursor; the review queue reads on by its own
+        show(list.pager, !slowest);
         try {
             if (review) {
-                const items = await ZT.load('/review-queue');
+                const page = await ZT.load('/review-queue', {cursor: state.stack[state.stack.length - 1]});
                 if (token !== state.token) {
                     return;
                 }
-                state.next = null;
-                list.holder.replaceChildren(items.length ? reviewTable(state, items) : muted(t(P + 'review.empty')));
+                state.next = page.nextCursor || null;
+                list.holder.replaceChildren(page.items.length ? reviewTable(state, page.items)
+                    : muted(t(P + 'review.empty')));
+                list.previous.disabled = state.stack.length <= 1;
+                list.next.disabled = !state.next;
+                list.page.textContent = t(P + 'list.page', ZT.count(state.stack.length), ZT.count(page.items.length));
                 return;
             }
             const page = await ZT.load('/decisions', {cursor: slowest ? null : state.stack[state.stack.length - 1],
@@ -450,7 +454,11 @@
                 cell(ZT.day(item.sampleDay), {class: 'zt-wide'}),
                 whoCell(item.createdAt, item.user, item.observationId),
                 cell(item.resource || '—', {class: 'zt-fill'}),
-                el('td', {}, item.action ? ZT.chip(item.action) : '—'),
+                // K17: a decision whose model answer broke a decision rule says so beside its action
+                el('td', {class: 'zt-cell-chips'}, item.action ? ZT.chip(item.action) : '—',
+                    item.reason === 'RULE_BREACH' ? [' ', ZT.statusChip('WARN', t(P + 'review.reason.RULE_BREACH'))]
+                        : item.reason === 'SHADOW_BLOCK'
+                            ? [' ', ZT.statusChip('INFO', t(P + 'review.reason.SHADOW_BLOCK'))] : null),
                 cell(hypothesisLabel(item.hypothesis), {class: 'zt-wide'})])));
     }
 
@@ -526,9 +534,14 @@
         const meta = [detail.source ? known(P + 'source.' + detail.source, detail.source) : null,
             detail.timing ? known(P + 'timing.' + detail.timing, detail.timing) : null,
             detail.totalMs != null ? ZT.seconds(detail.totalMs) : null,
-            detail.bundle ? t(P + 'preview.bundle', detail.bundle) : null].filter(Boolean);
+            detail.bundle && detail.bundleNumber == null ? t(P + 'preview.bundle', detail.bundle) : null].filter(Boolean);
         if (meta.length) {
             nodes.push(muted(meta.join(' · ')));
+        }
+        // the version the decision ran opens its version screen
+        if (detail.bundle && detail.bundleNumber != null) {
+            nodes.push(el('a', {class: 'zt-link', href: '/contexa/admin/prompt-quality/versions/'
+                + encodeURIComponent(detail.bundleNumber), text: t(P + 'preview.bundle', detail.bundle)}));
         }
         return nodes;
     }

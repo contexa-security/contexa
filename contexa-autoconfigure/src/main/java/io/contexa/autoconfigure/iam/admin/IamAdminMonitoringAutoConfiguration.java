@@ -118,9 +118,13 @@ public class IamAdminMonitoringAutoConfiguration {
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
             ObjectProvider<ZeroTrustDecisionOutcomes> decisionOutcomes,
             MessageSource messageSource,
-            @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
-        return new ZeroTrustDecisionRecords(jdbcOperationsProvider::getIfAvailable, decisionOutcomes.getIfAvailable(),
-                messageSource, objectMapper.getIfAvailable(), null);
+            @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper,
+            Environment environment) {
+        ZeroTrustDecisionRecords records = new ZeroTrustDecisionRecords(jdbcOperationsProvider::getIfAvailable,
+                decisionOutcomes.getIfAvailable(), messageSource, objectMapper.getIfAvailable(), null);
+        // Console design 6.0: the decision detail warns of the standalone mode as every screen's band does.
+        records.setStandalone(!"distributed".equalsIgnoreCase(environment.getProperty("contexa.infrastructure.mode")));
+        return records;
     }
 
     @Bean(name = "contexaZeroTrustConsoleController")

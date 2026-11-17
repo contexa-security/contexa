@@ -42,6 +42,8 @@ public final class ZeroTrustConsoleMetrics {
     public static final String TENANT_FILTERED = "TENANT_FILTERED";
     /** Nothing records this number. */
     public static final String NOT_RECORDED = "NOT_RECORDED";
+    /** The period's decisions were stored before this number was recorded (K22). */
+    public static final String NOT_MEASURED = "NOT_MEASURED";
     /** No price is set, so no cost can be estimated. */
     public static final String NO_PRICE = "NO_PRICE";
     /** Nobody waited for a decision: no synchronous decision in the period. */
