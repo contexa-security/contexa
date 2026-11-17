@@ -22,6 +22,7 @@ import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionCo
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRelease;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
 import org.junit.jupiter.api.Test;
 
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -170,6 +172,102 @@ class PromptShadowRunnerTest {
         assertThat(runner.prepare(byEvent).getMetadata()).containsEntry(PromptShadowRun.ORIGINAL_REQUEST_ID, "evt-12");
     }
 
+    // ----- plan 3.9: the versions of the database -----
+
+    /** The copy of a version of the database is drawn with that version, fixed on it as a decision's version is. */
+    @Test
+    void aVersionOfTheDatabaseIsFixedOnTheCopyAndTheDecisionsContentHashIsNot() {
+        SecurityEvent event = event("evt-20");
+        event.addMetadata("promptBundleSelection.contentHash", "hash-of-another-version");
+
+        SecurityEvent copy = runner(100, 10, "v2.0", new PromptShadowRelease("V3.0", null, null)).prepare(event);
+
+        assertThat(copy.getMetadata()).containsEntry("promptBundleSelection.version", "v3.0")
+                .containsEntry("promptBundleSelection.source", "SHADOW")
+                .doesNotContainKey("promptBundleSelection.contentHash");
+    }
+
+    /** A shadow release that is the version the request's decision runs is not run a second time. */
+    @Test
+    void theVersionTheDecisionRunsIsNotRunAgainAlongsideIt() {
+        assertThat(runner(100, 10, "v2.0", new PromptShadowRelease("v2.0", null, null)).prepare(event("evt-21")))
+                .isNull();
+
+        SecurityEvent fixed = event("evt-22");
+        fixed.addMetadata("promptBundleSelection.version", "v3.0");
+        assertThat(runner(100, 10, "v2.0", new PromptShadowRelease("v3.0", null, null)).prepare(fixed)).isNull();
+        assertThat(runner(100, 10, "v2.0", new PromptShadowRelease("v3.0", null, null)).prepare(event("evt-23")))
+                .isNotNull();
+    }
+
+    /** The registry row's sample share runs in place of the configured one; an empty one keeps the configured share. */
+    @Test
+    void theRowsSampleShareRunsInPlaceOfTheConfiguredOne() {
+        assertThat(runner(0, 10, "v1.0", new PromptShadowRelease("v2.0", 100, null)).prepare(event("evt-24")))
+                .isNotNull();
+        assertThat(runner(100, 10, "v1.0", new PromptShadowRelease("v2.0", 0, null)).prepare(event("evt-25")))
+                .isNull();
+        assertThat(runner(0, 10, "v1.0", new PromptShadowRelease("v2.0", null, null)).prepare(event("evt-26")))
+                .isNull();
+        // A share takes the requests whose event id falls inside it, the same request always on the same side.
+        PromptShadowRunner half = runner(0, 10, "v1.0", new PromptShadowRelease("v2.0", 50, null));
+        long sampled = IntStream.range(0, 400).mapToObj(index -> event("evt-share-" + index))
+                .filter(sample -> half.prepare(sample) != null).count();
+        assertThat(sampled).isBetween(150L, 250L);
+        assertThat(half.prepare(event("evt-share-7")) != null).isEqualTo(half.prepare(event("evt-share-7")) != null);
+    }
+
+    /** The registry row's daily limit runs in place of the configured cap; each release counts its own calls. */
+    @Test
+    void theRowsDailyLimitRunsInPlaceOfTheConfiguredCap() {
+        PromptShadowRunner runner = runner(100, 10, "v1.0", new PromptShadowRelease("v2.0", null, 1));
+        SecurityEvent first = runner.prepare(event("evt-27"));
+        SecurityEvent second = runner.prepare(event("evt-28"));
+        List<SecurityEvent> analysed = new ArrayList<>();
+
+        runner.run(first, copy -> {
+            analysed.add(copy);
+            return ProcessingResult.builder().success(true).build();
+        });
+        runner.run(second, copy -> {
+            analysed.add(copy);
+            return ProcessingResult.builder().success(true).build();
+        });
+        queued.forEach(Runnable::run);
+
+        assertThat(analysed).containsExactly(first);
+    }
+
+    /** A row's limit above the configured cap runs as many shadow runs a day as it sets. */
+    @Test
+    void aRowsLimitAboveTheConfiguredCapRunsAsManyAsItSets() {
+        PromptShadowRunner runner = runner(100, 1, "v1.0", new PromptShadowRelease("v2.0", null, 3));
+        int taken = 0;
+        for (int index = 0; index < 5; index++) {
+            int before = queued.size();
+            runner.run(runner.prepare(event("evt-day-" + index)), copy -> ProcessingResult.builder().success(true)
+                    .build());
+            taken += queued.size() - before;
+        }
+
+        assertThat(taken).isEqualTo(3);
+    }
+
+    private PromptShadowRunner runner(int samplePercent, int dailyCallCap, String deciding, PromptShadowRelease shadow) {
+        PromptBundleSelector selector = new PromptBundleSelector() {
+            @Override
+            public PromptBundleSelection select(PromptGovernanceResolutionContext context, String subjectKey) {
+                return new PromptBundleSelection(deciding, PromptBundleSelectionSource.REGISTRY);
+            }
+
+            @Override
+            public PromptShadowRelease shadowRelease(PromptGovernanceResolutionContext context, String subjectKey) {
+                return shadow;
+            }
+        };
+        return runner(samplePercent, dailyCallCap, selector);
+    }
+
     private PromptShadowRunner runner(int samplePercent, int dailyCallCap, PromptBundleSelection selection) {
         PromptBundleSelector selector = new PromptBundleSelector() {
             @Override
@@ -182,6 +280,10 @@ class PromptShadowRunnerTest {
                 return selection;
             }
         };
+        return runner(samplePercent, dailyCallCap, selector);
+    }
+
+    private PromptShadowRunner runner(int samplePercent, int dailyCallCap, PromptBundleSelector selector) {
         return new PromptShadowRunner(selector, event -> new PromptGovernanceResolutionContext("PLATFORM_GLOBAL",
                 "cortex.security-decision", "SecurityDecisionStandard", null, null, null, null, Map.of()),
                 queued::add, (copy, result) -> {

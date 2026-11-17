@@ -2,6 +2,7 @@ package io.contexa.contexaiam.admin.promptquality.governance;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleRunnability;
@@ -27,6 +28,12 @@ import java.util.UUID;
  * policy sets records that the condition does not apply). The source becomes DEPRECATED, the target ACTIVE, the
  * runtime caches are told and the execution is recorded with its conditions. An emergency stop runs the same way and
  * waits for a second operator's approval. A refused rollback is recorded with its reasons and changes nothing.
+ *
+ * <p>Plan 3.9: a rollback to a version of the database ({@code v2.0}) goes to any version of the scope that exists, is
+ * not hidden and has its registry row; a target that is missing, hidden or not registered is refused as
+ * {@link #TARGET_MISSING_OR_HIDDEN}. Its vocabulary is its reason codes: a security decision version whose reason codes
+ * are not the engine's is refused as VOCABULARY_INCOMPATIBLE. The version it replaces, and any other version that was
+ * used for decisions, become AVAILABLE.
  */
 public class PromptBundleRollbackService {
 
@@ -39,6 +46,12 @@ public class PromptBundleRollbackService {
     /** A request that lacks what a rollback needs: nothing is checked or recorded. */
     public static final String INCOMPLETE = "INCOMPLETE";
     public static final String NOT_APPLICABLE = "NOT_APPLICABLE";
+    /**
+     * Plan 3.9: the target version is missing, hidden or not registered in the scope (what TARGET_NOT_IN_BUILD,
+     * TARGET_NOT_DECLARED and TARGET_NOT_REGISTERED said apart); also the readiness of a rollback ledger row whose
+     * target cannot run.
+     */
+    public static final String TARGET_MISSING_OR_HIDDEN = "TARGET_MISSING_OR_HIDDEN";
     /** W7-14: how many executions of a bundle the version screen lists. */
     private static final int EXECUTION_LIMIT = 20;
     /** N-GOV-5: the stored values of an active release, of every vocabulary (decision 1). */
@@ -102,7 +115,7 @@ public class PromptBundleRollbackService {
         boolean executing = executing(registryStatus(scope, key, version));
         List<TargetReadiness> targets = new ArrayList<>();
         for (String target : declaredTargets == null ? List.<String>of() : declaredTargets) {
-            targets.add(new TargetReadiness(target, PromptBundleRunnability.runnable(catalog, key, target),
+            targets.add(new TargetReadiness(target, PromptBundleRunnability.runnable(catalog, scope, key, target),
                     registryStatus(scope, key, target) != null));
         }
         return new Readiness(executing, List.copyOf(targets));
@@ -119,34 +132,26 @@ public class PromptBundleRollbackService {
             log.warn("[PromptRollback] Rollback request refused: missing {}", missing);
             return new Result(null, INCOMPLETE, null, missing);
         }
-        String scope = request.registryScope();
-        String key = request.promptKey();
-        PromptBundleManifest source = catalog.find(key, request.fromVersion()).orElse(null);
-        PromptBundleManifest target = catalog.find(key, request.toVersion()).orElse(null);
+        String scope = request.registryScope().trim();
+        String key = request.promptKey().trim();
+        String to = request.toVersion().trim();
         boolean sourceExecuting = executing(registryStatus(scope, key, request.fromVersion()));
+        // W6-10: the policy set the target runs with, of a host that keeps policy sets; a version is named as v2.0.
         String policySet = policySets == null ? NOT_APPLICABLE
-                : policySets.policySetExists(scope, key, request.toVersion()) ? "PRESENT" : "MISSING";
-        // K1: a target the catalog holds only as a record would run the build's default bundle, so it is not in the build.
-        Conditions conditions = new Conditions(sourceExecuting,
-                target != null && PromptBundleRunnability.runnable(catalog, key, request.toVersion()),
-                source != null && source.rollbackTargets().contains(request.toVersion()),
-                target != null && target.compatibleVocabularyVersions().contains(VocabularyVersion.CURRENT),
-                registryStatus(scope, key, request.toVersion()) != null, policySet);
+                : policySets.policySetExists(scope, key, to) ? "PRESENT" : "MISSING";
+        boolean targetRegistered = registryStatus(scope, key, to) != null;
+        Conditions conditions = PromptBundleCatalog.isVersionName(to)
+                ? versionConditions(scope, key, to, sourceExecuting, targetRegistered, policySet)
+                : bundleConditions(key, request.fromVersion(), to, sourceExecuting, targetRegistered, policySet);
         List<String> refusals = new ArrayList<>();
         if (!conditions.sourceExecuting()) {
             refusals.add("SOURCE_NOT_EXECUTING");
         }
-        if (!conditions.targetInBuild()) {
-            refusals.add("TARGET_NOT_IN_BUILD");
-        }
-        if (!conditions.targetDeclared()) {
-            refusals.add("TARGET_NOT_DECLARED");
+        if (!conditions.targetInBuild() || !conditions.targetDeclared() || !conditions.targetRegistered()) {
+            refusals.add(TARGET_MISSING_OR_HIDDEN);
         }
         if (!conditions.vocabularyCompatible()) {
             refusals.add("VOCABULARY_INCOMPATIBLE");
-        }
-        if (!conditions.targetRegistered()) {
-            refusals.add("TARGET_NOT_REGISTERED");
         }
         if ("MISSING".equals(policySet)) {
             refusals.add("POLICY_SET_MISSING");
@@ -154,21 +159,57 @@ public class PromptBundleRollbackService {
         String executionKey = "RBX-" + UUID.randomUUID();
         Timestamp now = Timestamp.from(clock.instant());
         if (!refusals.isEmpty()) {
+            log.warn("[PromptRollback] Rollback of {} {} -> {} refused: {}", key, request.fromVersion(), to, refusals);
             record(executionKey, request, actor, REFUSED, conditions, refusals, List.of(), now);
             return new Result(executionKey, REFUSED, conditions, List.copyOf(refusals));
         }
         // N-RBK-1: new writes store the canonical state names (PromptBundleState), as the release gate does.
-        setStatus(scope, key, request.fromVersion(), PromptBundleState.DEPRECATED.name(), now);
-        setStatus(scope, key, request.toVersion(), PromptBundleState.ACTIVE.name(), now);
+        setStatus(scope, key, request.fromVersion(), replacedState(request.fromVersion()).name(), now);
+        setStatus(scope, key, to, PromptBundleState.ACTIVE.name(), now);
         // N-GOV-5: the target is the one active release of its scope, prompt key and template; the other active
-        // releases it replaces are deprecated with the source and named in the execution's conditions.
-        List<String> superseded = otherActiveVersions(scope, key, request.fromVersion(), request.toVersion());
-        superseded.forEach(version -> setStatus(scope, key, version, PromptBundleState.DEPRECATED.name(), now));
-        invalidation.publish(scope, key, request.toVersion(),
+        // releases it replaces are deprecated with the source (a version is no longer used: AVAILABLE) and named in
+        // the execution's conditions.
+        List<String> superseded = otherActiveVersions(scope, key, request.fromVersion(), to);
+        superseded.forEach(version -> setStatus(scope, key, version, replacedState(version).name(), now));
+        invalidation.publish(scope, key, to,
                 "rollback from " + request.fromVersion() + (request.emergency() ? " (emergency stop)" : ""), actor);
         String status = request.emergency() ? AWAITING_APPROVAL : EXECUTED;
         record(executionKey, request, actor, status, conditions, List.of(), superseded, now);
         return new Result(executionKey, status, conditions, List.of());
+    }
+
+    /**
+     * Plan 3.9: the conditions of a target version. It runs when the version table of the scope has it and it is not
+     * hidden; any such version is a target (it is "used for decisions" again); its vocabulary is its reason codes,
+     * which a security decision version must share with the engine (a prompt without reason codes has no vocabulary to
+     * differ in). A target that does not run is refused as missing or hidden alone.
+     */
+    private Conditions versionConditions(String scope, String key, String to, boolean sourceExecuting,
+                                         boolean targetRegistered, String policySet) {
+        boolean runs = PromptBundleRunnability.runnable(catalog, scope, key, to);
+        boolean vocabulary = !runs || !SecurityDecisionPromptDocument.PROMPT.equals(key) || catalog.versions()
+                .assembled(scope, key, to).map(SecurityDecisionPromptDocument::reasonCodesOfEngine).orElse(false);
+        return new Conditions(sourceExecuting, runs, runs, vocabulary, targetRegistered, policySet);
+    }
+
+    /**
+     * The conditions of a target bundle (the prompts that still have manifests, plan 6-7): it runs in this build (K1: a
+     * manifest kept only as a record is not), the source's manifest declares it, and its manifest reads the vocabulary
+     * the stored data is in.
+     */
+    private Conditions bundleConditions(String key, String from, String to, boolean sourceExecuting,
+                                        boolean targetRegistered, String policySet) {
+        PromptBundleManifest source = catalog.find(key, from).orElse(null);
+        PromptBundleManifest target = catalog.find(key, to).orElse(null);
+        return new Conditions(sourceExecuting, target != null && PromptBundleRunnability.runnable(catalog, key, to),
+                source != null && source.rollbackTargets().contains(to),
+                target != null && target.compatibleVocabularyVersions().contains(VocabularyVersion.CURRENT),
+                targetRegistered, policySet);
+    }
+
+    /** The state a replaced release takes: a version is no longer used (AVAILABLE), a bundle is DEPRECATED. */
+    private static PromptBundleState replacedState(String release) {
+        return PromptBundleCatalog.isVersionName(release) ? PromptBundleState.AVAILABLE : PromptBundleState.DEPRECATED;
     }
 
     /** The values a rollback cannot be checked without, named as the refusal codes the screen reads. */
@@ -236,15 +277,18 @@ public class PromptBundleRollbackService {
 
     /**
      * PV-3: the rollback ledger said READY for every declared target, whether or not the target could run. A target is
-     * ready only when its bundle is in this build; the rows that said otherwise are corrected. Returns how many changed.
+     * ready only when it runs (plan 3.9: a version of its scope that exists and is not hidden, or a bundle in this
+     * build); the rows that said otherwise are corrected. Returns how many changed.
      */
     public int correctRollbackReadiness() {
-        List<String[]> rows = jdbc.query("select id, prompt_key, rollback_target_prompt_version, rollback_readiness_state "
-                        + "from ctxa_prompt_governance_rollback_ledger",
-                (rs, n) -> new String[] {rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)});
+        List<String[]> rows = jdbc.query("select id, prompt_key, rollback_target_prompt_version, rollback_readiness_state, "
+                        + "registry_scope from ctxa_prompt_governance_rollback_ledger",
+                (rs, n) -> new String[] {rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                        rs.getString(5)});
         int changed = 0;
         for (String[] row : rows) {
-            String readiness = PromptBundleRunnability.runnable(catalog, row[1], row[2]) ? "READY" : "TARGET_NOT_IN_BUILD";
+            String readiness = PromptBundleRunnability.runnable(catalog, row[4], row[1], row[2]) ? "READY"
+                    : TARGET_MISSING_OR_HIDDEN;
             if (!readiness.equals(row[3])) {
                 // the ledger is a JPA table (persistence-ownership.yml): written through its repository
                 statusWriter.rollbackReadiness(Long.parseLong(row[0]), readiness,

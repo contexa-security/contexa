@@ -630,9 +630,19 @@ public class PromptVersionConsole {
         return receipt;
     }
 
-    /** Hides a version (plan 3.3); one in use, a canary or a shadow cannot be hidden. */
+    /**
+     * Hides a version (plan 3.3); one in use, a canary or a shadow cannot be hidden. In use is also the version the
+     * decisions run without a label: the one the setting names, or the newest Contexa version.
+     */
     public void hide(String scope, String prompt, int number, String actor) {
-        versions.hide(scopeOf(scope), promptOf(prompt), number, actor);
+        String scopeName = scopeOf(scope);
+        String key = promptOf(prompt);
+        Used used = used(scopeName, key, versions.list(scopeName, key, true));
+        if (used != null && PromptVersionNames.name(number).equals(used.version())) {
+            throw new PromptVersionDocumentException(List.of(new PromptVersionProblem(PromptVersionProblem.Code.IN_USE,
+                    used.version(), null)));
+        }
+        versions.hide(scopeName, key, number, actor);
     }
 
     /** Starts a canary of the version (plan 3.4): a share of users, and the tenants and addresses it covers. */
@@ -648,6 +658,7 @@ public class PromptVersionConsole {
                 .isPresent()) {
             throw new RefusedException("CANARY_RUNNING");
         }
+        Object[] before = columns(scopeName, key, record.name(), CANARY_COLUMNS);
         jdbc.get().update("update ctxa_prompt_governance_registry set canary_percent = ?, canary_tenants = ?,"
                 + " canary_resource_families = ?, updated_at = ? where registry_scope = ? and prompt_key = ? and"
                 + " prompt_version = ?", percent, list(tenants), list(paths), Timestamp.from(clock.instant()), scopeName,
@@ -656,6 +667,10 @@ public class PromptVersionConsole {
         if (receipt.applied()) {
             audit.record(PromptVersionAudit.CANARY_STARTED, scopeName, key, record.name(), actor,
                     percent + "%" + blankOrReason(reason));
+        }
+        else {
+            // A canary the gate refused leaves the share and targets the row had.
+            restore(scopeName, key, record.name(), CANARY_COLUMNS, before);
         }
         return receipt;
     }
@@ -691,6 +706,7 @@ public class PromptVersionConsole {
                 .isPresent()) {
             throw new RefusedException("SHADOW_RUNNING");
         }
+        Object[] before = columns(scopeName, key, record.name(), SHADOW_COLUMNS);
         jdbc.get().update("update ctxa_prompt_governance_registry set shadow_sample_percent = ?, shadow_daily_limit = ?,"
                 + " updated_at = ? where registry_scope = ? and prompt_key = ? and prompt_version = ?", samplePercent,
                 dailyLimit, Timestamp.from(clock.instant()), scopeName, key, record.name());
@@ -699,7 +715,36 @@ public class PromptVersionConsole {
             audit.record(PromptVersionAudit.SHADOW_STARTED, scopeName, key, record.name(), actor,
                     samplePercent + "% " + dailyLimit + "/day" + blankOrReason(reason));
         }
+        else {
+            // A shadow the gate refused leaves the share and limit the row had.
+            restore(scopeName, key, record.name(), SHADOW_COLUMNS, before);
+        }
         return receipt;
+    }
+
+    private static final List<String> CANARY_COLUMNS = List.of("canary_percent", "canary_tenants",
+            "canary_resource_families");
+    private static final List<String> SHADOW_COLUMNS = List.of("shadow_sample_percent", "shadow_daily_limit");
+
+    /** The values a version's registry row holds in the columns, read before a start writes them. */
+    private Object[] columns(String scope, String prompt, String version, List<String> names) {
+        List<Object[]> rows = jdbc.get().query("select " + String.join(", ", names) + " from"
+                + " ctxa_prompt_governance_registry where registry_scope = ? and prompt_key = ? and prompt_version = ?",
+                (rs, row) -> {
+                    Object[] values = new Object[names.size()];
+                    for (int index = 0; index < values.length; index++) {
+                        values[index] = rs.getObject(index + 1);
+                    }
+                    return values;
+                }, scope, prompt, version);
+        return rows.isEmpty() ? new Object[names.size()] : rows.get(0);
+    }
+
+    private void restore(String scope, String prompt, String version, List<String> names, Object[] values) {
+        List<Object> arguments = new ArrayList<>(Arrays.asList(values));
+        arguments.addAll(List.of(scope, prompt, version));
+        jdbc.get().update("update ctxa_prompt_governance_registry set " + String.join(" = ?, ", names) + " = ? where"
+                + " registry_scope = ? and prompt_key = ? and prompt_version = ?", arguments.toArray());
     }
 
     public Receipt stopShadow(String scope, String prompt, String actor, String reason) {
@@ -940,7 +985,9 @@ public class PromptVersionConsole {
         PromptBundleSelector resolve = selector.get();
         if (resolve != null && decisionPrompt(prompt)) {
             try {
-                selection = resolve.select(new PromptGovernanceResolutionContext(scope, prompt, null,
+                // The template key of the prompt's registry rows, as a decision names it, so its label is found.
+                selection = resolve.select(new PromptGovernanceResolutionContext(scope, prompt, versions.target(prompt)
+                        .map(PromptVersionService.RegistryTarget::templateKey).orElse(null),
                         PromptVersionService.PLATFORM_SCOPE.equals(scope) ? null : scope, null, null, null, Map.of()),
                         null);
             }

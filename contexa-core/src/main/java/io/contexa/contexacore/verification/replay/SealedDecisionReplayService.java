@@ -27,6 +27,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardP
 import io.contexa.contexacore.autonomous.tiered.strategy.SealedDecisionReplayStrategy;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
@@ -134,8 +135,10 @@ public class SealedDecisionReplayService {
     public Result replay(SealedEvidencePackage sealed, BaselineVector personalBaseline,
                          BaselineVector organizationBaseline, String bundleVersion, Duration timeout,
                          List<String> secondPassModels) {
-        if (SecurityDecisionPromptBundles.find(bundleVersion).isEmpty()) {
-            throw new IllegalArgumentException("Bundle " + bundleVersion + " is not a bundle this build runs");
+        if (!replayable(bundleVersion)) {
+            throw new IllegalArgumentException(PromptBundleCatalog.isVersionName(bundleVersion)
+                    ? "Version " + bundleVersion + " is not a version this server can draw"
+                    : "Bundle " + bundleVersion + " is not a bundle this build runs");
         }
         String replayId = SealedDecisionReplayInputs.REPLAY_ID_PREFIX + UUID.randomUUID();
         long started = System.nanoTime();
@@ -160,6 +163,21 @@ public class SealedDecisionReplayService {
                     List.of(), null, null, Map.of(), elapsedMillis(started),
                     exception.getClass().getSimpleName() + ": " + exception.getMessage(), List.of());
         }
+    }
+
+    /**
+     * Plan 3.9: whether the replay can draw the release: a version of the database the store of the template reads
+     * ({@code v2.0}), or a bundle this build runs. A version the store does not have would be drawn as the product
+     * version under its name, so it is refused.
+     */
+    public boolean replayable(String release) {
+        if (release == null || release.isBlank()) {
+            return false;
+        }
+        if (PromptBundleCatalog.isVersionName(release)) {
+            return promptTemplate.findPromptVersion(release.trim()).isPresent();
+        }
+        return SecurityDecisionPromptBundles.find(release).isPresent();
     }
 
     private SealedDecisionReplayStrategy strategy(String layer, BaselineVector personalBaseline,

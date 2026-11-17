@@ -39,4 +39,15 @@ public interface PromptBundleSelector {
     default PromptBundleSelection shadow(PromptGovernanceResolutionContext context, String subjectKey) {
         return PromptBundleSelection.none();
     }
+
+    /**
+     * Plan 3.9: the shadow release with the sample share and daily limit its registry row sets; a selector that reads
+     * no row gives the release of {@link #shadow} with neither, so the configured share and limit run.
+     */
+    default PromptShadowRelease shadowRelease(PromptGovernanceResolutionContext context, String subjectKey) {
+        PromptBundleSelection shadow = shadow(context, subjectKey);
+        return shadow != null && shadow.bundleVersion() != null
+                ? new PromptShadowRelease(shadow.bundleVersion(), null, null)
+                : PromptShadowRelease.none();
+    }
 }

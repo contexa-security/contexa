@@ -28,12 +28,14 @@ import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
 import io.contexa.contexacore.std.llm.client.ProviderAwareChatOptionsFactory;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.llm.model.ModelDescriptor;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernanceDescriptorResolver;
 import io.contexa.contexaiam.admin.promptquality.version.AuditLogPromptVersionAudit;
+import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionCatalog;
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionStore;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionFolderScanner;
@@ -104,6 +106,19 @@ public class PromptVersionAutoConfiguration {
                         descriptor.templateClassName(), descriptor.owner()));
         return new PromptVersionService(() -> jdbcTemplate, SecurityDecisionPromptDocument.productReleases(), targets,
                 contexaPromptVersionAudit, Clock.systemUTC());
+    }
+
+    /**
+     * Plan 3.9: the versions of the database as the release gate, the rollback and the replay of a sealed decision read
+     * them; the version a scope decides with is the one the decision's selector chooses.
+     */
+    @Bean(name = "contexaPromptVersionCatalog")
+    @ConditionalOnMissingBean(PromptVersionCatalog.class)
+    public PromptVersionCatalog promptVersionCatalog(PromptVersionService contexaPromptVersionService,
+                                                     @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                     ObjectProvider<PromptBundleSelector> promptBundleSelector) {
+        return new JdbcPromptVersionCatalog(contexaPromptVersionService, () -> jdbcTemplate,
+                promptBundleSelector::getIfAvailable);
     }
 
     /** Plan 3.8 (2, 7, 11): the store the engine reads a version from, the product documents behind the database. */

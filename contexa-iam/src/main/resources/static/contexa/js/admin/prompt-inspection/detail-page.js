@@ -11,12 +11,20 @@ function fact(name, value) {
     node.replaceChildren(value instanceof Node ? value : document.createTextNode(value || '-'));
 }
 
+// Plan 3.12 D7: the engine says a package of an earlier bundle is not read again; the reader sees it in their words.
+const EARLIER_BUNDLE = '(decision D7)';
+
+function reasonText(reason) {
+    return typeof reason === 'string' && reason.includes(EARLIER_BUNDLE)
+        ? t('promptInspection.detail.reason.earlierBundle') : reason;
+}
+
 function findingCard(finding) {
     const rows = [
         [t('promptInspection.detail.expected'), finding.expected],
         [t('promptInspection.detail.actual'), finding.actual],
         [t('promptInspection.detail.source'), finding.sourceRef],
-        [t('promptInspection.detail.reason'), finding.reason]
+        [t('promptInspection.detail.reason'), reasonText(finding.reason)]
     ].filter(([, value]) => value !== null && value !== undefined && value !== '');
     const place = [finding.block, finding.entry].filter(Boolean).join('.') + (finding.factId ? ` [${finding.factId}]` : '');
     return el('article', {class: 'pi-finding'}, [

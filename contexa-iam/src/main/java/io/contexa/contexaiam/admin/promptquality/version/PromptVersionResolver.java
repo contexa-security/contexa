@@ -19,6 +19,7 @@ import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionCo
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRelease;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,15 +111,27 @@ public class PromptVersionResolver implements PromptBundleSelector {
 
     @Override
     public PromptBundleSelection shadow(PromptGovernanceResolutionContext context, String subjectKey) {
-        String prompt = context != null ? context.promptKey() : null;
-        PromptBundleSelection shadow = selection(() -> registry.shadow(context, subjectKey));
-        if (prompt != null && shadow != null && isVersion(prompt, shadow.bundleVersion())) {
-            return new PromptBundleSelection(PromptVersionNames.name(number(shadow.bundleVersion())), shadow.source());
-        }
-        return PromptBundleSelection.none();
+        PromptShadowRelease shadow = shadowRelease(context, subjectKey);
+        return shadow.present() ? new PromptBundleSelection(shadow.version(), PromptBundleSelectionSource.SHADOW)
+                : PromptBundleSelection.none();
     }
 
-    private PromptBundleSelection selection(Supplier<PromptBundleSelection> select) {
+    /**
+     * Plan 3.4, 3.9: the version the registry runs alongside the decisions of the request's scope, else of the
+     * platform, when it exists and is not hidden, with the sample share and daily limit its row sets.
+     */
+    @Override
+    public PromptShadowRelease shadowRelease(PromptGovernanceResolutionContext context, String subjectKey) {
+        String prompt = context != null ? context.promptKey() : null;
+        PromptShadowRelease shadow = selection(() -> registry.shadowRelease(context, subjectKey));
+        if (prompt != null && shadow != null && shadow.present() && isVersion(prompt, shadow.version())) {
+            return new PromptShadowRelease(PromptVersionNames.name(number(shadow.version())), shadow.samplePercent(),
+                    shadow.dailyLimit());
+        }
+        return PromptShadowRelease.none();
+    }
+
+    private <T> T selection(Supplier<T> select) {
         try {
             return select.get();
         }

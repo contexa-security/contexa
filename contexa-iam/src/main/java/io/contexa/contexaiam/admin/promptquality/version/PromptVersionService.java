@@ -260,6 +260,11 @@ public class PromptVersionService {
         return products.stream().map(ProductPromptRelease::prompt).distinct().toList();
     }
 
+    /** What the registry row of the prompt's versions names (the template that runs them); empty without one. */
+    public Optional<RegistryTarget> target(String prompt) {
+        return Optional.ofNullable(prompt != null ? targets.get(prompt) : null);
+    }
+
     /** The base an organization's document names: by its content hash first, then by its number. */
     private Optional<PromptVersionRecord> base(String scope, PromptVersionDocument document) {
         String hash = document.basedOnHash() != null ? document.basedOnHash().trim().replaceFirst("^sha256:", "") : null;
