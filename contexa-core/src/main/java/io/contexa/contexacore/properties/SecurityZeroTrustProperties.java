@@ -594,6 +594,11 @@ public class SecurityZeroTrustProperties {
         private long aggregationIntervalMs = 60_000L;
         /** How many stopped decisions of a day are sampled for a person's review. */
         private int reviewDailySample = 20;
+        /**
+         * When the retention pass runs (a Spring cron expression in the server's zone); the operations screen says
+         * when it runs next.
+         */
+        private String retentionCron = "0 17 3 * * *";
         /** Console design 6.6: the price of a million prompt tokens, for the estimated cost; null shows no cost. */
         private Double promptTokenPricePerMillion;
         /** The price of a million cached prompt tokens; null prices them as prompt tokens. */

@@ -48,6 +48,11 @@ public final class SystemSettingsDtos {
         private String noMatchingUrlPolicyDecision = SystemRuntimeSettingsService.DEFAULT_NO_MATCHING_URL_POLICY_DECISION.name();
         private String missingMethodPolicyDecision = SystemRuntimeSettingsService.DEFAULT_MISSING_METHOD_POLICY_DECISION.name();
         private String securityZeroTrustMode = SystemRuntimeSettingsService.DEFAULT_SECURITY_ZEROTRUST_MODE.name();
+        /**
+         * Console design 6.5: why the operator changes the mode, kept with the mode change in the audit record; not
+         * stored with the settings.
+         */
+        private String modeChangeReason;
         private String mvcResourceScannerBasePackages = SystemRuntimeSettingsService.DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES;
         /**
          * The Zero Trust console's settings by their key ({@code ZeroTrustConsoleSettings.SETTINGS}), in the screen's

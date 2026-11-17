@@ -24,7 +24,7 @@ import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Evaluation
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Impact;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Operations;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Overview;
-import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.ReviewItem;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.ReviewPage;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Trust;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -222,11 +222,15 @@ public class ZeroTrustConsoleController {
                                   @RequestParam(required = false) String outcome,
                                   @RequestParam(required = false) String mode, @RequestParam(required = false) String q,
                                   @RequestParam(required = false) String order,
+                                  @RequestParam(required = false) String baseline,
+                                  @RequestParam(required = false) Integer weekday,
+                                  @RequestParam(required = false) Integer band,
+                                  @RequestParam(required = false) Integer challengedAtLeast,
                                   Authentication authentication) {
         requireAdmin(authentication);
         ZeroTrustConsoleRange range = within(() -> service.range(period, from, to));
-        ZeroTrustDecisionRecords.Filter filter =
-                new ZeroTrustDecisionRecords.Filter(action, source, hypothesis, actor, resourceClass, outcome, mode, q);
+        ZeroTrustDecisionRecords.Filter filter = new ZeroTrustDecisionRecords.Filter(action, source, hypothesis, actor,
+                resourceClass, outcome, mode, q, baseline, weekday, band, challengedAtLeast);
         // console plan 5-2 ③: the slowest decisions first, one page
         return "slowest".equals(order) ? records.slowest(range, blank(tenant), filter)
                 : records.list(range, blank(tenant), filter, cursor);
@@ -243,9 +247,11 @@ public class ZeroTrustConsoleController {
 
     @ResponseBody
     @GetMapping(API + "/review-queue")
-    public List<ReviewItem> reviewQueue(Authentication authentication) {
+    public ReviewPage reviewQueue(@RequestParam(required = false) String cursor,
+                                  @RequestParam(required = false) String reason, Authentication authentication) {
         requireAdmin(authentication);
-        return records.reviewQueue();
+        // design 6.4: a page of the queue at a time, read on with the cursor
+        return records.reviewPage(cursor, reason);
     }
 
     /** Console decision 11.3: an administrator's evaluation of a decision, kept as its outcome. */
@@ -278,11 +284,19 @@ public class ZeroTrustConsoleController {
                                                @RequestParam(required = false) String outcome,
                                                @RequestParam(required = false) String mode,
                                                @RequestParam(required = false) String q,
+                                               @RequestParam(required = false) String order,
+                                               @RequestParam(required = false) String baseline,
+                                               @RequestParam(required = false) Integer weekday,
+                                               @RequestParam(required = false) Integer band,
+                                               @RequestParam(required = false) Integer challengedAtLeast,
                                                Authentication authentication) {
         requireAdmin(authentication);
         ZeroTrustConsoleRange range = within(() -> service.range(period, from, to));
-        List<DecisionRow> rows = records.export(range, blank(tenant),
-                new ZeroTrustDecisionRecords.Filter(action, source, hypothesis, actor, resourceClass, outcome, mode, q));
+        ZeroTrustDecisionRecords.Filter filter = new ZeroTrustDecisionRecords.Filter(action, source, hypothesis, actor,
+                resourceClass, outcome, mode, q, baseline, weekday, band, challengedAtLeast);
+        // the slowest decisions' CSV holds the rows of their view, the slowest first
+        List<DecisionRow> rows = "slowest".equals(order) ? records.slowest(range, blank(tenant), filter).rows()
+                : records.export(range, blank(tenant), filter);
         StringBuilder csv = new StringBuilder("﻿time,user,resource,method,resource_class,action,source,hypothesis,"
                 + "first_reason,reason_group,outcome,total_ms,mode,actor,observation_id\n");
         for (DecisionRow row : rows) {

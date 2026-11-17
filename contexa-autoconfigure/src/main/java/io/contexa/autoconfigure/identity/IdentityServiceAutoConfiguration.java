@@ -22,12 +22,15 @@ import org.springframework.core.env.Environment;
 import io.contexa.contexacommon.operating.ContexaOperatingProfile;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
+import io.contexa.contexaidentity.security.zerotrust.ChallengeCodeRequests;
 import io.contexa.contexaidentity.security.zerotrust.stepup.InMemoryStepUpOptionsStore;
 import io.contexa.contexaidentity.security.zerotrust.stepup.StepUpOptionsStore;
 import lombok.extern.slf4j.Slf4j;
@@ -95,7 +98,9 @@ public class IdentityServiceAutoConfiguration {
             AuthContextProperties authContextProperties,
             ObjectProvider<StepUpOptionsStore> stepUpOptionsStore,
             BeanFactory beanFactory,
-            Environment environment) {
+            Environment environment,
+            ObjectProvider<ZeroTrustActionRepository> actionRepository,
+            ObjectProvider<ZeroTrustDecisionOutcomes> decisionOutcomes) {
         EmailOneTimeTokenService service = new EmailOneTimeTokenService(
                 contexaEmailService,
                 jdbcTemplate,
@@ -104,6 +109,8 @@ public class IdentityServiceAutoConfiguration {
                 authContextProperties.getOtt().isFailOnEmailError(),
                 stepUpOptionsStore.getIfAvailable(InMemoryStepUpOptionsStore::new));
         service.setUserStore(() -> ContexaUserStore.forSignIn(beanFactory));
+        // Console design 6.2: a code mailed to a challenged user is the funnel's "code requested" of the challenge.
+        service.setCodeMailed(new ChallengeCodeRequests(actionRepository::getIfAvailable, decisionOutcomes::getIfAvailable));
         boolean toConsole = codeToConsole(authContextProperties, environment, contexaEmailService.isMailSenderConfigured());
         service.setCodeToConsole(toConsole);
         if (toConsole) {

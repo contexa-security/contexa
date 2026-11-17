@@ -60,7 +60,8 @@ public final class ZeroTrustConsoleDtos {
      */
     public record DayPoint(String day, long allow, long challenge, long escalate, long block, long noDecision,
                            Double baselineEstablished, long model, long engineChanged, long modelLess, long passed,
-                           long tokens, Long protectedCalls, Long reused, Long totalP95Ms, long protectedDecisions) {
+                           long tokens, Long protectedCalls, Long reused, Long totalP95Ms, long protectedDecisions,
+                           Long skipped) {
     }
 
     /** One cell of a matrix: its row, its column and its count. */
@@ -87,7 +88,14 @@ public final class ZeroTrustConsoleDtos {
 
     public record Overview(Header header, OverviewSummary summary, CoverageCard coverage, StoppedCard stopped,
                            ImpactCard impact, TrustCard trust, List<DayPoint> trend, List<Share> stopReasonGroups,
-                           List<Alert> alerts) {
+                           List<Alert> alerts, Previous previous) {
+    }
+
+    /**
+     * Design 6.1: the key numbers of the period of the same length before this one, for the change beside each; a
+     * number without a denominator in that period is null.
+     */
+    public record Previous(Period period, Double coverage, Double stopped, Double challengePass, Double modelDecided) {
     }
 
     /** The numbers the overview's sentence is made of. */
@@ -122,7 +130,7 @@ public final class ZeroTrustConsoleDtos {
 
     public record StoppedSide(long stopped, List<Share> byAction, List<Share> timing, long explained,
                               List<Share> hypotheses, List<Share> resourceClasses, List<RankedItem> topReasons,
-                              List<RankedItem> topResources, List<RankedItem> topUsers) {
+                              List<RankedItem> topResources, List<RankedItem> topUsers, long reasoned) {
     }
 
     public record CostSide(ChallengeFunnel challenges, MetricValue userWaitP50, MetricValue userWaitP95,
@@ -143,7 +151,7 @@ public final class ZeroTrustConsoleDtos {
     // ----- trust (6.3) -----
 
     public record Trust(Header header, SourceSection source, EvidenceSection evidence, OutcomeSection outcomes,
-                        QualitySection quality, List<BundleModelRow> changes) {
+                        QualitySection quality, List<BundleModelRow> changes, List<DayPoint> trend) {
     }
 
     public record SourceSection(MetricValue model, MetricValue engineChanged, MetricValue modelLess,
@@ -195,13 +203,20 @@ public final class ZeroTrustConsoleDtos {
                                  String baselineStatus, String contextLevel, List<OutcomeView> outcomes,
                                  Map<String, Long> timings, Long auditId, String packageId, boolean inReview,
                                  String user, String resource, String resourceClass, String engineReason,
-                                 boolean usualKept, List<Map<String, Object>> ruleBreaches, String reviewReason) {
+                                 boolean usualKept, List<Map<String, Object>> ruleBreaches, String reviewReason,
+                                 boolean standalone, String stage, Integer modelCalls, Long promptTokens,
+                                 Long outputTokens, Boolean retried, Long baselineLearned, Integer baselineDays,
+                                 boolean learned, Integer bundleNumber) {
     }
 
     public record ReasonView(int rank, String code, String group, String fact, String factName, String factValue) {
     }
 
     public record OutcomeView(String kind, String at, String actor, String note, String reason) {
+    }
+
+    /** A page of the review queue, the oldest sample day last, and the entries waiting in all. */
+    public record ReviewPage(List<ReviewItem> items, String nextCursor, long pending) {
     }
 
     public record ReviewItem(String observationId, String sampleDay, String createdAt, String user, String resource,
@@ -245,7 +260,7 @@ public final class ZeroTrustConsoleDtos {
                             MetricValue burdenP95PerWeek) {
     }
 
-    public record ModeChange(String at, String from, String to, String by) {
+    public record ModeChange(String at, String from, String to, String by, String reason) {
     }
 
     // ----- operations (6.6) -----
@@ -261,7 +276,9 @@ public final class ZeroTrustConsoleDtos {
                              List<Share> triggers, Storage storage) {
     }
 
-    public record Throughput(MetricValue protectedPerMinute, MetricValue decisionsPerMinute, Integer inLine) {
+    /** The calls and decisions per minute, the analyses in line and the most the line holds (null: no bound). */
+    public record Throughput(MetricValue protectedPerMinute, MetricValue decisionsPerMinute, Integer inLine,
+                             Integer lineBound) {
     }
 
     public record FailureDay(String day, Map<String, Long> byKind) {
@@ -275,6 +292,11 @@ public final class ZeroTrustConsoleDtos {
                        String currency) {
     }
 
-    public record Storage(int decisionRetentionDays, int aggregateRetentionDays, boolean standalone) {
+    /**
+     * How long the rows are kept, about how many decision rows there are (the database's estimate, no count of the
+     * table) and when the next retention pass runs.
+     */
+    public record Storage(int decisionRetentionDays, int aggregateRetentionDays, boolean standalone, Long decisionRows,
+                          String nextCleanup) {
     }
 }

@@ -195,7 +195,8 @@
 .zt-kpi-row {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1.25rem;
+    /* Plan 1.0: the cards stand 24px apart, as the cards of the 12-column grid. */
+    gap: 1.5rem;
 }
 
 @media (max-width: 1024px) {
@@ -261,13 +262,12 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* K63: the line under a key number wraps rather than cut a long number (12,480 / 1,272,300) short. */
 .zt-kpi-sub {
     margin-top: 0.375rem;
     font-size: 0.75rem;
     color: rgba(255, 255, 255, 0.65);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
 }
 
 .zt-kpi-spark {

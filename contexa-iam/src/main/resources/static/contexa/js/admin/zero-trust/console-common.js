@@ -242,22 +242,60 @@
     /** The period buttons: the chosen period is kept in the address (design 6.0). */
     function periodButtons(container, onChange) {
         const current = query().get('period') || 'week';
+        const pick = (chosen, change) => {
+            const params = query();
+            change(params);
+            params.delete('cursor');
+            global.history.replaceState(null, '', global.location.pathname + '?' + params.toString());
+            container.querySelectorAll('button[data-period]').forEach(other => other.setAttribute('aria-pressed',
+                String(other === chosen)));
+            onChange();
+        };
         ['day', 'week', 'month', 'quarter'].forEach(key => {
-            const button = el('button', {type: 'button', 'aria-pressed': String(key === current),
+            const button = el('button', {type: 'button', 'data-period': key, 'aria-pressed': String(key === current),
                 text: t('zt.console.ui.period.' + key)});
             button.addEventListener('click', () => {
-                const params = query();
-                params.set('period', key);
-                params.delete('from');
-                params.delete('to');
-                params.delete('cursor');
-                global.history.replaceState(null, '', global.location.pathname + '?' + params.toString());
-                container.querySelectorAll('button').forEach(other => other.setAttribute('aria-pressed',
-                    String(other === button)));
-                onChange();
+                days.forEach(node => node.hidden = true);
+                pick(button, params => {
+                    params.set('period', key);
+                    params.delete('from');
+                    params.delete('to');
+                });
             });
             container.append(button);
         });
+        // Design 6.0 [직접]: the days an operator chooses, kept in the address (period=custom, from, to).
+        const custom = current === 'custom';
+        const today = new Date().toISOString().slice(0, 10);
+        const from = el('input', {type: 'date', class: 'modern-input', max: today, required: true,
+            'aria-label': t('zt.console.ui.period.from'), value: custom ? query().get('from') || '' : ''});
+        const to = el('input', {type: 'date', class: 'modern-input', max: today,
+            'aria-label': t('zt.console.ui.period.to'), value: custom ? query().get('to') || '' : ''});
+        const apply = el('button', {type: 'button', text: t('zt.console.ui.period.apply')});
+        const choose = el('button', {type: 'button', 'data-period': 'custom', 'aria-pressed': String(custom),
+            text: t('zt.console.ui.period.custom')});
+        const days = [from, to, apply];
+        days.forEach(node => node.hidden = !custom);
+        choose.addEventListener('click', () => {
+            days.forEach(node => node.hidden = false);
+            from.focus();
+        });
+        apply.addEventListener('click', () => {
+            if (!from.value || (to.value && to.value < from.value)) {
+                from.reportValidity();
+                return;
+            }
+            pick(choose, params => {
+                params.set('period', 'custom');
+                params.set('from', from.value);
+                if (to.value) {
+                    params.set('to', to.value);
+                } else {
+                    params.delete('to');
+                }
+            });
+        });
+        container.append(choose, from, to, apply);
     }
 
     function header(band, value) {
@@ -345,9 +383,12 @@
         global.Chart.ztReady = true;
     }
 
-    /** The axes' fixed room: the x axis's labels take 24px, the y axis's 40px (1.3). */
+    /**
+     * The axes' fixed room: the x axis's labels take 24px, the y axis's 40px (1.3). A share drawn beside the counts
+     * (options.ratio) reads on a scale of 0 to 100% that takes no room: its values are in the tooltip and the legend.
+     */
     function axes(options = {}) {
-        return {
+        const scales = {
             x: Object.assign({
                 grid: {display: false},
                 ticks: {autoSkip: true, maxRotation: 0, callback(value) {
@@ -369,6 +410,19 @@
                 }
             }, options.y || {})
         };
+        if (options.ratio) {
+            scales.ratio = {display: false, min: 0, max: 1};
+        }
+        return scales;
+    }
+
+    /** The tooltip of a chart with a share beside its counts: the share reads as a percent. */
+    function ratioTooltip() {
+        return {callbacks: {label(context) {
+            const value = context.parsed && context.parsed.y;
+            const shown = context.dataset.yAxisID === 'ratio' ? percent(value) : count(value);
+            return (context.dataset.label ? context.dataset.label + ': ' : '') + shown;
+        }}};
     }
 
     /** A legend above the chart's top left, colour and words together. */
@@ -395,7 +449,9 @@
         if (!global.Chart) {
             return null;
         }
-        config.options = Object.assign({scales: axes(config.axes)}, config.options || {});
+        const ratio = config.axes && config.axes.ratio;
+        config.options = Object.assign({scales: axes(config.axes)}, ratio ? {plugins: {tooltip: ratioTooltip()}} : {},
+            config.options || {});
         delete config.axes;
         delete config.label;
         return new global.Chart(canvas, config);
@@ -513,7 +569,8 @@
     }
 
     /** A matrix of cells, each cell's tone its share of the largest (heat map). */
-    function heatmap(rowKeys, columnKeys, cells, rowLabel, columnLabel, columnShort) {
+    /** cellHref (optional) opens what a cell counts (design 6.2: every number opens its decisions). */
+    function heatmap(rowKeys, columnKeys, cells, rowLabel, columnLabel, columnShort, cellHref) {
         const max = cells.reduce((largest, cell) => Math.max(largest, cell.count), 0);
         const table = el('table', {class: 'zt-table', role: 'grid'});
         // A phone reads the short head (12시 for 12-16시) when one is given; the full words stay in the title.
@@ -529,10 +586,11 @@
                 const cell = cells.find(found => found.row === rowKey && found.column === columnKey);
                 const value = cell ? cell.count : 0;
                 const tone = max ? value / max : 0;
+                const href = value > 0 && cellHref ? cellHref(rowKey, columnKey) : null;
                 line.append(el('td', {class: 'zt-num', title: rowLabel(rowKey) + ' · ' + columnLabel(columnKey)
                         + ' · ' + count(value),
-                    style: {background: 'rgba(165, 180, 252, ' + (0.08 + tone * 0.6).toFixed(2) + ')'},
-                    text: shortCount(value)}));
+                    style: {background: 'rgba(165, 180, 252, ' + (0.08 + tone * 0.6).toFixed(2) + ')'}},
+                    href ? el('a', {class: 'zt-link', href, text: shortCount(value)}) : shortCount(value)));
             });
             body.append(line);
         });
@@ -888,7 +946,8 @@
     function kpi(options) {
         const card = el(options.href ? 'a' : 'div', {class: 'zt-kpi', 'data-tone': options.tone || 'indigo',
             href: options.href || null, title: options.title || null},
-            el('div', {class: 'zt-kpi-head'}, el('span', {class: 'zt-kpi-label', text: options.label || ''}),
+            el('div', {class: 'zt-kpi-head'}, el('span', {class: 'zt-kpi-label'}, options.label || '',
+                options.title ? [' ', info(options.title)] : null),
                 el('i', {class: 'fas ' + (options.icon || 'fa-chart-line'), 'aria-hidden': 'true'})),
             el('div', {class: 'zt-kpi-value', text: options.value == null ? '—' : options.value}),
             el('div', {class: 'zt-kpi-sub', text: options.sub || ''}));
@@ -922,8 +981,15 @@
         return el('div', {class: 'zt-result-rows'}, rows.map(row => el(row.href ? 'a' : 'div', {class: 'zt-result-row',
             href: row.href || null, title: row.title || null},
             row.chip ? row.chip : el('span', {class: 'zt-result-name'},
-                row.color ? el('span', {class: 'zt-dot', style: {background: row.color}}) : null, row.label),
+                row.color ? el('span', {class: 'zt-dot', style: {background: row.color}}) : null, row.label,
+                row.title && row.title !== row.label ? [' ', info(row.title)] : null),
             el('span', {class: 'zt-result-value', text: row.value}))));
+    }
+
+    /** The mark of a definition (design 2, 5: every number says what it is): ⓘ, the definition its tooltip. */
+    function info(text) {
+        return el('span', {class: 'zt-band-info', title: text, tabindex: '0', role: 'note', 'aria-label': text},
+            el('i', {class: 'fas fa-info-circle', 'aria-hidden': 'true'}));
     }
 
     /** A small heading inside a card, between groups of rows. */
@@ -970,5 +1036,5 @@
         return card;
     }
 
-    Object.assign(ZT, {kpi, kpiMetric, kpiRow, valueRows, subhead, donutBlock, tabbedCard, withTip});
+    Object.assign(ZT, {kpi, kpiMetric, kpiRow, valueRows, subhead, donutBlock, tabbedCard, withTip, info});
 })(window);

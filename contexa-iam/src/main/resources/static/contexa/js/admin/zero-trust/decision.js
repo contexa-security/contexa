@@ -14,6 +14,7 @@
     const PAGES = '/contexa/admin/zero-trust';
     const AUDIT = '/contexa/admin/security-monitor/';
     const EVIDENCE = '/contexa/admin/prompt-inspection/packages/';
+    const VERSIONS = '/contexa/admin/prompt-quality/versions/';
     /** The stages of one decision in the order they run; the user's wait is shown apart (it spans them). */
     const STAGES = ['QUEUE', 'PREPARE', 'RAG', 'MODEL', 'PARSE', 'PERSIST'];
     const REASONS = ['OVERREACTION', 'FACTS_WRONG', 'MISSED_SIGNAL', 'OTHER'];
@@ -65,6 +66,10 @@
         if (detail.mode === 'SHADOW') {
             band.append(el('span', {class: 'zt-band-note', text: t('zt.console.ui.band.shadow')}));
         }
+        // design 6.0: the standalone warning, as the band of every console screen
+        if (detail.standalone) {
+            band.append(el('span', {class: 'zt-warning', role: 'note', text: t('zt.console.ui.band.standalone')}));
+        }
     }
 
     // ----- the conclusion and its chips -----
@@ -88,11 +93,18 @@
             [t(P + 'fact.total'), ZT.seconds(detail.totalMs)],
             [t(P + 'fact.bundle'), t(P + 'fact.bundleValue', detail.bundle || '—', detail.model || '—')]];
         // Words from the data can be long: each value keeps to its line and shows the whole in its title.
-        const grid = el('div', {class: 'zt-facts'}, facts.map(([name, value]) => el('div', {class: 'zt-facts-item'},
-            el('span', {class: 'zt-facts-name', text: name}), el('span', {class: 'zt-facts-value', text: value, title: value}))));
+        const grid = el('div', {class: 'zt-facts'}, facts.map(([name, value], index) => el('div', {class: 'zt-facts-item'},
+            el('span', {class: 'zt-facts-name', text: name}), index === facts.length - 1 && detail.bundleNumber != null
+                // the version the decision ran opens its version screen
+                ? el('a', {class: 'zt-facts-value zt-link', href: VERSIONS + encodeURIComponent(detail.bundleNumber),
+                    text: value, title: value})
+                : el('span', {class: 'zt-facts-value', text: value, title: value}))));
         return ZT.card(t(P + 'conclusion.title'), subject || null,
             el('div', {class: 'zt-conclusion'}, ZT.chip(detail.action, t(P + 'chip.final', actionLabel(detail.action))),
-                el('div', {class: 'zt-summary'}, parts.conclusion)), grid, breaches(detail));
+                el('div', {class: 'zt-summary'}, parts.conclusion)),
+            // design 6.4: where the decision ended, the first analysis or the second
+            detail.stage ? el('div', {class: 'zt-toolbar'}, ZT.statusChip('INFO', known(P + 'stage.' + detail.stage,
+                detail.stage))) : null, grid, breaches(detail));
     }
 
     /**
@@ -217,6 +229,9 @@
         const baseline = detail.baselineStatus ? known(P + 'baseline.' + detail.baselineStatus, detail.baselineStatus)
             : t(P + 'baseline.unknown');
         const context = detail.contextLevel ? known(P + 'context.' + detail.contextLevel, detail.contextLevel) : null;
+        // design 6.4 (3): the requests and days the usual behaviour was learned from
+        const learnedFrom = detail.baselineLearned != null && detail.baselineDays != null
+            ? t(P + 'baseline.learnedFrom', ZT.count(detail.baselineLearned), ZT.count(detail.baselineDays)) : null;
         let body;
         if (deviations.length) {
             const head = el('tr', {}, ['dimension', 'usual', 'current', 'judgement'].map(key => el('th',
@@ -234,7 +249,7 @@
         }
         // K27: a decision stored before the usual values were kept says why its usual column is mostly empty.
         const note = deviations.length && !detail.usualKept ? muted(t(P + 'deviation.usualNotKept')) : null;
-        return ZT.card(t(P + 'comparison.title'), [baseline, context].filter(Boolean).join(' · '), body, note);
+        return ZT.card(t(P + 'comparison.title'), [baseline, learnedFrom, context].filter(Boolean).join(' · '), body, note);
     }
 
     // ----- (4) what the model did not know -----
@@ -267,6 +282,10 @@
         if (!outcomes.length) {
             list.append(el('li', {class: 'zt-muted zt-outcome-none', text: t(P + 'outcomes.none')}));
         }
+        // design 6.4 (5): a passed step-up or a release learned the request into the user's baseline
+        if (detail.learned) {
+            list.append(el('li', {class: 'zt-muted', text: t(P + 'outcomes.learned')}));
+        }
     }
 
     function outcomesCard(detail, parts) {
@@ -287,8 +306,15 @@
         } else if (detail.timing === 'NEXT_REQUEST') {
             waited = muted(t(P + 'timings.async'));
         }
+        // design 6.4 (6): the model calls, the tokens and whether the answer was asked again
+        const usage = ZT.valueRows([
+            {label: t(P + 'usage.calls'), value: detail.modelCalls == null ? '—' : ZT.count(detail.modelCalls)},
+            {label: t(P + 'usage.tokens'), value: detail.promptTokens == null && detail.outputTokens == null ? '—'
+                : t(P + 'usage.tokensValue', ZT.count(detail.promptTokens || 0), ZT.count(detail.outputTokens || 0))},
+            {label: t(P + 'usage.retried'), value: detail.retried == null ? '—'
+                : t(P + (detail.retried ? 'usage.retriedYes' : 'usage.retriedNo'))}]);
         const card = ZT.card(t(P + 'timings.title'), t(P + 'chip.total', ZT.seconds(detail.totalMs)), waited,
-            stages.some(stage => stage.ms != null) ? ZT.waterfall(stages) : ZT.empty('NOT_RECORDED'));
+            stages.some(stage => stage.ms != null) ? ZT.waterfall(stages) : ZT.empty('NOT_RECORDED'), usage);
         card.append(el('div', {class: 'zt-card-foot'},
             detail.auditId != null
                 ? el('a', {class: 'zt-link', href: AUDIT + encodeURIComponent(detail.auditId), text: t(P + 'links.audit')})
@@ -387,12 +413,11 @@
             status.append(muted(t(P + 'evaluation.reloadFailed')));
         }
         try {
-            const queue = await ZT.load('/review-queue');
-            const next = queue.find(item => item.observationId !== observationId);
+            const queue = await ZT.load('/review-queue', {cursor: null});
+            const next = queue.items.find(item => item.observationId !== observationId);
             status.append(next
                 ? el('a', {class: 'zt-link', href: PAGES + '/decisions/' + encodeURIComponent(next.observationId),
-                    text: t(P + 'evaluation.next', ZT.count(queue.filter(item => item.observationId !== observationId)
-                        .length))})
+                    text: t(P + 'evaluation.next', ZT.count(queue.pending))})
                 : muted(t(P + 'evaluation.queueEmpty')));
         } catch (error) {
             // The next review is a convenience; the evaluation is kept either way.

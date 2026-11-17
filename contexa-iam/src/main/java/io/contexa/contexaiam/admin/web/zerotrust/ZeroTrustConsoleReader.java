@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.zerotrust;
 
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.PastWindow;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
 
 import java.sql.ResultSet;
@@ -47,12 +48,15 @@ final class ZeroTrustConsoleReader {
                     long business, long unknownFacts, long retried, long latencySum, long promptTokens,
                     long cachedTokens, long outputTokens, long modelCalls, long passed, long failed, long expired,
                     long unblockRequested, long released, long kept, long valid, long invalid, Instant first,
-                    Instant last) {
+                    Instant last, long[] releases, long codeRequested) {
 
         boolean decision() {
             return !ZeroTrustConsoleService.NO_DECISION.equals(action);
         }
     }
+
+    /** The upper bounds of the release time buckets of the hourly table, in minutes, and one past the last. */
+    static final long[] RELEASE_BOUNDS_MINUTES = {15, 30, 60, 120, 240, 480, 1_440, 4_320, 10_080};
 
     /** One item of a ranked list and one of its details, summed over the period. */
     record ItemRow(String item, String detail, long counted) {
@@ -135,7 +139,9 @@ final class ZeroTrustConsoleReader {
                        SUM(model_call_sum), SUM(challenge_passed_count), SUM(challenge_failed_count),
                        SUM(challenge_expired_count), SUM(unblock_requested_count), SUM(admin_released_count),
                        SUM(block_kept_count), SUM(evaluated_valid_count), SUM(evaluated_invalid_count),
-                       MIN(bucket_start), MAX(bucket_start)
+                       MIN(bucket_start), MAX(bucket_start), SUM(release_le_15m), SUM(release_le_30m), SUM(release_le_1h),
+                       SUM(release_le_2h), SUM(release_le_4h), SUM(release_le_8h), SUM(release_le_24h),
+                       SUM(release_le_72h), SUM(release_le_7d), SUM(release_gt_7d), SUM(challenge_code_requested_count)
                   FROM ctxa_zt_stats_hourly
                  WHERE bucket_start >= ? AND bucket_start < ?""" + tenantClause + """
 
@@ -148,7 +154,17 @@ final class ZeroTrustConsoleReader {
                 rs.getLong(17), rs.getLong(18), rs.getLong(19), rs.getLong(20), rs.getLong(21), rs.getLong(22),
                 rs.getLong(23), rs.getLong(24), rs.getLong(25), rs.getLong(26), rs.getLong(27), rs.getLong(28),
                 rs.getLong(29), rs.getLong(30), rs.getLong(31), rs.getLong(32), rs.getLong(33), rs.getLong(34),
-                rs.getLong(35), instant(rs, 36), instant(rs, 37)), args.toArray());
+                rs.getLong(35), instant(rs, 36), instant(rs, 37), releases(rs, 38),
+                rs.getLong(38 + RELEASE_BOUNDS_MINUTES.length + 1)), args.toArray());
+    }
+
+    /** The release time buckets of a stats row, from its column on (console design 6.2). */
+    private static long[] releases(ResultSet rs, int first) throws SQLException {
+        long[] buckets = new long[RELEASE_BOUNDS_MINUTES.length + 1];
+        for (int i = 0; i < buckets.length; i++) {
+            buckets[i] = rs.getLong(first + i);
+        }
+        return buckets;
     }
 
     /** The coverage counts of the period, by kind and reason; the nodes' counts over every tenant. */
@@ -456,24 +472,23 @@ final class ZeroTrustConsoleReader {
         return reasons;
     }
 
-    /** The median time from a block to its release by an administrator, in hours; null for no release. */
-    Double releaseMedianHours(ZeroTrustConsoleRange range, String tenant) {
+    /**
+     * Design 6.6: about how many decision rows are kept, the database's estimate of the table (no count of it, which
+     * reads every row); null when the database has not estimated it yet.
+     */
+    Long decisionRowsEstimate() {
         JdbcOperations operations = jdbc.get();
         if (operations == null) {
             return null;
         }
-        List<Object> args = new ArrayList<>(List.of(range.fromTimestamp(), range.toTimestamp()));
-        String tenantClause = tenant == null ? "" : " AND d.tenant_id = ?";
-        if (tenant != null) {
-            args.add(tenant);
+        try {
+            List<Long> found = operations.queryForList("SELECT CAST(reltuples AS BIGINT) FROM pg_class "
+                    + "WHERE oid = to_regclass('ctxa_ai_security_decision_observation')", Long.class);
+            Long rows = found.isEmpty() ? null : found.get(0);
+            return rows == null || rows < 0 ? null : rows;
+        } catch (DataAccessException unavailable) {
+            return null;
         }
-        Double seconds = operations.queryForObject("""
-                SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (d.occurred_at - o.created_at)))
-                  FROM ctxa_zt_decision_outcome d
-                  JOIN ctxa_ai_security_decision_observation o ON o.observation_id = d.observation_id
-                 WHERE d.outcome_kind = 'ADMIN_RELEASED' AND d.occurred_at >= ? AND d.occurred_at < ?""" + tenantClause,
-                Double.class, args.toArray());
-        return seconds == null ? null : seconds / 3600.0;
     }
 
     long reviewPending() {

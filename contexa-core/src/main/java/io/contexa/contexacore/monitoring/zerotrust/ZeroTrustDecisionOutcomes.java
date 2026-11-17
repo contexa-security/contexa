@@ -37,6 +37,11 @@ public class ZeroTrustDecisionOutcomes {
 
     /** The outcome of a decision. */
     public enum Kind {
+        /**
+         * Console design 6.2: a code was mailed to the challenged account owner for the additional authentication (the
+         * funnel's "code requested"); a factor without a mailed code (a passkey, an authenticator app) has none.
+         */
+        CHALLENGE_CODE_REQUESTED,
         /** The challenged account owner passed the additional authentication. */
         CHALLENGE_PASSED,
         /** The additional authentication failed. */

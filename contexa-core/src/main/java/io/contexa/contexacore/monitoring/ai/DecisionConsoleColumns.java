@@ -413,6 +413,11 @@ public final class DecisionConsoleColumns {
             summary.put("deviations", deviations);
             // K27: a row stored from here on keeps the usual values; a row without this mark was stored before.
             summary.put("usualKept", true);
+            if (view != null) {
+                // Design 6.4 (3): what the usual behaviour was learned from: the requests and the days it covers.
+                summary.put("baselineLearned", view.learnedUpdates());
+                summary.put("baselineDays", view.daysCovered());
+            }
             Map<String, Object> unknown = new LinkedHashMap<>();
             for (String name : facts.unknown()) {
                 unknown.put(name, facts.unavailable().containsKey(name) ? "UNAVAILABLE_NOW" : "NOT_INTEGRATED");

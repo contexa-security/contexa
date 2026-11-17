@@ -229,6 +229,7 @@ class SystemSettingsControllerTest {
             form.setPolicyCombiningAlgorithm("DENY_OVERRIDES");
             form.setNoMatchingUrlPolicyDecision("DENY");
             form.setMissingMethodPolicyDecision("DENY");
+            form.setModeChangeReason("trial");
 
             String view = controller.updateSettings(form, ra);
 
@@ -237,7 +238,8 @@ class SystemSettingsControllerTest {
 
             InOrder order = inOrder(systemSettingsService, runtimeApplier, authorizationManager, policyReloadBroadcaster);
             order.verify(systemSettingsService).updateSettings(form);
-            order.verify(runtimeApplier).apply();
+            // console design 6.5: the reason the operator gave goes with the settings it applies
+            order.verify(runtimeApplier).apply("trial");
             order.verify(authorizationManager).reload();
             order.verify(policyReloadBroadcaster).broadcastReload();
         }
@@ -255,7 +257,7 @@ class SystemSettingsControllerTest {
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/system-settings");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("MAYBE");
-            verify(runtimeApplier, never()).apply();
+            verify(runtimeApplier, never()).apply(any());
             verify(authorizationManager, never()).reload();
             verify(policyReloadBroadcaster, never()).broadcastReload();
         }
@@ -273,7 +275,7 @@ class SystemSettingsControllerTest {
 
             verify(messageSource).getMessage(eq("admin.system.settings.llm.mode"), any(), any(Locale.class));
             verify(messageSource).getMessage(eq("admin.system.settings.refused.choice"), any(), any(Locale.class));
-            verify(runtimeApplier, never()).apply();
+            verify(runtimeApplier, never()).apply(any());
             verify(policyReloadBroadcaster, never()).broadcastReload();
         }
 
@@ -328,7 +330,7 @@ class SystemSettingsControllerTest {
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/system-settings");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("The action could not be completed. See the server log.").doesNotContain("DB error");
-            verify(runtimeApplier, never()).apply();
+            verify(runtimeApplier, never()).apply(any());
         }
     }
 }

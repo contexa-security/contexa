@@ -256,13 +256,39 @@ class AiSecurityDecisionObservationWriterTest {
         ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
         verify(jdbcOperations, times(4)).update(sql.capture(), args.capture());
         assertThat(sql.getAllValues().get(0)).startsWith("WITH decided AS (INSERT INTO ctxa_ai_security_decision_observation")
-                .contains("INSERT INTO ctxa_zt_review_queue").contains("'RULE_BREACH'");
-        assertThat(args.getAllValues().get(0)).hasSize(74);
+                .contains("INSERT INTO ctxa_zt_review_queue");
+        assertThat(args.getAllValues().get(0)).hasSize(75);
         assertThat(args.getAllValues().get(0)[72]).as("the day of the queue").isInstanceOf(Date.class);
+        assertThat(args.getAllValues().get(0)[74]).isEqualTo(AiSecurityDecisionObservationWriter.REVIEW_RULE_BREACH);
         assertThat(sql.getAllValues().get(2)).as("a test run is no decision to review")
                 .doesNotContain("ctxa_zt_review_queue");
         assertThat(AiSecurityDecisionObservationWriter.observationInsert(2, true))
                 .contains("queued AS (INSERT INTO ctxa_zt_review_queue").contains("INSERT INTO ctxa_zt_decision_reason");
+    }
+
+    /** Console design 6.5 (G18): a first block SHADOW would have made waits for review; an ALLOW does not. */
+    @Test
+    void aBlockShadowWouldHaveMadeJoinsTheReviewQueue() {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        ProcessingResult block = ProcessingResult.builder().success(true).action(ZeroTrustAction.BLOCK.name())
+                .llmDecisionPresent(true).build();
+
+        writer.recordDecision(SecurityEvent.builder().eventId("event-shadow-block").userId("user-1")
+                .metadata(Map.of("requestId", "request-shadow-block", "runtimeEnforcementMode", "SHADOW")).build(),
+                block, ZeroTrustAction.BLOCK);
+        writer.recordDecision(SecurityEvent.builder().eventId("event-enforced-block").userId("user-1")
+                .metadata(Map.of("requestId", "request-enforced-block", "runtimeEnforcementMode", "ENFORCE")).build(),
+                block, ZeroTrustAction.BLOCK);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcOperations, times(4)).update(sql.capture(), args.capture());
+        assertThat(sql.getAllValues().get(0)).contains("INSERT INTO ctxa_zt_review_queue");
+        assertThat(args.getAllValues().get(0)[74]).isEqualTo(AiSecurityDecisionObservationWriter.REVIEW_SHADOW_BLOCK);
+        assertThat(sql.getAllValues().get(2)).as("an enforced block blocks the account; its review is the block list's")
+                .doesNotContain("ctxa_zt_review_queue");
     }
 
     @Test
@@ -457,12 +483,12 @@ class AiSecurityDecisionObservationWriterTest {
             if (sqlValues.get(i).contains("INSERT INTO ctxa_ai_security_decision_observation")) {
                 String sql = sqlValues.get(i);
                 // The observation's columns follow its INSERT; with reason codes the statement goes on to insert
-                // them, and their arguments come after the observation's (K17: after the review queue's two).
+                // them, and their arguments come after the observation's (K17: after the review queue's three).
                 int insert = sql.indexOf("INSERT INTO ctxa_ai_security_decision_observation");
                 int open = sql.indexOf('(', insert);
                 String[] columns = sql.substring(open + 1, sql.indexOf(')', open)).split(",");
                 Object[] values = argValues.get(i);
-                int reviewArguments = sql.contains("INSERT INTO ctxa_zt_review_queue") ? 2 : 0;
+                int reviewArguments = sql.contains("INSERT INTO ctxa_zt_review_queue") ? 3 : 0;
                 int reasonArguments = sql.contains("INSERT INTO ctxa_zt_decision_reason")
                         ? values.length - columns.length - reviewArguments : 0;
                 assertThat(values).hasSize(columns.length + reviewArguments + reasonArguments);
