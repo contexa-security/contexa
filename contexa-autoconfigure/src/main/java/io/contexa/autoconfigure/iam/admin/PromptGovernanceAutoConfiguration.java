@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.iam.admin;
 import java.time.Clock;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptPolicySetLookup;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -197,8 +198,10 @@ public class PromptGovernanceAutoConfiguration {
             PromptGovernanceReleaseWorkflowRepository promptGovernanceReleaseWorkflowRepository,
             PromptGovernanceModelCompatibilityRepository promptGovernanceModelCompatibilityRepository,
             PromptGovernanceBudgetProfileRepository promptGovernanceBudgetProfileRepository,
-            ObjectProvider<PromptVersionCatalog> promptVersionCatalog) {
-        // Plan 3.9: a release named as a version (v2.0) is read from the version table and its product policy.
+            ObjectProvider<PromptVersionCatalog> promptVersionCatalog,
+            ObjectProvider<VersionedPrompts> versionedPrompts) {
+        // Plan 3.9: a release named as a version (v2.0) is read from the version table and its product policy, which
+        // the product of each prompt declares: the security decision and the other prompts (plan 3.11).
         return new PromptGovernanceReleaseGateService(
                 contexaPromptGovernanceLifecycleLedgerService,
                 promptGovernanceRegistryRepository,
@@ -209,7 +212,8 @@ public class PromptGovernanceAutoConfiguration {
                 promptGovernanceReleaseWorkflowRepository,
                 promptGovernanceModelCompatibilityRepository,
                 promptGovernanceBudgetProfileRepository,
-                promptVersionCatalog.getIfAvailable(PromptVersionCatalog::none));
+                promptVersionCatalog.getIfAvailable(PromptVersionCatalog::none),
+                versionedPrompts.getIfAvailable());
     }
 
     @Bean(name = "contexaPromptGovernanceEmpiricalEvalService")

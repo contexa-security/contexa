@@ -143,7 +143,7 @@
             ZT.donutBlock(parts, side.explained, s('stopped.hypotheses'), part => ({label: part.label,
                 color: part.color, value: m('shareCount', ZT.percent(part.ratio), ZT.count(part.count)),
                 // the number opens the stopped decisions of that explanation
-                href: part.key === 'NONE' ? null : decisions({hypothesis: part.key})}))), tip);
+                href: part.key === 'NONE' ? null : decisions({action: 'STOPPED', hypothesis: part.key})}))), tip);
     }
 
     function challengesCard(cost) {
@@ -251,7 +251,7 @@
         if (classes.length) {
             body.push(ZT.subhead(m('stopped.classes')), ZT.stacked(classes), ZT.valueRows(classes.map(part => ({
                 label: part.label, color: part.color, value: ZT.count(part.count),
-                href: part.key === 'NONE' ? null : decisions({resourceClass: part.key})}))));
+                href: part.key === 'NONE' ? null : decisions({action: 'STOPPED', resourceClass: part.key})}))));
         }
         return ZT.withTip(ZT.card(m('matrix.title'), s('matrix.aside'), ...body), m('matrix.caption'));
     }
@@ -304,9 +304,11 @@
         return ZT.tabbedCard(m('lists.title'), m('top.aside', ZT.count(Math.max(users.length, resources.length,
             challenged.length))), [
             {label: s('users.title'), node: users.length
-                ? rankedTable(users, m('column.user'), item => decisions({q: item.item})) : none(s('stopped.none'))},
+                ? rankedTable(users, m('column.user'), item => decisions({action: 'STOPPED', q: item.item}))
+                : none(s('stopped.none'))},
             {label: s('resources.title'), node: resources.length
-                ? rankedTable(resources, m('column.resource'), item => decisions({q: item.item})) : none(s('stopped.none'))},
+                ? rankedTable(resources, m('column.resource'), item => decisions({action: 'STOPPED', q: item.item}))
+                : none(s('stopped.none'))},
             {label: s('challenged.title'), node: challenged.length ? challengedTable(challenged) : none(s('funnel.none'))}]);
     }
 

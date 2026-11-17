@@ -9,8 +9,9 @@
     const {t, el} = ZT;
     const P = 'zt.console.ui.decisions.';
     const PAGES = '/contexa/admin/zero-trust';
-    const OUTCOMES = ['CHALLENGE_PASSED', 'CHALLENGE_FAILED', 'CHALLENGE_EXPIRED', 'UNBLOCK_REQUESTED', 'ADMIN_RELEASED',
-        'BLOCK_KEPT', 'EVALUATED_VALID', 'EVALUATED_INVALID'];
+    // K84: a challenge's code request is an outcome of its own (console design 6.2)
+    const OUTCOMES = ['CHALLENGE_CODE_REQUESTED', 'CHALLENGE_PASSED', 'CHALLENGE_FAILED', 'CHALLENGE_EXPIRED',
+        'UNBLOCK_REQUESTED', 'ADMIN_RELEASED', 'BLOCK_KEPT', 'EVALUATED_VALID', 'EVALUATED_INVALID'];
     /** The filters of the list, in the order of design 6.4; each names a parameter of /decisions. */
     const FILTERS = [
         {key: 'action', values: ['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK', 'NO_DECISION'],
@@ -20,11 +21,14 @@
         {key: 'actor', values: ['HUMAN', 'AGENT', 'SERVICE'], label: value => t(P + 'actor.' + value)},
         {key: 'resourceClass', values: ['CRITICAL', 'SENSITIVE', 'NORMAL', 'PUBLIC'],
             label: value => t(P + 'resourceClass.' + value)},
-        {key: 'outcome', values: ['NONE'].concat(OUTCOMES), label: value => t(P + 'outcome.' + value)},
+        {key: 'outcome', values: ['NONE', 'UNREVIEWED'].concat(OUTCOMES), label: value => t(P + 'outcome.' + value)},
         {key: 'mode', values: ['SHADOW', 'ENFORCE'], label: value => t(P + 'mode.' + value)}
     ];
-    /** The parameters the unreviewed-blocks tab sets; every other filter is cleared with it. */
-    const UNREVIEWED = {action: 'BLOCK', outcome: 'NONE'};
+    /**
+     * The parameters the unreviewed-blocks tab sets; every other filter is cleared with it. K81: the blocks no
+     * administrator released, kept or evaluated, a request to be unblocked or not, as the overview counts them.
+     */
+    const UNREVIEWED = {action: 'BLOCK', outcome: 'UNREVIEWED'};
 
     /** A message, or the given text when the key has none (a value the server added later). */
     function known(key, fallback) {
@@ -218,7 +222,8 @@
 
     /**
      * The counts of the two tabs. The review queue is counted by the server (every entry waiting); the
-     * unreviewed blocks as the tab lists them: blocks of the period with no outcome, the first page and "more" past it.
+     * unreviewed blocks as the tab lists them: blocks of the period no administrator reviewed, the first page and
+     * "more" past it.
      */
     function loadCounts(state) {
         ZT.load('/review-queue', {cursor: null}).then(page => {

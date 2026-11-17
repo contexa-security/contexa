@@ -54,7 +54,7 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
             new ProductPromptDocuments(PolicyGenerationStreamingTemplate.class, PROMPT, RELEASES);
     /** The default descriptor of the template, the version of the call in place of its bundle version. */
     private static final PromptGovernanceDescriptor DESCRIPTOR =
-            PromptGovernanceSupport.buildDefaultDescriptor(PROMPT, PolicyGenerationStreamingTemplate.class);
+            PromptGovernanceSupport.buildVersionedPromptDescriptor(PROMPT, PolicyGenerationStreamingTemplate.class);
     private static final Map<String, String> MARKERS = Map.of(
             "start", StreamingProtocol.JSON_START_MARKER,
             "end", StreamingProtocol.JSON_END_MARKER);

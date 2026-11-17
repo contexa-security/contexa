@@ -20,6 +20,7 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.std.components.prompt.AbstractBasePromptTemplate;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
 import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
 import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import io.contexa.contexacore.std.components.prompt.version.ProductPromptDocuments;
@@ -71,7 +72,8 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate implement
             "N/A",
             "N/A",
             "Initial governed release of the resource-naming prompt template.",
-            List.of("claude-sonnet-4-6", "claude-opus-4-7"),
+            // Plan 3.9: the product declares the compatibility with the model providers its versions inherit.
+            List.of("claude-sonnet-4-6", "claude-opus-4-7", PromptGovernanceSupport.PROVIDER_COMPATIBLE_MODEL_PROFILE),
             ResourceNamingTemplate.class.getName());
 
     private final PromptVersionPin pin = new PromptVersionPin();

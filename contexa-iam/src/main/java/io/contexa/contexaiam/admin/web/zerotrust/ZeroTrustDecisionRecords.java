@@ -80,6 +80,12 @@ public class ZeroTrustDecisionRecords {
     public static final String BASELINE_NOT_ESTABLISHED = "NOT_ESTABLISHED";
     /** The action filter of the stopped decisions: a challenge, an escalation or a block. */
     static final String STOPPED = "STOPPED";
+    /**
+     * K81, console design 6.1 and 6.4: the outcome filter of the decisions no administrator has reviewed, no release,
+     * no kept block and no evaluation; a user's request to be unblocked is no review. The overview's unreviewed blocks
+     * count the same decisions.
+     */
+    public static final String UNREVIEWED = "UNREVIEWED";
     /** The review entries a page of the queue shows. */
     static final int REVIEW_PAGE = 20;
 
@@ -96,9 +102,13 @@ public class ZeroTrustDecisionRecords {
     private static final Set<String> SOURCES = Set.of("MODEL", "ENGINE_CHANGED", "MODEL_LESS");
     private static final Set<String> ACTORS = Set.of("HUMAN", "AGENT", "SERVICE");
     private static final Set<String> MODES = Set.of("SHADOW", "ENFORCE");
-    private static final Set<String> OUTCOMES = Set.of("NONE", "CHALLENGE_PASSED", "CHALLENGE_FAILED",
-            "CHALLENGE_EXPIRED", "UNBLOCK_REQUESTED", "ADMIN_RELEASED", "BLOCK_KEPT", "EVALUATED_VALID",
-            "EVALUATED_INVALID");
+    /**
+     * The outcome filter: no outcome yet, no administrator's review (K81), or one outcome kind, the code request of a
+     * challenge among them (K84).
+     */
+    static final Set<String> OUTCOMES = Set.of("NONE", UNREVIEWED, "CHALLENGE_CODE_REQUESTED",
+            "CHALLENGE_PASSED", "CHALLENGE_FAILED", "CHALLENGE_EXPIRED", "UNBLOCK_REQUESTED", "ADMIN_RELEASED",
+            "BLOCK_KEPT", "EVALUATED_VALID", "EVALUATED_INVALID");
 
     /** The most audit records of one request the detail reads to find its decision's (a request judged again has two). */
     private static final int AUDIT_RECORDS_OF_A_REQUEST = 20;
@@ -226,6 +236,9 @@ public class ZeroTrustDecisionRecords {
         String outcome = allowed(given.outcome(), OUTCOMES);
         if ("NONE".equals(outcome)) {
             where.append(" AND NOT EXISTS (SELECT 1 FROM ctxa_zt_decision_outcome d WHERE d.observation_id = o.observation_id)");
+        } else if (UNREVIEWED.equals(outcome)) {
+            where.append(" AND NOT EXISTS (SELECT 1 FROM ctxa_zt_decision_outcome d WHERE d.observation_id = o.observation_id"
+                    + " AND d.outcome_kind IN (" + ZeroTrustDecisionOutcomes.REVIEWS_SQL + "))");
         } else if (outcome != null) {
             where.append(" AND EXISTS (SELECT 1 FROM ctxa_zt_decision_outcome d WHERE d.observation_id = o.observation_id"
                     + " AND d.outcome_kind = ?)");

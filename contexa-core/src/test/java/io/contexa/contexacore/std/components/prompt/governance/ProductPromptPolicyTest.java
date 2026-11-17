@@ -16,8 +16,16 @@
 package io.contexa.contexacore.std.components.prompt.governance;
 
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
+import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
+import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompt;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
+import io.contexa.contexacore.std.rag.QueryTransformPrompt;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,19 +35,36 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * Plan 3.9: MODEL_COMPATIBILITY_MISSING, BUDGET_PROFILE_MISSING, TOKEN_COUNTING_POLICY_MISSING, CACHE_POLICY_MISSING and
  * COMPACTION_POLICY_MISSING are the product policy a version inherits and an organization cannot change: every prompt
- * the build ships declares it whole, and the start fails when one does not.
+ * the build ships declares it whole, the security decision and the prompts other than it (plan 3.11, K79), and the
+ * start fails when one does not.
  */
 class ProductPromptPolicyTest {
 
+    private static final VersionedPrompts QUERIES = new VersionedPrompts(new ArrayList<>(QueryTransformPrompt.ALL));
+
     @Test
     void everyShippedPromptDeclaresItsWholePolicy() {
-        assertThatCode(ProductPromptPolicy::verify).doesNotThrowAnyException();
-        ProductPromptPolicy.Policy decision = ProductPromptPolicy.of(SecurityDecisionPromptDocument.PROMPT).orElseThrow();
+        assertThatCode(() -> ProductPromptPolicy.verify(QUERIES)).doesNotThrowAnyException();
+        ProductPromptPolicy.Policy decision = ProductPromptPolicy.of(SecurityDecisionPromptDocument.PROMPT, null)
+                .orElseThrow();
 
         assertThat(decision.gaps()).isEmpty();
         assertThat(decision.providerCompatibility()).isTrue();
         assertThat(decision.budgetProfiles()).isNotEmpty();
-        assertThat(ProductPromptPolicy.of("cortex.unshipped")).isEmpty();
+        assertThat(ProductPromptPolicy.of("cortex.unshipped", QUERIES)).isEmpty();
+    }
+
+    /** K79: a prompt other than the security decision has the policy its product declares, and none without it. */
+    @Test
+    void aPromptOtherThanTheSecurityDecisionHasThePolicyOfItsProduct() {
+        for (QueryTransformPrompt query : QueryTransformPrompt.ALL) {
+            ProductPromptPolicy.Policy policy = ProductPromptPolicy.of(query.prompt(), QUERIES).orElseThrow();
+
+            assertThat(policy.gaps()).as(query.prompt()).isEmpty();
+            assertThat(policy.modelProfiles()).as(query.prompt())
+                    .containsExactly(PromptGovernanceSupport.PROVIDER_COMPATIBLE_MODEL_PROFILE);
+            assertThat(ProductPromptPolicy.of(query.prompt(), null)).as("the build does not ship it").isEmpty();
+        }
     }
 
     @Test
@@ -53,5 +78,43 @@ class ProductPromptPolicyTest {
                 .hasMessageContaining("cortex.partial").hasMessageContaining("CACHE_POLICY_MISSING");
         assertThat(new ProductPromptPolicy.Policy("cortex.none", List.of(), true, List.of("B"), null, "C", "D").gaps())
                 .containsExactly("MODEL_COMPATIBILITY_MISSING", "TOKEN_COUNTING_POLICY_MISSING");
+    }
+
+    /** K79: another prompt whose product declares no compatible model profile fails the start too. */
+    @Test
+    void anotherPromptWithoutACompatibleModelProfileFailsTheStart() {
+        PromptGovernanceDescriptor undeclared = PromptGovernanceSupport.buildDefaultDescriptor("cortex.undeclared",
+                ProductPromptPolicyTest.class);
+        VersionedPrompts prompts = new VersionedPrompts(List.of(new VersionedPrompt() {
+            @Override
+            public String prompt() {
+                return undeclared.promptKey();
+            }
+
+            @Override
+            public List<ProductPromptRelease> productReleases() {
+                return List.of();
+            }
+
+            @Override
+            public AssembledPrompt product() {
+                return null;
+            }
+
+            @Override
+            public PromptGovernanceDescriptor registryDescriptor() {
+                return undeclared;
+            }
+
+            @Override
+            public Example example(AssembledPrompt version) {
+                return new Example("", "");
+            }
+        }));
+
+        assertThat(ProductPromptPolicy.of("cortex.undeclared", prompts).orElseThrow().gaps())
+                .containsExactly("MODEL_COMPATIBILITY_MISSING");
+        assertThatThrownBy(() -> ProductPromptPolicy.verify(prompts)).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("cortex.undeclared").hasMessageContaining("MODEL_COMPATIBILITY_MISSING");
     }
 }
