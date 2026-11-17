@@ -26,13 +26,22 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
 import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionInUse;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompt;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
+import io.contexa.contexacore.std.rag.QueryTransformPrompt;
 import io.contexa.contexacore.std.llm.client.ProviderAwareChatOptionsFactory;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.llm.model.ModelDescriptor;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernanceDescriptorResolver;
+import io.contexa.contexaiam.aiam.components.prompt.ConditionTemplatePromptTemplate;
+import io.contexa.contexaiam.aiam.components.prompt.PolicyGenerationStreamingTemplate;
+import io.contexa.contexaiam.aiam.components.prompt.PolicyGenerationTemplate;
+import io.contexa.contexaiam.aiam.components.prompt.ResourceNamingTemplate;
 import io.contexa.contexaiam.admin.promptquality.version.AuditLogPromptVersionAudit;
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionCatalog;
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionStore;
@@ -58,6 +67,9 @@ import org.springframework.scheduling.TaskScheduler;
 
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -83,6 +95,9 @@ public class PromptVersionAutoConfiguration {
     /** The setting of the document folder (plan 3.8, 8); no folder is read without it. */
     static final String FOLDER_PROPERTY = "contexa.prompt.versions.directory";
 
+    /** The context window a model's capabilities carry when nothing declared one. */
+    static final int UNDECLARED_CONTEXT_WINDOW = ModelDescriptor.ModelCapabilities.builder().build().getContextWindow();
+
     /** Plan 3.7: the console's audit log, else no record (a host without the audit facade). */
     @Bean(name = "contexaPromptVersionAudit")
     @ConditionalOnMissingBean(PromptVersionAudit.class)
@@ -98,13 +113,37 @@ public class PromptVersionAutoConfiguration {
     @Bean(name = "contexaPromptVersionService")
     @ConditionalOnMissingBean
     public PromptVersionService promptVersionService(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-                                                     PromptVersionAudit contexaPromptVersionAudit) {
-        PromptGovernanceDescriptor descriptor = SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE;
-        Map<String, PromptVersionService.RegistryTarget> targets = Map.of(descriptor.promptKey(),
-                new PromptVersionService.RegistryTarget(descriptor.templateKey(), descriptor.contractVersion(),
-                        descriptor.templateClassName(), descriptor.owner()));
-        return new PromptVersionService(() -> jdbcTemplate, SecurityDecisionPromptDocument.productReleases(), targets,
-                contexaPromptVersionAudit, Clock.systemUTC());
+                                                     PromptVersionAudit contexaPromptVersionAudit,
+                                                     VersionedPrompts contexaVersionedPrompts) {
+        Map<String, PromptVersionService.RegistryTarget> targets = new LinkedHashMap<>();
+        targets.put(SecurityDecisionPromptDocument.PROMPT,
+                target(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE));
+        List<ProductPromptRelease> products = new ArrayList<>(SecurityDecisionPromptDocument.productReleases());
+        for (VersionedPrompt prompt : contexaVersionedPrompts.prompts()) {
+            targets.put(prompt.prompt(), target(prompt.registryDescriptor()));
+            products.addAll(prompt.productReleases());
+        }
+        return new PromptVersionService(() -> jdbcTemplate, products, targets, contexaPromptVersionAudit,
+                Clock.systemUTC());
+    }
+
+    private static PromptVersionService.RegistryTarget target(PromptGovernanceDescriptor descriptor) {
+        return new PromptVersionService.RegistryTarget(descriptor.templateKey(), descriptor.contractVersion(),
+                descriptor.templateClassName(), descriptor.owner());
+    }
+
+    /**
+     * Plan 3.11: the prompts other than the security decision that run from their versions, after it in the version
+     * screens: the four IAM templates and the three query rewrites of the RAG searches.
+     */
+    @Bean(name = "contexaVersionedPrompts")
+    @ConditionalOnMissingBean
+    public VersionedPrompts versionedPrompts() {
+        List<VersionedPrompt> prompts = new ArrayList<>(List.of(new PolicyGenerationTemplate(),
+                new PolicyGenerationStreamingTemplate(), new ConditionTemplatePromptTemplate(),
+                new ResourceNamingTemplate()));
+        prompts.addAll(QueryTransformPrompt.ALL);
+        return new VersionedPrompts(prompts);
     }
 
     /**
@@ -123,8 +162,23 @@ public class PromptVersionAutoConfiguration {
     /** Plan 3.8 (2, 7, 11): the store the engine reads a version from, the product documents behind the database. */
     @Bean(name = "contexaPromptVersionStore")
     @ConditionalOnMissingBean(PromptVersionStore.class)
-    public PromptVersionStore promptVersionStore(PromptVersionService contexaPromptVersionService) {
-        return new JdbcPromptVersionStore(contexaPromptVersionService, SecurityDecisionPromptDocument.productStore());
+    public PromptVersionStore promptVersionStore(PromptVersionService contexaPromptVersionService,
+                                                 VersionedPrompts contexaVersionedPrompts) {
+        PromptVersionStore decision = SecurityDecisionPromptDocument.productStore();
+        PromptVersionStore others = contexaVersionedPrompts.productStore();
+        return new JdbcPromptVersionStore(contexaPromptVersionService,
+                (prompt, version) -> decision.find(prompt, version).or(() -> others.find(prompt, version)));
+    }
+
+    /**
+     * Plan 3.11: the version each call of a prompt other than the security decision draws, from the resolver and the
+     * store; they are looked up at the first call, so the templates can be made before them.
+     */
+    @Bean(name = "contexaPromptVersionInUse")
+    @ConditionalOnMissingBean
+    public PromptVersionInUse promptVersionInUse(ObjectProvider<PromptBundleSelector> selector,
+                                                 ObjectProvider<PromptVersionStore> store) {
+        return new PromptVersionInUse(selector::getIfAvailable, store::getIfAvailable);
     }
 
     /**
@@ -164,8 +218,11 @@ public class PromptVersionAutoConfiguration {
         int systemTokens = PromptAssembler.systemTokens(SecurityDecisionPromptDocument.product());
         return new PromptVersionLengthLimits(() -> jdbcTemplate,
                 () -> firstLayerModel(llmProperties, models).map(ModelDescriptor::getProvider).orElse(null),
+                // K54: no setting declares a model's context window; the capabilities carry their builder's default,
+                // which says nothing of the model, so the context is not known and nothing is refused for length.
                 () -> firstLayerModel(llmProperties, models).map(ModelDescriptor::getCapabilities)
-                        .map(ModelDescriptor.ModelCapabilities::getContextWindow).orElse(null),
+                        .map(ModelDescriptor.ModelCapabilities::getContextWindow)
+                        .filter(window -> window != UNDECLARED_CONTEXT_WINDOW).orElse(null),
                 ProviderAwareChatOptionsFactory::ollamaMaxContextLength,
                 () -> {
                     TieredStrategyProperties properties = strategy.getIfAvailable();

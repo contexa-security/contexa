@@ -1,0 +1,16 @@
+**Natural Language Requirements:**
+"Only a query"
+
+**Available Items (Use only the IDs and names from this list):**
+No available item information was provided.
+
+
+
+**Important Execution Instructions (must be strictly followed):**
+1.  First, explain the analysis process step by step in **Korean (Hangul)**. (Absolutely no JSON format, no Chinese characters/Chinese)
+2.  Once all analysis is complete, start with the ===JSON_START=== marker, output JSON data, and end with the ===JSON_END=== marker.
+
+**[Important] JSON output is mandatory. Ending a response without JSON output is considered a failure.**
+
+**Begin natural language analysis in Korean (Hangul) now, and output JSON results when analysis is complete:**
+

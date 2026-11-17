@@ -1,0 +1,11 @@
+Optimize the following query for policy generation:
+
+Original Query: who exported the payroll report last night
+
+Optimization Guidelines:
+1. Expand to find similar policy templates
+2. Include Role-Based Access Control (RBAC) related terms
+3. Consider compliance requirements
+4. Include business rules and conditions
+
+Return only the optimized query.

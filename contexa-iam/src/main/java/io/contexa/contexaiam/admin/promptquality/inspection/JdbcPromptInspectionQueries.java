@@ -183,8 +183,9 @@ public class JdbcPromptInspectionQueries {
                 (rs, rowNum) -> new ResourceCount(rs.getString("resource_id"), rs.getLong("packages"),
                         rs.getLong("mismatch")), period);
         List<VersionCount> versions = jdbc.query(LATEST + """
-                select contexa_safe_jsonb(p.prompt_execution_metadata_json)
-                           #>> '{%s,promptBundleVersion}' as bundle_version,
+                select coalesce(contexa_safe_jsonb(p.prompt_execution_metadata_json) ->> 'promptVersionName',
+                                contexa_safe_jsonb(p.prompt_execution_metadata_json)
+                                    #>> '{%s,promptBundleVersion}') as bundle_version,
                        l.dictionary_version, l.inspector_version,
                        count(*) as packages,
                        count(*) filter (where l.verdict = 'FAIL') as failed,
@@ -224,7 +225,8 @@ public class JdbcPromptInspectionQueries {
             ),
             sealed as (
                 select p.package_id,
-                       contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{%s,promptBundleVersion}'
+                       coalesce(contexa_safe_jsonb(p.prompt_execution_metadata_json) ->> 'promptVersionName',
+                                contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{%s,promptBundleVersion}')
                            as bundle_version,
                        case when contexa_safe_jsonb(p.decision_json) ->> 'decisionAppliedStage' = 'SHADOW' then 'SHADOW'
                             else 'DECISION' end as stage,
@@ -278,7 +280,8 @@ public class JdbcPromptInspectionQueries {
             with shadow_seals as (
                 select p.package_id, p.captured_at,
                        contexa_safe_jsonb(p.decision_json) ->> '%2$s' as original_request_id,
-                       contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{%1$s,promptBundleVersion}'
+                       coalesce(contexa_safe_jsonb(p.prompt_execution_metadata_json) ->> 'promptVersionName',
+                                contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{%1$s,promptBundleVersion}')
                            as bundle_version,
                        coalesce(contexa_safe_jsonb(p.decision_json) ->> 'action', '') as action
                   from ctxa_sealed_evidence_package p
@@ -290,7 +293,8 @@ public class JdbcPromptInspectionQueries {
             ),
             decisions as (
                 select distinct on (d.correlation_id) d.package_id, d.correlation_id,
-                       contexa_safe_jsonb(d.prompt_execution_metadata_json) #>> '{%1$s,promptBundleVersion}'
+                       coalesce(contexa_safe_jsonb(d.prompt_execution_metadata_json) ->> 'promptVersionName',
+                                contexa_safe_jsonb(d.prompt_execution_metadata_json) #>> '{%1$s,promptBundleVersion}')
                            as bundle_version,
                        coalesce(contexa_safe_jsonb(d.decision_json) ->> 'action', '') as action
                   from ctxa_sealed_evidence_package d

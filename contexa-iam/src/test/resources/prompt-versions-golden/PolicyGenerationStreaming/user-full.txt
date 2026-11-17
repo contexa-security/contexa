@@ -1,0 +1,34 @@
+**Natural Language Requirements:**
+"Let managers read documents"
+
+**Available Items (Use only the IDs and names from this list):**
+**Role List:**
+- Team Manager (ID: 101)
+- Document Handler (ID: 102)
+
+**Permission List:**
+- Read documents (ID: 201) [Protects: URL GET /api/documents]
+- Export (ID: 202) [Protects: METHOD  io.contexa.Export.run()]
+- Plain (ID: 203)
+
+**Condition List (You must use only these numeric IDs as keys for the "conditions" field):**
+- ID: 301, Name: Within Business Hours
+- ID: 302, Name: Internal Network
+
+
+**System Context (from database):**
+IAM data: 3 roles
+
+
+**Reference (Similar policy patterns from history):**
+similar policy A
+
+
+**Important Execution Instructions (must be strictly followed):**
+1.  First, explain the analysis process step by step in **Korean (Hangul)**. (Absolutely no JSON format, no Chinese characters/Chinese)
+2.  Once all analysis is complete, start with the ===JSON_START=== marker, output JSON data, and end with the ===JSON_END=== marker.
+
+**[Important] JSON output is mandatory. Ending a response without JSON output is considered a failure.**
+
+**Begin natural language analysis in Korean (Hangul) now, and output JSON results when analysis is complete:**
+

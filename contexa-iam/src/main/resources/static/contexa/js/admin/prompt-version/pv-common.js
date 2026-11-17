@@ -230,14 +230,62 @@
         global.location.assign(target + '?' + current.toString());
     }
 
-    /** The tab bar keeps the prompt and the scope; the trials and the advanced screen are the security decision's. */
+    /**
+     * The tab bar keeps the prompt and the scope; the trials are the security decision's (plan 3.11), the advanced
+     * screen holds the folder, the documents and the history of every prompt.
+     */
     function tabs(view) {
         document.querySelectorAll('a[data-pv-tab]').forEach(link => {
             const target = new URL(link.getAttribute('href'), global.location.origin);
             link.setAttribute('href', target.pathname + kept());
-            const only = link.dataset.pvTab === 'trials' || link.dataset.pvTab === 'advanced';
+            const only = link.dataset.pvTab === 'trials';
             link.hidden = only && view && view.decisionPrompt === false;
+            // The version list tab counts the versions shown, as the policy center's tabs count theirs.
+            if (link.dataset.pvTab === 'list' && view && view.counts) {
+                let count = link.querySelector('.tab-count');
+                if (!count) {
+                    count = el('span', {class: 'tab-count'});
+                    link.append(count);
+                }
+                count.textContent = ZT.count(view.counts.total);
+            }
         });
+    }
+
+    /**
+     * Plan 1.0: the rows of a list 20 a page, with the previous and next buttons of the decision records below the
+     * table; the foot shows only when there is more than one page.
+     */
+    function paged(rows, drawRow, size) {
+        const step = size || 20;
+        const body = el('tbody');
+        const previous = el('button', {type: 'button', class: 'modern-btn-secondary'},
+            el('i', {class: 'fas fa-chevron-left', 'aria-hidden': 'true'}), t('pv.ui.previous'));
+        const next = el('button', {type: 'button', class: 'modern-btn-secondary'},
+            t('pv.ui.next'), el('i', {class: 'fas fa-chevron-right', 'aria-hidden': 'true'}));
+        const page = el('span', {class: 'zt-muted'});
+        const foot = el('div', {class: 'zt-card-foot'}, previous, next, page);
+        let first = 0;
+        const show = () => {
+            body.replaceChildren(...rows.slice(first, first + step).map(drawRow));
+            previous.disabled = first === 0;
+            next.disabled = first + step >= rows.length;
+            page.textContent = t('pv.ui.page', ZT.count(first + 1), ZT.count(Math.min(first + step, rows.length)),
+                ZT.count(rows.length));
+        };
+        previous.addEventListener('click', () => {
+            first = Math.max(0, first - step);
+            show();
+        });
+        next.addEventListener('click', () => {
+            if (first + step < rows.length) {
+                first += step;
+                show();
+            }
+        });
+        show();
+        foot.hidden = rows.length <= step;
+        return {body, foot};
     }
 
     // ----- the toolbar, the notices, the confirmation -----
@@ -434,6 +482,6 @@
     global.PV = {
         API, PAGES, ACTIONS, params, page, api, get, send, word, promptName, stateText, stateChip, useLabel, actionName,
         origin, maker, partName, versionLabel, problemText, blockerText, refusalText, refusedLines, band, tabs, toolbar, button,
-        notice, clearNotice, confirm, useVersion, fill, fold, actionBar, textBox, tokens, signed
+        notice, clearNotice, confirm, useVersion, fill, fold, actionBar, textBox, tokens, signed, paged
     };
 })(window);

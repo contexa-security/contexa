@@ -29,7 +29,9 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.gate.CallKind;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionInUse;
 import io.contexa.contexacore.std.llm.gate.ModelServerGates;
+import io.contexa.contexacore.std.rag.QueryTransformPrompt;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
@@ -416,7 +418,8 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnMissingBean(name = "contexaBehaviorQueryTransformer")
     public QueryTransformer behaviorQueryTransformer(@Qualifier("contexaChatClientBuilder") ChatClient.Builder contexaChatClientBuilder,
             ObjectProvider<ModelServerGates> modelServerGates,
-            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
+            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel,
+            ObjectProvider<PromptVersionInUse> promptVersions) {
         return new QueryTransformer() {
             private final ChatClient chatClient = contexaChatClientBuilder.build();
 
@@ -426,19 +429,9 @@ public class CoreRAGAutoConfiguration {
                     return originalQuery;
                 }
 
-                String prompt = """
-                        Optimize the following query for user behavior pattern analysis:
-
-                        Original Query: %s
-
-                        Optimization Guidelines:
-                        1. Include temporal context (last 30 days)
-                        2. Add keywords to search for similar behavior patterns
-                        3. Reinforce anomaly-related terms
-                        4. Consider user role and permission context
-
-                        Return only the optimized query.
-                        """.formatted(originalQuery.text());
+                // Plan 3.11: the sentences are the version's, the query is put in.
+                String prompt = QueryTransformPrompt.BEHAVIOR.prompt(
+                        promptVersions.getIfAvailable(PromptVersionInUse::productOnly), originalQuery.text());
 
                 String transformedText = throughModelServerGate(modelServerGates, primaryChatModel,
                         () -> chatClient.prompt()
@@ -456,7 +449,8 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnMissingBean(name = "contexaRiskQueryTransformer")
     public QueryTransformer riskQueryTransformer(@Qualifier("contexaChatClientBuilder") ChatClient.Builder contexaChatClientBuilder,
             ObjectProvider<ModelServerGates> modelServerGates,
-            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
+            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel,
+            ObjectProvider<PromptVersionInUse> promptVersions) {
         return new QueryTransformer() {
             private final ChatClient chatClient = contexaChatClientBuilder.build();
 
@@ -466,19 +460,9 @@ public class CoreRAGAutoConfiguration {
                     return originalQuery;
                 }
 
-                String prompt = """
-                        Optimize the following query for security risk assessment:
-
-                        Original Query: %s
-
-                        Optimization Guidelines:
-                        1. Include Threat Indicators (IOC)
-                        2. Expand to search for past incident patterns
-                        3. Add classification keywords by risk level
-                        4. Include MITRE ATT&CK framework related terms
-
-                        Return only the optimized query.
-                        """.formatted(originalQuery.text());
+                // Plan 3.11: the sentences are the version's, the query is put in.
+                String prompt = QueryTransformPrompt.RISK.prompt(
+                        promptVersions.getIfAvailable(PromptVersionInUse::productOnly), originalQuery.text());
 
                 String transformedText = throughModelServerGate(modelServerGates, primaryChatModel,
                         () -> chatClient.prompt()
@@ -496,7 +480,8 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnMissingBean(name = "contexaPolicyQueryTransformer")
     public QueryTransformer policyQueryTransformer(@Qualifier("contexaChatClientBuilder") ChatClient.Builder contexaChatClientBuilder,
             ObjectProvider<ModelServerGates> modelServerGates,
-            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
+            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel,
+            ObjectProvider<PromptVersionInUse> promptVersions) {
         return new QueryTransformer() {
             private final ChatClient chatClient = contexaChatClientBuilder.build();
 
@@ -506,19 +491,9 @@ public class CoreRAGAutoConfiguration {
                     return originalQuery;
                 }
 
-                String prompt = """
-                        Optimize the following query for policy generation:
-
-                        Original Query: %s
-
-                        Optimization Guidelines:
-                        1. Expand to find similar policy templates
-                        2. Include Role-Based Access Control (RBAC) related terms
-                        3. Consider compliance requirements
-                        4. Include business rules and conditions
-
-                        Return only the optimized query.
-                        """.formatted(originalQuery.text());
+                // Plan 3.11: the sentences are the version's, the query is put in.
+                String prompt = QueryTransformPrompt.POLICY.prompt(
+                        promptVersions.getIfAvailable(PromptVersionInUse::productOnly), originalQuery.text());
 
                 String transformedText = throughModelServerGate(modelServerGates, primaryChatModel,
                         () -> chatClient.prompt()

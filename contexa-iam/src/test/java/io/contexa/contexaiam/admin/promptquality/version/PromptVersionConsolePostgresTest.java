@@ -341,10 +341,53 @@ class PromptVersionConsolePostgresTest {
             assertThat(product.version()).isEqualTo("v3.0");
             assertThat(product.usedVersion()).isEqualTo("v2.0");
             assertThat(product.usedBase()).isEqualTo("v1.0");
+            assertThat(product.carry()).isTrue();
         });
         Draft carried = after.draft(null, PROMPT, 3, 2).orElseThrow();
         assertThat(carried.carriedFrom()).isEqualTo("v2.0");
         assertThat(carried.carried()).hasSize(2).allSatisfy(change -> assertThat(change.movable()).isTrue());
+    }
+
+    /**
+     * Plan 3.3: the label stays on an older Contexa version when a newer one is registered; the list says so, and the
+     * newer one is used as it is (nothing to carry).
+     */
+    @Test
+    void aNewerProductVersionIsNoticedWhenAnOlderContexaVersionDecides() {
+        jdbc.update("update ctxa_prompt_governance_registry set release_status = 'ACTIVE' where prompt_key = ? and"
+                + " prompt_version = 'v1.0'", PROMPT);
+        ProductPromptRelease current = SecurityDecisionPromptDocument.productReleases().get(0);
+        ProductPromptRelease newer = new ProductPromptRelease(PROMPT, "2027.01.10",
+                current.document().replace("release: " + quoted(current.document()), "release: 2027.01.10"));
+        PromptVersionService upgraded = service(List.of(current, newer));
+        assertThat(upgraded.registerProducts(null)).extracting(PromptVersionService.Saved::name).containsExactly("v2.0");
+
+        ListView list = console(upgraded).list(null, PROMPT, false);
+
+        assertThat(list.used().version()).isEqualTo("v1.0");
+        assertThat(list.newProduct()).satisfies(product -> {
+            assertThat(product.version()).isEqualTo("v2.0");
+            assertThat(product.usedVersion()).isEqualTo("v1.0");
+            assertThat(product.carry()).isFalse();
+        });
+    }
+
+    /** Plan 3.5: a prepared part the base put in can be taken out again in the next version. */
+    @Test
+    void aPreparedPartTheBaseIncludedCanBeTakenOutInTheNextVersion() {
+        console.create(null, form(1, List.of(new FormPart("decision-rules", "INCLUDE", null, null, null)), List.of()),
+                "admin");
+        Draft draft = console.draft(null, PROMPT, 2, null).orElseThrow();
+        assertThat(draft.system()).filteredOn(part -> part.key().equals("decision-rules")).singleElement()
+                .satisfies(part -> assertThat(part.included()).isTrue());
+
+        console.create(null, form(2, List.of(new FormPart("decision-rules", "DELETE", null, null, null)), List.of()),
+                "admin");
+
+        assertThat(console.version(null, PROMPT, 3).orElseThrow().system())
+                .noneMatch(part -> part.key().equals("decision-rules") && "INCLUDED".equals(part.mark()));
+        assertThat(console.draft(null, PROMPT, 3, null).orElseThrow().prepared())
+                .extracting(PromptVersionConsoleDtos.DraftPart::key).contains("decision-rules");
     }
 
     private static String quoted(String document) {
