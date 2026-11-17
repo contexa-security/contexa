@@ -99,6 +99,20 @@
         return value == null ? '—' : Math.abs(value) < 10_000 ? integer.format(value) : compact.format(value);
     }
 
+    /**
+     * K97: a heat map cell's count, shortened as shortCount does, its unit (만, K, M) free to go under the number when
+     * the cell is narrower than both: the number is never cut (1.4), the whole count stays in the cell's title.
+     */
+    function cellCount(value) {
+        if (value == null || Math.abs(value) < 10_000) {
+            return [shortCount(value)];
+        }
+        const parts = compact.formatToParts(value);
+        const unit = parts.filter(part => part.type === 'compact').map(part => part.value).join('');
+        const number = parts.filter(part => part.type !== 'compact').map(part => part.value).join('').trim();
+        return unit && number ? [number, el('wbr'), unit] : [shortCount(value)];
+    }
+
     function percent(ratio, digits = 1) {
         if (ratio == null) {
             return '—';
@@ -598,7 +612,7 @@
                 line.append(el('td', {class: 'zt-num', title: rowLabel(rowKey) + ' · ' + columnLabel(columnKey)
                         + ' · ' + count(value),
                     style: {background: 'rgba(165, 180, 252, ' + (0.08 + tone * 0.6).toFixed(2) + ')'}},
-                    href ? el('a', {class: 'zt-link', href, text: shortCount(value)}) : shortCount(value)));
+                    href ? el('a', {class: 'zt-link', href}, cellCount(value)) : cellCount(value)));
             });
             body.append(line);
         });

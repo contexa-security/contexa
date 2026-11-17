@@ -1750,3 +1750,30 @@ input[type="file"].modern-input::file-selector-button {
     white-space: normal;
     overflow-wrap: anywhere;
 }
+
+/*
+ * K98: a key card's value in words breaks a word longer than the card's room at a syllable, rather than run past the
+ * card; a number never meets that width.
+ */
+.zt-page .zt-kpi-value {
+    overflow-wrap: break-word;
+    hyphens: auto;
+}
+
+/*
+ * K97: a heat map cell's count takes two lines, its unit under its number, where the cell is narrower than both: the
+ * number is never cut (1.4).
+ */
+.zt-page .zt-heat .zt-table td, .zt-page .zt-heat .zt-table td > a {
+    white-space: normal;
+    line-height: 1.2;
+}
+
+@media (max-width: 480px) {
+    /* K97: a heat map of many columns (weekdays by four-hour bands) gives its cells the room its short row heads leave. */
+    .zt-page .zt-heat-dense .zt-table th:first-child {
+        width: 1.75rem;
+        min-width: 1.75rem;
+        max-width: none;
+    }
+}

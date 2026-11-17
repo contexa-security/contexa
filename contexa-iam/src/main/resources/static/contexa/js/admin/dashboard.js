@@ -192,7 +192,8 @@
 
     function todoItems() {
         const items = [];
-        const add = (area, severity, text, href, rule) => items.push({area, severity, text, href, rule});
+        // guide (K90): work done elsewhere: the row says where (text), its link leads to the area's list (link)
+        const add = (area, severity, text, href, rule, guide) => items.push({area, severity, text, href, rule, guide});
         const iam = D.iam;
         const policy = D.policy;
         const security = D.security;
@@ -228,8 +229,9 @@
                 ZT.count(policy.duplicateCount)), A + '/policy-center?tab=list', d('todo.policyConflicts.rule'));
         }
         if (D.agents.confirmations > 0) {
+            // K90: a sponsor confirms an agent's request from the mail, not here: the row says so and leads to the agents
             add('agents', 'WARN', d('todo.agentConfirmations', ZT.count(D.agents.confirmations)), A + '/agents',
-                d('todo.agentConfirmations.rule'));
+                d('todo.agentConfirmations.rule'), {text: d('agents.confirmByMail'), link: d('agents.link.list')});
         }
         if (iam.locked > 0) {
             add('iam', 'WARN', d('todo.lockedAccounts', ZT.count(iam.locked)), A + '/users', d('todo.lockedAccounts.rule'));
@@ -286,9 +288,11 @@
                 title: item.rule || null},
             el('div', {class: 'flex items-center gap-3 min-w-0'}, areaIcon(item.area, 20),
                 el('div', {class: 'zt-indicator-text'}, el('span', {class: 'zt-indicator-title', text: item.text}),
-                    el('span', {class: 'zt-indicator-rule', text: d('area.' + item.area)}))),
+                    el('span', {class: 'zt-indicator-rule', text: d('area.' + item.area)}),
+                    item.guide ? el('span', {class: 'zt-indicator-rule', text: item.guide.text}) : null)),
             el('div', {class: 'flex items-center gap-3 flex-shrink-0'}, ZT.statusChip(item.severity),
-                el('a', {class: 'modern-btn-secondary', href: item.href, text: d('todo.process')}))))))
+                item.guide ? el('a', {class: 'zt-link', href: item.href, text: item.guide.link})
+                    : el('a', {class: 'modern-btn-secondary', href: item.href, text: d('todo.process')}))))))
             : ZT.emptyNote(d('todo.none')));
         card.id = 'dash-queue';
         const counts = ['BAD', 'WARN', 'INFO'].map(severity => [severity,
@@ -509,13 +513,17 @@
             return foot(areaCard('agents', d('area.agents'), d('agents.aside', periodName),
                 form('empty-state', ZT.emptyNote(d('agents.none')))), ...links);
         }
-        const hero = form('hero-queue', el('div', {class: 'zt-tile flex items-center justify-between gap-3'},
+        // K90: the counts stay the hero; a sponsor confirms from the mail, so in place of a button the tile says so and
+        // leads to the agents.
+        const hero = form('hero-queue', el('div', {class: 'zt-tile flex flex-wrap items-end justify-between gap-3'},
             el('div', {class: 'zt-metric'}, el('span', {class: 'zt-metric-label', text: d('agents.queue')}),
                 el('span', {class: 'zt-metric-value', text: d('unitCount', short(a.confirmations)),
                     title: whole(a.confirmations)}),
                 el('span', {class: 'zt-metric-ratio', style: {color: a.confirmationsOverdue ? C.WARN : null},
                     text: d('agents.overdue', short(a.confirmationsOverdue))})),
-            el('a', {class: 'modern-btn-primary', href: A + '/agents', text: d('agents.process')})));
+            el('div', {class: 'flex flex-col items-end gap-1 text-right min-w-0'},
+                el('span', {class: 'zt-muted', text: d('agents.confirmByMail')}),
+                el('a', {class: 'zt-link', href: A + '/agents', text: d('agents.link.list')}))));
         const total = a.byStatus.reduce((sum, share) => sum + share.count, 0);
         const colours = {ACTIVE: AREAS.agents.color, SUSPENDED: C.BLOCK, DEREGISTERED: C.MUTED};
         const meters = form('meter-list', el('div', {class: 'zt-reason-rows'},

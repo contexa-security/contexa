@@ -207,7 +207,7 @@
         const off = used.filter(cell => WEEKEND.includes(cell.row) || NIGHT.includes(cell.column))
             .reduce((sum, cell) => sum + cell.count, 0);
         return ZT.withTip(ZT.card(s('when.title'), m('when.aside'),
-            el('div', {class: 'zt-heat'}, ZT.heatmap(WEEKDAYS, BANDS, used, key => m('weekday.' + key),
+            el('div', {class: 'zt-heat zt-heat-dense'}, ZT.heatmap(WEEKDAYS, BANDS, used, key => m('weekday.' + key),
                 key => m('band.' + key), key => m('bandStart', Number(key) * 4),
                 (weekday, band) => decisions({action: 'STOPPED', weekday, band}))),
             el('div', {class: 'zt-muted', text: s('when.offHours', ZT.percent(off / total), ZT.count(off),
@@ -293,7 +293,8 @@
         return table([{label: m('column.user'), fill: true}, {label: s('column.challenges'), num: true},
             {label: m('column.passed'), num: true}, {label: m('column.mainReason'), wide: true},
             {label: m('column.baseline'), wide: true}], users, user => [
-            link(decisions({q: user.user, action: 'CHALLENGE'}), user.user), ZT.count(user.challenges),
+            // K99: a user opens that user's decisions alone (the exact user filter, K94)
+            link(decisions({user: user.user, action: 'CHALLENGE'}), user.user), ZT.count(user.challenges),
             ZT.count(user.passed), ZT.reasonName(user.mainReason),
             user.baseline ? ZT.keyLabel(P + 'baseline.', user.baseline) : '—']);
     }
@@ -305,7 +306,7 @@
         return ZT.tabbedCard(m('lists.title'), m('top.aside', ZT.count(Math.max(users.length, resources.length,
             challenged.length))), [
             {label: s('users.title'), node: users.length
-                ? rankedTable(users, m('column.user'), item => decisions({action: 'STOPPED', q: item.item}))
+                ? rankedTable(users, m('column.user'), item => decisions({action: 'STOPPED', user: item.item}))
                 : none(s('stopped.none'))},
             {label: s('resources.title'), node: resources.length
                 ? rankedTable(resources, m('column.resource'), item => decisions({action: 'STOPPED', q: item.item}))
