@@ -24,7 +24,10 @@ import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
@@ -97,6 +100,7 @@ public class SealedDecisionReplays {
     private final CentralAuditFacade audit;
     private final ObjectMapper json;
     private final SealedEvidencePackageIntegrity integrity;
+    private final Supplier<PromptVersionCatalog> versions;
 
     /**
      * @param service   the replay service, or a supplier of null when the engine's decision pipeline is not here
@@ -105,18 +109,56 @@ public class SealedDecisionReplays {
     public SealedDecisionReplays(SealedEvidencePackageRepository packages, Supplier<SealedDecisionReplayService> service,
                                  @Nullable BaselineDataStore baselines, @Nullable CentralAuditFacade audit,
                                  ObjectMapper objectMapper, SealedEvidencePackageIntegrity integrity) {
+        this(packages, service, baselines, audit, objectMapper, integrity, PromptVersionCatalog::none);
+    }
+
+    /**
+     * Plan 3.9: the replays of the versions of the database ({@code v2.0}).
+     *
+     * @param versions the versions of the database; a supplier of none without the version tables
+     */
+    public SealedDecisionReplays(SealedEvidencePackageRepository packages, Supplier<SealedDecisionReplayService> service,
+                                 @Nullable BaselineDataStore baselines, @Nullable CentralAuditFacade audit,
+                                 ObjectMapper objectMapper, SealedEvidencePackageIntegrity integrity,
+                                 Supplier<PromptVersionCatalog> versions) {
         this.packages = Objects.requireNonNull(packages, "packages");
         this.service = Objects.requireNonNull(service, "service");
         this.baselines = baselines;
         this.audit = audit;
         this.json = objectMapper.copy().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.integrity = Objects.requireNonNull(integrity, "integrity");
+        this.versions = versions != null ? versions : PromptVersionCatalog::none;
     }
 
-    /** The bundles this build runs, the versions a replay may name. */
+    /**
+     * The versions a replay may name (plan 3.8 10, 3.9): the security decision's versions of the database that are not
+     * hidden, newest first; without the version tables, the bundle of this build.
+     */
     public List<String> bundles() {
+        List<String> shown = catalog().shown(PromptVersionCatalog.PLATFORM_SCOPE, SecurityDecisionPromptDocument.PROMPT)
+                .stream().map(PromptVersionCatalog.Entry::name).toList();
+        if (!shown.isEmpty()) {
+            return shown;
+        }
         return SecurityDecisionPromptBundles.ALL.stream().map(SecurityDecisionPromptBundles.Bundle::version)
                 .distinct().toList();
+    }
+
+    private PromptVersionCatalog catalog() {
+        PromptVersionCatalog catalog = versions.get();
+        return catalog != null ? catalog : PromptVersionCatalog.none();
+    }
+
+    /**
+     * Whether a replay may name the release: a version of the database, hidden or not (a sealed decision and its
+     * replay name the version it ran, plan 3.3), or a bundle this build runs.
+     */
+    private boolean replayable(String release) {
+        if (PromptBundleCatalog.isVersionName(release)) {
+            return catalog().find(PromptVersionCatalog.PLATFORM_SCOPE, SecurityDecisionPromptDocument.PROMPT, release)
+                    .isPresent();
+        }
+        return SecurityDecisionPromptBundles.find(release).isPresent();
     }
 
     public Optional<Replayed> replayRequest(String actor, String requestId, ReplayRequest request) {
@@ -132,8 +174,10 @@ public class SealedDecisionReplays {
             throw new IllegalArgumentException("A bundle version is required");
         }
         String bundle = request.bundleVersion().trim();
-        if (SecurityDecisionPromptBundles.find(bundle).isEmpty()) {
-            throw new IllegalArgumentException("Bundle " + bundle + " is not a bundle this build runs");
+        if (!replayable(bundle)) {
+            throw new IllegalArgumentException(PromptBundleCatalog.isVersionName(bundle)
+                    ? "Version " + bundle + " is not a version of the security decision prompt"
+                    : "Bundle " + bundle + " is not a bundle this build runs");
         }
         List<String> models = request.secondPassModels() == null ? List.of() : request.secondPassModels().stream()
                 .filter(Objects::nonNull).map(String::trim).filter(model -> !model.isEmpty()).distinct().toList();

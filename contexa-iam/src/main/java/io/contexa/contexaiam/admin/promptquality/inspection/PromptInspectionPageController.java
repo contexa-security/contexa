@@ -35,7 +35,8 @@ public class PromptInspectionPageController {
             Stream.of("loading", "empty", "error", "notFound").map(word -> "promptInspection.common." + word),
             Stream.of("total", "previous", "next").map(word -> "promptInspection.packages." + word),
             Stream.of("started", "progress", "done", "failed").map(word -> "promptInspection.reinspect." + word),
-            Stream.of("selectLine", "matchedBy", "noFinding", "expected", "actual", "source", "reason", "unplaced",
+            Stream.of("selectLine", "matchedBy", "noFinding", "expected", "actual", "source", "reason",
+                            "reason.earlierBundle", "unplaced",
                             "inspector", "stored.same", "stored.differs", "stored.other", "stored.none",
                             "changes.compared", "changes.disappeared", "changes.appeared", "changes.none")
                     .map(word -> "promptInspection.detail." + word),

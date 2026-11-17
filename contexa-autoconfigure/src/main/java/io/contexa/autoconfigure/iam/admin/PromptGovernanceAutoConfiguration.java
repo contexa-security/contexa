@@ -2,6 +2,7 @@ package io.contexa.autoconfigure.iam.admin;
 
 import java.time.Clock;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptPolicySetLookup;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -125,7 +126,10 @@ public class PromptGovernanceAutoConfiguration {
         return new JdbcPromptReleaseQueryService(jdbcTemplate);
     }
 
-    /** W6-10: the bundle rollback, on this build's bundles; a host with policy sets gives a {@link PromptPolicySetLookup}. */
+    /**
+     * W6-10: the rollback, on the versions of the database (plan 3.9) and on this build's bundles; a host with policy
+     * sets gives a {@link PromptPolicySetLookup}.
+     */
     @Bean(name = "contexaPromptBundleRollbackService")
     @ConditionalOnMissingBean
     public PromptBundleRollbackService promptBundleRollbackService(
@@ -133,8 +137,11 @@ public class PromptGovernanceAutoConfiguration {
             PromptGovernanceRuntimeCacheInvalidationService runtimeCacheInvalidationService,
             ObjectProvider<PromptPolicySetLookup> policySetLookup, @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             ObjectProvider<PromptGovernanceRegistryRepository> registryRepository,
-            ObjectProvider<PromptGovernanceRollbackRecordRepository> rollbackRepository) {
-        return new PromptBundleRollbackService(jdbcTemplate, PromptBundleCatalog.shared(), runtimeCacheInvalidationService,
+            ObjectProvider<PromptGovernanceRollbackRecordRepository> rollbackRepository,
+            ObjectProvider<PromptVersionCatalog> promptVersionCatalog) {
+        return new PromptBundleRollbackService(jdbcTemplate,
+                PromptBundleCatalog.shared().withVersions(promptVersionCatalog.getIfAvailable(PromptVersionCatalog::none)),
+                runtimeCacheInvalidationService,
                 policySetLookup.getIfAvailable(), objectMapper, Clock.systemUTC(),
                 new JpaPromptGovernanceStatusWriter(registryRepository.getIfAvailable(), rollbackRepository.getIfAvailable()));
     }
@@ -189,7 +196,9 @@ public class PromptGovernanceAutoConfiguration {
             PromptGovernanceRollbackRecordRepository promptGovernanceRollbackRecordRepository,
             PromptGovernanceReleaseWorkflowRepository promptGovernanceReleaseWorkflowRepository,
             PromptGovernanceModelCompatibilityRepository promptGovernanceModelCompatibilityRepository,
-            PromptGovernanceBudgetProfileRepository promptGovernanceBudgetProfileRepository) {
+            PromptGovernanceBudgetProfileRepository promptGovernanceBudgetProfileRepository,
+            ObjectProvider<PromptVersionCatalog> promptVersionCatalog) {
+        // Plan 3.9: a release named as a version (v2.0) is read from the version table and its product policy.
         return new PromptGovernanceReleaseGateService(
                 contexaPromptGovernanceLifecycleLedgerService,
                 promptGovernanceRegistryRepository,
@@ -199,7 +208,8 @@ public class PromptGovernanceAutoConfiguration {
                 promptGovernanceRollbackRecordRepository,
                 promptGovernanceReleaseWorkflowRepository,
                 promptGovernanceModelCompatibilityRepository,
-                promptGovernanceBudgetProfileRepository);
+                promptGovernanceBudgetProfileRepository,
+                promptVersionCatalog.getIfAvailable(PromptVersionCatalog::none));
     }
 
     @Bean(name = "contexaPromptGovernanceEmpiricalEvalService")

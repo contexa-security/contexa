@@ -47,6 +47,7 @@ import org.springframework.ai.document.Document;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 public class SecurityDecisionStandardPromptTemplate extends AbstractStandardPromptTemplate<SecurityDecisionResponseLite> {
@@ -230,6 +231,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     /** Plan 6-2: the version of the prompt the event runs, whose parts and effects draw and check its decision. */
     public AssembledPrompt promptVersion(SecurityEvent event) {
         return promptSections.promptVersionOf(event);
+    }
+
+    /** Plan 3.9: the version the name stands for in the store an event's version is read from; empty when it has none. */
+    public Optional<AssembledPrompt> findPromptVersion(String name) {
+        return promptSections.findPromptVersion(name);
     }
 
     /** Plan 6-2: the store the version an event names is read from; the product versions when null. */

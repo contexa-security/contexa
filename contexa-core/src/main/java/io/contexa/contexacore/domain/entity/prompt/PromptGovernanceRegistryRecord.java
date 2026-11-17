@@ -84,6 +84,24 @@ public class PromptGovernanceRegistryRecord {
     @Column(name = "supported_model_profiles_json", length = 8000)
     private String supportedModelProfilesJson;
 
+    /**
+     * W3-16, plan 3.4: the share of a scope's requests a CANARY release runs for, by the hash of the requester; null is
+     * the whole scope.
+     */
+    @Column(name = "canary_percent")
+    private Integer canaryPercent;
+
+    /** W6-9, plan 3.4: the tenants a CANARY release runs for, comma separated; none is every tenant. */
+    @Column(name = "canary_tenants", length = 2000)
+    private String canaryTenants;
+
+    /**
+     * W6-9, plan 3.4: the starts of the resource addresses, or the resource ids, a CANARY release runs for, comma
+     * separated; none is every resource.
+     */
+    @Column(name = "canary_resource_families", length = 2000)
+    private String canaryResourceFamilies;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

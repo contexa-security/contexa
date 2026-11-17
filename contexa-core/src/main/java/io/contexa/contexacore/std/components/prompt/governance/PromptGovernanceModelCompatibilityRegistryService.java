@@ -23,9 +23,10 @@ public class PromptGovernanceModelCompatibilityRegistryService {
 
     private static final int DEFAULT_LIMIT = 16;
     private static final int MAX_LIMIT = 40;
-    private static final String TOKEN_COUNTING_POLICY_KEY = "MODEL_AWARE_TOKEN_COUNTING_V1";
-    private static final String CACHE_POLICY_KEY = "STRUCTURED_PROMPT_CACHE_BY_REQUEST_AND_BUDGET_V1";
-    private static final String COMPACTION_POLICY_KEY = "LOSSLESS_PROMPT_OPTIMIZATION_V1";
+    /** The policies every declared profile is governed by; a version inherits them from its product (plan 3.9). */
+    static final String TOKEN_COUNTING_POLICY_KEY = "MODEL_AWARE_TOKEN_COUNTING_V1";
+    static final String CACHE_POLICY_KEY = "STRUCTURED_PROMPT_CACHE_BY_REQUEST_AND_BUDGET_V1";
+    static final String COMPACTION_POLICY_KEY = "LOSSLESS_PROMPT_OPTIMIZATION_V1";
 
     private final PromptGovernanceRegistryService promptGovernanceRegistryService;
     private final PromptGovernanceModelCompatibilityRepository modelCompatibilityRepository;
@@ -370,8 +371,9 @@ public class PromptGovernanceModelCompatibilityRegistryService {
         return latest;
     }
 
-    private String resolveProfileCategory(String modelProfileKey) {
-        String normalized = safeValue(modelProfileKey, "UNKNOWN").toUpperCase(Locale.ROOT);
+    static String resolveProfileCategory(String modelProfileKey) {
+        String normalized = (StringUtils.hasText(modelProfileKey) ? modelProfileKey.trim() : "UNKNOWN")
+                .toUpperCase(Locale.ROOT);
         if (normalized.contains("COMPATIBLE")) {
             return "PROVIDER_COMPATIBILITY";
         }

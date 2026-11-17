@@ -1845,6 +1845,17 @@ public class SecurityDecisionPromptSections {
     }
 
     /**
+     * Plan 3.9: the version of the security decision prompt the name stands for in the store an event's version is
+     * read from; empty when the store has none, so a replay or a shadow run that names it is not drawn with another.
+     */
+    public Optional<AssembledPrompt> findPromptVersion(String name) {
+        if (name == null || name.isBlank()) {
+            return Optional.empty();
+        }
+        return promptVersionStore.find(SecurityDecisionPromptDocument.PROMPT, name.trim());
+    }
+
+    /**
      * K32 (decision D10): the settings and whether the host enforces them; an enforced floor is stated by the system
      * text, as the response check holds an answer to it.
      */

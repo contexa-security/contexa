@@ -183,6 +183,8 @@ public final class SecurityDecisionOutputContractV4 {
     static {
         // The start fails when the document names other codes than the engine (plan 6-1).
         SecurityDecisionPromptDocument.verifyReasonCodes(SecurityDecisionPromptDocument.product(), CODES);
+        // Plan 3.9: the prompt injection guard of every Contexa version is checked here, not by an evaluation record.
+        SecurityDecisionPromptDocument.verifyInjectionGuardOfReleases();
     }
 
     /** The line names each code may cite, by code, as the output block names them. */

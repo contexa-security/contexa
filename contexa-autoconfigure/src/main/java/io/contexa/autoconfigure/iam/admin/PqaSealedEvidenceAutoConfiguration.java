@@ -137,26 +137,32 @@ public class PqaSealedEvidenceAutoConfiguration {
         }
 
         /**
-         * W6-9 (P6-CHANGE-6): the shadow run of the registry's shadow release, on when a sample share is set. The
-         * shadow release is read from the registry whichever selector chooses the decision's bundle, so a host that
-         * runs its configured bundle can try a candidate in the shadow without handing the decision to the registry.
+         * W6-9 (P6-CHANGE-6): the shadow run of the registry's shadow release. The shadow release is read from the
+         * registry whichever selector chooses the decision's bundle, so a host that runs its configured bundle can try
+         * a candidate in the shadow without handing the decision to the registry. Plan 3.4: the version a screen runs
+         * alongside the decisions sets its sample share and daily limit on its registry row; a row that sets none runs
+         * {@code contexa.security.tiered.prompt-bundle.shadow.sample-percent} (0 by default: no run) and
+         * {@code .daily-call-cap}. So the runner is there whenever the sealed decisions are, and runs nothing until a
+         * shadow release is started; without the decision's prompt template there is no request to read a release for.
          */
         @Bean(name = "contexaPqaOssPromptShadowRunner")
         @ConditionalOnMissingBean(PromptShadowRunner.class)
-        @ConditionalOnProperty(prefix = "contexa.security.tiered.prompt-bundle.shadow", name = "sample-percent")
         public PromptShadowRunner pqaOssPromptShadowRunner(ObjectProvider<PromptBundleSelector> selector,
                                                            ObjectProvider<PromptGovernanceDescriptorResolver> resolver,
-                                                           SecurityDecisionStandardPromptTemplate template,
+                                                           ObjectProvider<SecurityDecisionStandardPromptTemplate> templates,
                                                            SealedEvidencePackageAssembler assembler,
                                                            SealedEvidencePackageRepository repository,
-                                                           TieredStrategyProperties properties) {
-            TieredStrategyProperties.PromptBundle.Shadow shadow = properties.getPromptBundle().getShadow();
+                                                           ObjectProvider<TieredStrategyProperties> properties) {
+            TieredStrategyProperties.PromptBundle.Shadow shadow = properties.getIfAvailable(TieredStrategyProperties::new)
+                    .getPromptBundle().getShadow();
             PromptBundleSelector shadowSource = selector.getIfAvailable(() ->
                     resolver.getIfAvailable() instanceof JdbcPromptGovernanceDescriptorResolver registry
                             ? registry.registrySelector()
                             : (context, subject) -> PromptBundleSelection.none());
-            return new PromptShadowRunner(shadowSource,
-                    template::resolutionContextOf, Executors.newSingleThreadExecutor(runnable -> {
+            return new PromptShadowRunner(shadowSource, event -> {
+                SecurityDecisionStandardPromptTemplate template = templates.getIfAvailable();
+                return template != null ? template.resolutionContextOf(event) : null;
+            }, Executors.newSingleThreadExecutor(runnable -> {
                         Thread thread = new Thread(runnable, "contexa-prompt-shadow-run");
                         thread.setDaemon(true);
                         return thread;
