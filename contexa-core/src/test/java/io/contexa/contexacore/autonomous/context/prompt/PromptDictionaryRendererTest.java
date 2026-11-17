@@ -124,6 +124,38 @@ class PromptDictionaryRendererTest {
         assertThat(renderer.render(values).text()).contains("Time: Wed 03:17\n", "RequestsInSession: this is the first\n");
     }
 
+    /**
+     * K57 (plan 3.5): a text drawn after a block stands right after it, after a blank line, and at the block's place
+     * when the block draws no line; it is no line of the dictionary, so the slots, blocks and fact ids are the ones
+     * drawn without it.
+     */
+    @Test
+    void aTextAfterABlockStandsAtItsPlaceAndIsNoLineOfTheDictionary() {
+        PromptEntryValues values = renderer.values()
+                .value(PromptBlock.REQUEST, "Time", "Wed 03:17")
+                .value(PromptBlock.DECISION_FACTS, "PolicySatisfied", "no — no approval for GB-500")
+                .build();
+        String first = "=== First (reference written by your organization) ===\nText one.\n";
+        String second = "=== Second (reference written by your organization) ===\nText two.";
+        String last = "=== Last (reference written by your organization) ===\nText three.\n";
+
+        PromptDictionaryRendering plain = renderer.render(values);
+        PromptDictionaryRendering drawn = renderer.render(values, Set.of(),
+                Map.of(PromptBlock.REQUEST, List.of(first, second), PromptBlock.SECOND_PASS, List.of(last)));
+
+        int request = plain.text().indexOf("=== REQUEST");
+        int next = plain.text().indexOf("\n=== ", request);
+        assertThat(request).isGreaterThanOrEqualTo(0);
+        assertThat(next).isGreaterThan(request);
+        assertThat(plain.blocks()).doesNotContain(PromptBlock.SECOND_PASS);
+        assertThat(drawn.text()).isEqualTo(plain.text().substring(0, next + 1) + first + "\n" + second + "\n\n"
+                + plain.text().substring(next + 1) + "\n" + last);
+        assertThat(drawn.slots()).isEqualTo(plain.slots());
+        assertThat(drawn.blocks()).isEqualTo(plain.blocks());
+        assertThat(drawn.factIds()).isEqualTo(plain.factIds());
+        assertThat(renderer.render(values, Set.of(), Map.of()).text()).isEqualTo(plain.text());
+    }
+
     private static PromptDictionaryEntry entry(PromptBlock block, String name) {
         return SecurityDecisionPromptDictionary.ENTRIES.stream()
                 .filter(entry -> entry.block() == block && entry.name().equals(name)).findFirst().orElseThrow();

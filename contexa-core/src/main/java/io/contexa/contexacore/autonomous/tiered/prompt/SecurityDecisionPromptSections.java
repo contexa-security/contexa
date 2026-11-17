@@ -976,7 +976,16 @@ public class SecurityDecisionPromptSections {
         if (!StringUtils.hasText(userText)) {
             return false;
         }
+        // Plan 3.5: the lines under a header of no engine block are an organization's text, never a past record.
+        boolean engineBlock = true;
         for (String line : userText.split("\n")) {
+            if (PromptBlock.isHeaderLine(line)) {
+                engineBlock = PromptBlock.fromSectionKey(line).isPresent();
+                continue;
+            }
+            if (!engineBlock) {
+                continue;
+            }
             PromptDictionaryLine drawn = PromptDictionaryLine.parse(line);
             if (drawn != null && DICTIONARY_PAST_RECORD_LABEL.matcher(drawn.label()).matches()) {
                 return true;
@@ -1391,8 +1400,11 @@ public class SecurityDecisionPromptSections {
         List<PromptDictionaryEntry> entries = kit.entries();
         PromptEntryValues values = SecurityDecisionPromptValues.of(this, context, renderer.values(),
                 EventTimeZone.get());
+        // Plan 3.5, 3.8 (4): the blocks the version's organization added stand at their places in every drawing, the
+        // ones the budget counts as well; they are no entries, so the budget takes none of them out.
+        Map<PromptBlock, List<String>> organizationBlocks = kit.firstPassOrganizationBlocks();
         Set<PromptDictionaryEntry> withheld = new LinkedHashSet<>();
-        PromptDictionaryRendering rendering = renderer.render(values, withheld);
+        PromptDictionaryRendering rendering = renderer.render(values, withheld, organizationBlocks);
         List<PromptOmissionRecord> trimmed = new ArrayList<>();
         Integer trimmedTotal = null;
         if (budgetEnforced() && budgetProfile != null) {
@@ -1404,11 +1416,12 @@ public class SecurityDecisionPromptSections {
             List<PromptDictionaryEntry> taken = PromptBudgetTrim.withhold(
                     PromptBudgetTrim.order(entries, drawnEntries(full, entries)),
                     candidate -> estimator.estimate(modelHint, systemText,
-                            renderer.render(values, candidate).text(), budgetProfile).budgetExceeded());
+                            renderer.render(values, candidate, organizationBlocks).text(), budgetProfile)
+                            .budgetExceeded());
             PromptTokenEstimate estimate = estimator.estimate(modelHint, systemText, full.text(), budgetProfile);
             for (PromptDictionaryEntry entry : taken) {
                 withheld.add(entry);
-                PromptDictionaryRendering next = renderer.render(values, withheld);
+                PromptDictionaryRendering next = renderer.render(values, withheld, organizationBlocks);
                 PromptTokenEstimate nextEstimate = estimator.estimate(modelHint, systemText, next.text(), budgetProfile);
                 trimmed.add(new PromptOmissionRecord(entry.block().name() + "." + entry.name(),
                         PromptOmissionType.BUDGET_TRIMMED, entryLines(full, entry, entries),
@@ -1490,7 +1503,9 @@ public class SecurityDecisionPromptSections {
                 otherBlocks.add(entry);
             }
         }
-        PromptDictionaryRendering rendering = renderer.render(values.build(), otherBlocks);
+        // Plan 3.5: the first prompt keeps the organization's blocks before this one; those after it follow it here.
+        PromptDictionaryRendering rendering = renderer.render(values.build(), otherBlocks,
+                kit.secondPassOrganizationBlocks());
         return new RenderedPromptSections(rendering.text(), List.of(PromptBlock.SECOND_PASS.title()), List.of(),
                 Map.of(SECOND_PASS_LAYOUT, elapsedMicros(startedNanos)),
                 Map.of("layer2SecondPass", true,
@@ -1920,18 +1935,42 @@ public class SecurityDecisionPromptSections {
             new PromptSectionPlan(SecurityPromptSectionCatalog.DECISION_CONTRACT, PromptSectionPriorityClass.P0_REQUIRED, false, false,
                     (template, context) -> template.buildDecisionSectionV1(context)));
 
-    /** The dictionary a version draws its user prompt with: its renderer, entries, slot plans and layout name. */
+    /**
+     * The dictionary a version draws its user prompt with: its renderer, entries, slot plans and layout name, and the
+     * blocks the version's organization added, drawn, by the block of the engine they follow (plan 3.5, 3.8 (4)).
+     */
     record DictionaryKit(PromptDictionaryRenderer renderer, List<PromptDictionaryEntry> entries,
-                         PromptDictionarySlotPlanProvider slotPlans, String layoutName) {
+                         PromptDictionarySlotPlanProvider slotPlans, String layoutName,
+                         Map<PromptBlock, List<String>> organizationBlocks) {
+
+        /**
+         * The organization's blocks of a first prompt: all but those after the SECOND PASS block, which only a second
+         * pass draws, after its block.
+         */
+        Map<PromptBlock, List<String>> firstPassOrganizationBlocks() {
+            if (!organizationBlocks.containsKey(PromptBlock.SECOND_PASS)) {
+                return organizationBlocks;
+            }
+            Map<PromptBlock, List<String>> first = new EnumMap<>(organizationBlocks);
+            first.remove(PromptBlock.SECOND_PASS);
+            return first;
+        }
+
+        /** The organization's blocks of a second pass: those after its SECOND PASS block. */
+        Map<PromptBlock, List<String>> secondPassOrganizationBlocks() {
+            List<String> after = organizationBlocks.get(PromptBlock.SECOND_PASS);
+            return after != null ? Map.of(PromptBlock.SECOND_PASS, after) : Map.of();
+        }
     }
 
     /** The dictionary of the bundle; a v1.0 version with the decision rules states their conclusion lines (D6). */
     private DictionaryKit dictionaryKit(AssembledPrompt version) {
+        Map<PromptBlock, List<String>> organizationBlocks = SecurityDecisionPromptDocument.organizationBlocks(version);
         return SecurityDecisionVersionFeatures.of(version).conclusionLines()
                 ? new DictionaryKit(v1RulesDictionaryRenderer, SecurityDecisionPromptDictionary.V1_RULES_ENTRIES,
-                v1RulesDictionarySlotPlans, USER_PROMPT_LAYOUT_V1)
+                v1RulesDictionarySlotPlans, USER_PROMPT_LAYOUT_V1, organizationBlocks)
                 : new DictionaryKit(v1DictionaryRenderer, SecurityDecisionPromptDictionary.V1_ENTRIES,
-                v1DictionarySlotPlans, USER_PROMPT_LAYOUT_V1);
+                v1DictionarySlotPlans, USER_PROMPT_LAYOUT_V1, organizationBlocks);
     }
 
     String buildUserProfileNarrative(SecurityEvent event, DetectedPatterns patterns,

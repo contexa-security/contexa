@@ -96,15 +96,19 @@ public final class PromptVersionConsoleDtos {
     }
 
     /**
-     * The finished prompt: the system text the version draws, the output format, and the user prompt of the latest
-     * sealed decision with the version it was drawn with.
-     */
-    /**
-     * The finished prompt of a version: the security decision's with a recent sealed decision's user prompt; another
-     * prompt's drawn with its fixed example input (plan 3.11, {@code example}).
+     * The finished prompt of a version: the security decision's system text, output format and the user prompt of the
+     * latest sealed decision drawn with this version; another prompt's drawn with its fixed example input (plan 3.11,
+     * {@code example}).
+     *
+     * @param drawnAgain the user prompt is the latest sealed decision drawn again with this version from its sealed
+     *                   inputs, the model not asked (plan 3.10 (2)); false when it is the prompt the decision was drawn
+     *                   with
+     * @param notDrawn   why the decision was not drawn again with this version and is shown as it was drawn:
+     *                   UNAVAILABLE (no decision pipeline in this application) or FAILED; null otherwise
      */
     public record Preview(String system, String format, String user, String requestId, Instant capturedAt,
-                          String drawnWith, boolean drawnWithThisVersion, List<PartView> addedBlocks, boolean example) {
+                          String drawnWith, boolean drawnWithThisVersion, List<PartView> addedBlocks, boolean example,
+                          boolean drawnAgain, String notDrawn) {
     }
 
     public record Size(int systemTokens, Integer baseSystemTokens) {
@@ -168,11 +172,14 @@ public final class PromptVersionConsoleDtos {
     /**
      * What the checks found.
      *
-     * @param estimatedDeltaMs how much longer (or shorter) a decision is estimated to take; null without recent
-     *                         decisions to estimate from
+     * @param baseAddedUserTokens the tokens of the blocks the base added to the user prompt, as the prompt draws them
+     * @param addedUserTokens     the same of the new version (K64)
+     * @param estimatedDeltaMs    how much longer (or shorter) a decision is estimated to take with the system prompt and
+     *                            the added blocks together; null without recent decisions to estimate from
      */
     public record CheckView(boolean passed, List<CheckRow> checks, List<ProblemView> problems, int baseSystemTokens,
-                            int systemTokens, Long estimatedDeltaMs, Integer contextTokens) {
+                            int systemTokens, int baseAddedUserTokens, int addedUserTokens, Long estimatedDeltaMs,
+                            Integer contextTokens) {
     }
 
     /** A version hidden from the lists. */

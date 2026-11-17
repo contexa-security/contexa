@@ -495,7 +495,9 @@
                 el('span', {class: 'status-badge zt-chip', 'data-status': unknown ? 'WARN' : row.passed ? 'GOOD' : 'BAD',
                     text: t(unknown ? 'pv.check.unknown' : row.passed ? 'pv.check.passed' : 'pv.check.failed')}));
         });
-        const delta = view.systemTokens - view.baseSystemTokens;
+        // K64: the size counts the blocks added to the user prompt with the system prompt.
+        const delta = view.systemTokens + (view.addedUserTokens || 0)
+            - view.baseSystemTokens - (view.baseAddedUserTokens || 0);
         rows.push(el('div', {class: 'zt-result-row', 'data-pv-check': 'SIZE'},
             el('span', {class: 'zt-result-name', text: t('pv.check.size', state.draft.baseName,
                 PV.signed(delta, value => PV.tokens(value)), view.estimatedDeltaMs == null ? '—'

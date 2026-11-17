@@ -250,10 +250,16 @@
         el('div', {class: 'zt-item'}, el('strong', {text: t('pv.preview.format')}),
             PV.textBox(shown.format, t('pv.preview.format')))];
         if (shown.user) {
+            // Plan 3.10 (2): a decision another version drew is drawn again with this one; when it cannot be, why.
+            const notDrawn = shown.notDrawn === 'UNAVAILABLE' ? t('pv.preview.notDrawn.unavailable')
+                : shown.notDrawn ? t('pv.preview.notDrawn.failed') : null;
             nodes.push(el('div', {class: 'zt-item'}, el('strong', {text: t('pv.preview.user')}),
-                el('span', {class: 'zt-muted', text: shown.drawnWithThisVersion
-                    ? t('pv.preview.userSame', ZT.time(shown.capturedAt))
-                    : t('pv.preview.userOther', ZT.time(shown.capturedAt), shown.drawnWith || '—')}),
+                el('span', {class: 'zt-muted', text: shown.drawnAgain
+                    ? t('pv.preview.userDrawn', ZT.time(shown.capturedAt))
+                    : shown.drawnWithThisVersion
+                        ? t('pv.preview.userSame', ZT.time(shown.capturedAt))
+                        : t('pv.preview.userOther', ZT.time(shown.capturedAt), shown.drawnWith || '—')}),
+                notDrawn ? el('span', {class: 'zt-muted', text: notDrawn}) : null,
                 PV.textBox(shown.user, t('pv.preview.user'))));
             if (!shown.drawnWithThisVersion && shown.addedBlocks && shown.addedBlocks.length) {
                 nodes.push(el('div', {class: 'zt-item'}, el('strong', {text: t('pv.preview.added')}),

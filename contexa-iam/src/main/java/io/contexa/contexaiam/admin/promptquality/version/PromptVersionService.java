@@ -216,12 +216,16 @@ public class PromptVersionService {
         PromptVersionDocument document = reader.read(yaml);
         Checked checked = checked(scopeOf(scope), document, origin, limit);
         return new Preview(checked.record(), checked.problems(), checked.check().baseSystemTokens(),
-                checked.check().systemTokens());
+                checked.check().systemTokens(), checked.check().baseAddedUserTokens(),
+                checked.check().addedUserTokens());
     }
 
-    /** What a check found: the base version, the problems, and the system prompt tokens of the base and the version. */
+    /**
+     * What a check found: the base version, the problems, and the tokens of the base and the version: their system
+     * prompts and the blocks an organization added to their user prompts, as the prompt draws them (K64).
+     */
     public record Preview(PromptVersionRecord base, List<PromptVersionProblem> problems, int baseSystemTokens,
-                          int systemTokens) {
+                          int systemTokens, int baseAddedUserTokens, int addedUserTokens) {
 
         public Preview {
             problems = List.copyOf(problems);
@@ -252,9 +256,11 @@ public class PromptVersionService {
                 .orElseThrow(() -> new IllegalStateException("The base version " + base.get().name()
                         + " cannot be assembled"));
         // The length limit is the decision model's context with the longest recent decision input (plan 3.5, check 4);
-        // another prompt has no such limit to check against (plan 3.11).
-        PromptAssembler.Check check = assembler.check(baseVersion, document,
-                SecurityDecisionPromptDocument.PROMPT.equals(base.get().prompt()) ? limit : null);
+        // another prompt has no such limit to check against (plan 3.11). The blocks an organization added to the user
+        // prompt count as the prompt draws them (K64).
+        boolean decision = SecurityDecisionPromptDocument.PROMPT.equals(base.get().prompt());
+        PromptAssembler.Check check = assembler.check(baseVersion, document, decision ? limit : null,
+                decision ? SecurityDecisionPromptDocument::organizationBlockTokens : PromptAssembler::addedUserTokens);
         problems.addAll(check.problems());
         return new Checked(base.get(), baseVersion, check, problems);
     }

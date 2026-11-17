@@ -94,7 +94,8 @@ public class PromptVersionConsoleAutoConfiguration {
                                                      ObjectProvider<PromptVersionFolderScanner> folder,
                                                      ObjectProvider<PromptVersionLengthLimits> limits,
                                                      ObjectProvider<PromptVersionAudit> audit, Environment environment,
-                                                     ObjectProvider<VersionedPrompts> versionedPrompts) {
+                                                     ObjectProvider<VersionedPrompts> versionedPrompts,
+                                                     ObjectProvider<SealedDecisionReplays> replays) {
         PromptVersionConsole console = new PromptVersionConsole(versions, trials::getIfAvailable, selector::getIfUnique, () -> jdbcTemplate,
                 releases::getIfAvailable, gate::getIfAvailable, invalidation::getIfAvailable, rollbacks::getIfAvailable,
                 sealed::getIfAvailable, decisions::getIfAvailable, folder::getIfAvailable,
@@ -106,6 +107,12 @@ public class PromptVersionConsoleAutoConfiguration {
                 audit.getIfAvailable(PromptVersionAudit::none), Clock.systemUTC());
         // Plan 3.11: the prompts other than the security decision show their finished prompt with an example input.
         console.setVersionedPrompts(versionedPrompts.getIfAvailable());
+        // Plan 3.10 (2): the finished prompt draws the latest sealed decision again with the version, as a replay does.
+        console.setSealedDrawing(() -> {
+            SealedDecisionReplays drawing = replays.getIfAvailable();
+            return drawing == null ? null : (packageId, version) -> drawing.drawPackage(packageId, version)
+                    .map(drawn -> drawn.drawing().userPrompt());
+        });
         return console;
     }
 

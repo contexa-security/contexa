@@ -22,6 +22,7 @@ import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
+import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentException;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionProblem;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernanceDescriptorResolver;
@@ -278,6 +279,78 @@ class PromptVersionServicePostgresTest {
         assertThatThrownBy(() -> versions.importDocument("TENANT-B", organization("v1.0", JUDGE)
                 .replace("basedOn: v1.0", "basedOnHash: sha256:" + "0".repeat(64)), "lost.yaml", "admin", null))
                 .satisfies(refused -> assertThat(codes(refused)).containsExactly(PromptVersionProblem.Code.NO_BASE));
+    }
+
+    /**
+     * K64 (plan 3.5, check 4): the screen, the folder and an import hold a block added to the user prompt to the length
+     * limit alike, as the prompt draws it with its header: a long one does not fit, a short one does, and the size the
+     * checks show counts it.
+     */
+    @Test
+    void theScreenTheFolderAndAnImportCountABlockAddedToTheUserPromptInTheLength(@TempDir Path folder)
+            throws Exception {
+        versions.registerProducts(null);
+        int system = PromptAssembler.systemTokens(SecurityDecisionPromptDocument.product());
+        PromptAssembler.LengthLimit limit = new PromptAssembler.LengthLimit(system + 1_000 + 300 + 1_000, 300, 1_000);
+        String longer = organization("v1.0", userBlock("word ".repeat(4_000)));
+        String shorter = "The ledger is exported on the last day.";
+        int shortTokens = PromptAssembler.tokensOf(1 + ("=== Finance closing (reference written by your organization)"
+                + " ===\n" + shorter + "\n").length());
+
+        PromptVersionService.Preview checked = versions.check(null, organization("v1.0", userBlock(shorter)),
+                PromptVersionRecord.SCREEN, limit);
+        assertThat(checked.problems()).isEmpty();
+        assertThat(checked.systemTokens()).isEqualTo(checked.baseSystemTokens()).isEqualTo(system);
+        assertThat(checked.baseAddedUserTokens()).isZero();
+        assertThat(checked.addedUserTokens()).isEqualTo(shortTokens);
+        assertThat(versions.check(null, longer, PromptVersionRecord.SCREEN, limit).problems())
+                .extracting(PromptVersionProblem::code).containsExactly(PromptVersionProblem.Code.TOO_LONG);
+
+        // The screen.
+        assertThatThrownBy(() -> versions.create(null, longer, PromptVersionRecord.SCREEN, null, "admin", limit))
+                .satisfies(refused -> assertThat(codes(refused)).containsExactly(PromptVersionProblem.Code.TOO_LONG));
+        PromptVersionService.Saved screen = versions.create(null, organization("v1.0", userBlock(shorter)),
+                PromptVersionRecord.SCREEN, null, "admin", limit);
+        assertThat(SecurityDecisionPromptDocument.organizationBlockTokens(
+                versions.assembled(null, PROMPT, screen.number()).orElseThrow())).isEqualTo(shortTokens);
+
+        // The folder.
+        Files.writeString(folder.resolve("long.yaml"), longer);
+        Files.writeString(folder.resolve("short.yaml"), organization("v1.0", userBlock(shorter + " Folder.")));
+        PromptVersionFolderScanner.Scan scan = new PromptVersionFolderScanner(() -> jdbc, versions, folder, "node-1",
+                () -> limit).scan();
+        assertThat(scan.registered()).isEqualTo(1);
+        assertThat(scan.errors()).singleElement().asString().startsWith("long.yaml: TOO_LONG");
+
+        // An import.
+        assertThatThrownBy(() -> versions.importDocument(null, longer, "long-import.yaml", "admin", limit))
+                .satisfies(refused -> assertThat(codes(refused)).containsExactly(PromptVersionProblem.Code.TOO_LONG));
+        assertThat(versions.importDocument(null, organization("v1.0", userBlock(shorter + " Import.")),
+                "short-import.yaml", "admin", limit).made()).isTrue();
+
+        // On a base that added the block, only what the new version adds more counts; a block taken out counts less.
+        String base = screen.name();
+        PromptVersionService.Preview more = versions.check(null, organization(base, """
+                user:
+                  - key: org-desk
+                    add-after: org-closing
+                    title: Security desk
+                    text: The desk answers within an hour.
+                """), PromptVersionRecord.SCREEN, limit);
+        assertThat(more.baseAddedUserTokens()).isEqualTo(shortTokens);
+        assertThat(more.addedUserTokens()).isGreaterThan(shortTokens);
+        PromptVersionService.Preview fewer = versions.check(null, organization(base, """
+                user:
+                  - key: org-closing
+                    delete: true
+                """), PromptVersionRecord.SCREEN, limit);
+        assertThat(fewer.baseAddedUserTokens()).isEqualTo(shortTokens);
+        assertThat(fewer.addedUserTokens()).isZero();
+    }
+
+    private static String userBlock(String text) {
+        return "user:\n  - key: org-closing\n    add-after: REQUEST\n    title: Finance closing\n    text: |\n      "
+                + text + "\n";
     }
 
     @Test
