@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.promptquality.version;
 
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionProblem;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
+import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -79,6 +80,8 @@ class PromptVersionMessagesTest {
         Stream.of(PromptBundleRollbackService.EXECUTED, PromptBundleRollbackService.AWAITING_APPROVAL,
                 PromptBundleRollbackService.APPROVED, PromptBundleRollbackService.REFUSED)
                 .forEach(status -> keys.add("pv.rollback.status." + status));
+        Stream.of(JdbcPromptInspectionQueries.DECISION_STAGE, JdbcPromptInspectionQueries.SHADOW_STAGE)
+                .forEach(stage -> keys.add("pv.shadow.stage." + stage));
         keys.add("menu.pqa.versions");
 
         Properties english = properties("contexa/i18n/messages.properties");

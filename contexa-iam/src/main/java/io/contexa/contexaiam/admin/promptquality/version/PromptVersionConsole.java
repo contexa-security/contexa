@@ -30,6 +30,7 @@ import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumen
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentWriter;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionProblem;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRuntimeCacheInvalidationService;
@@ -60,6 +61,7 @@ import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDto
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.ScanRow;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.ShadowCase;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.ShadowResults;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.StageOutcome;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Size;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.TrialStart;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.TrialView;
@@ -147,6 +149,7 @@ public class PromptVersionConsole {
     private final PromptVersionAudit audit;
     private final Clock clock;
     private final PromptVersionDocumentReader reader = new PromptVersionDocumentReader();
+    private VersionedPrompts versionedPrompts = new VersionedPrompts(List.of());
     private final PromptVersionDocumentWriter writer = new PromptVersionDocumentWriter();
 
     /**
@@ -180,6 +183,11 @@ public class PromptVersionConsole {
         this.limit = orNone(limit);
         this.audit = audit != null ? audit : PromptVersionAudit.none();
         this.clock = clock != null ? clock : Clock.systemUTC();
+    }
+
+    /** Plan 3.11: the prompts other than the security decision, whose finished prompt is drawn with an example input. */
+    public void setVersionedPrompts(VersionedPrompts versionedPrompts) {
+        this.versionedPrompts = versionedPrompts != null ? versionedPrompts : new VersionedPrompts(List.of());
     }
 
     // ----- the list (screen 1) -----
@@ -345,25 +353,31 @@ public class PromptVersionConsole {
      */
     private Preview preview(String prompt, AssembledPrompt version, String name, List<PartView> user) {
         if (!decisionPrompt(prompt)) {
-            return new Preview(null, null, null, null, null, null, false, List.of());
+            // Plan 3.11: a prompt other than the security decision is shown drawn with its fixed example input.
+            return versionedPrompts.find(prompt)
+                    .map(found -> found.example(version))
+                    .map(example -> new Preview(example.system() == null || example.system().isEmpty() ? null
+                            : example.system(), null, example.user(), null, null, name, true, List.of(), true))
+                    .orElseGet(() -> new Preview(null, null, null, null, null, null, false, List.of(), false));
         }
         String system = SecurityDecisionPromptDocument.systemPreview(version);
         String format = SecurityDecisionPromptDocument.outputFormatPreview();
         List<PartView> added = user.stream().filter(part -> "ADDED".equals(part.mark())).toList();
         List<Object[]> latest = jdbc.get().query("select p.raw_user_prompt, p.correlation_id, p.captured_at,"
-                + " contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{" + PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR
-                + ",promptBundleVersion}' from ctxa_sealed_evidence_package p where p.seal_state = 'SEALED' and"
+                + " coalesce(contexa_safe_jsonb(p.prompt_execution_metadata_json) ->> '" + PromptExecutionMetadata.PROMPT_VERSION_NAME
+                + "', contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{" + PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR
+                + ",promptBundleVersion}') from ctxa_sealed_evidence_package p where p.seal_state = 'SEALED' and"
                 + " coalesce(contexa_safe_jsonb(p.decision_json) ->> 'decisionAppliedStage', '') <> 'SHADOW' and"
                 + " p.raw_user_prompt is not null order by p.captured_at desc limit 1", (rs, row) -> new Object[] {
                 rs.getString(1), rs.getString(2), rs.getTimestamp(3) != null ? rs.getTimestamp(3).toInstant() : null,
                 rs.getString(4)});
         if (latest.isEmpty()) {
-            return new Preview(system, format, null, null, null, null, false, added);
+            return new Preview(system, format, null, null, null, null, false, added, false);
         }
         Object[] row = latest.get(0);
         String drawnWith = (String) row[3];
         return new Preview(system, format, (String) row[0], (String) row[1], (Instant) row[2], drawnWith,
-                name.equals(drawnWith), added);
+                name.equals(drawnWith), added, false);
     }
 
     private VersionDecisions decisionsOf(String name, String scope) {
@@ -431,7 +445,8 @@ public class PromptVersionConsole {
         boolean editable = !part.isLocked() && !part.prepared() && part.items().isEmpty();
         return new DraftPart(list, part.key(), part.title(), part.group() != null ? part.group()
                 : "SYSTEM".equals(list) ? AssembledPrompt.JUDGMENT : null, part.isLocked(), part.prepared(), part.when(),
-                part.text(), productPart != null ? productPart.text() : null, items(part), editable);
+                part.text(), productPart != null ? productPart.text() : null, items(part), editable,
+                part.action() == PromptVersionDocument.Action.INCLUDE);
     }
 
     /** The changes of an organization's document, each with whether the base can take it. */
@@ -482,7 +497,8 @@ public class PromptVersionConsole {
     public CheckView check(String scope, DraftForm form) {
         String scopeName = scopeOf(scope);
         String yaml = documentOf(scopeName, form);
-        PromptAssembler.LengthLimit lengthLimit = limit.get();
+        // The length limit is the decision prompt's (plan 3.5, check 4); another prompt shows none (plan 3.11).
+        PromptAssembler.LengthLimit lengthLimit = decisionPrompt(promptOf(form.prompt())) ? limit.get() : null;
         PromptVersionService.Preview preview;
         try {
             preview = versions.check(scopeName, yaml, PromptVersionRecord.SCREEN, lengthLimit);
@@ -870,12 +886,18 @@ public class PromptVersionConsole {
         List<String> names = versions.list(scopeName, key, true).stream().map(PromptVersionRecord::name).toList();
         List<JdbcPromptInspectionQueries.ShadowPair> pairs = queries == null || names.isEmpty() ? List.of()
                 : queries.shadowPairs(from, to, names);
-        return shadowResults(shadow, from, to, pairs);
+        // Plan 3.9: the sealed decisions of the period per version, stage and action, as the release comparison showed.
+        List<StageOutcome> outcomes = queries == null || names.isEmpty() ? List.of()
+                : queries.bundleOutcomes(from, to, names).stream().map(outcome -> new StageOutcome(
+                        outcome.bundleVersion(), outcome.stage(), outcome.action(), outcome.packages(), outcome.failed(),
+                        outcome.passed(), outcome.notInspected())).toList();
+        return shadowResults(shadow, from, to, pairs, outcomes);
     }
 
     /** The pairs counted: how many found their decision, how many answered otherwise, those first. */
     static ShadowResults shadowResults(String shadow, Instant from, Instant to,
-                                       List<JdbcPromptInspectionQueries.ShadowPair> shadows) {
+                                       List<JdbcPromptInspectionQueries.ShadowPair> shadows,
+                                       List<StageOutcome> outcomes) {
         List<JdbcPromptInspectionQueries.ShadowPair> paired = shadows.stream()
                 .filter(pair -> pair.decisionPackageId() != null).toList();
         Map<List<String>, Long> byActions = paired.stream().collect(Collectors.groupingBy(
@@ -891,9 +913,11 @@ public class PromptVersionConsole {
                         Objects.equals(pair.decisionAction(), pair.shadowAction())))
                 .limit(SHADOW_CASE_LIMIT)
                 .map(pair -> new ShadowCase(pair.requestId(), pair.capturedAt(), pair.shadowBundleVersion(),
-                        pair.shadowAction(), pair.decisionBundleVersion(), pair.decisionAction()))
+                        pair.shadowAction(), pair.decisionBundleVersion(), pair.decisionAction(), pair.shadowPackageId(),
+                        pair.decisionPackageId()))
                 .toList();
-        return new ShadowResults(shadow, from, to, shadows.size(), paired.size(), otherwise, changes, cases);
+        return new ShadowResults(shadow, from, to, shadows.size(), paired.size(), otherwise, changes, cases,
+                List.copyOf(outcomes));
     }
 
     // ----- advanced (screen 5) -----
@@ -1067,8 +1091,15 @@ public class PromptVersionConsole {
                 .findFirst();
         Optional<PromptVersionRecord> newest = records.stream().filter(record -> !record.hidden())
                 .filter(record -> PromptVersionRecord.CONTEXA.equals(record.provider())).findFirst();
-        if (current.isEmpty() || newest.isEmpty()
-                || !PromptVersionRecord.ORGANIZATION.equals(current.get().provider())) {
+        if (current.isEmpty() || newest.isEmpty()) {
+            return null;
+        }
+        if (PromptVersionRecord.CONTEXA.equals(current.get().provider())) {
+            // An older Contexa version in use: the label stayed where it was when the newer one was registered.
+            return newest.get().number() > current.get().number() ? new NewProduct(newest.get().name(),
+                    newest.get().number(), used.version(), current.get().name(), false) : null;
+        }
+        if (!PromptVersionRecord.ORGANIZATION.equals(current.get().provider())) {
             return null;
         }
         PromptVersionRecord base = current.get();
@@ -1082,7 +1113,7 @@ public class PromptVersionConsole {
             base = next;
         }
         return newest.get().number() > base.number() ? new NewProduct(newest.get().name(), newest.get().number(),
-                used.version(), base.name()) : null;
+                used.version(), base.name(), true) : null;
     }
 
     private Map<String, String> registryStates(String scope, String prompt) {

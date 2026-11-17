@@ -1,0 +1,24 @@
+Reference context:
+Reference about the users module
+
+Required: respond with exactly 2 objects in the suggestions array, one for each original identifier below.
+Every suggestions[].identifier value must exactly match an input identifier.
+Do not use URL paths or method signatures as top-level JSON property names.
+
+1. [RESOURCE_START_1]
+identifier: /api/users/{id}
+resourceType: URL
+httpMethod: GET
+owner: UserController
+scannerFriendlyNameHint: User detail
+scannerDescriptionHint: Reads \"one\" user\nby id
+parameterTypes: Long
+returnType: UserDto
+apiDocsUrl: /docs#users
+sourceCodeLocation: C:\\src\\User.java
+[RESOURCE_END_1]
+2. [RESOURCE_START_2]
+identifier: io.contexa.example.UserService.updateUser(Long,UserForm)
+[RESOURCE_END_2]
+
+Confirm: every identifier above must appear exactly once in suggestions[].identifier.

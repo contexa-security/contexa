@@ -16,6 +16,14 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
+import io.contexa.contexacore.config.TieredLLMProperties;
+import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionInUse;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompt;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
+import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
+import io.contexa.contexacore.std.llm.model.ModelDescriptor;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceBudgetProfileRepository;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceChangeRecordRepository;
@@ -47,6 +55,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Plan 6-3: the versions of the database are wired in every installation with the console's database: the version
@@ -97,6 +106,54 @@ class PromptVersionAutoConfigurationTest {
             assertThat(context.getBean("contexaPromptVersionStartupRunner")).isInstanceOf(ApplicationRunner.class);
             assertThat(context).doesNotHaveBean(PromptVersionFolderScanner.class);
         });
+    }
+
+    /**
+     * Plan 6-7: the seven prompts other than the security decision run from their versions: the version service
+     * registers their product documents after the security decision's, and their calls read the version in use.
+     */
+    @Test
+    void theSevenOtherPromptsAreVersionedBesideTheSecurityDecision() {
+        runner.run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(VersionedPrompts.class).prompts()).extracting(VersionedPrompt::prompt)
+                    .containsExactly("PolicyGeneration", "PolicyGenerationStreaming", "ConditionTemplate",
+                            "ResourceNaming", "BehaviorQueryTransform", "RiskQueryTransform", "PolicyQueryTransform");
+            assertThat(context.getBean(PromptVersionService.class).prompts()).hasSize(8)
+                    .startsWith(SecurityDecisionPromptDocument.PROMPT);
+            assertThat(context).hasSingleBean(PromptVersionInUse.class);
+            assertThat(context.getBean(PromptVersionStore.class).find("ResourceNaming", "2026.11.17-v1.0"))
+                    .as("the product document behind the database").isPresent();
+        });
+    }
+
+    /**
+     * K54: no setting declares a model's context window, so the window its capabilities carry by default is not the
+     * model's: a model other than Ollama without a declared window has no length limit, rather than refusing every
+     * save; a declared window is the limit.
+     */
+    @Test
+    void anUndeclaredContextWindowIsNoLengthLimit() {
+        for (int window : new int[] {ModelDescriptor.ModelCapabilities.builder().build().getContextWindow(), 128_000}) {
+            TieredLLMProperties properties = mock(TieredLLMProperties.class);
+            when(properties.getModelNameForTier(1)).thenReturn("gpt-test");
+            DynamicModelRegistry registry = mock(DynamicModelRegistry.class);
+            when(registry.getDescriptor("gpt-test")).thenReturn(ModelDescriptor.builder().modelId("gpt-test")
+                    .provider("openai").capabilities(ModelDescriptor.ModelCapabilities.builder().contextWindow(window)
+                            .build()).build());
+            runner.withBean(TieredLLMProperties.class, () -> properties)
+                    .withBean(DynamicModelRegistry.class, () -> registry)
+                    .run(context -> {
+                        PromptAssembler.LengthLimit limit = context.getBean(PromptVersionLengthLimits.class).get();
+                        if (window == 128_000) {
+                            assertThat(limit).isNotNull();
+                            assertThat(limit.contextTokens()).isEqualTo(128_000);
+                        }
+                        else {
+                            assertThat(limit).as("the default window of the capabilities").isNull();
+                        }
+                    });
+        }
     }
 
     @Test

@@ -1,0 +1,17 @@
+Analyze the following Java method signature and generate a specific condition template:
+
+Method signature:
+updateUser(Long id, UserForm form)
+
+Generation rules:
+- ID parameter: hasPermission(#parameterName, 'RESOURCE_TYPE', 'ACTION')
+- Object parameter: hasPermission(#parameterName, 'RESOURCE_TYPE_ACTION')
+- No parameters: Set spelTemplate to an empty string
+- Positional indices like #p0, #p1 are strictly prohibited. You must use actual parameter names (#id, #group, etc.)
+
+Important notes:
+- Write names and descriptions in English
+- Never use the word "permission" in names
+- Keys must use the method signature exactly as-is from the original
+
+Generate in JSON format.

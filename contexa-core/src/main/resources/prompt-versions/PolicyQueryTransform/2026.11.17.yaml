@@ -1,0 +1,40 @@
+# The product prompt of the policy query transformation of Contexa release 2026.11.17 (v1.0, plan 3.11).
+# Every sentence of the prompt is here; the code holds the values it fills in and the order of the data.
+# A part marked locked: true is a rule of Contexa an organization's version cannot change or delete.
+prompt: PolicyQueryTransform
+kind: product
+release: 2026.11.17-v1.0
+title: "Contexa policy query transformation prompt"
+description: "The policy query transformation prompt Contexa ships. A new version starts from it."
+system: []
+user:
+  - key: precedence
+    title: "Precedence"
+    locked: true
+    when: organization-parts
+    text: |2
+      Some parts of this text were written by your organization. When an instruction your organization wrote conflicts with a fixed rule of Contexa in this text (the original query and the answer), follow the Contexa rule.
+  - key: purpose
+    title: "Purpose"
+    locked: false
+    text: |2
+      Optimize the following query for policy generation:
+  - key: query
+    title: "Original query"
+    locked: true
+    text: |2
+      Original Query: {query}
+  - key: guidelines
+    title: "Optimization Guidelines"
+    locked: false
+    heading: true
+    text: |2
+      1. Expand to find similar policy templates
+      2. Include Role-Based Access Control (RBAC) related terms
+      3. Consider compliance requirements
+      4. Include business rules and conditions
+  - key: return-only
+    title: "Answer"
+    locked: true
+    text: |2
+      Return only the optimized query.

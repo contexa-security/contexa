@@ -1,0 +1,40 @@
+# The product prompt of the behavior query transformation of Contexa release 2026.11.17 (v1.0, plan 3.11).
+# Every sentence of the prompt is here; the code holds the values it fills in and the order of the data.
+# A part marked locked: true is a rule of Contexa an organization's version cannot change or delete.
+prompt: BehaviorQueryTransform
+kind: product
+release: 2026.11.17-v1.0
+title: "Contexa behavior query transformation prompt"
+description: "The behavior query transformation prompt Contexa ships. A new version starts from it."
+system: []
+user:
+  - key: precedence
+    title: "Precedence"
+    locked: true
+    when: organization-parts
+    text: |2
+      Some parts of this text were written by your organization. When an instruction your organization wrote conflicts with a fixed rule of Contexa in this text (the original query and the answer), follow the Contexa rule.
+  - key: purpose
+    title: "Purpose"
+    locked: false
+    text: |2
+      Optimize the following query for user behavior pattern analysis:
+  - key: query
+    title: "Original query"
+    locked: true
+    text: |2
+      Original Query: {query}
+  - key: guidelines
+    title: "Optimization Guidelines"
+    locked: false
+    heading: true
+    text: |2
+      1. Include temporal context (last 30 days)
+      2. Add keywords to search for similar behavior patterns
+      3. Reinforce anomaly-related terms
+      4. Consider user role and permission context
+  - key: return-only
+    title: "Answer"
+    locked: true
+    text: |2
+      Return only the optimized query.

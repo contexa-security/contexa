@@ -1,0 +1,25 @@
+[Natural Language Requirements]
+Let managers read documents
+
+[Available Items]
+**Role List:**
+- Team Manager (ID: 101)
+- Document Handler (ID: 102)
+
+**Permission List:**
+- Read documents (ID: 201) [Protects: URL GET /api/documents]
+- Export (ID: 202) [Protects: METHOD  io.contexa.Export.run()]
+- Plain (ID: 203)
+
+**Condition List (You must use only these numeric IDs as keys for the "conditions" field):**
+- ID: 301, Name: Within Business Hours
+- ID: 302, Name: Internal Network
+
+
+[Data]
+IAM data: 3 roles
+
+--- RAG Context (Similar Query Patterns) ---
+similar policy A
+
+Generate a complete PolicyResponse in JSON format.
