@@ -157,6 +157,9 @@
                 return t('zt.console.ui.unit.hours', decimal.format(metric.value));
             case 'COUNT':
                 return count(metric.value);
+            case 'RELEASE_BUCKET':
+                // the user's choice: the release median reads as the bucket it falls in (1~2시간 사이)
+                return t('zt.console.ui.releaseBucket.' + Math.round(metric.value));
             default:
                 return decimal.format(metric.value);
         }

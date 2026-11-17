@@ -123,8 +123,8 @@
                 sub: m('kpi.wait.sub', ZT.metricText(cost.userWaitP95))}),
             ZT.kpi({tone: 'red', icon: 'fa-ban', label: t('zt.console.ui.action.BLOCK'), value: ZT.count(blocks.blocks || 0),
                 sub: m('kpi.blocks.sub', ZT.count(blocks.released || 0), ZT.count(blocks.kept || 0)),
-                title: blocks.releaseMedianHours ? blocks.releaseMedianHours.label + ' '
-                    + ZT.metricText(blocks.releaseMedianHours) : null,
+                title: blocks.releaseMedian ? blocks.releaseMedian.label + ' ' + ZT.metricText(blocks.releaseMedian)
+                    + '. ' + blocks.releaseMedian.description : null,
                 href: decisions({action: 'BLOCK'})}));
     }
 
@@ -183,8 +183,12 @@
                     href: decisions({action: 'BLOCK', outcome: 'ADMIN_RELEASED'})},
                 {label: m('blocks.kept'), value: countShare(blocks.kept, blocks.blocks),
                     href: decisions({action: 'BLOCK', outcome: 'BLOCK_KEPT'})},
-                {label: blocks.releaseMedianHours ? blocks.releaseMedianHours.label : '',
-                    value: ZT.metricText(blocks.releaseMedianHours)}]));
+                {label: blocks.releaseMedian ? blocks.releaseMedian.label : '',
+                    value: blocks.releaseMedian && blocks.releaseMedian.value == null
+                        ? ZT.metricText(blocks.releaseMedian) + ' · ' + ZT.reason(blocks.releaseMedian.noDataReason)
+                        : ZT.metricText(blocks.releaseMedian),
+                    // the definition (design 5): the buckets it is counted in and what it counts
+                    title: blocks.releaseMedian ? blocks.releaseMedian.description : null}]));
         }
         body.push(ZT.valueRows([{label: s('cost.escalations'), value: m('count', ZT.count(cost.escalations || 0)),
             href: decisions({action: 'ESCALATE'})}]));

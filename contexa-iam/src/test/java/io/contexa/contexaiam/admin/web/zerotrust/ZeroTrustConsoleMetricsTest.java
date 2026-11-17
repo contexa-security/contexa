@@ -110,4 +110,30 @@ class ZeroTrustConsoleMetricsTest {
         assertThatThrownBy(() -> ZeroTrustConsoleRange.of("custom", "2025-01-01", "2026-11-14", clock))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    /**
+     * The user's choice (2026-11-17): the release median is the bucket it falls in; of an even count the bucket of the
+     * lower of the two middle values; no release, no bucket and the reason.
+     */
+    @Test
+    void theReleaseMedianIsTheBucketItFallsIn() {
+        // 1, 2 and 3 releases in buckets 2, 3 and 9: the second of three is in bucket 3
+        assertThat(ZeroTrustConsoleMetrics.bucketOf(new long[] {0, 0, 1, 1, 0, 0, 0, 0, 0, 1}, 0.5)).isEqualTo(3);
+        // an even count: the lower middle value (the second of four) is in bucket 3, the third in bucket 9
+        assertThat(ZeroTrustConsoleMetrics.bucketOf(new long[] {0, 0, 1, 1, 0, 0, 0, 0, 0, 2}, 0.5)).isEqualTo(3);
+        assertThat(ZeroTrustConsoleMetrics.bucketOf(new long[] {0, 1, 0, 0, 0, 0, 0, 0, 0, 1}, 0.5)).isEqualTo(1);
+        assertThat(ZeroTrustConsoleMetrics.bucketOf(new long[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 3}, 0.5)).isEqualTo(9);
+        assertThat(ZeroTrustConsoleMetrics.bucketOf(new long[10], 0.5)).isNull();
+
+        MetricValue none = metrics.bucket("releaseMedian", null, 0, ZeroTrustConsoleService.RELEASE_BUCKET,
+                ZeroTrustConsoleMetrics.EMPTY_DENOMINATOR);
+        MetricValue some = metrics.bucket("releaseMedian", 3, 4, ZeroTrustConsoleService.RELEASE_BUCKET,
+                ZeroTrustConsoleMetrics.EMPTY_DENOMINATOR);
+        assertThat(none.value()).isNull();
+        assertThat(none.noDataReason()).isEqualTo(ZeroTrustConsoleMetrics.EMPTY_DENOMINATOR);
+        assertThat(some.value()).isEqualTo(3.0);
+        assertThat(some.numerator()).isEqualTo(4L);
+        assertThat(some.unit()).isEqualTo("RELEASE_BUCKET");
+        assertThat(some.noDataReason()).isNull();
+    }
 }

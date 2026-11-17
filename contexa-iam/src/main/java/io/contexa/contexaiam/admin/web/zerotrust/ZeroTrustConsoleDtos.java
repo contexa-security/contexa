@@ -142,7 +142,11 @@ public final class ZeroTrustConsoleDtos {
                                   RangedMetric passRate) {
     }
 
-    public record BlockOutcome(long blocks, long released, long kept, MetricValue releaseMedianHours) {
+    /**
+     * The blocks with what came of them; the release median is the release time bucket it falls in (unit
+     * {@code RELEASE_BUCKET}, the value its index, the numerator the releases it was read from).
+     */
+    public record BlockOutcome(long blocks, long released, long kept, MetricValue releaseMedian) {
     }
 
     public record ChallengedUser(String user, long challenges, long passed, String mainReason, String baseline) {

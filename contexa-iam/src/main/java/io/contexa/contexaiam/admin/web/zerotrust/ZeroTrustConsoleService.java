@@ -103,6 +103,8 @@ public class ZeroTrustConsoleService {
     static final String SHADOW = "SHADOW";
     static final String ENFORCE = "ENFORCE";
     private static final int TOP = 10;
+    /** The unit of the release median: the index of its release time bucket ({@code zt.console.ui.releaseBucket.n}). */
+    static final String RELEASE_BUCKET = "RELEASE_BUCKET";
 
     private final ZeroTrustConsoleReader reader;
     private final SecurityZeroTrustProperties properties;
@@ -435,11 +437,14 @@ public class ZeroTrustConsoleService {
                 }
             }
         }
-        Long releaseMinutes = ZeroTrustConsoleMetrics.percentile(releases, ZeroTrustConsoleReader.RELEASE_BOUNDS_MINUTES,
-                0.5);
-        Double releaseHours = releaseMinutes == null ? null : releaseMinutes / 60.0;
-        BlockOutcome blockOutcome = new BlockOutcome(blocks, released, kept,
-                metrics.value("releaseMedianHours", releaseHours, "HOURS", ZeroTrustConsoleMetrics.EMPTY_DENOMINATOR));
+        // The user's choice (2026-11-17): the bucket the median falls in, not a number read inside it.
+        long releasedCounted = 0;
+        for (long count : releases) {
+            releasedCounted += count;
+        }
+        BlockOutcome blockOutcome = new BlockOutcome(blocks, released, kept, metrics.bucket("releaseMedian",
+                ZeroTrustConsoleMetrics.bucketOf(releases, 0.5), releasedCounted, RELEASE_BUCKET,
+                ZeroTrustConsoleMetrics.EMPTY_DENOMINATOR));
         LatencyRow wait = latency(range, tenant, null).get("USER_WAIT");
         List<Double> burden = burden(range, tenant, null);
         CostSide cost = new CostSide(funnel, userWait(metrics, "userWaitP50", wait, 0.5),
