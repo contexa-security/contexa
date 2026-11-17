@@ -208,8 +208,7 @@
             return ZT.card(t('pv.trial.changed', ZT.count(0)), null, el('div', {class: 'pc-empty', role: 'note'},
                 el('i', {class: 'fas fa-check', 'aria-hidden': 'true'}), el('p', {text: '— ' + t('pv.trial.noChange')})));
         }
-        const body = el('tbody');
-        result.changed.slice(0, 20).forEach(change => body.append(el('tr', {},
+        const {body, foot} = PV.paged(result.changed, change => el('tr', {},
             el('td', {}, el('div', {class: 'zt-item'}, el('span', {class: 'zt-num', text: ZT.shortTime(change.capturedAt)}),
                 el('span', {class: 'zt-muted pv-cut', title: change.userId || null, text: change.userId || '—'}))),
             el('td', {class: 'zt-fill'}, el('div', {class: 'zt-item'}, change.requestId ? el('a', {class: 'zt-link pv-cut',
@@ -224,14 +223,20 @@
             el('td', {class: 'zt-cell-chips pv-wide'}, ZT.chip(change.referenceAction, PV.actionName(change.referenceAction))),
             el('td', {class: 'zt-cell-chips pv-wide'}, ZT.chip(change.candidateAction, PV.actionName(change.candidateAction))),
             el('td', {class: 'pv-wide'}, el('span', {class: 'pv-cut', title: change.candidateReason || '',
-                text: change.candidateReason || '—'})))));
-        return ZT.card(t('pv.trial.changed', ZT.count(result.changed.length)), t('pv.trial.changedAside'),
+                text: change.candidateReason || '—'}))));
+        return withFoot(foot, ZT.card(t('pv.trial.changed', ZT.count(result.changed.length)), t('pv.trial.changedAside'),
             el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table modern-table'},
                 el('thead', {}, el('tr', {}, ...['when', 'target', 'reference', 'candidate', 'reason'].map(column =>
                     el('th', {scope: 'col', class: (column === 'reason' || column === 'reference' || column === 'candidate'
                         ? 'pv-wide ' : '') + 'pv-keep-case',
                         text: t('pv.trial.column.' + column, result.reference.name, result.candidate.name)})))),
-                body)));
+                body))));
+    }
+
+    /** A card with the pager of its table below it. */
+    function withFoot(foot, card) {
+        card.append(foot);
+        return card;
     }
 
     function nextActions(view, decision) {
@@ -266,35 +271,109 @@
             body)));
     }
 
-    /** Plan 3.9: the shadow runs of the last 7 days paired with the decisions of their requests. */
-    async function shadowCard() {
+    /** The sealed package of a run, opened on the prompt inspection screen where its inspection is. */
+    const EVIDENCE = '/contexa/admin/prompt-inspection/packages/';
+    const SHADOW_DAYS = [1, 7, 30, 90];
+    const OUTCOME_COLUMNS = ['version', 'stage', 'action', 'packages', 'failed', 'passed', 'notInspected'];
+    const COUNT_COLUMNS = ['packages', 'failed', 'passed', 'notInspected'];
+
+    function resultRow(name, value) {
+        return el('div', {class: 'zt-result-row'}, el('span', {class: 'zt-result-name', text: name}),
+            el('span', {class: 'zt-result-value', text: ZT.count(value)}));
+    }
+
+    function versionLink(name) {
+        const number = String(name || '').replace(/^v/, '').split('.')[0];
+        return /^[0-9]+$/.test(number) ? el('a', {class: 'zt-link pv-keep-case', href: PV.page('/' + number), text: name})
+            : el('span', {class: 'pv-keep-case', text: name || '—'});
+    }
+
+    function actionCell(action) {
+        return el('td', {class: 'zt-cell-chips'}, action ? ZT.chip(action, PV.actionName(action)) : '—');
+    }
+
+    function table(head, body) {
+        return el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table modern-table'}, el('thead', {},
+            el('tr', {}, ...head)), body));
+    }
+
+    /**
+     * Plan 3.9: the shadow runs of a period paired with the decisions of their requests, the sealed decisions of the
+     * period per version, stage and action with their latest inspection, and each pair with its sealed packages: what
+     * the release comparison showed.
+     */
+    async function shadowCard(days) {
+        const period = SHADOW_DAYS.includes(days) ? days : 7;
         let shadow;
         try {
-            shadow = await PV.get('/shadow/results', {days: 7});
+            shadow = await PV.get('/shadow/results', {days: period});
         } catch (error) {
             return null;
         }
-        if (!shadow.shadow && !shadow.shadows) {
-            return ZT.card(t('pv.shadow.results'), null, el('div', {class: 'pc-empty', role: 'note'},
-                el('i', {class: 'fas fa-inbox', 'aria-hidden': 'true'}), el('p', {text: '— ' + t('pv.shadow.none')})));
+        const holder = el('div', {class: 'zt-stack'});
+        const choose = el('div', {class: 'zt-period', role: 'group', 'aria-label': t('pv.shadow.period')},
+            ...SHADOW_DAYS.map(value => {
+                const button = el('button', {type: 'button', 'aria-pressed': String(value === period),
+                    text: t('pv.shadow.days', value)});
+                button.addEventListener('click', async () => {
+                    const next = await shadowCard(value);
+                    if (next) {
+                        card.replaceWith(next);
+                    }
+                });
+                return button;
+            }));
+        const card = ZT.card(t('pv.shadow.results'), t('pv.shadow.resultsAside', ZT.count(period), shadow.shadow || '—'),
+            el('div', {class: 'zt-stack'}, choose, holder));
+        const outcomes = shadow.outcomes || [];
+        if (!shadow.shadow && !shadow.shadows && !outcomes.length) {
+            holder.append(el('div', {class: 'pc-empty', role: 'note'},
+                el('i', {class: 'fas fa-inbox', 'aria-hidden': 'true'}),
+                el('p', {text: '— ' + t('pv.shadow.none', ZT.count(period))})));
+            return card;
         }
-        const changes = el('tbody');
-        shadow.changes.forEach(change => changes.append(el('tr', {},
-            el('td', {class: 'zt-cell-chips zt-fill'}, ZT.chip(change.decisionAction, PV.actionName(change.decisionAction))),
-            el('td', {class: 'zt-cell-chips'}, ZT.chip(change.shadowAction, PV.actionName(change.shadowAction))),
-            el('td', {class: 'zt-num', text: ZT.count(change.requests)}))));
-        return ZT.card(t('pv.shadow.results'), t('pv.shadow.resultsAside', shadow.shadow || '—'),
-            el('div', {class: 'zt-result-rows'},
-                el('div', {class: 'zt-result-row'}, el('span', {class: 'zt-result-name', text: t('pv.shadow.runs')}),
-                    el('span', {class: 'zt-result-value', text: ZT.count(shadow.shadows)})),
-                el('div', {class: 'zt-result-row'}, el('span', {class: 'zt-result-name', text: t('pv.shadow.paired')}),
-                    el('span', {class: 'zt-result-value', text: ZT.count(shadow.paired)})),
-                el('div', {class: 'zt-result-row'}, el('span', {class: 'zt-result-name', text: t('pv.shadow.changed')}),
-                    el('span', {class: 'zt-result-value', text: ZT.count(shadow.changed)}))),
-            shadow.changes.length ? el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table modern-table'},
-                el('thead', {}, el('tr', {}, el('th', {scope: 'col', text: t('pv.shadow.decision')}),
-                    el('th', {scope: 'col', text: t('pv.shadow.alongside')}),
-                    el('th', {scope: 'col', class: 'zt-num', text: t('pv.shadow.requests')}))), changes)) : null);
+        holder.append(el('div', {class: 'zt-result-rows'}, resultRow(t('pv.shadow.runs'), shadow.shadows),
+            resultRow(t('pv.shadow.paired'), shadow.paired), resultRow(t('pv.shadow.changed'), shadow.changed)));
+        if (shadow.changes.length) {
+            const changes = el('tbody');
+            shadow.changes.forEach(change => changes.append(el('tr', {},
+                el('td', {class: 'zt-cell-chips zt-fill'}, ZT.chip(change.decisionAction, PV.actionName(change.decisionAction))),
+                actionCell(change.shadowAction),
+                el('td', {class: 'zt-num', text: ZT.count(change.requests)}))));
+            holder.append(table([el('th', {scope: 'col', text: t('pv.shadow.decision')}),
+                el('th', {scope: 'col', text: t('pv.shadow.alongside')}),
+                el('th', {scope: 'col', class: 'zt-num', text: t('pv.shadow.requests')})], changes));
+        }
+        if (outcomes.length) {
+            const body = el('tbody');
+            outcomes.forEach(outcome => body.append(el('tr', {},
+                el('td', {class: 'zt-fill'}, versionLink(outcome.version)),
+                el('td', {text: t('pv.shadow.stage.' + outcome.stage)}),
+                actionCell(outcome.action),
+                ...COUNT_COLUMNS.map(column => el('td', {class: 'zt-num', text: ZT.count(outcome[column])})))));
+            holder.append(el('div', {class: 'zt-subhead', text: t('pv.shadow.outcomes')}),
+                table(OUTCOME_COLUMNS.map(column => el('th', {scope: 'col',
+                    class: COUNT_COLUMNS.includes(column) ? 'zt-num' : null, text: t('pv.shadow.outcome.' + column)})), body));
+        }
+        if ((shadow.cases || []).length) {
+            const body = el('tbody');
+            shadow.cases.forEach(item => body.append(el('tr', {},
+                el('td', {class: 'zt-fill'}, el('span', {class: 'pv-cut', title: item.requestId, text: item.requestId}),
+                    el('div', {class: 'zt-muted', text: ZT.time(item.capturedAt)})),
+                el('td', {class: 'zt-cell-chips'}, versionLink(item.decisionVersion), ' ',
+                    item.decisionAction ? ZT.chip(item.decisionAction, PV.actionName(item.decisionAction)) : null),
+                el('td', {class: 'zt-cell-chips'}, versionLink(item.shadowVersion), ' ',
+                    item.shadowAction ? ZT.chip(item.shadowAction, PV.actionName(item.shadowAction)) : null),
+                el('td', {class: 'pv-row-action'},
+                    item.decisionPackageId ? el('a', {class: 'zt-link', href: EVIDENCE + encodeURIComponent(item.decisionPackageId),
+                        text: t('pv.shadow.decisionSeal')}) : null, ' ',
+                    item.shadowPackageId ? el('a', {class: 'zt-link', href: EVIDENCE + encodeURIComponent(item.shadowPackageId),
+                        text: t('pv.shadow.shadowSeal')}) : null))));
+            holder.append(el('div', {class: 'zt-subhead', text: t('pv.shadow.cases', ZT.count(shadow.cases.length))}),
+                table(['request', 'decision', 'alongside', 'evidence'].map(column =>
+                    el('th', {scope: 'col', text: t('pv.shadow.case.' + column)})), body));
+        }
+        return card;
     }
 
     draw();

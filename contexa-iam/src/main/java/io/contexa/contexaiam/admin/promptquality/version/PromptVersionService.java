@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.promptquality.version;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
@@ -250,7 +251,10 @@ public class PromptVersionService {
         AssembledPrompt baseVersion = assembled(scopeName, base.get().prompt(), base.get().number())
                 .orElseThrow(() -> new IllegalStateException("The base version " + base.get().name()
                         + " cannot be assembled"));
-        PromptAssembler.Check check = assembler.check(baseVersion, document, limit);
+        // The length limit is the decision model's context with the longest recent decision input (plan 3.5, check 4);
+        // another prompt has no such limit to check against (plan 3.11).
+        PromptAssembler.Check check = assembler.check(baseVersion, document,
+                SecurityDecisionPromptDocument.PROMPT.equals(base.get().prompt()) ? limit : null);
         problems.addAll(check.problems());
         return new Checked(base.get(), baseVersion, check, problems);
     }

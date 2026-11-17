@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
@@ -92,8 +93,9 @@ public class PromptVersionConsoleAutoConfiguration {
                                                      ObjectProvider<ZeroTrustConsoleService> decisions,
                                                      ObjectProvider<PromptVersionFolderScanner> folder,
                                                      ObjectProvider<PromptVersionLengthLimits> limits,
-                                                     ObjectProvider<PromptVersionAudit> audit, Environment environment) {
-        return new PromptVersionConsole(versions, trials::getIfAvailable, selector::getIfUnique, () -> jdbcTemplate,
+                                                     ObjectProvider<PromptVersionAudit> audit, Environment environment,
+                                                     ObjectProvider<VersionedPrompts> versionedPrompts) {
+        PromptVersionConsole console = new PromptVersionConsole(versions, trials::getIfAvailable, selector::getIfUnique, () -> jdbcTemplate,
                 releases::getIfAvailable, gate::getIfAvailable, invalidation::getIfAvailable, rollbacks::getIfAvailable,
                 sealed::getIfAvailable, decisions::getIfAvailable, folder::getIfAvailable,
                 environment.getProperty("contexa.prompt.versions.directory"),
@@ -102,6 +104,9 @@ public class PromptVersionConsoleAutoConfiguration {
                     return limit != null ? limit.get() : null;
                 },
                 audit.getIfAvailable(PromptVersionAudit::none), Clock.systemUTC());
+        // Plan 3.11: the prompts other than the security decision show their finished prompt with an example input.
+        console.setVersionedPrompts(versionedPrompts.getIfAvailable());
+        return console;
     }
 
     @Bean(name = "contexaPromptVersionConsoleController")

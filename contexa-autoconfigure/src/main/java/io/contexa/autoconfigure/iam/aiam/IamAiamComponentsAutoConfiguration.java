@@ -16,11 +16,13 @@
 package io.contexa.autoconfigure.iam.aiam;
 
 import io.contexa.contexacore.properties.ContexaRagProperties;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionInUse;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexaiam.aiam.components.prompt.*;
 import io.contexa.contexaiam.aiam.components.retriever.*;
 import io.contexa.contexaiam.aiam.labs.policy.PolicyGenerationVectorService;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -32,26 +34,38 @@ public class IamAiamComponentsAutoConfiguration {
 
     @Bean(name = "contexaPolicyGenerationTemplate")
     @ConditionalOnMissingBean
-    public PolicyGenerationTemplate policyGenerationTemplate() {
-        return new PolicyGenerationTemplate();
+    public PolicyGenerationTemplate policyGenerationTemplate(ObjectProvider<PromptVersionInUse> promptVersions) {
+        PolicyGenerationTemplate template = new PolicyGenerationTemplate();
+        // Plan 3.11: the template draws the version the screens chose for it, else its product document.
+        template.setPromptVersions(promptVersions.getIfAvailable(PromptVersionInUse::productOnly));
+        return template;
     }
 
     @Bean(name = "contexaPolicyGenerationStreamingTemplate")
     @ConditionalOnMissingBean
-    public PolicyGenerationStreamingTemplate policyGenerationStreamingTemplate() {
-        return new PolicyGenerationStreamingTemplate();
+    public PolicyGenerationStreamingTemplate policyGenerationStreamingTemplate(ObjectProvider<PromptVersionInUse> promptVersions) {
+        PolicyGenerationStreamingTemplate template = new PolicyGenerationStreamingTemplate();
+        // Plan 3.11: the template draws the version the screens chose for it, else its product document.
+        template.setPromptVersions(promptVersions.getIfAvailable(PromptVersionInUse::productOnly));
+        return template;
     }
 
     @Bean(name = "contexaResourceNamingTemplate")
     @ConditionalOnMissingBean
-    public ResourceNamingTemplate resourceNamingTemplate() {
-        return new ResourceNamingTemplate();
+    public ResourceNamingTemplate resourceNamingTemplate(ObjectProvider<PromptVersionInUse> promptVersions) {
+        ResourceNamingTemplate template = new ResourceNamingTemplate();
+        // Plan 3.11: the template draws the version the screens chose for it, else its product document.
+        template.setPromptVersions(promptVersions.getIfAvailable(PromptVersionInUse::productOnly));
+        return template;
     }
 
     @Bean(name = "contexaConditionTemplatePromptTemplate")
     @ConditionalOnMissingBean
-    public ConditionTemplatePromptTemplate conditionTemplatePromptTemplate() {
-        return new ConditionTemplatePromptTemplate();
+    public ConditionTemplatePromptTemplate conditionTemplatePromptTemplate(ObjectProvider<PromptVersionInUse> promptVersions) {
+        ConditionTemplatePromptTemplate template = new ConditionTemplatePromptTemplate();
+        // Plan 3.11: the template draws the version the screens chose for it, else its product document.
+        template.setPromptVersions(promptVersions.getIfAvailable(PromptVersionInUse::productOnly));
+        return template;
     }
 
     @Bean(name = "contexaPolicyGenerationContextRetriever")

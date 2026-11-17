@@ -248,18 +248,23 @@
             return ZT.card(t('pv.history.title'), t('pv.history.aside'), el('div', {class: 'pc-empty', role: 'note'},
                 el('i', {class: 'fas fa-inbox', 'aria-hidden': 'true'}), el('p', {text: '— ' + t('pv.history.none')})));
         }
-        const body = el('tbody');
-        view.history.slice(0, 20).forEach(row => body.append(el('tr', {},
+        const {body, foot} = PV.paged(view.history, row => el('tr', {},
             el('td', {class: 'zt-num', text: ZT.shortTime(row.at)}),
             el('td', {class: 'pv-wide', text: actorOf(row.actor)}),
             el('td', {class: 'zt-fill'}, el('div', {class: 'zt-item'}, el('span', {class: 'pv-cut', text: t('pv.history.action',
                 PV.word('pv.history.' + row.action, t('pv.history.other')), row.version || '—')}),
             el('span', {class: 'zt-muted pv-cut pv-narrow', text: actorOf(row.actor) + ' · ' + reasonOf(row)}))),
-            el('td', {class: 'pv-wide'}, el('span', {class: 'pv-cut', title: reasonOf(row), text: reasonOf(row)})))));
-        return ZT.card(t('pv.history.title'), t('pv.history.aside'), el('div', {class: 'zt-table-wrap'},
+            el('td', {class: 'pv-wide'}, el('span', {class: 'pv-cut', title: reasonOf(row), text: reasonOf(row)}))));
+        return withFoot(foot, ZT.card(t('pv.history.title'), t('pv.history.aside'), el('div', {class: 'zt-table-wrap'},
             el('table', {class: 'zt-table modern-table'}, el('thead', {}, el('tr', {}, ...['at', 'actor', 'action', 'reason']
                 .map(column => el('th', {scope: 'col', class: column === 'actor' || column === 'reason' ? 'pv-wide' : null,
-                    text: t('pv.history.column.' + column)})))), body)));
+                    text: t('pv.history.column.' + column)})))), body))));
+    }
+
+    /** A card with the pager of its table below it. */
+    function withFoot(foot, card) {
+        card.append(foot);
+        return card;
     }
 
     /** The reason of a history row; a version made says where it came from in words (the record keeps the code). */

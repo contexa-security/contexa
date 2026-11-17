@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.promptquality.version;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionContext;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
@@ -45,6 +46,8 @@ import java.util.function.Supplier;
  * names an earlier bundle is logged once as a warning whatever runs. A label or a setting that names an earlier bundle
  * is not a version: earlier bundles are gone. The resolver is the decision's selector in every installation with the
  * console's database; without the registry (prompt governance turned off) it reads the setting and the newest version.
+ * A prompt other than the security decision (plan 3.11) runs its label, else its newest Contexa version: the setting
+ * names a version of the security decision.
  */
 public class PromptVersionResolver implements PromptBundleSelector {
 
@@ -81,7 +84,9 @@ public class PromptVersionResolver implements PromptBundleSelector {
         if (prompt == null || prompt.isBlank()) {
             return PromptBundleSelection.none();
         }
-        String configuredName = configured.get();
+        // The setting names a version of the security decision; another prompt runs its label, else its newest Contexa
+        // version (plan 3.11).
+        String configuredName = SecurityDecisionPromptDocument.PROMPT.equals(prompt) ? configured.get() : null;
         String setting = configuredName != null && !configuredName.isBlank() ? configuredName.trim() : null;
         if (setting != null && PromptVersionNames.number(setting).isEmpty() && warned.add(prompt + "|" + setting)) {
             // Plan 3.4: a setting that names an earlier bundle is said once, whatever runs.

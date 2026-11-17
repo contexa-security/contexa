@@ -145,7 +145,10 @@
             }
         };
         draft.system.forEach((part, index) => {
-            if (!part.editable) {
+            if (part.included) {
+                flush();
+                list.append(includedInBase(part, index + 1));
+            } else if (!part.editable) {
                 run.push({part, position: index + 1});
             } else {
                 flush();
@@ -184,6 +187,29 @@
             }
         });
         return last;
+    }
+
+    /** Plan 3.5: a prepared part the base put in stays in the next version unless it is taken out again. */
+    function includedInBase(part, position) {
+        const key = 'SYSTEM:' + part.key;
+        const out = state.edits[key] && state.edits[key].action === 'DELETE';
+        const details = el('details', {class: 'pv-part', 'data-pv-part': part.key, 'data-pv-mark': out ? 'DELETED' : 'INCLUDED'},
+            el('summary', {class: 'pv-part-head'},
+                el('span', {class: 'pv-part-title pv-cut', text: position + ' ' + PV.partName(part)}),
+                el('span', {class: 'zt-muted pv-part-summary', text: t(out ? 'pv.new.takenOut' : 'pv.new.includedInBase')}),
+                el('span', {class: 'status-badge zt-chip pv-mark', 'data-pv-mark': out ? 'DELETED' : 'INCLUDED',
+                    text: t(out ? 'pv.mark.DELETED' : 'pv.mark.INCLUDED')})));
+        PV.fold(details, el('div', {class: 'pv-part-body'}, PV.textBox(part.text),
+            el('div', {class: 'pv-actions'}, PV.button(out ? t('pv.new.putBack') : t('pv.new.takeOutNext'),
+                out ? 'fa-undo' : 'fa-minus', () => {
+                    if (out) {
+                        delete state.edits[key];
+                    } else {
+                        state.edits[key] = {action: 'DELETE'};
+                    }
+                    redraw();
+                }, {name: 'take-out'}))));
+        return el('li', {}, details);
     }
 
     function lockedRun(run) {

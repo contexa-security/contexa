@@ -1,0 +1,10 @@
+[Natural Language Requirements]
+From the parameter
+
+[Available Items]
+No available item information was provided.
+
+[Data]
+rag only
+
+Generate a complete PolicyResponse in JSON format.

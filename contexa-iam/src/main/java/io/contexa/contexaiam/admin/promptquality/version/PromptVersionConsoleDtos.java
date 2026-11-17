@@ -55,7 +55,12 @@ public final class PromptVersionConsoleDtos {
     }
 
     /** A product version newer than the one the version in use stands on. */
-    public record NewProduct(String version, int number, String usedVersion, String usedBase) {
+    /**
+     * A product version newer than the one the version in use stands on (plan 3.3): {@code carry} when the version in
+     * use is the organization's, whose changes are carried onto it; otherwise the version in use is an older Contexa
+     * one, which keeps running until the newer one is used.
+     */
+    public record NewProduct(String version, int number, String usedVersion, String usedBase, boolean carry) {
     }
 
     /**
@@ -94,8 +99,12 @@ public final class PromptVersionConsoleDtos {
      * The finished prompt: the system text the version draws, the output format, and the user prompt of the latest
      * sealed decision with the version it was drawn with.
      */
+    /**
+     * The finished prompt of a version: the security decision's with a recent sealed decision's user prompt; another
+     * prompt's drawn with its fixed example input (plan 3.11, {@code example}).
+     */
     public record Preview(String system, String format, String user, String requestId, Instant capturedAt,
-                          String drawnWith, boolean drawnWithThisVersion, List<PartView> addedBlocks) {
+                          String drawnWith, boolean drawnWithThisVersion, List<PartView> addedBlocks, boolean example) {
     }
 
     public record Size(int systemTokens, Integer baseSystemTokens) {
@@ -115,8 +124,13 @@ public final class PromptVersionConsoleDtos {
      * @param productText the text of the part in the product version, for "back to the product default"
      * @param editable    whether the organization may change or delete it
      */
+    /**
+     * A part of the base on the new version screen; {@code included} for a prepared part the base put in, which the
+     * next version may take out again (plan 3.5).
+     */
     public record DraftPart(String list, String key, String title, String group, boolean locked, boolean prepared,
-                            String when, String text, String productText, List<ItemView> items, boolean editable) {
+                            String when, String text, String productText, List<ItemView> items, boolean editable,
+                            boolean included) {
     }
 
     /** A change of the version in use carried onto a newer product version, and whether it can be. */
@@ -209,14 +223,23 @@ public final class PromptVersionConsoleDtos {
     public record ActionChange(String decisionAction, String shadowAction, long requests) {
     }
 
-    /** A shadow run paired with the decision of its request. */
+    /** A shadow run paired with the decision of its request, with the sealed packages of both. */
     public record ShadowCase(String requestId, Instant capturedAt, String shadowVersion, String shadowAction,
-                             String decisionVersion, String decisionAction) {
+                             String decisionVersion, String decisionAction, String shadowPackageId,
+                             String decisionPackageId) {
+    }
+
+    /**
+     * Plan 3.9: the sealed decisions of the period of one version at one stage (the applied decision or a shadow run)
+     * with one action, and how their latest inspection came out.
+     */
+    public record StageOutcome(String version, String stage, String action, long packages, long failed, long passed,
+                               long notInspected) {
     }
 
     /** The shadow runs of the period paired with their decisions ("results of running alongside"). */
     public record ShadowResults(String shadow, Instant from, Instant to, long shadows, long paired, long changed,
-                                List<ActionChange> changes, List<ShadowCase> cases) {
+                                List<ActionChange> changes, List<ShadowCase> cases, List<StageOutcome> outcomes) {
     }
 
     // ----- advanced (screen 5) -----

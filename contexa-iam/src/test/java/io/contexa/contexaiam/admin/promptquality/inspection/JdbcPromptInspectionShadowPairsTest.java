@@ -83,6 +83,39 @@ class JdbcPromptInspectionShadowPairsTest {
         assertThat(queries.shadowPairs(FROM, TO, List.of(V19))).isEmpty();
     }
 
+    /**
+     * K60: a sealed decision of a prompt version names the version in {@code promptVersionName}; its descriptor names
+     * the release every version shares. The pairs and the outcomes are found by the version, an older package by its
+     * bundle.
+     */
+    @Test
+    void aVersionIsFoundByItsNameNotByTheReleaseItsDescriptorShares() {
+        String release = "2026.11.16-v1.0";
+        sealVersion("d-v1", "req-v", T0.plusSeconds(200), release, "v1.0", "{\"action\":\"ALLOW\"}");
+        sealVersion("s-v2", "shadow-v", T0.plusSeconds(205), release, "v2.0", shadow("CHALLENGE", "req-v"));
+
+        List<JdbcPromptInspectionQueries.ShadowPair> pairs = queries.shadowPairs(FROM, TO, List.of("v1.0", "v2.0"));
+
+        assertThat(pairs).containsExactly(new JdbcPromptInspectionQueries.ShadowPair("req-v", T0.plusSeconds(205),
+                "s-v2", "v2.0", "CHALLENGE", "d-v1", "v1.0", "ALLOW"));
+        assertThat(queries.bundleOutcomes(FROM, TO, List.of("v1.0", "v2.0")))
+                .extracting(outcome -> outcome.bundleVersion() + " " + outcome.stage() + " " + outcome.action() + " "
+                        + outcome.packages())
+                .containsExactly("v1.0 DECISION ALLOW 1", "v2.0 SHADOW CHALLENGE 1");
+        assertThat(queries.shadowPairs(FROM, TO, List.of(release))).as("the shared release is no version").isEmpty();
+    }
+
+    private void sealVersion(String packageId, String correlationId, Instant capturedAt, String release, String version,
+                             String decision) {
+        jdbc.update("""
+                        insert into ctxa_sealed_evidence_package (package_id, correlation_id, captured_at,
+                               prompt_execution_metadata_json, decision_json, package_hash)
+                        values (?, ?, ?, ?, ?, ?)
+                        """, packageId, correlationId, Timestamp.from(capturedAt),
+                "{\"governanceDescriptor\":{\"promptBundleVersion\":\"" + release + "\"},\"promptVersionName\":\""
+                        + version + "\"}", decision, "hash");
+    }
+
     private static String shadow(String action, String originalRequestId) {
         return "{\"action\":\"" + action + "\",\"decisionAppliedStage\":\"SHADOW\",\""
                 + PromptShadowRun.ORIGINAL_REQUEST_ID + "\":\"" + originalRequestId + "\"}";

@@ -133,7 +133,7 @@
         const views = [
             {label: t('pv.version.tab.system', ZT.count(view.system.length)), node: systemParts(view)},
             {label: t('pv.version.tab.user', ZT.count(view.user.length)), node: userBlocks(view)}];
-        if (view.decisionPrompt) {
+        if (view.decisionPrompt || (view.preview && view.preview.example)) {
             views.push({label: t('pv.version.tab.preview'), node: preview(view)});
         }
         return ZT.tabbedCard(t('pv.version.parts'), t('pv.version.partsAside'), views);
@@ -236,6 +236,15 @@
     /** The finished prompt: the system text this version draws, the output format, the latest real user prompt. */
     function preview(view) {
         const shown = view.preview || {};
+        if (shown.example) {
+            // Plan 3.11: a prompt other than the security decision, drawn with its fixed example input.
+            return el('div', {class: 'zt-stack'},
+                el('p', {class: 'zt-muted', text: t('pv.preview.example')}),
+                shown.system ? el('div', {class: 'zt-item'}, el('strong', {text: t('pv.preview.system')}),
+                    PV.textBox(shown.system, t('pv.preview.system'))) : null,
+                el('div', {class: 'zt-item'}, el('strong', {text: t('pv.preview.user')}),
+                    PV.textBox(shown.user, t('pv.preview.user'))));
+        }
         const nodes = [el('div', {class: 'zt-item'}, el('strong', {text: t('pv.preview.system')}),
             PV.textBox(shown.system, t('pv.preview.system'))),
         el('div', {class: 'zt-item'}, el('strong', {text: t('pv.preview.format')}),

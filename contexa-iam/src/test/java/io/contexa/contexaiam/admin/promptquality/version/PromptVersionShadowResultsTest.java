@@ -61,6 +61,9 @@ class PromptVersionShadowResultsTest {
                 pair("r5", "ALLOW", null, null), pair("r6", "ESCALATE", "d6", "CHALLENGE"));
         JdbcPromptInspectionQueries queries = mock(JdbcPromptInspectionQueries.class);
         when(queries.shadowPairs(any(), any(), any())).thenReturn(pairs);
+        when(queries.bundleOutcomes(any(), any(), any())).thenReturn(List.of(
+                new JdbcPromptInspectionQueries.BundleOutcome("v2.0", "DECISION", "ALLOW", 5, 0, 4, 1),
+                new JdbcPromptInspectionQueries.BundleOutcome("v3.0", "SHADOW", "CHALLENGE", 3, 1, 1, 1)));
         PromptVersionService versions = mock(PromptVersionService.class);
         when(versions.prompts()).thenReturn(List.of("cortex.security-decision"));
         when(versions.list(any(), any(), anyBoolean())).thenReturn(List.of(version(3), version(2)));
@@ -77,5 +80,12 @@ class PromptVersionShadowResultsTest {
                 + change.requests()).containsExactly("ALLOW>CHALLENGE=2", "ALLOW>ALLOW=1", "BLOCK>BLOCK=1",
                 "CHALLENGE>ESCALATE=1");
         assertThat(results.cases()).extracting(ShadowCase::requestId).containsExactly("r2", "r3", "r6", "r1", "r4");
+        // Plan 3.9 (K56): each pair keeps its sealed packages, and the sealed decisions are counted per version, stage
+        // and action with their inspection, as the release comparison showed them.
+        assertThat(results.cases().get(0).shadowPackageId()).isEqualTo("shadow-r2");
+        assertThat(results.cases().get(0).decisionPackageId()).isEqualTo("d2");
+        assertThat(results.outcomes()).extracting(outcome -> outcome.version() + " " + outcome.stage() + " "
+                + outcome.action() + " " + outcome.packages() + "/" + outcome.failed() + "/" + outcome.passed() + "/"
+                + outcome.notInspected()).containsExactly("v2.0 DECISION ALLOW 5/0/4/1", "v3.0 SHADOW CHALLENGE 3/1/1/1");
     }
 }

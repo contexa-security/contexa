@@ -1,0 +1,20 @@
+Generate exactly 3 universal conditions only:
+
+1. User Authentication Status Check - isAuthenticated()
+2. Administrator Role Check - hasRole('ROLE_ADMIN')
+3. Business Hours Access Restriction - T(java.time.LocalTime).now().hour >= 9 && T(java.time.LocalTime).now().hour <= 18
+
+Strictly prohibited:
+- Generating 4 or more
+- Using hasPermission() (prohibited in universal conditions)
+- Using non-existent parameters
+- Outputting descriptive text
+- ```json code blocks
+- Preambles like "Sure", "Here is"
+
+Output requirements:
+- Exactly 3 universal conditions (key: condition identifier, value: condition information object)
+- All text in English
+- Never use the word "permission"
+
+Generate in JSON format.
