@@ -104,6 +104,16 @@ public class SealedDecisionReplayStrategy extends AbstractTieredStrategy {
                 .block(timeout);
     }
 
+    /**
+     * Plan 3.10 (2): the request a replay of the first pass hands the pipeline, with the sealed inputs restored and the
+     * version fixed on the event; the engine's prompt template draws from it the prompts the replay's model call gets,
+     * so they can be shown without the call.
+     */
+    public SecurityDecisionRequest request(SealedDecisionReplayInputs inputs, String bundleVersion) {
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = prepare(inputs, bundleVersion);
+        return buildSecurityDecisionRequest(inputs.event(), inputs.session(), analysis, inputs.documents());
+    }
+
     /** Restores the sealed inputs on the event with the bundle fixed and returns the behaviour analysis drawn. */
     private SecurityDecisionStandardPromptTemplate.BehaviorAnalysis prepare(SealedDecisionReplayInputs inputs,
                                                                             String bundleVersion) {

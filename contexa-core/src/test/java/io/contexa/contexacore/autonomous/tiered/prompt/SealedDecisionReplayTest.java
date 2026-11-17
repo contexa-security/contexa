@@ -166,6 +166,89 @@ class SealedDecisionReplayTest {
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("v9.0");
     }
 
+    /**
+     * K57 and plan 3.10 (2): a replay of a version that adds a block to the user prompt draws the block at its place,
+     * and the drawing of a sealed decision gives the prompts the replay asks with, without asking the model; with the
+     * product version it gives the prompt the decision was drawn with (the golden prompt).
+     */
+    @Test
+    void aDrawingIsThePromptAReplayAsksWithTheBlocksItsVersionAdds() {
+        AssembledPrompt version = new PromptAssembler().apply(SecurityDecisionPromptDocument.product(),
+                new PromptVersionDocumentReader().read("""
+                        prompt: cortex.security-decision
+                        basedOn: v1.0
+                        title: Finance
+                        user:
+                          - key: org-closing
+                            add-after: REQUEST
+                            title: Finance closing
+                            text: |
+                              Finance staff export the ledger on the last two business days of a month.
+                        """));
+        String block = "=== Finance closing (reference written by your organization) ===\n"
+                + "Finance staff export the ledger on the last two business days of a month.\n";
+        PromptVersionStore store = (prompt, name) -> "v2.0".equals(name) ? Optional.of(version)
+                : SecurityDecisionPromptDocument.productStore().find(prompt, name);
+        JsonNode goldenCase = goldenCase("A3");
+        String golden = SecurityDecisionGoldenRender.load()
+                .render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, new TieredStrategyProperties())
+                .userText();
+
+        Drawing replayed = replay(goldenCase, List.of(), "ALLOW", "v2.0", store);
+        write("A3-organization-replayed.txt", replayed.userPrompts.isEmpty() ? "" : replayed.userPrompts.get(0));
+        assertThat(replayed.userPrompts).singleElement()
+                .isEqualTo(SecurityDecisionOrganizationBlocksTest.insertedAfter(golden, "REQUEST", block));
+
+        SealedDecisionReplayService.Drawing drawn = draw(goldenCase, " v2.0 ", store);
+        assertThat(drawn.userPrompt()).isEqualTo(replayed.userPrompts.get(0));
+        assertThat(drawn.systemPrompt()).isEqualTo(replayed.systemPrompts.get(0));
+        assertThat(drawn.version()).isEqualTo("v2.0");
+        assertThat(drawn.contentHash()).isEqualTo(version.contentHash());
+        assertThat(drawn.packageId()).isEqualTo(goldenCase.path("source").path("packageId").asText());
+
+        SealedDecisionReplayService.Drawing product = draw(goldenCase, SecurityDecisionPromptBundles.V1.version(), null);
+        assertThat(product.userPrompt()).isEqualTo(golden);
+        assertThat(product.systemPrompt()).isEqualTo(replay(goldenCase).systemPrompts.get(0));
+        assertThat(product.contentHash()).isEqualTo(SecurityDecisionPromptDocument.product().contentHash());
+        assertThatThrownBy(() -> draw(goldenCase, "v9.0", store))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("v9.0");
+    }
+
+    /** The drawing through the replay service, with a pipeline that fails the test when it is asked. */
+    private static SealedDecisionReplayService.Drawing draw(JsonNode goldenCase, String release,
+                                                           PromptVersionStore store) {
+        TimeZone original = TimeZone.getDefault();
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+        try {
+            TieredStrategyProperties properties = new TieredStrategyProperties();
+            SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                    new SecurityDecisionPromptSections(new SecurityEventEnricher(), properties,
+                            event -> Optional.empty(), new PromptContextComposer(), null, null, null));
+            template.setPromptVersionStore(store);
+            List<String> asked = new ArrayList<>();
+            PipelineOrchestrator pipeline = new PipelineOrchestrator(List.of()) {
+                @Override
+                public <T extends DomainContext, R extends AIResponse> Mono<R> execute(
+                        AIRequest<T> request, PipelineConfiguration config, Class<R> responseType) {
+                    asked.add(String.valueOf(request.getPromptTemplate()));
+                    return Mono.error(new IllegalStateException("A drawing asks no model"));
+                }
+            };
+            SealedDecisionReplayService service = new SealedDecisionReplayService(template, pipeline,
+                    new BaselineLearningService(null, new SecurityZeroTrustProperties()), properties,
+                    StructuredOutputCapabilityRegistry.defaultRegistry(), () -> null,
+                    null, "OBSERVE", new CanonicalSecurityContextSerializer(MAPPER), MAPPER);
+            SealedDecisionReplayService.Drawing drawn = service.draw(sealed(goldenCase),
+                    vector(goldenCase.path("learningEvidence").path("personalBaseline")),
+                    vector(goldenCase.path("learningEvidence").path("organizationBaseline")), release);
+            assertThat(asked).as("the model is not asked").isEmpty();
+            return drawn;
+        }
+        finally {
+            TimeZone.setDefault(original);
+        }
+    }
+
     private static JsonNode goldenCase(String caseKey) {
         return SecurityDecisionGoldenRender.load().cases().stream()
                 .filter(item -> item.path("caseKey").asText().equals(caseKey)).findFirst().orElseThrow();

@@ -295,6 +295,74 @@ public final class SecurityDecisionPromptDocument {
     }
 
     /**
+     * The source the header of a block an organization added to the user prompt names (plan 3.5): the organization's
+     * own reference, not text of the engine and not untrusted text.
+     */
+    static final String ORGANIZATION_BLOCK_SOURCE = "reference written by your organization";
+    /** The mark either side of a title or a line of an organization's block that would read as an engine header. */
+    private static final String QUOTE = "\"";
+
+    /**
+     * Plan 3.5 and 3.8 (4): the blocks an organization added to the user prompt of a version, drawn, by the block of the
+     * engine they follow: each right after the block its document names, and the blocks added after the same block or
+     * after one another in the order of the version. A block is drawn in the form of the engine's blocks, a header line
+     * with its title and its source ({@code === Title (reference written by your organization) ===}), then its text.
+     * Its lines are none of the dictionary's: they carry no fact id, so no reason code can cite them, and the response
+     * check, which reads the lines of the engine's blocks, reads none of them. A title or a line the engine would read
+     * as the header of one of its own blocks is drawn in quotes, so that only the engine's blocks are read as such.
+     *
+     * <p>The blocks are drawn exactly when the version draws the precedence sentence (the condition
+     * {@link AssembledPrompt#ORGANIZATION_PARTS}), which says a fixed rule of Contexa wins over what the organization
+     * wrote; the product version draws none, so its prompt stays the one it was.</p>
+     */
+    static Map<PromptBlock, List<String>> organizationBlocks(AssembledPrompt version) {
+        if (version == null || !version.holding(Set.of()).contains(AssembledPrompt.ORGANIZATION_PARTS)) {
+            return Map.of();
+        }
+        Map<PromptBlock, List<String>> blocks = new EnumMap<>(PromptBlock.class);
+        PromptBlock after = null;
+        for (PromptVersionDocument.Part block : version.user()) {
+            if (block.action() != PromptVersionDocument.Action.ADD) {
+                after = engineBlock(block.key()).orElse(after);
+                continue;
+            }
+            // An added block follows a block of its base: the check before a save refuses any other place.
+            if (after != null) {
+                blocks.computeIfAbsent(after, ignored -> new ArrayList<>()).add(organizationBlock(block));
+            }
+        }
+        Map<PromptBlock, List<String>> drawn = new EnumMap<>(PromptBlock.class);
+        blocks.forEach((block, texts) -> drawn.put(block, List.copyOf(texts)));
+        return Map.copyOf(drawn);
+    }
+
+    private static Optional<PromptBlock> engineBlock(String key) {
+        for (PromptBlock block : PromptBlock.values()) {
+            if (block.name().equals(key)) {
+                return Optional.of(block);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** One block an organization added, drawn: its header line, then its text with a line break at the end. */
+    private static String organizationBlock(PromptVersionDocument.Part block) {
+        String title = block.title() != null ? block.title().replaceAll("\\s+", " ").strip() : "";
+        List<String> source = List.of(ORGANIZATION_BLOCK_SOURCE);
+        String header = PromptBlock.headerLine(title, source);
+        if (PromptBlock.isBlockHeaderLine(header)) {
+            header = PromptBlock.headerLine(QUOTE + title + QUOTE, source);
+        }
+        StringBuilder drawn = new StringBuilder(header);
+        String text = block.text() != null ? block.text().replace("\r\n", "\n").replace('\r', '\n') : "";
+        text = text.replaceFirst("^(?:[ \\t]*\\n)+", "").stripTrailing();
+        for (String line : text.split("\n", -1)) {
+            drawn.append(PromptBlock.isBlockHeaderLine(line) ? QUOTE + line.strip() + QUOTE : line).append('\n');
+        }
+        return drawn.toString();
+    }
+
+    /**
      * The lines of the reason code part: each code with its meaning from the document and the lines it may cite, as
      * the engine names them ({@code - CODE: meaning; Line, Line}).
      *

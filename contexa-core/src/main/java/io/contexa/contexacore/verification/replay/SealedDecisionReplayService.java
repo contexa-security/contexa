@@ -22,6 +22,8 @@ import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.tiered.prompt.PastRecordLineValues;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.strategy.SealedDecisionReplayStrategy;
@@ -121,6 +123,49 @@ public class SealedDecisionReplayService {
     public record SecondPass(String requestedModel, String action, String reason,
                              List<SecurityDecisionOutputContract.Citation> reasonCodes, Object hypotheses,
                              Object unresolvedFindings, Map<String, Object> telemetry, long elapsedMs, String failure) {
+    }
+
+    /**
+     * The prompts a sealed decision draws with a version, the model not asked (plan 3.10 (2): the finished prompt of
+     * the version screen).
+     *
+     * @param packageId    the sealed package the prompts were drawn from
+     * @param version      the version they were drawn with ({@code v2.0}, or a bundle this build runs)
+     * @param contentHash  the content hash of that version
+     * @param systemPrompt the system prompt as the replay's model call gets it, with the output format when the call
+     *                     does not carry the schema itself
+     * @param userPrompt   the user prompt of the first pass with the sealed decision's values, with the blocks the
+     *                     version adds at their places
+     */
+    public record Drawing(String packageId, String version, String contentHash, String systemPrompt,
+                          String userPrompt) {
+    }
+
+    /**
+     * Plan 3.10 (2): the first pass prompts the sealed inputs draw with the version, on the baselines the caller gives,
+     * as a replay draws them for its model call (the same sealed inputs, first-layer request options, template and
+     * version fixed on the event), but without the call: nothing is asked, applied, learned or sealed.
+     *
+     * @throws IllegalArgumentException when the version is none this server can draw
+     */
+    public Drawing draw(SealedEvidencePackage sealed, BaselineVector personalBaseline,
+                        BaselineVector organizationBaseline, String version) {
+        String name = version != null ? version.trim() : null;
+        if (!replayable(name)) {
+            throw new IllegalArgumentException(PromptBundleCatalog.isVersionName(name)
+                    ? "Version " + name + " is not a version this server can draw"
+                    : "Bundle " + name + " is not a bundle this build runs");
+        }
+        SealedDecisionReplayInputs inputs = SealedDecisionReplayInputs.of(sealed,
+                SealedDecisionReplayInputs.REPLAY_ID_PREFIX + UUID.randomUUID(), objectMapper, serializer);
+        SecurityDecisionRequest request = strategy(SealedDecisionReplayStrategy.FIRST_LAYER, personalBaseline,
+                organizationBaseline).request(inputs, name);
+        String systemPrompt = promptTemplate.generateSystemPrompt(request, null);
+        String userPrompt = promptTemplate.generateUserPrompt(request, null);
+        Object contentHash = inputs.event().getMetadata() != null
+                ? inputs.event().getMetadata().get(SecurityDecisionPromptSections.EVENT_BUNDLE_CONTENT_HASH) : null;
+        return new Drawing(sealed.getPackageId(), name, contentHash != null ? String.valueOf(contentHash) : null,
+                systemPrompt, userPrompt);
     }
 
     public Result replay(SealedEvidencePackage sealed, BaselineVector personalBaseline,

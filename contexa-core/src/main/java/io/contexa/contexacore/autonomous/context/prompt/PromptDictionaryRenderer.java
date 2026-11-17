@@ -95,6 +95,19 @@ public final class PromptDictionaryRenderer {
      * entry is not drawn at all, not even with its missing notation, and is not named as unknown.
      */
     public PromptDictionaryRendering render(PromptEntryValues values, Set<PromptDictionaryEntry> withheld) {
+        return render(values, withheld, Map.of());
+    }
+
+    /**
+     * As {@link #render(PromptEntryValues, Set)}, with texts drawn after a block (plan 3.5: the blocks an organization
+     * added to the user prompt of its version): each after a blank line, in their order, right after the block, and at
+     * the block's place when the block draws no line. A text is drawn as it is given: it holds no entry, no fact id and
+     * no slot of the dictionary.
+     *
+     * @param after the texts that follow each block, each with its own header line
+     */
+    public PromptDictionaryRendering render(PromptEntryValues values, Set<PromptDictionaryEntry> withheld,
+                                            Map<PromptBlock, List<String>> after) {
         Map<PromptUnknownKind, TreeMap<String, String>> unknowns = new EnumMap<>(PromptUnknownKind.class);
         Map<PromptDictionaryEntry, List<String[]>> drawn = new LinkedHashMap<>();
         PromptDictionaryEntry unknownEntry = null;
@@ -152,20 +165,33 @@ public final class PromptDictionaryRenderer {
                     clocked |= values.clocked(entry);
                 }
             }
-            if (blockSlots.isEmpty()) {
-                continue;
+            if (!blockSlots.isEmpty()) {
+                if (text.length() > 0) {
+                    text.append('\n');
+                }
+                String grade = block != PromptBlock.UNKNOWN && grades.size() == 1
+                        ? grades.iterator().next().word() : null;
+                // Dictionary 1.1: a block that drew a value on the event clock names the clock's time zone once (W3-13).
+                String zone = clocked && values.timeZone() != null ? "time zone " + values.timeZone().getId() : null;
+                String title = titles.containsKey(block) ? titles.get(block)
+                        : v21Titles ? block.v21Title() : block.title();
+                text.append(header(block, title, grade,
+                        values.headerQualifier(block), zone)).append(body);
+                slots.addAll(blockSlots);
+                blocks.add(block);
             }
-            if (!blocks.isEmpty()) {
-                text.append('\n');
+            for (String following : after != null ? after.getOrDefault(block, List.of()) : List.<String>of()) {
+                if (!StringUtils.hasText(following)) {
+                    continue;
+                }
+                if (text.length() > 0) {
+                    text.append('\n');
+                }
+                text.append(following);
+                if (!following.endsWith("\n")) {
+                    text.append('\n');
+                }
             }
-            String grade = block != PromptBlock.UNKNOWN && grades.size() == 1 ? grades.iterator().next().word() : null;
-            // Dictionary 1.1: a block that drew a value on the event clock names the clock's time zone once (W3-13).
-            String zone = clocked && values.timeZone() != null ? "time zone " + values.timeZone().getId() : null;
-            String title = titles.containsKey(block) ? titles.get(block) : v21Titles ? block.v21Title() : block.title();
-            text.append(header(block, title, grade,
-                    values.headerQualifier(block), zone)).append(body);
-            slots.addAll(blockSlots);
-            blocks.add(block);
         }
         return new PromptDictionaryRendering(text.toString(), List.copyOf(slots), List.copyOf(blocks),
                 List.copyOf(unknownNames), unknownFacts(unknowns), Collections.unmodifiableMap(factIds));

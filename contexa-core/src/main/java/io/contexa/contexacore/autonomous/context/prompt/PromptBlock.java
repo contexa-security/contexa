@@ -77,8 +77,22 @@ public enum PromptBlock {
 
     /** The header line under one of the block's titles ({@link #titles()}), with its qualifiers and line break. */
     public String header(String drawnTitle, List<String> qualifiers) {
+        return headerLine(drawnTitle, qualifiers);
+    }
+
+    /**
+     * A header line in the form of the blocks' headers with its line break, under any title: the one form a block an
+     * organization added to the user prompt is drawn with as well (plan 3.5).
+     */
+    public static String headerLine(String drawnTitle, List<String> qualifiers) {
         return HEADER_MARK + " " + drawnTitle + (qualifiers.isEmpty() ? "" : " (" + String.join("; ", qualifiers) + ")")
                 + " " + HEADER_MARK + "\n";
+    }
+
+    /** Whether a prompt line, as any reader of the prompt strips it, is the header of one of these blocks. */
+    public static boolean isBlockHeaderLine(String line) {
+        String stripped = line != null ? line.strip() : null;
+        return isHeaderLine(stripped) && fromSectionKey(stripped).isPresent();
     }
 
     /** Whether a prompt line is a block header as {@link #header} draws it. */
