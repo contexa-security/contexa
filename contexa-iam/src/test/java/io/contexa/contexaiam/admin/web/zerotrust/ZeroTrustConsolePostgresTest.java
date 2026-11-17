@@ -779,6 +779,102 @@ class ZeroTrustConsolePostgresTest {
                 .containsExactlyInAnyOrder("allow-0", "challenge-1");
     }
 
+    /**
+     * K87: a number of a screen counts whole hours from the hour its period starts in, and the decision list it opens
+     * starts there too: a block between that hour and the period's first moment is in the overview's unreviewed blocks
+     * and in the list the warning opens, as the decisions of the period are.
+     */
+    @Test
+    void aNumberOpensTheDecisionsItCountedFromTheHourThePeriodStartsIn() {
+        Instant firstHour = now.minus(Duration.ofHours(24)).truncatedTo(ChronoUnit.HOURS);
+        decision(Map.of("observation_id", "boundary-block", "final_action", "BLOCK"), firstHour.plus(Duration.ofMinutes(10)));
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+        ZeroTrustConsoleRange day = service.range("day", null, null);
+        assertThat(day.from()).as("the period starts after the block").isAfter(firstHour.plus(Duration.ofMinutes(10)));
+
+        Overview overview = service.overview("day", null, null, null, Locale.ENGLISH);
+        Alert alert = overview.alerts().stream().filter(candidate -> "unreviewedBlocks".equals(candidate.key()))
+                .findFirst().orElseThrow();
+        List<String> unreviewed = rows(day, new ZeroTrustDecisionRecords.Filter("BLOCK", null, null, null, null,
+                ZeroTrustDecisionRecords.UNREVIEWED, null, null));
+
+        assertThat(unreviewed).containsExactly("boundary-block");
+        assertThat(alert.message()).isEqualTo("1 blocks no administrator has reviewed");
+        assertThat(records.export(day, null, null)).as("every decision the overview counted")
+                .hasSize((int) overview.summary().decisions());
+    }
+
+    /**
+     * The operations screen's links: "no decision" lists the requests the hourly table counts as such (a timed out try
+     * of a request decided later is none), and the failures open both kinds the number counts.
+     */
+    @Test
+    void theOperationsFailuresOpenTheRequestsTheyCount() {
+        Instant at = now.minus(Duration.ofHours(2));
+        decision(Map.of("observation_id", "timeout-decided", "event_id", "event-later", "final_action", "PENDING_ANALYSIS",
+                "attempt_kind", "TIMEOUT", "success", false, "failure_type", "EVENT_TIMEOUT"), at);
+        decision(Map.of("observation_id", "later-allow", "event_id", "event-later", "final_action", "ALLOW"),
+                at.plus(Duration.ofMinutes(1)));
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+        ZeroTrustConsoleRange week = service.range("week", null, null);
+
+        Operations operations = service.operations("week", null, null, null, Locale.ENGLISH);
+        long failures = operations.failureTrend().stream().mapToLong(point -> point.byKind().values().stream()
+                .mapToLong(Long::longValue).sum()).sum();
+        List<String> noDecision = rows(week, new ZeroTrustDecisionRecords.Filter(ZeroTrustConsoleService.NO_DECISION,
+                null, null, null, null, null, null, null));
+        List<String> failed = rows(week, new ZeroTrustDecisionRecords.Filter(ZeroTrustDecisionRecords.FAILED, null, null,
+                null, null, null, null, null));
+
+        assertThat(noDecision).containsExactly("timeout-1");
+        assertThat(operations.noDecisionReasons()).filteredOn(share -> "TECHNICAL_FAILURE".equals(share.key()))
+                .singleElement().satisfies(share -> assertThat(share.count()).isEqualTo(noDecision.size()));
+        // block-1 was set without the model
+        assertThat(failed).containsExactlyInAnyOrder("timeout-1", "block-1");
+        assertThat(failures).isEqualTo(failed.size());
+    }
+
+    /**
+     * K87: the adoption's "would have stopped" counts from the hour SHADOW started in, and its link names that moment,
+     * so the list opens the same SHADOW decisions and not those of the day before SHADOW started.
+     */
+    @Test
+    void theAdoptionsStoppedRequestsOpenFromTheMomentShadowStarted() {
+        properties.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
+        Instant shadowHour = now.minus(Duration.ofHours(10)).truncatedTo(ChronoUnit.HOURS);
+        Instant since = shadowHour.plus(Duration.ofMinutes(40));
+        String details = "{\"previousMode\":\"ENFORCE\",\"reason\":\"trial since " + since + "\"}";
+        jdbc.update("INSERT INTO ctxa_audit_log (timestamp, principal_name, resource_identifier, decision, event_category, "
+                + "details) VALUES (?, 'admin', 'contexa.security.zerotrust.mode', 'SHADOW', 'ZERO_TRUST_MODE_CHANGED', ?)",
+                Timestamp.from(since), details);
+        try {
+            adoptionFromTheMomentShadowStarted(shadowHour, since);
+        } finally {
+            // The audit log is no table the other tests empty: the mode change is this test's alone.
+            jdbc.update("DELETE FROM ctxa_audit_log WHERE event_category = 'ZERO_TRUST_MODE_CHANGED' AND details = ?",
+                    details);
+        }
+    }
+
+    private void adoptionFromTheMomentShadowStarted(Instant shadowHour, Instant since) {
+        decision(Map.of("observation_id", "shadow-early", "final_action", "CHALLENGE", "decision_boundary_mode", "SHADOW"),
+                shadowHour.minus(Duration.ofHours(4)));
+        decision(Map.of("observation_id", "shadow-hour", "final_action", "BLOCK", "decision_boundary_mode", "SHADOW"),
+                shadowHour.plus(Duration.ofMinutes(20)));
+        decision(Map.of("observation_id", "shadow-after", "final_action", "CHALLENGE", "decision_boundary_mode", "SHADOW"),
+                since.plus(Duration.ofHours(1)));
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+
+        Adoption adoption = service.adoption(null, Locale.ENGLISH);
+        ZeroTrustConsoleRange linked = service.range("custom", adoption.header().period().from(), null);
+        List<String> listed = rows(linked, new ZeroTrustDecisionRecords.Filter(ZeroTrustDecisionRecords.STOPPED, null,
+                null, null, null, null, "SHADOW", null));
+
+        assertThat(Instant.parse(adoption.header().period().from())).isEqualTo(since);
+        assertThat(listed).containsExactlyInAnyOrder("shadow-hour", "shadow-after");
+        assertThat(adoption.wouldHave().stopped()).isEqualTo(listed.size());
+    }
+
     /** Design 6.4: the review queue is read a page of 20 at a time, by its reason when one is asked. */
     @Test
     void theReviewQueueReadsOnPageByPage() {

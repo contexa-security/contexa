@@ -242,6 +242,11 @@
         return {ok: response.ok, status: response.status, body: text ? JSON.parse(text) : null};
     }
 
+    /** The day of a period bound in the address: a day, or the day of a moment a screen's link named (K87). */
+    function dayOf(value) {
+        return value ? String(value).slice(0, 10) : '';
+    }
+
     /** The period buttons: the chosen period is kept in the address (design 6.0). */
     function periodButtons(container, onChange) {
         const current = query().get('period') || 'week';
@@ -271,9 +276,9 @@
         const custom = current === 'custom';
         const today = new Date().toISOString().slice(0, 10);
         const from = el('input', {type: 'date', class: 'modern-input', max: today, required: true,
-            'aria-label': t('zt.console.ui.period.from'), value: custom ? query().get('from') || '' : ''});
+            'aria-label': t('zt.console.ui.period.from'), value: custom ? dayOf(query().get('from')) : ''});
         const to = el('input', {type: 'date', class: 'modern-input', max: today,
-            'aria-label': t('zt.console.ui.period.to'), value: custom ? query().get('to') || '' : ''});
+            'aria-label': t('zt.console.ui.period.to'), value: custom ? dayOf(query().get('to')) : ''});
         const apply = el('button', {type: 'button', text: t('zt.console.ui.period.apply')});
         const choose = el('button', {type: 'button', 'data-period': 'custom', 'aria-pressed': String(custom),
             text: t('zt.console.ui.period.custom')});

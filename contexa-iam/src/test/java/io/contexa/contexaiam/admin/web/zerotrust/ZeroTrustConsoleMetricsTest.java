@@ -109,6 +109,15 @@ class ZeroTrustConsoleMetricsTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> ZeroTrustConsoleRange.of("custom", "2025-01-01", "2026-11-14", clock))
                 .isInstanceOf(IllegalArgumentException.class);
+        // K87: a screen's link names the first moment of a period of no whole days; the hourly rule reads its hour.
+        ZeroTrustConsoleRange since = ZeroTrustConsoleRange.of("custom", "2026-11-10T09:30:00Z", null, clock);
+        assertThat(since.from()).isEqualTo(Instant.parse("2026-11-10T09:30:00Z"));
+        assertThat(since.fromHour().toInstant()).isEqualTo(Instant.parse("2026-11-10T09:00:00Z"));
+        assertThat(since.to()).isEqualTo(Instant.parse("2026-11-16T00:00:00Z"));
+        assertThat(ZeroTrustConsoleRange.of("custom", "2026-11-14", "2026-11-14", clock).to())
+                .isEqualTo(Instant.parse("2026-11-15T00:00:00Z"));
+        assertThatThrownBy(() -> ZeroTrustConsoleRange.of("custom", "2026-11-14T10:00:00Z", "2026-11-14T09:00:00Z",
+                clock)).isInstanceOf(IllegalArgumentException.class);
     }
 
     /**
