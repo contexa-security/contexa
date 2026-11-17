@@ -21,6 +21,7 @@ import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionRo
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.EvaluationSaved;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatcher;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
@@ -36,10 +37,12 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -162,6 +165,28 @@ class ZeroTrustConsoleControllerTest {
                         .principal(admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nextCursor").value("cursor-2"));
+    }
+
+    /** K94: the list, the slowest and the CSV take the exact user of the address beside its search, as they are. */
+    @Test
+    void theListTheSlowestAndTheCsvTakeTheExactUser() throws Exception {
+        when(records.list(any(), isNull(), any(), isNull())).thenReturn(new DecisionPage(List.of(), null));
+        when(records.slowest(any(), isNull(), any())).thenReturn(new DecisionPage(List.of(), null));
+        when(records.export(any(), isNull(), any())).thenReturn(List.of());
+        ArgumentMatcher<ZeroTrustDecisionRecords.Filter> alice = filter -> "alice".equals(filter.user())
+                && "u1".equals(filter.query()) && "CHALLENGE".equals(filter.action());
+
+        for (String path : List.of("/decisions", "/decisions.csv")) {
+            for (String order : List.of("", "slowest")) {
+                mvc.perform(get("/contexa/admin/api/zero-trust" + path).param("action", "CHALLENGE")
+                        .param("user", "alice").param("q", "u1").param("order", order).principal(admin))
+                        .andExpect(status().isOk());
+            }
+        }
+
+        verify(records).list(any(), isNull(), argThat(alice), isNull());
+        verify(records).export(any(), isNull(), argThat(alice));
+        verify(records, times(2)).slowest(any(), isNull(), argThat(alice));
     }
 
     @Test

@@ -226,11 +226,12 @@ public class ZeroTrustConsoleController {
                                   @RequestParam(required = false) Integer weekday,
                                   @RequestParam(required = false) Integer band,
                                   @RequestParam(required = false) Integer challengedAtLeast,
+                                  @RequestParam(required = false) String user,
                                   Authentication authentication) {
         requireAdmin(authentication);
         ZeroTrustConsoleRange range = within(() -> service.range(period, from, to));
         ZeroTrustDecisionRecords.Filter filter = new ZeroTrustDecisionRecords.Filter(action, source, hypothesis, actor,
-                resourceClass, outcome, mode, q, baseline, weekday, band, challengedAtLeast);
+                resourceClass, outcome, mode, q, baseline, weekday, band, challengedAtLeast, user);
         // console plan 5-2 ③: the slowest decisions first, one page
         return "slowest".equals(order) ? records.slowest(range, blank(tenant), filter)
                 : records.list(range, blank(tenant), filter, cursor);
@@ -289,11 +290,12 @@ public class ZeroTrustConsoleController {
                                                @RequestParam(required = false) Integer weekday,
                                                @RequestParam(required = false) Integer band,
                                                @RequestParam(required = false) Integer challengedAtLeast,
+                                               @RequestParam(required = false) String user,
                                                Authentication authentication) {
         requireAdmin(authentication);
         ZeroTrustConsoleRange range = within(() -> service.range(period, from, to));
         ZeroTrustDecisionRecords.Filter filter = new ZeroTrustDecisionRecords.Filter(action, source, hypothesis, actor,
-                resourceClass, outcome, mode, q, baseline, weekday, band, challengedAtLeast);
+                resourceClass, outcome, mode, q, baseline, weekday, band, challengedAtLeast, user);
         // the slowest decisions' CSV holds the rows of their view, the slowest first
         List<DecisionRow> rows = "slowest".equals(order) ? records.slowest(range, blank(tenant), filter).rows()
                 : records.export(range, blank(tenant), filter);

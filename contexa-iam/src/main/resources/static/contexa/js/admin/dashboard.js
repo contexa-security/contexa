@@ -293,8 +293,14 @@
         card.id = 'dash-queue';
         const counts = ['BAD', 'WARN', 'INFO'].map(severity => [severity,
             items.filter(item => item.severity === severity).length]).filter(([, n]) => n > 0);
-        card.querySelector('.zt-card-head').append(el('span', {class: 'flex items-center gap-2 flex-shrink-0'},
+        // The counts by severity beside the title; on a phone under it, at the top of the body, on as many lines as
+        // their words need (K89: a head keeps its two lines in every language).
+        card.querySelector('.zt-card-head').append(el('span', {class: 'flex items-center gap-2 flex-shrink-0 max-sm:hidden'},
             counts.map(([severity, n]) => severityChip(severity, n))));
+        if (counts.length) {
+            card.querySelector('.zt-card-body').prepend(el('div', {class: 'flex flex-wrap items-center gap-2 sm:hidden'},
+                counts.map(([severity, n]) => severityChip(severity, n))));
+        }
         if (items.length > TODO_SHOWN) {
             foot(card, el('span', {class: 'zt-muted', text: d('todo.more', TODO_SHOWN, items.length - TODO_SHOWN)}));
         }
@@ -627,10 +633,11 @@
             node.title = d('attention.signal.' + signal.kind, ZT.count(signal.count));
             return node;
         };
-        // A block opens its decision; step-ups open the user's step-ups of the period in the decision records (K80: by
-        // the records' own search, which matches the user); the other signals open the user.
+        // A block opens its decision; step-ups open the user's step-ups of the period in the decision records (K80, K94:
+        // by the records' exact user filter, never another user whose path holds the name); the other signals open the
+        // user.
         const openOf = row => row.requestId ? Z + '/decisions/request/' + encodeURIComponent(row.requestId)
-            : row.signals.some(signal => signal.kind === 'CHALLENGES') ? Z + '/decisions?action=CHALLENGE&q='
+            : row.signals.some(signal => signal.kind === 'CHALLENGES') ? Z + '/decisions?action=CHALLENGE&user='
                 + encodeURIComponent(row.user) + '&period=' + periodKey
                 : A + '/users?keyword=' + encodeURIComponent(row.user);
         const head = el('thead', {}, el('tr', {},

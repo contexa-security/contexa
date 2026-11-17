@@ -1700,4 +1700,53 @@ input[type="file"].modern-input::file-selector-button {
     .zt-page .zt-card-head h2 {
         flex: 1 0 100%;
     }
+
+    /*
+     * K89: the second line holds the aside beside a state and a definition mark in every language: the aside takes
+     * the room left and is cut there, its whole words in its tooltip (K91), rather than move to a third line.
+     */
+    .zt-page .zt-card-head .zt-aside {
+        flex: 1 1 0;
+    }
+
+    .zt-page .zt-card-head > .zt-band-info, .zt-page .zt-card-head > .zt-chip {
+        flex-shrink: 0;
+    }
+}
+
+/*
+ * K89: words of any language stay inside their box at every width. A column head wraps rather than be cut (a head is
+ * never cut) or widen its table past the card, the head of a column of numbers between its words only, so the column
+ * keeps the room of its longest word; a row of a value keeps its name and its value
+ * inside the row, either wrapping and a long name breaking anywhere; a badge of a row or of a criterion wraps its
+ * words; a key card's name wraps rather than push its definition mark out.
+ */
+.zt-page .zt-table th {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.zt-page .zt-table th.zt-num {
+    overflow-wrap: break-word;
+}
+
+.zt-page .zt-result-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.zt-page .zt-result-value {
+    white-space: normal;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.zt-page .zt-result-row .zt-chip, .zt-page .zt-criteria .zt-chip {
+    white-space: normal;
+    text-align: center;
+}
+
+.zt-page .zt-kpi-label {
+    white-space: normal;
+    overflow-wrap: anywhere;
 }

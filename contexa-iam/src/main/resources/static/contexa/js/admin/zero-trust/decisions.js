@@ -60,6 +60,15 @@
         return value == null || value.trim() === '' ? null : value.trim().toUpperCase();
     }
 
+    /**
+     * K94: the one user a link named (the dashboard's step-ups), matched exactly as it is written; the search also
+     * matches a path that holds the name.
+     */
+    function userValue() {
+        const value = ZT.query().get('user');
+        return value == null || value.trim() === '' ? null : value.trim();
+    }
+
     function rewrite(changes) {
         const params = ZT.query();
         Object.entries(changes).forEach(([name, value]) => {
@@ -88,7 +97,7 @@
 
     /** Every filter cleared, for a tab that brings its own. */
     function clearedFilters() {
-        const cleared = {q: null};
+        const cleared = {q: null, user: null};
         FILTERS.forEach(filter => {
             cleared[filter.key] = null;
         });
@@ -186,6 +195,15 @@
             select.value = value;
             select.disabled = view === 'review';
         });
+        // K94: the user field shows while a link's user filters the list, and clears it with "All"
+        const user = userValue();
+        state.filters.user.select.replaceChildren(el('option', {value: '', text: t(P + 'filter.all')}),
+            ...(user ? [el('option', {value: user, text: user})] : []));
+        state.filters.user.select.value = user || '';
+        // a long user ID the choice cuts reads whole in its title
+        state.filters.user.select.title = user || '';
+        state.filters.user.select.disabled = view === 'review';
+        show(state.filters.user.field, Boolean(user));
         show(state.filters.reviewNote, view === 'review');
         searchBox.value = ZT.query().get('q') || '';
         // the slowest decisions' CSV keeps their order, the slowest first
@@ -282,6 +300,10 @@
                 el('span', {class: 'zt-filter-name', text: t(P + 'filter.' + filter.key)}), select));
             return select;
         });
+        const user = {select: el('select', {class: 'modern-select', name: 'user', 'aria-label': t(P + 'filter.user')})};
+        user.field = el('label', {class: 'zt-filter-field'},
+            el('span', {class: 'zt-filter-name', text: t(P + 'filter.user')}), user.select);
+        grid.append(user.field);
         const searchButton = el('button', {type: 'submit', class: 'modern-btn-primary'},
             el('i', {class: 'fas fa-search', 'aria-hidden': 'true'}), t(P + 'filters.search'));
         const clearButton = el('button', {type: 'button', class: 'modern-btn-secondary'},
@@ -304,7 +326,7 @@
         });
         const reviewNote = muted(t(P + 'filters.reviewNote'));
         const card = el('div', {class: 'filter-container zt-filter-box'}, form, reviewNote);
-        return {card, form, selects, reviewNote};
+        return {card, form, selects, user, reviewNote};
     }
 
     // ----- the list -----

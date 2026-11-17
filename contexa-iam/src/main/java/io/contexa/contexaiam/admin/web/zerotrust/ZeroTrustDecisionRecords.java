@@ -64,15 +64,23 @@ public class ZeroTrustDecisionRecords {
     /**
      * The filters the list takes; each names a column of the decision row. The address alone sets the ones the
      * screens link with (design 6.1, 6.2): the baseline, the weekday and the four-hour band of the decision's hour,
-     * and the users challenged at least so often in the period.
+     * and the users challenged at least so often in the period. K94: the one user a link names, matched exactly (the
+     * search also matches a path that holds the name).
      */
     public record Filter(String action, String source, String hypothesis, String actor, String resourceClass,
                          String outcome, String mode, String query, String baseline, Integer weekday, Integer band,
-                         Integer challengedAtLeast) {
+                         Integer challengedAtLeast, String user) {
 
         public Filter(String action, String source, String hypothesis, String actor, String resourceClass,
                       String outcome, String mode, String query) {
             this(action, source, hypothesis, actor, resourceClass, outcome, mode, query, null, null, null, null);
+        }
+
+        public Filter(String action, String source, String hypothesis, String actor, String resourceClass,
+                      String outcome, String mode, String query, String baseline, Integer weekday, Integer band,
+                      Integer challengedAtLeast) {
+            this(action, source, hypothesis, actor, resourceClass, outcome, mode, query, baseline, weekday, band,
+                    challengedAtLeast, null);
         }
     }
 
@@ -223,6 +231,7 @@ public class ZeroTrustDecisionRecords {
         equal(where, args, "o.decision_boundary_mode", allowed(given.mode(), MODES));
         equal(where, args, "o.most_likely_hypothesis", code(given.hypothesis(), 16));
         equal(where, args, "o.resource_class", code(given.resourceClass(), 32));
+        equal(where, args, "o.user_id", exact(given.user()));
         equal(where, args, "o.tenant_id", tenant);
         String baseline = allowed(given.baseline(), BASELINES);
         if (BASELINE_NOT_ESTABLISHED.equals(baseline)) {
@@ -723,6 +732,12 @@ public class ZeroTrustDecisionRecords {
         }
         String upper = value.trim().toUpperCase(Locale.ROOT);
         return allowed.contains(upper) ? upper : null;
+    }
+
+    /** A value matched as it is, trimmed; none when it is blank. */
+    private static String exact(String value) {
+        String trimmed = value == null ? null : value.trim();
+        return trimmed == null || trimmed.isEmpty() ? null : trimmed;
     }
 
     private static String code(String value, int length) {

@@ -712,10 +712,52 @@
         return draw;
     }
 
+    /**
+     * K91: words an ellipsis cuts in place keep their whole text in a tooltip. Every element of the screen that its
+     * width cuts gets its own words as its title, unless an element around it already holds them; a number is never
+     * cut (1.4), so this only ever names words.
+     */
+    function titleCut(root) {
+        root.querySelectorAll('*').forEach(node => {
+            if (node instanceof SVGElement || node.tagName === 'SCRIPT') {
+                return;
+            }
+            if (getComputedStyle(node).textOverflow !== 'ellipsis' || node.scrollWidth <= node.clientWidth + 1) {
+                return;
+            }
+            const text = node.textContent.trim();
+            const holder = node.closest('[title]');
+            if (text && !(holder && holder.getAttribute('title').includes(text))) {
+                node.setAttribute('title', text);
+            }
+        });
+    }
+
+    /** Names the cut words once the screen has drawn, and again when it draws more or the window changes its size. */
+    function titleCutsOf(root) {
+        if (!root || !global.MutationObserver) {
+            return;
+        }
+        let pending = null;
+        const later = () => {
+            if (pending == null) {
+                pending = global.setTimeout(() => {
+                    pending = null;
+                    titleCut(root);
+                }, 50);
+            }
+        };
+        new global.MutationObserver(later).observe(root, {childList: true, subtree: true, characterData: true});
+        global.addEventListener('resize', later);
+        later();
+    }
+
+    titleCutsOf(document.getElementById('zt-console'));
+
     global.ZT = {
         t, el, svg, count, shortCount, percent, seconds, time, shortTime, day, metric, ranged, metricText, reason, load, post, apiUrl, query,
         header, card, empty, chip, statusChip, rows, chart, legend, bar, stacked, gauge, sparkline, funnel, heatmap,
-        waterfall, failed, start, COLORS, SERIES
+        waterfall, failed, start, titleCut, COLORS, SERIES
     };
 })(window);
 /*

@@ -337,6 +337,31 @@ class ZeroTrustConsolePostgresTest {
                 null, null, "u6"), null).rows()).isEmpty();
     }
 
+    /**
+     * K94: the dashboard's step-up link names the user exactly (user=). Another user's step-up on the user's own page,
+     * its path and its resource holding the name, stays out of the list, the slowest and the CSV; the search still finds
+     * both, as it did.
+     */
+    @Test
+    void theExactUserLeavesOutAnotherUsersDecisionThatHoldsTheName() {
+        decision(Map.of("observation_id", "about-u1", "user_id", "u7", "final_action", "CHALLENGE",
+                "request_path", "/api/users/u1", "resource_id", "u1"), now.minus(Duration.ofMinutes(20)));
+        ZeroTrustConsoleRange week = service.range("week", null, null);
+        ZeroTrustDecisionRecords.Filter exact = new ZeroTrustDecisionRecords.Filter("CHALLENGE", null, null, null, null,
+                null, null, null, null, null, null, null, " u1 ");
+
+        assertThat(records.list(week, null, exact, null).rows()).extracting(DecisionRow::observationId, DecisionRow::user)
+                .containsExactly(tuple("challenge-1", "u1"));
+        assertThat(records.slowest(week, null, exact).rows()).extracting(DecisionRow::observationId)
+                .containsExactly("challenge-1");
+        assertThat(records.export(week, null, exact)).extracting(DecisionRow::observationId).containsExactly("challenge-1");
+        assertThat(records.list(week, null, new ZeroTrustDecisionRecords.Filter("CHALLENGE", null, null, null, null,
+                null, null, "u1"), null).rows()).extracting(DecisionRow::observationId)
+                .containsExactlyInAnyOrder("challenge-1", "about-u1");
+        assertThat(records.list(week, null, new ZeroTrustDecisionRecords.Filter("CHALLENGE", null, null, null, null,
+                null, null, null, null, null, null, null, "u"), null).rows()).isEmpty();
+    }
+
     @Test
     void theDetailTellsTheConclusionTheReasonsAndWhatCameOfIt() {
         DecisionDetail detail = records.detail("challenge-1", Locale.ENGLISH);
