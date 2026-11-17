@@ -16,7 +16,9 @@
 package io.contexa.contexaiam.admin.web.zerotrust;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionDetail;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionPage;
@@ -44,6 +46,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The decision records of the console (console design 6.4): the list, read by time with a cursor and filtered by the
@@ -72,6 +76,15 @@ public class ZeroTrustDecisionRecords {
     private static final Set<String> OUTCOMES = Set.of("NONE", "CHALLENGE_PASSED", "CHALLENGE_FAILED",
             "CHALLENGE_EXPIRED", "UNBLOCK_REQUESTED", "ADMIN_RELEASED", "BLOCK_KEPT", "EVALUATED_VALID",
             "EVALUATED_INVALID");
+
+    /** The most audit records of one request the detail reads to find its decision's (a request judged again has two). */
+    private static final int AUDIT_RECORDS_OF_A_REQUEST = 20;
+    /**
+     * The sentence the second analysis adds when it ends an ESCALATE ({@code Layer2ExpertStrategy}): the engine's words
+     * in a row stored before K25 kept them apart.
+     */
+    private static final Pattern TERMINALIZED = Pattern.compile(
+            "[^\\n]*, so final autonomous action was terminalized to [A-Z_]+ by tiered strategy policy\\.$");
 
     private static final String ROW_COLUMNS = """
             o.observation_id, o.created_at, o.user_id, COALESCE(NULLIF(o.resource_id, ''), o.request_path),
@@ -224,7 +237,8 @@ public class ZeroTrustDecisionRecords {
             return null;
         }
         List<Map<String, Object>> found = operations.queryForList("""
-                SELECT observation_id, request_id, created_at, decision_boundary_mode, actor_kind, final_action,
+                SELECT observation_id, request_id, event_id, idempotency_key, created_at, decision_boundary_mode,
+                       actor_kind, final_action,
                        proposed_action, decision_source, decision_change_cause, enforcement_timing, total_analysis_ms,
                        prompt_bundle_version, model_id, decision_summary_json, baseline_status, context_coverage_level,
                        queue_wait_ms, prompt_build_ms, rag_vector_ms, llm_latency_ms, parse_ms, persist_ms, user_wait_ms,
@@ -266,19 +280,13 @@ public class ZeroTrustDecisionRecords {
                  ORDER BY occurred_at
                 """, (rs, n) -> new OutcomeView(rs.getString(1), instant(rs, 2), rs.getString(3), rs.getString(4),
                 rs.getString(5)), observationId);
-        Long auditId = requestId == null ? null : first(operations.queryForList("""
-                SELECT id FROM ctxa_audit_log
-                 WHERE correlation_id = ? AND event_category = 'SECURITY_DECISION'
-                 ORDER BY timestamp DESC LIMIT 1
-                """, Long.class, truncate(requestId, 64)));
-        String packageId = requestId == null ? null : first(operations.queryForList("""
-                SELECT package_id FROM ctxa_sealed_evidence_package
-                 WHERE correlation_id = ?
-                 ORDER BY captured_at DESC LIMIT 1
-                """, String.class, requestId));
-        Long inReview = operations.queryForObject(
-                "SELECT COUNT(*) FROM ctxa_zt_review_queue WHERE observation_id = ? AND review_status = 'PENDING'",
-                Long.class, observationId);
+        // K24: a request judged again has a decision, an audit record and a sealed package per judgement; each
+        // decision opens its own, by its event.
+        Long auditId = auditOf(operations, requestId, text(row.get("event_id")));
+        String packageId = packageOf(operations, observationId, text(row.get("idempotency_key")));
+        String reviewReason = first(operations.queryForList(
+                "SELECT review_reason FROM ctxa_zt_review_queue WHERE observation_id = ? AND review_status = 'PENDING'",
+                String.class, observationId));
         Map<String, Long> timings = new LinkedHashMap<>();
         timings.put("QUEUE", number(row.get("queue_wait_ms")));
         timings.put("PREPARE", number(row.get("prompt_build_ms")));
@@ -291,18 +299,101 @@ public class ZeroTrustDecisionRecords {
                 : ZeroTrustConsoleService.NO_DECISION;
         String lastOutcome = outcomeViews.isEmpty() ? null : outcomeViews.get(outcomeViews.size() - 1).kind();
         String mainReason = reasons.isEmpty() ? null : reasons.get(0).code();
+        String source = text(row.get("decision_source"));
+        String[] sentences = sentences(summary, source);
         return new DecisionDetail(observationId, requestId, instantText(row.get("created_at")),
                 text(row.get("decision_boundary_mode")), text(row.get("actor_kind")), action,
-                text(row.get("proposed_action")), text(row.get("decision_source")),
+                text(row.get("proposed_action")), source,
                 text(row.get("decision_change_cause")), text(row.get("enforcement_timing")),
                 number(row.get("total_analysis_ms")), text(row.get("prompt_bundle_version")), text(row.get("model_id")),
                 !reasons.isEmpty() || summary.containsKey("hypotheses"),
-                conclusion(action, mainReason, lastOutcome, locale), reasons, text(summary.get("reason")),
-                listOfMaps(summary.get("hypotheses")), listOfMaps(summary.get("deviations")),
+                conclusion(action, mainReason, lastOutcome, locale), reasons, sentences[0],
+                listOfMaps(summary.get("hypotheses")),
+                new ZeroTrustDeviationWords(messages, locale).words(listOfMaps(summary.get("deviations"))),
                 summary.get("unknown") instanceof Map<?, ?> unknown ? copy(unknown) : Map.of(),
                 text(row.get("baseline_status")), text(row.get("context_coverage_level")), outcomeViews, timings,
-                auditId, packageId, inReview != null && inReview > 0, text(row.get("user_id")),
-                text(row.get("resource")), text(row.get("resource_class")));
+                auditId, packageId, reviewReason != null, text(row.get("user_id")),
+                text(row.get("resource")), text(row.get("resource_class")), sentences[1],
+                Boolean.TRUE.equals(summary.get("usualKept")), listOfMaps(summary.get("ruleBreaches")), reviewReason);
+    }
+
+    /**
+     * K24: the audit record of the decision's own event. The audit records of a request share its correlation; the
+     * event each was written for is in its details.
+     */
+    private Long auditOf(JdbcOperations operations, String requestId, String eventId) {
+        if (requestId == null || eventId == null) {
+            return null;
+        }
+        List<Map<String, Object>> records = operations.queryForList("""
+                SELECT id, details FROM ctxa_audit_log
+                 WHERE correlation_id = ? AND event_category = 'SECURITY_DECISION'
+                 ORDER BY timestamp DESC LIMIT ?
+                """, truncate(requestId, 64), AUDIT_RECORDS_OF_A_REQUEST);
+        for (Map<String, Object> record : records) {
+            if (eventId.equals(field(text(record.get("details")), "eventId"))) {
+                return number(record.get("id"));
+            }
+        }
+        return null;
+    }
+
+    /**
+     * K24: the sealed package of the decision's own processing, by the processing identity the package and the decision
+     * row both keep (the row's column for a final decision, else its metadata).
+     */
+    private String packageOf(JdbcOperations operations, String observationId, String identity) {
+        String key = identity;
+        if (key == null) {
+            key = field(first(operations.queryForList(
+                    "SELECT metadata_json FROM ctxa_ai_security_decision_observation WHERE observation_id = ?",
+                    String.class, observationId)), SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY);
+        }
+        if (key == null) {
+            return null;
+        }
+        return first(operations.queryForList("""
+                SELECT package_id FROM ctxa_sealed_evidence_package
+                 WHERE idempotency_key = ?
+                 ORDER BY captured_at DESC LIMIT 1
+                """, String.class, key));
+    }
+
+    /**
+     * K25: the model's own sentence and the engine's. A row stored before K25 kept one sentence for both: a decision
+     * made without the model holds the engine's, and the sentence the second analysis adds when it ends an ESCALATE is
+     * the engine's.
+     */
+    static String[] sentences(Map<String, Object> summary, String source) {
+        if (summary.containsKey("modelReason") || summary.containsKey("engineReason")) {
+            return new String[] {text(summary.get("modelReason")), text(summary.get("engineReason"))};
+        }
+        String reason = text(summary.get("reason"));
+        if (reason == null || reason.isBlank()) {
+            return new String[] {null, null};
+        }
+        if ("MODEL_LESS".equals(source)) {
+            return new String[] {null, reason};
+        }
+        Matcher terminalized = TERMINALIZED.matcher(reason);
+        if (terminalized.find()) {
+            String model = reason.substring(0, terminalized.start()).trim();
+            return new String[] {model.isEmpty() ? null : model, terminalized.group().trim()};
+        }
+        return new String[] {reason, null};
+    }
+
+    /** A text field of a JSON object, or null when the text is no JSON object or has no such field. */
+    private String field(String json, String name) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode node = objectMapper.readTree(json);
+            return node != null && node.hasNonNull(name) ? node.get(name).asText() : null;
+        } catch (Exception unreadable) {
+            return null;
+        }
     }
 
     /**
@@ -345,7 +436,7 @@ public class ZeroTrustDecisionRecords {
         return operations.query("""
                 SELECT q.observation_id, q.sample_day, o.created_at, o.user_id,
                        COALESCE(NULLIF(o.resource_id, ''), o.request_path), o.final_action, o.most_likely_hypothesis,
-                       r.reason_code
+                       r.reason_code, q.review_reason
                   FROM ctxa_zt_review_queue q
                   JOIN ctxa_ai_security_decision_observation o ON o.observation_id = q.observation_id
                   LEFT JOIN ctxa_zt_decision_reason r ON r.observation_id = o.observation_id AND r.reason_rank = 1
@@ -353,7 +444,7 @@ public class ZeroTrustDecisionRecords {
                  ORDER BY q.sample_day DESC, o.created_at DESC
                  LIMIT 200
                 """, (rs, n) -> new ReviewItem(rs.getString(1), String.valueOf(rs.getDate(2)), instant(rs, 3),
-                rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8)));
+                rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8), rs.getString(9)));
     }
 
     /**

@@ -2802,6 +2802,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         // N-OUT-3: so do this layer's output retries, after those of the layers before it.
         PromptRuntimeTelemetrySupport.appendOutputRetries(metadata, getLayerName(),
                 responseMetadata.get(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES));
+        // K17 (D11): the decision rule this layer's answer still broke after its retry reaches the decision record.
+        PromptRuntimeTelemetrySupport.recordRuleBreach(metadata, getLayerName(),
+                responseMetadata.get(SecurityDecisionV1OutputInspector.V1_RULE_BREACH));
         if (promptContextAuditRecorder != null && hasPromptLineage(metadata)) {
             promptContextAuditRecorder.enrich(event);
         }

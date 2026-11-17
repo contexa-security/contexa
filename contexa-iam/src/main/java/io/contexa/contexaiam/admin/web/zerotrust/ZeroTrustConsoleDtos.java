@@ -194,7 +194,8 @@ public final class ZeroTrustConsoleDtos {
                                  List<Map<String, Object>> deviations, Map<String, Object> unknown,
                                  String baselineStatus, String contextLevel, List<OutcomeView> outcomes,
                                  Map<String, Long> timings, Long auditId, String packageId, boolean inReview,
-                                 String user, String resource, String resourceClass) {
+                                 String user, String resource, String resourceClass, String engineReason,
+                                 boolean usualKept, List<Map<String, Object>> ruleBreaches, String reviewReason) {
     }
 
     public record ReasonView(int rank, String code, String group, String fact, String factName, String factValue) {
@@ -204,7 +205,7 @@ public final class ZeroTrustConsoleDtos {
     }
 
     public record ReviewItem(String observationId, String sampleDay, String createdAt, String user, String resource,
-                             String action, String hypothesis, String firstReason) {
+                             String action, String hypothesis, String firstReason, String reason) {
     }
 
     /** An administrator's evaluation of a decision (console decision 11.3). */

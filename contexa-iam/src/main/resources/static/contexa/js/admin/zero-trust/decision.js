@@ -92,16 +92,51 @@
             el('span', {class: 'zt-facts-name', text: name}), el('span', {class: 'zt-facts-value', text: value, title: value}))));
         return ZT.card(t(P + 'conclusion.title'), subject || null,
             el('div', {class: 'zt-conclusion'}, ZT.chip(detail.action, t(P + 'chip.final', actionLabel(detail.action))),
-                el('div', {class: 'zt-summary'}, parts.conclusion)), grid);
+                el('div', {class: 'zt-summary'}, parts.conclusion)), grid, breaches(detail));
     }
 
-    /** The model's own sentence, marked as its words (design 6.4). */
+    /**
+     * K17 (decision D11): the decision rules the answer of the model still broke after it was asked again, each in
+     * words with the analysis that broke it; the record keeps the rule as the response check named it.
+     */
+    function breaches(detail) {
+        const kept = detail.ruleBreaches || [];
+        if (!kept.length) {
+            return null;
+        }
+        const items = kept.map(breach => {
+            // the codes the screen has words for; a rule of none of them reads as a decision rule
+            const named = (breach.codes || []).map(code => known(P + 'breach.rule.' + code, null)).filter(Boolean);
+            const rules = (named.length ? named : [t(P + 'breach.rule.OTHER')]).join(', ');
+            const layer = known(P + 'breach.layer.' + String(breach.layer || '').toUpperCase(), breach.layer || '—');
+            return el('div', {title: breach.rule || '', text: t(P + 'breach.item', layer, rules)});
+        });
+        return el('div', {class: 'zt-warning', role: 'note'}, el('div', {text: t(P + 'breach.title')}), items,
+            detail.inReview ? el('div', {text: t(P + 'breach.queued')}) : null);
+    }
+
+    /** The model's own sentence, marked as its words (design 6.4); the engine's is never shown as the model's (K25). */
     function modelWords(text) {
         if (!text) {
             return null;
         }
         return el('figure', {class: 'zt-quote'}, el('figcaption', {text: t(P + 'modelWords')}),
             el('blockquote', {text: t(P + 'quote', text)}));
+    }
+
+    /**
+     * K25: the engine's part in the decision, in words made of who set the action and why; the sentence the engine
+     * wrote stays its record, in the title.
+     */
+    function engineWords(detail) {
+        if (!detail.engineReason) {
+            return null;
+        }
+        const cause = detail.cause ? ZT.causeName(detail.cause) : '—';
+        const source = detail.source === 'MODEL_LESS' || detail.source === 'ENGINE_CHANGED' ? detail.source : 'MODEL';
+        return el('figure', {class: 'zt-quote', title: t(P + 'engineWords.record', detail.engineReason)},
+            el('figcaption', {text: t(P + 'engineWords')}),
+            el('blockquote', {text: t(P + 'engineWords.' + source, cause)}));
     }
 
     // ----- (1) the reasons with the facts they cite -----
@@ -126,7 +161,7 @@
                 el('span', {class: 'zt-fact-id', text: reason.fact || '—'})));
         });
         return ZT.card(t(P + 'reasons.title'), t(P + 'reasons.aside', ZT.count(reasons.length)),
-            reasons.length ? list : muted(t(P + 'reasons.none')), modelWords(detail.modelReason));
+            reasons.length ? list : muted(t(P + 'reasons.none')), modelWords(detail.modelReason), engineWords(detail));
     }
 
     // ----- (2) the explanations the model weighed -----
@@ -150,8 +185,10 @@
      */
     function unexplainedCard(detail) {
         const text = detail.action === 'NO_DECISION' ? t(P + 'unexplained.noDecision')
-            : t(P + 'unexplained.text', detail.bundle || '—');
-        return ZT.card(t(P + 'unexplained.title'), null, el('div', {text}), modelWords(detail.modelReason));
+            : detail.source === 'MODEL_LESS' ? t(P + 'unexplained.modelLess')
+                : t(P + 'unexplained.text', detail.bundle || '—');
+        return ZT.card(t(P + 'unexplained.title'), null, el('div', {text}), modelWords(detail.modelReason),
+            engineWords(detail));
     }
 
     // ----- (3) the comparison with the usual -----
@@ -184,9 +221,10 @@
         if (deviations.length) {
             const head = el('tr', {}, ['dimension', 'usual', 'current', 'judgement'].map(key => el('th',
                 {scope: 'col', text: t(P + 'deviation.column.' + key)})));
+            // K26, K27: the usual and the request's values in words, as the server reads the engine's notation.
             const rows = deviations.map(deviation => {
                 const values = [known(P + 'dimension.' + deviation.dimension, deviation.dimension || '—'),
-                    deviation.usual || '—', deviation.current || '—', judgement(deviation)];
+                    deviation.usualText || '—', deviation.currentText || deviation.current || '—', judgement(deviation)];
                 return el('tr', {}, values.map(value => el('td', {title: value, text: value})));
             });
             body = el('div', {class: 'modern-table zt-table-wrap'}, el('table', {class: 'zt-table'}, el('thead', {}, head),
@@ -194,7 +232,9 @@
         } else {
             body = muted(t(P + 'deviation.none'));
         }
-        return ZT.card(t(P + 'comparison.title'), [baseline, context].filter(Boolean).join(' · '), body);
+        // K27: a decision stored before the usual values were kept says why its usual column is mostly empty.
+        const note = deviations.length && !detail.usualKept ? muted(t(P + 'deviation.usualNotKept')) : null;
+        return ZT.card(t(P + 'comparison.title'), [baseline, context].filter(Boolean).join(' · '), body, note);
     }
 
     // ----- (4) what the model did not know -----

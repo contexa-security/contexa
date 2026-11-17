@@ -38,6 +38,9 @@ import java.util.function.Supplier;
 @Slf4j
 public class ZeroTrustReviewSampler {
 
+    /** Why a decision of the daily sample waits in the review queue (K17 adds the rule an answer broke). */
+    public static final String SAMPLE = "SAMPLE";
+
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
     private final SecurityZeroTrustProperties properties;
     private final Clock clock;
@@ -64,8 +67,10 @@ public class ZeroTrustReviewSampler {
             return 0;
         }
         try {
+            // K17: a decision queued for the rule its model answer broke is no part of the random sample of its day.
             Integer drawn = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM ctxa_zt_review_queue WHERE sample_day = ?", Integer.class, Date.valueOf(day));
+                    "SELECT COUNT(*) FROM ctxa_zt_review_queue WHERE sample_day = ? AND review_reason = '" + SAMPLE + "'",
+                    Integer.class, Date.valueOf(day));
             int missing = console.getReviewDailySample() - (drawn == null ? 0 : drawn);
             if (missing <= 0) {
                 return 0;
@@ -73,8 +78,8 @@ public class ZeroTrustReviewSampler {
             Timestamp from = Timestamp.from(day.atStartOfDay().toInstant(ZoneOffset.UTC));
             Timestamp to = Timestamp.from(day.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC));
             int added = jdbc.update("""
-                    INSERT INTO ctxa_zt_review_queue (observation_id, sample_day, sampled_at, review_status)
-                    SELECT o.observation_id, ?, ?, 'PENDING'
+                    INSERT INTO ctxa_zt_review_queue (observation_id, sample_day, sampled_at, review_status, review_reason)
+                    SELECT o.observation_id, ?, ?, 'PENDING', 'SAMPLE'
                       FROM ctxa_ai_security_decision_observation o
                      WHERE o.created_at >= ? AND o.created_at < ?
                        AND o.final_action IN ('CHALLENGE', 'ESCALATE', 'BLOCK')

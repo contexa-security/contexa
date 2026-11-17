@@ -450,7 +450,10 @@
                 cell(ZT.day(item.sampleDay), {class: 'zt-wide'}),
                 whoCell(item.createdAt, item.user, item.observationId),
                 cell(item.resource || '—', {class: 'zt-fill'}),
-                el('td', {}, item.action ? ZT.chip(item.action) : '—'),
+                // K17: a decision whose model answer broke a decision rule says so beside its action
+                el('td', {class: 'zt-cell-chips'}, item.action ? ZT.chip(item.action) : '—',
+                    item.reason === 'RULE_BREACH' ? [' ', ZT.statusChip('WARN', t(P + 'review.reason.RULE_BREACH'))]
+                        : null),
                 cell(hypothesisLabel(item.hypothesis), {class: 'zt-wide'})])));
     }
 

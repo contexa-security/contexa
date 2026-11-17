@@ -2043,6 +2043,11 @@ CREATE TABLE IF NOT EXISTS ctxa_zt_review_queue (
 CREATE INDEX IF NOT EXISTS ctxa_idx_zt_review_queue_day
     ON ctxa_zt_review_queue (sample_day, review_status);
 
+-- K17 (decision D11): why a decision waits for review: the daily sample, or a decision rule its model answer still
+-- broke after the retry. A database installed before it gains the column at the next start.
+ALTER TABLE ctxa_zt_review_queue
+    ADD COLUMN IF NOT EXISTS review_reason VARCHAR(32) NOT NULL DEFAULT 'SAMPLE';
+
 -- The lists the console ranks and the people it counts, by hour: decisions per user and action, challenges passed
 -- per user, stopped decisions per resource, first reasons, unknown facts, paths without a decision. They name users,
 -- so they are kept as long as the decision rows.

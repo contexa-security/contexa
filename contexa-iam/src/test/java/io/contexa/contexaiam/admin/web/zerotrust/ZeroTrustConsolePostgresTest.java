@@ -30,6 +30,7 @@ import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Operations
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Overview;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Share;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Trust;
+import io.contexa.contexaiam.testsupport.I18nTestSupport;
 import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -449,6 +450,164 @@ class ZeroTrustConsolePostgresTest {
         assertThat(records.observationOfRequest("request-timeout-1")).isEqualTo("timeout-1");
         assertThat(records.observationOfRequest("request-nobody-sent")).isNull();
         assertThat(records.observationOfRequest(" ")).isNull();
+    }
+
+    /**
+     * K24: a request judged again has a decision, an audit record and a sealed package per judgement; each decision
+     * opens its own, by its event, not the newest of the request.
+     */
+    @Test
+    void aDecisionJudgedAgainOpensItsOwnAuditRecordAndSealedPackage() {
+        Instant at = now.minus(Duration.ofMinutes(20));
+        decision(Map.of("observation_id", "judged-first", "request_id", "request-again", "event_id", "event-again",
+                "idempotency_key", "identity-first", "decision_source", "MODEL_LESS"), at);
+        decision(Map.of("observation_id", "judged-again", "request_id", "request-again", "event_id",
+                "event-again-again-1", "attempt_kind", "AGAIN", "idempotency_key", "identity-again"), at.plusSeconds(60));
+        decision(Map.of("observation_id", "judged-unkeyed", "request_id", "request-unkeyed", "event_id", "event-unkeyed",
+                "metadata_json", "{\"eventProcessingIdentity\":\"identity-unkeyed\"}"), at);
+        long firstAudit = audit("request-again", "event-again", at);
+        long againAudit = audit("request-again", "event-again-again-1", at.plusSeconds(60));
+        sealedPackage("package-first", "request-again", "identity-first", at);
+        sealedPackage("package-again", "request-again", "identity-again", at.plusSeconds(60));
+        sealedPackage("package-unkeyed", "request-unkeyed", "identity-unkeyed", at);
+
+        DecisionDetail first = records.detail("judged-first", Locale.ENGLISH);
+        DecisionDetail again = records.detail("judged-again", Locale.ENGLISH);
+
+        assertThat(first.auditId()).isEqualTo(firstAudit);
+        assertThat(first.packageId()).isEqualTo("package-first");
+        assertThat(again.auditId()).isEqualTo(againAudit);
+        assertThat(again.packageId()).isEqualTo("package-again");
+        assertThat(records.detail("judged-unkeyed", Locale.ENGLISH).packageId())
+                .as("a row without the identity column finds it in its metadata").isEqualTo("package-unkeyed");
+        assertThat(records.detail("judged-unkeyed", Locale.ENGLISH).auditId()).as("no audit record of its event")
+                .isNull();
+    }
+
+    /**
+     * K25: the model's sentence and the engine's are apart; a row stored before kept one sentence, read by who set the
+     * action.
+     */
+    @Test
+    void theModelsWordsAreNeverTheEngines() {
+        Instant at = now.minus(Duration.ofMinutes(20));
+        String ended = "Layer2 returned ESCALATE, so final autonomous action was terminalized to CHALLENGE by tiered "
+                + "strategy policy.";
+        decision(Map.of("observation_id", "kept-apart", "decision_summary_json",
+                "{\"modelReason\":\"A device the user never used.\",\"engineReason\":\"" + ended + "\"}",
+                "decision_source", "ENGINE_CHANGED", "decision_change_cause", "LAYER2_ESCALATE_TERMINALIZED"), at);
+        decision(Map.of("observation_id", "older-model-less", "decision_source", "MODEL_LESS", "decision_summary_json",
+                "{\"reason\":\"[AI Native] Layer 2 LLM call failed\"}"), at);
+        decision(Map.of("observation_id", "older-ended", "decision_source", "MODEL_LESS",
+                "decision_change_cause", "LAYER2_ESCALATE_TERMINALIZED", "decision_summary_json",
+                "{\"reason\":\"" + ended + "\"}"), at);
+        decision(Map.of("observation_id", "older-changed", "decision_source", "ENGINE_CHANGED",
+                "decision_summary_json", "{\"reason\":\"A device the user never used.\\n" + ended + "\"}"), at);
+        decision(Map.of("observation_id", "older-model", "decision_summary_json",
+                "{\"reason\":\"A device the user never used.\"}"), at);
+
+        assertThat(records.detail("kept-apart", Locale.ENGLISH)).satisfies(detail -> {
+            assertThat(detail.modelReason()).isEqualTo("A device the user never used.");
+            assertThat(detail.engineReason()).isEqualTo(ended);
+        });
+        assertThat(records.detail("older-model-less", Locale.ENGLISH)).satisfies(detail -> {
+            assertThat(detail.modelReason()).isNull();
+            assertThat(detail.engineReason()).isEqualTo("[AI Native] Layer 2 LLM call failed");
+        });
+        assertThat(records.detail("older-ended", Locale.ENGLISH).modelReason()).isNull();
+        assertThat(records.detail("older-changed", Locale.ENGLISH)).satisfies(detail -> {
+            assertThat(detail.modelReason()).isEqualTo("A device the user never used.");
+            assertThat(detail.engineReason()).isEqualTo(ended);
+        });
+        assertThat(records.detail("older-model", Locale.ENGLISH)).satisfies(detail -> {
+            assertThat(detail.modelReason()).isEqualTo("A device the user never used.");
+            assertThat(detail.engineReason()).isNull();
+        });
+    }
+
+    /** K26, K27: the comparison with the usual reads in words, with the usual values a row keeps from K27 on. */
+    @Test
+    void theComparisonWithTheUsualReadsInWords() {
+        ZeroTrustDecisionRecords worded = new ZeroTrustDecisionRecords(() -> jdbc, outcomes,
+                I18nTestSupport.englishMessageSource(), new ObjectMapper(), clock);
+        Instant at = now.minus(Duration.ofMinutes(20));
+        decision(Map.of("observation_id", "with-usual", "decision_summary_json", "{\"usualKept\":true,\"deviations\":["
+                + "{\"dimension\":\"DAY\",\"current\":\"Mon\",\"compared\":true,\"different\":true,"
+                + "\"explanation\":\"UNEXPLAINED\",\"usualValues\":[\"Tue\",\"Wed\"],\"seen\":0,\"of\":12},"
+                + "{\"dimension\":\"LOGIN_METHOD\",\"current\":\"PASSWORD+ONE_TIME_CODE\",\"compared\":true,"
+                + "\"different\":false,\"usual\":\"PASSWORD\",\"usualValues\":[\"PASSWORD\"]}]}"), at);
+        decision(Map.of("observation_id", "without-usual", "decision_summary_json", "{\"deviations\":["
+                + "{\"dimension\":\"ACTION\",\"current\":\"WRITE\",\"compared\":true,\"different\":false}]}"), at);
+
+        DecisionDetail with = worded.detail("with-usual", Locale.KOREAN);
+        DecisionDetail without = worded.detail("without-usual", Locale.KOREAN);
+
+        assertThat(with.usualKept()).isTrue();
+        assertThat(with.deviations()).extracting(row -> row.get("currentText"), row -> row.get("usualText"))
+                .containsExactly(tuple("월요일", "화, 수 · 이번 값은 12번 중 0번"), tuple("비밀번호 + 일회용 코드", "비밀번호"));
+        assertThat(without.usualKept()).as("stored before the usual values were kept").isFalse();
+        assertThat(without.deviations()).singleElement().satisfies(row -> {
+            assertThat(row.get("currentText")).isEqualTo("쓰기");
+            assertThat(row.get("usualText")).isNull();
+        });
+    }
+
+    /** K17 (D11): a decision whose model answer still broke a rule shows it and waits in the review queue for it. */
+    @Test
+    void aDecisionThatBrokeARuleShowsItAndWaitsForReview() {
+        decision(Map.of("observation_id", "broke-a-rule", "final_action", "ALLOW", "decision_summary_json",
+                "{\"ruleBreaches\":[{\"layer\":\"Layer1\",\"rule\":\"REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH\","
+                        + "\"codes\":[\"REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH\"]}]}"), now.minus(Duration.ofMinutes(20)));
+        jdbc.update("INSERT INTO ctxa_zt_review_queue (observation_id, sample_day, review_reason) "
+                + "VALUES ('broke-a-rule', CURRENT_DATE, 'RULE_BREACH')");
+        jdbc.update("INSERT INTO ctxa_zt_review_queue (observation_id, sample_day) VALUES ('block-1', CURRENT_DATE)");
+
+        DecisionDetail detail = records.detail("broke-a-rule", Locale.ENGLISH);
+
+        assertThat(detail.ruleBreaches()).singleElement()
+                .satisfies(breach -> assertThat(breach).containsEntry("layer", "Layer1"));
+        assertThat(detail.inReview()).isTrue();
+        assertThat(detail.reviewReason()).isEqualTo("RULE_BREACH");
+        assertThat(records.reviewQueue()).extracting(item -> item.observationId(), item -> item.reason())
+                .containsExactlyInAnyOrder(tuple("broke-a-rule", "RULE_BREACH"), tuple("block-1", "SAMPLE"));
+    }
+
+    /**
+     * K22: the store of the decisions is measured once the rows keep their store time; a period whose decisions were
+     * stored before says so, not that it had no decision.
+     */
+    @Test
+    void theDecisionStoreSaysWhyItHasNoTime() {
+        Operations before = service.operations("week", null, null, null, Locale.ENGLISH);
+        assertThat(before.components()).filteredOn(component -> "DECISION_STORE".equals(component.key())).singleElement()
+                .satisfies(component -> {
+                    assertThat(component.status()).isEqualTo("UNKNOWN");
+                    assertThat(component.noDataReason()).isEqualTo(ZeroTrustConsoleMetrics.NOT_MEASURED);
+                });
+
+        jdbc.update("UPDATE ctxa_ai_security_decision_observation SET persist_ms = 4");
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+        Operations after = service.operations("week", null, null, null, Locale.ENGLISH);
+
+        assertThat(after.components()).filteredOn(component -> "DECISION_STORE".equals(component.key())).singleElement()
+                .satisfies(component -> {
+                    assertThat(component.status()).isEqualTo("GOOD");
+                    assertThat(component.noDataReason()).isNull();
+                });
+        assertThat(after.latency()).filteredOn(stage -> "PERSIST".equals(stage.stage())).singleElement()
+                .satisfies(stage -> assertThat(stage.measured()).isEqualTo(10));
+    }
+
+    private static long audit(String requestId, String eventId, Instant at) {
+        return jdbc.queryForObject("INSERT INTO ctxa_audit_log (timestamp, principal_name, resource_identifier, decision, "
+                + "correlation_id, event_category, details) VALUES (?, 'u0', 'resource', 'CHALLENGE', ?, "
+                + "'SECURITY_DECISION', ?) RETURNING id", Long.class, Timestamp.from(at), requestId,
+                "{\"eventId\":\"" + eventId + "\",\"decision\":\"CHALLENGE\"}");
+    }
+
+    private static void sealedPackage(String packageId, String requestId, String identity, Instant at) {
+        jdbc.update("INSERT INTO ctxa_sealed_evidence_package (package_id, correlation_id, idempotency_key, captured_at, "
+                + "package_hash) VALUES (?, ?, ?, ?, 'hash')", packageId, requestId, identity, Timestamp.from(at));
     }
 
     private static void decision(Map<String, Object> values, Instant createdAt) {

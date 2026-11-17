@@ -60,6 +60,7 @@ import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV1OutputInspector;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
@@ -457,6 +458,36 @@ class AbstractTieredStrategyTest {
                 Map.of("layer", "Layer2-Test", "reason", "REASON_CODE_MISMATCH", "succeeded", false,
                         "failureReason", "REASON_CODE_MISMATCH")));
         assertThat(event.getMetadata()).containsEntry("securityDecisionOutputRetryReason", "REASON_CODE_MISMATCH");
+    }
+
+    /**
+     * K17 (D11): the decision rule a layer's answer still broke after its retry stays with the event, beside the other
+     * layer's; the layer running again replaces its entry, and a run of it without a broken rule removes it.
+     */
+    @Test
+    void theRuleEachLayersAnswerStillBrokeStaysWithTheEvent() {
+        SecurityEvent event = SecurityEvent.builder().metadata(new LinkedHashMap<>()).build();
+        SecurityDecisionResponse first = new SecurityDecisionResponse();
+        first.withMetadata(SecurityDecisionV1OutputInspector.V1_RULE_BREACH, "BLOCK_WITHOUT_DECISIVE_EVIDENCE");
+        SecurityDecisionResponse second = new SecurityDecisionResponse();
+        second.withMetadata(SecurityDecisionV1OutputInspector.V1_RULE_BREACH, "REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH");
+        Layer2ConcreteStrategy layer2 = new Layer2ConcreteStrategy(eventEnricher, promptTemplate,
+                behaviorVectorService, unifiedVectorService, baselineLearningService,
+                promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties);
+
+        strategy.capturePromptRuntimeTelemetryForTest(event, first);
+        layer2.capturePromptRuntimeTelemetryForTest(event, second);
+
+        assertThat(event.getMetadata().get(PromptRuntimeTelemetrySupport.RULE_BREACHES)).isEqualTo(List.of(
+                Map.of("layer", "TestLayer", "rule", "BLOCK_WITHOUT_DECISIVE_EVIDENCE"),
+                Map.of("layer", "Layer2-Test", "rule", "REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH")));
+
+        // the second layer runs again and keeps the rules this time; the first layer's breach stays
+        layer2.capturePromptRuntimeTelemetryForTest(event, new SecurityDecisionResponse());
+        assertThat(event.getMetadata().get(PromptRuntimeTelemetrySupport.RULE_BREACHES)).isEqualTo(List.of(
+                Map.of("layer", "TestLayer", "rule", "BLOCK_WITHOUT_DECISIVE_EVIDENCE")));
+        strategy.capturePromptRuntimeTelemetryForTest(event, new SecurityDecisionResponse());
+        assertThat(event.getMetadata()).doesNotContainKey(PromptRuntimeTelemetrySupport.RULE_BREACHES);
     }
 
     @Test

@@ -156,6 +156,11 @@ public class ZeroTrustConsoleService {
     // ----- overview (6.1) -----
 
     public Overview overview(String period, String from, String to, String tenant, Locale locale) {
+        // K29: the screen reads each item list once
+        return reader.screen(() -> overviewOf(period, from, to, tenant, locale));
+    }
+
+    private Overview overviewOf(String period, String from, String to, String tenant, Locale locale) {
         ZeroTrustConsoleRange range = range(period, from, to);
         ZeroTrustConsoleMetrics metrics = new ZeroTrustConsoleMetrics(messages, locale);
         List<StatsRow> rows = reader.stats(range, tenant);
@@ -344,6 +349,11 @@ public class ZeroTrustConsoleService {
     // ----- threats and business impact (6.2) -----
 
     public Impact impact(String period, String from, String to, String tenant, Locale locale) {
+        // K29: the screen reads each item list once
+        return reader.screen(() -> impactOf(period, from, to, tenant, locale));
+    }
+
+    private Impact impactOf(String period, String from, String to, String tenant, Locale locale) {
         ZeroTrustConsoleRange range = range(period, from, to);
         ZeroTrustConsoleMetrics metrics = new ZeroTrustConsoleMetrics(messages, locale);
         List<StatsRow> rows = reader.stats(range, tenant);
@@ -486,6 +496,11 @@ public class ZeroTrustConsoleService {
     // ----- trust (6.3) -----
 
     public Trust trust(String period, String from, String to, String tenant, Locale locale) {
+        // K29: the screen reads each item list once
+        return reader.screen(() -> trustOf(period, from, to, tenant, locale));
+    }
+
+    private Trust trustOf(String period, String from, String to, String tenant, Locale locale) {
         ZeroTrustConsoleRange range = range(period, from, to);
         ZeroTrustConsoleMetrics metrics = new ZeroTrustConsoleMetrics(messages, locale);
         List<StatsRow> rows = reader.stats(range, tenant);
@@ -625,6 +640,11 @@ public class ZeroTrustConsoleService {
     // ----- adoption (6.5, decision 11.5) -----
 
     public Adoption adoption(String tenant, Locale locale) {
+        // K29: the screen reads each item list once
+        return reader.screen(() -> adoptionOf(tenant, locale));
+    }
+
+    private Adoption adoptionOf(String tenant, Locale locale) {
         ZeroTrustConsoleMetrics metrics = new ZeroTrustConsoleMetrics(messages, locale);
         SecurityZeroTrustProperties.Adoption criteria = properties.getConsole().getAdoption();
         String mode = properties.getMode() != null ? properties.getMode().name() : null;
@@ -717,6 +737,11 @@ public class ZeroTrustConsoleService {
     // ----- operations (6.6) -----
 
     public Operations operations(String period, String from, String to, String tenant, Locale locale) {
+        // K29: the screen reads each item list once
+        return reader.screen(() -> operationsOf(period, from, to, tenant, locale));
+    }
+
+    private Operations operationsOf(String period, String from, String to, String tenant, Locale locale) {
         ZeroTrustConsoleRange range = range(period, from, to);
         ZeroTrustConsoleMetrics metrics = new ZeroTrustConsoleMetrics(messages, locale);
         List<StatsRow> rows = reader.stats(range, tenant);
@@ -825,9 +850,11 @@ public class ZeroTrustConsoleService {
         components.add(new Component("MODEL", modelStatus, String.valueOf(modelLess + failed), null));
         LatencyRow persist = stages.get("PERSIST");
         Long persistMs = persist == null ? null : ZeroTrustConsoleMetrics.percentile(persist.buckets(), 0.5);
+        // K22: without a measured store time the reason is that the period had no decision, or that its decisions were
+        // stored before the time was recorded.
         components.add(new Component("DECISION_STORE", persistMs == null ? "UNKNOWN" : "GOOD",
-                persistMs == null ? null : String.valueOf(persistMs), persistMs == null
-                ? ZeroTrustConsoleMetrics.NO_DECISIONS : null));
+                persistMs == null ? null : String.valueOf(persistMs), persistMs != null ? null
+                : decisions == 0 ? ZeroTrustConsoleMetrics.NO_DECISIONS : ZeroTrustConsoleMetrics.NOT_MEASURED));
         components.add(new Component("STATE_STORE", standalone ? "WARN" : "GOOD", standalone ? "MEMORY" : "REDIS",
                 null));
         Instant computed = reader.lastComputed();
