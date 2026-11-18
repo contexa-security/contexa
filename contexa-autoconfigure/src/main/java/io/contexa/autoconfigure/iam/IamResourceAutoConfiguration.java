@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.iam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
@@ -92,9 +93,14 @@ public class IamResourceAutoConfiguration {
             ConditionTemplateRepository conditionTemplateRepository,
             ManagedResourceRepository managedResourceRepository,
             ConditionCompatibilityService contexaConditionCompatibilityService,
-            AutoConditionTemplateService contexaAutoConditionTemplateService) {
-        return new ConditionClassificationController(conditionTemplateRepository, managedResourceRepository,
-                contexaConditionCompatibilityService, contexaAutoConditionTemplateService);
+            AutoConditionTemplateService contexaAutoConditionTemplateService,
+            ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+        ConditionClassificationController controller = new ConditionClassificationController(
+                conditionTemplateRepository, managedResourceRepository, contexaConditionCompatibilityService,
+                contexaAutoConditionTemplateService);
+        // K130: a classification and a generation of the condition templates are audited
+        centralAuditFacade.ifAvailable(controller::setCentralAuditFacade);
+        return controller;
     }
 
     /** The packages the application auto-configures from: its own, as Spring Boot knows them. */

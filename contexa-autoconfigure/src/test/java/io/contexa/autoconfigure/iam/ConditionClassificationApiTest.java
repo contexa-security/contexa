@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.iam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacore.std.operations.AICoreOperations;
@@ -35,6 +36,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
@@ -252,7 +254,8 @@ class ConditionClassificationApiTest {
             IamResourceAutoConfiguration configuration = new IamResourceAutoConfiguration();
             return configuration.conditionClassificationController(Mocks.TEMPLATES, Mocks.RESOURCES,
                     configuration.conditionCompatibilityService(),
-                    configuration.autoConditionTemplateService(Mocks.TEMPLATES, Mocks.RESOURCES, Mocks.AI));
+                    configuration.autoConditionTemplateService(Mocks.TEMPLATES, Mocks.RESOURCES, Mocks.AI),
+                    new StaticListableBeanFactory().getBeanProvider(CentralAuditFacade.class));
         }
     }
 

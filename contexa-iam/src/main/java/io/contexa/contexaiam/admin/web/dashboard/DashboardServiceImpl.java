@@ -141,6 +141,11 @@ public class DashboardServiceImpl implements DashboardService {
                 "ROLE_HIERARCHY_DELETED", "ROLE_HIERARCHY_ACTIVATED", "ROLE_HIERARCHY_DEACTIVATED", "USER_GROUPS_ASSIGNED",
                 "USER_ROLES_ASSIGNED", "GROUP_ROLES_ASSIGNED", "PASSWORD_POLICY_CHANGED", "MENU_CREATED", "MENU_UPDATED",
                 "MENU_DELETED", "MENU_SWITCHED", "MENU_ROLES_CHANGED", "MENU_REORDERED", "SYSTEM_SETTINGS_CHANGED"));
+        // K130: the other changes of the console that had no audit record before
+        actions.addAll(List.of("IP_RULE_CREATED", "IP_RULE_DELETED", "IP_RULE_SWITCHED_ON", "IP_RULE_SWITCHED_OFF",
+                "SESSION_ENDED", "USER_SESSIONS_ENDED", "RESOURCE_DEFINED", "RESOURCE_EXCLUDED", "RESOURCE_RESTORED",
+                "RESOURCE_STATUS_CHANGED", "RESOURCE_STATUS_RESET", "BLOCK_RECORD_DELETED", "CONDITION_CLASSIFIED",
+                "CONDITION_TEMPLATES_GENERATED", "CONDITION_TEMPLATES_REGENERATED"));
         actions.addAll(List.of(PromptVersionAudit.CREATED, PromptVersionAudit.HIDDEN, PromptVersionAudit.IMPORTED,
                 PromptVersionAudit.FOLDER_REGISTERED, PromptVersionAudit.USED_FOR_DECISIONS,
                 PromptVersionAudit.CANARY_STARTED, PromptVersionAudit.CANARY_STOPPED, PromptVersionAudit.SHADOW_STARTED,

@@ -628,6 +628,16 @@ public class BlockedUserService implements IBlockedUserRecorder {
         }
 
         blockedUserJpaRepository.delete(blocked);
+        // K130: the record of a block an administrator deletes is gone: the audit keeps whose it was and by whom
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("blockId", id);
+        details.put("userId", blocked.getUserId());
+        details.put("username", blocked.getUsername());
+        details.put("status", blocked.getStatus() != null ? blocked.getStatus().name() : null);
+        details.put("blockedAt", blocked.getBlockedAt() != null ? blocked.getBlockedAt().toString() : null);
+        details.put("requestId", blocked.getRequestId());
+        AdminChangeAudit.of(centralAuditFacade).record(AuditEventCategory.BLOCK_RECORD_DELETED,
+                AuditEventCategory.BLOCK_RECORD_DELETED.name(), blocked.getUserId(), details);
     }
 
     private void applyResolution(BlockedUser blocked, String adminId,

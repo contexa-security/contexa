@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexaiam.admin.web.auth.controller.IpManagementController;
@@ -22,6 +23,7 @@ import io.contexa.contexaiam.admin.web.auth.filter.IpAccessFilter;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.repository.IpAccessRuleRepository;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -35,8 +37,12 @@ public class IamAdminIpAutoConfiguration {
 
     @Bean(name = "contexaIpAccessRuleService")
     @ConditionalOnMissingBean
-    public IpAccessRuleService ipAccessRuleService(IpAccessRuleRepository ipAccessRuleRepository) {
-        return new IpAccessRuleService(ipAccessRuleRepository);
+    public IpAccessRuleService ipAccessRuleService(IpAccessRuleRepository ipAccessRuleRepository,
+                                                   ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+        IpAccessRuleService service = new IpAccessRuleService(ipAccessRuleRepository);
+        // K130: a change of the rules is audited
+        centralAuditFacade.ifAvailable(service::setCentralAuditFacade);
+        return service;
     }
 
     @Bean(name = "contexaIpManagementController")
