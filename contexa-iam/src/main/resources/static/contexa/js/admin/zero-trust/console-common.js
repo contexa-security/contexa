@@ -351,9 +351,22 @@
 
     // ----- cards -----
 
+    /**
+     * K110: a card title by its key; one with a short form (the key and ".short") is the pair of its words and its
+     * short words, which a phone reads where the whole words would not fit the title's line.
+     */
+    function title(key, ...args) {
+        return messages[key + '.short'] == null ? t(key, ...args) : [t(key, ...args), t(key + '.short', ...args)];
+    }
+
+    /** @param title the title's words, or its words and its short words for a phone ({@link title}) */
     function card(title, aside, ...body) {
         const node = el('section', {class: 'dash-card zt-card'});
-        const head = el('div', {class: 'zt-card-head'}, el('h2', {text: title}));
+        const heading = Array.isArray(title)
+            ? el('h2', {title: title[0]}, el('span', {class: 'zt-long', text: title[0]}),
+                el('span', {class: 'zt-short', text: title[1]}))
+            : el('h2', {text: title});
+        const head = el('div', {class: 'zt-card-head'}, heading);
         if (aside) {
             head.append(el('span', {class: 'zt-aside', text: aside}));
         }
@@ -770,7 +783,7 @@
 
     global.ZT = {
         t, el, svg, count, shortCount, percent, seconds, time, shortTime, day, metric, ranged, metricText, reason, load, post, apiUrl, query,
-        header, card, empty, chip, statusChip, rows, chart, legend, bar, stacked, gauge, sparkline, funnel, heatmap,
+        header, title, card, empty, chip, statusChip, rows, chart, legend, bar, stacked, gauge, sparkline, funnel, heatmap,
         waterfall, failed, start, titleCut, COLORS, SERIES
     };
 })(window);

@@ -179,7 +179,7 @@
                 }
             }}}}
         }, hasData, 'NO_DECISIONS');
-        return ZT.card(t(P + 'throughput.title'), hasData ? t(P + 'throughput.peak', perMinute(peak / 60)) : null,
+        return ZT.card(ZT.title(P + 'throughput.title'), hasData ? t(P + 'throughput.peak', perMinute(peak / 60)) : null,
             metrics, triggerLine(operations),
             hasData ? ZT.legend([{label: t(P + 'throughput.decisions'), color: ZT.COLORS.ACCENT}]) : null, box);
     }
@@ -200,7 +200,7 @@
     function noDecisionCard(operations) {
         const shares = (operations.noDecisionReasons || []).filter(share => share.count > 0);
         const total = shares.reduce((sum, share) => sum + share.count, 0);
-        const title = t(P + 'noDecision.title', ZT.count(total));
+        const title = ZT.title(P + 'noDecision.title', ZT.count(total));
         if (total === 0) {
             const tenant = operations.header && operations.header.tenant;
             return ZT.card(title, null, ZT.empty(tenant ? 'TENANT_FILTERED' : 'NO_DECISIONS'));
@@ -337,7 +337,7 @@
                     muted(t(P + 'failure.peak', ZT.day(dayKeys[values.indexOf(peak)]), ZT.count(peak))));
             }));
         }
-        const card = ZT.withTip(ZT.card(t(P + 'failure.title'), kinds.length ? t(P + 'failure.aside', ZT.count(total)) : null,
+        const card = ZT.withTip(ZT.card(ZT.title(P + 'failure.title'), kinds.length ? t(P + 'failure.aside', ZT.count(total)) : null,
             body, kinds.length > KINDS_SHOWN ? muted(t(P + 'failure.more', ZT.count(kinds.length - KINDS_SHOWN))) : null),
         t(P + 'failure.note'));
         card.append(links);

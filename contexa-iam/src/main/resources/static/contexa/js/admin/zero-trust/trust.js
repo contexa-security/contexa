@@ -159,7 +159,7 @@
             ? ZT.valueRows(reasons.map(share => ({label: ZT.keyLabel(P + 'invalid.', share.key),
                 value: m('countShareRatio', ZT.count(share.count), ZT.percent(share.ratio))})))
             : ZT.emptyNote(m('outcomes.invalidNone')));
-        return ZT.withTip(ZT.card(m('outcomes.title'), m('outcomes.pending', ZT.count(outcomes.reviewPending)), ...body),
+        return ZT.withTip(ZT.card(ZT.title(P + 'outcomes.title'), m('outcomes.pending', ZT.count(outcomes.reviewPending)), ...body),
             [m('outcomes.challengeNote'), m('review.how')].join(' '));
     }
 
@@ -258,7 +258,7 @@
 
     function changesCard(changes) {
         if (!changes.length) {
-            return ZT.card(m('changes.title'), null, ZT.empty('NO_DECISIONS'));
+            return ZT.card(ZT.title(P + 'changes.title'), null, ZT.empty('NO_DECISIONS'));
         }
         const columns = [{label: m('changes.pair'), fill: true}, {label: m('changes.period'), wide: true},
             {label: m('changes.decisions'), num: true}, {label: s('changes.stopped'), num: true},
@@ -274,7 +274,7 @@
                 el('td', {class: 'zt-num'}, ratioCell(row.stoppedRatio, row.decisions)),
                 el('td', {class: 'zt-num zt-wide'}, ratioCell(row.modelLessRatio, row.decisions)));
         }));
-        return ZT.withTip(ZT.card(m('changes.title'), m('changes.aside'), el('div', {class: 'modern-table zt-table-wrap'},
+        return ZT.withTip(ZT.card(ZT.title(P + 'changes.title'), m('changes.aside'), el('div', {class: 'modern-table zt-table-wrap'},
             el('table', {class: 'zt-table'}, el('thead', {}, head), body))), m('changes.note'));
     }
 

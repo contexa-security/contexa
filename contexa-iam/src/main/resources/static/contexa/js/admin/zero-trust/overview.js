@@ -32,6 +32,11 @@
         return t(P + key + (shadow ? '.shadow' : ''), ...args);
     }
 
+    /** K110: a card title in the mode's form, with its short form for a phone when it has one. */
+    function heading(key, ...args) {
+        return ZT.title(P + key + (shadow ? '.shadow' : ''), ...args);
+    }
+
     function span(node, columns) {
         node.classList.add('zt-span-' + columns);
         return node;
@@ -274,7 +279,7 @@
     function reasonsCard(groups, summary) {
         const total = groups.reduce((sum, group) => sum + group.count, 0);
         if (!summary.decisions || total === 0) {
-            return ZT.card(s('reasons.title'), null,
+            return ZT.card(heading('reasons.title'), null,
                 summary.decisions ? ZT.emptyNote(s('reasons.none')) : ZT.empty('NO_DECISIONS'));
         }
         const max = Math.max(...groups.map(group => group.count));
@@ -286,7 +291,7 @@
                         ZT.percent(group.ratio))})),
                 ZT.bar(group.count, max, {color: ZT.SERIES[index % ZT.SERIES.length], label}));
         }));
-        return foot(ZT.card(s('reasons.title'), s('reasons.aside', ZT.count(total)), rows),
+        return foot(ZT.card(heading('reasons.title'), s('reasons.aside', ZT.count(total)), rows),
             link(ZT.consoleLink('/impact'), m('reasons.link')));
     }
 

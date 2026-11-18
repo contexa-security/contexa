@@ -262,7 +262,7 @@
                     ZT.percent(present[present.length - 1], 0))})),
             ZT.sparkline(shares, {min: 0, max: 1, color: ZT.COLORS.GOOD,
                 label: t(P + 'trend.baseline')})) : null;
-        return ZT.card(t(P + 'trend.title'), t(P + 'trend.aside', ZT.count(total)),
+        return ZT.card(ZT.title(P + 'trend.title'), t(P + 'trend.aside', ZT.count(total)),
             hasData ? ZT.legend(STOPPED.map(action => ({label: t('zt.console.ui.action.' + action),
                 color: ZT.COLORS[action]}))) : null,
             box, baseline);

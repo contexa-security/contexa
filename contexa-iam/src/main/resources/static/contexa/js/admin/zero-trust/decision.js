@@ -199,7 +199,7 @@
         const text = detail.action === 'NO_DECISION' ? t(P + 'unexplained.noDecision')
             : detail.source === 'MODEL_LESS' ? t(P + 'unexplained.modelLess')
                 : t(P + 'unexplained.text', detail.bundle || '—');
-        return ZT.card(t(P + 'unexplained.title'), null, el('div', {text}), modelWords(detail.modelReason),
+        return ZT.card(ZT.title(P + 'unexplained.title'), null, el('div', {text}), modelWords(detail.modelReason),
             engineWords(detail));
     }
 
@@ -258,7 +258,7 @@
         const entries = Object.entries(detail.unknown || {});
         const body = entries.length ? ZT.valueRows(entries.map(([fact, why]) => ({label: ZT.factName(fact), title: fact,
             value: known(P + 'unknown.' + why, String(why))}))) : ZT.emptyNote(t(P + 'unknown.none'));
-        const card = ZT.card(t(P + 'unknown.title'), entries.length ? t(P + 'unknown.aside', ZT.count(entries.length))
+        const card = ZT.card(ZT.title(P + 'unknown.title'), entries.length ? t(P + 'unknown.aside', ZT.count(entries.length))
             : null, body);
         return entries.some(([, why]) => why === 'NOT_INTEGRATED') ? ZT.withTip(card, t(P + 'unknown.note')) : card;
     }

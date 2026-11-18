@@ -1692,6 +1692,11 @@ input[type="file"].modern-input::file-selector-button {
     text-transform: none;
 }
 
+/* K110: the short words of a card title are a phone's only. */
+.zt-card-head h2 > .zt-short {
+    display: none;
+}
+
 /*
  * K62: a phone (390) keeps every console screen's words whole, the Zero Trust console's, the prompt versions' and the
  * dashboard's: the page card takes 16 inside instead of 24, so a card is 32px wider, and a card's head takes two lines
@@ -1724,6 +1729,15 @@ input[type="file"].modern-input::file-selector-button {
 
     .zt-page .zt-card-head > .zt-band-info, .zt-page .zt-card-head > .zt-chip {
         flex-shrink: 0;
+    }
+
+    /* K110: a title longer than its line reads its short words there, the whole words in its tooltip. */
+    .zt-card-head h2 > .zt-long {
+        display: none;
+    }
+
+    .zt-card-head h2 > .zt-short {
+        display: inline;
     }
 }
 
