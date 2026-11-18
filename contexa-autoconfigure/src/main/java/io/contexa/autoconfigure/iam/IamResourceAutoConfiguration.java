@@ -23,6 +23,7 @@ import io.contexa.contexaiam.properties.IamAdminProperties;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.resource.controller.ConditionClassificationController;
 import io.contexa.contexaiam.resource.scanner.MethodResourceScanner;
 import io.contexa.contexaiam.resource.scanner.MvcResourceScanner;
 import io.contexa.contexaiam.resource.scanner.ResourceScanner;
@@ -36,6 +37,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackages;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
@@ -76,6 +78,23 @@ public class IamResourceAutoConfiguration {
             AICoreOperations contexaAiNativeProcessor) {
         return new AutoConditionTemplateService(
                 conditionTemplateRepository, managedResourceRepository, contexaAiNativeProcessor);
+    }
+
+    /**
+     * K119: the condition templates' administration API at /contexa/admin/api/conditions (their classification, their
+     * compatibility with a resource and their generation by the condition template prompt), for administrators. It is
+     * registered beside the services it calls, as every console controller is: the starter runs no component scan.
+     */
+    @Bean(name = "contexaConditionClassificationController")
+    @ConditionalOnMissingBean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+    public ConditionClassificationController conditionClassificationController(
+            ConditionTemplateRepository conditionTemplateRepository,
+            ManagedResourceRepository managedResourceRepository,
+            ConditionCompatibilityService contexaConditionCompatibilityService,
+            AutoConditionTemplateService contexaAutoConditionTemplateService) {
+        return new ConditionClassificationController(conditionTemplateRepository, managedResourceRepository,
+                contexaConditionCompatibilityService, contexaAutoConditionTemplateService);
     }
 
     /** The packages the application auto-configures from: its own, as Spring Boot knows them. */
