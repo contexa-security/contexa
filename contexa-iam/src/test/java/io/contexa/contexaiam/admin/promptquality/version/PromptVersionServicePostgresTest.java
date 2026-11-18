@@ -24,6 +24,7 @@ import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
 import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentException;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentReader;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionProblem;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernanceDescriptorResolver;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernanceRuntimeCacheInvalidationService;
@@ -46,6 +47,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -351,6 +353,135 @@ class PromptVersionServicePostgresTest {
     private static String userBlock(String text) {
         return "user:\n  - key: org-closing\n    add-after: REQUEST\n    title: Finance closing\n    text: |\n      "
                 + text + "\n";
+    }
+
+    /**
+     * K67 (plan 3.5): a block added to the user prompt under the title of a standard block is refused on the screen, in
+     * the folder and on an import alike, as is a title given anew to an added block; a version saved before this check
+     * is assembled as it was and draws that title in quotes.
+     */
+    @Test
+    void aBlockTitledAsAStandardBlockIsRefusedOnEveryWayInAndAnEarlierVersionStillDrawsIt(@TempDir Path folder)
+            throws Exception {
+        versions.registerProducts(null);
+        String session = organization("v1.0", "user:\n  - key: org-closing\n    add-after: REQUEST\n"
+                + "    title: Session\n    text: The ledger is exported on the last day.\n");
+        PromptVersionProblem expected = new PromptVersionProblem(PromptVersionProblem.Code.ENGINE_TITLE,
+                "user.org-closing", "Session");
+
+        assertThat(versions.check(null, session, PromptVersionRecord.SCREEN, null).problems())
+                .containsExactly(expected);
+        assertThatThrownBy(() -> versions.create(null, session, PromptVersionRecord.SCREEN, null, "admin", null))
+                .satisfies(refused -> assertThat(((PromptVersionDocumentException) refused).problems())
+                        .containsExactly(expected));
+        Files.writeString(folder.resolve("session.yaml"), session);
+        PromptVersionFolderScanner.Scan scan = new PromptVersionFolderScanner(() -> jdbc, versions, folder, "node-1",
+                () -> null).scan();
+        assertThat(scan.registered()).isZero();
+        assertThat(scan.errors()).singleElement().asString()
+                .isEqualTo("session.yaml: ENGINE_TITLE at user.org-closing (Session)");
+        assertThatThrownBy(() -> versions.importDocument(null, session, "session-import.yaml", "admin", null))
+                .satisfies(refused -> assertThat(codes(refused)).containsExactly(PromptVersionProblem.Code.ENGINE_TITLE));
+        assertThat(versions.list(null, PROMPT, true)).extracting(PromptVersionRecord::name).containsExactly("v1.0");
+
+        // A title given anew to an added block is refused alike; a standard block cannot be changed at all.
+        PromptVersionService.Saved closing = versions.create(null, organization("v1.0", userBlock("Closing.")),
+                PromptVersionRecord.SCREEN, null, "admin", null);
+        assertThat(versions.check(null, organization(closing.name(), "user:\n  - key: org-closing\n"
+                + "    title: Records and comparisons\n    text: Closing.\n"), PromptVersionRecord.SCREEN, null)
+                .problems()).extracting(PromptVersionProblem::code)
+                .containsExactly(PromptVersionProblem.Code.ENGINE_TITLE);
+        assertThat(versions.check(null, organization(closing.name(), "user:\n  - key: REQUEST\n    title: Request\n"
+                + "    text: Changed.\n"), PromptVersionRecord.SCREEN, null).problems())
+                .extracting(PromptVersionProblem::code).containsExactly(PromptVersionProblem.Code.LOCKED_PART);
+
+        // A version saved before the check: its document holds the title, and it is assembled and drawn as it was.
+        String earlier = organization(closing.name(), "user:\n  - key: org-desk\n    add-after: org-closing\n"
+                + "    title: Session\n    text: The desk answers within an hour.\n");
+        PromptVersionService.Saved desk = versions.create(null, earlier.replace("title: Session", "title: Desk"),
+                PromptVersionRecord.SCREEN, null, "admin", null);
+        AssembledPrompt drawnEarlier = new PromptAssembler().apply(
+                versions.assembled(null, PROMPT, closing.number()).orElseThrow(),
+                new PromptVersionDocumentReader().read(earlier));
+        jdbc.update("update ctxa_prompt_version set document = ?, content_hash = ? where prompt_key = ? and"
+                + " version_number = ?", earlier, drawnEarlier.contentHash(), PROMPT, desk.number());
+        AssembledPrompt assembled = service(SecurityDecisionPromptDocument.productReleases())
+                .assembled(null, PROMPT, desk.number()).orElseThrow();
+        assertThat(assembled.contentHash()).isEqualTo(drawnEarlier.contentHash());
+        assertThat(SecurityDecisionPromptDocument.organizationBlockTokens(assembled)).isEqualTo(PromptAssembler.tokensOf(
+                2L + "=== Finance closing (reference written by your organization) ===\nClosing.\n".length()
+                        + "=== \"Session\" (reference written by your organization) ===\n".length()
+                        + "The desk answers within an hour.\n".length()));
+    }
+
+    /**
+     * K70 (plan 3.5, check 4): the longest recent input is measured with the version each decision ran, its system
+     * prompt and the blocks it drew taken out; a new version on a base that is not that version counts its blocks in
+     * full, so a base that added blocks no decision drew no longer lets a version through that does not fit.
+     */
+    @Test
+    void theLongestInputIsMeasuredWithTheVersionEachDecisionRanWhateverTheBase() {
+        versions.registerProducts(null);
+        int system = PromptAssembler.systemTokens(SecurityDecisionPromptDocument.product());
+        PromptVersionService.Saved closing = versions.create(null, organization("v1.0",
+                userBlock("The ledger is exported on the last day.")), PromptVersionRecord.SCREEN, null, "admin", null);
+        int closingTokens = SecurityDecisionPromptDocument.organizationBlockTokens(
+                versions.assembled(null, PROMPT, closing.number()).orElseThrow());
+        PromptVersionLengthLimits limits = new PromptVersionLengthLimits(() -> jdbc, () -> "ollama", () -> null,
+                () -> 32_768, () -> 300, new JdbcPromptVersionStore(versions, SecurityDecisionPromptDocument.productStore()),
+                SecurityDecisionPromptDocument.product());
+        jdbc.update("delete from ctxa_ai_security_decision_observation");
+        try {
+            assertThat(limits.longest()).isEqualTo(new PromptVersionLengthLimits.Longest(0, 0));
+            observation("obs-1", "v1.0", system + 1_000);
+            observation("obs-2", closing.name(), system + 900 + closingTokens);
+            observation("obs-3", null, system + 700);
+            observation("obs-4", "2026.11.16-v1.0", system + 800);
+            // The decisions of v1.0 drew no block; those of the closing version drew its block, which is taken out.
+            assertThat(limits.longest()).isEqualTo(new PromptVersionLengthLimits.Longest(1_000, 0));
+            PromptAssembler.LengthLimit limit = limits.get();
+            assertThat(limit.contextTokens()).isEqualTo(32_768);
+            assertThat(limit.longestUserPromptTokens()).isEqualTo(1_000);
+            assertThat(limit.longestUserPromptAddedTokens()).isZero();
+
+            // On the closing version, which no decision ran, the base's block counts with the new one, all of it.
+            String desk = organization(closing.name(), """
+                    user:
+                      - key: org-desk
+                        add-after: org-closing
+                        title: Security desk
+                        text: The desk answers within an hour.
+                    """);
+            int added = versions.check(null, desk, PromptVersionRecord.SCREEN, null).addedUserTokens();
+            int fits = system + 1_000 + added + 300;
+            assertThat(versions.check(null, desk, PromptVersionRecord.SCREEN,
+                    new PromptAssembler.LengthLimit(fits - 1, 300, 1_000)).problems())
+                    .extracting(PromptVersionProblem::code).containsExactly(PromptVersionProblem.Code.TOO_LONG);
+            assertThat(versions.check(null, desk, PromptVersionRecord.SCREEN,
+                    new PromptAssembler.LengthLimit(fits, 300, 1_000)).problems()).isEmpty();
+
+            // A longer input of the closing version, its block taken out, is the longest, holding that block.
+            observation("obs-5", closing.name(), system + 1_200 + closingTokens);
+            assertThat(limits.longest()).isEqualTo(new PromptVersionLengthLimits.Longest(1_200 + closingTokens,
+                    closingTokens));
+            assertThat(versions.check(null, desk, PromptVersionRecord.SCREEN,
+                    new PromptAssembler.LengthLimit(system + 1_200 + added + 300, 300, 1_200 + closingTokens,
+                            closingTokens)).problems()).isEmpty();
+            assertThat(versions.check(null, desk, PromptVersionRecord.SCREEN,
+                    new PromptAssembler.LengthLimit(system + 1_200 + added + 299, 300, 1_200 + closingTokens,
+                            closingTokens)).problems()).extracting(PromptVersionProblem::code)
+                    .containsExactly(PromptVersionProblem.Code.TOO_LONG);
+        }
+        finally {
+            jdbc.update("delete from ctxa_ai_security_decision_observation");
+        }
+    }
+
+    private static void observation(String id, String version, int promptTokens) {
+        jdbc.update("insert into ctxa_ai_security_decision_observation (observation_id, request_id, user_id,"
+                + " http_method, request_path, created_at, prompt_bundle_version, prompt_tokens) values (?, ?, 'alice',"
+                + " 'GET', '/api/ledger', ?, ?, ?)", id, "req-" + id,
+                Timestamp.from(Instant.parse("2026-11-16T08:00:00Z")), version, promptTokens);
     }
 
     @Test

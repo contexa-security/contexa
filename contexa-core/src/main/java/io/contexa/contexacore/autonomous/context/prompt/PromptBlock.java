@@ -95,6 +95,19 @@ public enum PromptBlock {
         return isHeaderLine(stripped) && fromSectionKey(stripped).isPresent();
     }
 
+    /**
+     * K67 (plan 3.5): whether a block titled so would read as one of these blocks: its header, in the one form every
+     * header is drawn with ({@link #headerLine}, the title's white space made single spaces as a drawing makes it), is
+     * the header of one of them, whatever qualifiers follow the title. The checks before a save refuse such a title for
+     * a block an organization adds; a version saved before them draws it in quotes.
+     */
+    public static boolean isBlockTitle(String title) {
+        if (title == null || title.isBlank()) {
+            return false;
+        }
+        return isBlockHeaderLine(headerLine(title.replaceAll("\\s+", " ").strip(), List.of()));
+    }
+
     /** Whether a prompt line is a block header as {@link #header} draws it. */
     public static boolean isHeaderLine(String line) {
         return line != null && line.startsWith(HEADER_MARK + " ") && line.endsWith(" " + HEADER_MARK)

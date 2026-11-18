@@ -70,6 +70,11 @@ public record PromptVersionProblem(Code code, String where, String detail) {
         EMPTY_TEXT,
         /** Two parts have the same key, or an added part has the key of a part of the base. */
         DUPLICATE_KEY,
+        /**
+         * K67: a block added to the user prompt is titled as a block of the engine, so its header would read as that
+         * block's; the security decision draws such a title of a version saved earlier in quotes.
+         */
+        ENGINE_TITLE,
         /** The finished prompt with the longest recent input and the answer does not fit the model's context. */
         TOO_LONG
     }

@@ -227,6 +227,25 @@ class SealedDecisionReplaysTest {
         assertThat(replayed.integrity()).isEqualTo(SealedEvidencePackageIntegrity.Status.UNVERIFIABLE);
     }
 
+    /**
+     * K71: the state of a package is told without the decision pipeline, as a replay tells it, for the version screen
+     * that shows its user prompt; nothing is asked or audited.
+     */
+    @Test
+    void theStateOfAPackageIsToldWithoutThePipeline() {
+        SealedDecisionReplays withoutPipeline = new SealedDecisionReplays(packages, () -> null, baselines, audit, JSON,
+                integrity);
+        when(packages.findByPackageId("pkg-1")).thenReturn(Optional.of(sealed));
+
+        assertThat(withoutPipeline.integrity("pkg-1")).contains(SealedEvidencePackageIntegrity.Status.UNVERIFIABLE);
+        seal();
+        assertThat(withoutPipeline.integrity("pkg-1")).contains(SealedEvidencePackageIntegrity.Status.VERIFIED);
+        sealed.setDecisionJson("{\"action\":\"BLOCK\"}");
+        assertThat(withoutPipeline.integrity("pkg-1")).contains(SealedEvidencePackageIntegrity.Status.MISMATCH);
+        assertThat(withoutPipeline.integrity("pkg-gone")).isEmpty();
+        verifyNoInteractions(service, audit);
+    }
+
     /** A replay that gave no answer is audited with the package's state as well. */
     @Test
     void aFailedReplayStillTellsThePackagesState() {

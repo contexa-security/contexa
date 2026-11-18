@@ -44,6 +44,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Clock;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 
 /**
@@ -108,10 +109,20 @@ public class PromptVersionConsoleAutoConfiguration {
         // Plan 3.11: the prompts other than the security decision show their finished prompt with an example input.
         console.setVersionedPrompts(versionedPrompts.getIfAvailable());
         // Plan 3.10 (2): the finished prompt draws the latest sealed decision again with the version, as a replay does.
+        // K71: beside it, the state of the sealed package, as a replay tells it.
         console.setSealedDrawing(() -> {
             SealedDecisionReplays drawing = replays.getIfAvailable();
-            return drawing == null ? null : (packageId, version) -> drawing.drawPackage(packageId, version)
-                    .map(drawn -> drawn.drawing().userPrompt());
+            return drawing == null ? null : new PromptVersionConsole.SealedDrawing() {
+                @Override
+                public Optional<String> userPrompt(String packageId, String version) {
+                    return drawing.drawPackage(packageId, version).map(drawn -> drawn.drawing().userPrompt());
+                }
+
+                @Override
+                public Optional<String> integrity(String packageId) {
+                    return drawing.integrity(packageId).map(Enum::name);
+                }
+            };
         });
         return console;
     }

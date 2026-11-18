@@ -209,6 +209,14 @@ public class PromptVersionConsole {
          * @throws SealedDecisionReplays.UnavailableException when the decision pipeline is not in this application
          */
         Optional<String> userPrompt(String packageId, String version);
+
+        /**
+         * K71: the state of the sealed package as a replay of it tells it (VERIFIED, MISMATCH or UNVERIFIABLE); empty
+         * when the package is gone or its state is not known. It needs no decision pipeline.
+         */
+        default Optional<String> integrity(String packageId) {
+            return Optional.empty();
+        }
     }
 
     /** Plan 3.10 (2): what draws a sealed decision again for the finished prompt; a supplier of null without one. */
@@ -402,9 +410,9 @@ public class PromptVersionConsole {
                     .map(found -> found.example(version))
                     .map(example -> new Preview(example.system() == null || example.system().isEmpty() ? null
                             : example.system(), null, example.user(), null, null, name, true, List.of(), true, false,
-                            null))
+                            null, null))
                     .orElseGet(() -> new Preview(null, null, null, null, null, null, false, List.of(), false, false,
-                            null));
+                            null, null));
         }
         String system = SecurityDecisionPromptDocument.systemPreview(version);
         String format = SecurityDecisionPromptDocument.outputFormatPreview();
@@ -418,16 +426,19 @@ public class PromptVersionConsole {
                 rs.getString(1), rs.getString(2), rs.getTimestamp(3) != null ? rs.getTimestamp(3).toInstant() : null,
                 rs.getString(4), rs.getString(5)});
         if (latest.isEmpty()) {
-            return new Preview(system, format, null, null, null, null, false, added, false, false, null);
+            return new Preview(system, format, null, null, null, null, false, added, false, false, null, null);
         }
         Object[] row = latest.get(0);
         String drawnWith = (String) row[3];
+        SealedDrawing drawing = sealedDrawing.get();
+        // K71: the user prompt shown comes from the sealed package, drawn again or as it was drawn; its state is told
+        // as a replay of it tells it.
+        String integrity = integrityOf(drawing, (String) row[4]);
         if (name.equals(drawnWith)) {
             return new Preview(system, format, (String) row[0], (String) row[1], (Instant) row[2], drawnWith, true,
-                    added, false, false, null);
+                    added, false, false, null, integrity);
         }
         String notDrawn;
-        SealedDrawing drawing = sealedDrawing.get();
         if (drawing == null) {
             notDrawn = NOT_DRAWN_UNAVAILABLE;
         }
@@ -436,7 +447,7 @@ public class PromptVersionConsole {
                 Optional<String> drawn = drawing.userPrompt((String) row[4], name);
                 if (drawn.isPresent()) {
                     return new Preview(system, format, drawn.get(), (String) row[1], (Instant) row[2], name, true,
-                            added, false, true, null);
+                            added, false, true, null, integrity);
                 }
                 notDrawn = NOT_DRAWN_FAILED;
                 log.warn("[PromptVersionConsole] The sealed package {} is gone; {} is previewed with the prompt it was"
@@ -452,7 +463,21 @@ public class PromptVersionConsole {
             }
         }
         return new Preview(system, format, (String) row[0], (String) row[1], (Instant) row[2], drawnWith, false,
-                added, false, false, notDrawn);
+                added, false, false, notDrawn, integrity);
+    }
+
+    /** K71: the state of the sealed package (VERIFIED, MISMATCH or UNVERIFIABLE); null when it cannot be told. */
+    private static String integrityOf(SealedDrawing drawing, String packageId) {
+        if (drawing == null || packageId == null) {
+            return null;
+        }
+        try {
+            return drawing.integrity(packageId).orElse(null);
+        }
+        catch (RuntimeException failure) {
+            log.error("[PromptVersionConsole] The state of the sealed package {} could not be read", packageId, failure);
+            return null;
+        }
     }
 
     private VersionDecisions decisionsOf(String name, String scope) {
@@ -596,7 +621,8 @@ public class PromptVersionConsole {
                         || codes.contains(PromptVersionProblem.Code.NOT_PREPARED))),
                 new CheckRow("CONTENT", !(codes.contains(PromptVersionProblem.Code.EMPTY_TITLE)
                         || codes.contains(PromptVersionProblem.Code.EMPTY_TEXT)
-                        || codes.contains(PromptVersionProblem.Code.DUPLICATE_KEY))),
+                        || codes.contains(PromptVersionProblem.Code.DUPLICATE_KEY)
+                        || codes.contains(PromptVersionProblem.Code.ENGINE_TITLE))),
                 new CheckRow("LENGTH", !codes.contains(PromptVersionProblem.Code.TOO_LONG)));
         Long delta = null;
         Double msPerToken = msPerInputToken();
