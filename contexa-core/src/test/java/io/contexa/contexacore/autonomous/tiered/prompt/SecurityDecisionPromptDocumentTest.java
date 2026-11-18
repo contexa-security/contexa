@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,6 +45,49 @@ class SecurityDecisionPromptDocumentTest {
 
     private static final String RESPONSE_SENTENCE = "No later system changes an ALLOW, a CHALLENGE or a BLOCK; do not"
             + " pre-compensate for one.";
+
+    /**
+     * K66: the build ships both product releases, the latest last as the product version, and they differ only in the
+     * part organization-blocks, drawn under the condition of the precedence sentence, in an organization's version. Without the version tables the product version is found by
+     * its release and by the name of the bundle it runs on (the earlier release's name); the start registers each
+     * release in the version tables, which find it by its release (PromptVersionServicePostgresTest).
+     */
+    @Test
+    void theBuildShipsEveryProductReleaseAndFindsEachByItsName() {
+        assertThat(SecurityDecisionPromptDocument.productReleases())
+                .extracting(release -> release.release())
+                .containsExactly("2026.11.16-v1.0", "2026.11.18-v1.0");
+        AssembledPrompt product = SecurityDecisionPromptDocument.product();
+        assertThat(product.release()).isEqualTo("2026.11.18-v1.0");
+        AssembledPrompt earlier = new PromptAssembler().product(SecurityDecisionPromptDocument.productDocument(
+                SecurityDecisionPromptDocument.RELEASES.get(0)));
+        assertThat(earlier.release()).isEqualTo("2026.11.16-v1.0");
+        assertThat(SecurityDecisionPromptDocument.productStore()
+                .find(SecurityDecisionPromptDocument.PROMPT, "2026.11.18-v1.0")).containsSame(product);
+        assertThat(SecurityDecisionPromptDocument.productStore().find(SecurityDecisionPromptDocument.PROMPT,
+                SecurityDecisionPromptBundles.DEFAULT.version())).containsSame(product);
+        assertThat(SecurityDecisionPromptDocument.productStore()
+                .find(SecurityDecisionPromptDocument.PROMPT, "v2.0")).isEmpty();
+        assertThat(SecurityDecisionPromptDocument.productStore().find("PolicyGeneration", "2026.11.18-v1.0")).isEmpty();
+
+        List<PromptVersionDocument.Part> added = product.system().stream()
+                .filter(part -> earlier.systemPart(part.key()).isEmpty()).toList();
+        assertThat(added).extracting(PromptVersionDocument.Part::key).containsExactly("organization-blocks");
+        assertThat(product.system().stream().filter(part -> !added.contains(part)).toList())
+                .isEqualTo(earlier.system());
+        assertThat(earlier.user()).isEqualTo(product.user());
+        assertThat(earlier.corrections()).isEqualTo(product.corrections());
+        PromptVersionDocument.Part part = added.get(0);
+        assertThat(part.isLocked()).isTrue();
+        assertThat(part.when()).isEqualTo(AssembledPrompt.ORGANIZATION_PARTS);
+        assertThat(product.system()).extracting(PromptVersionDocument.Part::key)
+                .containsSubsequence("evidence-reading", "organization-blocks", "more-reading");
+        assertThat(product.drawnParts(AssembledPrompt.JUDGMENT, Set.of())).extracting(PromptVersionDocument.Part::key)
+                .doesNotContain("organization-blocks");
+        assertThat(earlier.contentHash()).isNotEqualTo(product.contentHash());
+        assertThat(SecurityDecisionPromptDocument.keepsInjectionGuard(earlier)).isTrue();
+        assertThat(SecurityDecisionPromptDocument.reasonCodesOfEngine(earlier)).isTrue();
+    }
 
     @Test
     void theDocumentNamesTheEngineReasonCodesInItsOrderWithAMeaningEach() {

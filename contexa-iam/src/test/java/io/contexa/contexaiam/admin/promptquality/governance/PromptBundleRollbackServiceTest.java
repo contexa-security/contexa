@@ -183,9 +183,10 @@ class PromptBundleRollbackServiceTest {
     /** VOCABULARY_INCOMPATIBLE: the reason codes of the target version are not the engine's. */
     @Test
     void aVersionWhoseReasonCodesAreNotTheEnginesIsRefusedAsVocabularyIncompatible() {
-        ProductPromptRelease current = SecurityDecisionPromptDocument.productReleases().get(0);
+        List<ProductPromptRelease> shipped = SecurityDecisionPromptDocument.productReleases();
+        ProductPromptRelease current = shipped.get(shipped.size() - 1);
         String fewerCodes = current.document().replace("\r\n", "\n")
-                .replace("release: 2026.11.16-v1.0", "release: 2026.12.01-v1.1")
+                .replace("release: " + current.release(), "release: 2026.12.01-v1.1")
                 .replace("      - key: RECORD_DECIDED_AFTER_REQUEST\n        text: \"the record was decided after this"
                         + " request\"\n", "");
         assertThat(fewerCodes).doesNotContain("key: RECORD_DECIDED_AFTER_REQUEST\n");

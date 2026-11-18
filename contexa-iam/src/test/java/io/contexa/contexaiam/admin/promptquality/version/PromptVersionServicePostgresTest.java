@@ -145,12 +145,14 @@ class PromptVersionServicePostgresTest {
         assertThat(versions.registerProducts(null)).as("a second start").isEmpty();
         PromptVersionRecord v1 = versions.find(null, PROMPT, 1).orElseThrow();
         assertThat(v1.provider()).isEqualTo(PromptVersionRecord.CONTEXA);
-        assertThat(v1.originName()).isEqualTo("2026.11.16-v1.0");
+        // K66: the build ships 2026.11.16-v1.0 and 2026.11.18-v1.0; a first installation registers the newest alone.
+        assertThat(v1.originName()).isEqualTo("2026.11.18-v1.0");
         assertThat(v1.contentHash()).isEqualTo(SecurityDecisionPromptDocument.product().contentHash());
 
         // An organization's version stays where it is when Contexa ships two newer releases.
         versions.create(null, organization("v1.0", JUDGE), PromptVersionRecord.SCREEN, null, "admin", null);
-        ProductPromptRelease current = SecurityDecisionPromptDocument.productReleases().get(0);
+        List<ProductPromptRelease> shipped = SecurityDecisionPromptDocument.productReleases();
+        ProductPromptRelease current = shipped.get(shipped.size() - 1);
         List<ProductPromptRelease> upgraded = List.of(current, release(current, "2026.12.01-v1.1", "two"),
                 release(current, "2027.01.10-v1.2", "three"));
         List<PromptVersionService.Saved> upgrade = service(upgraded).registerProducts(null);
@@ -163,7 +165,7 @@ class PromptVersionServicePostgresTest {
 
     /** A product release of another Contexa build: the same document with its release and one changeable part. */
     private static ProductPromptRelease release(ProductPromptRelease base, String release, String word) {
-        String text = base.document().replace("release: 2026.11.16-v1.0", "release: " + release)
+        String text = base.document().replace("release: " + base.release(), "release: " + release)
                 .replace("5. When the facts cannot separate the explanations, say what is missing.",
                         "5. When the facts cannot separate the explanations, say what is missing (" + word + ").");
         return new ProductPromptRelease(base.prompt(), release, text);
@@ -515,7 +517,8 @@ class PromptVersionServicePostgresTest {
         assertThat(store.find(PROMPT, made.name())).as("the version read before").isPresent();
         assertThat(store.find(PROMPT, neverRead.name())).as("a version never read: the engine runs the product")
                 .isEmpty();
-        assertThat(store.find(PROMPT, "2026.11.16-v1.0")).as("the product by its release").isPresent();
+        assertThat(store.find(PROMPT, "2026.11.18-v1.0")).as("the product by its release").isPresent();
+        assertThat(store.find(PROMPT, "2026.11.16-v1.0")).as("the product by the bundle's name").isPresent();
         PromptVersionResolver resolver = new PromptVersionResolver(null, failing, () -> null, clock);
         assertThat(resolver.select(context(null), "alice")).isEqualTo(PromptBundleSelection.none());
     }

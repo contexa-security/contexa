@@ -48,8 +48,12 @@ public final class SecurityDecisionPromptDocument {
 
     /** The prompt key of the security decision. */
     public static final String PROMPT = "cortex.security-decision";
-    /** The product releases this build ships, the latest last; the latest is the product version. */
-    public static final List<String> RELEASES = List.of("2026.11.16");
+    /**
+     * The product releases this build ships, the latest last; the latest is the product version. A release is never
+     * changed: 2026.11.18 (K66) is 2026.11.16 with the fixed part organization-blocks, drawn beside the
+     * precedence sentence, saying what a block an organization added to the user prompt is.
+     */
+    public static final List<String> RELEASES = List.of("2026.11.16", "2026.11.18");
     /** The condition of the parts drawn when the host enforces the minimum action floors (K32, decision D10). */
     public static final String MINIMUM_ACTION_ENFORCE = "minimum-action-enforce";
     /** The condition of the texts an agent's request is drawn with. */
@@ -91,9 +95,16 @@ public final class SecurityDecisionPromptDocument {
         return List.copyOf(releases);
     }
 
-    /** The store of the product versions this build ships, named by their release. */
+    /**
+     * The store of the product version without the version tables: the product version by its release, and by the name
+     * of the bundle every version runs on, which names the build's product version (K66: since release 2026.11.18 the
+     * bundle's name is no longer the release's). An earlier release is read from the version tables, where the start
+     * registered it.
+     */
     public static PromptVersionStore productStore() {
-        return (prompt, version) -> PROMPT.equals(prompt) && product().release().equals(version)
+        return (prompt, version) -> PROMPT.equals(prompt) && version != null
+                && (product().release().equals(version.trim())
+                || SecurityDecisionPromptBundles.DEFAULT.version().equals(version.trim()))
                 ? Optional.of(product()) : Optional.empty();
     }
 
