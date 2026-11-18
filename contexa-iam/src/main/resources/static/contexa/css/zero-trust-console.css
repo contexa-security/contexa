@@ -1692,7 +1692,16 @@ input[type="file"].modern-input::file-selector-button {
     text-transform: none;
 }
 
-/* K110: the short words of a card title are a phone's only. */
+/*
+ * K110: a card title of two forms cuts the form it shows inside the title, as a title of one form is cut (its whole
+ * words in the title's tooltip); the short words are a phone's only.
+ */
+.zt-card-head h2 > .zt-long, .zt-card-head h2 > .zt-short {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .zt-card-head h2 > .zt-short {
     display: none;
 }
@@ -1737,7 +1746,7 @@ input[type="file"].modern-input::file-selector-button {
     }
 
     .zt-card-head h2 > .zt-short {
-        display: inline;
+        display: block;
     }
 }
 
