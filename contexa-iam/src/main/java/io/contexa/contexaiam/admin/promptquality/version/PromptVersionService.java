@@ -165,7 +165,8 @@ public class PromptVersionService {
         PromptVersionDocument document = reader.read(release.document());
         AssembledPrompt version = assembler.product(document);
         return save(scope, release.prompt(), document, release.document(), version, null, null,
-                PromptVersionRecord.CONTEXA, PromptVersionRecord.PRODUCT, release.release(), "contexa");
+                PromptVersionRecord.CONTEXA, PromptVersionRecord.PRODUCT, release.release(),
+                PromptVersionAudit.PRODUCT_ACTOR);
     }
 
     /**

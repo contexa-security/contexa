@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.dashboard;
 
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
 import io.contexa.contexaiam.admin.web.agent.service.OAuth2AgentProvisioning;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardDtos.Count;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardDtos.DayCount;
@@ -53,6 +54,25 @@ public class DashboardQueries {
     /** A failed automatic policy synchronisation is recorded under POLICY_CREATED: it changed nothing. */
     static final String AUTO_POLICY_SYNC_BLOCKED = "AUTO_POLICY_SYNC_BLOCKED";
 
+    /**
+     * K109: the names, in lower case, the system's own records of those categories are written under: SYSTEM where no
+     * one is signed in (the role, user and policy services at start and the policy synchronisation), system (a prompt
+     * version record without an actor) and the product's prompt versions registered at start. A version registered from
+     * a node's document folder is written under {@link PromptVersionAudit#FOLDER_ACTOR} and the node.
+     */
+    static final List<String> SYSTEM_ACTORS = List.of("system", PromptVersionAudit.PRODUCT_ACTOR);
+
+    /**
+     * What makes a record of those categories an admin change (N19, K109): a refused administrator change, a failed
+     * policy synchronisation and a record the system wrote on its own, or under no name, are none.
+     */
+    private static final String ADMIN_CHANGE = """
+               AND NOT (a.event_category = 'ADMIN_OVERRIDE' AND COALESCE(a.outcome, '') = 'REFUSED')
+               AND COALESCE(a.action, '') <> '%s'
+               AND LOWER(TRIM(COALESCE(a.principal_name, ''))) NOT IN ('', %s)
+               AND a.principal_name NOT LIKE '%s%%'
+            """.formatted(AUTO_POLICY_SYNC_BLOCKED, quoted(SYSTEM_ACTORS), PromptVersionAudit.FOLDER_ACTOR);
+
     private static final String ACCOUNTS_OF_PEOPLE = "u.enabled = TRUE AND u.bridge_managed = FALSE "
             + "AND (u.email IS NULL OR LOWER(u.email) NOT LIKE ?)";
     private static final String AGENT_MAIL = "%" + OAuth2AgentProvisioning.ACCOUNT_EMAIL_DOMAIN;
@@ -65,13 +85,10 @@ public class DashboardQueries {
              ORDER BY b.user_id, b.blocked_at DESC, CASE WHEN b.status = 'RESOLVED' THEN 1 ELSE 0 END, b.id DESC
             """;
 
-    /** The admin changes of a period: a refused administrator change and a failed policy synchronisation are none. */
+    /** The admin changes of a period. */
     private static final String CHANGES_OF_PERIOD = """
              WHERE a.timestamp >= ? AND a.timestamp < ? AND a.event_category IN (%s)
-               AND NOT (a.event_category = 'ADMIN_OVERRIDE' AND COALESCE(a.outcome, '') = 'REFUSED')
-               AND COALESCE(a.action, '') <> '%s'
-            """.formatted(String.join(", ", CHANGE_KINDS.keySet().stream().map(c -> "'" + c + "'").toList()),
-            AUTO_POLICY_SYNC_BLOCKED);
+            """.formatted(quoted(CHANGE_KINDS.keySet())) + ADMIN_CHANGE;
 
     private final Supplier<JdbcOperations> jdbc;
 
@@ -98,6 +115,10 @@ public class DashboardQueries {
             kinds.put(category, "AGENT");
         }
         return Collections.unmodifiableMap(kinds);
+    }
+
+    private static String quoted(Collection<String> values) {
+        return String.join(", ", values.stream().map(value -> "'" + value + "'").toList());
     }
 
     // ----- accounts (N3, N4, N18) -----
@@ -243,9 +264,22 @@ public class DashboardQueries {
 
     /**
      * The audit records of the categories on each day from the first day to the moment, every day listed (0 for a day
-     * without one); a failed policy synchronisation is no change and is left out.
+     * without one).
      */
     public List<DayCount> byDay(List<String> categories, LocalDate firstDay, Instant firstMoment, Instant to) {
+        return byDay(categories, "", firstDay, firstMoment, to);
+    }
+
+    /**
+     * The admin changes of the categories on each day from the first day to the moment, every day listed, as the recent
+     * admin changes count them (K109): a failed policy synchronisation and the system's own records are left out.
+     */
+    public List<DayCount> changesByDay(List<String> categories, LocalDate firstDay, Instant firstMoment, Instant to) {
+        return byDay(categories, ADMIN_CHANGE, firstDay, firstMoment, to);
+    }
+
+    private List<DayCount> byDay(List<String> categories, String only, LocalDate firstDay, Instant firstMoment,
+                                 Instant to) {
         Map<String, Long> days = new LinkedHashMap<>();
         LocalDate today = LocalDate.ofInstant(to, ZoneId.systemDefault());
         for (LocalDate day = firstDay; !day.isAfter(today); day = day.plusDays(1)) {
@@ -258,8 +292,8 @@ public class DashboardQueries {
             args.add(timestamp(to));
             String marks = String.join(", ", Collections.nCopies(categories.size(), "?"));
             operations.query("SELECT CAST(a.timestamp AS DATE), COUNT(*) FROM ctxa_audit_log a "
-                    + "WHERE a.event_category IN (" + marks + ") AND a.timestamp >= ? AND a.timestamp < ? "
-                    + "AND COALESCE(a.action, '') <> '" + AUTO_POLICY_SYNC_BLOCKED + "' GROUP BY 1", (ResultSet rs) -> {
+                    + "WHERE a.event_category IN (" + marks + ") AND a.timestamp >= ? AND a.timestamp < ? " + only
+                    + " GROUP BY 1", (ResultSet rs) -> {
                         String day = String.valueOf(rs.getDate(1));
                         long count = rs.getLong(2);
                         days.computeIfPresent(day, (key, zero) -> count);

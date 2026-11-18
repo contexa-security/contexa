@@ -98,7 +98,7 @@ public class PromptVersionFolderScanner {
                     }
                     String text = Files.readString(file, StandardCharsets.UTF_8);
                     PromptVersionService.Saved saved = versions.create(PromptVersionService.PLATFORM_SCOPE, text,
-                            PromptVersionRecord.FOLDER, name, "folder:" + node, limit.get());
+                            PromptVersionRecord.FOLDER, name, PromptVersionAudit.FOLDER_ACTOR + node, limit.get());
                     if (saved.made()) {
                         registered++;
                     }

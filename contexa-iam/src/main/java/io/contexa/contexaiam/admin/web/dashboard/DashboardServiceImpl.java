@@ -225,7 +225,7 @@ public class DashboardServiceImpl implements DashboardService {
                 sources.policies().countByIsActiveTrue(), approvals.getOrDefault(Policy.ApprovalStatus.PENDING, 0L),
                 approvals.getOrDefault(Policy.ApprovalStatus.APPROVED, 0L),
                 approvals.getOrDefault(Policy.ApprovalStatus.REJECTED, 0L), health, conflicts, duplicates,
-                sources.queries().byDay(POLICY_CHANGES, firstDay, start(firstDay), now),
+                sources.queries().changesByDay(POLICY_CHANGES, firstDay, start(firstDay), now),
                 sources.policyCenter().countUnusedPermissions());
     }
 

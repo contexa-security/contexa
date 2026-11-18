@@ -392,6 +392,64 @@ class DashboardPostgresTest {
     }
 
     @Test
+    @DisplayName("K109: a new installation's own records are no admin change: the timeline is empty, every kind 0")
+    void theSystemsOwnRecordsAreNoAdminChange() {
+        Instant from = now.minus(Duration.ofDays(7));
+        systemsOwnRecords();
+
+        assertThat(queries.recentChanges(from, now, 8)).isEmpty();
+        assertThat(queries.changesByKind(from, now).values()).containsOnly(0L);
+        assertThat(queries.changesByDay(List.of("POLICY_CREATED", "POLICY_UPDATED", "POLICY_DELETED"),
+                LocalDate.ofInstant(from, ZoneId.systemDefault()), from, now).stream().mapToLong(DayCount::count).sum())
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("K109: beside the system's own records the administrators' changes alone, counted by kind as listed")
+    void theAdministratorsChangesBesideTheSystemsOwn() {
+        Instant from = now.minus(Duration.ofDays(7));
+        systemsOwnRecords();
+        audit("PROMPT_VERSION_CHANGED", "admin", "security-decision@v9", "PROMPT_VERSION_CREATED", "RECORDED",
+                now.minus(Duration.ofHours(1)));
+        audit("POLICY_CREATED", "policy.owner", "Export rule", "POLICY_CREATED", "SUCCESS", now.minus(Duration.ofHours(2)));
+        audit("ROLE_UPDATED", "admin", "ROLE_AUDITOR", "ROLE_UPDATED", "SUCCESS", now.minus(Duration.ofHours(3)));
+        audit("USER_CREATED", "admin", "kim.sora", "USER_CREATED", "SUCCESS", now.minus(Duration.ofHours(4)));
+
+        Map<String, Long> kinds = queries.changesByKind(from, now);
+        List<ChangeRecord> recent = queries.recentChanges(from, now, 8);
+
+        assertThat(recent).extracting(ChangeRecord::actor).containsExactly("admin", "policy.owner", "admin", "admin");
+        assertThat(kinds).containsEntry("PROMPT", 1L).containsEntry("POLICY", 1L).containsEntry("ROLE", 1L)
+                .containsEntry("USER", 1L).containsEntry("MODE", 0L).containsEntry("OVERRIDE", 0L)
+                .containsEntry("AGENT", 0L);
+        assertThat(kinds.values().stream().mapToLong(Long::longValue).sum()).isEqualTo(recent.size());
+        assertThat(queries.changesByDay(List.of("POLICY_CREATED", "POLICY_UPDATED", "POLICY_DELETED"),
+                LocalDate.ofInstant(from, ZoneId.systemDefault()), from, now).stream().mapToLong(DayCount::count).sum())
+                .isEqualTo(kinds.get("POLICY"));
+    }
+
+    /**
+     * What a server writes on its own: the product's prompt versions registered at start (8), a version from a node's
+     * document folder, a version record without an actor, a role, a user and a policy written where no one is signed
+     * in, and a record under a blank name.
+     */
+    private void systemsOwnRecords() {
+        for (int version = 1; version <= 8; version++) {
+            audit("PROMPT_VERSION_CHANGED", "contexa", "prompt-" + version + "@v1", "PROMPT_VERSION_CREATED", "RECORDED",
+                    now.minus(Duration.ofMinutes(10 + version)));
+        }
+        audit("PROMPT_VERSION_CHANGED", "folder:node-1", "security-decision@v2", "PROMPT_VERSION_FOLDER_REGISTERED",
+                "RECORDED", now.minus(Duration.ofMinutes(5)));
+        audit("PROMPT_VERSION_CHANGED", "system", "security-decision@v3", "PROMPT_VERSION_CREATED", "RECORDED",
+                now.minus(Duration.ofMinutes(6)));
+        audit("ROLE_CREATED", "SYSTEM", "ROLE_USER", "ROLE_CREATED", "SUCCESS", now.minus(Duration.ofMinutes(7)));
+        audit("USER_CREATED", "SYSTEM", "admin", "USER_CREATED", "SUCCESS", now.minus(Duration.ofMinutes(8)));
+        audit("POLICY_CREATED", "SYSTEM", "AUTO_POLICY_FOR_PERM_Y", "POLICY_CREATED", "SUCCESS",
+                now.minus(Duration.ofMinutes(9)));
+        audit("POLICY_UPDATED", " ", "Payment window", "POLICY_UPDATED", "SUCCESS", now.minus(Duration.ofMinutes(4)));
+    }
+
+    @Test
     @DisplayName("N14, N15: the records of each of the last seven days, every day listed")
     void theRecordsOfEachDay() {
         LocalDate today = LocalDate.ofInstant(now, ZoneId.systemDefault());
@@ -403,10 +461,11 @@ class DashboardPostgresTest {
         audit("AUTHENTICATION_FAILURE", "bob", "login", null, null, start.minus(Duration.ofHours(1)));
         audit("POLICY_UPDATED", "owner", "p", "POLICY_UPDATED", "SUCCESS", now.minus(Duration.ofMinutes(1)));
         audit("POLICY_CREATED", "SYSTEM", "p", "AUTO_POLICY_SYNC_BLOCKED", "CONFLICT", now.minus(Duration.ofMinutes(1)));
+        audit("POLICY_CREATED", "SYSTEM", "q", "POLICY_CREATED", "SUCCESS", now.minus(Duration.ofMinutes(1)));
 
         List<DayCount> failures = queries.byDay(List.of("AUTHENTICATION_FAILURE"), first, start, now);
-        List<DayCount> changes = queries.byDay(List.of("POLICY_CREATED", "POLICY_UPDATED", "POLICY_DELETED"), first,
-                start, now);
+        List<DayCount> changes = queries.changesByDay(List.of("POLICY_CREATED", "POLICY_UPDATED", "POLICY_DELETED"),
+                first, start, now);
 
         assertThat(failures).hasSize(7);
         assertThat(failures.get(0)).isEqualTo(new DayCount(first.toString(), 1));
