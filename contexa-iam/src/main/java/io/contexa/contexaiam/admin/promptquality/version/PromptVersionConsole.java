@@ -209,6 +209,14 @@ public class PromptVersionConsole {
          * @throws SealedDecisionReplays.UnavailableException when the decision pipeline is not in this application
          */
         Optional<String> userPrompt(String packageId, String version);
+
+        /**
+         * K71: the state of the sealed package as a replay of it tells it (VERIFIED, MISMATCH or UNVERIFIABLE); empty
+         * when the package is gone or its state is not known. It needs no decision pipeline.
+         */
+        default Optional<String> integrity(String packageId) {
+            return Optional.empty();
+        }
     }
 
     /** Plan 3.10 (2): what draws a sealed decision again for the finished prompt; a supplier of null without one. */
@@ -402,13 +410,17 @@ public class PromptVersionConsole {
                     .map(found -> found.example(version))
                     .map(example -> new Preview(example.system() == null || example.system().isEmpty() ? null
                             : example.system(), null, example.user(), null, null, name, true, List.of(), true, false,
-                            null))
+                            null, null))
                     .orElseGet(() -> new Preview(null, null, null, null, null, null, false, List.of(), false, false,
-                            null));
+                            null, null));
         }
         String system = SecurityDecisionPromptDocument.systemPreview(version);
         String format = SecurityDecisionPromptDocument.outputFormatPreview();
-        List<PartView> added = user.stream().filter(part -> "ADDED".equals(part.mark())).toList();
+        // K131: the blocks the version draws as the organization's, added by it or by a version before it, changed or not.
+        Set<String> organizationBlocks = version.user().stream()
+                .filter(part -> part.action() == PromptVersionDocument.Action.ADD && !part.prepared())
+                .map(PromptVersionDocument.Part::key).collect(Collectors.toSet());
+        List<PartView> added = user.stream().filter(part -> organizationBlocks.contains(part.key())).toList();
         List<Object[]> latest = jdbc.get().query("select p.raw_user_prompt, p.correlation_id, p.captured_at,"
                 + " coalesce(contexa_safe_jsonb(p.prompt_execution_metadata_json) ->> '" + PromptExecutionMetadata.PROMPT_VERSION_NAME
                 + "', contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{" + PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR
@@ -418,16 +430,19 @@ public class PromptVersionConsole {
                 rs.getString(1), rs.getString(2), rs.getTimestamp(3) != null ? rs.getTimestamp(3).toInstant() : null,
                 rs.getString(4), rs.getString(5)});
         if (latest.isEmpty()) {
-            return new Preview(system, format, null, null, null, null, false, added, false, false, null);
+            return new Preview(system, format, null, null, null, null, false, added, false, false, null, null);
         }
         Object[] row = latest.get(0);
         String drawnWith = (String) row[3];
+        SealedDrawing drawing = sealedDrawing.get();
+        // K71: the user prompt shown comes from the sealed package, drawn again or as it was drawn; its state is told
+        // as a replay of it tells it.
+        String integrity = integrityOf(drawing, (String) row[4]);
         if (name.equals(drawnWith)) {
             return new Preview(system, format, (String) row[0], (String) row[1], (Instant) row[2], drawnWith, true,
-                    added, false, false, null);
+                    added, false, false, null, integrity);
         }
         String notDrawn;
-        SealedDrawing drawing = sealedDrawing.get();
         if (drawing == null) {
             notDrawn = NOT_DRAWN_UNAVAILABLE;
         }
@@ -436,7 +451,7 @@ public class PromptVersionConsole {
                 Optional<String> drawn = drawing.userPrompt((String) row[4], name);
                 if (drawn.isPresent()) {
                     return new Preview(system, format, drawn.get(), (String) row[1], (Instant) row[2], name, true,
-                            added, false, true, null);
+                            added, false, true, null, integrity);
                 }
                 notDrawn = NOT_DRAWN_FAILED;
                 log.warn("[PromptVersionConsole] The sealed package {} is gone; {} is previewed with the prompt it was"
@@ -452,7 +467,21 @@ public class PromptVersionConsole {
             }
         }
         return new Preview(system, format, (String) row[0], (String) row[1], (Instant) row[2], drawnWith, false,
-                added, false, false, notDrawn);
+                added, false, false, notDrawn, integrity);
+    }
+
+    /** K71: the state of the sealed package (VERIFIED, MISMATCH or UNVERIFIABLE); null when it cannot be told. */
+    private static String integrityOf(SealedDrawing drawing, String packageId) {
+        if (drawing == null || packageId == null) {
+            return null;
+        }
+        try {
+            return drawing.integrity(packageId).orElse(null);
+        }
+        catch (RuntimeException failure) {
+            log.error("[PromptVersionConsole] The state of the sealed package {} could not be read", packageId, failure);
+            return null;
+        }
     }
 
     private VersionDecisions decisionsOf(String name, String scope) {
@@ -502,9 +531,13 @@ public class PromptVersionConsole {
         List<Carried> carried = List.of();
         String carriedFrom = null;
         if (carry != null) {
+            // K134: every change the version's chain of organization versions made to its product version is carried.
             Optional<PromptVersionRecord> carrying = versions.find(scopeName, key, carry);
-            if (carrying.isPresent()) {
-                carried = carried(reader.read(carrying.get().document()), base.get());
+            Optional<AssembledPrompt> carryingVersion = carrying
+                    .flatMap(record -> versions.assembled(scopeName, key, record.number()));
+            AssembledPrompt carryingProduct = carrying.map(record -> productOf(scopeName, key, record)).orElse(null);
+            if (carryingVersion.isPresent() && carryingProduct != null) {
+                carried = carried(carryingVersion.get(), carryingProduct, base.get());
                 carriedFrom = carrying.get().name();
             }
         }
@@ -524,39 +557,66 @@ public class PromptVersionConsole {
                 part.action() == PromptVersionDocument.Action.INCLUDE);
     }
 
-    /** The changes of an organization's document, each with whether the base can take it. */
-    static List<Carried> carried(PromptVersionDocument changes, AssembledPrompt base) {
+    /**
+     * K134 (plan 3.3): the changes an organization's version makes to the product version it stands on, made by it or
+     * by any version of its chain of bases, each with whether the new base can take it, as the checks before a save
+     * judge it. In the version's order: a part it changed (its latest title and text), a part or block it added, changed
+     * since or not (K131), with its place, and a prepared part it put in; then the parts it took out, in the product's
+     * order.
+     */
+    static List<Carried> carried(AssembledPrompt version, AssembledPrompt product, AssembledPrompt base) {
         List<Carried> carried = new ArrayList<>();
-        Set<String> added = new LinkedHashSet<>();
-        for (PromptVersionDocument.Part part : changes.system()) {
-            carried.add(carriedPart("SYSTEM", part, base.systemPart(part.key()).orElse(null),
-                    part.addAfter() != null && (base.systemPart(part.addAfter()).isPresent()
-                            || added.contains(part.addAfter()))));
-            if (part.action() == PromptVersionDocument.Action.ADD) {
-                added.add(part.key());
-            }
-        }
-        added.clear();
-        for (PromptVersionDocument.Part part : changes.user()) {
-            carried.add(carriedPart("USER", part, base.userBlock(part.key()).orElse(null),
-                    part.addAfter() != null && (base.userBlock(part.addAfter()).isPresent()
-                            || added.contains(part.addAfter()))));
-            if (part.action() == PromptVersionDocument.Action.ADD) {
-                added.add(part.key());
-            }
-        }
+        carriedParts(carried, "SYSTEM", version.system(), product.system(), base.system());
+        carriedParts(carried, "USER", version.user(), product.user(), base.user());
         return carried;
     }
 
-    private static Carried carriedPart(String list, PromptVersionDocument.Part part, PromptVersionDocument.Part inBase,
-                                       boolean placeFound) {
-        boolean movable = switch (part.action()) {
-            case ADD -> inBase == null && placeFound;
-            case INCLUDE -> inBase != null && inBase.prepared();
-            case CHANGE, DELETE -> inBase != null && !inBase.isLocked() && !inBase.prepared();
-            case BASE -> false;
-        };
-        return new Carried(list, part.key(), part.action().name(), part.title(), part.text(), part.addAfter(), movable);
+    private static void carriedParts(List<Carried> carried, String list, List<PromptVersionDocument.Part> parts,
+                                     List<PromptVersionDocument.Part> product, List<PromptVersionDocument.Part> base) {
+        boolean system = "SYSTEM".equals(list);
+        Map<String, PromptVersionDocument.Part> before = new LinkedHashMap<>();
+        product.forEach(part -> before.put(part.key(), part));
+        Map<String, PromptVersionDocument.Part> target = new LinkedHashMap<>();
+        base.forEach(part -> target.put(part.key(), part));
+        Set<String> present = new LinkedHashSet<>();
+        Set<String> added = new LinkedHashSet<>();
+        for (PromptVersionDocument.Part part : parts) {
+            present.add(part.key());
+            PromptVersionDocument.Part earlier = before.get(part.key());
+            PromptVersionDocument.Part inBase = target.get(part.key());
+            if (earlier == null && part.action() == PromptVersionDocument.Action.ADD) {
+                PromptVersionDocument.Part place = part.addAfter() != null ? target.get(part.addAfter()) : null;
+                boolean placeable = place != null && (!system || AssembledPrompt.JUDGMENT.equals(
+                        place.group() != null ? place.group() : AssembledPrompt.JUDGMENT));
+                boolean movable = inBase == null && (placeable || added.contains(part.addAfter()));
+                carried.add(new Carried(list, part.key(), PromptVersionDocument.Action.ADD.name(), part.title(),
+                        part.text(), part.addAfter(), movable));
+                if (movable) {
+                    added.add(part.key());
+                }
+            }
+            else if (earlier != null && earlier.prepared() && !part.prepared()) {
+                carried.add(new Carried(list, part.key(), PromptVersionDocument.Action.INCLUDE.name(), part.title(),
+                        null, null, inBase != null && inBase.prepared()));
+            }
+            else if (earlier != null && !part.prepared() && (!Objects.equals(earlier.text(), part.text())
+                    || !Objects.equals(earlier.title(), part.title()))) {
+                carried.add(new Carried(list, part.key(), PromptVersionDocument.Action.CHANGE.name(),
+                        Objects.equals(earlier.title(), part.title()) ? null : part.title(), part.text(), null,
+                        changeable(inBase)));
+            }
+        }
+        for (PromptVersionDocument.Part part : product) {
+            if (!present.contains(part.key()) && !part.prepared()) {
+                carried.add(new Carried(list, part.key(), PromptVersionDocument.Action.DELETE.name(), part.title(),
+                        null, null, changeable(target.get(part.key()))));
+            }
+        }
+    }
+
+    /** Whether a part of the new base can be changed or taken out: it is there, not fixed and not only prepared. */
+    private static boolean changeable(PromptVersionDocument.Part inBase) {
+        return inBase != null && !inBase.isLocked() && !inBase.prepared();
     }
 
     /** The product version a version stands on, followed down its chain of bases. */
@@ -596,7 +656,8 @@ public class PromptVersionConsole {
                         || codes.contains(PromptVersionProblem.Code.NOT_PREPARED))),
                 new CheckRow("CONTENT", !(codes.contains(PromptVersionProblem.Code.EMPTY_TITLE)
                         || codes.contains(PromptVersionProblem.Code.EMPTY_TEXT)
-                        || codes.contains(PromptVersionProblem.Code.DUPLICATE_KEY))),
+                        || codes.contains(PromptVersionProblem.Code.DUPLICATE_KEY)
+                        || codes.contains(PromptVersionProblem.Code.ENGINE_TITLE))),
                 new CheckRow("LENGTH", !codes.contains(PromptVersionProblem.Code.TOO_LONG)));
         Long delta = null;
         Double msPerToken = msPerInputToken();

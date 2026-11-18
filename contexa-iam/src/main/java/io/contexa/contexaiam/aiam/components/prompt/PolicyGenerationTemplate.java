@@ -52,7 +52,7 @@ public class PolicyGenerationTemplate extends AbstractBasePromptTemplate impleme
     /** The prompt key, the template key the prompt is called by. */
     public static final String PROMPT = "PolicyGeneration";
     /** The product releases this build ships, the latest last. */
-    public static final List<String> RELEASES = List.of("2026.11.17");
+    public static final List<String> RELEASES = List.of("2026.11.17", "2026.11.18");
 
     private static final ProductPromptDocuments DOCUMENTS =
             new ProductPromptDocuments(PolicyGenerationTemplate.class, PROMPT, RELEASES);
@@ -100,8 +100,20 @@ public class PolicyGenerationTemplate extends AbstractBasePromptTemplate impleme
         return PromptDrawing.user(version, Set.of(), Map.of(
                 "query", naturalQuery,
                 "items", VersionedTemplateDrawing.availableItems(version, "available-items", availableItems),
-                // A request without data has drawn the word null here since the first release (defect K53).
-                "data", String.valueOf(data)));
+                "data", drawnData(version, data)));
+    }
+
+    /**
+     * K53: the data the data part draws; without any, the version's sentence that none was given. A version without
+     * that sentence (the release 2026.11.17 and the versions on it) draws what it always drew, the word null for none,
+     * so that a version draws as it did.
+     */
+    static String drawnData(AssembledPrompt version, String data) {
+        if (data != null && !data.isBlank()) {
+            return data;
+        }
+        String none = PromptDrawing.item(version, "data", "none", Map.of());
+        return none != null ? none : String.valueOf(data);
     }
 
     /** The IAM data of the request, and the similar query patterns after it under the version's separator. */

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.promptquality.version;
 
+import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
@@ -44,6 +45,7 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -264,7 +266,33 @@ public class PromptVersionService {
         PromptAssembler.Check check = assembler.check(baseVersion, document, decision ? limit : null,
                 addedUserTokens(base.get().prompt()));
         problems.addAll(check.problems());
+        if (decision) {
+            problems.addAll(engineTitles(document));
+        }
         return new Checked(base.get(), baseVersion, check, problems);
+    }
+
+    /**
+     * K67 (plan 3.5): the blocks an organization's document adds to the security decision's user prompt, or titles
+     * anew, under the title of a block of the engine, whose header would read as that block's. Only a save is refused:
+     * a version saved before this check is assembled as it was and draws such a title in quotes.
+     */
+    static List<PromptVersionProblem> engineTitles(PromptVersionDocument document) {
+        List<PromptVersionProblem> problems = new ArrayList<>();
+        for (PromptVersionDocument.Part part : document.user()) {
+            boolean titled = part.action() == PromptVersionDocument.Action.ADD
+                    || part.action() == PromptVersionDocument.Action.CHANGE && !engineBlock(part.key());
+            if (titled && PromptBlock.isBlockTitle(part.title())) {
+                problems.add(new PromptVersionProblem(PromptVersionProblem.Code.ENGINE_TITLE, "user." + part.key(),
+                        part.title().replaceAll("\\s+", " ").strip()));
+            }
+        }
+        return problems;
+    }
+
+    /** Whether the key is a block of the engine's, which a version cannot change (its title is the engine's). */
+    private static boolean engineBlock(String key) {
+        return Arrays.stream(PromptBlock.values()).anyMatch(block -> block.name().equals(key));
     }
 
     /**

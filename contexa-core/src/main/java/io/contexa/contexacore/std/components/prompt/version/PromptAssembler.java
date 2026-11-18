@@ -37,8 +37,18 @@ public final class PromptAssembler {
     /**
      * The longest finished prompt allowed (plan 3.5 check 4): the model's context in tokens, the tokens of the answer
      * and of the longest recent user prompt.
+     *
+     * @param longestUserPromptAddedTokens K70: the tokens of the blocks an organization added that the longest recent
+     *                                     user prompt holds, as the version it was drawn with draws them; a new version
+     *                                     is measured with its own blocks in their place, whatever its base
      */
-    public record LengthLimit(int contextTokens, int answerTokens, int longestUserPromptTokens) {
+    public record LengthLimit(int contextTokens, int answerTokens, int longestUserPromptTokens,
+                              int longestUserPromptAddedTokens) {
+
+        /** A limit whose longest recent user prompt holds no block an organization added. */
+        public LengthLimit(int contextTokens, int answerTokens, int longestUserPromptTokens) {
+            this(contextTokens, answerTokens, longestUserPromptTokens, 0);
+        }
     }
 
     /**
@@ -138,9 +148,9 @@ public final class PromptAssembler {
     /**
      * As {@link #check(AssembledPrompt, PromptVersionDocument, LengthLimit)}, with the tokens of the blocks an
      * organization added to a version's user prompt counted as the prompt draws them (K64). The finished prompt the
-     * limit holds is the new version's system prompt, the longest recent user prompt with the added blocks the new
-     * version has more (or fewer) than its base, which that prompt may already hold, and the answer; without a recent
-     * user prompt, the new version's added blocks are the input.
+     * limit holds is the new version's system prompt, the longest recent user prompt with the blocks it was drawn with
+     * taken out and the new version's added blocks put in (K70: the version it was drawn with need not be the base),
+     * and the answer; without a recent user prompt, the new version's added blocks are the input.
      *
      * @param addedUserTokens the estimated tokens of the blocks an organization added to a version's user prompt
      */
@@ -174,7 +184,8 @@ public final class PromptAssembler {
             tokens = systemTokens(version);
             userTokens = addedUserTokens.applyAsInt(version);
             int input = limit == null ? 0 : limit.longestUserPromptTokens() > 0
-                    ? Math.max(0, limit.longestUserPromptTokens() + userTokens - baseUserTokens) : userTokens;
+                    ? Math.max(0, limit.longestUserPromptTokens() - limit.longestUserPromptAddedTokens() + userTokens)
+                    : userTokens;
             if (limit != null && tokens + input + limit.answerTokens() > limit.contextTokens()) {
                 problems.add(new PromptVersionProblem(PromptVersionProblem.Code.TOO_LONG, null,
                         tokens + " + " + input + " + " + limit.answerTokens() + " > " + limit.contextTokens()));
