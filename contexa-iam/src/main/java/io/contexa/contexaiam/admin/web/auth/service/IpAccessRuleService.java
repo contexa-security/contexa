@@ -16,6 +16,8 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
 import java.util.Locale;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.domain.entity.IpAccessRule;
 import io.contexa.contexaiam.repository.IpAccessRuleRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +33,9 @@ import org.springframework.util.StringUtils;
 import java.net.InetAddress;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
@@ -59,6 +63,23 @@ public class IpAccessRuleService {
     private final IpAccessRuleRepository ipAccessRuleRepository;
 
     private volatile RuleSnapshot snapshot;
+    /** K130: a change of the rules is audited; without the facade nothing is recorded. */
+    private AdminChangeAudit audit = AdminChangeAudit.NONE;
+
+    /** K130: records the changes of the rules. */
+    public void setCentralAuditFacade(CentralAuditFacade centralAuditFacade) {
+        this.audit = AdminChangeAudit.of(centralAuditFacade);
+    }
+
+    private void auditRuleChange(String action, IpAccessRule rule) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("ruleId", rule.getId());
+        details.put("ipAddress", rule.getIpAddress());
+        details.put("ruleType", rule.getRuleType() != null ? rule.getRuleType().name() : null);
+        details.put("enabled", rule.isEnabled());
+        details.put("expiresAt", rule.getExpiresAt() != null ? rule.getExpiresAt().toString() : null);
+        audit.record(AuditEventCategory.IP_ACCESS_RULE_CHANGED, action, rule.getIpAddress(), details);
+    }
     private volatile Runnable rulesChanged = () -> { };
     private final ReentrantLock reading = new ReentrantLock();
     private final AtomicLong generation = new AtomicLong();
@@ -299,6 +320,7 @@ public class IpAccessRuleService {
         refuseShuttingOut(requesterIp, before, after);
         IpAccessRule saved = ipAccessRuleRepository.save(rule);
         rulesChangedHere();
+        auditRuleChange("IP_RULE_CREATED", saved != null ? saved : rule);
         return saved;
     }
 
@@ -315,6 +337,7 @@ public class IpAccessRuleService {
         refuseShuttingOut(requesterIp, before, after);
         ipAccessRuleRepository.delete(rule);
         rulesChangedHere();
+        auditRuleChange("IP_RULE_DELETED", rule);
     }
 
     /**
@@ -334,6 +357,7 @@ public class IpAccessRuleService {
         rule.setEnabled(!rule.isEnabled());
         ipAccessRuleRepository.save(rule);
         rulesChangedHere();
+        auditRuleChange(rule.isEnabled() ? "IP_RULE_SWITCHED_ON" : "IP_RULE_SWITCHED_OFF", rule);
     }
 
     private IpAccessRule ruleOf(Long id) {

@@ -22,6 +22,7 @@ import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexaiam.admin.web.auth.service.AdminChangeAudit;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
@@ -212,6 +213,17 @@ public class PolicyCenterCommandService {
                             return;
                         }
                         Permission perm = resource.getPermission();
+                        // K130: the reset takes the resource back to its definition and its permission with it
+                        Map<String, Object> details = new LinkedHashMap<>();
+                        details.put("resourceId", id);
+                        details.put("statusBefore", resource.getStatus().name());
+                        details.put("status", ManagedResource.Status.NEEDS_DEFINITION.name());
+                        if (perm != null) {
+                            details.put("permissionId", perm.getId());
+                            details.put("permissionName", perm.getName());
+                        }
+                        AdminChangeAudit.of(centralAuditFacade).record(AuditEventCategory.RESOURCE_MANAGEMENT_CHANGED,
+                                "RESOURCE_STATUS_RESET", resource.getResourceIdentifier(), details);
                         if (perm != null) {
                             resource.setPermission(null);
                             managedResourceRepository.save(resource);
@@ -453,6 +465,17 @@ public class PolicyCenterCommandService {
             if (!deletedIds.isEmpty()) {
                 permissionRepository.deleteAllByIds(deletedIds);
                 permissionRepository.flush();
+                // K130: each permission the cleanup deleted, as the permission screen records a deletion
+                for (Permission perm : oldPerms) {
+                    if (deletedIds.contains(perm.getId())) {
+                        Map<String, Object> details = new LinkedHashMap<>();
+                        details.put("permissionId", perm.getId());
+                        details.put("permissionName", perm.getName());
+                        details.put("reason", "CLEANUP_OF_OLD_AUTOMATIC_PERMISSIONS");
+                        AdminChangeAudit.of(centralAuditFacade).record(AuditEventCategory.PERMISSION_DELETED,
+                                AuditEventCategory.PERMISSION_DELETED.name(), perm.getName(), details);
+                    }
+                }
             }
             log.info("Cleanup of old automatic permissions. deleted={}, keptInUse={}", deletedIds.size(), keptNames);
 
@@ -591,6 +614,13 @@ public class PolicyCenterCommandService {
                 policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
                 policyRepository.save(policy);
                 migrated++;
+                // K130: a policy the migration rewrote is a policy changed, as an edit of the policy form records it
+                Map<String, Object> details = new LinkedHashMap<>();
+                details.put("policyId", policy.getId());
+                details.put("policyName", policy.getName());
+                details.put("conditions", rewritten.size());
+                AdminChangeAudit.of(centralAuditFacade).record(AuditEventCategory.POLICY_UPDATED, "POLICY_MIGRATED_TO_CRUD",
+                        policy.getName(), details);
             }
         }
         return migrated;

@@ -132,6 +132,12 @@ public class DashboardQueries {
         kinds.put("PASSWORD_POLICY_CHANGED", "PASSWORD");
         kinds.put("MENU_CHANGED", "MENU");
         kinds.put("SYSTEM_SETTINGS_CHANGED", "SETTINGS");
+        // K130: the other changes of the console that had no audit record
+        kinds.put("IP_ACCESS_RULE_CHANGED", "IP");
+        kinds.put("SESSION_INVALIDATED", "SESSION");
+        kinds.put("RESOURCE_MANAGEMENT_CHANGED", "RESOURCE");
+        kinds.put("BLOCK_RECORD_DELETED", "BLOCK");
+        kinds.put("CONDITION_TEMPLATE_CHANGED", "CONDITION");
         kinds.put("PROMPT_VERSION_CHANGED", "PROMPT");
         kinds.put("ZERO_TRUST_MODE_CHANGED", "MODE");
         kinds.put("ADMIN_OVERRIDE", "OVERRIDE");

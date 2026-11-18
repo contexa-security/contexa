@@ -705,7 +705,8 @@
 
     const KIND_AREA = {POLICY: 'policy', USER: 'iam', ROLE: 'iam', PROMPT: 'prompt', MODE: 'system',
         OVERRIDE: 'security', AGENT: 'agents', GROUP: 'iam', PERMISSION: 'iam', HIERARCHY: 'iam', ASSIGNMENT: 'iam',
-        PASSWORD: 'iam', MENU: 'system', SETTINGS: 'system'};
+        PASSWORD: 'iam', MENU: 'system', SETTINGS: 'system', IP: 'security', SESSION: 'security',
+        RESOURCE: 'policy', BLOCK: 'security', CONDITION: 'policy'};
 
     function changesCard() {
         const c = D.changes;

@@ -100,6 +100,11 @@ public enum AuditEventCategory {
     PASSWORD_POLICY_CHANGED("Password policy changed"),
     MENU_CHANGED("Admin menu created, updated, deleted, switched on or off, reordered or given other roles"),
     SYSTEM_SETTINGS_CHANGED("System settings other than the Zero Trust mode changed"),
+    IP_ACCESS_RULE_CHANGED("IP access rule created, deleted, switched on or switched off"),
+    SESSION_INVALIDATED("A session, or every session of a user, ended by an administrator in the console"),
+    RESOURCE_MANAGEMENT_CHANGED("Resource defined as a permission, excluded, restored, reset or given another status"),
+    BLOCK_RECORD_DELETED("Block record deleted by an administrator"),
+    CONDITION_TEMPLATE_CHANGED("Condition template classified, or the condition templates generated again"),
 
     SESSION_CREATED("Session created"),
     SESSION_DESTROYED("Session destroyed"),

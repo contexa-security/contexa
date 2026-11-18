@@ -30,6 +30,12 @@ import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.repository.UserRoleRepository;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
+import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
+import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
+import io.contexa.contexaiam.domain.entity.IpAccessRule;
+import io.contexa.contexaiam.repository.ActiveSessionRepository;
+import io.contexa.contexaiam.repository.IpAccessRuleRepository;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
@@ -112,6 +118,8 @@ class AdminChangeAuditPostgresTest {
     private static AccessCenterService accessCenter;
     private static PasswordPolicyService passwordPolicy;
     private static SystemSettingsService systemSettings;
+    private static IpAccessRuleService ipRules;
+    private static SessionManagementService sessions;
 
     private long adminRole;
     private long userRole;
@@ -189,6 +197,10 @@ class AdminChangeAuditPostgresTest {
         passwordPolicy.setCentralAuditFacade(audit);
         systemSettings = new SystemSettingsService(repositories.getRepository(SystemSettingsRepository.class), roles);
         systemSettings.setCentralAuditFacade(audit);
+        ipRules = new IpAccessRuleService(repositories.getRepository(IpAccessRuleRepository.class));
+        ipRules.setCentralAuditFacade(audit);
+        sessions = new SessionManagementService(repositories.getRepository(ActiveSessionRepository.class));
+        sessions.setCentralAuditFacade(audit);
     }
 
     @AfterAll
@@ -205,7 +217,7 @@ class AdminChangeAuditPostgresTest {
     void anEmptyConsoleSignedInAsAnAdministrator() {
         jdbc.execute("truncate ctxa_user_roles, ctxa_user_groups, ctxa_group_roles, ctxa_users, ctxa_role, "
                 + "ctxa_app_group, ctxa_role_hierarchy_config, ctxa_permission, ctxa_password_policy, "
-                + "ctxa_system_settings restart identity cascade");
+                + "ctxa_system_settings, ctxa_ip_access_rules, ctxa_active_sessions restart identity cascade");
         hierarchy.setHierarchy("");
         adminRole = role("ROLE_ADMIN");
         userRole = role("ROLE_USER");
@@ -283,6 +295,41 @@ class AdminChangeAuditPostgresTest {
         assertThat(recent).hasSize(10);
         assertThat(recent).extracting(ChangeRecord::category, ChangeRecord::action).first()
                 .isEqualTo(tuple("SYSTEM_SETTINGS_CHANGED", "SYSTEM_SETTINGS_CHANGED"));
+    }
+
+    /** K130: the IP access rules and the sessions an administrator ends are audited and counted by their kinds. */
+    @Test
+    void theIpRulesAndTheEndedSessionsAreAuditedAndCounted() {
+        Instant from = Instant.now().minus(Duration.ofHours(1));
+        IpAccessRule rule = inTransaction(() -> ipRules.createRule("203.0.113.0/24", IpAccessRule.RuleType.DENY,
+                "scanner", "admin", null, "198.51.100.7"));
+        inTransaction(() -> {
+            ipRules.toggleRule(rule.getId(), "198.51.100.7");
+            return null;
+        });
+        assertThatThrownBy(() -> inTransaction(() -> {
+            ipRules.toggleRule(999L, "198.51.100.7");
+            return null;
+        })).isInstanceOf(IpAccessRuleService.IpRuleRefusedException.class);
+        inTransaction(() -> {
+            ipRules.deleteRule(rule.getId(), "198.51.100.7");
+            return null;
+        });
+        jdbc.update("insert into ctxa_active_sessions (session_id, user_id, username, created_at, last_accessed_at, "
+                + "expired) values (?, 'alice', 'alice', now(), now(), false)", RequestFactRedaction.sessionReference("S-ONE"));
+        inTransaction(() -> sessions.invalidateSession("S-ONE"));
+        inTransaction(() -> sessions.invalidateAllSessionsForUser("bob"));
+
+        assertThat(jdbc.queryForList("select event_category || ' ' || action || ' ' || resource_identifier "
+                + "|| ' ' || principal_name from ctxa_audit_log order by id", String.class)).containsExactly(
+                "IP_ACCESS_RULE_CHANGED IP_RULE_CREATED 203.0.113.0/24 admin",
+                "IP_ACCESS_RULE_CHANGED IP_RULE_SWITCHED_OFF 203.0.113.0/24 admin",
+                "IP_ACCESS_RULE_CHANGED IP_RULE_DELETED 203.0.113.0/24 admin",
+                "SESSION_INVALIDATED SESSION_ENDED alice admin",
+                "SESSION_INVALIDATED USER_SESSIONS_ENDED bob admin");
+        Map<String, Long> kinds = new DashboardQueries(() -> jdbc).changesByKind(from,
+                Instant.now().plus(Duration.ofMinutes(1)));
+        assertThat(kinds).containsEntry("IP", 3L).containsEntry("SESSION", 2L).containsEntry("RESOURCE", 0L);
     }
 
     @Test

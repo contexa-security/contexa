@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -607,6 +609,12 @@ class BlockedUserServiceTest {
             service.deleteBlockRecord(1L, "admin1");
 
             verify(blockedUserJpaRepository).delete(resolved);
+            // K130: whose record went and by whom
+            ArgumentCaptor<AuditRecord> record = ArgumentCaptor.forClass(AuditRecord.class);
+            verify(centralAuditFacade).recordAsync(record.capture());
+            assertThat(record.getValue().getEventCategory()).isEqualTo(AuditEventCategory.BLOCK_RECORD_DELETED);
+            assertThat(record.getValue().getResourceIdentifier()).isEqualTo("user1");
+            assertThat(record.getValue().getDetails()).containsEntry("blockId", 1L).containsEntry("status", "RESOLVED");
         }
 
         @Test
@@ -618,6 +626,7 @@ class BlockedUserServiceTest {
             assertThatThrownBy(() -> service.deleteBlockRecord(1L, "admin1"))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("Cannot delete active block");
+            verify(centralAuditFacade, never()).recordAsync(any());
         }
 
         @Test
