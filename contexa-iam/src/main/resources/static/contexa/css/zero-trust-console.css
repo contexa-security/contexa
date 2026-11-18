@@ -1754,6 +1754,19 @@ input[type="file"].modern-input::file-selector-button {
     overflow-wrap: break-word;
 }
 
+/*
+ * K107: the head of the column that takes the room the others leave asks no room of its own: that column gives its
+ * room first, so its head never widens the table past its card, and breaks inside a word only where the card is full.
+ */
+.zt-page .zt-table:has(> tbody > tr > td.zt-fill:nth-child(1)) > thead > tr > th:nth-child(1),
+.zt-page .zt-table:has(> tbody > tr > td.zt-fill:nth-child(2)) > thead > tr > th:nth-child(2),
+.zt-page .zt-table:has(> tbody > tr > td.zt-fill:nth-child(3)) > thead > tr > th:nth-child(3),
+.zt-page .zt-table:has(> tbody > tr > td.zt-fill:nth-child(4)) > thead > tr > th:nth-child(4),
+.zt-page .zt-table:has(> tbody > tr > td.zt-fill:nth-child(5)) > thead > tr > th:nth-child(5),
+.zt-page .zt-table:has(> tbody > tr > td.zt-fill:nth-child(6)) > thead > tr > th:nth-child(6) {
+    overflow-wrap: anywhere;
+}
+
 .zt-page .zt-result-name {
     min-width: 0;
     overflow-wrap: anywhere;
