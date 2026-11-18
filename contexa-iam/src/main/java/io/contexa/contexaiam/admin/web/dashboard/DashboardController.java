@@ -18,6 +18,7 @@ package io.contexa.contexaiam.admin.web.dashboard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardDtos.DashboardView;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleMessages;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -50,7 +51,8 @@ public class DashboardController {
     private final MessageSource messages;
     private final ObjectMapper objectMapper;
 
-    public DashboardController(DashboardService dashboardService, MessageSource messages, ObjectMapper objectMapper) {
+    public DashboardController(DashboardService dashboardService, MessageSource messages,
+                               @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         this.dashboardService = Objects.requireNonNull(dashboardService, "dashboardService");
         this.messages = messages;
         this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
