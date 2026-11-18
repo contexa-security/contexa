@@ -22,6 +22,7 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import io.contexa.contexacore.verification.evidence.EvidenceSigner;
 
@@ -110,6 +111,10 @@ public class CentralAuditFacade {
                     .findTopByEventCategoryAndRecordHashIsNotNullOrderByIdDesc(SEALED_CATEGORY)
                     .map(AuditLog::getRecordHash)
                     .orElse(null);
+            // K144: the time the hash covers is the one stored; a record without one gets it here, before the seal.
+            if (auditLog.getTimestamp() == null) {
+                auditLog.setTimestamp(LocalDateTime.now());
+            }
             DecisionRecordSeal.seal(auditLog, previous, evidenceSigner);
             auditLogRepository.save(auditLog);
         }
