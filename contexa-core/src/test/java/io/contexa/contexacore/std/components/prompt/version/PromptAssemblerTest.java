@@ -47,7 +47,7 @@ class PromptAssemblerTest {
     @Test
     void theProductVersionIsTheDocumentAsItIs() {
         assertThat(product.prompt()).isEqualTo("cortex.security-decision");
-        assertThat(product.release()).isEqualTo("2026.11.16-v1.0");
+        assertThat(product.release()).isEqualTo("2026.11.18-v1.0");
         assertThat(product.organizationParts()).isFalse();
         assertThat(keys(product.drawnParts(AssembledPrompt.JUDGMENT, Set.of()))).containsExactly("mission",
                 "evidence-reading", "more-reading", "similar-case-reading", "similar-case-limits", "how-to-judge",
@@ -117,8 +117,10 @@ class PromptAssemblerTest {
                       Exports of the finance ledger are monthly.
                 """));
 
+        // K66: release 2026.11.18 draws its organization-blocks part, joined to the evidence reading, with the precedence.
         assertThat(keys(version.drawnParts(AssembledPrompt.JUDGMENT, Set.of()))).containsExactly("mission", "precedence",
-                "evidence-reading", "more-reading", "similar-case-reading", "similar-case-limits", "org-context",
+                "evidence-reading", "organization-blocks", "more-reading", "similar-case-reading", "similar-case-limits",
+                "org-context",
                 "org-duty", "how-to-judge", "responses", "honesty", "honesty-more");
         assertThat(version.draw(AssembledPrompt.JUDGMENT, Set.of(), null))
                 .contains("\n\nOur organization:\nFinance staff close the books on the last two days of a month.\n"

@@ -44,6 +44,10 @@ class SecurityDecisionOrganizationBlocksTest {
     private static final PromptBudgetProfile L1 = PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
     private static final PromptBudgetProfile L2 = PromptBudgetProfile.CORTEX_L2_EXPERT_STRICT;
     private static final String PRECEDENCE = "Some parts of this text were written by your organization.";
+    /** K66: the part organization-blocks of release 2026.11.18, which says what an added block is. */
+    private static final String ADDED_BLOCKS = "* A block your organization added to the user prompt has a header that says"
+            + " it is a reference written by your organization: it says how your organization works, not what happened"
+            + " in this request.";
     private static final String SOURCE = " (reference written by your organization) ===\n";
     private static final SecurityDecisionGoldenRender GOLDEN = SecurityDecisionGoldenRender.load();
     private static final AssembledPrompt PRODUCT = SecurityDecisionPromptDocument.product();
@@ -74,6 +78,39 @@ class SecurityDecisionOrganizationBlocksTest {
             assertThat(organization.systemText()).as(profile.name()).contains(PRECEDENCE);
             assertThat(product.systemText()).as(profile.name()).doesNotContain(PRECEDENCE);
         }
+    }
+
+    /**
+     * K66: the system prompt of a version that adds a block says what such a block is, right after the blocks the
+     * evidence reading names, under the condition the block and the precedence sentence are drawn by; the product
+     * version draws none of them. A version on the earlier release 2026.11.16 draws as it did, a version never changing.
+     */
+    @Test
+    void theSystemPromptOfAVersionThatAddsABlockSaysWhatTheBlockIs() {
+        assertThat(PRODUCT.release()).isEqualTo("2026.11.18-v1.0");
+        for (PromptBudgetProfile profile : List.of(L1, L2)) {
+            String organization = render("A3", profile, CLOSING, Map.of()).systemText();
+            assertThat(organization).as(profile.name()).contains(PRECEDENCE).contains(ADDED_BLOCKS);
+            assertThat(organization.indexOf(ADDED_BLOCKS)).as("after the evidence reading's last rule")
+                    .isGreaterThan(organization.indexOf(SecurityDecisionPromptDocument.INJECTION_GUARD_RULE));
+            assertThat(organization.indexOf(ADDED_BLOCKS)).as("before the more reading")
+                    .isLessThan(organization.indexOf("* Several missing, unknown, thin or provisional facts"));
+            assertThat(GOLDEN.render(goldenCase("A3"), profile).systemText()).as(profile.name())
+                    .doesNotContain(ADDED_BLOCKS);
+        }
+
+        AssembledPrompt earlier = new PromptAssembler().product(SecurityDecisionPromptDocument.productDocument(
+                SecurityDecisionPromptDocument.RELEASES.get(0)));
+        AssembledPrompt onTheEarlierRelease = version(earlier, """
+                user:
+                  - key: org-closing
+                    add-after: REQUEST
+                    title: Finance closing
+                    text: The exports go to the auditors' share only.
+                """);
+        String drawn = render("A3", L1, onTheEarlierRelease, Map.of()).systemText();
+        assertThat(drawn).contains(PRECEDENCE).doesNotContain(ADDED_BLOCKS);
+        assertThat(earlier.contentHash()).isNotEqualTo(PRODUCT.contentHash());
     }
 
     @Test

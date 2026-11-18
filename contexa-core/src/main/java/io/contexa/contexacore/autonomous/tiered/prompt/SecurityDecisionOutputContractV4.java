@@ -173,6 +173,10 @@ public final class SecurityDecisionOutputContractV4 {
                     List.of("DECISION_FACTS.DataConflicts")),
             code(Group.CONFLICTS, "THREAT_MATCH",
                     List.of("DECISION_FACTS.ThreatMatch")),
+            // N1 (K36, release 2026.11.18): the anomaly signal the server itself confirmed has a code of its own, so a
+            // response that rests on it cites the line that states it.
+            code(Group.CONFLICTS, "VERIFIED_SIGNAL",
+                    List.of("DECISION_FACTS.VerifiedSignal")),
             code(Group.ESCALATION, "MATERIAL_CONTRADICTION",
                     List.of("DECISION_FACTS.DataConflicts", "DECISION_FACTS.AuthorizationEffect",
                             "SESSION.LoginMethod", "REQUEST.Roles", "REQUEST.Credential")),
@@ -184,6 +188,8 @@ public final class SecurityDecisionOutputContractV4 {
     static {
         // The start fails when the document names other codes than the engine (plan 6-1).
         SecurityDecisionPromptDocument.verifyReasonCodes(SecurityDecisionPromptDocument.product(), CODES);
+        // N1: an earlier product release names the engine's codes without the ones added after it, in the same order.
+        SecurityDecisionPromptDocument.verifyReasonCodesOfReleases(CODES);
         // Plan 3.9: the prompt injection guard of every Contexa version is checked here, not by an evaluation record.
         SecurityDecisionPromptDocument.verifyInjectionGuardOfReleases();
     }

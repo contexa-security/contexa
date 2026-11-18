@@ -259,6 +259,33 @@ class SealedEvidencePackageAssemblerInspectionSourcesTest {
                 .containsEntry(PromptExecutionMetadata.PROMPT_CONTENT_HASH, "b".repeat(64));
     }
 
+    /**
+     * K43: the capture window reads the version the assembled package names, not the bundle every version shares, so
+     * the label moving from one version to another opens the window again.
+     */
+    @Test
+    void theCaptureWindowOpensAgainWhenTheAssembledPackagesNameAnotherVersion() {
+        VersionChangeCaptureSampling sampling = new VersionChangeCaptureSampling(1, 1, JSON);
+        String outside = "req-outside";
+        while (Math.floorMod(outside.hashCode(), 100) < 1) {
+            outside = outside + "x";
+        }
+        String hash = "a".repeat(64);
+        SealedEvidencePackage first = seal(outside, Map.of(), List.of(), Map.of(
+                SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION, "v2.0",
+                SecurityDecisionPromptSections.EVENT_BUNDLE_CONTENT_HASH, hash));
+        SealedEvidencePackage again = seal(outside, Map.of(), List.of(), Map.of(
+                SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION, "v2.0",
+                SecurityDecisionPromptSections.EVENT_BUNDLE_CONTENT_HASH, hash));
+        SealedEvidencePackage moved = seal(outside, Map.of(), List.of(), Map.of(
+                SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION, "v3.0",
+                SecurityDecisionPromptSections.EVENT_BUNDLE_CONTENT_HASH, "b".repeat(64)));
+
+        assertThat(sampling.shouldSeal(first)).isTrue();
+        assertThat(sampling.shouldSeal(again)).as("the window of v2.0 is used up").isFalse();
+        assertThat(sampling.shouldSeal(moved)).as("the label moved to v3.0").isTrue();
+    }
+
     private SealedEvidencePackage seal(String requestId, Map<String, Object> promptMetadata, List<Document> documents) {
         return seal(requestId, promptMetadata, documents, Map.of());
     }

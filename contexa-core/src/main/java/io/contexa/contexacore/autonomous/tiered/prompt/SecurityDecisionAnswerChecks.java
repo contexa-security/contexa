@@ -224,6 +224,9 @@ public final class SecurityDecisionAnswerChecks {
                 return session != null && atLeastOne(session.getRecentMfaFailureCount());
             case "CLIENT_SIGNAL_TAMPERING":
                 return anySignal(context.getIntent());
+            case "VERIFIED_SIGNAL":
+                // N1: the line states a signal only for the trusted verification source; another source states none.
+                return V1LineValues.verifiedSignal(context.getIntent()) != null;
             case "TENANT_CONFLICT", "AUTHORIZATION_CONFLICT", "DATA_CONFLICT":
                 return facts == null ? null : facts.fact("DataConflicts")
                         .map(found -> found.codes().contains(code)).orElse(false);
