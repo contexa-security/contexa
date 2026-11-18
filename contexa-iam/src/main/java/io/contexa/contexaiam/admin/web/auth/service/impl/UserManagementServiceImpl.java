@@ -48,6 +48,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -56,9 +57,11 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -363,6 +366,17 @@ public class UserManagementServiceImpl implements UserManagementService {
                         keyword.trim(), keyword.trim(), pageable)
                 : userRepository.findAll(pageable);
         return users.map(this::toUserListDto);
+    }
+
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    @Protectable(verificationRequired = false)
+    public Page<UserListDto> getUsers(Page<Long> ids) {
+        Map<Long, Users> found = new HashMap<>();
+        userRepository.findAllById(ids.getContent()).forEach(user -> found.put(user.getId(), user));
+        List<UserListDto> rows = ids.getContent().stream().map(found::get).filter(Objects::nonNull)
+                .map(this::toUserListDto).toList();
+        return new PageImpl<>(rows, ids.getPageable(), ids.getTotalElements());
     }
 
     @Override

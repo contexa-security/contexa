@@ -102,12 +102,21 @@
 
     /**
      * The security event log over the dashboard's period, of a category when one is given; from (K103) names the
-     * moment it starts at when a count starts elsewhere than the last hours.
+     * moment it starts at when a count starts elsewhere than the last hours, filter (K92) the records a count counts.
      */
-    function events(category, from) {
+    function events(category, from, filter) {
         return A + '/security-monitor?' + (category ? 'category=' + encodeURIComponent(category) + '&' : '')
+            + (filter ? 'filter=' + encodeURIComponent(filter) + '&' : '')
             + 'hours=' + HOURS[periodKey] + (from ? '&from=' + encodeURIComponent(from) : '');
     }
+
+    /** K92: the list of users of a filter, the users a number counts by the rule that counts them. */
+    function users(filter) {
+        return A + '/users?filter=' + filter;
+    }
+
+    /** K92: the policy list of the policies of a conflict or a duplicate, the ones the policy check counts. */
+    const POLICY_ISSUES = A + '/policy-center?tab=list&health=ISSUES';
 
     /**
      * K103: the start of the hour the period starts in, as the hourly counts read the period (DashboardQueries.hour:
@@ -210,17 +219,17 @@
         const policy = D.policy;
         const security = D.security;
         if (iam.adminsWithoutMfa > 0) {
-            add('iam', 'BAD', d('todo.adminsWithoutMfa', ZT.count(iam.adminsWithoutMfa)), A + '/users',
+            add('iam', 'BAD', d('todo.adminsWithoutMfa', ZT.count(iam.adminsWithoutMfa)), users('ADMIN_NO_MFA'),
                 d('todo.adminsWithoutMfa.rule'));
         }
         if (security.sealMismatch > 0) {
-            // K103: the log opens from the hour the seal count starts at, so it lists the records counted
+            // K103: the log opens from the hour the seal count starts at; K92: with the records the count counts only
             add('security', 'BAD', d('todo.sealBroken', ZT.count(security.sealMismatch)),
-                events('SECURITY_DECISION', periodHour()), d('todo.sealBroken.rule'));
+                events('SECURITY_DECISION', periodHour(), 'SEAL_MISMATCH'), d('todo.sealBroken.rule'));
         }
         if (policy.healthStatus === 'CRITICAL') {
             add('policy', 'BAD', d('todo.policyConflicts', ZT.count(policy.conflictCount), ZT.count(policy.duplicateCount)),
-                A + '/policy-center?tab=list', d('todo.policyConflicts.rule'));
+                POLICY_ISSUES, d('todo.policyConflicts.rule'));
         }
         (zt.alerts || []).filter(alert => alert.severity === 'WARN').forEach(alert => add('zeroTrust', 'WARN',
             alert.message, ZT.keepPeriod(alert.link), t('zt.console.ui.overview.alerts.rule.' + alert.key)));
@@ -239,7 +248,7 @@
         }
         if (policy.healthStatus !== 'CRITICAL' && (policy.conflictCount > 0 || policy.duplicateCount > 0)) {
             add('policy', 'WARN', d('todo.policyConflicts', ZT.count(policy.conflictCount),
-                ZT.count(policy.duplicateCount)), A + '/policy-center?tab=list', d('todo.policyConflicts.rule'));
+                ZT.count(policy.duplicateCount)), POLICY_ISSUES, d('todo.policyConflicts.rule'));
         }
         if (D.agents.confirmations > 0) {
             // K90: a sponsor confirms an agent's request from the mail, not here: the row says so and leads to the agents
@@ -247,7 +256,8 @@
                 d('todo.agentConfirmations.rule'), {text: d('agents.confirmByMail'), link: d('agents.link.list')});
         }
         if (iam.locked > 0) {
-            add('iam', 'WARN', d('todo.lockedAccounts', ZT.count(iam.locked)), A + '/users', d('todo.lockedAccounts.rule'));
+            add('iam', 'WARN', d('todo.lockedAccounts', ZT.count(iam.locked)), users('LOCKED'),
+                d('todo.lockedAccounts.rule'));
         }
         if (off) {
             add('zeroTrust', 'INFO', d('todo.ztOff'), A + '/system-settings', d('todo.ztOff.rule'));
@@ -257,7 +267,7 @@
                 d('todo.adoption.rule'));
         }
         if (iam.usersWithoutFactor > 0) {
-            add('iam', 'INFO', d('todo.usersWithoutFactor', ZT.count(iam.usersWithoutFactor)), A + '/users',
+            add('iam', 'INFO', d('todo.usersWithoutFactor', ZT.count(iam.usersWithoutFactor)), users('NO_FACTOR'),
                 d('todo.usersWithoutFactor.rule'));
         }
         if (D.system.missingMethodDecision === 'PERMIT') {
@@ -405,8 +415,8 @@
             el('span', {class: 'zt-muted break-keep'}, el('i', {class: 'fas ' + (value > 0 ? 'fa-exclamation-triangle' : 'fa-check'),
                 'aria-hidden': 'true', style: {color: value > 0 ? C.WARN : C.GOOD, marginRight: '4px'}}), label));
         const hygiene = form('hygiene-tiles', el('div', {class: 'grid grid-cols-1 sm:grid-cols-3 gap-2'},
-            hygieneTile(iam.locked, d('iam.lockedShort'), A + '/users'),
-            hygieneTile(iam.dormant, d('iam.dormantShort'), A + '/users'),
+            hygieneTile(iam.locked, d('iam.lockedShort'), users('LOCKED')),
+            hygieneTile(iam.dormant, d('iam.dormantShort'), users('DORMANT')),
             hygieneTile(iam.expired, d('iam.expiredShort'), A + '/password-policy')));
         const countItem = (icon, value, label, href) => el('a', {class: 'flex flex-col items-center gap-1 min-w-0', href},
             el('i', {class: 'fas ' + icon, 'aria-hidden': 'true', style: {color: colour}}),
@@ -417,7 +427,7 @@
             countItem('fa-layer-group', iam.groupCount, d('iam.groups'), A + '/groups'),
             countItem('fa-user-tag', iam.roleCount, d('iam.roles'), A + '/roles'),
             countItem('fa-key', iam.permissionCount, d('iam.permissions'), A + '/permissions'),
-            countItem('fa-user-cog', iam.admins, d('iam.admins'), A + '/users')));
+            countItem('fa-user-cog', iam.admins, d('iam.admins'), users('ADMIN'))));
         return foot(areaCard('iam', d('area.iam'), d('iam.aside'), ring, ZT.subhead(d('iam.hygiene')), hygiene,
             ZT.subhead(d('iam.scale')), counts),
         link(A + '/users', d('iam.link.users')), link(A + '/access-center', d('iam.link.access')),
@@ -458,7 +468,7 @@
             el('div', {class: 'grid grid-cols-1 gap-3 sm:flex sm:items-center min-w-0'},
                 step(p.pendingApproval, d('policy.flow.pending'), A + '/policy-center?tab=list&approvalStatus=PENDING'),
                 arrow(), step(p.approved, d('policy.flow.approved'), A + '/policy-center?tab=list&approvalStatus=APPROVED'),
-                arrow(), step(p.activePolicies, d('policy.flow.active'), A + '/policy-center?tab=list')),
+                arrow(), step(p.activePolicies, d('policy.flow.active'), A + '/policy-center?tab=list&activeFilter=true')),
             el('div', {class: 'flex flex-wrap items-center gap-2'},
                 ZT.statusChip(!checked ? null : p.conflictCount ? 'WARN' : 'GOOD',
                     d('policy.badge.conflicts', short(p.conflictCount))),
@@ -665,11 +675,11 @@
         };
         // A block opens its decision; step-ups open the user's step-ups of the period in the decision records (K80, K94:
         // by the records' exact user filter, never another user whose path holds the name); the other signals open the
-        // user.
+        // user, by the list's exact user filter (K100), never another user whose name holds it.
         const openOf = row => row.requestId ? Z + '/decisions/request/' + encodeURIComponent(row.requestId)
             : row.signals.some(signal => signal.kind === 'CHALLENGES') ? Z + '/decisions?action=CHALLENGE&user='
                 + encodeURIComponent(row.user) + '&period=' + periodKey
-                : A + '/users?keyword=' + encodeURIComponent(row.user);
+                : A + '/users?user=' + encodeURIComponent(row.user);
         const head = el('thead', {}, el('tr', {},
             el('th', {scope: 'col', text: d('attention.column.user')}),
             el('th', {scope: 'col', text: d('attention.column.signals')}),

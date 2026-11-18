@@ -24,10 +24,12 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.admin.web.monitoring.dto.SecurityMonitorDtos.IpGroupView;
+import io.contexa.contexaiam.admin.web.dashboard.DashboardQueries;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -49,7 +51,12 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
@@ -73,6 +80,20 @@ public class SecurityMonitorController {
      * none, the screen's period [since, now). The category chip lists every override, a refused one too.
      */
     static final String ADMIN_OVERRIDE_APPLIED = "ADMIN_OVERRIDE_APPLIED";
+    /**
+     * K92: the filter of the decision records the hourly seal check found not matching their seal, the records the
+     * dashboard's broken seals count (kept by the dashboard's hourly pass).
+     */
+    static final String SEAL_MISMATCH = "SEAL_MISMATCH";
+    /**
+     * K93: the periods the screen offers, in hours, and the words of each: up to the dashboard's longest period, so a
+     * dashboard link of any period opens with its period chosen.
+     */
+    static final Map<Integer, String> PERIODS = periods();
+    /** The rows of a page of the list. */
+    static final int PAGE_SIZE = 20;
+    /** The rows the CSV reads at a time. */
+    static final int CSV_BATCH = 500;
 
     private final AuditLogRepository auditLogRepository;
     private final CsvExportService csvExportService;
@@ -82,6 +103,8 @@ public class SecurityMonitorController {
     /** docs/agent A5-6: the seal check, with the signer set on this controller. */
     private final DecisionRecordSealCheck sealCheck;
     private MessageSource messageSource;
+    /** K92: the decision records the seal check found mismatched; without it that filter lists none. */
+    private DashboardQueries dashboardQueries;
 
     public SecurityMonitorController(AuditLogRepository auditLogRepository, CsvExportService csvExportService) {
         this(auditLogRepository, csvExportService, null);
@@ -107,6 +130,11 @@ public class SecurityMonitorController {
     /** docs/agent A5-6: the signer the decision records were signed with. */
     public void setEvidenceSigner(EvidenceSigner evidenceSigner) {
         this.evidenceSigner = evidenceSigner;
+    }
+
+    /** K92: the dashboard's reads, of which the decision records the hourly seal check found mismatched. */
+    public void setDashboardQueries(DashboardQueries dashboardQueries) {
+        this.dashboardQueries = dashboardQueries;
     }
 
     /** The list without a subject chip, as before A5-5. */
@@ -139,13 +167,23 @@ public class SecurityMonitorController {
         // K103: the start a link named stays with the screen's own links (its pages, its categories, its CSV)
         model.addAttribute("from", start != null ? from.trim() : null);
         // docs/agent A5-5: a subject chip lists the decisions of that subject kind.
-        String subjectKind = subject != null && SUBJECT_KINDS.contains(subject) ? subject : null;
+        String subjectKind = subjectKind(subject);
         model.addAttribute("subject", subjectKind);
         model.addAttribute("subjectKinds", SUBJECT_KINDS);
-        Page<AuditLog> logPage = subjectKind != null
-                ? auditLogRepository.findByTimestampAfterAndSubjectKind(since, subjectKind,
-                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "timestamp")))
-                : loadLogPage(category, filter, keyword, page, since, now, model);
+        Page<AuditLog> logPage = read(category, filter, keyword, subjectKind, since, now,
+                PageRequest.of(page, PAGE_SIZE, Sort.by(Sort.Direction.DESC, "timestamp")));
+        if (subjectKind == null && hasText(filter)) {
+            model.addAttribute("filterType", filter);
+            if ("DISTINCT_IP".equals(filter)) {
+                List<Object[]> rows = auditLogRepository.findIpGroupsSince(since, PAGE_SIZE, page * PAGE_SIZE);
+                List<IpGroupView> ipGroups = new ArrayList<>();
+                for (Object[] row : rows) {
+                    ipGroups.add(IpGroupView.fromRow(row));
+                }
+                model.addAttribute("ipGroups", ipGroups);
+                model.addAttribute("totalIpGroups", auditLogRepository.countDistinctIpGroupsSince(since));
+            }
+        }
         model.addAttribute("integrity", integrityOf(logPage.getContent()));
 
         prepareMonitorModel(model, logPage, hours, category, filter, keyword, since, now);
@@ -153,17 +191,44 @@ public class SecurityMonitorController {
         return "contexa/admin/security-monitor";
     }
 
-    private Page<AuditLog> loadLogPage(
-            String category, String filter, String keyword, int page,
-            LocalDateTime since, LocalDateTime until, Model model) {
-        int pageSize = 20;
-        Pageable pageable = PageRequest.of(page, pageSize, Sort.by(Sort.Direction.DESC, "timestamp"));
-        boolean hasKeyword = keyword != null && !keyword.isBlank();
+    private static Map<Integer, String> periods() {
+        Map<Integer, String> periods = new LinkedHashMap<>();
+        periods.put(1, "1h");
+        periods.put(6, "6h");
+        periods.put(24, "24h");
+        periods.put(72, "3d");
+        periods.put(168, "7d");
+        periods.put(720, "30d");
+        periods.put(2160, "90d");
+        return Collections.unmodifiableMap(periods);
+    }
+
+    /** docs/agent A5-5: the subject kind a chip names, none for any other word. */
+    @Nullable
+    static String subjectKind(@Nullable String subject) {
+        return subject != null && SUBJECT_KINDS.contains(subject) ? subject : null;
+    }
+
+    private static boolean hasText(@Nullable String value) {
+        return value != null && !value.isBlank();
+    }
+
+    /**
+     * A page of the list as the screen's filters choose it; the screen and its CSV read the same (K108): a subject
+     * kind first, then a filter, then the user name and the category.
+     */
+    Page<AuditLog> read(@Nullable String category, @Nullable String filter, @Nullable String keyword,
+                        @Nullable String subjectKind, LocalDateTime since, LocalDateTime until, Pageable pageable) {
+        if (subjectKind != null) {
+            return auditLogRepository.findByTimestampAfterAndSubjectKind(since, subjectKind, pageable);
+        }
+        boolean hasKeyword = hasText(keyword);
         String likePattern = hasKeyword ? "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%" : null;
-        if (filter != null && !filter.isBlank()) {
-            model.addAttribute("filterType", filter);
-            Page<AuditLog> logPage = switch (filter) {
-                case "AFTER_HOURS" -> auditLogRepository.findAfterHoursAccess(since, PageRequest.of(page, pageSize));
+        if (hasText(filter)) {
+            return switch (filter) {
+                // The native query orders its rows itself.
+                case "AFTER_HOURS" -> auditLogRepository.findAfterHoursAccess(since,
+                        PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
                 case "DISTINCT_IP" -> auditLogRepository.findByTimestampAfterAndClientIpNotNull(since, pageable);
                 case "HIGH_RISK" -> auditLogRepository.findByTimestampAfterAndRiskScoreGte(since, 0.4, pageable);
                 case "DECISION_ALLOW" -> auditLogRepository.findByTimestampAfterAndDecision(since, "ALLOW", pageable);
@@ -173,30 +238,40 @@ public class SecurityMonitorController {
                 case "ZT_CHALLENGE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "CHALLENGE", since, pageable);
                 case "ZT_ESCALATE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ESCALATE", since, pageable);
                 case ADMIN_OVERRIDE_APPLIED -> auditLogRepository.findAdminOverridesBetween(since, until, pageable);
+                case SEAL_MISMATCH -> sealMismatches(since, pageable);
                 default -> auditLogRepository.findByTimestampAfterAndCategory(since, filter, pageable);
             };
-            if ("DISTINCT_IP".equals(filter)) {
-                List<Object[]> rows = auditLogRepository.findIpGroupsSince(since, pageSize, page * pageSize);
-                List<IpGroupView> ipGroups = new ArrayList<>();
-                for (Object[] row : rows) {
-                    ipGroups.add(IpGroupView.fromRow(row));
-                }
-                model.addAttribute("ipGroups", ipGroups);
-                model.addAttribute("totalIpGroups", auditLogRepository.countDistinctIpGroupsSince(since));
-            }
-            return logPage;
         }
-        if (hasKeyword && category != null && !category.isBlank()) {
+        if (hasKeyword && hasText(category)) {
             return auditLogRepository.findByTimestampAfterAndCategoryAndPrincipalNameLike(
                     since, category, likePattern, pageable);
         }
         if (hasKeyword) {
             return auditLogRepository.findByTimestampAfterAndPrincipalNameLike(since, likePattern, pageable);
         }
-        if (category != null && !category.isBlank()) {
+        if (hasText(category)) {
             return auditLogRepository.findByTimestampAfterAndCategory(since, category, pageable);
         }
         return auditLogRepository.findByTimestampAfter(since, pageable);
+    }
+
+    /**
+     * K92: the decision records written since the start that the dashboard's hourly seal check found not matching their
+     * seal, the latest first, in the order of the page their IDs were read in.
+     */
+    private Page<AuditLog> sealMismatches(LocalDateTime since, Pageable pageable) {
+        if (dashboardQueries == null) {
+            return Page.empty(pageable);
+        }
+        long total = dashboardQueries.sealMismatchRecordCount(since);
+        List<Long> ids = total == 0 ? List.of()
+                : dashboardQueries.sealMismatchRecordIds(since, pageable.getOffset(), pageable.getPageSize());
+        if (ids.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, total);
+        }
+        Map<Long, AuditLog> records = new HashMap<>();
+        auditLogRepository.findAllById(ids).forEach(record -> records.put(record.getId(), record));
+        return new PageImpl<>(ids.stream().map(records::get).filter(Objects::nonNull).toList(), pageable, total);
     }
 
     /**
@@ -222,6 +297,7 @@ public class SecurityMonitorController {
             String category, String filter, String keyword, LocalDateTime since, LocalDateTime until) {
         model.addAttribute("logPage", logPage);
         model.addAttribute("hours", hours);
+        model.addAttribute("periods", PERIODS);
         model.addAttribute("category", category);
         model.addAttribute("filter", filter);
         model.addAttribute("keyword", keyword);
@@ -294,17 +370,20 @@ public class SecurityMonitorController {
         }
     }
 
-    /** The CSV of the last hours, without a start a link names. */
+    /** The CSV of the last hours, without a start a link names, a user name or a subject chip. */
     public void exportCsv(String category, String filter, int hours, HttpServletResponse response) throws IOException {
-        exportCsv(category, filter, hours, null, response);
+        exportCsv(category, filter, hours, null, null, null, response);
     }
 
+    /** K108: the CSV holds the rows the screen lists, with every filter the screen was opened with. */
     @GetMapping("/export")
     public void exportCsv(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String filter,
             @RequestParam(required = false, defaultValue = "24") int hours,
             @RequestParam(required = false) String from,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String subject,
             HttpServletResponse response) throws IOException {
 
         LocalDateTime now = LocalDateTime.now();
@@ -328,38 +407,22 @@ public class SecurityMonitorController {
                 new CsvColumn<>("Correlation ID", l -> l.getCorrelationId() != null ? l.getCorrelationId() : "")
         );
 
-        csvExportService.export(response, "audit-log", columns, () -> loadAllLogs(since, now, category, filter));
+        String subjectKind = subjectKind(subject);
+        csvExportService.export(response, "audit-log", columns,
+                () -> loadAllLogs(category, filter, keyword, subjectKind, since, now));
     }
 
-    private Stream<AuditLog> loadAllLogs(LocalDateTime since, LocalDateTime until, String category, String filter) {
-        int batchSize = 500;
+    /** Every row of the list, read as the screen reads its pages. */
+    private Stream<AuditLog> loadAllLogs(@Nullable String category, @Nullable String filter, @Nullable String keyword,
+                                         @Nullable String subjectKind, LocalDateTime since, LocalDateTime until) {
         List<AuditLog> allLogs = new ArrayList<>();
-        Pageable pageable = PageRequest.of(0, batchSize, Sort.by(Sort.Direction.DESC, "timestamp"));
-
+        Pageable pageable = PageRequest.of(0, CSV_BATCH, Sort.by(Sort.Direction.DESC, "timestamp"));
         Page<AuditLog> page;
         do {
-            if (filter != null && !filter.isBlank()) {
-                page = switch (filter) {
-                    case "AFTER_HOURS" -> auditLogRepository.findAfterHoursAccess(since, pageable);
-                    case "HIGH_RISK" -> auditLogRepository.findByTimestampAfterAndRiskScoreGte(since, 0.4, pageable);
-                    case "DECISION_ALLOW" -> auditLogRepository.findByTimestampAfterAndDecision(since, "ALLOW", pageable);
-                    case "DECISION_DENY" -> auditLogRepository.findByTimestampAfterAndDecision(since, "DENY", pageable);
-                    case "ZT_ALLOW" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ALLOW", since, pageable);
-                    case "ZT_BLOCK" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "BLOCK", since, pageable);
-                    case "ZT_CHALLENGE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "CHALLENGE", since, pageable);
-                    case "ZT_ESCALATE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ESCALATE", since, pageable);
-                    case ADMIN_OVERRIDE_APPLIED -> auditLogRepository.findAdminOverridesBetween(since, until, pageable);
-                    default -> auditLogRepository.findByTimestampAfterAndCategory(since, filter, pageable);
-                };
-            } else if (category != null && !category.isBlank()) {
-                page = auditLogRepository.findByTimestampAfterAndCategory(since, category, pageable);
-            } else {
-                page = auditLogRepository.findByTimestampAfter(since, pageable);
-            }
+            page = read(category, filter, keyword, subjectKind, since, until, pageable);
             allLogs.addAll(page.getContent());
-            pageable = page.nextPageable();
+            pageable = pageable.next();
         } while (page.hasNext());
-
         return allLogs.stream();
     }
 }

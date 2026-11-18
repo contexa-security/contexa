@@ -167,8 +167,26 @@ public interface UserRepository extends JpaRepository<Users, Long> {
      * @param syntheticMail the pattern of the addresses the bridge makes up
      * @param agentMail     the pattern of the addresses of agent accounts
      */
-    @Query(value = """
-            select count(*) from ctxa_users u
+    @Query(value = "select count(*) " + WITHOUT_VERIFICATION_FACTOR, nativeQuery = true)
+    long countWithoutVerificationFactor(@Param("mailDelivers") boolean mailDelivers,
+                                        @Param("passkeysWork") boolean passkeysWork,
+                                        @Param("syntheticMail") String syntheticMail,
+                                        @Param("agentMail") String agentMail);
+
+    /**
+     * Q-1 and K92: the accounts {@link #countWithoutVerificationFactor} counts, the newest first, a page at a time: the
+     * console's list of users shows the ones the dashboard counts. The page is read unsorted; its order is the query's.
+     */
+    @Query(value = "select u.id " + WITHOUT_VERIFICATION_FACTOR + " order by u.id desc",
+            countQuery = "select count(*) " + WITHOUT_VERIFICATION_FACTOR, nativeQuery = true)
+    Page<Long> findIdsWithoutVerificationFactor(@Param("mailDelivers") boolean mailDelivers,
+                                                @Param("passkeysWork") boolean passkeysWork,
+                                                @Param("syntheticMail") String syntheticMail,
+                                                @Param("agentMail") String agentMail, Pageable pageable);
+
+    /** The accounts that could not answer a CHALLENGE, as the count and the list of them read them. */
+    String WITHOUT_VERIFICATION_FACTOR = """
+            from ctxa_users u
             where u.enabled = true
               and lower(u.email) not like :agentMail
               and (:mailDelivers = false
@@ -178,11 +196,7 @@ public interface UserRepository extends JpaRepository<Users, Long> {
                    or not exists (select 1 from ctxa_user_entities e
                                   join ctxa_user_credentials c on c.user_entity_user_id = e.id
                                   where e.name = u.username))
-            """, nativeQuery = true)
-    long countWithoutVerificationFactor(@Param("mailDelivers") boolean mailDelivers,
-                                        @Param("passkeysWork") boolean passkeysWork,
-                                        @Param("syntheticMail") String syntheticMail,
-                                        @Param("agentMail") String agentMail);
+            """;
 
     @Query("SELECT DISTINCT u FROM Users u LEFT JOIN FETCH u.userGroups ug LEFT JOIN FETCH ug.group g LEFT JOIN FETCH g.groupRoles gr LEFT JOIN FETCH gr.role r LEFT JOIN FETCH r.rolePermissions rp LEFT JOIN FETCH rp.permission")
     List<Users> findAllWithGroups();

@@ -36,6 +36,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.TreeSet;
@@ -52,7 +53,8 @@ import java.util.function.Supplier;
  *     <li>The seal check of the decision records (VERIFIED, MISMATCH, UNVERIFIABLE counted by hour). A check reads the
  *     store up to three times, which is why no screen counts the period's records itself. A record changed after its
  *     hour was checked is found when the hour is checked again: the hours checked longest ago are checked again, a few
- *     thousand records a pass.</li>
+ *     thousand records a pass. The records that do not match are kept by ID beside the hour's counts (K92), so the
+ *     security event log lists the records the dashboard counts.</li>
  * </ul>
  */
 @Slf4j
@@ -191,6 +193,15 @@ public class DashboardHourlyStats {
                        AND NOT EXISTS (SELECT 1 FROM ctxa_dashboard_seal_hourly s
                                         WHERE s.bucket_start = date_trunc('hour', a.timestamp))
                     """, Timestamp.class, since, until).forEach(hour -> sealBackfill.add(hour.toInstant()));
+            // K92: an hour counted before its mismatched records were kept by ID is checked again, so the list of
+            // them holds what the count says.
+            jdbc.queryForList("""
+                    SELECT s.bucket_start
+                      FROM ctxa_dashboard_seal_hourly s
+                     WHERE s.bucket_start >= ? AND s.bucket_start < ? AND s.mismatched > 0
+                       AND s.mismatched <> (SELECT COUNT(*) FROM ctxa_dashboard_seal_mismatch m
+                                             WHERE m.bucket_start = s.bucket_start)
+                    """, Timestamp.class, since, until).forEach(hour -> sealBackfill.add(hour.toInstant()));
         }
     }
 
@@ -242,7 +253,7 @@ public class DashboardHourlyStats {
         LocalDateTime from = LocalDateTime.ofInstant(hour, zone);
         LocalDateTime to = LocalDateTime.ofInstant(hour.plus(Duration.ofHours(1)), zone);
         long checked = 0;
-        long mismatched = 0;
+        List<Long> mismatched = new ArrayList<>();
         long unverifiable = 0;
         long afterId = 0;
         while (true) {
@@ -252,7 +263,7 @@ public class DashboardHourlyStats {
                 Status status = sealCheck.check(record);
                 checked++;
                 if (status == Status.MISMATCH) {
-                    mismatched++;
+                    mismatched.add(record.getId());
                 } else if (status == Status.UNVERIFIABLE) {
                     unverifiable++;
                 }
@@ -263,15 +274,24 @@ public class DashboardHourlyStats {
             }
         }
         Timestamp bucket = Timestamp.from(hour);
+        Timestamp at = Timestamp.from(now);
         jdbc.update("DELETE FROM ctxa_dashboard_seal_hourly WHERE bucket_start = ?", bucket);
+        jdbc.update("DELETE FROM ctxa_dashboard_seal_mismatch WHERE bucket_start = ?", bucket);
         if (checked > 0) {
             jdbc.update("""
                     INSERT INTO ctxa_dashboard_seal_hourly (bucket_start, checked, mismatched, unverifiable, computed_at)
                     VALUES (?, ?, ?, ?, ?)
-                    """, bucket, checked, mismatched, unverifiable, Timestamp.from(now));
+                    """, bucket, checked, mismatched.size(), unverifiable, at);
         }
-        if (mismatched > 0) {
-            log.warn("[DashboardHourlyStats] {} decision records of the hour {} do not match their seal", mismatched, hour);
+        if (!mismatched.isEmpty()) {
+            // K92: the records themselves, under the hour they were counted in.
+            jdbc.batchUpdate("""
+                    INSERT INTO ctxa_dashboard_seal_mismatch (audit_id, bucket_start, computed_at) VALUES (?, ?, ?)
+                    ON CONFLICT (audit_id) DO UPDATE SET bucket_start = EXCLUDED.bucket_start,
+                                                         computed_at = EXCLUDED.computed_at
+                    """, mismatched.stream().map(id -> new Object[]{id, bucket, at}).toList());
+            log.warn("[DashboardHourlyStats] {} decision records of the hour {} do not match their seal",
+                    mismatched.size(), hour);
         }
         return checked;
     }
@@ -284,7 +304,8 @@ public class DashboardHourlyStats {
 
     /**
      * One retention pass: the refusals name users and go with the decision rows (the decision retention), the seal
-     * counts name nobody and go with the aggregates (the aggregate retention). Returns how many rows went.
+     * counts and the mismatched records kept by ID name nobody and go with the aggregates (the aggregate retention).
+     * Returns how many rows went.
      */
     public long purgeOnce() {
         JdbcOperations jdbc = jdbcOperationsSupplier.get();
@@ -304,6 +325,10 @@ public class DashboardHourlyStats {
             removed += batches(jdbc, """
                     DELETE FROM ctxa_dashboard_seal_hourly
                      WHERE ctid IN (SELECT ctid FROM ctxa_dashboard_seal_hourly WHERE bucket_start < ? LIMIT ?)
+                    """, aggregateCutoff);
+            removed += batches(jdbc, """
+                    DELETE FROM ctxa_dashboard_seal_mismatch
+                     WHERE ctid IN (SELECT ctid FROM ctxa_dashboard_seal_mismatch WHERE bucket_start < ? LIMIT ?)
                     """, aggregateCutoff);
         } catch (DataAccessException exception) {
             log.error("[DashboardHourlyStats] Retention stopped after {} rows", removed, exception);

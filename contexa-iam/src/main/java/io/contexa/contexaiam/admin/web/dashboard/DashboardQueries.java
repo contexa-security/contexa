@@ -16,7 +16,7 @@
 package io.contexa.contexaiam.admin.web.dashboard;
 
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
-import io.contexa.contexaiam.admin.web.agent.service.OAuth2AgentProvisioning;
+import io.contexa.contexaiam.admin.web.auth.service.AccountsOfPeople;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardDtos.Count;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardDtos.DayCount;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -26,6 +26,7 @@ import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -86,9 +87,9 @@ public class DashboardQueries {
             """.formatted(AUTO_POLICY_SYNC_BLOCKED, quoted(SYSTEM_ACTORS), PromptVersionAudit.CREATED,
             quoted(VERSION_FROM_A_DOCUMENT));
 
-    private static final String ACCOUNTS_OF_PEOPLE = "u.enabled = TRUE AND u.bridge_managed = FALSE "
-            + "AND (u.email IS NULL OR LOWER(u.email) NOT LIKE ?)";
-    private static final String AGENT_MAIL = "%" + OAuth2AgentProvisioning.ACCOUNT_EMAIL_DOMAIN;
+    /** K92: the accounts of people as the list of users filters them too. */
+    private static final String ACCOUNTS_OF_PEOPLE = AccountsOfPeople.CONDITION;
+    private static final String AGENT_MAIL = AccountsOfPeople.AGENT_MAIL;
 
     /** Every user's latest block record, a record that keeps the block before a resolved one of the same time. */
     private static final String LATEST_BLOCKS = """
@@ -163,14 +164,11 @@ public class DashboardQueries {
         if (operations == null) {
             return new Accounts(0, 0, 0, 0, 0);
         }
-        return operations.queryForObject("""
-                SELECT COUNT(*),
-                       COUNT(*) FILTER (WHERE u.mfa_enabled = TRUE),
-                       COUNT(*) FILTER (WHERE u.account_locked = TRUE AND u.lock_expires_at > ?),
-                       COUNT(*) FILTER (WHERE COALESCE(u.last_login_at, u.created_at) < ?),
-                       COUNT(*) FILTER (WHERE ? AND u.password_changed_at IS NOT NULL AND u.password_changed_at < ?)
-                  FROM ctxa_users u
-                 WHERE\s""" + ACCOUNTS_OF_PEOPLE,
+        return operations.queryForObject("SELECT COUNT(*), COUNT(*) FILTER (WHERE u.mfa_enabled = TRUE), "
+                        + "COUNT(*) FILTER (WHERE " + AccountsOfPeople.LOCKED + "), "
+                        + "COUNT(*) FILTER (WHERE " + AccountsOfPeople.DORMANT + "), "
+                        + "COUNT(*) FILTER (WHERE ? AND u.password_changed_at IS NOT NULL AND u.password_changed_at < ?) "
+                        + "FROM ctxa_users u WHERE " + ACCOUNTS_OF_PEOPLE,
                 (rs, row) -> new Accounts(rs.getLong(1), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getLong(5)),
                 timestamp(now), timestamp(dormantBefore), passwordChangedBefore != null,
                 timestamp(passwordChangedBefore != null ? passwordChangedBefore : now), AGENT_MAIL);
@@ -189,15 +187,11 @@ public class DashboardQueries {
         if (operations == null || limit <= 0) {
             return List.of();
         }
-        List<AccountSignal> accounts = operations.query("""
-                SELECT u.username, u.failed_login_attempts,
-                       (u.account_locked = TRUE AND u.lock_expires_at > ?) AS locked
-                  FROM ctxa_users u
-                 WHERE\s""" + ACCOUNTS_OF_PEOPLE + """
-                   AND ((u.account_locked = TRUE AND u.lock_expires_at > ?) OR u.failed_login_attempts >= ?)
-                 ORDER BY u.failed_login_attempts DESC, u.username
-                 LIMIT ?
-                """, (rs, row) -> new AccountSignal(rs.getString(1), rs.getInt(2), rs.getBoolean(3), null),
+        List<AccountSignal> accounts = operations.query("SELECT u.username, u.failed_login_attempts, ("
+                        + AccountsOfPeople.LOCKED + ") AS locked FROM ctxa_users u WHERE " + ACCOUNTS_OF_PEOPLE
+                        + " AND ((" + AccountsOfPeople.LOCKED + ") OR u.failed_login_attempts >= ?)"
+                        + " ORDER BY u.failed_login_attempts DESC, u.username LIMIT ?",
+                (rs, row) -> new AccountSignal(rs.getString(1), rs.getInt(2), rs.getBoolean(3), null),
                 timestamp(now), AGENT_MAIL, timestamp(now), LOGIN_FAILURES_AT_LEAST, limit);
         if (accounts.isEmpty()) {
             return accounts;
@@ -400,6 +394,35 @@ public class DashboardQueries {
         Long count = operations.queryForObject("SELECT COALESCE(SUM(s.mismatched), 0) FROM ctxa_dashboard_seal_hourly s "
                 + "WHERE s.bucket_start >= ? AND s.bucket_start < ?", Long.class, hour(from), timestamp(to));
         return count == null ? 0 : count;
+    }
+
+    /** K92: the decision records the hourly seal check found mismatched, the ones still kept, written since the moment. */
+    private static final String SEAL_MISMATCH_RECORDS = " FROM ctxa_audit_log a "
+            + "JOIN ctxa_dashboard_seal_mismatch m ON m.audit_id = a.id WHERE a.timestamp >= ?";
+
+    /** K92: how many records {@link #sealMismatchRecordIds} lists. */
+    public long sealMismatchRecordCount(LocalDateTime since) {
+        JdbcOperations operations = jdbc.get();
+        if (operations == null) {
+            return 0;
+        }
+        Long count = operations.queryForObject("SELECT COUNT(*)" + SEAL_MISMATCH_RECORDS, Long.class,
+                Timestamp.valueOf(since));
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * K92: a page of the decision records the hourly seal check found mismatched, written since the moment (a local
+     * time, as the audit log keeps it), the latest first: the records of {@link #sealMismatches} the audit log keeps.
+     */
+    public List<Long> sealMismatchRecordIds(LocalDateTime since, long offset, int limit) {
+        JdbcOperations operations = jdbc.get();
+        if (operations == null || limit <= 0) {
+            return List.of();
+        }
+        return operations.queryForList("SELECT a.id" + SEAL_MISMATCH_RECORDS
+                + " ORDER BY a.timestamp DESC, a.id DESC LIMIT ? OFFSET ?", Long.class, Timestamp.valueOf(since), limit,
+                offset);
     }
 
     /** N20: the refused requests of signed-in users in the period. */

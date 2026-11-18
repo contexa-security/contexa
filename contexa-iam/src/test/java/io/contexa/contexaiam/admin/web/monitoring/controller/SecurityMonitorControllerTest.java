@@ -20,6 +20,7 @@ import io.contexa.contexacore.autonomous.audit.DecisionRecordSeal;
 import io.contexa.contexacore.verification.evidence.HmacEvidenceSigner;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
+import io.contexa.contexaiam.admin.web.dashboard.DashboardQueries;
 import io.contexa.contexaiam.admin.web.monitoring.dto.SecurityMonitorDtos.IpGroupView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -466,6 +467,48 @@ class SecurityMonitorControllerTest {
             controller.exportCsv(null, null, 24, httpResponse);
 
             verify(csvExportService).export(eq(httpResponse), eq("audit-log"), anyList(), any());
+        }
+
+        @Test
+        @DisplayName("K108: the CSV reads the rows the screen lists: its subject, its user name, its after-hours filter")
+        void theCsvReadsWhatTheScreenLists() throws Exception {
+            doAnswer(invocation -> ((Supplier<?>) invocation.getArgument(3)).get()).when(csvExportService)
+                    .export(any(), any(), anyList(), any());
+            when(auditLogRepository.findByTimestampAfterAndSubjectKind(any(), any(), any())).thenReturn(Page.empty());
+            when(auditLogRepository.findByTimestampAfterAndCategoryAndPrincipalNameLike(any(), any(), any(), any()))
+                    .thenReturn(Page.empty());
+            when(auditLogRepository.findByTimestampAfterAndClientIpNotNull(any(), any())).thenReturn(Page.empty());
+
+            controller.exportCsv(null, null, 24, null, "bob", "DELEGATED_AGENT", mock(HttpServletResponse.class));
+            controller.exportCsv("AUTHENTICATION_FAILURE", null, 24, null, " Bob ", null, mock(HttpServletResponse.class));
+            // before K108 the CSV read a category named DISTINCT_IP: an empty file for the list of addresses
+            controller.exportCsv(null, "DISTINCT_IP", 24, null, null, null, mock(HttpServletResponse.class));
+
+            verify(auditLogRepository).findByTimestampAfterAndSubjectKind(any(), eq("DELEGATED_AGENT"), any());
+            verify(auditLogRepository).findByTimestampAfterAndCategoryAndPrincipalNameLike(any(),
+                    eq("AUTHENTICATION_FAILURE"), eq("%bob%"), any());
+            verify(auditLogRepository).findByTimestampAfterAndClientIpNotNull(any(), any());
+            verify(auditLogRepository, never()).findByTimestampAfterAndCategory(any(), eq("DISTINCT_IP"), any());
+        }
+
+        @Test
+        @DisplayName("K92: the seal filter reads the records the dashboard's seal check found, in their order")
+        void theSealFilterReadsTheRecordsFound() {
+            DashboardQueries queries = mock(DashboardQueries.class);
+            controller.setDashboardQueries(queries);
+            when(queries.sealMismatchRecordCount(any())).thenReturn(41L);
+            when(queries.sealMismatchRecordIds(any(), eq(20L), eq(20))).thenReturn(List.of(9L, 4L));
+            when(auditLogRepository.findAllById(List.of(9L, 4L))).thenReturn(List.of(AuditLog.builder().id(4L).build(),
+                    AuditLog.builder().id(9L).build()));
+            Model model = new ConcurrentModel();
+
+            controller.monitor("SECURITY_DECISION", "SEAL_MISMATCH", null, null, 168, null, 1, model);
+
+            Page<?> page = (Page<?>) model.getAttribute("logPage");
+            assertThat(page.getTotalElements()).isEqualTo(41);
+            assertThat(page.getContent()).map(AuditLog.class::cast).extracting(AuditLog::getId).containsExactly(9L, 4L);
+            assertThat(model.getAttribute("periods")).isEqualTo(SecurityMonitorController.PERIODS);
+            assertThat(SecurityMonitorController.PERIODS).containsKeys(1, 6, 24, 72, 168, 720, 2160);
         }
     }
 }

@@ -61,9 +61,35 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
     @Query("SELECT DISTINCT p FROM Policy p LEFT JOIN FETCH p.targets WHERE p.id IN :ids")
     List<Policy> findAllWithTargetsByIdIn(@Param("ids") Collection<Long> ids);
 
+    /** K92: as {@link #searchIdsByFilters}, of the policies of the IDs only. */
+    @Query(value = "SELECT p.id FROM Policy p " +
+            "WHERE p.id IN :ids" +
+            " AND (:pattern IS NULL OR LOWER(p.name) LIKE :pattern)" +
+            " AND (:approvalStatus IS NULL OR p.approvalStatus = :approvalStatus)" +
+            " AND (:activeFilter IS NULL OR p.isActive = :activeFilter)",
+            countQuery = "SELECT COUNT(p) FROM Policy p " +
+            "WHERE p.id IN :ids" +
+            " AND (:pattern IS NULL OR LOWER(p.name) LIKE :pattern)" +
+            " AND (:approvalStatus IS NULL OR p.approvalStatus = :approvalStatus)" +
+            " AND (:activeFilter IS NULL OR p.isActive = :activeFilter)")
+    Page<Long> searchIdsByFiltersAmong(@Param("pattern") String pattern,
+                                       @Param("approvalStatus") Policy.ApprovalStatus approvalStatus,
+                                       @Param("activeFilter") Boolean activeFilter,
+                                       @Param("ids") Collection<Long> ids,
+                                       Pageable pageable);
+
     default Page<Policy> searchByFilters(String pattern, Policy.ApprovalStatus approvalStatus, Boolean activeFilter,
                                          Pageable pageable) {
         return withTargets(searchIdsByFilters(pattern, approvalStatus, activeFilter, pageable));
+    }
+
+    /** K92: as {@link #searchByFilters}, of the policies of the IDs only; none when there are none. */
+    default Page<Policy> searchByFiltersAmong(String pattern, Policy.ApprovalStatus approvalStatus, Boolean activeFilter,
+                                              Collection<Long> ids, Pageable pageable) {
+        if (ids == null || ids.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, 0);
+        }
+        return withTargets(searchIdsByFiltersAmong(pattern, approvalStatus, activeFilter, ids, pageable));
     }
 
     default Page<Policy> searchByKeyword(String pattern, Pageable pageable) {

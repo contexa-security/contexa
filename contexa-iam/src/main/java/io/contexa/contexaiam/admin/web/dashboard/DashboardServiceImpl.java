@@ -24,6 +24,7 @@ import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.admin.web.agent.service.AgentContainmentAdminService.StoppedDelegation;
+import io.contexa.contexaiam.admin.web.auth.service.AccountsOfPeople;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.AccessCenterStats;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardDtos.AdoptionState;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardDtos.AgentsPart;
@@ -100,8 +101,8 @@ public class DashboardServiceImpl implements DashboardService {
     static final int DENIALS_RANKED = 5;
     /** The days of the daily bars and of the heat strip, today included. */
     static final int DAYS_SHOWN = 7;
-    /** The days without a sign-in that make an account dormant. */
-    static final int DORMANT_DAYS = 90;
+    /** The days without a sign-in that make an account dormant, as the list of users reads them (K92). */
+    static final int DORMANT_DAYS = AccountsOfPeople.DORMANT_DAYS;
     /** The time a session counts as in use after its last request. */
     static final Duration RECENT_SESSION = Duration.ofMinutes(30);
 

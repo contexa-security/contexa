@@ -86,11 +86,15 @@ public class IamAdminCenterAutoConfiguration {
     public PolicyCenterPageService policyCenterPageService(
             ResourceRegistryService contexaResourceRegistryService,
             PolicyService contexaPolicyService,
-            PolicyCombiningProperties policyCombiningProperties) {
-        return new PolicyCenterPageService(
+            PolicyCombiningProperties policyCombiningProperties,
+            ObjectProvider<PolicyValidationService> policyValidationService) {
+        PolicyCenterPageService service = new PolicyCenterPageService(
                 contexaResourceRegistryService,
                 contexaPolicyService,
                 policyCombiningProperties);
+        // K92: the list's filter of the policies of a conflict or a duplicate, from the dashboard's report.
+        policyValidationService.ifAvailable(service::setPolicyValidation);
+        return service;
     }
 
     @Bean(name = "contexaPolicyCenterCommandService")

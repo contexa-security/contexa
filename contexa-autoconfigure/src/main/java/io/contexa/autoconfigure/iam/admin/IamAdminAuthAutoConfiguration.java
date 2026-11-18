@@ -40,6 +40,7 @@ import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
+import io.contexa.contexaiam.admin.web.auth.service.UserListFilters;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.web.auth.service.VerificationCoverageService;
 import io.contexa.contexaidentity.security.webauthn.PasskeyLibrary;
@@ -61,6 +62,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.context.MessageSource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.web.servlet.handler.MappedInterceptor;
 
 @AutoConfiguration
@@ -153,6 +155,20 @@ public class IamAdminAuthAutoConfiguration {
                                                          BeanFactory beanFactory, MessageSource messageSource) {
         return new LastAdministratorGuard(userRepository, roleRepository, ContexaOwnBeans.roleHierarchy(beanFactory),
                 messageSource);
+    }
+
+    /**
+     * K92, K100: the filters of the list of users, the users a number of the dashboard counts by the rule that counts
+     * them and a user by exact name.
+     */
+    @Bean(name = "contexaUserListFilters")
+    @ConditionalOnMissingBean
+    public UserListFilters userListFilters(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            UserRepository userRepository, LastAdministratorGuard contexaLastAdministratorGuard,
+            ObjectProvider<VerificationCoverageService> verificationCoverage) {
+        return new UserListFilters(jdbcOperationsProvider::getIfAvailable, userRepository, contexaLastAdministratorGuard,
+                verificationCoverage.getIfAvailable(), null);
     }
 
     @Bean("contexaUserManagementService")

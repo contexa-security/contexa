@@ -19,6 +19,10 @@ import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexaiam.admin.web.center.dto.PolicyResourceSearchRequest;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto;
+import io.contexa.contexaiam.security.xacml.pap.dto.FullValidationReport;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
@@ -31,6 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 
@@ -41,6 +46,9 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -107,5 +115,50 @@ class PolicyCenterPageServiceTest {
         assertThat(model.getAttribute("resourcePage")).isEqualTo(Page.empty());
         assertThat(model.getAttribute("policyPage")).isEqualTo(Page.empty());
         assertThat(model.getAttribute("errorMessage")).isEqualTo("Something went wrong");
+    }
+
+    @Test
+    @DisplayName("K92: the policy check's filter lists the policies of the dashboard's report, with its counts")
+    void theHealthFilterListsThePoliciesOfTheDashboardsReport() {
+        Model model = new ConcurrentModel();
+        PolicyValidationService validation = mock(PolicyValidationService.class);
+        service.setPolicyValidation(validation);
+        when(policyCombiningProperties.getCombiningAlgorithm()).thenReturn(CombiningAlgorithm.DENY_OVERRIDES);
+        when(resourceRegistryService.findResources(any(), any())).thenReturn(Page.empty());
+        when(validation.validateAllForDashboard()).thenReturn(new FullValidationReport(6, "WARNING",
+                List.of(new PolicyConflictDto(1L, "a", 2L, "b", "overlap"), new PolicyConflictDto(2L, "b", 3L, "c", "overlap")),
+                List.of(new DuplicatePolicyDto("same", List.of(4L, 5L), "sig"))));
+        Page<Policy> policyPage = new PageImpl<>(List.of(new Policy()));
+        when(policyService.searchPolicies(isNull(), isNull(), eq(true), eq(Set.of(1L, 2L, 3L, 4L, 5L)), any()))
+                .thenReturn(policyPage);
+
+        service.populatePolicyCenterModel(model, "list", new PolicyResourceSearchRequest(), PageRequest.of(0, 10), null,
+                null, true, "issues", 0);
+
+        assertThat(model.getAttribute("policyPage")).isEqualTo(policyPage);
+        assertThat(model.getAttribute("healthFilter")).isEqualTo("ISSUES");
+        assertThat(model.getAttribute("healthConflicts")).isEqualTo(2);
+        assertThat(model.getAttribute("healthDuplicates")).isEqualTo(1);
+        assertThat(model.getAttribute("activeFilter")).isEqualTo(true);
+        verify(policyService, never()).searchPolicies(any(), any(), any(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("K92: a policy check that could not run lists no policy and says so, as the dashboard counts none")
+    void aCheckThatCouldNotRunListsNone() {
+        Model model = new ConcurrentModel();
+        PolicyValidationService validation = mock(PolicyValidationService.class);
+        service.setPolicyValidation(validation);
+        when(policyCombiningProperties.getCombiningAlgorithm()).thenReturn(CombiningAlgorithm.DENY_OVERRIDES);
+        when(resourceRegistryService.findResources(any(), any())).thenReturn(Page.empty());
+        when(validation.validateAllForDashboard()).thenThrow(new IllegalStateException("the policies cannot be read"));
+        when(policyService.searchPolicies(isNull(), isNull(), isNull(), eq(Set.of()), any())).thenReturn(Page.empty());
+
+        service.populatePolicyCenterModel(model, "list", new PolicyResourceSearchRequest(), PageRequest.of(0, 10), null,
+                "NOT_A_STATE", null, "ISSUES", 0);
+
+        assertThat(model.getAttribute("healthUnavailable")).isEqualTo(true);
+        assertThat(model.getAttribute("healthFilter")).isEqualTo("ISSUES");
+        assertThat(model.getAttribute("approvalStatusFilter")).isNull();
     }
 }

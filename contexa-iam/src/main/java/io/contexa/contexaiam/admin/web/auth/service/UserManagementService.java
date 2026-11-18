@@ -29,6 +29,9 @@ public interface UserManagementService {
     void modifyUser(UserDto userDto);
     List<UserListDto> getUsers();
     Page<UserListDto> getUsers(String keyword, Pageable pageable);
+
+    /** K92: the users of a page of IDs a filter of the list chose, in the page's order. */
+    Page<UserListDto> getUsers(Page<Long> ids);
     UserDto getUser(Long id);
 
     /** The user with its groups, roles and permissions, or empty when there is none: for a caller that must not throw. */
