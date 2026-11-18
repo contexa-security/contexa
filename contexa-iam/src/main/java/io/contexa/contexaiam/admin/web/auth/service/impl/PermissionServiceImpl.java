@@ -16,6 +16,9 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexaiam.admin.web.auth.service.AdminChangeAudit;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
@@ -41,7 +44,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RequiredArgsConstructor
@@ -53,6 +58,8 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
     private final PolicyRepository policyRepository;
     private final MessageSource messageSource;
     private final LastAdministratorGuard lastAdministratorGuard;
+    /** K75: a change of a permission is audited; without the facade nothing is recorded. */
+    private AdminChangeAudit audit = AdminChangeAudit.NONE;
 
     /** The lengths of the columns of a permission. */
     private static final int NAME_LENGTH = 255;
@@ -63,6 +70,21 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
+
+    /** K75: records the changes of the permissions. */
+    public void setCentralAuditFacade(CentralAuditFacade centralAuditFacade) {
+        this.audit = AdminChangeAudit.of(centralAuditFacade);
+    }
+
+    private void auditPermissionChange(AuditEventCategory category, Long id, Permission permission) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("permissionId", id);
+        details.put("permissionName", permission.getName());
+        details.put("friendlyName", permission.getFriendlyName());
+        details.put("targetType", permission.getTargetType());
+        details.put("actionType", permission.getActionType());
+        audit.record(category, category.name(), permission.getName(), details);
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -87,6 +109,7 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
             // is told with its reason.
             Permission saved = permissionRepository.save(permission);
             permissionRepository.flush();
+            auditPermissionChange(AuditEventCategory.PERMISSION_CREATED, saved.getId(), saved);
             return saved;
         } catch (DataIntegrityViolationException e) {
             throw new IllegalArgumentException(msg("msg.permission.name.duplicate", permission.getName()), e);
@@ -188,6 +211,7 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
         }
 
         permissionRepository.delete(permission);
+        auditPermissionChange(AuditEventCategory.PERMISSION_DELETED, id, permission);
     }
 
     @Caching(
@@ -223,6 +247,7 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
         try {
             Permission saved = permissionRepository.save(permission);
             permissionRepository.flush();
+            auditPermissionChange(AuditEventCategory.PERMISSION_UPDATED, id, saved);
             return saved;
         } catch (DataIntegrityViolationException e) {
             throw new IllegalArgumentException(msg("msg.permission.name.duplicate", name), e);

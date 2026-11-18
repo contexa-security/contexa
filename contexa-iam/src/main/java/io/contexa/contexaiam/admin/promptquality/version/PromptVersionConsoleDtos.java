@@ -105,10 +105,12 @@ public final class PromptVersionConsoleDtos {
      *                   with
      * @param notDrawn   why the decision was not drawn again with this version and is shown as it was drawn:
      *                   UNAVAILABLE (no decision pipeline in this application) or FAILED; null otherwise
+     * @param integrity  K71: the state of the sealed package the user prompt comes from, as a replay of it tells it:
+     *                   VERIFIED, MISMATCH or UNVERIFIABLE; null without a sealed decision or when it cannot be told
      */
     public record Preview(String system, String format, String user, String requestId, Instant capturedAt,
                           String drawnWith, boolean drawnWithThisVersion, List<PartView> addedBlocks, boolean example,
-                          boolean drawnAgain, String notDrawn) {
+                          boolean drawnAgain, String notDrawn, String integrity) {
     }
 
     /**

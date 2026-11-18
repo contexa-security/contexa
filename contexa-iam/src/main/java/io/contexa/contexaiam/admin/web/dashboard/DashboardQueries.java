@@ -16,7 +16,7 @@
 package io.contexa.contexaiam.admin.web.dashboard;
 
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
-import io.contexa.contexaiam.admin.web.agent.service.OAuth2AgentProvisioning;
+import io.contexa.contexaiam.admin.web.auth.service.AccountsOfPeople;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardDtos.Count;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardDtos.DayCount;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -86,9 +86,9 @@ public class DashboardQueries {
             """.formatted(AUTO_POLICY_SYNC_BLOCKED, quoted(SYSTEM_ACTORS), PromptVersionAudit.CREATED,
             quoted(VERSION_FROM_A_DOCUMENT));
 
-    private static final String ACCOUNTS_OF_PEOPLE = "u.enabled = TRUE AND u.bridge_managed = FALSE "
-            + "AND (u.email IS NULL OR LOWER(u.email) NOT LIKE ?)";
-    private static final String AGENT_MAIL = "%" + OAuth2AgentProvisioning.ACCOUNT_EMAIL_DOMAIN;
+    /** K92: the accounts of people as the list of users filters them too. */
+    private static final String ACCOUNTS_OF_PEOPLE = AccountsOfPeople.CONDITION;
+    private static final String AGENT_MAIL = AccountsOfPeople.AGENT_MAIL;
 
     /** Every user's latest block record, a record that keeps the block before a resolved one of the same time. */
     private static final String LATEST_BLOCKS = """
@@ -120,6 +120,24 @@ public class DashboardQueries {
         for (String category : List.of("ROLE_CREATED", "ROLE_UPDATED", "ROLE_DELETED")) {
             kinds.put(category, "ROLE");
         }
+        // K75: the changes of the console that had no audit record before
+        for (String category : List.of("GROUP_CREATED", "GROUP_UPDATED", "GROUP_DELETED")) {
+            kinds.put(category, "GROUP");
+        }
+        for (String category : List.of("PERMISSION_CREATED", "PERMISSION_UPDATED", "PERMISSION_DELETED")) {
+            kinds.put(category, "PERMISSION");
+        }
+        kinds.put("ROLE_HIERARCHY_CHANGED", "HIERARCHY");
+        kinds.put("ROLE_ASSIGNMENT_CHANGED", "ASSIGNMENT");
+        kinds.put("PASSWORD_POLICY_CHANGED", "PASSWORD");
+        kinds.put("MENU_CHANGED", "MENU");
+        kinds.put("SYSTEM_SETTINGS_CHANGED", "SETTINGS");
+        // K130: the other changes of the console that had no audit record
+        kinds.put("IP_ACCESS_RULE_CHANGED", "IP");
+        kinds.put("SESSION_INVALIDATED", "SESSION");
+        kinds.put("RESOURCE_MANAGEMENT_CHANGED", "RESOURCE");
+        kinds.put("BLOCK_RECORD_DELETED", "BLOCK");
+        kinds.put("CONDITION_TEMPLATE_CHANGED", "CONDITION");
         kinds.put("PROMPT_VERSION_CHANGED", "PROMPT");
         kinds.put("ZERO_TRUST_MODE_CHANGED", "MODE");
         kinds.put("ADMIN_OVERRIDE", "OVERRIDE");
@@ -151,14 +169,11 @@ public class DashboardQueries {
         if (operations == null) {
             return new Accounts(0, 0, 0, 0, 0);
         }
-        return operations.queryForObject("""
-                SELECT COUNT(*),
-                       COUNT(*) FILTER (WHERE u.mfa_enabled = TRUE),
-                       COUNT(*) FILTER (WHERE u.account_locked = TRUE AND u.lock_expires_at > ?),
-                       COUNT(*) FILTER (WHERE COALESCE(u.last_login_at, u.created_at) < ?),
-                       COUNT(*) FILTER (WHERE ? AND u.password_changed_at IS NOT NULL AND u.password_changed_at < ?)
-                  FROM ctxa_users u
-                 WHERE\s""" + ACCOUNTS_OF_PEOPLE,
+        return operations.queryForObject("SELECT COUNT(*), COUNT(*) FILTER (WHERE u.mfa_enabled = TRUE), "
+                        + "COUNT(*) FILTER (WHERE " + AccountsOfPeople.LOCKED + "), "
+                        + "COUNT(*) FILTER (WHERE " + AccountsOfPeople.DORMANT + "), "
+                        + "COUNT(*) FILTER (WHERE ? AND u.password_changed_at IS NOT NULL AND u.password_changed_at < ?) "
+                        + "FROM ctxa_users u WHERE " + ACCOUNTS_OF_PEOPLE,
                 (rs, row) -> new Accounts(rs.getLong(1), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getLong(5)),
                 timestamp(now), timestamp(dormantBefore), passwordChangedBefore != null,
                 timestamp(passwordChangedBefore != null ? passwordChangedBefore : now), AGENT_MAIL);
@@ -177,15 +192,11 @@ public class DashboardQueries {
         if (operations == null || limit <= 0) {
             return List.of();
         }
-        List<AccountSignal> accounts = operations.query("""
-                SELECT u.username, u.failed_login_attempts,
-                       (u.account_locked = TRUE AND u.lock_expires_at > ?) AS locked
-                  FROM ctxa_users u
-                 WHERE\s""" + ACCOUNTS_OF_PEOPLE + """
-                   AND ((u.account_locked = TRUE AND u.lock_expires_at > ?) OR u.failed_login_attempts >= ?)
-                 ORDER BY u.failed_login_attempts DESC, u.username
-                 LIMIT ?
-                """, (rs, row) -> new AccountSignal(rs.getString(1), rs.getInt(2), rs.getBoolean(3), null),
+        List<AccountSignal> accounts = operations.query("SELECT u.username, u.failed_login_attempts, ("
+                        + AccountsOfPeople.LOCKED + ") AS locked FROM ctxa_users u WHERE " + ACCOUNTS_OF_PEOPLE
+                        + " AND ((" + AccountsOfPeople.LOCKED + ") OR u.failed_login_attempts >= ?)"
+                        + " ORDER BY u.failed_login_attempts DESC, u.username LIMIT ?",
+                (rs, row) -> new AccountSignal(rs.getString(1), rs.getInt(2), rs.getBoolean(3), null),
                 timestamp(now), AGENT_MAIL, timestamp(now), LOGIN_FAILURES_AT_LEAST, limit);
         if (accounts.isEmpty()) {
             return accounts;
@@ -379,14 +390,17 @@ public class DashboardQueries {
 
     // ----- the dashboard's hourly tables (N7, N20) -----
 
-    /** N7: the decision records of the period whose seal check found a mismatch, as the hourly pass counted them. */
+    /**
+     * N7, K141: the decision records of the period whose seal check found a mismatch, from the hour the period starts
+     * in: the records the audit log still keeps, the ones the security event log lists by its seal filter.
+     */
     public long sealMismatches(Instant from, Instant to) {
         JdbcOperations operations = jdbc.get();
         if (operations == null) {
             return 0;
         }
-        Long count = operations.queryForObject("SELECT COALESCE(SUM(s.mismatched), 0) FROM ctxa_dashboard_seal_hourly s "
-                + "WHERE s.bucket_start >= ? AND s.bucket_start < ?", Long.class, hour(from), timestamp(to));
+        Long count = operations.queryForObject("SELECT COUNT(*) FROM ctxa_audit_log a WHERE a.timestamp >= ? "
+                + "AND a.timestamp < ? AND " + DashboardHourlyStats.SEAL_MISMATCHED, Long.class, hour(from), timestamp(to));
         return count == null ? 0 : count;
     }
 

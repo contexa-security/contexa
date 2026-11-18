@@ -40,6 +40,7 @@ import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
+import io.contexa.contexaiam.admin.web.auth.service.UserListFilters;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.web.auth.service.VerificationCoverageService;
 import io.contexa.contexaidentity.security.webauthn.PasskeyLibrary;
@@ -61,6 +62,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.context.MessageSource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.web.servlet.handler.MappedInterceptor;
 
 @AutoConfiguration
@@ -155,6 +157,20 @@ public class IamAdminAuthAutoConfiguration {
                 messageSource);
     }
 
+    /**
+     * K92, K100: the filters of the list of users, the users a number of the dashboard counts by the rule that counts
+     * them and a user by exact name.
+     */
+    @Bean(name = "contexaUserListFilters")
+    @ConditionalOnMissingBean
+    public UserListFilters userListFilters(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            UserRepository userRepository, LastAdministratorGuard contexaLastAdministratorGuard,
+            ObjectProvider<VerificationCoverageService> verificationCoverage) {
+        return new UserListFilters(jdbcOperationsProvider::getIfAvailable, userRepository, contexaLastAdministratorGuard,
+                verificationCoverage.getIfAvailable(), null);
+    }
+
     @Bean("contexaUserManagementService")
     @ConditionalOnMissingBean
     public UserManagementService userManagementService(
@@ -219,9 +235,13 @@ public class IamAdminAuthAutoConfiguration {
             RoleRepository roleRepository,
             RoleHierarchyRepository roleHierarchyRepository,
             MessageSource messageSource,
-            LastAdministratorGuard contexaLastAdministratorGuard) {
-        return new GroupServiceImpl(groupRepository, roleRepository, roleHierarchyRepository, messageSource,
-                contexaLastAdministratorGuard);
+            LastAdministratorGuard contexaLastAdministratorGuard,
+            ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+        GroupServiceImpl service = new GroupServiceImpl(groupRepository, roleRepository, roleHierarchyRepository,
+                messageSource, contexaLastAdministratorGuard);
+        // K75: a change of a group is audited
+        centralAuditFacade.ifAvailable(service::setCentralAuditFacade);
+        return service;
     }
 
     @Bean(name = "contexaPermissionService")
@@ -231,9 +251,13 @@ public class IamAdminAuthAutoConfiguration {
             ManagedResourceRepository managedResourceRepository,
             PolicyRepository policyRepository,
             MessageSource messageSource,
-            LastAdministratorGuard contexaLastAdministratorGuard) {
-        return new PermissionServiceImpl(permissionRepository, managedResourceRepository, policyRepository,
-                messageSource, contexaLastAdministratorGuard);
+            LastAdministratorGuard contexaLastAdministratorGuard,
+            ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+        PermissionServiceImpl service = new PermissionServiceImpl(permissionRepository, managedResourceRepository,
+                policyRepository, messageSource, contexaLastAdministratorGuard);
+        // K75: a change of a permission is audited
+        centralAuditFacade.ifAvailable(service::setCentralAuditFacade);
+        return service;
     }
 
     @Bean(name = "contexaRoleHierarchyService")
@@ -243,9 +267,13 @@ public class IamAdminAuthAutoConfiguration {
             RoleRepository roleRepository,
             BeanFactory beanFactory,
             MessageSource messageSource,
-            LastAdministratorGuard contexaLastAdministratorGuard) {
-        return new RoleHierarchyService(roleHierarchyRepository, roleRepository,
+            LastAdministratorGuard contexaLastAdministratorGuard,
+            ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+        RoleHierarchyService service = new RoleHierarchyService(roleHierarchyRepository, roleRepository,
                 ContexaOwnBeans.roleHierarchyImpl(beanFactory), messageSource, contexaLastAdministratorGuard);
+        // K75: a change of a role hierarchy is audited
+        centralAuditFacade.ifAvailable(service::setCentralAuditFacade);
+        return service;
     }
 }
 

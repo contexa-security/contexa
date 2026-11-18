@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.service.IForceLogoutService;
 import io.contexa.contexaiam.admin.web.auth.controller.SessionManagementController;
 import io.contexa.contexaiam.admin.web.auth.service.ActiveSessionReferences;
@@ -40,11 +41,15 @@ public class IamAdminSessionAutoConfiguration {
     public SessionManagementService sessionManagementService(
             ActiveSessionRepository activeSessionRepository,
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations,
-            ObjectProvider<IForceLogoutService> forceLogout) {
+            ObjectProvider<IForceLogoutService> forceLogout,
+            ObjectProvider<CentralAuditFacade> centralAuditFacade) {
         JdbcOperations jdbc = jdbcOperations.getIfAvailable();
         // Ending a session ends what keeps its person in, as a changed password or a disabled account does.
-        return new SessionManagementService(activeSessionRepository,
+        SessionManagementService service = new SessionManagementService(activeSessionRepository,
                 jdbc != null ? new ActiveSessionReferences(jdbc) : null, forceLogout::getIfAvailable);
+        // K130: a session an administrator ends is audited
+        centralAuditFacade.ifAvailable(service::setCentralAuditFacade);
+        return service;
     }
 
     /**

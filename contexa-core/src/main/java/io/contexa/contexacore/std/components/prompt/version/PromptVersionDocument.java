@@ -83,7 +83,10 @@ public record PromptVersionDocument(
         CHANGE,
         /** Takes a part of the base out. */
         DELETE,
-        /** A new part, placed after the part {@link Part#addAfter()} names. */
+        /**
+         * A new part, placed after the part {@link Part#addAfter()} names; in an assembled version, a part an
+         * organization added, whether a later version changed it or not.
+         */
         ADD,
         /** Puts a prepared part of the product document in. */
         INCLUDE
@@ -147,10 +150,14 @@ public record PromptVersionDocument(
             return text;
         }
 
-        /** The same part with another text and title, as a change of an organization makes it. */
+        /**
+         * The same part with another text and title, as a change of an organization makes it. A part an organization
+         * added stays an added part (K131): a later version that changes it, and every version after, draws and counts
+         * it as the organization's own, at the place it was added.
+         */
         Part changed(String newTitle, String newText) {
             return new Part(key, newTitle != null ? newTitle : title, locked, join, heading, group, when, prepared,
-                    newText, Map.of(), items, effects, Action.CHANGE, addAfter);
+                    newText, Map.of(), items, effects, action == Action.ADD ? Action.ADD : Action.CHANGE, addAfter);
         }
 
         /** The same part, put in by a version (a prepared part included). */

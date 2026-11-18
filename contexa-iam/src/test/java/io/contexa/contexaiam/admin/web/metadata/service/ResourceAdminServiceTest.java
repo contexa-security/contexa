@@ -17,6 +17,10 @@ package io.contexa.contexaiam.admin.web.metadata.service;
 
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import org.mockito.ArgumentCaptor;
 import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.*;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
@@ -195,5 +199,32 @@ class ResourceAdminServiceTest {
         service.updateManagementStatus(1L, form);
 
         verify(resourceRegistryService).updateResourceManagementStatus(eq(1L), any());
+    }
+
+    /** K130: an exclusion is audited with the resource and its status before and after; a status saved as it was not. */
+    @Test
+    void theChangesOfTheResourcesManagementAreAudited() {
+        CentralAuditFacade audit = mock(CentralAuditFacade.class);
+        service.setCentralAuditFacade(audit);
+        ManagedResource resource = ManagedResource.builder().id(1L).resourceIdentifier("/api/reports")
+                .status(ManagedResource.Status.NEEDS_DEFINITION).build();
+        when(managedResourceRepository.findById(1L)).thenReturn(Optional.of(resource));
+        doAnswer(call -> {
+            resource.setStatus(ManagedResource.Status.EXCLUDED);
+            return null;
+        }).when(resourceRegistryService).excludeResourceFromManagement(1L);
+
+        service.excludeResource(1L);
+        ResourceManagementForm same = new ResourceManagementForm();
+        same.setStatus("EXCLUDED");
+        service.updateManagementStatus(1L, same);
+
+        ArgumentCaptor<AuditRecord> record = ArgumentCaptor.forClass(AuditRecord.class);
+        verify(audit).recordAsync(record.capture());
+        assertThat(record.getValue().getEventCategory()).isEqualTo(AuditEventCategory.RESOURCE_MANAGEMENT_CHANGED);
+        assertThat(record.getValue().getAction()).isEqualTo("RESOURCE_EXCLUDED");
+        assertThat(record.getValue().getResourceIdentifier()).isEqualTo("/api/reports");
+        assertThat(record.getValue().getDetails()).containsEntry("statusBefore", "NEEDS_DEFINITION")
+                .containsEntry("status", "EXCLUDED");
     }
 }

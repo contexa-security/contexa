@@ -140,7 +140,8 @@ public final class SecurityDecisionFactChecks {
 
     /**
      * The first boundary of the decision rules the action breaks, in their order, or null: the required BLOCK boundary,
-     * BLOCK without it, the required low-risk boundary, the required covered-work boundary. The boundaries read the
+     * BLOCK without it or a verified signal (K36), the required low-risk boundary, the required covered-work boundary;
+     * a verified signal is an anomaly, so neither of the last two holds beside it. The boundaries read the
      * given decision facts: the conclusions the decision rules state, which the context keeps beside the records its
      * prompt states.
      */
@@ -155,7 +156,10 @@ public final class SecurityDecisionFactChecks {
             return "BLOCK".equals(action) ? null : REQUIRED_BLOCK;
         }
         if ("BLOCK".equals(action)) {
-            return BLOCK_WITHOUT_EVIDENCE;
+            // K36 (decision D5): a signal the server itself confirmed, stated on the VerifiedSignal line, is decisive
+            // evidence a BLOCK may rest on. It permits a BLOCK and does not ask for one: the verified signal boundary
+            // part, when a version includes it, says when to choose BLOCK.
+            return read.verifiedSignal() ? null : BLOCK_WITHOUT_EVIDENCE;
         }
         if (read.lowRisk()) {
             return "ALLOW".equals(action) ? null : REQUIRED_LOW_RISK;
@@ -300,14 +304,34 @@ public final class SecurityDecisionFactChecks {
             return stated && context.getIntent() != null && Boolean.TRUE.equals(context.getIntent().getImpossibleTravel());
         }
 
+        /** N2: the stated TenantMatch line says the actor's tenant and the request's tenant differ. */
+        boolean tenantsDiffer() {
+            return prompt.states(PromptBlock.DECISION_FACTS, "TenantMatch")
+                    && Boolean.TRUE.equals(V1LineValues.tenantsDiffer(context));
+        }
+
+        /**
+         * The required BLOCK boundary as the decision rules state it: a negative authorization, a tenant conflict that
+         * DataConflicts names or TenantMatch states (N2), or two corroborated attack categories.
+         */
         boolean requiredBlock() {
             String effect = authorizationEffect();
-            if ("BLOCK".equals(effect) || "DENY".equals(effect) || factHas("DataConflicts", "TENANT_CONFLICT")) {
+            if ("BLOCK".equals(effect) || "DENY".equals(effect) || factHas("DataConflicts", "TENANT_CONFLICT")
+                    || tenantsDiffer()) {
                 return true;
             }
             int categories = (rateAbuse() ? 1 : 0) + (deviceMismatch() ? 1 : 0) + (automation() ? 1 : 0)
                     + (impossibleTravel() ? 1 : 0);
             return categories >= 2;
+        }
+
+        /**
+         * K36: the prompt states the anomaly signal the server itself issued for the request (the VerifiedSignal line,
+         * drawn only for the trusted verification source); a signal of any other source is a requester's claim.
+         */
+        boolean verifiedSignal() {
+            return prompt.states(PromptBlock.DECISION_FACTS, "VerifiedSignal")
+                    && V1LineValues.verifiedSignal(context.getIntent()) != null;
         }
 
         /** An anomaly, a contradiction, a denial or a threat a stated fact names (the boundaries' list). */
@@ -317,7 +341,7 @@ public final class SecurityDecisionFactChecks {
             boolean provisionalScope = CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context);
             return "BLOCK".equals(effect) || "DENY".equals(effect)
                     || fact("SessionDeviceChange").isPresent() || fact("SessionNetworkChange").isPresent()
-                    || anySignal(intent()) || impossibleTravel()
+                    || anySignal(intent()) || impossibleTravel() || verifiedSignal()
                     || (factHas("RoleScope", "ROLE_SCOPE_OUTSIDE") && !provisionalScope)
                     || fact("DataConflicts").isPresent()
                     || prompt.states(PromptBlock.DECISION_FACTS, "BlockedUser")

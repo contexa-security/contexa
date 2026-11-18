@@ -17,6 +17,9 @@ package io.contexa.contexaiam.admin.web.auth.service;
 
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.SystemSettings;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -31,12 +34,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -554,6 +559,37 @@ class SystemSettingsServiceTest {
                     .isInstanceOf(SystemSettingsService.SettingRefusedException.class)
                     .extracting("messageKey").isEqualTo(messageKey);
         }
+    }
+
+    /**
+     * K75: a save that changed a setting other than the Zero Trust mode is audited with the settings it changed, before
+     * and after; a save that changed only the mode (its change has a record of its own) or nothing records nothing.
+     */
+    @Test
+    void aChangeOfTheSettingsOtherThanTheModeIsAudited() {
+        CentralAuditFacade audit = mock(CentralAuditFacade.class);
+        service.setCentralAuditFacade(audit);
+        SystemSettings row = SystemSettings.builder().build();
+        when(repository.findAll()).thenReturn(List.of(row));
+        service.updateSettings(validForm());
+        reset(audit);
+
+        SystemSettingsForm modeOnly = validForm();
+        modeOnly.setSecurityZeroTrustMode("ENFORCE");
+        service.updateSettings(modeOnly);
+        verify(audit, never()).recordAsync(any());
+
+        SystemSettingsForm retention = validForm();
+        retention.setSecurityZeroTrustMode("ENFORCE");
+        retention.setAuditLogRetentionDays(30);
+        service.updateSettings(retention);
+
+        ArgumentCaptor<AuditRecord> record = ArgumentCaptor.forClass(AuditRecord.class);
+        verify(audit).recordAsync(record.capture());
+        assertThat(record.getValue().getEventCategory()).isEqualTo(AuditEventCategory.SYSTEM_SETTINGS_CHANGED);
+        assertThat(record.getValue().getResourceIdentifier()).isEqualTo("auditLogRetentionDays");
+        assertThat(record.getValue().getDetails()).containsEntry("before", Map.of("auditLogRetentionDays", 90))
+                .containsEntry("after", Map.of("auditLogRetentionDays", 30));
     }
 
     private SystemSettingsForm validForm() {

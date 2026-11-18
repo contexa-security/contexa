@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.promptquality.version;
 
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionProblem;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,9 @@ class PromptVersionMessagesTest {
         Stream.of(PromptVersionTrials.Refusal.values()).forEach(refusal -> keys.add("pv.refused.TRIAL_" + refusal.name()));
         CONSOLE_REFUSALS.forEach(code -> keys.add("pv.refused." + code));
         Stream.of(PromptVersionProblem.Code.values()).forEach(code -> keys.add("pv.problem." + code.name()));
+        // K71: the state of the sealed package the finished prompt shows.
+        Stream.of(SealedEvidencePackageIntegrity.Status.values())
+                .forEach(status -> keys.add("pv.preview.integrity." + status.name()));
         MARKS.forEach(mark -> keys.add("pv.mark." + mark));
         Stream.of(PromptBundleRollbackService.EXECUTED, PromptBundleRollbackService.AWAITING_APPROVAL,
                 PromptBundleRollbackService.APPROVED, PromptBundleRollbackService.REFUSED)

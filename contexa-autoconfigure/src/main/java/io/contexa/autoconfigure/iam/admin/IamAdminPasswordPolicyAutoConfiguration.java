@@ -56,11 +56,17 @@ public class IamAdminPasswordPolicyAutoConfiguration {
             PasswordPolicyRepository passwordPolicyRepository,
             PasswordHistoryRepository passwordHistoryRepository,
             BeanFactory beanFactory,
-            ObjectProvider<MessageSource> messageSource) {
+            ObjectProvider<MessageSource> messageSource,
+            ObjectProvider<UserRepository> userRepository,
+            ObjectProvider<CentralAuditFacade> centralAuditFacade) {
         PasswordPolicyService service = new PasswordPolicyService(passwordPolicyRepository, passwordHistoryRepository,
                 ContexaOwnBeans.passwordEncoder(beanFactory));
         // the reasons a password is refused, in the language of the person who chose it
         service.setMessageSource(messageSource.getIfAvailable());
+        // K76: the accounts say whether their password expired as the policy kept reads it
+        service.setAccounts(userRepository.getIfAvailable());
+        // K75: a change of the policy is audited
+        centralAuditFacade.ifAvailable(service::setCentralAuditFacade);
         return service;
     }
 
@@ -123,10 +129,13 @@ public class IamAdminPasswordPolicyAutoConfiguration {
             SystemSettingsRepository systemSettingsRepository,
             RoleRepository roleRepository,
             ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider,
-            ObjectProvider<PolicyCombiningProperties> policyCombiningPropertiesProvider) {
+            ObjectProvider<PolicyCombiningProperties> policyCombiningPropertiesProvider,
+            ObjectProvider<CentralAuditFacade> centralAuditFacadeProvider) {
         SystemSettingsService service = new SystemSettingsService(systemSettingsRepository, roleRepository);
         zeroTrustPropertiesProvider.ifAvailable(service::setZeroTrustProperties);
         policyCombiningPropertiesProvider.ifAvailable(service::setPolicyCombiningProperties);
+        // K75: a change of the settings other than the Zero Trust mode is audited (the mode's change by the applier)
+        centralAuditFacadeProvider.ifAvailable(service::setCentralAuditFacade);
         return service;
     }
 

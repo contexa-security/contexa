@@ -63,8 +63,20 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
-    /** Resources the model names in one request. */
-    static final int NAMING_BATCH_SIZE = 100;
+    /**
+     * Resources the model names in one request (K120). The answer repeats every identifier with its name and
+     * description, about 30 to 65 tokens a resource, and a local model writes 30 to 60 tokens a second as the load of
+     * its server goes: a batch of 100 answered in 70 to 190 seconds and ran past the provider call limit (60 seconds
+     * unless configured), so every resource kept its fallback name. Ten resources answer in about 10 to 20 seconds.
+     */
+    static final int NAMING_BATCH_SIZE = 10;
+
+    /**
+     * The request parameter that turns a local Ollama model's thinking off for the naming call (K120): the answer is
+     * the JSON of the names alone, and a thinking model would spend its time on thoughts nobody reads. Other providers
+     * do not read it.
+     */
+    static final String DISABLE_OLLAMA_THINKING = "disableOllamaThinking";
 
     private final List<ResourceScanner> scanners;
     private final ManagedResourceRepository managedResourceRepository;
@@ -518,6 +530,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                 .map(r -> r.get("identifier"))
                 .toList();
         request.withParameter("identifiers", identifiers);
+        request.withParameter(DISABLE_OLLAMA_THINKING, true);
 
         return request;
     }

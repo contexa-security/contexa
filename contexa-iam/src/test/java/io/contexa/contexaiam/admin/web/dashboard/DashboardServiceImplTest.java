@@ -116,6 +116,10 @@ class DashboardServiceImplTest {
         messages.addMessage("pv.prompt.cortex.security-decision", Locale.ENGLISH, "Security decision");
         messages.addMessage(DashboardServiceImpl.FOLDER_ACTOR_WORDS, Locale.ENGLISH, "Document folder");
         messages.addMessage(DashboardServiceImpl.FOLDER_ACTOR_WORDS, Locale.KOREAN, "문서 폴더");
+        messages.addMessage("admin.password.policy.min.length", Locale.ENGLISH, "Minimum length");
+        messages.addMessage("admin.password.policy.expiry.days", Locale.ENGLISH, "Password expiry (days)");
+        messages.addMessage("admin.system.settings.audit.retention", Locale.ENGLISH, "Audit log retention (days)");
+        messages.addMessage("menu.security.events", Locale.ENGLISH, "Security events");
         service = new DashboardServiceImpl(new DashboardSources(console, records, queries, accessCenter, administrators,
                 coverage, hierarchies, roles, passwordPolicy, resources, policies, validation, policyCenter, ipRules,
                 auditLog, settings, new PolicyCombiningProperties(), agents, null, null, null, messages),
@@ -248,6 +252,33 @@ class DashboardServiceImplTest {
                 tuple("OVERRIDE", null, "lee.minseo"),
                 tuple("AGENT", "KILL_SWITCH_OFF", "*"),
                 tuple("AGENT", null, "report-bot"));
+    }
+
+    @Test
+    void theChangesRecordedSinceK75AreNamedByTheirKindActionAndTarget() {
+        when(queries.changesByKind(any(), any())).thenReturn(Map.of("GROUP", 1L));
+        when(queries.recentChanges(any(), any(), eq(DashboardServiceImpl.CHANGES_SHOWN))).thenReturn(List.of(
+                change("GROUP_UPDATED", "GROUP_UPDATED", "ops", null),
+                change("PERMISSION_DELETED", "PERMISSION_DELETED", "REPORT_EXPORT", null),
+                change("ROLE_HIERARCHY_CHANGED", "ROLE_HIERARCHY_ACTIVATED", "Finance chain", null),
+                change("ROLE_ASSIGNMENT_CHANGED", "USER_ROLES_ASSIGNED", "kim.sora", null),
+                change("PASSWORD_POLICY_CHANGED", "PASSWORD_POLICY_CHANGED", "minLength,passwordExpiryDays", null),
+                change("MENU_CHANGED", "MENU_SWITCHED", "menu.security.events", null),
+                change("MENU_CHANGED", "MENU_REORDERED", "", null),
+                change("SYSTEM_SETTINGS_CHANGED", "SYSTEM_SETTINGS_CHANGED", "auditLogRetentionDays,unknownField",
+                        null)));
+
+        ChangesPart changes = service.changes(now.minusSeconds(3600), now, Locale.ENGLISH);
+
+        assertThat(changes.recent()).extracting(ChangeRow::kind, ChangeRow::action, ChangeRow::target).containsExactly(
+                tuple("GROUP", "GROUP_UPDATED", "ops"),
+                tuple("PERMISSION", "PERMISSION_DELETED", "REPORT_EXPORT"),
+                tuple("HIERARCHY", "ROLE_HIERARCHY_ACTIVATED", "Finance chain"),
+                tuple("ASSIGNMENT", "USER_ROLES_ASSIGNED", "kim.sora"),
+                tuple("PASSWORD", "PASSWORD_POLICY_CHANGED", "Minimum length, Password expiry (days)"),
+                tuple("MENU", "MENU_SWITCHED", "Security events"),
+                tuple("MENU", "MENU_REORDERED", ""),
+                tuple("SETTINGS", "SYSTEM_SETTINGS_CHANGED", "Audit log retention (days), unknownField"));
     }
 
     @Test

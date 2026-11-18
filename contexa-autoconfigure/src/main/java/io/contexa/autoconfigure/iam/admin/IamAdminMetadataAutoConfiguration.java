@@ -15,7 +15,9 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexaiam.admin.web.metadata.controller.ResourceAdminController;
 import io.contexa.contexaiam.admin.web.metadata.service.BusinessMetadataService;
 import io.contexa.contexaiam.admin.web.metadata.service.BusinessMetadataServiceImpl;
@@ -50,8 +52,13 @@ public class IamAdminMetadataAutoConfiguration {
     public ResourceAdminService resourceAdminService(
             ResourceRegistryService contexaResourceRegistryService,
             ManagedResourceRepository managedResourceRepository,
-            MessageSource messageSource) {
-        return new ResourceAdminService(contexaResourceRegistryService, managedResourceRepository, messageSource);
+            MessageSource messageSource,
+            ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+        ResourceAdminService service = new ResourceAdminService(contexaResourceRegistryService,
+                managedResourceRepository, messageSource);
+        // K130: a change of the resources' management is audited
+        centralAuditFacade.ifAvailable(service::setCentralAuditFacade);
+        return service;
     }
 
     @Bean(name = "contexaResourceAdminController")

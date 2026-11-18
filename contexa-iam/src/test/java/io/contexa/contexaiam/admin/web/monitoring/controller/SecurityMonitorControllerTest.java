@@ -20,6 +20,11 @@ import io.contexa.contexacore.autonomous.audit.DecisionRecordSeal;
 import io.contexa.contexacore.verification.evidence.HmacEvidenceSigner;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
+import io.contexa.contexaiam.admin.web.monitoring.service.SecurityEventQueries;
+import io.contexa.contexaiam.admin.web.monitoring.service.SecurityEventQueries.Criteria;
+import org.junit.jupiter.api.BeforeEach;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.PageRequest;
 import io.contexa.contexaiam.admin.web.monitoring.dto.SecurityMonitorDtos.IpGroupView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -54,6 +59,7 @@ import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -71,6 +77,16 @@ class SecurityMonitorControllerTest {
     @InjectMocks
     private SecurityMonitorController controller;
 
+    @Mock
+    private SecurityEventQueries eventQueries;
+
+    @BeforeEach
+    void theListReads() {
+        lenient().when(eventQueries.ids(any(), any())).thenAnswer(invocation -> new PageImpl<>(List.of(),
+                invocation.getArgument(1, Pageable.class), 0));
+        controller.setEventQueries(eventQueries);
+    }
+
     @Nested
     @DisplayName("monitor")
     class Monitor {
@@ -80,8 +96,6 @@ class SecurityMonitorControllerTest {
         void defaultParams() {
             Model model = new ConcurrentModel();
             stubRepositoryCounts();
-            when(auditLogRepository.findByTimestampAfter(any(LocalDateTime.class), any(Pageable.class)))
-                    .thenReturn(Page.empty());
 
             String view = controller.monitor(null, null, null, 24, 0, model);
 
@@ -105,12 +119,12 @@ class SecurityMonitorControllerTest {
             stubRepositoryCounts();
             LocalDateTime hour = LocalDateTime.now().minusDays(7).withMinute(0).withSecond(0).withNano(0);
             String start = hour.atZone(ZoneId.systemDefault()).toInstant().toString();
-            when(auditLogRepository.findByTimestampAfterAndCategory(eq(hour), eq("SECURITY_DECISION"), any(Pageable.class)))
-                    .thenReturn(Page.empty());
 
             controller.monitor("SECURITY_DECISION", null, null, null, 168, start, 0, model);
 
-            verify(auditLogRepository).findByTimestampAfterAndCategory(eq(hour), eq("SECURITY_DECISION"), any(Pageable.class));
+            Criteria criteria = criteria();
+            assertThat(criteria.since()).isEqualTo(hour);
+            assertThat(criteria.category()).isEqualTo("SECURITY_DECISION");
             verify(auditLogRepository).countAdminOverridesBetween(eq(hour), any(LocalDateTime.class));
             assertThat(model.getAttribute("from")).isEqualTo(start);
         }
@@ -134,145 +148,71 @@ class SecurityMonitorControllerTest {
         void theOverrideCardsFilterListsTheOverridesItCounts() throws Exception {
             Model model = new ConcurrentModel();
             stubRepositoryCounts();
-            when(auditLogRepository.findAdminOverridesBetween(any(LocalDateTime.class), any(LocalDateTime.class),
-                    any(Pageable.class))).thenReturn(Page.empty());
             doAnswer(invocation -> ((Supplier<?>) invocation.getArgument(3)).get()).when(csvExportService)
                     .export(any(), any(), anyList(), any());
 
             controller.monitor("ADMIN_OVERRIDE", "ADMIN_OVERRIDE_APPLIED", null, 24, 0, model);
             controller.exportCsv("ADMIN_OVERRIDE", "ADMIN_OVERRIDE_APPLIED", 24, mock(HttpServletResponse.class));
 
-            verify(auditLogRepository, times(2)).findAdminOverridesBetween(any(LocalDateTime.class),
-                    any(LocalDateTime.class), any(Pageable.class));
-            verify(auditLogRepository, never()).findByTimestampAfterAndCategory(any(), any(), any());
+            ArgumentCaptor<Criteria> read = ArgumentCaptor.forClass(Criteria.class);
+            verify(eventQueries, times(2)).ids(read.capture(), any(Pageable.class));
+            assertThat(read.getAllValues()).allMatch(c -> "ADMIN_OVERRIDE_APPLIED".equals(c.filter()) && c.until() != null);
         }
 
         @Test
-        @DisplayName("should filter by category when category is provided")
-        void withCategory() {
-            Model model = new ConcurrentModel();
+        @DisplayName("K138: a category, a filter or the addresses, each narrowed by the user name and the subject kind")
+        void everyListIsNarrowedByTheNameAndTheSubject() {
             stubRepositoryCounts();
-            when(auditLogRepository.findByTimestampAfterAndCategory(
-                    any(LocalDateTime.class), eq("AUTHENTICATION_SUCCESS"), any(Pageable.class)))
-                    .thenReturn(Page.empty());
+            when(eventQueries.addresses(any(), any())).thenReturn(new PageImpl<>(List.<Object[]>of(
+                    new Object[]{"10.0.0.1", 7L, "2026-04-21 10:00:00"}), PageRequest.of(0, 20), 1));
+            for (String filter : new String[]{"AFTER_HOURS", "HIGH_RISK", "DECISION_ALLOW", "DECISION_DENY", "ZT_ALLOW",
+                    "ZT_BLOCK", "ZT_CHALLENGE", "ZT_ESCALATE", "SEAL_MISMATCH", "CUSTOM_FILTER", "DISTINCT_IP"}) {
+                Model model = new ConcurrentModel();
+                clearInvocations(eventQueries);
 
-            String view = controller.monitor("AUTHENTICATION_SUCCESS", null, null, 24, 0, model);
+                controller.monitor("AUTHENTICATION_SUCCESS", filter, " Bob ", "DELEGATED_AGENT", 24, null, 0, model);
 
-            assertThat(view).isEqualTo("contexa/admin/security-monitor");
-            assertThat(model.getAttribute("category")).isEqualTo("AUTHENTICATION_SUCCESS");
-            verify(auditLogRepository).findByTimestampAfterAndCategory(
-                    any(LocalDateTime.class), eq("AUTHENTICATION_SUCCESS"), any(Pageable.class));
-        }
-
-        @Test
-        @DisplayName("should handle AFTER_HOURS filter")
-        void afterHoursFilter() {
-            Model model = new ConcurrentModel();
-            stubRepositoryCounts();
-            when(auditLogRepository.findAfterHoursAccess(any(LocalDateTime.class), any()))
-                    .thenReturn(Page.empty());
-
-            String view = controller.monitor(null, "AFTER_HOURS", null, 24, 0, model);
-
-            assertThat(view).isEqualTo("contexa/admin/security-monitor");
-            assertThat(model.getAttribute("filterType")).isEqualTo("AFTER_HOURS");
-        }
-
-        @Test
-        @DisplayName("should handle HIGH_RISK filter")
-        void highRiskFilter() {
-            Model model = new ConcurrentModel();
-            stubRepositoryCounts();
-            when(auditLogRepository.findByTimestampAfterAndRiskScoreGte(
-                    any(LocalDateTime.class), eq(0.4), any(Pageable.class)))
-                    .thenReturn(Page.empty());
-
-            String view = controller.monitor(null, "HIGH_RISK", null, 24, 0, model);
-
-            assertThat(view).isEqualTo("contexa/admin/security-monitor");
-            assertThat(model.getAttribute("filterType")).isEqualTo("HIGH_RISK");
-        }
-
-        @Test
-        @DisplayName("should handle DECISION_ALLOW filter")
-        void decisionAllowFilter() {
-            Model model = new ConcurrentModel();
-            stubRepositoryCounts();
-            when(auditLogRepository.findByTimestampAfterAndDecision(
-                    any(LocalDateTime.class), eq("ALLOW"), any(Pageable.class)))
-                    .thenReturn(Page.empty());
-
-            String view = controller.monitor(null, "DECISION_ALLOW", null, 24, 0, model);
-
-            assertThat(view).isEqualTo("contexa/admin/security-monitor");
-        }
-
-        @Test
-        @DisplayName("should handle DECISION_DENY filter")
-        void decisionDenyFilter() {
-            Model model = new ConcurrentModel();
-            stubRepositoryCounts();
-            when(auditLogRepository.findByTimestampAfterAndDecision(
-                    any(LocalDateTime.class), eq("DENY"), any(Pageable.class)))
-                    .thenReturn(Page.empty());
-
-            String view = controller.monitor(null, "DECISION_DENY", null, 24, 0, model);
-
-            assertThat(view).isEqualTo("contexa/admin/security-monitor");
-        }
-
-        @Test
-        @DisplayName("should handle DISTINCT_IP filter with IP groups")
-        void distinctIpFilter() {
-            Model model = new ConcurrentModel();
-            stubRepositoryCounts();
-            when(auditLogRepository.findByTimestampAfterAndClientIpNotNull(
-                    any(LocalDateTime.class), any(Pageable.class)))
-                    .thenReturn(Page.empty());
-            when(auditLogRepository.findIpGroupsSince(any(LocalDateTime.class), anyInt(), anyInt()))
-                    .thenReturn(List.<Object[]>of(new Object[]{"10.0.0.1", 7L, "2026-04-21 10:00:00"}));
-            when(auditLogRepository.countDistinctIpGroupsSince(any(LocalDateTime.class)))
-                    .thenReturn(1L);
-
-            String view = controller.monitor(null, "DISTINCT_IP", null, 24, 0, model);
-
-            assertThat(view).isEqualTo("contexa/admin/security-monitor");
+                Criteria criteria = criteria();
+                assertThat(criteria.filter()).isEqualTo(filter);
+                assertThat(criteria.keyword()).isEqualTo(" Bob ");
+                assertThat(criteria.subjectKind()).isEqualTo("DELEGATED_AGENT");
+                assertThat(model.getAttribute("filterType")).isEqualTo(filter);
+                assertThat(model.getAttribute("subject")).isEqualTo("DELEGATED_AGENT");
+            }
+            clearInvocations(eventQueries);
+            Model addresses = new ConcurrentModel();
+            controller.monitor(null, "DISTINCT_IP", "bob", null, 24, null, 0, addresses);
             @SuppressWarnings("unchecked")
-            List<IpGroupView> ipGroups = (List<IpGroupView>) model.getAttribute("ipGroups");
-            assertThat(ipGroups).hasSize(1);
-            assertThat(ipGroups.get(0)).isInstanceOf(IpGroupView.class);
-            assertThat(ipGroups.get(0).ip()).isEqualTo("10.0.0.1");
-            assertThat(ipGroups.get(0).count()).isEqualTo(7L);
-            assertThat(ipGroups.get(0).lastAccess()).isEqualTo("2026-04-21 10:00:00");
-            assertThat(model.getAttribute("totalIpGroups")).isEqualTo(1L);
+            List<IpGroupView> groups = (List<IpGroupView>) addresses.getAttribute("ipGroups");
+            assertThat(groups).extracting(IpGroupView::ip, IpGroupView::count).containsExactly(tuple("10.0.0.1", 7L));
+            assertThat(groups.get(0).lastAccess()).isEqualTo("2026-04-21 10:00:00");
+            assertThat(addresses.getAttribute("totalIpGroups")).isEqualTo(1L);
+            ArgumentCaptor<Criteria> read = ArgumentCaptor.forClass(Criteria.class);
+            verify(eventQueries).addresses(read.capture(), any());
+            assertThat(read.getValue().keyword()).isEqualTo("bob");
         }
 
         @Test
-        @DisplayName("should handle ZT_ALLOW filter")
-        void ztAllowFilter() {
-            Model model = new ConcurrentModel();
+        @DisplayName("K139: a page before the first reads the first, a page after the last reads the last")
+        void aPageOutOfTheListReadsItsEnd() {
             stubRepositoryCounts();
-            when(auditLogRepository.findByCategoryAndDecision(
-                    eq("SECURITY_DECISION"), eq("ALLOW"), any(LocalDateTime.class), any(Pageable.class)))
-                    .thenReturn(Page.empty());
+            doAnswer(invocation -> new PageImpl<>(List.of(), invocation.getArgument(1, Pageable.class), 45))
+                    .when(eventQueries).ids(any(), any());
+            Model before = new ConcurrentModel();
+            Model after = new ConcurrentModel();
 
-            String view = controller.monitor(null, "ZT_ALLOW", null, 24, 0, model);
+            controller.monitor(null, null, null, null, 24, null, -3, before);
+            controller.monitor(null, null, null, null, 24, null, 9, after);
 
-            assertThat(view).isEqualTo("contexa/admin/security-monitor");
+            assertThat(((Page<?>) before.getAttribute("logPage")).getNumber()).isZero();
+            assertThat(((Page<?>) after.getAttribute("logPage")).getNumber()).isEqualTo(2);
         }
 
-        @Test
-        @DisplayName("should handle default filter as category-based search")
-        void defaultFilter() {
-            Model model = new ConcurrentModel();
-            stubRepositoryCounts();
-            when(auditLogRepository.findByTimestampAfterAndCategory(
-                    any(LocalDateTime.class), eq("CUSTOM_FILTER"), any(Pageable.class)))
-                    .thenReturn(Page.empty());
-
-            String view = controller.monitor(null, "CUSTOM_FILTER", null, 24, 0, model);
-
-            assertThat(view).isEqualTo("contexa/admin/security-monitor");
+        /** The criteria of the list's last read. */
+        private Criteria criteria() {
+            ArgumentCaptor<Criteria> read = ArgumentCaptor.forClass(Criteria.class);
+            verify(eventQueries, atLeastOnce()).ids(read.capture(), any(Pageable.class));
+            return read.getValue();
         }
 
         private void stubRepositoryCounts() {
@@ -356,23 +296,17 @@ class SecurityMonitorControllerTest {
         @Test
         @DisplayName("a subject chip lists the decisions of that subject kind; an unknown one lists as before")
         void subjectChip() {
-            Page<AuditLog> agents = new PageImpl<>(List.of(AuditLog.builder().id(7L).principalName("alice")
-                    .decision("BLOCK").subjectKind("DELEGATED_AGENT").agentId("report-agent").build()));
-            when(auditLogRepository.findByTimestampAfterAndSubjectKind(any(LocalDateTime.class),
-                    eq("DELEGATED_AGENT"), any(Pageable.class))).thenReturn(agents);
-            when(auditLogRepository.findByTimestampAfter(any(LocalDateTime.class), any(Pageable.class)))
-                    .thenReturn(Page.empty());
             Model model = new ConcurrentModel();
 
             controller.monitor(null, null, null, "DELEGATED_AGENT", 24, 0, model);
-
-            assertThat(model.getAttribute("logPage")).isEqualTo(agents);
-            assertThat(model.getAttribute("subject")).isEqualTo("DELEGATED_AGENT");
-
             Model other = new ConcurrentModel();
             controller.monitor(null, null, null, "ANYONE", 24, 0, other);
+
+            ArgumentCaptor<Criteria> read = ArgumentCaptor.forClass(Criteria.class);
+            verify(eventQueries, times(2)).ids(read.capture(), any(Pageable.class));
+            assertThat(read.getAllValues()).extracting(Criteria::subjectKind).containsExactly("DELEGATED_AGENT", null);
+            assertThat(model.getAttribute("subject")).isEqualTo("DELEGATED_AGENT");
             assertThat(other.getAttribute("subject")).isNull();
-            verify(auditLogRepository).findByTimestampAfter(any(LocalDateTime.class), any(Pageable.class));
         }
 
         @Test
@@ -460,12 +394,45 @@ class SecurityMonitorControllerTest {
         @DisplayName("should export audit logs to CSV successfully")
         void exportCsv() throws Exception {
             HttpServletResponse httpResponse = mock(HttpServletResponse.class);
-            when(auditLogRepository.findByTimestampAfter(any(LocalDateTime.class), any(Pageable.class)))
-                    .thenReturn(new PageImpl<>(List.of(new AuditLog())));
 
             controller.exportCsv(null, null, 24, httpResponse);
 
             verify(csvExportService).export(eq(httpResponse), eq("audit-log"), anyList(), any());
+        }
+
+        @Test
+        @DisplayName("K108: the CSV reads the rows the screen lists: its subject, its user name, its address filter")
+        void theCsvReadsWhatTheScreenLists() throws Exception {
+            doAnswer(invocation -> ((Supplier<?>) invocation.getArgument(3)).get()).when(csvExportService)
+                    .export(any(), any(), anyList(), any());
+
+            controller.exportCsv(null, null, 24, null, "bob", "DELEGATED_AGENT", mock(HttpServletResponse.class));
+            controller.exportCsv("AUTHENTICATION_FAILURE", null, 24, null, " Bob ", null, mock(HttpServletResponse.class));
+            controller.exportCsv(null, "DISTINCT_IP", 24, null, null, null, mock(HttpServletResponse.class));
+
+            ArgumentCaptor<Criteria> read = ArgumentCaptor.forClass(Criteria.class);
+            verify(eventQueries, times(3)).ids(read.capture(), any(Pageable.class));
+            assertThat(read.getAllValues()).extracting(Criteria::category, Criteria::filter, Criteria::keyword,
+                    Criteria::subjectKind).containsExactly(tuple(null, null, "bob", "DELEGATED_AGENT"),
+                    tuple("AUTHENTICATION_FAILURE", null, " Bob ", null), tuple(null, "DISTINCT_IP", null, null));
+        }
+
+        @Test
+        @DisplayName("K92: the list reads the records of the page's IDs, in their order")
+        void theListReadsTheRecordsOfItsIds() {
+            doReturn(new PageImpl<>(List.of(9L, 4L), PageRequest.of(1, 20), 41)).when(eventQueries).ids(any(), any());
+            when(auditLogRepository.findAllById(List.of(9L, 4L))).thenReturn(List.of(AuditLog.builder().id(4L).build(),
+                    AuditLog.builder().id(9L).build()));
+            Model model = new ConcurrentModel();
+
+            controller.monitor("SECURITY_DECISION", "SEAL_MISMATCH", null, null, 168, null, 1, model);
+
+            Page<?> page = (Page<?>) model.getAttribute("logPage");
+            assertThat(page.getTotalElements()).isEqualTo(41);
+            assertThat(page.getContent()).map(AuditLog.class::cast).extracting(AuditLog::getId).containsExactly(9L, 4L);
+            assertThat(model.getAttribute("periods")).isEqualTo(SecurityMonitorController.PERIODS);
+            assertThat(SecurityMonitorController.PERIODS).extracting(SecurityMonitorController.PeriodChoice::hours)
+                    .containsExactly(1, 6, 24, 72, 168, 720, 2160);
         }
     }
 }

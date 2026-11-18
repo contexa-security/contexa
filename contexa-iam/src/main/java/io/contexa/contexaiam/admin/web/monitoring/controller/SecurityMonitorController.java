@@ -18,19 +18,20 @@ package io.contexa.contexaiam.admin.web.monitoring.controller;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationAuditReason;
 import io.contexa.contexaiam.admin.web.monitoring.dto.DecisionRecordIntegrity;
 import io.contexa.contexaiam.admin.web.monitoring.service.DecisionRecordSealCheck;
-import java.util.Locale;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.admin.web.monitoring.dto.SecurityMonitorDtos.IpGroupView;
+import io.contexa.contexaiam.admin.web.monitoring.service.SecurityEventQueries;
+import io.contexa.contexaiam.admin.web.monitoring.service.SecurityEventQueries.Criteria;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Controller;
@@ -69,10 +70,20 @@ public class SecurityMonitorController {
     /** docs/agent A5-5: the subject chips the list filters by (A1-3 subject kinds). */
     static final List<String> SUBJECT_KINDS = List.of("HUMAN_USER", "DELEGATED_AGENT", "AUTONOMOUS_AGENT");
     /**
-     * K105: the filter of the overrides the "admin override" card counts (countAdminOverridesBetween): a refused one
-     * none, the screen's period [since, now). The category chip lists every override, a refused one too.
+     * K93: the periods the screen offers, in hours, and the words of each: up to the dashboard's longest period, so a
+     * dashboard link of any period opens with its period chosen.
      */
-    static final String ADMIN_OVERRIDE_APPLIED = "ADMIN_OVERRIDE_APPLIED";
+    static final List<PeriodChoice> PERIODS = List.of(new PeriodChoice(1, "1h"), new PeriodChoice(6, "6h"),
+            new PeriodChoice(24, "24h"), new PeriodChoice(72, "3d"), new PeriodChoice(168, "7d"),
+            new PeriodChoice(720, "30d"), new PeriodChoice(2160, "90d"));
+
+    /** A period chip: its hours, and the end of the key of its words (admin.security.monitor.period.*). */
+    public record PeriodChoice(int hours, String label) {
+    }
+    /** The rows of a page of the list. */
+    static final int PAGE_SIZE = 20;
+    /** The rows the CSV reads at a time. */
+    static final int CSV_BATCH = 500;
 
     private final AuditLogRepository auditLogRepository;
     private final CsvExportService csvExportService;
@@ -82,6 +93,8 @@ public class SecurityMonitorController {
     /** docs/agent A5-6: the seal check, with the signer set on this controller. */
     private final DecisionRecordSealCheck sealCheck;
     private MessageSource messageSource;
+    /** K138: the list, every filter in one statement; without it the list is empty. */
+    private SecurityEventQueries eventQueries;
 
     public SecurityMonitorController(AuditLogRepository auditLogRepository, CsvExportService csvExportService) {
         this(auditLogRepository, csvExportService, null);
@@ -107,6 +120,11 @@ public class SecurityMonitorController {
     /** docs/agent A5-6: the signer the decision records were signed with. */
     public void setEvidenceSigner(EvidenceSigner evidenceSigner) {
         this.evidenceSigner = evidenceSigner;
+    }
+
+    /** K138: the reads of the list, every filter of the screen together. */
+    public void setEventQueries(SecurityEventQueries eventQueries) {
+        this.eventQueries = eventQueries;
     }
 
     /** The list without a subject chip, as before A5-5. */
@@ -139,13 +157,28 @@ public class SecurityMonitorController {
         // K103: the start a link named stays with the screen's own links (its pages, its categories, its CSV)
         model.addAttribute("from", start != null ? from.trim() : null);
         // docs/agent A5-5: a subject chip lists the decisions of that subject kind.
-        String subjectKind = subject != null && SUBJECT_KINDS.contains(subject) ? subject : null;
+        String subjectKind = subjectKind(subject);
         model.addAttribute("subject", subjectKind);
         model.addAttribute("subjectKinds", SUBJECT_KINDS);
-        Page<AuditLog> logPage = subjectKind != null
-                ? auditLogRepository.findByTimestampAfterAndSubjectKind(since, subjectKind,
-                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "timestamp")))
-                : loadLogPage(category, filter, keyword, page, since, now, model);
+        Criteria criteria = new Criteria(since, now, category, filter, keyword, subjectKind);
+        // K139: a page before the first is the first, a page after the last the last
+        Page<AuditLog> logPage = read(criteria, PageRequest.of(Math.max(0, page), PAGE_SIZE));
+        if (logPage.getTotalPages() > 0 && logPage.getNumber() >= logPage.getTotalPages()) {
+            logPage = read(criteria, PageRequest.of(logPage.getTotalPages() - 1, PAGE_SIZE));
+        }
+        if (hasText(filter)) {
+            model.addAttribute("filterType", filter);
+            if (SecurityEventQueries.DISTINCT_IP.equals(filter) && eventQueries != null) {
+                // K138: the addresses of the same records, the user name and the subject kind applied
+                Page<Object[]> addresses = eventQueries.addresses(criteria, PageRequest.of(logPage.getNumber(), PAGE_SIZE));
+                List<IpGroupView> ipGroups = new ArrayList<>();
+                for (Object[] row : addresses.getContent()) {
+                    ipGroups.add(IpGroupView.fromRow(row));
+                }
+                model.addAttribute("ipGroups", ipGroups);
+                model.addAttribute("totalIpGroups", addresses.getTotalElements());
+            }
+        }
         model.addAttribute("integrity", integrityOf(logPage.getContent()));
 
         prepareMonitorModel(model, logPage, hours, category, filter, keyword, since, now);
@@ -153,50 +186,30 @@ public class SecurityMonitorController {
         return "contexa/admin/security-monitor";
     }
 
-    private Page<AuditLog> loadLogPage(
-            String category, String filter, String keyword, int page,
-            LocalDateTime since, LocalDateTime until, Model model) {
-        int pageSize = 20;
-        Pageable pageable = PageRequest.of(page, pageSize, Sort.by(Sort.Direction.DESC, "timestamp"));
-        boolean hasKeyword = keyword != null && !keyword.isBlank();
-        String likePattern = hasKeyword ? "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%" : null;
-        if (filter != null && !filter.isBlank()) {
-            model.addAttribute("filterType", filter);
-            Page<AuditLog> logPage = switch (filter) {
-                case "AFTER_HOURS" -> auditLogRepository.findAfterHoursAccess(since, PageRequest.of(page, pageSize));
-                case "DISTINCT_IP" -> auditLogRepository.findByTimestampAfterAndClientIpNotNull(since, pageable);
-                case "HIGH_RISK" -> auditLogRepository.findByTimestampAfterAndRiskScoreGte(since, 0.4, pageable);
-                case "DECISION_ALLOW" -> auditLogRepository.findByTimestampAfterAndDecision(since, "ALLOW", pageable);
-                case "DECISION_DENY" -> auditLogRepository.findByTimestampAfterAndDecision(since, "DENY", pageable);
-                case "ZT_ALLOW" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ALLOW", since, pageable);
-                case "ZT_BLOCK" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "BLOCK", since, pageable);
-                case "ZT_CHALLENGE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "CHALLENGE", since, pageable);
-                case "ZT_ESCALATE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ESCALATE", since, pageable);
-                case ADMIN_OVERRIDE_APPLIED -> auditLogRepository.findAdminOverridesBetween(since, until, pageable);
-                default -> auditLogRepository.findByTimestampAfterAndCategory(since, filter, pageable);
-            };
-            if ("DISTINCT_IP".equals(filter)) {
-                List<Object[]> rows = auditLogRepository.findIpGroupsSince(since, pageSize, page * pageSize);
-                List<IpGroupView> ipGroups = new ArrayList<>();
-                for (Object[] row : rows) {
-                    ipGroups.add(IpGroupView.fromRow(row));
-                }
-                model.addAttribute("ipGroups", ipGroups);
-                model.addAttribute("totalIpGroups", auditLogRepository.countDistinctIpGroupsSince(since));
-            }
-            return logPage;
+    /** docs/agent A5-5: the subject kind a chip names, none for any other word. */
+    @Nullable
+    static String subjectKind(@Nullable String subject) {
+        return subject != null && SUBJECT_KINDS.contains(subject) ? subject : null;
+    }
+
+    private static boolean hasText(@Nullable String value) {
+        return value != null && !value.isBlank();
+    }
+
+    /**
+     * A page of the list as the screen's filters choose it; the screen and its CSV read the same (K108). K138: the
+     * user name and the subject kind narrow every list, a category's and a filter's.
+     */
+    Page<AuditLog> read(Criteria criteria, Pageable pageable) {
+        if (eventQueries == null) {
+            return new PageImpl<>(List.of(), pageable, 0);
         }
-        if (hasKeyword && category != null && !category.isBlank()) {
-            return auditLogRepository.findByTimestampAfterAndCategoryAndPrincipalNameLike(
-                    since, category, likePattern, pageable);
+        Page<Long> ids = eventQueries.ids(criteria, pageable);
+        if (ids.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, ids.getTotalElements());
         }
-        if (hasKeyword) {
-            return auditLogRepository.findByTimestampAfterAndPrincipalNameLike(since, likePattern, pageable);
-        }
-        if (category != null && !category.isBlank()) {
-            return auditLogRepository.findByTimestampAfterAndCategory(since, category, pageable);
-        }
-        return auditLogRepository.findByTimestampAfter(since, pageable);
+        return new PageImpl<>(SecurityEventQueries.inOrder(ids.getContent(),
+                auditLogRepository.findAllById(ids.getContent())), pageable, ids.getTotalElements());
     }
 
     /**
@@ -222,6 +235,7 @@ public class SecurityMonitorController {
             String category, String filter, String keyword, LocalDateTime since, LocalDateTime until) {
         model.addAttribute("logPage", logPage);
         model.addAttribute("hours", hours);
+        model.addAttribute("periods", PERIODS);
         model.addAttribute("category", category);
         model.addAttribute("filter", filter);
         model.addAttribute("keyword", keyword);
@@ -294,17 +308,20 @@ public class SecurityMonitorController {
         }
     }
 
-    /** The CSV of the last hours, without a start a link names. */
+    /** The CSV of the last hours, without a start a link names, a user name or a subject chip. */
     public void exportCsv(String category, String filter, int hours, HttpServletResponse response) throws IOException {
-        exportCsv(category, filter, hours, null, response);
+        exportCsv(category, filter, hours, null, null, null, response);
     }
 
+    /** K108: the CSV holds the rows the screen lists, with every filter the screen was opened with. */
     @GetMapping("/export")
     public void exportCsv(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String filter,
             @RequestParam(required = false, defaultValue = "24") int hours,
             @RequestParam(required = false) String from,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String subject,
             HttpServletResponse response) throws IOException {
 
         LocalDateTime now = LocalDateTime.now();
@@ -328,38 +345,23 @@ public class SecurityMonitorController {
                 new CsvColumn<>("Correlation ID", l -> l.getCorrelationId() != null ? l.getCorrelationId() : "")
         );
 
-        csvExportService.export(response, "audit-log", columns, () -> loadAllLogs(since, now, category, filter));
+        String subjectKind = subjectKind(subject);
+        csvExportService.export(response, "audit-log", columns,
+                () -> loadAllLogs(category, filter, keyword, subjectKind, since, now));
     }
 
-    private Stream<AuditLog> loadAllLogs(LocalDateTime since, LocalDateTime until, String category, String filter) {
-        int batchSize = 500;
+    /** Every row of the list, read as the screen reads its pages. */
+    private Stream<AuditLog> loadAllLogs(@Nullable String category, @Nullable String filter, @Nullable String keyword,
+                                         @Nullable String subjectKind, LocalDateTime since, LocalDateTime until) {
         List<AuditLog> allLogs = new ArrayList<>();
-        Pageable pageable = PageRequest.of(0, batchSize, Sort.by(Sort.Direction.DESC, "timestamp"));
-
+        Criteria criteria = new Criteria(since, until, category, filter, keyword, subjectKind);
+        Pageable pageable = PageRequest.of(0, CSV_BATCH);
         Page<AuditLog> page;
         do {
-            if (filter != null && !filter.isBlank()) {
-                page = switch (filter) {
-                    case "AFTER_HOURS" -> auditLogRepository.findAfterHoursAccess(since, pageable);
-                    case "HIGH_RISK" -> auditLogRepository.findByTimestampAfterAndRiskScoreGte(since, 0.4, pageable);
-                    case "DECISION_ALLOW" -> auditLogRepository.findByTimestampAfterAndDecision(since, "ALLOW", pageable);
-                    case "DECISION_DENY" -> auditLogRepository.findByTimestampAfterAndDecision(since, "DENY", pageable);
-                    case "ZT_ALLOW" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ALLOW", since, pageable);
-                    case "ZT_BLOCK" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "BLOCK", since, pageable);
-                    case "ZT_CHALLENGE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "CHALLENGE", since, pageable);
-                    case "ZT_ESCALATE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ESCALATE", since, pageable);
-                    case ADMIN_OVERRIDE_APPLIED -> auditLogRepository.findAdminOverridesBetween(since, until, pageable);
-                    default -> auditLogRepository.findByTimestampAfterAndCategory(since, filter, pageable);
-                };
-            } else if (category != null && !category.isBlank()) {
-                page = auditLogRepository.findByTimestampAfterAndCategory(since, category, pageable);
-            } else {
-                page = auditLogRepository.findByTimestampAfter(since, pageable);
-            }
+            page = read(criteria, pageable);
             allLogs.addAll(page.getContent());
-            pageable = page.nextPageable();
+            pageable = pageable.next();
         } while (page.hasNext());
-
         return allLogs.stream();
     }
 }

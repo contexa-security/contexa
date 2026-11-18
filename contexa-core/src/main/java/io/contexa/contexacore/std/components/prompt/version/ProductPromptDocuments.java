@@ -20,7 +20,10 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -34,6 +37,8 @@ public final class ProductPromptDocuments {
     private final String prompt;
     private final List<ProductPromptRelease> releases;
     private final AssembledPrompt product;
+    /** The product version of every release, by the release name its document gives, oldest first. */
+    private final Map<String, AssembledPrompt> byRelease;
 
     /**
      * @param anchor   a class of the module that ships the documents, whose class loader reads them
@@ -47,18 +52,22 @@ public final class ProductPromptDocuments {
             throw new IllegalArgumentException("The prompt " + prompt + " ships no product document");
         }
         List<ProductPromptRelease> read = new ArrayList<>();
-        PromptVersionDocument latest = null;
+        Map<String, AssembledPrompt> versions = new LinkedHashMap<>();
+        AssembledPrompt latest = null;
         for (String release : releases) {
             String text = resource(anchor, prompt, release);
-            latest = new PromptVersionDocumentReader().read(text);
-            if (!prompt.equals(latest.prompt())) {
+            PromptVersionDocument document = new PromptVersionDocumentReader().read(text);
+            if (!prompt.equals(document.prompt())) {
                 throw new IllegalStateException("The product document " + release + " of " + prompt + " is for "
-                        + latest.prompt());
+                        + document.prompt());
             }
-            read.add(new ProductPromptRelease(prompt, latest.release(), text));
+            read.add(new ProductPromptRelease(prompt, document.release(), text));
+            latest = new PromptAssembler().product(document);
+            versions.put(latest.release(), latest);
         }
         this.releases = List.copyOf(read);
-        this.product = new PromptAssembler().product(latest);
+        this.product = latest;
+        this.byRelease = Collections.unmodifiableMap(versions);
     }
 
     /** The prompt key. */
@@ -76,10 +85,13 @@ public final class ProductPromptDocuments {
         return product;
     }
 
-    /** The store of the product version, named by its release. */
+    /**
+     * The store of the product versions, each named by its release (N3): an earlier release the build ships is found
+     * by its own name as the latest is, not only through the version tables.
+     */
     public PromptVersionStore store() {
-        return (asked, version) -> prompt.equals(asked) && product.release().equals(version)
-                ? Optional.of(product) : Optional.empty();
+        return (asked, version) -> prompt.equals(asked) && version != null
+                ? Optional.ofNullable(byRelease.get(version.trim())) : Optional.empty();
     }
 
     /** The text of the product document of a release, as the build ships it. */

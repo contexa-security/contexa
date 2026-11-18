@@ -484,7 +484,7 @@ class PolicyCenterControllerTest {
             when(resourceRegistryService.getAllServiceOwners()).thenReturn(Set.of("service-a"));
             when(policyService.searchPolicies(any(), any(), any(), any())).thenReturn(Page.empty());
 
-            String view = controller.policyCenter("resources", criteria, pageable, null, null, null, 0, model);
+            String view = controller.policyCenter("resources", criteria, pageable, null, null, null, null, 0, model);
 
             assertThat(view).isEqualTo("contexa/admin/policy-center");
             assertThat(model.getAttribute("activePage")).isEqualTo("policy-center");
@@ -505,7 +505,7 @@ class PolicyCenterControllerTest {
             when(resourceRegistryService.findResources(any(), any()))
                     .thenThrow(new RuntimeException("DB error"));
 
-            String view = controller.policyCenter("resources", criteria, pageable, null, null, null, 0, model);
+            String view = controller.policyCenter("resources", criteria, pageable, null, null, null, null, 0, model);
 
             assertThat(view).isEqualTo("contexa/admin/policy-center");
             assertThat(model.getAttribute("errorMessage")).asString().contains("msg.policy.load.error");

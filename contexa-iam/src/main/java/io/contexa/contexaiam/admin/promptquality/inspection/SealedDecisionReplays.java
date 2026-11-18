@@ -241,6 +241,15 @@ public class SealedDecisionReplays {
         return Optional.of(new Drawn(drawing, drawnWith.baselines(), integrity.evaluate(sealed)));
     }
 
+    /**
+     * K71 (plan 3.10 (2)): the state of the sealed package, as a replay of it tells it; empty when there is no such
+     * package. It needs no decision pipeline: the version screen shows it beside the user prompt of the package, drawn
+     * again or as it was drawn.
+     */
+    public Optional<SealedEvidencePackageIntegrity.Status> integrity(String packageId) {
+        return packages.findByPackageId(packageId).map(integrity::evaluate);
+    }
+
     private record DrawnWith(BaselineVector user, BaselineVector organization, Baselines baselines) {
     }
 

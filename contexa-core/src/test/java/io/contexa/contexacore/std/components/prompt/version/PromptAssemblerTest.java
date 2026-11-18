@@ -47,7 +47,7 @@ class PromptAssemblerTest {
     @Test
     void theProductVersionIsTheDocumentAsItIs() {
         assertThat(product.prompt()).isEqualTo("cortex.security-decision");
-        assertThat(product.release()).isEqualTo("2026.11.16-v1.0");
+        assertThat(product.release()).isEqualTo("2026.11.18-v1.0");
         assertThat(product.organizationParts()).isFalse();
         assertThat(keys(product.drawnParts(AssembledPrompt.JUDGMENT, Set.of()))).containsExactly("mission",
                 "evidence-reading", "more-reading", "similar-case-reading", "similar-case-limits", "how-to-judge",
@@ -117,8 +117,10 @@ class PromptAssemblerTest {
                       Exports of the finance ledger are monthly.
                 """));
 
+        // K66: release 2026.11.18 draws its organization-blocks part, joined to the evidence reading, with the precedence.
         assertThat(keys(version.drawnParts(AssembledPrompt.JUDGMENT, Set.of()))).containsExactly("mission", "precedence",
-                "evidence-reading", "more-reading", "similar-case-reading", "similar-case-limits", "org-context",
+                "evidence-reading", "organization-blocks", "more-reading", "similar-case-reading", "similar-case-limits",
+                "org-context",
                 "org-duty", "how-to-judge", "responses", "honesty", "honesty-more");
         assertThat(version.draw(AssembledPrompt.JUDGMENT, Set.of(), null))
                 .contains("\n\nOur organization:\nFinance staff close the books on the last two days of a month.\n"
@@ -337,16 +339,18 @@ class PromptAssemblerTest {
         assertThat(assembler.check(product, longBlock, new PromptAssembler.LengthLimit(baseTokens + 300 + 2_000, 300, 0),
                 SecurityDecisionPromptDocument::organizationBlockTokens).passed()).isFalse();
 
-        // On a base that added the block already, the recent input may hold it: only what the new version adds more
-        // counts, and a block taken out counts less.
+        // On a base that added the block already, the size counts only what the new version adds more, and a block
+        // taken out counts less.
         AssembledPrompt base = assembler.apply(product, shortBlock);
-        PromptAssembler.Check more = assembler.check(base, organization("""
+        PromptVersionDocument deskBlock = organization("""
                 user:
                   - key: org-desk
                     add-after: org-closing
                     title: Security desk
                     text: The desk answers within an hour.
-                """), limit, SecurityDecisionPromptDocument::organizationBlockTokens);
+                """);
+        PromptAssembler.Check more = assembler.check(base, deskBlock, limit,
+                SecurityDecisionPromptDocument::organizationBlockTokens);
         int desk = PromptAssembler.tokensOf(1 + ("=== Security desk (reference written by your organization) ===\n"
                 + "The desk answers within an hour.\n").length());
         assertThat(more.baseAddedUserTokens()).isEqualTo(shortTokens);
@@ -354,6 +358,29 @@ class PromptAssemblerTest {
                 + ("=== Security desk (reference written by your organization) ===\n"
                 + "The desk answers within an hour.\n").length()));
         assertThat(more.tokenDelta()).isBetween(desk - 1, desk + 1);
+
+        // K70: the longest recent input is measured with the blocks of the version it was drawn with, which need not be
+        // the base: those are taken out and the new version's blocks put in, all of them. An input drawn with the
+        // product holds no block, so the base's block counts in full; one drawn with the base holds it, and one drawn
+        // with a version of more blocks holds those.
+        int fits = baseTokens + 1_500 + more.addedUserTokens() + 300;
+        PromptAssembler.Check drawnWithTheProduct = assembler.check(base, deskBlock,
+                new PromptAssembler.LengthLimit(fits - 1, 300, 1_500),
+                SecurityDecisionPromptDocument::organizationBlockTokens);
+        assertThat(drawnWithTheProduct.problems()).extracting(PromptVersionProblem::code)
+                .containsExactly(PromptVersionProblem.Code.TOO_LONG);
+        assertThat(drawnWithTheProduct.problems().get(0).detail()).isEqualTo(baseTokens + " + "
+                + (1_500 + more.addedUserTokens()) + " + 300 > " + (fits - 1));
+        assertThat(assembler.check(base, deskBlock, new PromptAssembler.LengthLimit(fits, 300, 1_500),
+                SecurityDecisionPromptDocument::organizationBlockTokens).passed()).isTrue();
+        PromptAssembler.Check drawnWithTheBase = assembler.check(base, deskBlock,
+                new PromptAssembler.LengthLimit(fits - 1, 300, 1_500 + shortTokens, shortTokens),
+                SecurityDecisionPromptDocument::organizationBlockTokens);
+        assertThat(drawnWithTheBase.problems()).isEqualTo(drawnWithTheProduct.problems());
+        assertThat(assembler.check(base, deskBlock, new PromptAssembler.LengthLimit(fits, 300, 1_500 + 4_000, 4_000),
+                SecurityDecisionPromptDocument::organizationBlockTokens).passed()).isTrue();
+        assertThat(new PromptAssembler.LengthLimit(fits, 300, 1_500).longestUserPromptAddedTokens()).isZero();
+
         PromptAssembler.Check fewer = assembler.check(base, organization("""
                 user:
                   - key: org-closing

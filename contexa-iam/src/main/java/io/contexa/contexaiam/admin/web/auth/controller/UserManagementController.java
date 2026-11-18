@@ -19,6 +19,7 @@ import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.admin.web.auth.service.UserListFilters;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.web.auth.service.VerificationCoverageService;
 import io.contexa.contexacommon.domain.UserDto;
@@ -44,7 +45,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.support.RequestContextUtils;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
@@ -61,6 +64,7 @@ public class UserManagementController {
 	private final PasswordPolicyService passwordPolicyService;
 	private final MessageSource messageSource;
 	private VerificationCoverageService verificationCoverage;
+	private UserListFilters userListFilters;
 
 	/** Q-1: who could not answer a CHALLENGE, shown on the list. */
 	@Autowired(required = false)
@@ -84,14 +88,47 @@ public class UserManagementController {
 		return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
 	}
 
+	/** K92, K100: the filters of the list, the users a number of the dashboard counts and a user by name. */
+	@Autowired(required = false)
+	public void setUserListFilters(UserListFilters userListFilters) {
+		this.userListFilters = userListFilters;
+	}
+
+	/** The list searched by a word, as before the filters. */
+	public String getUsers(String keyword, Pageable pageable, Model model) {
+		return getUsers(keyword, null, null, pageable, model);
+	}
+
+	/**
+	 * The list of users: one user by name (K100), the users of a filter (K92), or the users a word finds in a name. A
+	 * name and a filter stand alone: a search for a word leaves them.
+	 */
 	@GetMapping
 	public String getUsers(@RequestParam(required = false) String keyword,
+						   @RequestParam(required = false) String filter,
+						   @RequestParam(required = false) String user,
 						   @PageableDefault(size = 15, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
 						   Model model) {
-		Page<UserListDto> dtoPage = userManagementService.getUsers(keyword, pageable);
+		String exactUser = userListFilters != null && StringUtils.hasText(user) ? user.trim() : null;
+		UserListFilters.Filter chosen = userListFilters != null && exactUser == null ? UserListFilters.filterOf(filter)
+				: null;
+		Page<UserListDto> dtoPage;
+		if (exactUser != null) {
+			dtoPage = userManagementService.getUsers(userListFilters.named(exactUser, pageable.getPageNumber(),
+					pageable.getPageSize()));
+		} else if (chosen != null) {
+			dtoPage = userManagementService.getUsers(userListFilters.ids(chosen, pageable.getPageNumber(),
+					pageable.getPageSize()));
+		} else {
+			dtoPage = userManagementService.getUsers(keyword, pageable);
+		}
 		model.addAttribute("users", dtoPage.getContent());
 		model.addAttribute("page", dtoPage);
-		model.addAttribute("keyword", keyword);
+		model.addAttribute("keyword", exactUser == null && chosen == null ? keyword : null);
+		model.addAttribute("filter", chosen != null ? chosen.name() : null);
+		model.addAttribute("exactUser", exactUser);
+		model.addAttribute("filters", userListFilters != null
+				? Arrays.stream(UserListFilters.Filter.values()).map(Enum::name).toList() : List.of());
 		model.addAttribute("usersWithoutFactor", usersWithoutFactor());
 		return "contexa/admin/users";
 	}

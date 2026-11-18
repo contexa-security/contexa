@@ -18,6 +18,8 @@ package io.contexa.contexaiam.admin.web.auth.service;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.function.Supplier;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.service.IForceLogoutService;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
@@ -29,8 +31,11 @@ import org.springframework.lang.Nullable;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Manages active session tracking, querying, and forced invalidation. A session is kept, shown and invalidated by its
@@ -54,6 +59,13 @@ public class SessionManagementService {
     private static final String FORCE_LOGOUT_REASON = "CONSOLE_SESSION_INVALIDATED";
 
     private final Supplier<IForceLogoutService> forceLogout;
+    /** K130: a session an administrator ends is audited; without the facade nothing is recorded. */
+    private AdminChangeAudit audit = AdminChangeAudit.NONE;
+
+    /** K130: records the sessions an administrator ends. */
+    public void setCentralAuditFacade(CentralAuditFacade centralAuditFacade) {
+        this.audit = AdminChangeAudit.of(centralAuditFacade);
+    }
 
     public SessionManagementService(ActiveSessionRepository activeSessionRepository) {
         this(activeSessionRepository, null);
@@ -125,7 +137,14 @@ public class SessionManagementService {
         ActiveSession session = activeSessionRepository.findById(reference)
                 .orElseThrow(() -> new NoSuchElementException("Session not found: " + sessionId));
         activeSessionRepository.expireSession(reference);
-        return endSignIns(session.getUserId());
+        boolean signInsEnded = endSignIns(session.getUserId());
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("sessionReference", reference);
+        details.put("userId", session.getUserId());
+        details.put("signInsEnded", signInsEnded);
+        audit.record(AuditEventCategory.SESSION_INVALIDATED, "SESSION_ENDED",
+                session.getUsername() != null ? session.getUsername() : session.getUserId(), details);
+        return signInsEnded;
     }
 
     /**
@@ -136,7 +155,12 @@ public class SessionManagementService {
     @Transactional(transactionManager = "contexaTransactionManager")
     public boolean invalidateAllSessionsForUser(String userId) {
         activeSessionRepository.expireAllSessionsForUser(userId);
-        return endSignIns(userId);
+        boolean signInsEnded = endSignIns(userId);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("userId", userId);
+        details.put("signInsEnded", signInsEnded);
+        audit.record(AuditEventCategory.SESSION_INVALIDATED, "USER_SESSIONS_ENDED", userId, details);
+        return signInsEnded;
     }
 
     private boolean endSignIns(String userId) {
@@ -177,9 +201,27 @@ public class SessionManagementService {
         });
     }
 
+    /**
+     * K73: the session ended (its HTTP session was destroyed, by a logout, its idle limit or the application, or its id
+     * was replaced): it is no longer active.
+     */
     @Transactional(transactionManager = "contexaTransactionManager")
     public void markExpired(String sessionId) {
         activeSessionRepository.expireSession(RequestFactRedaction.sessionReference(sessionId));
+    }
+
+    /**
+     * K73: the sessions no request reached for longer than the idle limit are no longer active: they ended without a
+     * word, as the sessions of a node that stopped do. A limit of zero or less (sessions that never time out) ends none.
+     *
+     * @return the sessions removed
+     */
+    @Transactional(transactionManager = "contexaTransactionManager")
+    public int endIdleSessions(Duration idleLimit) {
+        if (idleLimit == null || idleLimit.isZero() || idleLimit.isNegative()) {
+            return 0;
+        }
+        return activeSessionRepository.deleteIdleBefore(LocalDateTime.now().minus(idleLimit));
     }
 
     /**

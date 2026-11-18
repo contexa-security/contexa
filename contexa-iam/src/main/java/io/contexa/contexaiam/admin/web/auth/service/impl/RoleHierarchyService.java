@@ -16,6 +16,9 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexaiam.admin.web.auth.service.AdminChangeAudit;
 import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
@@ -50,12 +53,35 @@ public class RoleHierarchyService extends AccountAuthoritiesService {
     private final RoleHierarchyImpl roleHierarchy;
     private final MessageSource messageSource;
     private final LastAdministratorGuard lastAdministratorGuard;
+    /** K75: a change of a role hierarchy is audited; without the facade nothing is recorded. */
+    private AdminChangeAudit audit = AdminChangeAudit.NONE;
+
+    /** The actions of the role hierarchy changes (K75). */
+    static final String CREATED = "ROLE_HIERARCHY_CREATED";
+    static final String UPDATED = "ROLE_HIERARCHY_UPDATED";
+    static final String DELETED = "ROLE_HIERARCHY_DELETED";
+    static final String ACTIVATED = "ROLE_HIERARCHY_ACTIVATED";
+    static final String DEACTIVATED = "ROLE_HIERARCHY_DEACTIVATED";
 
     /** The length of the column of a hierarchy's description. */
     private static final int DESCRIPTION_LENGTH = 255;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
+
+    /** K75: records the changes of the role hierarchies. */
+    public void setCentralAuditFacade(CentralAuditFacade centralAuditFacade) {
+        this.audit = AdminChangeAudit.of(centralAuditFacade);
+    }
+
+    private void auditHierarchyChange(String action, RoleHierarchyEntity hierarchy) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("hierarchyId", hierarchy.getId());
+        details.put("description", hierarchy.getDescription());
+        details.put("hierarchy", hierarchy.getHierarchyString());
+        details.put("active", hierarchy.getIsActive());
+        audit.record(AuditEventCategory.ROLE_HIERARCHY_CHANGED, action, hierarchy.getDescription(), details);
     }
 
     @EventListener
@@ -134,6 +160,7 @@ public class RoleHierarchyService extends AccountAuthoritiesService {
         if (savedEntity.getIsActive()) {
             reloadRoleHierarchyBean();
         }
+        auditHierarchyChange(CREATED, savedEntity);
         return savedEntity;
     }
 
@@ -182,6 +209,7 @@ public class RoleHierarchyService extends AccountAuthoritiesService {
         // Read by the hierarchy the change leaves, before the console runs on it.
         lastAdministratorGuard.refuseLosingEveryAdministrator(administrators, merged);
         reloadRoleHierarchyBean();
+        auditHierarchyChange(UPDATED, updatedEntity);
 
         return updatedEntity;
     }
@@ -198,6 +226,7 @@ public class RoleHierarchyService extends AccountAuthoritiesService {
         roleHierarchyRepository.delete(target);
         lastAdministratorGuard.refuseLosingEveryAdministrator(administrators, getMergedActiveHierarchyString());
         reloadRoleHierarchyBean();
+        auditHierarchyChange(DELETED, target);
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -228,6 +257,7 @@ public class RoleHierarchyService extends AccountAuthoritiesService {
         roleHierarchyRepository.save(target);
         lastAdministratorGuard.refuseLosingEveryAdministrator(administrators, getMergedActiveHierarchyString());
         reloadRoleHierarchyBean();
+        auditHierarchyChange(newState ? ACTIVATED : DEACTIVATED, target);
         return newState;
     }
 

@@ -82,7 +82,7 @@
       "name": "contexa.pqa.oss.sealed-evidence.full-capture-after-change",
       "type": "java.lang.Integer",
       "defaultValue": 1000,
-      "description": "Decisions sealed in full after the node starts (a new inspector or dictionary version comes with a new build) and after the active prompt bundle changes. Ignored when contexa.enterprise.enabled is true."
+      "description": "Decisions sealed in full after the node starts (a new inspector or dictionary version comes with a new build) and after the prompt version decisions run changes (the label moved, a rollback, the setting); a version a canary or a shadow runs beside it has a window of its own. Ignored when contexa.enterprise.enabled is true."
     },
     {
       "name": "contexa.pqa.oss.sealed-evidence.retention.period",

@@ -167,8 +167,26 @@ public interface UserRepository extends JpaRepository<Users, Long> {
      * @param syntheticMail the pattern of the addresses the bridge makes up
      * @param agentMail     the pattern of the addresses of agent accounts
      */
-    @Query(value = """
-            select count(*) from ctxa_users u
+    @Query(value = "select count(*) " + WITHOUT_VERIFICATION_FACTOR, nativeQuery = true)
+    long countWithoutVerificationFactor(@Param("mailDelivers") boolean mailDelivers,
+                                        @Param("passkeysWork") boolean passkeysWork,
+                                        @Param("syntheticMail") String syntheticMail,
+                                        @Param("agentMail") String agentMail);
+
+    /**
+     * Q-1 and K92: the accounts {@link #countWithoutVerificationFactor} counts, the newest first, a page at a time: the
+     * console's list of users shows the ones the dashboard counts. The page is read unsorted; its order is the query's.
+     */
+    @Query(value = "select u.id " + WITHOUT_VERIFICATION_FACTOR + " order by u.id desc",
+            countQuery = "select count(*) " + WITHOUT_VERIFICATION_FACTOR, nativeQuery = true)
+    Page<Long> findIdsWithoutVerificationFactor(@Param("mailDelivers") boolean mailDelivers,
+                                                @Param("passkeysWork") boolean passkeysWork,
+                                                @Param("syntheticMail") String syntheticMail,
+                                                @Param("agentMail") String agentMail, Pageable pageable);
+
+    /** The accounts that could not answer a CHALLENGE, as the count and the list of them read them. */
+    String WITHOUT_VERIFICATION_FACTOR = """
+            from ctxa_users u
             where u.enabled = true
               and lower(u.email) not like :agentMail
               and (:mailDelivers = false
@@ -178,11 +196,7 @@ public interface UserRepository extends JpaRepository<Users, Long> {
                    or not exists (select 1 from ctxa_user_entities e
                                   join ctxa_user_credentials c on c.user_entity_user_id = e.id
                                   where e.name = u.username))
-            """, nativeQuery = true)
-    long countWithoutVerificationFactor(@Param("mailDelivers") boolean mailDelivers,
-                                        @Param("passkeysWork") boolean passkeysWork,
-                                        @Param("syntheticMail") String syntheticMail,
-                                        @Param("agentMail") String agentMail);
+            """;
 
     @Query("SELECT DISTINCT u FROM Users u LEFT JOIN FETCH u.userGroups ug LEFT JOIN FETCH ug.group g LEFT JOIN FETCH g.groupRoles gr LEFT JOIN FETCH gr.role r LEFT JOIN FETCH r.rolePermissions rp LEFT JOIN FETCH rp.permission")
     List<Users> findAllWithGroups();
@@ -251,4 +265,43 @@ public interface UserRepository extends JpaRepository<Users, Long> {
     @Query("UPDATE Users u SET u.accountLocked = false, u.failedLoginAttempts = 0, u.lockExpiresAt = null " +
             "WHERE u.id = :id AND u.accountLocked = true")
     int clearLock(@Param("id") Long id);
+
+    /**
+     * K76: the account's expired password as the password policy reads it at a sign-in; an account already saying so
+     * is not written.
+     * @return rows updated (1 when the account said otherwise, 0 otherwise)
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Users u SET u.credentialsExpired = :expired " +
+            "WHERE u.username = :username AND u.credentialsExpired <> :expired")
+    int markCredentialsExpired(@Param("username") String username, @Param("expired") boolean expired);
+
+    /**
+     * K76: the accounts whose password changed before the moment are past the policy's days, and say so.
+     * @return rows updated
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Users u SET u.credentialsExpired = true " +
+            "WHERE u.credentialsExpired = false AND u.passwordChangedAt IS NOT NULL " +
+            "AND u.passwordChangedAt < :changedBefore")
+    int markCredentialsExpiredChangedBefore(@Param("changedBefore") LocalDateTime changedBefore);
+
+    /**
+     * K76: the accounts that said their password expired and whose password did not change before the moment (or
+     * never was set) are no longer past the policy's days.
+     * @return rows updated
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Users u SET u.credentialsExpired = false " +
+            "WHERE u.credentialsExpired = true " +
+            "AND (u.passwordChangedAt IS NULL OR u.passwordChangedAt >= :changedBefore)")
+    int clearCredentialsExpiredChangedSince(@Param("changedBefore") LocalDateTime changedBefore);
+
+    /**
+     * K76: no account is past its password where the policy lets passwords live for ever.
+     * @return rows updated
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Users u SET u.credentialsExpired = false WHERE u.credentialsExpired = true")
+    int clearAllCredentialsExpired();
 }

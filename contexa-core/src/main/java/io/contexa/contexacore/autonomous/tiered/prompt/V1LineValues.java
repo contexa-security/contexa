@@ -214,6 +214,15 @@ public final class V1LineValues {
     }
 
     /**
+     * N2: whether the TenantMatch line says the tenants differ, the tenant conflict of the required BLOCK boundary; null
+     * when the line is not drawn because either tenant is not stated.
+     */
+    public static Boolean tenantsDiffer(CanonicalSecurityContext canonical) {
+        String line = tenantMatch(canonical);
+        return line == null ? null : line.endsWith(": differ");
+    }
+
+    /**
      * v1.0 F6: how many times the past records show this request's whole combination, with the scope searched and the
      * dimensions compared; null without personal past records to compare with.
      */

@@ -185,7 +185,9 @@
 
     function distributionCard(result) {
         const head = el('tr', {}, el('th', {scope: 'col', text: t('pv.trial.version')}),
-            ...PV.ACTIONS.map(action => el('th', {scope: 'col', class: 'zt-num', text: PV.actionName(action)})),
+            // K121: an action's word of a hyphen (Step-up) is kept whole in its head by a hyphen that does not break
+            ...PV.ACTIONS.map(action => el('th', {scope: 'col', class: 'zt-num',
+                text: PV.actionName(action).replace(/-/g, '‑')})),
             el('th', {scope: 'col', class: 'zt-num', text: t('pv.trial.noAnswer')}));
         const row = (side, label) => el('tr', {}, el('td', {class: 'zt-fill', text: side.name + ' ' + label}),
             ...PV.ACTIONS.map(action => el('td', {class: 'zt-num', text: ZT.count(side.actions[action] || 0)})),
@@ -258,16 +260,25 @@
             return null;
         }
         const body = el('tbody');
-        start.recent.forEach(trial => body.append(el('tr', {},
-            el('td', {}, el('a', {class: 'zt-link', href: PV.page('/trials/' + trial.id), text: ZT.time(trial.createdAt)})),
-            el('td', {text: trial.candidateName + ' ↔ ' + trial.referenceName}),
-            el('td', {class: 'zt-num', text: ZT.count(trial.actual != null ? trial.actual : trial.requested)}),
-            el('td', {class: 'zt-cell-chips'}, el('span', {class: 'status-badge zt-chip', 'data-pv-trial': trial.status,
-                text: PV.word('pv.trial.status.' + trial.status)})),
-            el('td', {text: trial.createdBy || '—'}))));
+        // K121: a phone keeps the start, the count and the state as columns, each head whole in its room; the versions
+        // and who started it read as a line under the start, their columns kept for the wider layouts.
+        const WIDE = ['versions', 'by'];
+        start.recent.forEach(trial => {
+            const versions = trial.candidateName + ' ↔ ' + trial.referenceName;
+            const line = versions + ' · ' + (trial.createdBy || '—');
+            body.append(el('tr', {},
+                el('td', {title: line}, el('a', {class: 'zt-link', href: PV.page('/trials/' + trial.id),
+                    text: ZT.time(trial.createdAt)}), el('div', {class: 'zt-short zt-muted', text: line})),
+                el('td', {class: 'zt-wide', text: versions}),
+                el('td', {class: 'zt-num', text: ZT.count(trial.actual != null ? trial.actual : trial.requested)}),
+                el('td', {class: 'zt-cell-chips'}, el('span', {class: 'status-badge zt-chip', 'data-pv-trial': trial.status,
+                    text: PV.word('pv.trial.status.' + trial.status)})),
+                el('td', {class: 'zt-wide', text: trial.createdBy || '—'})));
+        });
         return ZT.card(t('pv.trial.recent'), null, el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table modern-table'},
             el('thead', {}, el('tr', {}, ...['started', 'versions', 'count', 'status', 'by'].map(column =>
-                el('th', {scope: 'col', class: column === 'count' ? 'zt-num' : null, text: t('pv.trial.recentColumn.' + column)})))),
+                el('th', {scope: 'col', class: [column === 'count' ? 'zt-num' : '', WIDE.includes(column) ? 'zt-wide' : '']
+                    .join(' ').trim() || null, text: t('pv.trial.recentColumn.' + column)})))),
             body)));
     }
 

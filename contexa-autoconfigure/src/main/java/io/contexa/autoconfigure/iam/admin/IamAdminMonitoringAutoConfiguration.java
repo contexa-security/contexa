@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.*;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
@@ -27,6 +28,7 @@ import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
 import io.contexa.contexaiam.admin.web.monitoring.controller.AiMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.controller.SecurityMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.service.DecisionRecordSealCheck;
+import io.contexa.contexaiam.admin.web.monitoring.service.SecurityEventQueries;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardController;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardHourlyStats;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardQueries;
@@ -95,13 +97,17 @@ public class IamAdminMonitoringAutoConfiguration {
                                                                CsvExportService contexaCsvExportService,
                                                                ObjectProvider<DelegationRegistry> delegationRegistry,
                                                                ObjectProvider<EvidenceSigner> evidenceSigner,
-                                                               MessageSource messageSource) {
+                                                               MessageSource messageSource,
+                                                               @Qualifier("contexaJdbcTemplate")
+                                                               ObjectProvider<JdbcOperations> jdbcOperationsProvider) {
         // docs/agent A5-5: the delegation an agent's decision ran under, when Contexa keeps delegations (OC-1).
         SecurityMonitorController controller = new SecurityMonitorController(auditLogRepository, contexaCsvExportService,
                 delegationRegistry.getIfAvailable());
         // docs/agent A5-6: the decision records' integrity.
         evidenceSigner.ifAvailable(controller::setEvidenceSigner);
         controller.setMessageSource(messageSource);
+        // K138: the list, every filter of the screen in one statement (K92: the broken seals among them).
+        controller.setEventQueries(new SecurityEventQueries(jdbcOperationsProvider::getIfAvailable));
         return controller;
     }
 
@@ -289,11 +295,15 @@ public class IamAdminMonitoringAutoConfiguration {
     public AdminMenuManagementService adminMenuManagementService(
             AdminMenuService contexaAdminMenuService,
             RoleRepository roleRepository,
-            MessageSource messageSource) {
-        return new AdminMenuManagementService(
+            MessageSource messageSource,
+            ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+        AdminMenuManagementService service = new AdminMenuManagementService(
                 contexaAdminMenuService,
                 roleRepository,
                 messageSource);
+        // K75: a change of the menus is audited
+        centralAuditFacade.ifAvailable(service::setCentralAuditFacade);
+        return service;
     }
 
     @Bean(name = "contexaAdminMenuController")

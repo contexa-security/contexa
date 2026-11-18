@@ -81,6 +81,9 @@ class SessionManagementScreenTest {
         engine.setTemplateResolvers(Set.of(fragments, templates));
         ResourceBundleMessageSource messages = new ResourceBundleMessageSource();
         messages.setBasename("contexa/i18n/messages");
+        // K95: the JDK keeps one bundle per base name and locale for the whole test JVM; read as the product reads it
+        // (UTF-8), or a later test of the JVM gets this one's ISO-8859-1 text.
+        messages.setDefaultEncoding("UTF-8");
         messages.setFallbackToSystemLocale(false);
         engine.setTemplateEngineMessageSource(messages);
         return engine;

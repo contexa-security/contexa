@@ -17,7 +17,6 @@ package io.contexa.contexacommon.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.springframework.data.annotation.CreatedDate;
 
 import java.time.LocalDateTime;
 
@@ -28,15 +27,17 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EntityListeners(ContexaAuditingEntityListener.class) 
 public class AuditLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /**
+     * When the audited event happened (K144): the record states it, and only a record without one is given the time it
+     * is stored at. A decision record is sealed with this value, so nothing may change it on the way to the store.
+     */
     @Column(nullable = false, updatable = false)
-    @CreatedDate 
     private LocalDateTime timestamp;
 
     @Column(nullable = false, length = 255)

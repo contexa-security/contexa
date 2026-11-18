@@ -272,6 +272,9 @@
                         ? t('pv.preview.userSame', ZT.time(shown.capturedAt))
                         : t('pv.preview.userOther', ZT.time(shown.capturedAt), shown.drawnWith || '—')}),
                 notDrawn ? el('span', {class: 'zt-muted', text: notDrawn}) : null,
+                // K71: the state of the sealed package the user prompt comes from, as the replay screen tells it.
+                shown.integrity ? el('span', {class: 'zt-muted', 'data-pv-integrity': shown.integrity,
+                    text: t('pv.preview.integrity.' + shown.integrity)}) : null,
                 PV.textBox(shown.user, t('pv.preview.user'))));
             if (!shown.drawnWithThisVersion && shown.addedBlocks && shown.addedBlocks.length) {
                 nodes.push(el('div', {class: 'zt-item'}, el('strong', {text: t('pv.preview.added')}),

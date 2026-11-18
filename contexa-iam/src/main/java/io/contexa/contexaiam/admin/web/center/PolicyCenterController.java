@@ -85,6 +85,7 @@ public class PolicyCenterController {
             @RequestParam(required = false) String policyKeyword,
             @RequestParam(required = false) String approvalStatus,
             @RequestParam(required = false) Boolean activeFilter,
+            @RequestParam(required = false) String health,
             @RequestParam(required = false, defaultValue = "0") int policyPage,
             Model model) {
 
@@ -97,6 +98,7 @@ public class PolicyCenterController {
                     policyKeyword,
                     approvalStatus,
                     activeFilter,
+                    health,
                     policyPage);
         } catch (Exception e) {
             log.error("Failed to load policy center data", e);

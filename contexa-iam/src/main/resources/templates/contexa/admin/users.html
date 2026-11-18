@@ -45,6 +45,27 @@
                 </a>
             </form>
 
+            <!-- K92: the users a number of the dashboard counts, by the rule that counts them; K100: one user by name -->
+            <div th:if="${!#lists.isEmpty(filters)}" id="userFilters" class="flex flex-wrap gap-2 mb-6 items-center">
+                <a th:href="@{/contexa/admin/users}"
+                   th:classappend="${filter == null and exactUser == null} ? 'filter-active' : 'filter-inactive'"
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300"
+                   th:text="#{admin.users.filter.all}">All</a>
+                <a th:each="f : ${filters}" th:href="@{/contexa/admin/users(filter=${f})}"
+                   th:classappend="${filter == f} ? 'filter-active' : 'filter-inactive'"
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300"
+                   th:text="#{${'admin.users.filter.' + f}}">Filter</a>
+                <a th:if="${exactUser != null}" th:href="@{/contexa/admin/users}" id="userFilterExact"
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 filter-active"
+                   style="max-width:100%;overflow-wrap:anywhere;" th:title="#{admin.users.filter.user.clear}">
+                    <span th:text="#{admin.users.filter.user(${exactUser})}">User</span>
+                    <i class="fas fa-times ml-1" aria-hidden="true"></i>
+                </a>
+                <span th:if="${filter != null or exactUser != null}" id="userFilterCount" class="text-sm"
+                      style="color:#94a3b8;"
+                      th:text="#{admin.users.filter.count(${#numbers.formatInteger(page.totalElements, 1, 'COMMA')})}">0 users</span>
+            </div>
+
             <div class="overflow-x-auto shadow-md rounded-lg" tabindex="0" role="region"
                  th:aria-label="#{admin.users.table.region}">
                 <table id="usersTable" class="min-w-full w-full text-sm text-left">
@@ -95,24 +116,47 @@
                 </table>
             </div>
 
-            <nav th:if="${page != null and page.totalPages > 1}" class="flex flex-wrap justify-center mt-6 gap-2">
-                <a th:if="${!page.first}" th:href="@{/contexa/admin/users(keyword=${keyword},page=${page.number - 1},size=${page.size})}"
-                   th:aria-label="#{common.page.previous}"
-                   class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
-                    <i class="fas fa-chevron-left"></i>
-                </a>
-                <th:block th:each="i : ${#numbers.sequence(0, page.totalPages - 1)}">
-                    <a th:href="@{/contexa/admin/users(keyword=${keyword},page=${i},size=${page.size})}"
-                       th:text="${i + 1}"
-                       class="px-3 py-2 rounded text-sm"
-                       th:style="${i == page.number} ? 'background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;' : 'color:#94a3b8;border:1px solid rgba(71,85,105,0.3);'">
-                    </a>
-                </th:block>
-                <a th:if="${!page.last}" th:href="@{/contexa/admin/users(keyword=${keyword},page=${page.number + 1},size=${page.size})}"
-                   th:aria-label="#{common.page.next}"
-                   class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
-                    <i class="fas fa-chevron-right"></i>
-                </a>
+            <!-- S10: the policy list's pagination: the first, the previous, the pages near the current one, the next and
+                 the last, never a link to each of thousands of pages. The word, the filter or the name stays (K92, K100). -->
+            <nav th:if="${page != null and page.totalPages > 1}" id="userPages" class="mt-6 flex justify-center"
+                 th:with="currentPage=${page.number}, totalPages=${page.totalPages},
+                          startPage=${T(java.lang.Math).max(0, currentPage - 2)},
+                          endPage=${T(java.lang.Math).min(totalPages - 1, currentPage + 2)}">
+                <ul class="modern-pagination flex-wrap justify-center">
+                    <li class="page-item" th:classappend="${page.first} ? 'disabled'">
+                        <a class="page-link" th:aria-label="#{common.page.first}" th:href="@{/contexa/admin/users(keyword=${keyword},filter=${filter},user=${exactUser},page=0,size=${page.size})}"><i class="fas fa-angle-double-left"></i></a>
+                    </li>
+                    <li class="page-item" th:classappend="${page.first} ? 'disabled'">
+                        <a class="page-link" th:aria-label="#{common.page.previous}" th:href="@{/contexa/admin/users(keyword=${keyword},filter=${filter},user=${exactUser},page=${T(java.lang.Math).max(0, currentPage - 1)},size=${page.size})}"><i class="fas fa-chevron-left"></i></a>
+                    </li>
+                    <th:block th:if="${startPage > 0}">
+                        <li class="page-item">
+                            <a class="page-link" th:href="@{/contexa/admin/users(keyword=${keyword},filter=${filter},user=${exactUser},page=0,size=${page.size})}">1</a>
+                        </li>
+                        <li class="page-item disabled" th:if="${startPage > 1}">
+                            <span class="page-link">...</span>
+                        </li>
+                    </th:block>
+                    <li th:each="pageNumber : ${#numbers.sequence(startPage, endPage)}"
+                        class="page-item" th:classappend="${pageNumber == currentPage} ? 'active'">
+                        <a class="page-link" th:href="@{/contexa/admin/users(keyword=${keyword},filter=${filter},user=${exactUser},page=${pageNumber},size=${page.size})}"
+                           th:attr="aria-current=${pageNumber == currentPage ? 'page' : null}" th:text="${pageNumber + 1}"></a>
+                    </li>
+                    <th:block th:if="${endPage < totalPages - 1}">
+                        <li class="page-item disabled" th:if="${endPage < totalPages - 2}">
+                            <span class="page-link">...</span>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" th:href="@{/contexa/admin/users(keyword=${keyword},filter=${filter},user=${exactUser},page=${totalPages - 1},size=${page.size})}" th:text="${totalPages}"></a>
+                        </li>
+                    </th:block>
+                    <li class="page-item" th:classappend="${page.last} ? 'disabled'">
+                        <a class="page-link" th:aria-label="#{common.page.next}" th:href="@{/contexa/admin/users(keyword=${keyword},filter=${filter},user=${exactUser},page=${T(java.lang.Math).min(totalPages - 1, currentPage + 1)},size=${page.size})}"><i class="fas fa-chevron-right"></i></a>
+                    </li>
+                    <li class="page-item" th:classappend="${page.last} ? 'disabled'">
+                        <a class="page-link" th:aria-label="#{common.page.last}" th:href="@{/contexa/admin/users(keyword=${keyword},filter=${filter},user=${exactUser},page=${totalPages - 1},size=${page.size})}"><i class="fas fa-angle-double-right"></i></a>
+                    </li>
+                </ul>
             </nav>
 
         </div>
@@ -135,5 +179,23 @@
     });
     /*]]>*/
 </script>
+
+<!-- The filter chips of the console's lists (the block list, the agents, the address rules), as they are drawn there -->
+<style>
+    .filter-active {
+        background: rgba(99, 102, 241, 0.3);
+        color: #818cf8;
+        border: 1px solid rgba(99, 102, 241, 0.5);
+    }
+    .filter-inactive {
+        background: rgba(30, 41, 59, 0.5);
+        color: #94a3b8;
+        border: 1px solid rgba(71, 85, 105, 0.3);
+    }
+    .filter-inactive:hover {
+        background: rgba(51, 65, 85, 0.5);
+        color: #e2e8f0;
+    }
+</style>
 </body>
 </html>

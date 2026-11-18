@@ -21,7 +21,10 @@ import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacore.autonomous.agent.AgentScopeRestriction;
 import io.contexa.contexacore.autonomous.agent.AgentStatus;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.admin.web.agent.service.AgentContainmentAdminService.StoppedDelegation;
+import io.contexa.contexaiam.admin.web.auth.service.AccountsOfPeople;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.AccessCenterStats;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardDtos.AdoptionState;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardDtos.AgentsPart;
@@ -98,8 +101,8 @@ public class DashboardServiceImpl implements DashboardService {
     static final int DENIALS_RANKED = 5;
     /** The days of the daily bars and of the heat strip, today included. */
     static final int DAYS_SHOWN = 7;
-    /** The days without a sign-in that make an account dormant. */
-    static final int DORMANT_DAYS = 90;
+    /** The days without a sign-in that make an account dormant, as the list of users reads them (K92). */
+    static final int DORMANT_DAYS = AccountsOfPeople.DORMANT_DAYS;
     /** The time a session counts as in use after its last request. */
     static final Duration RECENT_SESSION = Duration.ofMinutes(30);
 
@@ -132,6 +135,17 @@ public class DashboardServiceImpl implements DashboardService {
                 "USER_MODIFIED", "USER_UNLOCKED", "USER_DELETED", "ZERO_TRUST_MODE_CHANGED", "APPROVE", "DENY",
                 "RELEASE_CHALLENGE", "AGENT_REGISTERED", "AGENT_DEREGISTERED", "AGENT_REMOVED", "AGENT_SPONSOR_CHANGED",
                 "AGENT_SECRET_ROTATED", "AGENT_RELEASED", "KILL_SWITCH_ON", "KILL_SWITCH_OFF"));
+        // K75: the changes of the console that had no audit record before
+        actions.addAll(List.of("GROUP_CREATED", "GROUP_UPDATED", "GROUP_DELETED", "PERMISSION_CREATED",
+                "PERMISSION_UPDATED", "PERMISSION_DELETED", "ROLE_HIERARCHY_CREATED", "ROLE_HIERARCHY_UPDATED",
+                "ROLE_HIERARCHY_DELETED", "ROLE_HIERARCHY_ACTIVATED", "ROLE_HIERARCHY_DEACTIVATED", "USER_GROUPS_ASSIGNED",
+                "USER_ROLES_ASSIGNED", "GROUP_ROLES_ASSIGNED", "PASSWORD_POLICY_CHANGED", "MENU_CREATED", "MENU_UPDATED",
+                "MENU_DELETED", "MENU_SWITCHED", "MENU_ROLES_CHANGED", "MENU_REORDERED", "SYSTEM_SETTINGS_CHANGED"));
+        // K130: the other changes of the console that had no audit record before
+        actions.addAll(List.of("IP_RULE_CREATED", "IP_RULE_DELETED", "IP_RULE_SWITCHED_ON", "IP_RULE_SWITCHED_OFF",
+                "SESSION_ENDED", "USER_SESSIONS_ENDED", "RESOURCE_DEFINED", "RESOURCE_EXCLUDED", "RESOURCE_RESTORED",
+                "RESOURCE_STATUS_CHANGED", "RESOURCE_STATUS_RESET", "BLOCK_RECORD_DELETED", "CONDITION_CLASSIFIED",
+                "CONDITION_TEMPLATES_GENERATED", "CONDITION_TEMPLATES_REGENERATED"));
         actions.addAll(List.of(PromptVersionAudit.CREATED, PromptVersionAudit.HIDDEN, PromptVersionAudit.IMPORTED,
                 PromptVersionAudit.FOLDER_REGISTERED, PromptVersionAudit.USED_FOR_DECISIONS,
                 PromptVersionAudit.CANARY_STARTED, PromptVersionAudit.CANARY_STOPPED, PromptVersionAudit.SHADOW_STARTED,
@@ -454,6 +468,15 @@ public class DashboardServiceImpl implements DashboardService {
             return sources.roles().findByRoleName(resource).map(Role::getRoleDesc).filter(text -> !text.isBlank())
                     .orElse(resource.startsWith("ROLE_") ? resource.substring("ROLE_".length()) : resource);
         }
+        // K75: the values of the password policy and the settings a change changed by their labels, a built-in menu by
+        // its name in words
+        if ("PASSWORD".equals(kind) || "SETTINGS".equals(kind)) {
+            return labels(resource, "PASSWORD".equals(kind) ? PasswordPolicyService.FIELD_LABELS
+                    : SystemSettingsService.FIELD_LABELS, locale);
+        }
+        if ("MENU".equals(kind) && resource != null && resource.startsWith("menu.")) {
+            return message(resource, resource, locale);
+        }
         if ("PROMPT".equals(kind) && resource != null && resource.contains("@")) {
             int at = resource.lastIndexOf('@');
             String prompt = resource.substring(0, at);
@@ -461,6 +484,22 @@ public class DashboardServiceImpl implements DashboardService {
             return message("pv.prompt." + prompt, other, locale) + " " + resource.substring(at + 1);
         }
         return resource;
+    }
+
+    /** The fields a change names, each by its label; a field no label names as it is. */
+    private String labels(String fields, Map<String, String> labelKeys, Locale locale) {
+        if (fields == null || fields.isBlank()) {
+            return fields;
+        }
+        List<String> words = new ArrayList<>();
+        for (String field : fields.split(",")) {
+            String name = field.trim();
+            if (!name.isEmpty()) {
+                String key = labelKeys.get(name);
+                words.add(key != null ? message(key, name, locale) : name);
+            }
+        }
+        return String.join(", ", words);
     }
 
     private String message(String key, String fallback, Locale locale) {

@@ -17,10 +17,17 @@ package io.contexa.contexaiam.aiam.components.prompt;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
+import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
+import io.contexa.contexacore.std.components.prompt.version.ProductPromptDocuments;
+import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionInUse;
 import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
 import io.contexa.contexaiam.aiam.protocol.context.ResourceNamingContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 
 import java.io.IOException;
@@ -29,6 +36,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -136,12 +145,68 @@ class VersionedTemplateGoldenTest {
         return cases;
     }
 
+    /**
+     * The cases a later product release draws otherwise than the code drew before the move, on purpose: the golden
+     * prompt with the difference in place. K53: the policy generation's release 2026.11.18 names no data with its
+     * sentence where the code drew the word null.
+     */
+    static final Map<String, List<String>> INTENDED = Map.of("PolicyGeneration/user-nothing",
+            List.of("[Data]\nnull\n", "[Data]\nNo IAM data or similar query patterns were provided.\n"));
+
     @TestFactory
     Stream<DynamicTest> everyCaseDrawsTheGoldenPrompt() {
         Map<String, String> cases = cases();
         assertThat(cases).hasSize(25);
         return cases.entrySet().stream().map(entry -> DynamicTest.dynamicTest(entry.getKey(),
-                () -> assertThat(entry.getValue()).isEqualTo(golden(entry.getKey()))));
+                () -> assertThat(entry.getValue()).isEqualTo(expected(entry.getKey()))));
+    }
+
+    /** The golden prompt of a case with its intended difference in place, the difference found in it exactly once. */
+    static String expected(String name) throws IOException {
+        String golden = golden(name);
+        List<String> difference = INTENDED.get(name);
+        if (difference == null) {
+            return golden;
+        }
+        assertThat(golden.split(Pattern.quote(difference.get(0)), -1)).as(name).hasSize(2);
+        return golden.replace(difference.get(0), difference.get(1));
+    }
+
+    /**
+     * K53: the release before the sentence (2026.11.17) and the versions on it still draw the golden prompts letter for
+     * letter, the word null included; the release after it draws its sentence for no data and for blank data alike.
+     */
+    @Test
+    void theReleaseBeforeTheDataSentenceStillDrawsItsGoldenPrompts() throws IOException {
+        AssembledPrompt earlier = new ProductPromptDocuments(PolicyGenerationTemplate.class, PolicyGenerationTemplate.PROMPT,
+                List.of("2026.11.17")).product();
+        assertThat(earlier.release()).isEqualTo("2026.11.17-v1.0");
+        PolicyGenerationTemplate policy = new PolicyGenerationTemplate();
+        policy.setPromptVersions(new PromptVersionInUse(
+                () -> (context, subject) -> new PromptBundleSelection("v1.0", PromptBundleSelectionSource.REGISTRY),
+                () -> (prompt, version) -> "v1.0".equals(version) ? Optional.of(earlier) : Optional.empty()));
+
+        assertThat(policy.generateUserPrompt(request(null, Map.of(), null), null))
+                .isEqualTo(golden("PolicyGeneration/user-nothing"));
+        assertThat(policy.generateUserPrompt(request(null, Map.of("availableItems", items(),
+                "iamDataContext", "IAM data: 3 roles"), "Let managers read documents"), "similar policy A"))
+                .isEqualTo(golden("PolicyGeneration/user-full"));
+        assertThat(PolicyGenerationTemplate.drawnData(earlier, null)).isEqualTo("null");
+        assertThat(PolicyGenerationTemplate.drawnData(earlier, "  ")).isEqualTo("  ");
+
+        AssembledPrompt latest = new PolicyGenerationTemplate().product();
+        assertThat(latest.release()).isEqualTo("2026.11.18-v1.0");
+        assertThat(new PolicyGenerationTemplate().productReleases()).extracting(ProductPromptRelease::release)
+                .containsExactly("2026.11.17-v1.0", "2026.11.18-v1.0");
+        assertThat(PolicyGenerationTemplate.drawnData(latest, null))
+                .isEqualTo("No IAM data or similar query patterns were provided.");
+        assertThat(PolicyGenerationTemplate.drawnData(latest, " \n ")).isEqualTo(PolicyGenerationTemplate.drawnData(
+                latest, null));
+        assertThat(PolicyGenerationTemplate.drawnData(latest, "IAM data")).isEqualTo("IAM data");
+        // The two releases differ in that sentence alone.
+        assertThat(latest.contentHash()).isNotEqualTo(earlier.contentHash());
+        assertThat(latest.userBlock("data").orElseThrow().items()).hasSize(2);
+        assertThat(earlier.userBlock("data").orElseThrow().items()).hasSize(1);
     }
 
     static String golden(String name) throws IOException {

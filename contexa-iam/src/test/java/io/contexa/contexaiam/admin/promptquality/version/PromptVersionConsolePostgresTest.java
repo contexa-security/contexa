@@ -26,6 +26,7 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
 import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
@@ -41,6 +42,7 @@ import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollback
 import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRuntimeCacheInvalidationService;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.CheckRow;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.CheckView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Created;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Draft;
@@ -245,6 +247,18 @@ class PromptVersionConsolePostgresTest {
         assertThat(untitled.checks()).filteredOn(row -> row.key().equals("CONTENT")).singleElement()
                 .satisfies(row -> assertThat(row.passed()).isFalse());
 
+        // K67: a reference block under the title of a standard block fails the content row with its problem.
+        CheckView standardTitle = console.check(null, form(1, List.of(),
+                List.of(add("org-closing", "Decision facts", CLOSING, "REQUEST"))));
+        assertThat(standardTitle.passed()).isFalse();
+        assertThat(standardTitle.checks()).filteredOn(row -> !row.passed()).extracting(CheckRow::key)
+                .containsExactly("CONTENT");
+        assertThat(standardTitle.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("ENGINE_TITLE");
+            assertThat(problem.where()).isEqualTo("user.org-closing");
+            assertThat(problem.detail()).isEqualTo("Decision facts");
+        });
+
         CheckView misplaced = console.check(null, form(1, List.of(add("org-part-1", "Ours", "Text.", "output-format")),
                 List.of()));
         assertThat(misplaced.checks()).filteredOn(row -> row.key().equals("PLACES")).singleElement()
@@ -366,6 +380,58 @@ class PromptVersionConsolePostgresTest {
         Draft carried = after.draft(null, PROMPT, 3, 2).orElseThrow();
         assertThat(carried.carriedFrom()).isEqualTo("v2.0");
         assertThat(carried.carried()).hasSize(2).allSatisfy(change -> assertThat(change.movable()).isTrue());
+    }
+
+    /**
+     * K134 (plan 3.3): carried onto a newer product version, a version on a chain of organization versions brings the
+     * changes of the whole chain: the block an earlier version added with the words a later one gave it (K131), the
+     * block added after it, and the change of a part the newer product fixed, shown as one that cannot be carried. The
+     * version saved from the draft draws the blocks as the version it came from did.
+     */
+    @Test
+    void carryingAVersionOnAChainCarriesTheChangesOfTheWholeChain() {
+        console.create(null, form(1, List.of(change("how-to-judge", "Weigh the duty roster first.")),
+                List.of(add("org-closing", "Finance closing", CLOSING, "REQUEST"))), "admin");
+        String twoDays = "Finance staff export the ledger on the last two business days of a quarter.";
+        console.create(null, form(2, List.of(), List.of(change("org-closing", twoDays),
+                add("org-desk", "Security desk", "The desk answers within an hour.", "org-closing"))), "admin");
+        console.use(null, PROMPT, 3, "admin", null);
+        // A newer product version that fixes the part the chain changed.
+        ProductPromptRelease current = SecurityDecisionPromptDocument.productReleases().get(0);
+        String fixed = current.document().replace("release: " + quoted(current.document()), "release: 2027.01.10")
+                .replaceFirst("(  - key: how-to-judge\\r?\\n    title: How to judge\\r?\\n    locked: )false", "$1true");
+        assertThat(fixed).containsPattern("  - key: how-to-judge\\r?\\n    title: How to judge\\r?\\n    locked: true");
+        PromptVersionService upgraded = service(List.of(current, new ProductPromptRelease(PROMPT, "2027.01.10", fixed)));
+        assertThat(upgraded.registerProducts(null)).extracting(PromptVersionService.Saved::name).containsExactly("v4.0");
+        PromptVersionConsole after = console(upgraded);
+        assertThat(after.list(null, PROMPT, false).newProduct()).satisfies(product -> {
+            assertThat(product.usedVersion()).isEqualTo("v3.0");
+            assertThat(product.usedBase()).isEqualTo("v1.0");
+            assertThat(product.carry()).isTrue();
+        });
+
+        Draft carried = after.draft(null, PROMPT, 4, 3).orElseThrow();
+        assertThat(carried.carriedFrom()).isEqualTo("v3.0");
+        assertThat(carried.carried()).extracting(change -> change.list() + " " + change.action() + " " + change.key()
+                + " " + change.movable()).containsExactly("SYSTEM CHANGE how-to-judge false",
+                "USER ADD org-closing true", "USER ADD org-desk true");
+        assertThat(carried.carried().get(1)).satisfies(change -> {
+            assertThat(change.title()).isEqualTo("Finance closing");
+            assertThat(change.text().strip()).isEqualTo(twoDays);
+            assertThat(change.addAfter()).isEqualTo("REQUEST");
+        });
+        assertThat(carried.carried().get(2).addAfter()).isEqualTo("org-closing");
+
+        // The draft saved as the screen saves what it carried: the blocks are drawn as the carried version drew them.
+        List<FormPart> user = carried.carried().stream().filter(PromptVersionConsoleDtos.Carried::movable)
+                .map(change -> add(change.key(), change.title(), change.text(), change.addAfter())).toList();
+        PromptVersionConsoleDtos.Created saved = after.create(null, form(4, List.of(), user), "admin");
+        assertThat(SecurityDecisionPromptDocument.organizationBlockTokens(
+                upgraded.assembled(null, PROMPT, saved.number()).orElseThrow()))
+                .isEqualTo(SecurityDecisionPromptDocument.organizationBlockTokens(
+                        upgraded.assembled(null, PROMPT, 3).orElseThrow()));
+        assertThat(after.draft(null, PROMPT, 4, 4).orElseThrow().carried()).as("a product version carries nothing")
+                .isEmpty();
     }
 
     /**
@@ -575,14 +641,21 @@ class PromptVersionConsolePostgresTest {
         console.create(null, form(1, List.of(), List.of(add("org-closing", "Finance closing", CLOSING, "REQUEST"))),
                 "admin");
         sealedDecision("pkg-1", "req-1", "v1.0");
+        // Sealed as the engine seals it: the prompt it holds hashed, then the package.
+        JdbcSealedEvidencePackageRepository packages = new JdbcSealedEvidencePackageRepository(jdbc);
+        jdbc.update("update ctxa_sealed_evidence_package set raw_user_prompt_hash = ? where package_id = 'pkg-1'",
+                PromptGovernanceSupport.sha256("the user prompt v1.0 drew"));
+        jdbc.update("update ctxa_sealed_evidence_package set package_hash = ? where package_id = 'pkg-1'",
+                new SealedEvidencePackageIntegrity().computeHash(packages.findByPackageId("pkg-1").orElseThrow()));
         SealedDecisionReplays replays = replays();
-        console.setSealedDrawing(() -> (packageId, version) -> replays.drawPackage(packageId, version)
-                .map(drawn -> drawn.drawing().userPrompt()));
+        console.setSealedDrawing(() -> drawing(replays));
 
         Preview product = console.version(null, PROMPT, 1).orElseThrow().preview();
         assertThat(product.user()).isEqualTo("the user prompt v1.0 drew");
         assertThat(product.drawnWithThisVersion()).isTrue();
         assertThat(product.drawnAgain()).isFalse();
+        // K71: the state of the sealed package, as the replay screen tells it.
+        assertThat(product.integrity()).isEqualTo("VERIFIED");
 
         String productDrawn = replays.drawPackage("pkg-1", "v1.0").orElseThrow().drawing().userPrompt();
         Preview organization = console.version(null, PROMPT, 2).orElseThrow().preview();
@@ -592,6 +665,17 @@ class PromptVersionConsolePostgresTest {
         assertThat(organization.drawnWith()).isEqualTo("v2.0");
         assertThat(organization.requestId()).isEqualTo("req-1");
         assertThat(organization.notDrawn()).isNull();
+        assertThat(organization.integrity()).isEqualTo("VERIFIED");
+
+        // K71: a package changed after its seal is still drawn, and the preview says so as the replay does.
+        jdbc.update("update ctxa_sealed_evidence_package set decision_json = '{\"action\":\"BLOCK\"}' where"
+                + " package_id = 'pkg-1'");
+        assertThat(console.version(null, PROMPT, 1).orElseThrow().preview().integrity()).isEqualTo("MISMATCH");
+        Preview changed = console.version(null, PROMPT, 2).orElseThrow().preview();
+        assertThat(changed.drawnAgain()).isTrue();
+        assertThat(changed.integrity()).isEqualTo("MISMATCH");
+        assertThat(replays.integrity("pkg-1")).contains(SealedEvidencePackageIntegrity.Status.MISMATCH);
+        assertThat(replays.integrity("pkg-gone")).isEmpty();
 
         // Without the decision pipeline, or when the drawing fails, the decision is shown as it was drawn.
         console.setSealedDrawing(() -> null);
@@ -602,10 +686,26 @@ class PromptVersionConsolePostgresTest {
         assertThat(unavailable.drawnAgain()).isFalse();
         assertThat(unavailable.notDrawn()).isEqualTo("UNAVAILABLE");
         assertThat(unavailable.addedBlocks()).extracting(PartView::key).containsExactly("org-closing");
+        assertThat(unavailable.integrity()).as("no replays to tell it").isNull();
         console.setSealedDrawing(() -> (packageId, version) -> {
             throw new SealedDecisionReplays.UnavailableException();
         });
-        assertThat(console.version(null, PROMPT, 2).orElseThrow().preview().notDrawn()).isEqualTo("UNAVAILABLE");
+        Preview withoutPipeline = console.version(null, PROMPT, 2).orElseThrow().preview();
+        assertThat(withoutPipeline.notDrawn()).isEqualTo("UNAVAILABLE");
+        assertThat(withoutPipeline.integrity()).isNull();
+        console.setSealedDrawing(() -> new PromptVersionConsole.SealedDrawing() {
+            @Override
+            public Optional<String> userPrompt(String packageId, String version) {
+                throw new SealedDecisionReplays.UnavailableException();
+            }
+
+            @Override
+            public Optional<String> integrity(String packageId) {
+                return replays.integrity(packageId).map(Enum::name);
+            }
+        });
+        assertThat(console.version(null, PROMPT, 2).orElseThrow().preview().integrity())
+                .as("told without the pipeline").isEqualTo("MISMATCH");
         console.setSealedDrawing(() -> (packageId, version) -> {
             throw new IllegalStateException("The sealed context does not read");
         });
@@ -613,11 +713,86 @@ class PromptVersionConsolePostgresTest {
         assertThat(failed.notDrawn()).isEqualTo("FAILED");
         assertThat(failed.user()).isEqualTo("the user prompt v1.0 drew");
 
+        console.setSealedDrawing(() -> drawing(replays));
         jdbc.execute("TRUNCATE ctxa_sealed_evidence_package CASCADE");
         Preview none = console.version(null, PROMPT, 2).orElseThrow().preview();
         assertThat(none.user()).isNull();
         assertThat(none.notDrawn()).isNull();
+        assertThat(none.integrity()).isNull();
         assertThat(none.addedBlocks()).extracting(PartView::key).containsExactly("org-closing");
+    }
+
+    /**
+     * K131 (plan 3.5): a block added in one version, changed in the next, changed again in the one after and deleted at
+     * last is counted in each version's size and drawn in its finished prompt with its latest words, the decision drawn
+     * again as a replay draws it; shown as it was drawn, the block this version draws is listed beside it; deleted, it
+     * is counted and drawn no more.
+     */
+    @Test
+    void aBlockChangedInLaterVersionsIsCountedAndDrawnWithItsLatestWordsUntilDeleted() {
+        console.create(null, form(1, List.of(), List.of(add("org-closing", "Finance closing", CLOSING, "REQUEST"))),
+                "admin");
+        String twoDays = "Finance staff export the ledger on the last two business days of a quarter.";
+        console.create(null, form(2, List.of(), List.of(change("org-closing", twoDays))), "admin");
+        String monthEnd = "Finance staff export the ledger on the month end only.";
+        console.create(null, form(3, List.of(), List.of(new FormPart("org-closing", "CHANGE", "Month end", monthEnd,
+                null))), "admin");
+        console.create(null, form(4, List.of(), List.of(new FormPart("org-closing", "DELETE", null, null, null))),
+                "admin");
+        sealedDecision("pkg-1", "req-1", "v1.0");
+        SealedDecisionReplays replays = replays();
+        console.setSealedDrawing(() -> drawing(replays));
+        String productDrawn = replays.drawPackage("pkg-1", "v1.0").orElseThrow().drawing().userPrompt();
+        String source = " (reference written by your organization) ===\n";
+        List<String> blocks = List.of(CLOSING_BLOCK, "=== Finance closing" + source + twoDays + "\n",
+                "=== Month end" + source + monthEnd + "\n");
+
+        for (int number = 2; number <= 4; number++) {
+            String block = blocks.get(number - 2);
+            VersionView view = console.version(null, PROMPT, number).orElseThrow();
+            assertThat(view.size().addedUserTokens()).as("v" + number).isEqualTo(PromptAssembler.tokensOf(
+                    1 + block.length()));
+            assertThat(view.size().baseAddedUserTokens()).as("v" + number).isEqualTo(number == 2 ? 0
+                    : PromptAssembler.tokensOf(1 + blocks.get(number - 3).length()));
+            assertThat(view.preview().drawnAgain()).as("v" + number).isTrue();
+            assertThat(view.preview().user()).as("v" + number).isEqualTo(insertedAfter(productDrawn, "REQUEST",
+                    block));
+            assertThat(view.preview().addedBlocks()).as("v" + number).extracting(PartView::key)
+                    .containsExactly("org-closing");
+        }
+        assertThat(console.version(null, PROMPT, 3).orElseThrow().user()).filteredOn(part -> part.key()
+                .equals("org-closing")).extracting(PartView::mark).containsExactly("CHANGED");
+
+        VersionView gone = console.version(null, PROMPT, 5).orElseThrow();
+        assertThat(gone.size().addedUserTokens()).isZero();
+        assertThat(gone.preview().user()).isEqualTo(productDrawn);
+        assertThat(gone.preview().addedBlocks()).isEmpty();
+        assertThat(gone.user()).filteredOn(part -> part.key().equals("org-closing")).extracting(PartView::mark)
+                .containsExactly("DELETED");
+
+        // Shown as it was drawn, the version's block is listed beside the decision, its latest words with it.
+        console.setSealedDrawing(() -> null);
+        Preview asDrawn = console.version(null, PROMPT, 4).orElseThrow().preview();
+        assertThat(asDrawn.user()).isEqualTo("the user prompt v1.0 drew");
+        assertThat(asDrawn.addedBlocks()).singleElement().satisfies(part -> {
+            assertThat(part.title()).isEqualTo("Month end");
+            assertThat(part.text().strip()).isEqualTo(monthEnd);
+        });
+    }
+
+    /** The drawing the application wires: the user prompt the replays draw, and the state of the sealed package. */
+    private static PromptVersionConsole.SealedDrawing drawing(SealedDecisionReplays replays) {
+        return new PromptVersionConsole.SealedDrawing() {
+            @Override
+            public Optional<String> userPrompt(String packageId, String version) {
+                return replays.drawPackage(packageId, version).map(drawn -> drawn.drawing().userPrompt());
+            }
+
+            @Override
+            public Optional<String> integrity(String packageId) {
+                return replays.integrity(packageId).map(Enum::name);
+            }
+        };
     }
 
     /** A sealed decision of the security decision drawn with the version, with a context the replay can draw from. */

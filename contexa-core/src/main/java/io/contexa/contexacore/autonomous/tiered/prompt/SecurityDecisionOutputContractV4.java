@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -172,6 +173,10 @@ public final class SecurityDecisionOutputContractV4 {
                     List.of("DECISION_FACTS.DataConflicts")),
             code(Group.CONFLICTS, "THREAT_MATCH",
                     List.of("DECISION_FACTS.ThreatMatch")),
+            // N1 (K36, release 2026.11.18): the anomaly signal the server itself confirmed has a code of its own, so a
+            // response that rests on it cites the line that states it.
+            code(Group.CONFLICTS, "VERIFIED_SIGNAL",
+                    List.of("DECISION_FACTS.VerifiedSignal")),
             code(Group.ESCALATION, "MATERIAL_CONTRADICTION",
                     List.of("DECISION_FACTS.DataConflicts", "DECISION_FACTS.AuthorizationEffect",
                             "SESSION.LoginMethod", "REQUEST.Roles", "REQUEST.Credential")),
@@ -183,6 +188,8 @@ public final class SecurityDecisionOutputContractV4 {
     static {
         // The start fails when the document names other codes than the engine (plan 6-1).
         SecurityDecisionPromptDocument.verifyReasonCodes(SecurityDecisionPromptDocument.product(), CODES);
+        // N1: an earlier product release names the engine's codes without the ones added after it, in the same order.
+        SecurityDecisionPromptDocument.verifyReasonCodesOfReleases(CODES);
         // Plan 3.9: the prompt injection guard of every Contexa version is checked here, not by an evaluation record.
         SecurityDecisionPromptDocument.verifyInjectionGuardOfReleases();
     }
@@ -213,6 +220,38 @@ public final class SecurityDecisionOutputContractV4 {
     /** The line names each code may cite, by code, in the order of the codes. */
     public static Map<String, List<String>> citedLines() {
         return CITED_LINES;
+    }
+
+    /** N2: the entries a code may cite besides its own in a version that includes the decision rules. */
+    private static final Map<String, List<String>> DECISION_RULES_CITED_FACTS =
+            Map.of("TENANT_CONFLICT", List.of("DECISION_FACTS.TenantMatch"));
+    private static final Map<String, List<String>> CITED_LINES_WITH_DECISION_RULES = citedLinesWithDecisionRules();
+
+    /**
+     * N2: the line names each code may cite in a version that includes the decision rules: their required BLOCK
+     * boundary also reads TenantMatch, so a tenant conflict cites it beside DataConflicts. A version without the
+     * decision rules draws {@link #citedLines()}, the lines its measured prompt names.
+     */
+    public static Map<String, List<String>> citedLines(boolean decisionRules) {
+        return decisionRules ? CITED_LINES_WITH_DECISION_RULES : CITED_LINES;
+    }
+
+    /** N2: whether the entry is a line the code may cite only in a version that includes the decision rules. */
+    public static boolean citedUnderDecisionRules(String code, String entry) {
+        return DECISION_RULES_CITED_FACTS.getOrDefault(code, List.of()).contains(entry);
+    }
+
+    private static Map<String, List<String>> citedLinesWithDecisionRules() {
+        Map<String, List<String>> lines = new LinkedHashMap<>();
+        CITED_LINES.forEach((code, names) -> {
+            List<String> all = new ArrayList<>(names);
+            DECISION_RULES_CITED_FACTS.getOrDefault(code, List.of()).stream()
+                    .map(SecurityDecisionOutputContractV4::citedName)
+                    .filter(name -> !all.contains(name))
+                    .forEach(all::add);
+            lines.put(code, List.copyOf(all));
+        });
+        return Collections.unmodifiableMap(lines);
     }
 
     private static Map<String, List<String>> citedLinesByCode() {

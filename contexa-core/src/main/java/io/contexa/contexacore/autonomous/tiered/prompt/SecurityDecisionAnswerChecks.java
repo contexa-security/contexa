@@ -163,7 +163,9 @@ public final class SecurityDecisionAnswerChecks {
             return cited ? new ReasonFinding(name, fact, Outcome.MATCH, "the UNKNOWN line names " + unknown)
                     : new ReasonFinding(name, fact, Outcome.MISMATCH, "the code does not cite " + unknown);
         }
-        if (code.citedFacts().stream().noneMatch(cite -> cites(cite, entry))) {
+        // N2: a tenant conflict may cite TenantMatch, the line the decision rules' required BLOCK boundary reads.
+        if (code.citedFacts().stream().noneMatch(cite -> cites(cite, entry))
+                && !SecurityDecisionOutputContractV4.citedUnderDecisionRules(name, entry)) {
             return new ReasonFinding(name, fact, Outcome.MISMATCH, "the code does not cite " + entry);
         }
         if (JUDGMENT_CODES.contains(name)) {
@@ -186,6 +188,10 @@ public final class SecurityDecisionAnswerChecks {
         PolicyReason measured = MEASURED_RECORD_CODES.get(code);
         if (measured != null) {
             return recordFails(context, entry, measured);
+        }
+        if ("TENANT_CONFLICT".equals(code) && entry.equals(PromptBlock.DECISION_FACTS.name() + ".TenantMatch")) {
+            // N2: the line says whether the actor's tenant and the request's differ.
+            return V1LineValues.tenantsDiffer(context);
         }
         switch (code) {
             case "POLICY_NOT_KNOWN":
@@ -218,6 +224,9 @@ public final class SecurityDecisionAnswerChecks {
                 return session != null && atLeastOne(session.getRecentMfaFailureCount());
             case "CLIENT_SIGNAL_TAMPERING":
                 return anySignal(context.getIntent());
+            case "VERIFIED_SIGNAL":
+                // N1: the line states a signal only for the trusted verification source; another source states none.
+                return V1LineValues.verifiedSignal(context.getIntent()) != null;
             case "TENANT_CONFLICT", "AUTHORIZATION_CONFLICT", "DATA_CONFLICT":
                 return facts == null ? null : facts.fact("DataConflicts")
                         .map(found -> found.codes().contains(code)).orElse(false);

@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -73,6 +74,8 @@ class PromptVersionOtherPromptsPostgresTest {
     private static PostgresTestDatabase database;
     private static JdbcTemplate jdbc;
     private PromptVersionService versions;
+    private Map<String, PromptVersionService.RegistryTarget> targets;
+    private List<ProductPromptRelease> products;
 
     @BeforeAll
     static void aDatabaseWithTheSchema() throws Exception {
@@ -98,11 +101,11 @@ class PromptVersionOtherPromptsPostgresTest {
         jdbc.execute("TRUNCATE ctxa_prompt_version_part, ctxa_prompt_version_trial_case, ctxa_prompt_version_trial,"
                 + " ctxa_prompt_version, ctxa_prompt_version_folder_scan, ctxa_prompt_governance_registry,"
                 + " ctxa_prompt_governance_runtime_cache_invalidation CASCADE");
-        Map<String, PromptVersionService.RegistryTarget> targets = new LinkedHashMap<>();
+        targets = new LinkedHashMap<>();
         targets.put(SecurityDecisionPromptDocument.PROMPT, new PromptVersionService.RegistryTarget(
                 "SecurityDecisionStandard", "CORTEX_PROMPT_CONTRACT_V5", "SecurityDecisionStandardPromptTemplate",
                 "contexa-cortex-core"));
-        List<ProductPromptRelease> products = new ArrayList<>(SecurityDecisionPromptDocument.productReleases());
+        products = new ArrayList<>(SecurityDecisionPromptDocument.productReleases());
         for (VersionedPrompt prompt : PROMPTS.prompts()) {
             PromptGovernanceDescriptor descriptor = prompt.registryDescriptor();
             targets.put(prompt.prompt(), new PromptVersionService.RegistryTarget(descriptor.templateKey(),
@@ -181,6 +184,56 @@ class PromptVersionOtherPromptsPostgresTest {
                 + "A ledger is a book of accounts.\n".length()));
         assertThat(terms.size().baseAddedUserTokens()).isZero();
         assertThat(terms.size().estimatedDeltaMs()).isNull();
+        // K131: changed in the next version, the block is still the version's own, in the size and the prompt.
+        versions.create(null, "prompt: ResourceNaming\nbasedOn: v2.0\ntitle: Finance names\nuser:\n"
+                + "  - key: finance-terms\n    text: |\n      A ledger is a book of the accounts of a year.\n",
+                PromptVersionRecord.SCREEN, null, "admin", null);
+        VersionView changed = console.version(null, "ResourceNaming", 3).orElseThrow();
+        assertThat(changed.size().addedUserTokens()).isEqualTo(PromptAssembler.tokensOf(1
+                + "Finance terms:\n".length() + "A ledger is a book of the accounts of a year.\n".length()));
+        assertThat(changed.size().baseAddedUserTokens()).isEqualTo(terms.size().addedUserTokens());
+        assertThat(changed.preview().user()).contains("Finance terms:\nA ledger is a book of the accounts of a year.\n");
+    }
+
+    /**
+     * K53 (plan 3.3): an installation of the policy generation's release 2026.11.17 registers the release that names
+     * no data with its sentence as its next Contexa version; without a label that version runs, and a label on the
+     * earlier one keeps it with what it always drew.
+     */
+    @Test
+    void anUpgradeRegistersThePolicyGenerationReleaseOfTheDataSentenceAsItsNextContexaVersion() {
+        List<ProductPromptRelease> first = products.stream().filter(release -> !PolicyGenerationTemplate.PROMPT
+                .equals(release.prompt()) || "2026.11.17-v1.0".equals(release.release())).toList();
+        new PromptVersionService(() -> jdbc, first, targets, PromptVersionAudit.none(), Clock.systemUTC())
+                .registerProducts(null);
+        assertThat(versions.list(null, PolicyGenerationTemplate.PROMPT, false)).extracting(PromptVersionRecord::name)
+                .containsExactly("v1.0");
+
+        assertThat(versions.registerProducts(null)).extracting(PromptVersionService.Saved::name)
+                .containsExactly("v2.0");
+        assertThat(versions.list(null, PolicyGenerationTemplate.PROMPT, false))
+                .extracting(PromptVersionRecord::name, PromptVersionRecord::provider, PromptVersionRecord::originName)
+                .containsExactly(tuple("v2.0", PromptVersionRecord.CONTEXA, "2026.11.18-v1.0"),
+                        tuple("v1.0", PromptVersionRecord.CONTEXA, "2026.11.17-v1.0"));
+        PromptVersionStore store = new JdbcPromptVersionStore(versions, PROMPTS.productStore());
+
+        PolicyGenerationTemplate newest = new PolicyGenerationTemplate();
+        newest.setPromptVersions(new PromptVersionInUse(() -> resolver(), () -> store));
+        assertThat(newest.generateUserPrompt(request(), null))
+                .contains("[Data]\nNo IAM data or similar query patterns were provided.\n");
+        assertThat(newest.getPromptGovernanceDescriptor().promptVersion()).isEqualTo("v2.0");
+
+        jdbc.update("update ctxa_prompt_governance_registry set release_status = 'ACTIVE' where prompt_key ="
+                + " 'PolicyGeneration' and prompt_version = 'v1.0'");
+        PolicyGenerationTemplate labelled = new PolicyGenerationTemplate();
+        labelled.setPromptVersions(new PromptVersionInUse(() -> resolver(), () -> store));
+        assertThat(labelled.generateUserPrompt(request(), null)).contains("[Data]\nnull\n");
+        assertThat(labelled.getPromptGovernanceDescriptor().promptVersion()).isEqualTo("v1.0");
+    }
+
+    private PromptVersionResolver resolver() {
+        return new PromptVersionResolver(new JdbcPromptGovernanceDescriptorResolver(jdbc, new ObjectMapper())
+                .registrySelector(), versions, () -> null, Clock.systemUTC());
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

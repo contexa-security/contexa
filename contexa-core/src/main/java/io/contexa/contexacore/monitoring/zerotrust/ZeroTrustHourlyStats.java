@@ -348,6 +348,49 @@ public class ZeroTrustHourlyStats {
                       COALESCE(o.prompt_bundle_version, ''), COALESCE(o.model_id, '')
             """.formatted(ZeroTrustDecisionOutcomes.REVIEWS_SQL);
 
+    /**
+     * K88: the hours whose rows were kept before a column of them was counted (the unreviewed blocks, the code
+     * requests and the release times, columns a database installed before gained at zero), found by their decisions:
+     * an hour whose rows count none of one while its decisions hold it (an hour without rows was never built and is
+     * left as it is). The first run after a start rebuilds them with the hours it rebuilds anyway; a rebuilt hour counts
+     * them and is not found again, so each is corrected once.
+     */
+    static final String HOURS_TO_CORRECT = """
+            SELECT h.hour
+              FROM (SELECT date_trunc('hour', o.created_at) AS hour,
+                           SUM(CASE WHEN o.final_action = 'BLOCK' AND COALESCE(r.reviewed, 0) = 0 THEN 1 ELSE 0 END)
+                               AS unreviewed,
+                           SUM(COALESCE(r.code_requested, 0)) AS code_requested,
+                           SUM(COALESCE(r.released, 0)) AS released
+                      FROM ctxa_ai_security_decision_observation o
+                      LEFT JOIN (
+                            SELECT d.observation_id,
+                                   MAX(CASE WHEN d.outcome_kind IN (%s) THEN 1 ELSE 0 END) AS reviewed,
+                                   MAX(CASE WHEN d.outcome_kind = 'CHALLENGE_CODE_REQUESTED' THEN 1 ELSE 0 END)
+                                       AS code_requested,
+                                   MAX(CASE WHEN d.outcome_kind = 'ADMIN_RELEASED' THEN 1 ELSE 0 END) AS released
+                              FROM ctxa_zt_decision_outcome d
+                             WHERE d.observation_id IS NOT NULL
+                             GROUP BY d.observation_id) r ON r.observation_id = o.observation_id
+                     WHERE o.created_at >= ? AND o.created_at < ?
+                       AND o.attempt_kind = 'FIRST'
+                       AND o.final_action IN ('ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK')
+                       AND o.test_run_id IS NULL
+                       AND (o.final_action = 'BLOCK' OR r.observation_id IS NOT NULL)
+                     GROUP BY date_trunc('hour', o.created_at)) h
+              JOIN (SELECT s.bucket_start, SUM(s.block_unreviewed_count) AS unreviewed,
+                           SUM(s.challenge_code_requested_count) AS code_requested,
+                           SUM(s.release_le_15m + s.release_le_30m + s.release_le_1h + s.release_le_2h
+                               + s.release_le_4h + s.release_le_8h + s.release_le_24h + s.release_le_72h
+                               + s.release_le_7d + s.release_gt_7d) AS released
+                      FROM ctxa_zt_stats_hourly s
+                     WHERE s.bucket_start >= ? AND s.bucket_start < ?
+                     GROUP BY s.bucket_start) s ON s.bucket_start = h.hour
+             WHERE (h.unreviewed > 0 AND s.unreviewed = 0)
+                OR (h.code_requested > 0 AND s.code_requested = 0)
+                OR (h.released > 0 AND s.released = 0)
+            """.formatted(ZeroTrustDecisionOutcomes.REVIEWS_SQL);
+
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
     private final SecurityZeroTrustProperties properties;
     private final ZeroTrustCoverageCounter coverageCounter;
@@ -400,6 +443,7 @@ public class ZeroTrustHourlyStats {
                 for (int hour = 2; hour <= FIRST_RUN_HOURS; hour++) {
                     hours.add(current.minus(Duration.ofHours(hour)));
                 }
+                hours.addAll(hoursToCorrect(jdbc, now));
             }
             // A late outcome changes the hour of its decision, however old.
             List<Timestamp> late = jdbc.queryForList("""
@@ -419,6 +463,26 @@ public class ZeroTrustHourlyStats {
             log.error("[ZeroTrustHourlyStats] Rebuilding the hourly decision table failed", exception);
             return 0;
         }
+    }
+
+    /**
+     * K88: the hours to rebuild once, as {@link #HOURS_TO_CORRECT} finds them. Only the hours whose decisions are all
+     * still kept are read: the decisions of an hour at the end of their retention go a batch at a time, and a rebuild
+     * of an hour that lost some would count fewer than its rows do.
+     */
+    List<Instant> hoursToCorrect(JdbcOperations jdbc, Instant now) {
+        int retentionDays = properties != null && properties.getConsole() != null
+                ? Math.max(1, properties.getConsole().getDecisionRetentionDays()) : 90;
+        Timestamp from = Timestamp.from(now.minus(Duration.ofDays(retentionDays)).plus(Duration.ofDays(1))
+                .truncatedTo(ChronoUnit.HOURS));
+        Timestamp to = Timestamp.from(now);
+        List<Instant> hours = jdbc.queryForList(HOURS_TO_CORRECT, Timestamp.class, from, to, from, to).stream()
+                .map(Timestamp::toInstant).toList();
+        if (!hours.isEmpty()) {
+            log.info("[ZeroTrustHourlyStats] Rebuilding {} hours kept before their unreviewed blocks, code requests or"
+                    + " release times were counted", hours.size());
+        }
+        return hours;
     }
 
     /** Rebuilds one hour of the table from the decision rows and their outcomes. */

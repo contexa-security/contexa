@@ -66,6 +66,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -129,6 +130,14 @@ public class DefaultPolicyService implements PolicyService {
     public Page<Policy> searchPolicies(String keyword, Policy.ApprovalStatus approvalStatus, Boolean activeFilter, Pageable pageable) {
         String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase(Locale.ROOT) + "%" : null;
         return policyRepository.searchByFilters(pattern, approvalStatus, activeFilter, pageable);
+    }
+
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public Page<Policy> searchPolicies(String keyword, Policy.ApprovalStatus approvalStatus, Boolean activeFilter,
+                                       Collection<Long> onlyIds, Pageable pageable) {
+        String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase(Locale.ROOT) + "%" : null;
+        return policyRepository.searchByFiltersAmong(pattern, approvalStatus, activeFilter, onlyIds, pageable);
     }
 
     @Override

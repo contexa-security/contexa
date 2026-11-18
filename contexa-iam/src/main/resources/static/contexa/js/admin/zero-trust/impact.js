@@ -90,9 +90,10 @@
 
     /** A table: words left, numbers right; a phone keeps the columns not marked wide. */
     function table(columns, items, cells) {
+        // K121: a head's word of a hyphen (Step-ups) is kept whole, as a word is, by a hyphen that does not break.
         const head = el('tr', {}, columns.map(column => el('th', {scope: 'col',
             class: [column.num ? 'zt-num' : '', column.wide ? 'zt-wide' : ''].join(' ').trim() || null,
-            text: column.label})));
+            text: String(column.label).replace(/-/g, '‑')})));
         const body = el('tbody', {}, items.map(item => el('tr', {}, cells(item).map((cell, index) => {
             const column = columns[index];
             const node = el('td', {class: [column.num ? 'zt-num' : '', column.wide ? 'zt-wide' : '',

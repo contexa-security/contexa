@@ -192,14 +192,14 @@
                         startPage=${T(java.lang.Math).max(0, currentPage - 2)},
                         endPage=${T(java.lang.Math).min(totalPages - 1, currentPage + 2)}
                      ">
-                    <ul class="modern-pagination">
+                    <ul class="modern-pagination flex-wrap justify-center">
                         <!-- 처음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.first} ? 'disabled'">
                             <a class="page-link" th:aria-label="#{common.page.first}" th:href="@{/contexa/admin/policy-center(tab='resources', page=0, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-angle-double-left"></i></a>
                         </li>
                         <!-- 이전 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.first} ? 'disabled'">
-                            <a class="page-link" th:aria-label="#{common.page.previous}" th:href="@{/contexa/admin/policy-center(tab='resources', page=${currentPage - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-left"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.previous}" th:href="@{/contexa/admin/policy-center(tab='resources', page=${T(java.lang.Math).max(0, currentPage - 1)}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-left"></i></a>
                         </li>
 
                         <!-- 첫 페이지와 startPage 사이에 생략이 있으면 1페이지와 ... 표시 -->
@@ -230,7 +230,7 @@
 
                         <!-- 다음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.last} ? 'disabled'">
-                            <a class="page-link" th:aria-label="#{common.page.next}" th:href="@{/contexa/admin/policy-center(tab='resources', page=${currentPage + 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-right"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.next}" th:href="@{/contexa/admin/policy-center(tab='resources', page=${T(java.lang.Math).min(totalPages - 1, currentPage + 1)}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-right"></i></a>
                         </li>
                         <!-- 끝 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.last} ? 'disabled'">
@@ -697,16 +697,45 @@
                     <div id="health-details" class="mt-3 hidden"></div>
                 </div>
 
-                <form th:action="@{/contexa/admin/policy-center}" method="get" class="filter-container mb-6">
+                <form th:action="@{/contexa/admin/policy-center}" method="get" class="filter-container mb-6" id="policy-list-filters">
                     <input type="hidden" name="tab" value="list" />
-                    <div class="flex gap-4 items-end">
-                        <div class="flex-1">
+                    <!-- K92: the approval, the active state and the policy check are filters of the list, the ones the dashboard's numbers open -->
+                    <div class="flex flex-wrap gap-4 items-end">
+                        <div class="flex-1" style="min-width: 12rem;">
                             <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.policy.center.list.search}">Policy Search</label>
                             <input type="text" name="policyKeyword" th:value="${policyKeyword}" class="modern-input" th:placeholder="#{admin.policy.center.list.search.placeholder}" placeholder="Search by name, description..." />
+                        </div>
+                        <div>
+                            <label for="policy-filter-approval" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.policy.center.list.th.approval}">Approval</label>
+                            <select id="policy-filter-approval" name="approvalStatus" class="modern-select">
+                                <option value="" th:text="#{admin.policy.center.list.filter.all}">All</option>
+                                <option th:each="status : ${approvalStatuses}" th:value="${status.name()}"
+                                        th:selected="${approvalStatusFilter == status.name()}"
+                                        th:text="#{${'admin.policy.center.list.filter.approval.' + status.name()}}">Pending</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="policy-filter-active" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.policy.center.list.filter.active}">State</label>
+                            <select id="policy-filter-active" name="activeFilter" class="modern-select">
+                                <option value="" th:text="#{admin.policy.center.list.filter.all}">All</option>
+                                <option value="true" th:selected="${activeFilter == true}" th:text="#{admin.policy.center.list.filter.active.true}">Active</option>
+                                <option value="false" th:selected="${activeFilter == false}" th:text="#{admin.policy.center.list.filter.active.false}">Inactive</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="policy-filter-health" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{msg.policy.validation.health.title}">Policy Health</label>
+                            <select id="policy-filter-health" name="health" class="modern-select">
+                                <option value="" th:text="#{admin.policy.center.list.filter.all}">All</option>
+                                <option value="ISSUES" th:selected="${healthFilter == 'ISSUES'}" th:text="#{admin.policy.center.list.filter.health.ISSUES}">Conflicts and duplicates</option>
+                            </select>
                         </div>
                         <button type="submit" class="modern-btn-primary"><i class="fas fa-search"></i> <span th:text="#{common.search}">Search</span></button>
                         <a th:href="@{/contexa/admin/policy-center(tab='list')}" class="modern-btn-secondary" th:text="#{common.reset}">Reset</a>
                     </div>
+                    <!-- K92: the counts of the report the dashboard counts them from, and the policies listed -->
+                    <p th:if="${healthFilter != null}" id="policy-health-filter" class="text-sm mt-4" style="color: #fbbf24;"
+                       th:text="${healthUnavailable} ? #{admin.policy.center.list.filter.health.unavailable}
+                                : #{admin.policy.center.list.filter.health.band(${healthConflicts}, ${healthDuplicates}, ${policyPage.totalElements})}">Conflicts</p>
                 </form>
 
                 <div class="modern-table overflow-x-auto" tabindex="0" role="region" th:aria-label="#{admin.policy.center.tab.list}">
@@ -802,20 +831,20 @@
                         startPage=${T(java.lang.Math).max(0, currentPage - 2)},
                         endPage=${T(java.lang.Math).min(totalPages - 1, currentPage + 2)}
                      ">
-                    <ul class="modern-pagination">
+                    <ul class="modern-pagination flex-wrap justify-center">
                         <!-- 처음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.first} ? 'disabled'">
-                            <a class="page-link" th:aria-label="#{common.page.first}" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=0, policyKeyword=${policyKeyword})}"><i class="fas fa-angle-double-left"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.first}" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=0, policyKeyword=${policyKeyword}, approvalStatus=${approvalStatusFilter}, activeFilter=${activeFilter}, health=${healthFilter})}"><i class="fas fa-angle-double-left"></i></a>
                         </li>
                         <!-- 이전 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.first} ? 'disabled'">
-                            <a class="page-link" th:aria-label="#{common.page.previous}" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${currentPage - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-left"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.previous}" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${T(java.lang.Math).max(0, currentPage - 1)}, policyKeyword=${policyKeyword}, approvalStatus=${approvalStatusFilter}, activeFilter=${activeFilter}, health=${healthFilter})}"><i class="fas fa-chevron-left"></i></a>
                         </li>
 
                         <!-- 첫 페이지와 startPage 사이에 생략이 있으면 1페이지와 ... 표시 -->
                         <th:block th:if="${startPage > 0}">
                             <li class="page-item">
-                                <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=0, policyKeyword=${policyKeyword})}">1</a>
+                                <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=0, policyKeyword=${policyKeyword}, approvalStatus=${approvalStatusFilter}, activeFilter=${activeFilter}, health=${healthFilter})}">1</a>
                             </li>
                             <li class="page-item disabled" th:if="${startPage > 1}">
                                 <span class="page-link">...</span>
@@ -825,7 +854,7 @@
                         <!-- 동적 페이지 번호 루프 -->
                         <li th:each="pageNumber : ${#numbers.sequence(startPage, endPage)}"
                             class="page-item" th:classappend="${pageNumber == currentPage} ? 'active'">
-                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${pageNumber}, policyKeyword=${policyKeyword})}" th:text="${pageNumber + 1}"></a>
+                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${pageNumber}, policyKeyword=${policyKeyword}, approvalStatus=${approvalStatusFilter}, activeFilter=${activeFilter}, health=${healthFilter})}" th:text="${pageNumber + 1}"></a>
                         </li>
 
                         <!-- endPage와 마지막 페이지 사이에 생략이 있으면 ...과 마지막 페이지 표시 -->
@@ -834,17 +863,17 @@
                                 <span class="page-link">...</span>
                             </li>
                             <li class="page-item">
-                                <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${totalPages - 1}, policyKeyword=${policyKeyword})}" th:text="${totalPages}"></a>
+                                <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${totalPages - 1}, policyKeyword=${policyKeyword}, approvalStatus=${approvalStatusFilter}, activeFilter=${activeFilter}, health=${healthFilter})}" th:text="${totalPages}"></a>
                             </li>
                         </th:block>
 
                         <!-- 다음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.last} ? 'disabled'">
-                            <a class="page-link" th:aria-label="#{common.page.next}" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${currentPage + 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-right"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.next}" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${T(java.lang.Math).min(totalPages - 1, currentPage + 1)}, policyKeyword=${policyKeyword}, approvalStatus=${approvalStatusFilter}, activeFilter=${activeFilter}, health=${healthFilter})}"><i class="fas fa-chevron-right"></i></a>
                         </li>
                         <!-- 끝 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.last} ? 'disabled'">
-                            <a class="page-link" th:aria-label="#{common.page.last}" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${totalPages - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-angle-double-right"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.last}" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${totalPages - 1}, policyKeyword=${policyKeyword}, approvalStatus=${approvalStatusFilter}, activeFilter=${activeFilter}, health=${healthFilter})}"><i class="fas fa-angle-double-right"></i></a>
                         </li>
                     </ul>
                 </nav>

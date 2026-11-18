@@ -27,7 +27,6 @@ import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
-import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionInUse;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
@@ -208,14 +207,17 @@ public class PromptVersionAutoConfiguration {
                 () -> properties.getPromptBundle().getActive(), Clock.systemUTC());
     }
 
-    /** Plan 3.5 (check 4): the context of the model that decides first, the answer and the longest recent input. */
+    /**
+     * Plan 3.5 (check 4): the context of the model that decides first, the answer and the longest recent input, each
+     * recent decision measured with the version it ran (K70).
+     */
     @Bean(name = "contexaPromptVersionLengthLimits")
     @ConditionalOnMissingBean
     public PromptVersionLengthLimits promptVersionLengthLimits(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
                                                                ObjectProvider<TieredLLMProperties> llmProperties,
                                                                ObjectProvider<DynamicModelRegistry> models,
-                                                               ObjectProvider<TieredStrategyProperties> strategy) {
-        int systemTokens = PromptAssembler.systemTokens(SecurityDecisionPromptDocument.product());
+                                                               ObjectProvider<TieredStrategyProperties> strategy,
+                                                               ObjectProvider<PromptVersionStore> store) {
         return new PromptVersionLengthLimits(() -> jdbcTemplate,
                 () -> firstLayerModel(llmProperties, models).map(ModelDescriptor::getProvider).orElse(null),
                 // K54: no setting declares a model's context window; the capabilities carry their builder's default,
@@ -229,7 +231,11 @@ public class PromptVersionAutoConfiguration {
                     return properties == null ? 0 : Math.max(properties.getLayer1().getMaxOutputTokens(),
                             properties.getLayer2().getMaxOutputTokens());
                 },
-                () -> systemTokens);
+                (prompt, version) -> {
+                    PromptVersionStore versions = store.getIfAvailable();
+                    return versions != null ? versions.find(prompt, version) : Optional.empty();
+                },
+                SecurityDecisionPromptDocument.product());
     }
 
     private static Optional<ModelDescriptor> firstLayerModel(ObjectProvider<TieredLLMProperties> llmProperties,

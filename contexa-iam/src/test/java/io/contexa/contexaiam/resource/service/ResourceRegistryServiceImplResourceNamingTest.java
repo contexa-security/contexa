@@ -112,6 +112,54 @@ class ResourceRegistryServiceImplResourceNamingTest {
                 .containsEntry("scannerFriendlyNameHint", "listUsers")
                 .containsEntry("scannerDescriptionHint", "URL: [GET] /contexa/admin/users")
                 .containsEntry("apiDocsUrl", "/docs#users");
+        // K120: the naming call asks a local Ollama model not to think; the pipeline passes it on for a call that is
+        // not a security decision.
+        assertThat(requestCaptor.getValue().getParameter("disableOllamaThinking", Boolean.class))
+                .isEqualTo(Boolean.TRUE);
+    }
+
+    /**
+     * K120: a refresh that registered many resources names them ten to a model call, so that one answer stays well
+     * within the provider call limit. A batch of 100 answered in 70 to 190 seconds on a local model and ran past it.
+     */
+    @Test
+    @DisplayName("Registered resources are named ten to a model call")
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void registeredResourcesAreNamedTenToAModelCall() {
+        List<Long> ids = new ArrayList<>();
+        for (long id = 1; id <= 25; id++) {
+            ids.add(id);
+        }
+        when(managedResourceRepository.findAllById(anyList())).thenAnswer(invocation -> {
+            List<Long> asked = invocation.getArgument(0);
+            return asked.stream()
+                    .map(id -> ManagedResource.builder()
+                            .id(id)
+                            .resourceIdentifier("/contexa/admin/resource-" + id)
+                            .resourceType(ManagedResource.ResourceType.URL)
+                            .build())
+                    .toList();
+        });
+        when(aiNativeProcessor.process(ArgumentMatchers.<AIRequest<ResourceNamingContext>>any(), eq(ResourceNamingSuggestionResponse.class)))
+                .thenReturn(Mono.just(new ResourceNamingSuggestionResponse(List.of(), List.of())));
+        ArgumentCaptor<AIRequest> requests = ArgumentCaptor.forClass(AIRequest.class);
+
+        service.nameRegisteredResources(ids);
+
+        assertThat(ResourceRegistryServiceImpl.NAMING_BATCH_SIZE).isEqualTo(10);
+        verify(aiNativeProcessor, times(3)).process(requests.capture(), eq(ResourceNamingSuggestionResponse.class));
+        List<List<String>> asked = requests.getAllValues().stream()
+                .map(request -> ((List<Map<String, String>>) request.getParameter("resources", List.class)).stream()
+                        .map(resource -> resource.get("identifier"))
+                        .toList())
+                .toList();
+        assertThat(asked).extracting(List::size).containsExactly(10, 10, 5);
+        assertThat(asked.get(0)).first().isEqualTo("/contexa/admin/resource-1");
+        assertThat(asked.get(1)).first().isEqualTo("/contexa/admin/resource-11");
+        assertThat(asked.get(2)).containsExactly("/contexa/admin/resource-21", "/contexa/admin/resource-22",
+                "/contexa/admin/resource-23", "/contexa/admin/resource-24", "/contexa/admin/resource-25");
+        assertThat(requests.getAllValues()).allSatisfy(request ->
+                assertThat(request.getParameter("disableOllamaThinking", Boolean.class)).isEqualTo(Boolean.TRUE));
     }
 
     @Test

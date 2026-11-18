@@ -16,9 +16,11 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
 import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.RoleOption;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
@@ -29,10 +31,13 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Manages the singleton {@link SystemSettings} row.
@@ -58,6 +63,73 @@ public class SystemSettingsService {
     }
 
     private PolicyCombiningProperties policyCombiningProperties;
+
+    /** K75: a change of the settings other than the Zero Trust mode is audited; without the facade nothing is. */
+    private AdminChangeAudit audit = AdminChangeAudit.NONE;
+
+    /**
+     * K75: the settings a change is recorded by, other than the Zero Trust mode (its change has a record of its own,
+     * ZERO_TRUST_MODE_CHANGED), by their form field, with the label each is shown under.
+     */
+    public static final Map<String, String> FIELD_LABELS = fieldLabels();
+
+    private static final Map<String, Function<SystemSettings, Object>> FIELD_VALUES = fieldValues();
+
+    private static Map<String, String> fieldLabels() {
+        Map<String, String> labels = new LinkedHashMap<>();
+        labels.put("auditLogRetentionDays", "admin.system.settings.audit.retention");
+        labels.put("defaultRole", "admin.system.settings.default.role");
+        labels.put("policyCombiningAlgorithm", "admin.system.settings.combining.algorithm");
+        labels.put("noMatchingUrlPolicyDecision", "admin.system.settings.no.matching.url.decision");
+        labels.put("missingMethodPolicyDecision", "admin.system.settings.missing.method.decision");
+        labels.put("mvcResourceScannerBasePackages", "admin.system.settings.resource.scan.base.packages");
+        labels.put("zeroTrustConsoleSettings", "admin.system.settings.zt.title");
+        return Collections.unmodifiableMap(labels);
+    }
+
+    private static Map<String, Function<SystemSettings, Object>> fieldValues() {
+        Map<String, Function<SystemSettings, Object>> values = new LinkedHashMap<>();
+        values.put("auditLogRetentionDays", SystemSettings::getAuditLogRetentionDays);
+        values.put("defaultRole", SystemSettings::getDefaultRole);
+        values.put("policyCombiningAlgorithm", SystemSettings::getPolicyCombiningAlgorithm);
+        values.put("noMatchingUrlPolicyDecision", SystemSettings::getNoMatchingUrlPolicyDecision);
+        values.put("missingMethodPolicyDecision", SystemSettings::getMissingMethodPolicyDecision);
+        values.put("mvcResourceScannerBasePackages", SystemSettings::getMvcResourceScannerBasePackages);
+        values.put("zeroTrustConsoleSettings", SystemSettings::getZeroTrustConsoleSettings);
+        return Collections.unmodifiableMap(values);
+    }
+
+    /** K75: records the changes of the settings. */
+    public void setCentralAuditFacade(CentralAuditFacade centralAuditFacade) {
+        this.audit = AdminChangeAudit.of(centralAuditFacade);
+    }
+
+    private static Map<String, Object> values(SystemSettings settings) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        FIELD_VALUES.forEach((field, value) -> values.put(field, value.apply(settings)));
+        return values;
+    }
+
+    /** K75: the settings the save changed, before and after; a save that changed none of them records nothing. */
+    private void auditChange(Map<String, Object> before, Map<String, Object> after) {
+        Map<String, Object> was = new LinkedHashMap<>();
+        Map<String, Object> now = new LinkedHashMap<>();
+        after.forEach((field, value) -> {
+            if (!Objects.equals(before.get(field), value)) {
+                was.put(field, before.get(field));
+                now.put(field, value);
+            }
+        });
+        if (now.isEmpty()) {
+            return;
+        }
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("changed", List.copyOf(now.keySet()));
+        details.put("before", was);
+        details.put("after", now);
+        audit.record(AuditEventCategory.SYSTEM_SETTINGS_CHANGED, AuditEventCategory.SYSTEM_SETTINGS_CHANGED.name(),
+                String.join(",", now.keySet()), details);
+    }
 
     /**
      * The decision for URLs no policy names in effect, which the form shows while no decision is stored; without it a
@@ -99,6 +171,7 @@ public class SystemSettingsService {
         String consoleSettings = ZeroTrustConsoleSettings.merge(existing.getZeroTrustConsoleSettings(),
                 form.getZeroTrustConsole(), zeroTrustProperties);
         NoPolicyDecision chosenUrlDecision = chosenNoMatchingUrlDecision(existing, form);
+        Map<String, Object> before = values(existing);
         existing.setAuditLogRetentionDays(form.getAuditLogRetentionDays());
         existing.setDefaultRole(form.getDefaultRole());
         existing.setPolicyCombiningAlgorithm(
@@ -116,6 +189,7 @@ public class SystemSettingsService {
                 SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(form.getMvcResourceScannerBasePackages()));
         existing.setZeroTrustConsoleSettings(consoleSettings);
         repository.save(existing);
+        auditChange(before, values(existing));
     }
 
     /**

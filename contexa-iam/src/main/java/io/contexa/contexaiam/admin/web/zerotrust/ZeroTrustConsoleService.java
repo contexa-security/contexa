@@ -538,7 +538,8 @@ public class ZeroTrustConsoleService {
         Map<String, Map<String, Long>> reasons = new LinkedHashMap<>();
         reader.items(range, tenant, null, "USER_REASON").forEach(row -> reasons
                 .computeIfAbsent(row.item(), ignored -> new LinkedHashMap<>()).merge(row.detail(), row.counted(), Long::sum));
-        Map<String, String> baselines = latestBaselines(range, tenant);
+        // K68: the trust screen's rule of the latest hour, so both screens read the same status for a user
+        Map<String, String> baselines = reader.latestBaselines(range, tenant, top.stream().map(ItemRow::item).toList());
         List<ChallengedUser> users = new ArrayList<>();
         for (ItemRow row : top) {
             // The reason the user's challenges cited first most often; a tie goes to the code first in order.
@@ -550,17 +551,6 @@ public class ZeroTrustConsoleService {
                     baselines.get(row.item())));
         }
         return users;
-    }
-
-    /** Each user's baseline status in the latest hour the user was decided in. */
-    private Map<String, String> latestBaselines(ZeroTrustConsoleRange range, String tenant) {
-        Map<String, Map<String, Long>> statuses = new LinkedHashMap<>();
-        reader.items(range, tenant, null, "USER_BASELINE").forEach(row -> statuses
-                .computeIfAbsent(row.item(), ignored -> new LinkedHashMap<>()).merge(row.detail(), row.counted(), Long::sum));
-        Map<String, String> latest = new LinkedHashMap<>();
-        statuses.forEach((user, counts) -> latest.put(user, counts.entrySet().stream()
-                .max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null)));
-        return latest;
     }
 
     private List<RankedItem> ranked(ZeroTrustConsoleRange range, String tenant, String dimension, List<String> details) {
