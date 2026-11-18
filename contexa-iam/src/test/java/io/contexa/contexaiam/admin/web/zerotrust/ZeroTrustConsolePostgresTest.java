@@ -678,6 +678,33 @@ class ZeroTrustConsolePostgresTest {
     }
 
     /**
+     * K143: an older decision's approval fact (v20 notation) reads each line whole in words, the notes after its dash
+     * included, and its policy by its name; the engine's value stays as it was.
+     */
+    @Test
+    void anOlderApprovalFactReadsItsNotesInWords() {
+        ZeroTrustDecisionRecords worded = new ZeroTrustDecisionRecords(() -> jdbc, outcomes,
+                I18nTestSupport.englishMessageSource(), new ObjectMapper(), clock);
+        Instant at = now.minus(Duration.ofMinutes(20));
+        String approval = "APR-2 by pm-12, PENDING, GB-500 — does not cover: is PENDING; covers another target (host)";
+        String policy = "EXPORT_APPROVAL requires a covering approval";
+        decision(Map.of("observation_id", "older-approval", "final_action", "BLOCK", "decision_summary_json",
+                "{\"reasons\":[{\"code\":\"APPROVAL_MISSING\",\"fact\":\"F4\",\"factValue\":\"" + approval + "\"},"
+                        + "{\"code\":\"POLICY_UNMET\",\"fact\":\"F2\",\"factValue\":\"" + policy + "\"}]}"), at);
+        jdbc.update("INSERT INTO ctxa_zt_decision_reason (observation_id, reason_rank, reason_code, reason_group, fact_id,"
+                + " fact_name, created_at) VALUES ('older-approval', 1, 'APPROVAL_MISSING', ?, 'F4', 'Approval', ?),"
+                + " ('older-approval', 2, 'POLICY_UNMET', ?, 'F2', 'Policy', ?)",
+                ZeroTrustConsoleService.groupOf("APPROVAL_MISSING"), Timestamp.from(at),
+                ZeroTrustConsoleService.groupOf("POLICY_UNMET"), Timestamp.from(at));
+
+        DecisionDetail korean = worded.detail("older-approval", Locale.KOREAN);
+
+        assertThat(korean.reasons()).extracting(reason -> reason.factValue(), reason -> reason.factText()).containsExactly(
+                tuple(approval, "APR-2 · 승인자 pm-12 · 대기 · GB-500 — 이 요청을 덮지 않음: 상태 대기, 다른 대상용(호스트)"),
+                tuple(policy, "\"export approval\" 정책: 이 일을 덮는 승인 필요"));
+    }
+
+    /**
      * K127: the comparison of decision 9641e6a6 (7-2, CHALLENGE) as its summary kept it, cut at 300 characters, reads in
      * words up to its last whole part; the engine's words are gone from the words and kept in the value.
      */

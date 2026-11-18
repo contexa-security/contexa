@@ -115,6 +115,8 @@ class ZeroTrustFactWordsTest {
     private static final String ENGINE_WORDS = "\\b(EXPORT|READ|WRITE|CRITICAL|SENSITIVE|LINUX|WINDOWS|MAC|PASSWORD"
             + "|ONE_TIME_CODE|APPROVED|PENDING|OPEN|CLOSED|INCIDENT|CHANGE|PROJECT_TRANSFER|CUSTOMER_RECORDS|SIGNOFF"
             + "|PROVISIONAL|CORPORATE)\\b";
+    /** A code as check 9 of the screens finds it (DEVIATION_DEVICE): none is left, a code-like name of the host neither. */
+    private static final String CODE = "\\b[A-Z][A-Z0-9]+_[A-Z0-9_]+\\b";
     /** The engine's English the Korean words leave none of: its sentences, units and short day names. */
     private static final String ENGINE_ENGLISH = "( seen [0-9]| compared| this request|in this session|requires"
             + "| covering|exceptions|the host|not known|assigned to|account manager|worked on|on call|trip |cohort"
@@ -216,8 +218,8 @@ class ZeroTrustFactWordsTest {
             String ko = korean.words(name, value);
             String en = english.words(name, value);
             assertThat(ko).as(name).isNotEqualTo(value).doesNotContainPattern(ENGINE_WORDS)
-                    .doesNotContainPattern(ENGINE_ENGLISH).doesNotContain("…");
-            assertThat(en).as(name).doesNotContainPattern(ENGINE_WORDS).doesNotContain("…");
+                    .doesNotContainPattern(ENGINE_ENGLISH).doesNotContainPattern(CODE).doesNotContain("…");
+            assertThat(en).as(name).doesNotContainPattern(ENGINE_WORDS).doesNotContainPattern(CODE).doesNotContain("…");
         });
         // The host's own values stay as the host gave them: ids, approvers, places, purposes in their own words.
         assertThat(korean.words(DecisionFactsResolver.APPROVAL, EVERY_KIND.get(DecisionFactsResolver.APPROVAL)))
@@ -229,15 +231,85 @@ class ZeroTrustFactWordsTest {
                 EVERY_KIND.get(DecisionFactsResolver.SESSION_NETWORK_CHANGE)))
                 .isEqualTo("같은 세션에서 10.40.12.0/24 (회사 네트워크) → 203.0.113.0/24");
         assertThat(korean.words(DecisionFactsResolver.POLICY, EVERY_KIND.get(DecisionFactsResolver.POLICY))).isEqualTo(
-                "EXPORT_APPROVAL: 이 일을 덮는 승인 필요 (예외: 담당 대상 최대 500건, 당직 중 티켓) · 회사 정책: 이 일을 덮는"
-                        + " change 티켓 필요 (예외: 담당 대상, 계정 담당자, 최근 14일 안에 이 대상을 작업함) · P-9: 이 일을 덮는"
-                        + " 기록(signoff) 필요");
+                "\"export approval\" 정책: 이 일을 덮는 승인 필요 (예외: 담당 대상 최대 500건, 당직 중 티켓) · 회사 정책: 이"
+                        + " 일을 덮는 change 티켓 필요 (예외: 담당 대상, 계정 담당자, 최근 14일 안에 이 대상을 작업함) · \"P-9\" 정책:"
+                        + " 이 일을 덮는 기록(signoff) 필요");
+        assertThat(english.words(DecisionFactsResolver.POLICY, EVERY_KIND.get(DecisionFactsResolver.POLICY)))
+                .startsWith("policy \"export approval\" requires a covering approval");
         assertThat(english.words(DecisionFactsResolver.DEVIATIONS_FROM_BASELINE,
                 EVERY_KIND.get(DecisionFactsResolver.DEVIATIONS_FROM_BASELINE))).isEqualTo("4 of 10 compared differ:"
                 + " Time of day 03:00 (seen 0 of 25) · Target projectKey (seen 0 of 25) · Resource class Critical (seen 0"
                 + " of 25) · Size 4,831 items (usual up to 29 items per export (median 17, 5 exports)) · not compared: Time"
                 + " of day (no observations in the window), Request rate (no usual rate) · the closest past record of this"
                 + " action matches 2 of 3 on time, login method and browser");
+    }
+
+    /**
+     * K143: an older decision's approval and ticket lines (v20 notation, as the engine draws them for the contexts of
+     * its own tests) keep the notes after their dash with their line, and the policy's satisfaction reads in words.
+     */
+    @Test
+    @DisplayName("K143: the v20 verdict notes and the policy satisfaction read in words, each line whole")
+    void theVerdictNotesOfTheOlderNotationReadInWords() {
+        String approvals = "APR-1 by pm-11, APPROVED, PROJECT_TRANSFER, GB-500, up to 5,000 items, used 120 before this"
+                + " request, valid 09-29 03:17..10-01 03:17 (from 24 h before to 24 h after this request), decided 09-29"
+                + " 03:10 (24 h before this request), pending lee, park, break-glass — covers this request; APR-2 by pm-12,"
+                + " PENDING, quarterly audit, GB-500, up to 1,000 items, valid ..09-30 08:17 (until 5 h after this"
+                + " request), decision time not recorded (a decision after this request is not ruled out) — does not"
+                + " cover: is PENDING; covers another target (host); is outside its validity (host); 4,831 items over the"
+                + " limit of 1,000";
+        String tickets = "INC-7781 INCIDENT by pm-11, OPEN, outage, GB-500, valid 09-30 00:17.. (from 3 h before this"
+                + " request) — covers this request; the ticket named by the requester CHANGE, CLOSED — does not cover: is"
+                + " CLOSED";
+        Map<String, String> satisfied = new LinkedHashMap<>();
+        satisfied.put("yes — approval APR-1 PROJECT_TRANSFER up to 5,000, requested 4,831 with 120 already exported,"
+                + " decided before the request", "충족: 승인 APR-1 · project transfer · 최대 5,000건 · 요청 4,831건 · 이미 120건"
+                + " 내보냄 · 요청 전에 결정됨");
+        satisfied.put("no — approval APR-2 is PENDING; covers another target (host); cumulative 5,100 of 5,000 items"
+                + " with 269 already exported in this session", "충족 안 됨: 승인 APR-2: 상태 대기, 다른 대상용(호스트), 누적"
+                + " 5,100건(한도 5,000건, 이 세션에서 이미 269건 내보냄)");
+        satisfied.put("unknown — not known: approval APR-3: the items exported under it outside this session (the host"
+                + " does not report them); tickets were not looked up", "알 수 없음: 승인 APR-3: 이 세션 밖에서 이"
+                + " 기록으로 내보낸 건수(호스트가 알리지 않음), 티켓을 조회하지 않음");
+        satisfied.put("yes — ticket INC-7781 covers GB-500 and the requester is on call",
+                "충족: 티켓 INC-7781: GB-500에 해당, 요청자는 당직 중");
+        satisfied.put("yes — assigned to GB-500, 120 items within the assigned limit of 500",
+                "충족: GB-500 담당, 120건으로 배정 한도 500건 안");
+        satisfied.put("no — no CHANGE ticket covers this target", "충족 안 됨: 이 대상에 대한 change 티켓 없음");
+
+        assertThat(korean.words(DecisionFactsResolver.APPROVAL, approvals))
+                .contains("긴급 승인 — 이 요청을 덮음 · APR-2 · 승인자 pm-12 · 대기")
+                .endsWith("결정 시각 기록 없음 — 이 요청을 덮지 않음: 상태 대기, 다른 대상용(호스트), 이 요청이 유효 기간"
+                        + " 밖(호스트), 4,831건, 한도 1,000건 초과");
+        assertThat(korean.words(DecisionFactsResolver.TICKET, tickets))
+                .endsWith("요청자가 말한 티켓 · change 티켓 · 닫힘 — 이 요청을 덮지 않음: 상태 닫힘");
+        satisfied.forEach((value, words) -> assertThat(korean.words(DecisionFactsResolver.POLICY_SATISFIED, value))
+                .isEqualTo(words));
+        Map<String, String> all = new LinkedHashMap<>(Map.of(DecisionFactsResolver.APPROVAL, approvals,
+                DecisionFactsResolver.TICKET, tickets));
+        satisfied.keySet().forEach(value -> all.put(DecisionFactsResolver.POLICY_SATISFIED + " " + value.hashCode(),
+                value));
+        all.forEach((key, value) -> {
+            String name = key.split(" ")[0];
+            assertThat(korean.words(name, value)).as(key).doesNotContainPattern(ENGINE_WORDS)
+                    .doesNotContainPattern(ENGINE_ENGLISH).doesNotContainPattern(CODE).doesNotContain("…");
+            assertThat(english.words(name, value)).as(key).doesNotContainPattern(ENGINE_WORDS)
+                    .doesNotContainPattern(CODE);
+        });
+    }
+
+    /** K143: a name the host writes as a code reads in words set apart as a name; an id of its own stays as written. */
+    @Test
+    @DisplayName("K143: a host's code-like name reads in words as a name, the other ids as written")
+    void aHostsCodeLikeNameReadsInWordsAsAName() {
+        assertThat(korean.words(DecisionFactsResolver.APPROVAL, "APR_2026_01 by pm-11, APPROVED"))
+                .isEqualTo("\"apr 2026 01\" · 승인자 pm-11 · 승인됨");
+        assertThat(korean.words(DecisionFactsResolver.APPROVAL, "APR-1 by pm-11, APPROVED"))
+                .isEqualTo("APR-1 · 승인자 pm-11 · 승인됨");
+        assertThat(english.words(DecisionFactsResolver.PEER_COHORT, "cohort SALES_EAST: an outlier against the cohort"))
+                .isEqualTo("cohort \"sales east\": an outlier against the cohort");
+        assertThat(korean.words(DecisionFactsResolver.POLICY, "P-9 requires a covering approval"))
+                .isEqualTo("\"P-9\" 정책: 이 일을 덮는 승인 필요");
     }
 
     @Test
