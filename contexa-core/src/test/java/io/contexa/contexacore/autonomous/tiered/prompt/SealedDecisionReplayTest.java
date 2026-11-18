@@ -160,9 +160,8 @@ class SealedDecisionReplayTest {
         Drawing product = replay(goldenCase("A3"), List.of(), "ALLOW");
         assertThat(product.systemPrompts).singleElement().asString()
                 .doesNotContain("Finance staff close the books on the last two days of a month.");
-        // N3: the bundle's name is also the name of the earlier product release, which the replay draws.
         assertThat(product.pinned).containsExactly(SecurityDecisionPromptBundles.V1.version() + " REPLAY "
-                + release(SecurityDecisionPromptBundles.V1.version()).contentHash());
+                + SecurityDecisionPromptDocument.product().contentHash());
         assertThatThrownBy(() -> replay(goldenCase("A3"), List.of(), "ALLOW", "v9.0", store))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("v9.0");
     }
@@ -210,7 +209,7 @@ class SealedDecisionReplayTest {
         SealedDecisionReplayService.Drawing product = draw(goldenCase, SecurityDecisionPromptBundles.V1.version(), null);
         assertThat(product.userPrompt()).isEqualTo(golden);
         assertThat(product.systemPrompt()).isEqualTo(replay(goldenCase).systemPrompts.get(0));
-        assertThat(product.contentHash()).isEqualTo(release(SecurityDecisionPromptBundles.V1.version()).contentHash());
+        assertThat(product.contentHash()).isEqualTo(SecurityDecisionPromptDocument.product().contentHash());
         assertThatThrownBy(() -> draw(goldenCase, "v9.0", store))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("v9.0");
     }
@@ -268,11 +267,6 @@ class SealedDecisionReplayTest {
 
     private record Drawing(SealedDecisionReplayService.Result result, List<String> userPrompts, List<Integer> tiers,
                            List<String> models, List<String> pinned, List<String> systemPrompts) {
-    }
-
-    private static AssembledPrompt release(String name) {
-        return SecurityDecisionPromptDocument.productStore().find(SecurityDecisionPromptDocument.PROMPT, name)
-                .orElseThrow();
     }
 
     private static Drawing replay(JsonNode goldenCase) {
