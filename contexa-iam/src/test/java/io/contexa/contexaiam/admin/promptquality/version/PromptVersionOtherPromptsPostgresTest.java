@@ -184,6 +184,15 @@ class PromptVersionOtherPromptsPostgresTest {
                 + "A ledger is a book of accounts.\n".length()));
         assertThat(terms.size().baseAddedUserTokens()).isZero();
         assertThat(terms.size().estimatedDeltaMs()).isNull();
+        // K131: changed in the next version, the block is still the version's own, in the size and the prompt.
+        versions.create(null, "prompt: ResourceNaming\nbasedOn: v2.0\ntitle: Finance names\nuser:\n"
+                + "  - key: finance-terms\n    text: |\n      A ledger is a book of the accounts of a year.\n",
+                PromptVersionRecord.SCREEN, null, "admin", null);
+        VersionView changed = console.version(null, "ResourceNaming", 3).orElseThrow();
+        assertThat(changed.size().addedUserTokens()).isEqualTo(PromptAssembler.tokensOf(1
+                + "Finance terms:\n".length() + "A ledger is a book of the accounts of a year.\n".length()));
+        assertThat(changed.size().baseAddedUserTokens()).isEqualTo(terms.size().addedUserTokens());
+        assertThat(changed.preview().user()).contains("Finance terms:\nA ledger is a book of the accounts of a year.\n");
     }
 
     /**

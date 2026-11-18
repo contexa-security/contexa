@@ -670,6 +670,64 @@ class PromptVersionConsolePostgresTest {
         assertThat(none.addedBlocks()).extracting(PartView::key).containsExactly("org-closing");
     }
 
+    /**
+     * K131 (plan 3.5): a block added in one version, changed in the next, changed again in the one after and deleted at
+     * last is counted in each version's size and drawn in its finished prompt with its latest words, the decision drawn
+     * again as a replay draws it; shown as it was drawn, the block this version draws is listed beside it; deleted, it
+     * is counted and drawn no more.
+     */
+    @Test
+    void aBlockChangedInLaterVersionsIsCountedAndDrawnWithItsLatestWordsUntilDeleted() {
+        console.create(null, form(1, List.of(), List.of(add("org-closing", "Finance closing", CLOSING, "REQUEST"))),
+                "admin");
+        String twoDays = "Finance staff export the ledger on the last two business days of a quarter.";
+        console.create(null, form(2, List.of(), List.of(change("org-closing", twoDays))), "admin");
+        String monthEnd = "Finance staff export the ledger on the month end only.";
+        console.create(null, form(3, List.of(), List.of(new FormPart("org-closing", "CHANGE", "Month end", monthEnd,
+                null))), "admin");
+        console.create(null, form(4, List.of(), List.of(new FormPart("org-closing", "DELETE", null, null, null))),
+                "admin");
+        sealedDecision("pkg-1", "req-1", "v1.0");
+        SealedDecisionReplays replays = replays();
+        console.setSealedDrawing(() -> drawing(replays));
+        String productDrawn = replays.drawPackage("pkg-1", "v1.0").orElseThrow().drawing().userPrompt();
+        String source = " (reference written by your organization) ===\n";
+        List<String> blocks = List.of(CLOSING_BLOCK, "=== Finance closing" + source + twoDays + "\n",
+                "=== Month end" + source + monthEnd + "\n");
+
+        for (int number = 2; number <= 4; number++) {
+            String block = blocks.get(number - 2);
+            VersionView view = console.version(null, PROMPT, number).orElseThrow();
+            assertThat(view.size().addedUserTokens()).as("v" + number).isEqualTo(PromptAssembler.tokensOf(
+                    1 + block.length()));
+            assertThat(view.size().baseAddedUserTokens()).as("v" + number).isEqualTo(number == 2 ? 0
+                    : PromptAssembler.tokensOf(1 + blocks.get(number - 3).length()));
+            assertThat(view.preview().drawnAgain()).as("v" + number).isTrue();
+            assertThat(view.preview().user()).as("v" + number).isEqualTo(insertedAfter(productDrawn, "REQUEST",
+                    block));
+            assertThat(view.preview().addedBlocks()).as("v" + number).extracting(PartView::key)
+                    .containsExactly("org-closing");
+        }
+        assertThat(console.version(null, PROMPT, 3).orElseThrow().user()).filteredOn(part -> part.key()
+                .equals("org-closing")).extracting(PartView::mark).containsExactly("CHANGED");
+
+        VersionView gone = console.version(null, PROMPT, 5).orElseThrow();
+        assertThat(gone.size().addedUserTokens()).isZero();
+        assertThat(gone.preview().user()).isEqualTo(productDrawn);
+        assertThat(gone.preview().addedBlocks()).isEmpty();
+        assertThat(gone.user()).filteredOn(part -> part.key().equals("org-closing")).extracting(PartView::mark)
+                .containsExactly("DELETED");
+
+        // Shown as it was drawn, the version's block is listed beside the decision, its latest words with it.
+        console.setSealedDrawing(() -> null);
+        Preview asDrawn = console.version(null, PROMPT, 4).orElseThrow().preview();
+        assertThat(asDrawn.user()).isEqualTo("the user prompt v1.0 drew");
+        assertThat(asDrawn.addedBlocks()).singleElement().satisfies(part -> {
+            assertThat(part.title()).isEqualTo("Month end");
+            assertThat(part.text().strip()).isEqualTo(monthEnd);
+        });
+    }
+
     /** The drawing the application wires: the user prompt the replays draw, and the state of the sealed package. */
     private static PromptVersionConsole.SealedDrawing drawing(SealedDecisionReplays replays) {
         return new PromptVersionConsole.SealedDrawing() {

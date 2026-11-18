@@ -416,7 +416,11 @@ public class PromptVersionConsole {
         }
         String system = SecurityDecisionPromptDocument.systemPreview(version);
         String format = SecurityDecisionPromptDocument.outputFormatPreview();
-        List<PartView> added = user.stream().filter(part -> "ADDED".equals(part.mark())).toList();
+        // K131: the blocks the version draws as the organization's, added by it or by a version before it, changed or not.
+        Set<String> organizationBlocks = version.user().stream()
+                .filter(part -> part.action() == PromptVersionDocument.Action.ADD && !part.prepared())
+                .map(PromptVersionDocument.Part::key).collect(Collectors.toSet());
+        List<PartView> added = user.stream().filter(part -> organizationBlocks.contains(part.key())).toList();
         List<Object[]> latest = jdbc.get().query("select p.raw_user_prompt, p.correlation_id, p.captured_at,"
                 + " coalesce(contexa_safe_jsonb(p.prompt_execution_metadata_json) ->> '" + PromptExecutionMetadata.PROMPT_VERSION_NAME
                 + "', contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{" + PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR
