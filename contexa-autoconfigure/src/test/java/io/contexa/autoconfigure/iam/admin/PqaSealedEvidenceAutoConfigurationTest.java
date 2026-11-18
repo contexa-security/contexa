@@ -8,6 +8,7 @@ import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.handler.handler.SealedEvidenceCaptureHandler;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.processor.PromptShadowRunner;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
@@ -86,6 +87,21 @@ class PqaSealedEvidenceAutoConfigurationTest {
                     assertThat(ossNames).allMatch(name -> name.startsWith("contexaPqaOss"));
                     assertThat(ossNames).doesNotContainAnyElementsOf(ENTERPRISE_CAPTURE_BEAN_NAMES);
                     assertThat(context.containsBean("contexaSealedEvidenceCaptureExecutor")).isFalse();
+                });
+    }
+
+    /**
+     * Plan 3.4: the shadow runner is there whenever the sealed decisions are, without a setting, so a version the screen
+     * runs alongside the decisions is run; without the decision's prompt template it reads no release and copies nothing.
+     */
+    @Test
+    void theShadowRunnerIsThereWithoutASettingAndCopiesNothingWithoutATemplate() {
+        runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(PromptShadowRunner.class);
+                    SecurityEvent event = SecurityEvent.builder().eventId("evt-1").userId("user-1").build();
+                    assertThat(context.getBean(PromptShadowRunner.class).prepare(event)).isNull();
                 });
     }
 

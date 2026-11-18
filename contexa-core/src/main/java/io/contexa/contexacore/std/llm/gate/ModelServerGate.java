@@ -36,6 +36,8 @@ import java.util.concurrent.locks.ReentrantLock;
  *   <li>calls go in in the order they came, embeddings before waiting chats, and a call that is in is never cut;</li>
  *   <li>a chat that is the first decision of a session ({@link ModelCallTimer#firstInLine()}) goes before the chats of
  *       sessions that have one, so filling the line with those keeps no one away from a first decision (Q-23);</li>
+ *   <li>a call of work that waits behind the decisions ({@link ModelCallTimer#behindDecisions()}: a trial of a prompt
+ *       version) goes in only when no other call waits, so it shares the slots without delaying a decision (plan 3.10);</li>
  *   <li>on a server that loads one model at a time ({@code oneModelAtATime}), a call for another model goes in when the
  *       calls of the loaded model are done, and the calls behind it wait, so that the switch is not starved;</li>
  *   <li>after a call met a rate limit or an overload ({@link Permit#overloaded()}) the server is closed for a while,
@@ -67,6 +69,7 @@ public final class ModelServerGate {
     private final ArrayDeque<Waiter> embeddings = new ArrayDeque<>();
     private final ArrayDeque<Waiter> firstChats = new ArrayDeque<>();
     private final ArrayDeque<Waiter> chats = new ArrayDeque<>();
+    private final ArrayDeque<Waiter> behind = new ArrayDeque<>();
     private final Map<String, Integer> runningByModel = new HashMap<>();
     private int running;
     private int overloadsInARow;
@@ -113,7 +116,7 @@ public final class ModelServerGate {
     public Permit enter(CallKind kind, String model, long maxWaitMs, ModelCallTimer timer) throws InterruptedException {
         CallKind callKind = kind != null ? kind : CallKind.CHAT;
         Waiter waiter = new Waiter(callKind, model != null && !model.isBlank() ? model.trim() : callKind.name(),
-                timer != null && timer.firstInLine());
+                timer != null && timer.firstInLine(), callKind == CallKind.CHAT && timer != null && timer.behindDecisions());
         if (SCOPES.get().containsKey(this)) {
             return new Permit(waiter.model, waiter.kind, 0L, true);
         }
@@ -244,18 +247,25 @@ public final class ModelServerGate {
             return embedding;
         }
         Waiter firstChat = firstChats.peekFirst();
-        return firstChat != null ? firstChat : chats.peekFirst();
+        if (firstChat != null) {
+            return firstChat;
+        }
+        Waiter chat = chats.peekFirst();
+        return chat != null ? chat : behind.peekFirst();
     }
 
     private ArrayDeque<Waiter> lineOf(Waiter waiter) {
         if (waiter.kind == CallKind.EMBEDDING) {
             return embeddings;
         }
+        if (waiter.behindDecisions) {
+            return behind;
+        }
         return waiter.firstInLine ? firstChats : chats;
     }
 
     private int linedUp() {
-        return embeddings.size() + firstChats.size() + chats.size();
+        return embeddings.size() + firstChats.size() + chats.size() + behind.size();
     }
 
     private Permit admit(Waiter waiter, long waitedNanos) {
@@ -326,11 +336,13 @@ public final class ModelServerGate {
         private final CallKind kind;
         private final String model;
         private final boolean firstInLine;
+        private final boolean behindDecisions;
 
-        private Waiter(CallKind kind, String model, boolean firstInLine) {
+        private Waiter(CallKind kind, String model, boolean firstInLine, boolean behindDecisions) {
             this.kind = kind;
             this.model = model;
             this.firstInLine = firstInLine;
+            this.behindDecisions = behindDecisions && !firstInLine;
         }
     }
 

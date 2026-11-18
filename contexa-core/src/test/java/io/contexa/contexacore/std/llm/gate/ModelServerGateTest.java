@@ -113,6 +113,57 @@ class ModelServerGateTest {
         return null;
     }
 
+    /**
+     * Plan 3.10 (4): a trial of a prompt version shares the server's slots, but goes in only when no decision waits: a
+     * decision that came after it goes first, and the trial is never cut once it is in.
+     */
+    @Test
+    void workBehindTheDecisionsGoesInAfterEveryDecisionWaitingEvenOneThatCameLater() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 1, false, Duration.ZERO);
+        List<String> order = new CopyOnWriteArrayList<>();
+        ModelServerGate.Permit running = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L);
+        ExecutorService callers = Executors.newFixedThreadPool(3);
+        try {
+            Future<?> trial = callers.submit(() -> enterBehind(gate, order, "trial"));
+            awaitWaiters(gate, 1);
+            Future<?> decision = callers.submit(() -> enterAndRecord(gate, CallKind.CHAT, "qwen3:8b", order,
+                    "decision"));
+            awaitWaiters(gate, 2);
+            Future<?> firstDecision = callers.submit(() -> enterFirstInLine(gate, order, "first"));
+            awaitWaiters(gate, 3);
+
+            running.close();
+            trial.get(5, TimeUnit.SECONDS);
+            decision.get(5, TimeUnit.SECONDS);
+            firstDecision.get(5, TimeUnit.SECONDS);
+        } finally {
+            callers.shutdownNow();
+        }
+
+        assertThat(order).containsExactly("first", "decision", "trial");
+    }
+
+    @Test
+    void workBehindTheDecisionsGoesInAtOnceWhenNothingWaits() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 1, false, Duration.ZERO);
+        ModelCallTimer timer = ModelCallTimer.start(1_000L).behindDecisions(true);
+
+        try (ModelServerGate.Permit permit = gate.enter(CallKind.CHAT, "qwen3:8b", 100L, timer)) {
+            assertThat(permit.waitedMillis()).isLessThan(100L);
+            assertThat(gate.running()).isEqualTo(1);
+        }
+        assertThat(timer.child(10L).behindDecisions()).isTrue();
+        assertThat(ModelCallTimer.start(10L).behindDecisions()).isFalse();
+    }
+
+    private static Void enterBehind(ModelServerGate gate, List<String> order, String name) throws Exception {
+        ModelCallTimer timer = ModelCallTimer.start(10_000L).behindDecisions(true);
+        try (ModelServerGate.Permit ignored = gate.enter(CallKind.CHAT, "qwen3:8b", 5_000L, timer)) {
+            order.add(name);
+        }
+        return null;
+    }
+
     @Test
     void aTimerInsideOneOfAFirstDecisionIsOneToo() {
         ModelCallTimer outer = ModelCallTimer.start(1_000L).firstInLine(true);

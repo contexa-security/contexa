@@ -30,14 +30,13 @@ class PromptBudgetSizeReportTest {
     private static final Map<String, String> MODEL = Map.of("runtimeModelId", "gpt-5-nano");
 
     /**
-     * TO-5: the budget profiles fit the v20 prompts as the model gets them, first passes in L1 and L2 and Layer2 second
+     * TO-5: the budget profiles fit the prompts as the model gets them, first passes in L1 and L2 and Layer2 second
      * passes in L2, so the observed budget is over only for a prompt larger than the golden ones.
      */
     @Test
-    void theV20GoldenRendersFitTheirBudgets() {
+    void theGoldenRendersFitTheirBudgets() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         List<String> over = new ArrayList<>();
         for (JsonNode goldenCase : golden.cases()) {
             String where = goldenCase.path("caseKey").asText();
@@ -98,7 +97,7 @@ class PromptBudgetSizeReportTest {
                 perProfile.put(profile.name(), summary);
                 assertThat(totals).hasSize(golden.cases().size()).allMatch(total -> total > 0);
             }
-            if (bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V20_BLOCKS) {
+            {
                 // The Layer2 second pass over a first prompt whose past records were not retrieved (W3-9).
                 List<Integer> totals = new ArrayList<>();
                 for (JsonNode goldenCase : golden.cases()) {

@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public final class PromptRuntimeTelemetrySupport {
 
@@ -356,6 +357,14 @@ public final class PromptRuntimeTelemetrySupport {
     public static final String OUTPUT_RETRIES = "securityDecisionOutputRetries";
 
     /**
+     * K17 (decision D11): the event metadata key of the decision rules a model answer still broke after its retry,
+     * one entry per layer whose answer broke one ({@code layer}, {@code rule}). The pipeline keeps the rule a run's
+     * answer broke under its own key; the event keeps every layer's, so the decision record and the review queue see
+     * it. A layer that runs again replaces its entry, and a run of it without a broken rule removes it.
+     */
+    public static final String RULE_BREACHES = "securityDecisionRuleBreaches";
+
+    /**
      * W6-6: adds the stage the layer just ran to the event's model call stages: the layer, the prompt hashes it sent
      * and the model output it got (the first answer, a corrective retry with its reason, the answer it kept). The texts
      * are not copied again; the seal keeps the applied stage's prompt once.
@@ -407,6 +416,36 @@ public final class PromptRuntimeTelemetrySupport {
             }
         }
         eventMetadata.put(OUTPUT_RETRIES, List.copyOf(all));
+    }
+
+    /**
+     * K17: keeps the decision rule the run of a layer broke on the event, in place of the layer's earlier entry; a run
+     * that broke none removes the layer's entry, and the key goes when no layer's entry is left.
+     */
+    public static void recordRuleBreach(Map<String, Object> eventMetadata, String layer, Object runBreach) {
+        if (eventMetadata == null) {
+            return;
+        }
+        String rule = runBreach == null || runBreach.toString().isBlank() ? null : runBreach.toString().trim();
+        List<Object> breaches = new ArrayList<>();
+        if (eventMetadata.get(RULE_BREACHES) instanceof List<?> earlier) {
+            for (Object entry : earlier) {
+                if (!(entry instanceof Map<?, ?> map) || !Objects.equals(layer, map.get("layer"))) {
+                    breaches.add(entry);
+                }
+            }
+        }
+        if (rule != null) {
+            Map<String, Object> breach = new LinkedHashMap<>();
+            breach.put("layer", layer);
+            breach.put("rule", rule);
+            breaches.add(breach);
+        }
+        if (breaches.isEmpty()) {
+            eventMetadata.remove(RULE_BREACHES);
+        } else {
+            eventMetadata.put(RULE_BREACHES, List.copyOf(breaches));
+        }
     }
 
     /**

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.promptquality.version;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
@@ -52,6 +53,7 @@ import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 
 /**
  * The versions of the prompts in the database (plan 3.3, 3.6, 3.7): the product documents a build ships registered as
@@ -163,7 +165,8 @@ public class PromptVersionService {
         PromptVersionDocument document = reader.read(release.document());
         AssembledPrompt version = assembler.product(document);
         return save(scope, release.prompt(), document, release.document(), version, null, null,
-                PromptVersionRecord.CONTEXA, PromptVersionRecord.PRODUCT, release.release(), "contexa");
+                PromptVersionRecord.CONTEXA, PromptVersionRecord.PRODUCT, release.release(),
+                PromptVersionAudit.PRODUCT_ACTOR);
     }
 
     /**
@@ -188,6 +191,55 @@ public class PromptVersionService {
                         false);
             }
         }
+        Checked checked = checked(scopeName, document, origin, limit);
+        if (!checked.problems().isEmpty()) {
+            throw new PromptVersionDocumentException(checked.problems());
+        }
+        AssembledPrompt version = assembler.apply(checked.base(), document);
+        String name = originName != null && !originName.isBlank() ? originName.trim()
+                : "screen:" + UUID.randomUUID();
+        Saved saved = save(scopeName, document.prompt(), document, yaml, version, checked.record().number(),
+                checked.base().contentHash(), PromptVersionRecord.ORGANIZATION, origin, name, createdBy);
+        if (saved.made() && PromptVersionRecord.FOLDER.equals(origin)) {
+            audit.record(PromptVersionAudit.FOLDER_REGISTERED, scopeName, document.prompt(), saved.name(), createdBy,
+                    name);
+        }
+        return saved;
+    }
+
+    /**
+     * What the checks before saving find in an organization's document (plan 3.5): every problem, none when it can be
+     * saved, with the estimated system prompt tokens of its base and of the version it would make. A document that
+     * cannot be read, a rendered copy or one whose base this server does not have is refused at once.
+     *
+     * @param origin SCREEN for a version made on the screen (its base cannot have come from a document)
+     */
+    public Preview check(String scope, String yaml, String origin, PromptAssembler.LengthLimit limit) {
+        PromptVersionDocument document = reader.read(yaml);
+        Checked checked = checked(scopeOf(scope), document, origin, limit);
+        return new Preview(checked.record(), checked.problems(), checked.check().baseSystemTokens(),
+                checked.check().systemTokens(), checked.check().baseAddedUserTokens(),
+                checked.check().addedUserTokens());
+    }
+
+    /**
+     * What a check found: the base version, the problems, and the tokens of the base and the version: their system
+     * prompts and the blocks an organization added to their user prompts, as the prompt draws them (K64).
+     */
+    public record Preview(PromptVersionRecord base, List<PromptVersionProblem> problems, int baseSystemTokens,
+                          int systemTokens, int baseAddedUserTokens, int addedUserTokens) {
+
+        public Preview {
+            problems = List.copyOf(problems);
+        }
+    }
+
+    private record Checked(PromptVersionRecord record, AssembledPrompt base, PromptAssembler.Check check,
+                           List<PromptVersionProblem> problems) {
+    }
+
+    private Checked checked(String scopeName, PromptVersionDocument document, String origin,
+                            PromptAssembler.LengthLimit limit) {
         List<PromptVersionProblem> problems = new ArrayList<>();
         if (document.kind() == PromptVersionDocument.Kind.RENDERED) {
             throw new PromptVersionDocumentException(List.of(new PromptVersionProblem(
@@ -205,16 +257,34 @@ public class PromptVersionService {
         AssembledPrompt baseVersion = assembled(scopeName, base.get().prompt(), base.get().number())
                 .orElseThrow(() -> new IllegalStateException("The base version " + base.get().name()
                         + " cannot be assembled"));
-        PromptAssembler.Check check = assembler.check(baseVersion, document, limit);
+        // The length limit is the decision model's context with the longest recent decision input (plan 3.5, check 4);
+        // another prompt has no such limit to check against (plan 3.11). The blocks an organization added to the user
+        // prompt count as the prompt draws them (K64).
+        boolean decision = SecurityDecisionPromptDocument.PROMPT.equals(base.get().prompt());
+        PromptAssembler.Check check = assembler.check(baseVersion, document, decision ? limit : null,
+                addedUserTokens(base.get().prompt()));
         problems.addAll(check.problems());
-        if (!problems.isEmpty()) {
-            throw new PromptVersionDocumentException(problems);
-        }
-        AssembledPrompt version = assembler.apply(baseVersion, document);
-        String name = originName != null && !originName.isBlank() ? originName.trim()
-                : "screen:" + UUID.randomUUID();
-        return save(scopeName, document.prompt(), document, yaml, version, base.get().number(),
-                baseVersion.contentHash(), PromptVersionRecord.ORGANIZATION, origin, name, createdBy);
+        return new Checked(base.get(), baseVersion, check, problems);
+    }
+
+    /**
+     * K64, K69: how the blocks an organization added to the user prompt of a version of the prompt are counted, as the
+     * prompt draws them: the security decision's with their headers, another prompt's under their titles.
+     */
+    public static ToIntFunction<AssembledPrompt> addedUserTokens(String prompt) {
+        return SecurityDecisionPromptDocument.PROMPT.equals(prompt)
+                ? SecurityDecisionPromptDocument::organizationBlockTokens
+                : PromptAssembler::addedUserTokens;
+    }
+
+    /** The prompts the build ships product documents for, in the order of the build's list. */
+    public List<String> prompts() {
+        return products.stream().map(ProductPromptRelease::prompt).distinct().toList();
+    }
+
+    /** What the registry row of the prompt's versions names (the template that runs them); empty without one. */
+    public Optional<RegistryTarget> target(String prompt) {
+        return Optional.ofNullable(prompt != null ? targets.get(prompt) : null);
     }
 
     /** The base an organization's document names: by its content hash first, then by its number. */

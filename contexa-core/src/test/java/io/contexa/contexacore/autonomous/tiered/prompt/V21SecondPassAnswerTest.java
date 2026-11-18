@@ -57,7 +57,6 @@ class V21SecondPassAnswerTest {
     static void render() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         for (JsonNode goldenCase : golden.cases()) {
             if (goldenCase.path("caseKey").asText().equals("A3")) {
                 a3 = golden.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties);

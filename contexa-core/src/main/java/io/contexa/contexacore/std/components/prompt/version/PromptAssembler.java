@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.ToIntFunction;
 
 /**
  * Makes a version of a prompt (plan 3.5 and 3.8): the product document as it is, or a base version with an
@@ -41,10 +42,12 @@ public final class PromptAssembler {
     }
 
     /**
-     * What the check of a document found: its problems (none when it can be saved), and the estimated system prompt
-     * tokens of the base and of the new version (shown, never refused for itself).
+     * What the check of a document found: its problems (none when it can be saved), and the estimated tokens of the
+     * base and of the new version (shown, never refused for themselves): their system prompts, and the blocks an
+     * organization added to their user prompts as the prompt draws them (K64).
      */
-    public record Check(List<PromptVersionProblem> problems, int baseSystemTokens, int systemTokens) {
+    public record Check(List<PromptVersionProblem> problems, int baseSystemTokens, int systemTokens,
+                        int baseAddedUserTokens, int addedUserTokens) {
 
         public Check {
             problems = List.copyOf(problems);
@@ -52,6 +55,11 @@ public final class PromptAssembler {
 
         public boolean passed() {
             return problems.isEmpty();
+        }
+
+        /** How many tokens the finished prompt grows by against the base; fewer than none when it shrinks. */
+        public int tokenDelta() {
+            return systemTokens - baseSystemTokens + addedUserTokens - baseAddedUserTokens;
         }
     }
 
@@ -119,8 +127,25 @@ public final class PromptAssembler {
         return applied(base, changes);
     }
 
-    /** The check of an organization's document on its base (plan 3.5, the checks before saving, and 3.6). */
+    /**
+     * The check of an organization's document on its base (plan 3.5, the checks before saving, and 3.6), with the
+     * blocks added to the user prompt counted as a prompt draws its user parts ({@link #addedUserTokens}).
+     */
     public Check check(AssembledPrompt base, PromptVersionDocument changes, LengthLimit limit) {
+        return check(base, changes, limit, PromptAssembler::addedUserTokens);
+    }
+
+    /**
+     * As {@link #check(AssembledPrompt, PromptVersionDocument, LengthLimit)}, with the tokens of the blocks an
+     * organization added to a version's user prompt counted as the prompt draws them (K64). The finished prompt the
+     * limit holds is the new version's system prompt, the longest recent user prompt with the added blocks the new
+     * version has more (or fewer) than its base, which that prompt may already hold, and the answer; without a recent
+     * user prompt, the new version's added blocks are the input.
+     *
+     * @param addedUserTokens the estimated tokens of the blocks an organization added to a version's user prompt
+     */
+    public Check check(AssembledPrompt base, PromptVersionDocument changes, LengthLimit limit,
+                       ToIntFunction<AssembledPrompt> addedUserTokens) {
         List<PromptVersionProblem> problems = new ArrayList<>();
         if (changes.kind() == PromptVersionDocument.Kind.RENDERED) {
             problems.add(new PromptVersionProblem(PromptVersionProblem.Code.RENDERED_DOCUMENT, "kind", null));
@@ -141,16 +166,21 @@ public final class PromptAssembler {
             problems.add(new PromptVersionProblem(PromptVersionProblem.Code.LOCKED_PART, "corrections", null));
         }
         int baseTokens = systemTokens(base);
+        int baseUserTokens = addedUserTokens.applyAsInt(base);
         int tokens = baseTokens;
+        int userTokens = baseUserTokens;
         if (problems.isEmpty()) {
-            tokens = systemTokens(applied(base, changes));
-            if (limit != null && tokens + limit.longestUserPromptTokens() + limit.answerTokens() > limit.contextTokens()) {
+            AssembledPrompt version = applied(base, changes);
+            tokens = systemTokens(version);
+            userTokens = addedUserTokens.applyAsInt(version);
+            int input = limit == null ? 0 : limit.longestUserPromptTokens() > 0
+                    ? Math.max(0, limit.longestUserPromptTokens() + userTokens - baseUserTokens) : userTokens;
+            if (limit != null && tokens + input + limit.answerTokens() > limit.contextTokens()) {
                 problems.add(new PromptVersionProblem(PromptVersionProblem.Code.TOO_LONG, null,
-                        tokens + " + " + limit.longestUserPromptTokens() + " + " + limit.answerTokens() + " > "
-                                + limit.contextTokens()));
+                        tokens + " + " + input + " + " + limit.answerTokens() + " > " + limit.contextTokens()));
             }
         }
-        return new Check(problems, baseTokens, tokens);
+        return new Check(problems, baseTokens, tokens, baseUserTokens, userTokens);
     }
 
     private static void checkParts(List<PromptVersionDocument.Part> base, List<PromptVersionDocument.Part> changes,
@@ -297,7 +327,7 @@ public final class PromptAssembler {
      * The estimated system prompt tokens of a version (a quarter of the characters, as the heuristic estimator
      * counts): every part it draws under any condition, with its longest text.
      */
-    static int systemTokens(AssembledPrompt version) {
+    public static int systemTokens(AssembledPrompt version) {
         long characters = 0;
         for (PromptVersionDocument.Part part : version.system()) {
             if (part.prepared()) {
@@ -312,6 +342,29 @@ public final class PromptAssembler {
                 characters += item.key().length() + (item.text() != null ? item.text().length() : 0) + 4;
             }
         }
+        return tokensOf(characters);
+    }
+
+    /**
+     * K64: the estimated tokens of the blocks an organization added to a version's user prompt (a quarter of the
+     * characters), as a prompt draws its user parts: each after a blank line, under its title, its text ending with a
+     * line break.
+     */
+    public static int addedUserTokens(AssembledPrompt version) {
+        long characters = 0;
+        for (PromptVersionDocument.Part part : version.user()) {
+            if (part.action() != PromptVersionDocument.Action.ADD || part.prepared()) {
+                continue;
+            }
+            String text = part.text() != null ? part.text() : "";
+            characters += 1 + (part.heading() && part.title() != null ? part.title().length() + 2 : 0)
+                    + text.codePointCount(0, text.length()) + (text.endsWith("\n") ? 0 : 1);
+        }
+        return tokensOf(characters);
+    }
+
+    /** The estimated tokens of so many characters: a quarter of them, as the heuristic estimator counts. */
+    public static int tokensOf(long characters) {
         return (int) Math.ceil(characters / 4.0d);
     }
 

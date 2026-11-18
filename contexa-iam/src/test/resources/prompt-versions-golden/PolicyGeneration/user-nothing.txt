@@ -1,0 +1,10 @@
+[Natural Language Requirements]
+Natural language requirements were not provided
+
+[Available Items]
+No available item information was provided.
+
+[Data]
+null
+
+Generate a complete PolicyResponse in JSON format.

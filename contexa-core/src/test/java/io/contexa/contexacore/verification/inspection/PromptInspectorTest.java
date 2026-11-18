@@ -21,10 +21,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PromptInspectorTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final String V20_PROMPT = """
+    /** A dictionary prompt of the v1.0 layout without the conclusion lines of the decision rules. */
+    private static final String V1_PROMPT = """
             === REQUEST ===
             Time: Mon 16:15
             """;
+    /** Why a check does not read a package of a bundle this build no longer ships (decision D7). */
+    private static final String NOT_READ_AGAIN = "cannot be inspected again (decision D7)";
 
     @Test
     void theCoreChecksAreTheChecksOfTheSealedPackageAloneInReportOrder() {
@@ -59,12 +62,12 @@ class PromptInspectorTest {
 
     /**
      * R1b-7: the dictionary checks read a package drawn in this build's form only: its bundle has this build's
-     * dictionary (B2) and the render of this build's v20 bundle (B3). The other elements do not change the form.
+     * dictionary (B2) and the render of this build's bundle (B3). The other elements do not change the form.
      */
     @Test
     void aBundleIsOfThisFormWithThisDictionaryAndThisRender() {
         PromptBundleManifest current = PromptBundleCatalog.shared()
-                .find("cortex.security-decision", SecurityDecisionPromptBundles.V20.descriptor().promptVersion())
+                .find("cortex.security-decision", SecurityDecisionPromptBundles.V1.descriptor().promptVersion())
                 .orElseThrow();
         String other = "0".repeat(64);
 
@@ -89,9 +92,9 @@ class PromptInspectorTest {
     }
 
     @Test
-    void aV20PromptWithoutFindingsPasses() {
+    void aV1PromptWithoutFindingsPasses() {
         PromptInspectionResult result = inspector(check("A", tally -> tally.matched()), check("B", tally -> tally.matched()))
-                .inspect(sealed(V20_PROMPT, PromptInspector.V20_LAYOUT));
+                .inspect(sealed(V1_PROMPT, PromptInspector.V1_LAYOUT));
 
         assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.PASS);
         assertThat(result.matchedCount()).isEqualTo(2);
@@ -99,8 +102,8 @@ class PromptInspectorTest {
         assertThat(result.unverifiableCount()).isZero();
         assertThat(result.packageId()).isEqualTo("pkg-1");
         assertThat(result.inspectorVersion()).isEqualTo(PromptInspector.INSPECTOR_VERSION);
-        assertThat(result.dictionaryVersion()).isEqualTo(PromptInspector.DICTIONARY_VERSION);
-        assertThat(result.layoutVersion()).isEqualTo(PromptInspector.V20_LAYOUT);
+        assertThat(result.dictionaryVersion()).isEqualTo(PromptInspector.V1_DICTIONARY_VERSION);
+        assertThat(result.layoutVersion()).isEqualTo(PromptInspector.V1_LAYOUT);
     }
 
     @Test
@@ -108,7 +111,7 @@ class PromptInspectorTest {
         PromptInspectionResult result = inspector(
                 check("A", tally -> tally.matched()),
                 check("B", tally -> tally.unverifiable(finding("B", PromptInspectionOutcome.UNVERIFIABLE))))
-                .inspect(sealed(V20_PROMPT, PromptInspector.V20_LAYOUT));
+                .inspect(sealed(V1_PROMPT, PromptInspector.V1_LAYOUT));
 
         assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.INCOMPLETE);
         assertThat(result.unverifiableCount()).isEqualTo(1);
@@ -120,7 +123,7 @@ class PromptInspectorTest {
         PromptInspectionResult result = inspector(
                 check("A", tally -> tally.mismatch(finding("A", PromptInspectionOutcome.MISMATCH))),
                 check("B", tally -> tally.unverifiable(finding("B", PromptInspectionOutcome.UNVERIFIABLE))))
-                .inspect(sealed(V20_PROMPT, PromptInspector.V20_LAYOUT));
+                .inspect(sealed(V1_PROMPT, PromptInspector.V1_LAYOUT));
 
         assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.FAIL);
         assertThat(result.mismatchCount()).isEqualTo(1);
@@ -163,7 +166,7 @@ class PromptInspectorTest {
     void aPackageWithoutASealedLayoutIsNotReadAsADictionaryPrompt() {
         PromptInspectionCheck dictionary = check("DICT", tally -> tally.matched());
 
-        PromptInspectionResult result = inspector(dictionary).inspect(sealed(V20_PROMPT, null));
+        PromptInspectionResult result = inspector(dictionary).inspect(sealed(V1_PROMPT, null));
 
         // K2: the dictionary check says it did not read the prompt, so the package is incomplete, not clean.
         assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.INCOMPLETE);
@@ -175,7 +178,7 @@ class PromptInspectorTest {
 
     @Test
     void anUnreadableExecutionMetadataIsAnError() {
-        SealedEvidencePackage evidencePackage = sealed(V20_PROMPT, PromptInspector.V20_LAYOUT);
+        SealedEvidencePackage evidencePackage = sealed(V1_PROMPT, PromptInspector.V1_LAYOUT);
         evidencePackage.setPromptExecutionMetadataJson("{not json");
 
         PromptInspectionResult result = inspector(check("A", tally -> tally.matched())).inspect(evidencePackage);
@@ -187,7 +190,7 @@ class PromptInspectorTest {
 
     @Test
     void aPackageWithoutTheUserPromptTheModelGotIsAnError() {
-        SealedEvidencePackage evidencePackage = sealed(V20_PROMPT, PromptInspector.V20_LAYOUT);
+        SealedEvidencePackage evidencePackage = sealed(V1_PROMPT, PromptInspector.V1_LAYOUT);
         evidencePackage.setUserPromptText(null);
 
         PromptInspectionResult result = inspector(check("A", tally -> tally.matched())).inspect(evidencePackage);
@@ -203,7 +206,7 @@ class PromptInspectorTest {
         });
 
         PromptInspectionResult result = inspector(check("A", tally -> tally.matched()), broken)
-                .inspect(sealed(V20_PROMPT, PromptInspector.V20_LAYOUT));
+                .inspect(sealed(V1_PROMPT, PromptInspector.V1_LAYOUT));
 
         assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.ERROR);
         assertThat(result.errorReason()).contains("BROKEN").contains("boom");
@@ -218,7 +221,7 @@ class PromptInspectorTest {
             tally.matched();
         });
 
-        PromptInspectionResult result = inspector(reader).inspect(sealed(V20_PROMPT, PromptInspector.V20_LAYOUT));
+        PromptInspectionResult result = inspector(reader).inspect(sealed(V1_PROMPT, PromptInspector.V1_LAYOUT));
 
         assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.PASS);
     }
@@ -230,7 +233,7 @@ class PromptInspectorTest {
             throw new PromptInspectionUnavailableException("the release registry is not available", null);
         }));
 
-        assertThatThrownBy(() -> inspector.inspect(sealed(V20_PROMPT, PromptInspector.V20_LAYOUT)))
+        assertThatThrownBy(() -> inspector.inspect(sealed(V1_PROMPT, PromptInspector.V1_LAYOUT)))
                 .isInstanceOf(PromptInspectionUnavailableException.class);
     }
 
@@ -238,16 +241,16 @@ class PromptInspectorTest {
     @Test
     void aResultNamesTheDictionaryItWasReadWithByItsDigest() {
         PromptInspectionResult result = inspector(check("A", PromptInspectionTally::matched))
-                .inspect(sealed(V20_PROMPT, PromptInspector.V20_LAYOUT));
+                .inspect(sealed(V1_PROMPT, PromptInspector.V1_LAYOUT));
 
-        assertThat(SecurityDecisionPromptDictionary.contentDigest()).matches("[0-9a-f]{64}");
-        assertThat(result.dictionaryVersion()).isEqualTo(SecurityDecisionPromptDictionary.VERSION + "@"
-                + SecurityDecisionPromptDictionary.contentDigest().substring(0, 12));
+        assertThat(SecurityDecisionPromptDictionary.contentDigestV1()).matches("[0-9a-f]{64}");
+        assertThat(result.dictionaryVersion()).isEqualTo(SecurityDecisionPromptDictionary.V1_VERSION + "@"
+                + SecurityDecisionPromptDictionary.contentDigestV1().substring(0, 12));
     }
 
     /**
-     * R1b-7 (P3 extra 17): a v20 package sealed under another bundle's dictionary is not read against this one: the
-     * checks that read the dictionary prompt leave it unchecked and say why, the others run.
+     * R1b-7 (P3 extra 17): a v1.0 package sealed under a bundle this build does not hold in its form is not read against
+     * this one: the checks that read the dictionary prompt leave it unchecked and say why, the others run.
      */
     @Test
     void aPackageSealedUnderAnotherDictionaryIsNotReadAgainstThisOne() {
@@ -256,9 +259,9 @@ class PromptInspectorTest {
             dictionaryReads[0]++;
             tally.matched();
         }), new FakeCheck("S", false, PromptInspectionTally::matched));
+        String other = SecurityDecisionPromptBundles.V1.descriptor().promptVersion() + "-other";
 
-        PromptInspectionResult result = inspector.inspect(sealed(V20_PROMPT, PromptInspector.V20_LAYOUT,
-                "2026.10.13-v20.4"));
+        PromptInspectionResult result = inspector.inspect(sealed(V1_PROMPT, PromptInspector.V1_LAYOUT, other));
 
         assertThat(dictionaryReads[0]).isZero();
         assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.INCOMPLETE);
@@ -266,12 +269,51 @@ class PromptInspectorTest {
         assertThat(result.checks().get(0).findings()).singleElement().satisfies(finding -> {
             assertThat(finding.outcome()).isEqualTo(PromptInspectionOutcome.UNVERIFIABLE);
             assertThat(finding.sourceRef()).isEqualTo("executionMetadata.governanceDescriptor.promptBundleVersion");
-            assertThat(finding.actual()).isEqualTo("2026.10.13-v20.4");
+            assertThat(finding.actual()).isEqualTo(other);
+            assertThat(finding.reason()).contains("another bundle's prompt dictionary or render");
         });
         assertThat(result.checks().get(1).matched()).isEqualTo(1);
 
-        inspector.inspect(sealed(V20_PROMPT, PromptInspector.V20_LAYOUT));
+        inspector.inspect(sealed(V1_PROMPT, PromptInspector.V1_LAYOUT));
         assertThat(dictionaryReads[0]).isEqualTo(1);
+    }
+
+    /**
+     * Plan 6-2 (decision D7): a package of a bundle this build no longer ships (v20, v21) is not read again, whichever
+     * bundle version it names: the checks that read the dictionary prompt never see it and say why, the others run, and
+     * the result still names the dictionary of its layout.
+     */
+    @Test
+    void aPackageOfABundleThisBuildNoLongerShipsIsNotReadAgain() {
+        int[] dictionaryReads = {0};
+        PromptInspector inspector = inspector(check("D", tally -> {
+            dictionaryReads[0]++;
+            tally.mismatch(finding("D", PromptInspectionOutcome.MISMATCH));
+        }), new FakeCheck("S", false, PromptInspectionTally::matched));
+
+        Map<String, String> layouts = Map.of(PromptInspector.V20_LAYOUT, PromptInspector.DICTIONARY_VERSION,
+                PromptInspector.V21_LAYOUT, PromptInspector.V21_DICTIONARY_VERSION);
+        layouts.forEach((layout, dictionaryVersion) -> {
+            for (String bundle : List.of("2026.10.17-v20.25", "2026.10.30-v21.19",
+                    SecurityDecisionPromptBundles.V1.descriptor().promptVersion())) {
+                PromptInspectionResult result = inspector.inspect(sealed(V1_PROMPT, layout, bundle));
+
+                assertThat(result.verdict()).as(layout + " " + bundle).isEqualTo(PromptInspectionVerdict.INCOMPLETE);
+                assertThat(result.layoutVersion()).isEqualTo(layout);
+                assertThat(result.dictionaryVersion()).isEqualTo(dictionaryVersion);
+                assertThat(result.mismatchCount()).isZero();
+                assertThat(result.checks()).extracting(PromptInspectionCheckResult::checkCode).containsExactly("D", "S");
+                assertThat(result.checks().get(0).findings()).singleElement().satisfies(finding -> {
+                    assertThat(finding.outcome()).isEqualTo(PromptInspectionOutcome.UNVERIFIABLE);
+                    assertThat(finding.sourceRef())
+                            .isEqualTo("executionMetadata.governanceDescriptor.promptBundleVersion");
+                    assertThat(finding.actual()).isEqualTo(bundle);
+                    assertThat(finding.reason()).endsWith(NOT_READ_AGAIN);
+                });
+                assertThat(result.checks().get(1).matched()).isEqualTo(1);
+            }
+        });
+        assertThat(dictionaryReads[0]).isZero();
     }
 
     private static PromptInspector inspector(PromptInspectionCheck... checks) {
@@ -287,7 +329,7 @@ class PromptInspectorTest {
     }
 
     static SealedEvidencePackage sealed(String userPrompt, String layout) {
-        return sealed(userPrompt, layout, SecurityDecisionPromptBundles.V20.descriptor().promptVersion());
+        return sealed(userPrompt, layout, SecurityDecisionPromptBundles.V1.descriptor().promptVersion());
     }
 
     /** A package as the assembler seals it: the governance descriptor names the bundle the prompt was drawn with. */

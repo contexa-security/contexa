@@ -547,8 +547,8 @@ class PromptRuntimeGovernanceRuleApplierTest {
                 .isEqualTo("SKIPPED_INVALID_SLOT_CONTRACT");
     }
 
-    /** A v20 user prompt as the dictionary renderer draws it (blocks, qualifiers, fact ids). */
-    private static final String V20_PROMPT = """
+    /** A user prompt as the dictionary renderer draws it (blocks, qualifiers, fact ids, targets apart). */
+    private static final String DICTIONARY_PROMPT = """
             === USER BASELINE (learned) ===
             BaselineStatus: ESTABLISHED
             UsualHours: 09-18
@@ -563,117 +563,78 @@ class PromptRuntimeGovernanceRuleApplierTest {
             Target: documentId from the request path
             ResourceClass: INTERNAL
 
-            === DECISION FACTS ===
+            === RECORDS AND COMPARISONS ===
             [F1] DeviationsFromBaseline: 1 of 8 compared -> hour
-            [F2] PolicySatisfied: no — no approval for GB-500
+            [F2] Policy: EXPORT_APPROVAL requires a covering approval
 
             === PAST RECORDS (learned; source personal retrieved subset) ===
             PastRecordsState: 2 records of 2 candidates (2 authorized, 0 denied)
-            PastRecord1: 09-29 Tue 16:01 (22 h before this request) / READ / /api/documents/{documentId} / documentId / items not recorded / class INTERNAL / 10.40.12.0/24 zone OFFICE / Chrome 140 on Windows / FORM login / allowed / same target: no / authorized as ALLOWED_USER_SCOPE (scope USER, tenant bound, purpose match)
-            PastRecord2: 09-28 Mon 11:40 (2 days before this request) / READ / /api/documents/{documentId} / documentId / items not recorded / class INTERNAL / 10.40.12.0/24 zone OFFICE / Chrome 140 on Windows / FORM login / allowed / same target: no / authorized as ALLOWED_USER_SCOPE (scope USER, tenant bound, purpose match)
+            [P1] PastRecord1: 09-29 Tue 16:01 (22 h before this request) / READ / /api/documents/{documentId} / target in UNTRUSTED TEXT / items not recorded / class INTERNAL / 10.40.12.0/24 zone OFFICE / Chrome 140 on Windows / FORM login / allowed / same target: no / learned: by the model alone / authorized as ALLOWED_USER_SCOPE (scope USER, tenant bound, purpose match)
+            [P2] PastRecord2: 09-28 Mon 11:40 (2 days before this request) / READ / /api/documents/{documentId} / target in UNTRUSTED TEXT / items not recorded / class INTERNAL / 10.40.12.0/24 zone OFFICE / Chrome 140 on Windows / FORM login / allowed / same target: no / learned: by the model alone / authorized as ALLOWED_USER_SCOPE (scope USER, tenant bound, purpose match)
 
             === UNKNOWN ===
             Coverage: bridge COMPLETE
 
             === UNTRUSTED TEXT (untrusted) ===
             UntrustedText1: source=request path (requester); "/api/documents/D-1"
+            UntrustedText2: source=past record target (requester); "documentId=D-7"
             """;
 
-    /** W3-14: a rule of the v19 bundle (v19 slot key) does not change a v20 prompt; v19 rules apply to the v19 bundle. */
+    /** W3-14: a rule of a section label (its section slot key) does not change a dictionary prompt. */
     @Test
-    void aV19RuleLeavesAV20PromptAsItIs() {
-        PromptRuntimeGovernanceRule path = ruleWithSlot("rule-v19-path", "UPDATE_SLOT_VALUE",
+    void aSectionRuleLeavesTheDictionaryPromptAsItIs() {
+        PromptRuntimeGovernanceRule path = ruleWithSlot("rule-section-path", "UPDATE_SLOT_VALUE",
                 "user_currentrequest_label_requestpath_3f2a9c1d0b7e",
                 Map.of("label", "RequestPath", "renderedValue", "/api/documents/D-1"));
-        PromptRuntimeGovernanceRule narrative = ruleWithSlot("rule-v19-narrative", "ADD_NARRATIVE",
+        PromptRuntimeGovernanceRule narrative = ruleWithSlot("rule-section-narrative", "ADD_NARRATIVE",
                 "user_resourceandaction_label_resourceid_0a1b2c3d4e5f",
                 Map.of("narrative", "ResourceIdMeaning: the resource id names the document."));
 
-        PromptRuntimeGovernanceRuleApplicationResult result = applyToV20(V20_PROMPT, List.of(path, narrative));
+        PromptRuntimeGovernanceRuleApplicationResult result = applyToDictionary(DICTIONARY_PROMPT,
+                List.of(path, narrative));
 
-        assertThat(result.userPrompt()).isEqualTo(V20_PROMPT);
+        assertThat(result.userPrompt()).isEqualTo(DICTIONARY_PROMPT);
         assertThat(result.applications()).extracting(PromptRuntimeGovernanceRuleApplication::resultState)
                 .containsExactly("SKIPPED_SLOT_NOT_IN_DICTIONARY", "SKIPPED_SLOT_NOT_IN_DICTIONARY");
         assertThat(result.applications()).noneMatch(PromptRuntimeGovernanceRuleApplication::changedPrompt);
     }
 
-    /** W3-14: a rule of a v20 bundle (dictionary slot key) does not change a v19 prompt. */
-    @Test
-    void aDictionaryRuleLeavesAV19PromptAsItIs() {
-        String v19 = "=== CURRENT REQUEST AND EVENT ===\nRequestPath: /api/documents/D-1\nHttpMethod: GET\n";
-        PromptRuntimeGovernanceRule action = ruleWithSlot("rule-v20-action", "UPDATE_SLOT_VALUE", "REQUEST.Action",
-                Map.of("label", "Action", "renderedValue",
-                        "READ (declared) GET (template /api/documents/{documentId})"));
-        PromptRuntimeGovernanceRule size = ruleWithSlot("rule-v20-size", "ADD_SLOT", "REQUEST.Size",
-                Map.of("renderedValue", "Size: 4,831 items"));
-
-        PromptRuntimeGovernanceRuleApplicationResult result = applier.apply(v19, List.of(action, size),
-                SecurityDecisionPromptDictionary.slotPlanProvider());
-
-        assertThat(result.userPrompt()).isEqualTo(v19);
-        assertThat(result.applications()).extracting(PromptRuntimeGovernanceRuleApplication::resultState)
-                .containsExactly("SKIPPED_DICTIONARY_SLOT_ON_SECTION_PROMPT", "SKIPPED_DICTIONARY_SLOT_ON_SECTION_PROMPT");
-    }
-
-    /**
-     * W3-14: the enterprise slot contract rows give a dictionary slot key a plan without its entry, so the plan alone
-     * cannot tell a v20 rule; on a v19 prompt the slot key of the dictionary still makes it a rule of the v20 bundle,
-     * which leaves the prompt as it is (without the dictionary the rule would rewrite the v19 line of the same name).
-     */
-    @Test
-    void aDictionaryRuleLeavesAV19PromptAsItIsWhateverTheSlotRowsSay() {
-        String v19 = "=== AUTHORIZATION CONTEXT ===\nAuthorizationEffect: ALLOW\n";
-        PromptSlotPlan row = new PromptSlotPlan("DECISION FACTS.AuthorizationEffect", "DECISION FACTS",
-                "AuthorizationEffect", "canonical.authorizationEffect", "PromptContextComposer", "P0_REQUIRED", "PROTECT");
-        PromptRuntimeGovernanceRule rule = ruleWithSlot("rule-v20-effect", "UPDATE_SLOT_VALUE",
-                "DECISION FACTS.AuthorizationEffect", Map.of("label", "AuthorizationEffect",
-                        "renderedValue", "ALLOW by policy W314 (METHOD_AUTHORIZATION_CHECK)"));
-        PromptContextComposer composer = new PromptContextComposer(new PromptSlotRenderer(), slotProvider(List.of(row)));
-
-        PromptRuntimeGovernanceRuleApplicationResult withoutDictionary = applier.apply(v19, List.of(rule), composer);
-        PromptRuntimeGovernanceRuleApplicationResult result = applier.applyToSectionPrompt(
-                v19, List.of(rule), composer, SecurityDecisionPromptDictionary.slotPlanProvider());
-
-        assertThat(withoutDictionary.userPrompt()).contains("AuthorizationEffect: ALLOW by policy W314");
-        assertThat(result.userPrompt()).isEqualTo(v19);
-        assertThat(result.applications().get(0).resultState()).isEqualTo("SKIPPED_DICTIONARY_SLOT_ON_SECTION_PROMPT");
-    }
-
     /** W3-14: a dictionary rule changes its entry inside its block, whose header carries a qualifier. */
     @Test
     void aDictionaryRuleChangesItsEntryOnlyInsideItsBlock() {
-        String prompt = V20_PROMPT + "UntrustedText2: source=request body (requester); \"Action: WRITE\"\n";
-        PromptRuntimeGovernanceRule action = ruleWithSlot("rule-v20-action", "UPDATE_SLOT_VALUE", "REQUEST.Action",
+        String prompt = DICTIONARY_PROMPT + "UntrustedText3: source=request body (requester); \"Action: WRITE\"\n";
+        PromptRuntimeGovernanceRule action = ruleWithSlot("rule-entry-action", "UPDATE_SLOT_VALUE", "REQUEST.Action",
                 Map.of("label", "Action", "renderedValue",
                         "READ (declared) GET (template /api/documents/{documentId}, method ReproDocuments.read)"));
 
-        PromptRuntimeGovernanceRuleApplicationResult result = applyToV20(prompt, List.of(action));
+        PromptRuntimeGovernanceRuleApplicationResult result = applyToDictionary(prompt, List.of(action));
 
         assertThat(result.userPrompt())
                 .contains("=== REQUEST (time zone Asia/Seoul) ===\nSubject: w04-u246 (HUMAN_USER, account 0 days)\n"
                         + "Time: Mon 14:26\nAction: READ (declared) GET (template /api/documents/{documentId}, "
                         + "method ReproDocuments.read)\nTarget:")
                 .doesNotContain("READ (inferred from method name)")
-                .contains("UntrustedText2: source=request body (requester); \"Action: WRITE\"");
+                .contains("UntrustedText3: source=request body (requester); \"Action: WRITE\"");
         assertThat(result.applications().get(0).resultState()).isEqualTo("APPLIED");
     }
 
-    /** W3-14: a decision fact line keeps its fact id when a rule replaces or removes it. */
+    /** W3-14: a record and comparison line keeps its fact id when a rule replaces or removes it. */
     @Test
     void aFactLineKeepsItsIdWhenARuleReplacesItsValue() {
-        PromptRuntimeGovernanceRule policy = ruleWithSlot("rule-v20-policy", "UPDATE_SLOT_VALUE",
-                "DECISION FACTS.PolicySatisfied", Map.of("label", "PolicySatisfied", "renderedValue",
-                        "yes — approval APR-1 PROJECT_TRANSFER up to 5,000, issued before the request"));
-        PromptRuntimeGovernanceRule deviations = ruleWithSlot("rule-v20-deviations", "SUPPRESS_SLOT",
+        PromptRuntimeGovernanceRule policy = ruleWithSlot("rule-entry-policy", "UPDATE_SLOT_VALUE",
+                "DECISION FACTS.Policy", Map.of("label", "Policy", "renderedValue",
+                        "EXPORT_APPROVAL requires a covering approval (exceptions: assigned project up to 500 items)"));
+        PromptRuntimeGovernanceRule deviations = ruleWithSlot("rule-entry-deviations", "SUPPRESS_SLOT",
                 "DECISION FACTS.DeviationsFromBaseline", Map.of("label", "DeviationsFromBaseline"));
 
-        PromptRuntimeGovernanceRuleApplicationResult result = applyToV20(V20_PROMPT, List.of(policy, deviations));
+        PromptRuntimeGovernanceRuleApplicationResult result = applyToDictionary(DICTIONARY_PROMPT,
+                List.of(policy, deviations));
 
         assertThat(result.userPrompt())
-                .contains("=== DECISION FACTS ===\n[F2] PolicySatisfied: yes — approval APR-1 PROJECT_TRANSFER up to "
-                        + "5,000, issued before the request\n\n=== PAST RECORDS")
+                .contains("=== RECORDS AND COMPARISONS ===\n[F2] Policy: EXPORT_APPROVAL requires a covering approval "
+                        + "(exceptions: assigned project up to 500 items)\n\n=== PAST RECORDS")
                 .doesNotContain("DeviationsFromBaseline")
-                .doesNotContain("PolicySatisfied: no");
+                .doesNotContain("Policy: EXPORT_APPROVAL requires a covering approval\n");
         assertThat(result.applications()).extracting(PromptRuntimeGovernanceRuleApplication::resultState)
                 .containsExactly("APPLIED", "APPLIED");
     }
@@ -681,17 +642,18 @@ class PromptRuntimeGovernanceRuleApplierTest {
     /** W3-14: a rule writes only a value of its entry's form (or the entry's missing text), as the dictionary requires. */
     @Test
     void aRuleWritesOnlyAValueOfTheEntryForm() {
-        PromptRuntimeGovernanceRule word = ruleWithSlot("rule-v20-word", "UPDATE_SLOT_VALUE",
-                "DECISION FACTS.PolicySatisfied", Map.of("label", "PolicySatisfied", "renderedValue", "approved"));
-        PromptRuntimeGovernanceRule missing = ruleWithSlot("rule-v20-missing", "UPDATE_SLOT_VALUE", "REQUEST.Target",
+        PromptRuntimeGovernanceRule word = ruleWithSlot("rule-entry-word", "UPDATE_SLOT_VALUE",
+                "DECISION FACTS.Policy", Map.of("label", "Policy", "renderedValue", "approved"));
+        PromptRuntimeGovernanceRule missing = ruleWithSlot("rule-entry-missing", "UPDATE_SLOT_VALUE", "REQUEST.Target",
                 Map.of("label", "Target", "renderedValue", "path template variable"));
 
-        PromptRuntimeGovernanceRuleApplicationResult result = applyToV20(V20_PROMPT, List.of(word, missing));
+        PromptRuntimeGovernanceRuleApplicationResult result = applyToDictionary(DICTIONARY_PROMPT, List.of(word, missing));
 
         assertThat(result.userPrompt())
-                .contains("[F2] PolicySatisfied: no — no approval for GB-500")
+                .contains("[F2] Policy: EXPORT_APPROVAL requires a covering approval\n")
+                .doesNotContain("Policy: approved")
                 .contains("\nTarget: path template variable\n");
-        // Rules apply in priority and rule id order: rule-v20-missing, rule-v20-word.
+        // Rules apply in priority and rule id order: rule-entry-missing, rule-entry-word.
         assertThat(result.applications()).extracting(PromptRuntimeGovernanceRuleApplication::resultState)
                 .containsExactly("APPLIED", "SKIPPED_VALUE_NOT_IN_ENTRY_FORM");
     }
@@ -699,83 +661,84 @@ class PromptRuntimeGovernanceRuleApplierTest {
     /** W3-14: a rule of a numbered entry changes the numbered line its label names; without one it is ambiguous. */
     @Test
     void aNumberedEntryRuleChangesTheLineItsLabelNames() {
-        String record = "09-28 Mon 11:40 (2 days before this request) / READ / /api/documents/{documentId} / documentId "
-                + "/ items not recorded / class INTERNAL / 10.40.12.0/24 zone OFFICE / Chrome 140 on Windows / FORM login "
-                + "/ allowed / same target: yes / authorized as ALLOWED_USER_SCOPE (scope USER, tenant bound, purpose "
-                + "match)";
-        PromptRuntimeGovernanceRule second = ruleWithSlot("rule-v20-record", "UPDATE_SLOT_VALUE",
+        String record = "09-28 Mon 11:40 (2 days before this request) / READ / /api/documents/{documentId} / target in "
+                + "UNTRUSTED TEXT / items not recorded / class INTERNAL / 10.40.12.0/24 zone OFFICE / Chrome 140 on Windows "
+                + "/ FORM login / allowed / same target: yes / learned: by the model alone / authorized as "
+                + "ALLOWED_USER_SCOPE (scope USER, tenant bound, purpose match)";
+        PromptRuntimeGovernanceRule second = ruleWithSlot("rule-entry-record", "UPDATE_SLOT_VALUE",
                 "PAST RECORDS.PastRecord{i}", Map.of("label", "PastRecord2", "renderedValue", record));
-        PromptRuntimeGovernanceRule any = ruleWithSlot("rule-v20-records", "UPDATE_SLOT_VALUE",
+        PromptRuntimeGovernanceRule any = ruleWithSlot("rule-entry-records", "UPDATE_SLOT_VALUE",
                 "PAST RECORDS.PastRecord{i}", Map.of("renderedValue", record));
 
-        PromptRuntimeGovernanceRuleApplicationResult result = applyToV20(V20_PROMPT, List.of(second, any));
+        PromptRuntimeGovernanceRuleApplicationResult result = applyToDictionary(DICTIONARY_PROMPT, List.of(second, any));
 
         assertThat(result.userPrompt())
-                .contains("PastRecord2: " + record + "\n")
-                .contains("PastRecord1: 09-29 Tue 16:01 (22 h before this request) / READ / /api/documents/{documentId} "
-                        + "/ documentId / items not recorded / class INTERNAL / 10.40.12.0/24 zone OFFICE / Chrome 140 on "
-                        + "Windows / FORM login / allowed / same target: no /");
+                .contains("[P2] PastRecord2: " + record + "\n")
+                .contains("[P1] PastRecord1: 09-29 Tue 16:01 (22 h before this request) / READ / "
+                        + "/api/documents/{documentId} / target in UNTRUSTED TEXT / items not recorded / class INTERNAL / "
+                        + "10.40.12.0/24 zone OFFICE / Chrome 140 on Windows / FORM login / allowed / same target: no /");
         assertThat(result.applications()).extracting(PromptRuntimeGovernanceRuleApplication::resultState)
                 .containsExactly("APPLIED", "SKIPPED_DUPLICATE_RENDERED_SLOT");
     }
 
     /**
-     * W3-14: every line of a v20 block is a dictionary entry, so an adding rule adds only a line of its slot's entry in
-     * the entry's form; free text (a narrative, a limitation, a v19 label line) is not added.
+     * W3-14: every line of a dictionary block is a dictionary entry, so an adding rule adds only a line of its slot's
+     * entry in the entry's form; free text (a narrative, a limitation, a section label line) is not added.
      */
     @Test
     void anAddingRuleAddsOnlyALineOfItsEntry() {
-        PromptRuntimeGovernanceRule size = ruleWithSlot("rule-v20-size", "ADD_SLOT", "REQUEST.Size",
+        PromptRuntimeGovernanceRule size = ruleWithSlot("rule-entry-size", "ADD_SLOT", "REQUEST.Size",
                 Map.of("renderedValue", "Size: 4,831 items"));
-        PromptRuntimeGovernanceRule badSize = ruleWithSlot("rule-v20-bad-size", "ADD_SLOT", "REQUEST.Size",
+        PromptRuntimeGovernanceRule badSize = ruleWithSlot("rule-entry-bad-size", "ADD_SLOT", "REQUEST.Size",
                 Map.of("renderedValue", "Size: many"));
-        PromptRuntimeGovernanceRule narrative = ruleWithSlot("rule-v20-narrative", "ADD_NARRATIVE",
+        PromptRuntimeGovernanceRule narrative = ruleWithSlot("rule-entry-narrative", "ADD_NARRATIVE",
                 "PAST RECORDS.PastRecordsState", Map.of("narrative",
                         "RagScopeReason: retrieved documents match the current tenant, resource, and purpose scope."));
-        PromptRuntimeGovernanceRule limitation = ruleWithSlot("rule-v20-limitation", "ADD_LIMITATION",
+        PromptRuntimeGovernanceRule limitation = ruleWithSlot("rule-entry-limitation", "ADD_LIMITATION",
                 "USER BASELINE.BaselineStatus",
                 Map.of("limitation", "Do not treat provisional baseline as confirmed normal behavior."));
 
-        PromptRuntimeGovernanceRuleApplicationResult result = applyToV20(V20_PROMPT,
+        PromptRuntimeGovernanceRuleApplicationResult result = applyToDictionary(DICTIONARY_PROMPT,
                 List.of(size, badSize, narrative, limitation));
 
         assertThat(result.userPrompt())
-                .contains("ResourceClass: INTERNAL\nSize: 4,831 items\n\n=== DECISION FACTS ===")
+                .contains("ResourceClass: INTERNAL\nSize: 4,831 items\n\n=== RECORDS AND COMPARISONS ===")
                 .doesNotContain("Size: many")
                 .doesNotContain("RagScopeReason")
                 .doesNotContain("Do not treat provisional baseline");
-        // Rule id order: rule-v20-bad-size, rule-v20-limitation, rule-v20-narrative, rule-v20-size.
+        // Rule id order: rule-entry-bad-size, rule-entry-limitation, rule-entry-narrative, rule-entry-size.
         assertThat(result.applications()).extracting(PromptRuntimeGovernanceRuleApplication::resultState)
                 .containsExactly("SKIPPED_VALUE_NOT_IN_ENTRY_FORM", "SKIPPED_FREE_TEXT_ON_DICTIONARY_PROMPT",
                         "SKIPPED_FREE_TEXT_ON_DICTIONARY_PROMPT", "APPLIED");
     }
 
     /**
-     * W3-14: the v19 applier wrote one value on every alias line of a fact and dropped the repeats (459-469). A v20 fact
-     * has one name, so the rule writes its value on the entry's line and drops repeated lines of the entry in its block.
+     * W3-14: the section prompt's applier wrote one value on every alias line of a fact and dropped the repeats
+     * (459-469). A dictionary fact has one name, so the rule writes its value on the entry's line and drops repeated
+     * lines of the entry in its block.
      */
     @Test
     void anUpdateRuleLeavesOneLineOfItsEntryInTheBlock() {
-        String prompt = V20_PROMPT.replace("ResourceClass: INTERNAL\n", "ResourceClass: INTERNAL\n"
+        String prompt = DICTIONARY_PROMPT.replace("ResourceClass: INTERNAL\n", "ResourceClass: INTERNAL\n"
                 + "Action: WRITE (declared) POST (template /admin/api/security-test/sensitive/runtime-slot-fault)\n");
-        PromptRuntimeGovernanceRule action = ruleWithSlot("rule-v20-action", "UPDATE_SLOT_VALUE", "REQUEST.Action",
+        PromptRuntimeGovernanceRule action = ruleWithSlot("rule-entry-action", "UPDATE_SLOT_VALUE", "REQUEST.Action",
                 Map.of("label", "Action", "renderedValue",
                         "READ (inferred from method name) GET (template /api/documents/{documentId}, method ReproDocuments.read)"));
-        PromptRuntimeGovernanceRule order = ruleWithSlot("rule-v20-order", "REORDER_SLOT", "REQUEST.Action",
+        PromptRuntimeGovernanceRule order = ruleWithSlot("rule-entry-order", "REORDER_SLOT", "REQUEST.Action",
                 Map.of("label", "Action", "anchorLabel", "Subject", "placement", "BEFORE"));
 
-        PromptRuntimeGovernanceRuleApplicationResult duplicate = applyToV20(prompt, List.of(order));
-        PromptRuntimeGovernanceRuleApplicationResult result = applyToV20(prompt, List.of(action));
+        PromptRuntimeGovernanceRuleApplicationResult duplicate = applyToDictionary(prompt, List.of(order));
+        PromptRuntimeGovernanceRuleApplicationResult result = applyToDictionary(prompt, List.of(action));
 
         assertThat(duplicate.applications().get(0).resultState()).isEqualTo("SKIPPED_DUPLICATE_RENDERED_SLOT");
-        assertThat(result.userPrompt()).isEqualTo(V20_PROMPT);
+        assertThat(result.userPrompt()).isEqualTo(DICTIONARY_PROMPT);
         assertThat(result.applications().get(0).resultState()).isEqualTo("APPLIED");
     }
 
-    private PromptRuntimeGovernanceRuleApplicationResult applyToV20(
+    private PromptRuntimeGovernanceRuleApplicationResult applyToDictionary(
             String prompt,
             List<PromptRuntimeGovernanceRule> rules) {
-        return applier.applyToDictionaryPrompt(prompt, rules, SecurityDecisionPromptDictionary.slotPlanProvider());
+        return applier.applyToDictionaryPrompt(prompt, rules, SecurityDecisionPromptDictionary.v1SlotPlanProvider());
     }
 
     private PromptSlotPlanProvider slotProvider(List<PromptSlotPlan> plans) {

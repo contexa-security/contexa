@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.agent;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -99,6 +100,19 @@ public class InMemoryAgentRegistry implements AgentRegistry {
     private AgentRegistration changed(AgentRegistration registration) {
         approvalListeners.changed(AgentApproval.of(registration));
         return registration;
+    }
+
+    /** N10: the agents counted by status where they are kept, without sorting them as {@link #list} does. */
+    @Override
+    public Map<AgentStatus, Long> countByStatus(String tenantId) {
+        String tenantKey = tenantId != null ? AgentRegistrations.tenantKey(tenantId) : null;
+        Map<AgentStatus, Long> counts = new EnumMap<>(AgentStatus.class);
+        agents.forEach((key, agent) -> {
+            if ((tenantKey == null || tenantKey.equals(key.tenantKey())) && agent.status() != null) {
+                counts.merge(agent.status(), 1L, Long::sum);
+            }
+        });
+        return counts;
     }
 
     @Override

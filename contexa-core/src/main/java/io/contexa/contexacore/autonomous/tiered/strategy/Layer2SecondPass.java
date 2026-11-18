@@ -32,13 +32,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * What a Layer2 second pass is given (W3-9): the first pass's verdict and the v20 prompt it sent, and the facts only
+ * What a Layer2 second pass is given (W3-9): the first pass's verdict and the prompt it sent, and the facts only
  * the second pass gathered. A first pass without a model verdict (a technical fallback) gives nothing to build on.
  */
 final class Layer2SecondPass {
 
-    static final String V20_LAYOUT = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V20;
-    static final String V21_LAYOUT = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21;
     static final String V1_LAYOUT = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V1;
 
     /** Past record states of a search the first pass did not finish or did not run. */
@@ -83,10 +81,9 @@ final class Layer2SecondPass {
                     explanations(metadata.get(PromptRuntimeTelemetrySupport.FIRST_PASS_HYPOTHESES)));
         }
 
-        /** A model verdict on a dictionary prompt (v20, v21, v1.0) the second pass can add to. */
+        /** A model verdict on a dictionary prompt the second pass can add to (plan 6-2: both passes run one version). */
         boolean givesASecondPass() {
-            return modelVerdict && (V20_LAYOUT.equals(layout) || V21_LAYOUT.equals(layout) || V1_LAYOUT.equals(layout))
-                    && userPrompt != null;
+            return modelVerdict && V1_LAYOUT.equals(layout) && userPrompt != null;
         }
 
         /** The past records this pass found when the first pass could not retrieve any. */

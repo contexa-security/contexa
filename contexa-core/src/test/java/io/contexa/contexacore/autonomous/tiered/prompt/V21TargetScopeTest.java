@@ -39,8 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Finding 7 of the v21 plan (bundle v21.4): the scope the host's records hold a request's target in (a document's or
  * a customer's project) is drawn by the v21 dictionary as the host's fact right after the target line, compared by the
- * inspector with the sealed resource, kept by the hardener only in the host's {@code key=value} form, and never drawn by
- * the v20 dictionary, whose render stays as it was.
+ * inspector with the sealed resource and kept by the hardener only in the host's {@code key=value} form.
  */
 class V21TargetScopeTest {
 
@@ -49,34 +48,28 @@ class V21TargetScopeTest {
     private static final String SCOPE = "projectKey=GB-500";
 
     @Test
-    void theV21DictionaryHoldsTheTargetScopeRightAfterTheTargetAndTheV20DictionaryDoesNot() {
-        List<String> v21 = names(SecurityDecisionPromptDictionary.V21_ENTRIES);
+    void theDictionaryHoldsTheTargetScopeRightAfterTheTarget() {
+        List<String> v1 = names(SecurityDecisionPromptDictionary.V1_ENTRIES);
 
-        assertThat(v21.get(v21.indexOf("REQUEST.Target") + 1)).isEqualTo("REQUEST.TargetScope");
-        assertThat(names(SecurityDecisionPromptDictionary.ENTRIES)).doesNotContain("REQUEST.TargetScope");
+        assertThat(v1.get(v1.indexOf("REQUEST.Target") + 1)).isEqualTo("REQUEST.TargetScope");
     }
 
     @Test
-    void aV21RenderDrawsTheScopeAsTheHostsFactAfterTheTargetAndAV20RenderStaysAsItWas() {
-        InspectionGolden.Render scoped = render(SecurityDecisionPromptBundles.V21, "A3",
+    void aRenderDrawsTheScopeAsTheHostsFactAfterTheTarget() {
+        InspectionGolden.Render scoped = render(SecurityDecisionPromptBundles.V1, "A3",
                 resource -> resource.setScope(SCOPE));
-        InspectionGolden.Render plain = render(SecurityDecisionPromptBundles.V21, "A3", resource -> { });
+        InspectionGolden.Render plain = render(SecurityDecisionPromptBundles.V1, "A3", resource -> { });
 
         List<String> lines = Arrays.asList(scoped.userPrompt().split("\n"));
         int target = lines.indexOf(InspectionGolden.lineStarting(scoped.userPrompt(), "Target: "));
         assertThat(lines.get(target + 1)).isEqualTo("[R5] TargetScope: projectKey=GB-500 (host record of the target)");
         assertThat(InspectionGolden.hasLine(plain.userPrompt(), "TargetScope: ")).as("no scope, no line").isFalse();
-
-        InspectionGolden.Render v20Scoped = render(SecurityDecisionPromptBundles.V20, "A3",
-                resource -> resource.setScope(SCOPE));
-        InspectionGolden.Render v20Plain = render(SecurityDecisionPromptBundles.V20, "A3", resource -> { });
-        assertThat(v20Scoped.userPrompt()).as("the v20 render does not draw the scope").isEqualTo(v20Plain.userPrompt());
     }
 
     @Test
     void theInspectorComparesTheDrawnScopeWithTheSealedResource() {
-        InspectionGolden.Render plain = render(SecurityDecisionPromptBundles.V21, "A3", resource -> { });
-        InspectionGolden.Render scoped = render(SecurityDecisionPromptBundles.V21, "A3",
+        InspectionGolden.Render plain = render(SecurityDecisionPromptBundles.V1, "A3", resource -> { });
+        InspectionGolden.Render scoped = render(SecurityDecisionPromptBundles.V1, "A3",
                 resource -> resource.setScope(SCOPE));
 
         PromptInspectionResult matched = INSPECTOR.inspect(scoped.sealed());

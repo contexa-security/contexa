@@ -21,6 +21,7 @@ import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.autonomous.AnalysisTurn;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionVersionFeatures;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV1OutputInspector;
@@ -60,10 +61,7 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV4;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV5;
-import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionCompactAnswer;
 import io.contexa.contexacore.std.llm.gate.ModelCallTimer;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV21OutputInspector;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
@@ -894,19 +892,16 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             markRagRetrievalUnavailable(event, requestedTopK, null);
             return Collections.emptyList();
         }
-        if (readsPastRecordsExactly(event)) {
-            // v1.0 (D3): a bundle with the similar cases adds the v19 similarity search beside the exact lookup.
-            if (runsV1SimilarCasesBundle(event)) {
-                return searchPastRecordsWithSimilarCases(event, searchId, retrievalPurpose, requestedTopK,
-                        similarityThreshold);
-            }
-            return searchPastRecordsExactly(event, searchId, retrievalPurpose, requestedTopK);
+        // D3: a version with the similar cases adds the similarity search beside the exact lookup.
+        if (versionFeatures(event).similarCases()) {
+            return searchPastRecordsWithSimilarCases(event, searchId, retrievalPurpose, requestedTopK,
+                    similarityThreshold);
         }
-        return searchBySimilarity(event, searchId, retrievalPurpose, requestedTopK, similarityThreshold);
+        return searchPastRecordsExactly(event, searchId, retrievalPurpose, requestedTopK);
     }
 
     /**
-     * The v19 past record search by similarity: the request's query, the multi-query and supporting searches the
+     * The past record search by similarity: the request's query, the multi-query and supporting searches the
      * settings turn on and the organization's supporting documents. It states its search on the event it is given.
      */
     private List<Document> searchBySimilarity(SecurityEvent event, String searchId, String retrievalPurpose,
@@ -1232,23 +1227,15 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 .build();
     }
 
-    /** Whether the event runs a v1.0 bundle that adds the similar cases of the similarity search. */
-    private boolean runsV1SimilarCasesBundle(SecurityEvent event) {
-        SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
-        return bundle != null && bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS
-                && (bundle.features().compactOutput() ? versionFeatures(event).similarCases()
-                : bundle.features().similarCases());
-    }
-
     /** Plan 6-2: the features of the version of the prompt the event runs (decision D6). */
     protected SecurityDecisionVersionFeatures versionFeatures(SecurityEvent event) {
-        return SecurityDecisionVersionFeatures.of(promptTemplate != null
-                ? promptTemplate.promptVersion(event) : SecurityDecisionPromptDocument.product());
+        return SecurityDecisionVersionFeatures.of(promptVersionOf(event));
     }
 
-    /** Whether the event runs a dictionary bundle (v20, v21), which reads its past records by the exact lookup (W3-18). */
-    private boolean readsPastRecordsExactly(SecurityEvent event) {
-        return runsV20Bundle(event);
+    /** Plan 3.4: the version of the prompt fixed on the event when its decision started; the product without a template. */
+    protected AssembledPrompt promptVersionOf(SecurityEvent event) {
+        AssembledPrompt version = promptTemplate != null ? promptTemplate.promptVersion(event) : null;
+        return version != null ? version : SecurityDecisionPromptDocument.product();
     }
 
     /** The minimum-action rule settings the host configured and how a weaker decision is handled (W4-4). */
@@ -1271,8 +1258,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
      * (W4-5). The rules read the facts the prompt stated, from the canonical context the prompt was built on.
      */
     protected void applyMinimumActionRules(SecurityDecision decision, SecurityEvent event) {
-        // V-5: a v21 decision is the model's judgment; no minimum action rule is evaluated or recorded for it.
-        if (decision == null || runsV21Bundle(event)) {
+        if (decision == null) {
             return;
         }
         List<MinimumActionRules.Hit> hits = minimumActionHits(event);
@@ -1314,41 +1300,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 resource != null ? resource.getResourceClass() : null,
                 resource != null ? resource.getActionFamily() : null,
                 minimumActionSettings);
-    }
-
-    /**
-     * Whether the event runs a dictionary bundle: v20 (output contract v3) or v21 (output contract v4). Both read past
-     * records by the exact lookup, keep the model's reason and ask a provider for structured output.
-     */
-    private boolean runsV20Bundle(SecurityEvent event) {
-        SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
-        return bundle != null && bundle.layout().dictionaryBlocks();
-    }
-
-    /** Whether the event runs the v21 bundle: the model judges, no rule floor, the output contract v4 (V-5). */
-    protected boolean runsV21Bundle(SecurityEvent event) {
-        SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
-        return bundle != null && bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS;
-    }
-
-    /** Whether the event runs a v1.0 bundle whose response check replaces an answer that breaks a rule (B2, B5, B6). */
-    protected boolean runsV1FallbackBundle(SecurityEvent event) {
-        SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
-        return bundle != null && bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS
-                && (bundle.features().compactOutput() ? versionFeatures(event).fallbackOnViolation()
-                : bundle.features().fallbackOnViolation());
-    }
-
-    /** Whether the event runs a bundle of the records layout (v21, v1.0), which answers in the output contract v4. */
-    protected boolean runsRecordsBundle(SecurityEvent event) {
-        SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
-        return bundle != null && bundle.layout().recordsNotation();
-    }
-
-    /** Whether the event runs a bundle that answers in the short output contract v5 (v1.0, K30). */
-    protected boolean runsCompactOutputBundle(SecurityEvent event) {
-        SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
-        return bundle != null && bundle.layout().recordsNotation() && bundle.features().compactOutput();
     }
 
     /** The bundle the event runs, fixed on the event for its later prompts; null without a template. */
@@ -2282,10 +2233,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         StructuredOutputCapability structuredOutputCapability = resolveStructuredOutputCapability(event);
         boolean nativeOutputAllowed = tieredStrategyProperties.getPromptRuntime()
                 .isNativeStructuredOutputEnabledForProfile(promptBudgetProfile.profileKey());
-        // W4-2: a v20 request that names no model is judged by the chat model the analysis will run on, when the prompt
-        // profile allows native structured output; the v19 bundle keeps its own format whatever the model.
-        if (runsV20Bundle(event) && nativeOutputAllowed
-                && "default".equals(structuredOutputCapability.resolutionSource())) {
+        // W4-2: a request that names no model is judged by the chat model the analysis will run on, when the prompt
+        // profile allows native structured output.
+        if (nativeOutputAllowed && "default".equals(structuredOutputCapability.resolutionSource())) {
             StructuredOutputCapability selected = capabilityOf(analysisModel);
             if (selected != null) {
                 structuredOutputCapability = selected;
@@ -2298,19 +2248,17 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             structuredOutputMode = StructuredOutputMode.VALIDATED_CONVERTER;
         }
         request.withParameter("structuredOutputMode", structuredOutputMode.name());
-        // W4-2: a v20 request with native structured output asks the provider to enforce the output contract v3; the
-        // v19 bundle keeps its own format, and without native output the system text states the schema.
-        if (structuredOutputMode == StructuredOutputMode.NATIVE_STRUCTURED && runsV20Bundle(event)) {
-            request.withParameter(ExecutionContext.OUTPUT_SCHEMA, runsCompactOutputBundle(event)
-                    ? SecurityDecisionOutputContractV5.providerSchema() : runsRecordsBundle(event)
-                    ? SecurityDecisionOutputContractV4.providerSchema() : SecurityDecisionOutputContract.providerSchema());
+        // W4-2: a request with native structured output asks the provider to enforce the output contract v5; without
+        // native output the system text states the schema.
+        if (structuredOutputMode == StructuredOutputMode.NATIVE_STRUCTURED) {
+            request.withParameter(ExecutionContext.OUTPUT_SCHEMA, SecurityDecisionOutputContractV5.providerSchema());
         }
-        if (runsCompactOutputBundle(event)) {
-            // K30: the response check reads a v1.0 answer with its one explanation as the list of explanations.
-            request.withParameter(SecurityDecisionCompactAnswer.REQUEST_PARAMETER, true);
-            // Plan 6-2 (D6): a version with the decision rules replaces an answer that still breaks one.
-            request.withParameter(SecurityDecisionV1OutputInspector.FALLBACK_PARAMETER, runsV1FallbackBundle(event));
-        }
+        // Plan 3.4: the model call asks again with the correction of the version fixed when the decision started.
+        AssembledPrompt version = promptVersionOf(event);
+        request.withParameter(SecurityDecisionPromptDocument.VERSION_PARAMETER, version);
+        // Plan 6-2 (D6): a version with the decision rules replaces an answer that still breaks one.
+        request.withParameter(SecurityDecisionV1OutputInspector.FALLBACK_PARAMETER,
+                SecurityDecisionVersionFeatures.of(version).fallbackOnViolation());
         request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
         request.withParameter("structuredOutputValidationMaxAttempts", 1);
         request.withParameter("strictResponsePostprocessing", true);
@@ -2527,9 +2475,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return;
         }
 
-        // W4-3 (Q-57 decision 2): a v20 decision keeps the model's reason and reason codes; only v19 fixes sentences,
-        // and v1.0 with the fallback, which keeps every v19 and v20 response rule (B2).
-        if (runsV20Bundle(event) && !runsV1FallbackBundle(event)) {
+        // W4-3 (Q-57 decision 2): a decision keeps the model's reason and reason codes; only a version with the
+        // fallback of the decision rules fixes the sentences (B2).
+        if (!versionFeatures(event).fallbackOnViolation()) {
             return;
         }
         Map<String, Object> metadata = event.getMetadata();
@@ -2854,6 +2802,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         // N-OUT-3: so do this layer's output retries, after those of the layers before it.
         PromptRuntimeTelemetrySupport.appendOutputRetries(metadata, getLayerName(),
                 responseMetadata.get(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES));
+        // K17 (D11): the decision rule this layer's answer still broke after its retry reaches the decision record.
+        PromptRuntimeTelemetrySupport.recordRuleBreach(metadata, getLayerName(),
+                responseMetadata.get(SecurityDecisionV1OutputInspector.V1_RULE_BREACH));
         if (promptContextAuditRecorder != null && hasPromptLineage(metadata)) {
             promptContextAuditRecorder.enrich(event);
         }

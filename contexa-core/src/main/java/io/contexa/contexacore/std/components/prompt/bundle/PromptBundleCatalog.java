@@ -17,6 +17,8 @@ package io.contexa.contexacore.std.components.prompt.bundle;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
@@ -27,12 +29,17 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
  * The prompt bundle manifests shipped with the build ({@code prompt-bundles/manifests/<promptKey>/<version>.json} on the
  * classpath). Manifests are checked when they are read: a bundle hash that does not match its elements, or two
  * manifests with the same name, fail fast.
+ *
+ * <p>Plan 3.9: a version of the database ({@code v2.0}) has no manifest. A catalog made {@link #withVersions with the
+ * versions} reads the version table for it on every call, so a version saved after the start is seen at once. The
+ * manifests stay for the bundles that still have one (the prompts other than the security decision, plan 6-7).
  */
 public final class PromptBundleCatalog {
 
@@ -42,6 +49,7 @@ public final class PromptBundleCatalog {
     private static volatile PromptBundleCatalog shared;
 
     private final Map<String, PromptBundleManifest> manifests;
+    private final PromptVersionCatalog versions;
 
     public PromptBundleCatalog(List<PromptBundleManifest> manifests) {
         Map<String, PromptBundleManifest> byName = new LinkedHashMap<>();
@@ -53,6 +61,30 @@ public final class PromptBundleCatalog {
             }
         }
         this.manifests = Map.copyOf(byName);
+        this.versions = PromptVersionCatalog.none();
+    }
+
+    private PromptBundleCatalog(Map<String, PromptBundleManifest> manifests, PromptVersionCatalog versions) {
+        this.manifests = manifests;
+        this.versions = Objects.requireNonNull(versions, "versions");
+    }
+
+    /**
+     * Plan 3.9: this catalog with the versions of the database. A version name reads the version table; a bundle name
+     * reads the manifests as before.
+     */
+    public PromptBundleCatalog withVersions(PromptVersionCatalog versions) {
+        return new PromptBundleCatalog(manifests, versions != null ? versions : PromptVersionCatalog.none());
+    }
+
+    /** The versions of the database this catalog reads; none for the catalog of the build alone. */
+    public PromptVersionCatalog versions() {
+        return versions;
+    }
+
+    /** Whether the name is the name of a version of the database ({@code v2.0}), not of a bundle of the build. */
+    public static boolean isVersionName(String name) {
+        return PromptVersionNames.number(name).isPresent();
     }
 
     public static PromptBundleCatalog shared() {
@@ -90,6 +122,7 @@ public final class PromptBundleCatalog {
         return new PromptBundleCatalog(manifests);
     }
 
+    /** The manifest of a bundle of the build; a version of the database has none (it is read through {@link #versions()}). */
     public Optional<PromptBundleManifest> find(String promptKey, String bundleVersion) {
         if (promptKey == null || bundleVersion == null) {
             return Optional.empty();

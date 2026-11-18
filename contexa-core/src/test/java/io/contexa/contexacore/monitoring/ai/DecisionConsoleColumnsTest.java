@@ -16,12 +16,16 @@
 package io.contexa.contexacore.monitoring.ai;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
+import io.contexa.contexacore.autonomous.context.decision.DeviationDimension;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -151,5 +155,95 @@ class DecisionConsoleColumnsTest {
                 .containsExactly("DEVIATION_DEVICE", "DEVIATION_NETWORK");
         assertThat(reasons).extracting(DecisionConsoleColumns.Reason::factId).containsExactly("F3", "F4");
         assertThat(reasons).extracting(DecisionConsoleColumns.Reason::group).doesNotContainNull();
+    }
+
+    /** K25: only the model's own sentence is kept as its words; the sentence the engine wrote or added is the engine's. */
+    @Test
+    void theModelsSentenceIsKeptApartFromTheEngines() {
+        String added = "Layer2 returned ESCALATE, so final autonomous action was terminalized to CHALLENGE by tiered "
+                + "strategy policy.";
+        ProcessingResult model = ProcessingResult.builder().reasoning("A device the user never used.")
+                .fieldProvenance(Map.of("reasoning", "MODEL")).build();
+        ProcessingResult changed = ProcessingResult.builder().reasoning("A device the user never used.\n" + added)
+                .autonomyConstraintSummary(added).fieldProvenance(Map.of("reasoning", "MODEL")).build();
+        ProcessingResult engineOnly = ProcessingResult.builder().reasoning(added).autonomyConstraintSummary(added).build();
+        ProcessingResult fallback = ProcessingResult.builder().reasoning("[AI Native] Layer2 LLM call failed")
+                .fieldProvenance(Map.of("reasoning", "PLATFORM_FALLBACK")).build();
+        ProcessingResult canonical = ProcessingResult.builder().reasoning("The baseline is limited.")
+                .llmReasoning("The baseline is established.").fieldProvenance(Map.of("reasoning", "PLATFORM_CANONICAL"))
+                .build();
+        ProcessingResult modelLess = ProcessingResult.builder()
+                .reasoning("Escalate overload protection - CHALLENGE applied").build();
+
+        assertThat(DecisionConsoleColumns.sentences(model, "MODEL"))
+                .containsExactly("A device the user never used.", null);
+        assertThat(DecisionConsoleColumns.sentences(changed, "ENGINE_CHANGED"))
+                .containsExactly("A device the user never used.", added);
+        assertThat(DecisionConsoleColumns.sentences(engineOnly, "MODEL_LESS")).containsExactly(null, added);
+        assertThat(DecisionConsoleColumns.sentences(engineOnly, "ENGINE_CHANGED")).containsExactly(null, added);
+        assertThat(DecisionConsoleColumns.sentences(fallback, "MODEL"))
+                .containsExactly(null, "[AI Native] Layer2 LLM call failed");
+        assertThat(DecisionConsoleColumns.sentences(canonical, "MODEL"))
+                .containsExactly("The baseline is established.", "The baseline is limited.");
+        assertThat(DecisionConsoleColumns.sentences(modelLess, "MODEL_LESS"))
+                .containsExactly(null, "Escalate overload protection - CHALLENGE applied");
+        assertThat(DecisionConsoleColumns.summary(changed, null, Map.of(), List.of(), null, "ENGINE_CHANGED", List.of()))
+                .containsEntry("modelReason", "A device the user never used.").containsEntry("engineReason", added)
+                .doesNotContainKey("reason");
+    }
+
+    /** K27: the usual values of each dimension, as the baseline view the prompt read holds them. */
+    @Test
+    void theUsualValuesComeFromTheBaselineViewInTheNotationOfTheRequestsValue() {
+        Map<String, Integer> actions = new LinkedHashMap<>();
+        actions.put("READ", 20);
+        actions.put("EXPORT", 30);
+        BaselineView view = new BaselineView(BaselineView.State.ESTABLISHED, 46L, 46, 12, 30, "basis",
+                List.of(9, 10, 11, 14), List.of(9, 10, 11, 14), List.of(1, 2, 3), List.of(1, 2, 3),
+                List.of("projectKey=PLM-OPS"), actions, null, null, List.of("INTERNAL=25", "CRITICAL=3"), null, null, 0,
+                List.of(), List.of("10.1.2.0/24"), List.of("Safari/17 on MAC"), List.of("Safari"), List.of("MAC"),
+                List.of("PASSWORD"), BaselineView.EvidenceGrade.STRONG, List.of());
+
+        assertThat(DecisionConsoleColumns.usualValues(view, DeviationDimension.TIME))
+                .containsExactly("09", "10", "11", "14");
+        assertThat(DecisionConsoleColumns.usualValues(view, DeviationDimension.DAY)).containsExactly("Mon", "Tue", "Wed");
+        assertThat(DecisionConsoleColumns.usualValues(view, DeviationDimension.NETWORK)).containsExactly("10.1.2.0/24");
+        assertThat(DecisionConsoleColumns.usualValues(view, DeviationDimension.DEVICE))
+                .containsExactly("Safari/17 on MAC");
+        assertThat(DecisionConsoleColumns.usualValues(view, DeviationDimension.LOGIN_METHOD)).containsExactly("PASSWORD");
+        assertThat(DecisionConsoleColumns.usualValues(view, DeviationDimension.TARGET))
+                .containsExactly("projectKey=PLM-OPS");
+        assertThat(DecisionConsoleColumns.usualValues(view, DeviationDimension.ACTION)).as("the most frequent first")
+                .containsExactly("EXPORT", "READ");
+        assertThat(DecisionConsoleColumns.usualValues(view, DeviationDimension.RESOURCE_CLASS))
+                .containsExactly("NORMAL", "CRITICAL");
+        assertThat(DecisionConsoleColumns.usualValues(view, DeviationDimension.SIZE)).isEmpty();
+        assertThat(DecisionConsoleColumns.usualValues(null, DeviationDimension.TIME)).isEmpty();
+    }
+
+    /** K17 (D11): the rules the model's answers still broke reach the summary, and the row asks for a review. */
+    @Test
+    void theRulesTheAnswersStillBrokeReachTheSummaryAndAskForAReview() {
+        Map<String, Object> meta = meta(PromptRuntimeTelemetrySupport.RULE_BREACHES, List.of(
+                Map.of("layer", "Layer1", "rule", "REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH"),
+                Map.of("layer", "Layer2", "rule", "MINIMUM_ACTION_VIOLATION: MIN_P1_IDENTITY_DEVIATION requires "
+                        + "CHALLENGE or a stronger action")));
+        ProcessingResult result = ProcessingResult.builder().success(true).action("ALLOW").build();
+
+        DecisionConsoleColumns.Values broken = DecisionConsoleColumns.of(meta, result, ZeroTrustAction.ALLOW,
+                Instant.now());
+        DecisionConsoleColumns.Values kept = DecisionConsoleColumns.of(meta(), result, ZeroTrustAction.ALLOW,
+                Instant.now());
+
+        assertThat(broken.ruleBroken()).isTrue();
+        assertThat(kept.ruleBroken()).isFalse();
+        assertThat(kept.summary()).doesNotContainKey("ruleBreaches");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> breaches = (List<Map<String, Object>>) broken.summary().get("ruleBreaches");
+        assertThat(breaches).hasSize(2);
+        assertThat(breaches.get(0)).containsEntry("layer", "Layer1")
+                .containsEntry("codes", List.of("REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH"));
+        assertThat(breaches.get(1).get("codes")).as("the floor and its rule, not the action it names")
+                .isEqualTo(List.of("MINIMUM_ACTION_VIOLATION", "MIN_P1_IDENTITY_DEVIATION"));
     }
 }

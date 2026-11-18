@@ -66,6 +66,12 @@ public record PromptExecutionMetadata(
     /** The recent decisions that did not allow the past records block drew its lines from (W5-4). */
     public static final String PROMPT_PAST_DENIED_DECISIONS = "promptPastDeniedDecisions";
     public static final String PROMPT_BASELINE_STATUS = "promptBaselineStatus";
+    /**
+     * Plan 3.8 (9): the version the prompt was drawn with ({@code v2.0}; the release of the product document when no
+     * version was chosen) and its content hash, which the sealed package keeps beside the prompt.
+     */
+    public static final String PROMPT_VERSION_NAME = "promptVersionName";
+    public static final String PROMPT_CONTENT_HASH = "promptContentHash";
 
     public PromptExecutionMetadata {
         governanceDescriptor = Objects.requireNonNull(governanceDescriptor, "governanceDescriptor");

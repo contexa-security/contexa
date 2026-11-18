@@ -23,8 +23,6 @@ import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -106,7 +104,7 @@ class PromptBundleCatalogTest {
         assertThat(descriptor.rollbackPromptVersion()).isNull();
         assertThat(manifest.rollbackTargets()).isEmpty();
         assertThat(descriptor.toMetadataMap())
-                .containsEntry("promptBundleVersion", "2026.10.24-v19.21")
+                .containsEntry("promptBundleVersion", "2026.11.16-v1.0")
                 .containsEntry("promptBundleHash", manifest.bundleHash())
                 .doesNotContainKey("promptRollbackVersion");
     }
@@ -140,15 +138,11 @@ class PromptBundleCatalogTest {
 
         assertThat(objectMapper.readValue(objectMapper.writeValueAsString(declared), PromptBundleManifest.class))
                 .isEqualTo(declared);
-        String older;
-        try (InputStream input = PromptBundleCatalogTest.class.getClassLoader().getResourceAsStream(
-                "prompt-bundles/manifests/cortex.security-decision/2026.10.16-v20.23.json")) {
-            assertThat(input).isNotNull();
-            older = new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        }
+        // A manifest frozen before the field existed (the earlier security decision manifests went, decision D7).
+        String older = objectMapper.writeValueAsString(manifest("cortex.test", "2026.10.16-v1", elements("content"), null))
+                .replaceAll(",?\"evaluationScenarioFamilies\":\\[[^\\]]*\\]", "");
         assertThat(older).doesNotContain("evaluationScenarioFamilies");
-        assertThat(PromptBundleCatalog.shared().find("cortex.security-decision", "2026.10.16-v20.23").orElseThrow()
-                .evaluationScenarioFamilies()).isEmpty();
+        assertThat(objectMapper.readValue(older, PromptBundleManifest.class).evaluationScenarioFamilies()).isEmpty();
     }
 
     private static PromptBundleManifest declared(List<PromptBundleElement> elements) {

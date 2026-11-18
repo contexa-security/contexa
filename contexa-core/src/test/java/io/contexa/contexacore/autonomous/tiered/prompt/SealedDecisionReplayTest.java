@@ -30,6 +30,10 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
+import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
+import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentReader;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
@@ -46,10 +50,12 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TimeZone;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The replay of a sealed decision (V-2.2 of the v21 plan) draws the prompt the golden render draws from the same
@@ -67,7 +73,6 @@ class SealedDecisionReplayTest {
     void aReplayDrawsTheGoldenPromptOfTheSealedInputsWithTheChosenBundle() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties v21 = new TieredStrategyProperties();
-        v21.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         for (String caseKey : List.of("A3", "A3T", "S12")) {
             JsonNode goldenCase = golden.cases().stream()
                     .filter(item -> item.path("caseKey").asText().equals(caseKey)).findFirst().orElseThrow();
@@ -123,6 +128,127 @@ class SealedDecisionReplayTest {
         assertThat(drawing.result.secondPasses()).isEmpty();
     }
 
+    /**
+     * Plan 3.8 (10), 3.9: a replay that names a version of the database (v2.0) draws the sealed decision with that
+     * version's parts, fixed on the event as a decision's version is, with its content hash; a version the store does
+     * not have is refused instead of drawn as the product version under its name.
+     */
+    @Test
+    void aReplayOfAVersionOfTheDatabaseDrawsItsParts() {
+        AssembledPrompt version = new PromptAssembler().apply(SecurityDecisionPromptDocument.product(),
+                new PromptVersionDocumentReader().read("""
+                        prompt: cortex.security-decision
+                        basedOn: v1.0
+                        title: Finance
+                        system:
+                          - key: org-context
+                            add-after: evidence-reading
+                            title: Our organization
+                            text: |
+                              Finance staff close the books on the last two days of a month.
+                        """));
+        PromptVersionStore store = (prompt, name) -> "v2.0".equals(name) ? Optional.of(version)
+                : SecurityDecisionPromptDocument.productStore().find(prompt, name);
+
+        Drawing drawing = replay(goldenCase("A3"), List.of(), "ALLOW", "v2.0", store);
+
+        assertThat(drawing.result.failure()).isNull();
+        assertThat(drawing.result.bundleVersion()).isEqualTo("v2.0");
+        assertThat(drawing.pinned).containsExactly("v2.0 REPLAY " + version.contentHash());
+        assertThat(drawing.systemPrompts).singleElement().asString()
+                .contains("Finance staff close the books on the last two days of a month.");
+        Drawing product = replay(goldenCase("A3"), List.of(), "ALLOW");
+        assertThat(product.systemPrompts).singleElement().asString()
+                .doesNotContain("Finance staff close the books on the last two days of a month.");
+        assertThat(product.pinned).containsExactly(SecurityDecisionPromptBundles.V1.version() + " REPLAY "
+                + SecurityDecisionPromptDocument.product().contentHash());
+        assertThatThrownBy(() -> replay(goldenCase("A3"), List.of(), "ALLOW", "v9.0", store))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("v9.0");
+    }
+
+    /**
+     * K57 and plan 3.10 (2): a replay of a version that adds a block to the user prompt draws the block at its place,
+     * and the drawing of a sealed decision gives the prompts the replay asks with, without asking the model; with the
+     * product version it gives the prompt the decision was drawn with (the golden prompt).
+     */
+    @Test
+    void aDrawingIsThePromptAReplayAsksWithTheBlocksItsVersionAdds() {
+        AssembledPrompt version = new PromptAssembler().apply(SecurityDecisionPromptDocument.product(),
+                new PromptVersionDocumentReader().read("""
+                        prompt: cortex.security-decision
+                        basedOn: v1.0
+                        title: Finance
+                        user:
+                          - key: org-closing
+                            add-after: REQUEST
+                            title: Finance closing
+                            text: |
+                              Finance staff export the ledger on the last two business days of a month.
+                        """));
+        String block = "=== Finance closing (reference written by your organization) ===\n"
+                + "Finance staff export the ledger on the last two business days of a month.\n";
+        PromptVersionStore store = (prompt, name) -> "v2.0".equals(name) ? Optional.of(version)
+                : SecurityDecisionPromptDocument.productStore().find(prompt, name);
+        JsonNode goldenCase = goldenCase("A3");
+        String golden = SecurityDecisionGoldenRender.load()
+                .render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, new TieredStrategyProperties())
+                .userText();
+
+        Drawing replayed = replay(goldenCase, List.of(), "ALLOW", "v2.0", store);
+        write("A3-organization-replayed.txt", replayed.userPrompts.isEmpty() ? "" : replayed.userPrompts.get(0));
+        assertThat(replayed.userPrompts).singleElement()
+                .isEqualTo(SecurityDecisionOrganizationBlocksTest.insertedAfter(golden, "REQUEST", block));
+
+        SealedDecisionReplayService.Drawing drawn = draw(goldenCase, " v2.0 ", store);
+        assertThat(drawn.userPrompt()).isEqualTo(replayed.userPrompts.get(0));
+        assertThat(drawn.systemPrompt()).isEqualTo(replayed.systemPrompts.get(0));
+        assertThat(drawn.version()).isEqualTo("v2.0");
+        assertThat(drawn.contentHash()).isEqualTo(version.contentHash());
+        assertThat(drawn.packageId()).isEqualTo(goldenCase.path("source").path("packageId").asText());
+
+        SealedDecisionReplayService.Drawing product = draw(goldenCase, SecurityDecisionPromptBundles.V1.version(), null);
+        assertThat(product.userPrompt()).isEqualTo(golden);
+        assertThat(product.systemPrompt()).isEqualTo(replay(goldenCase).systemPrompts.get(0));
+        assertThat(product.contentHash()).isEqualTo(SecurityDecisionPromptDocument.product().contentHash());
+        assertThatThrownBy(() -> draw(goldenCase, "v9.0", store))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("v9.0");
+    }
+
+    /** The drawing through the replay service, with a pipeline that fails the test when it is asked. */
+    private static SealedDecisionReplayService.Drawing draw(JsonNode goldenCase, String release,
+                                                           PromptVersionStore store) {
+        TimeZone original = TimeZone.getDefault();
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+        try {
+            TieredStrategyProperties properties = new TieredStrategyProperties();
+            SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                    new SecurityDecisionPromptSections(new SecurityEventEnricher(), properties,
+                            event -> Optional.empty(), new PromptContextComposer(), null, null, null));
+            template.setPromptVersionStore(store);
+            List<String> asked = new ArrayList<>();
+            PipelineOrchestrator pipeline = new PipelineOrchestrator(List.of()) {
+                @Override
+                public <T extends DomainContext, R extends AIResponse> Mono<R> execute(
+                        AIRequest<T> request, PipelineConfiguration config, Class<R> responseType) {
+                    asked.add(String.valueOf(request.getPromptTemplate()));
+                    return Mono.error(new IllegalStateException("A drawing asks no model"));
+                }
+            };
+            SealedDecisionReplayService service = new SealedDecisionReplayService(template, pipeline,
+                    new BaselineLearningService(null, new SecurityZeroTrustProperties()), properties,
+                    StructuredOutputCapabilityRegistry.defaultRegistry(), () -> null,
+                    null, "OBSERVE", new CanonicalSecurityContextSerializer(MAPPER), MAPPER);
+            SealedDecisionReplayService.Drawing drawn = service.draw(sealed(goldenCase),
+                    vector(goldenCase.path("learningEvidence").path("personalBaseline")),
+                    vector(goldenCase.path("learningEvidence").path("organizationBaseline")), release);
+            assertThat(asked).as("the model is not asked").isEmpty();
+            return drawn;
+        }
+        finally {
+            TimeZone.setDefault(original);
+        }
+    }
+
     private static JsonNode goldenCase(String caseKey) {
         return SecurityDecisionGoldenRender.load().cases().stream()
                 .filter(item -> item.path("caseKey").asText().equals(caseKey)).findFirst().orElseThrow();
@@ -140,11 +266,15 @@ class SealedDecisionReplayTest {
     }
 
     private record Drawing(SealedDecisionReplayService.Result result, List<String> userPrompts, List<Integer> tiers,
-                           List<String> models) {
+                           List<String> models, List<String> pinned, List<String> systemPrompts) {
     }
 
     private static Drawing replay(JsonNode goldenCase) {
         return replay(goldenCase, List.of(), "ESCALATE");
+    }
+
+    private static Drawing replay(JsonNode goldenCase, List<String> secondPassModels, String firstAction) {
+        return replay(goldenCase, secondPassModels, firstAction, SecurityDecisionPromptBundles.V1.version(), null);
     }
 
     /**
@@ -152,7 +282,8 @@ class SealedDecisionReplayTest {
      * event as the prompt composer does, and answers the first layer with the given action and the second layer by
      * the model it names (model-two BLOCK, any other CHALLENGE).
      */
-    private static Drawing replay(JsonNode goldenCase, List<String> secondPassModels, String firstAction) {
+    private static Drawing replay(JsonNode goldenCase, List<String> secondPassModels, String firstAction,
+                                  String release, PromptVersionStore store) {
         TimeZone original = TimeZone.getDefault();
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         try {
@@ -160,9 +291,12 @@ class SealedDecisionReplayTest {
             SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                     new SecurityDecisionPromptSections(new SecurityEventEnricher(), properties,
                             event -> Optional.empty(), new PromptContextComposer(), null, null, null));
+            template.setPromptVersionStore(store);
             List<String> userPrompts = new ArrayList<>();
             List<Integer> tiers = new ArrayList<>();
             List<String> models = new ArrayList<>();
+            List<String> pinned = new ArrayList<>();
+            List<String> systemPrompts = new ArrayList<>();
             PipelineOrchestrator pipeline = new PipelineOrchestrator(List.of()) {
                 @Override
                 @SuppressWarnings("unchecked")
@@ -170,6 +304,7 @@ class SealedDecisionReplayTest {
                         AIRequest<T> request, PipelineConfiguration config, Class<R> responseType) {
                     String userPrompt = template.generateUserPrompt(request, null);
                     userPrompts.add(userPrompt);
+                    systemPrompts.add(template.generateSystemPrompt(request, null));
                     Integer tier = request.getParameter("platformAnalysisTier", Integer.class);
                     String model = request.getParameter("requestedModelId", String.class);
                     tiers.add(tier);
@@ -177,6 +312,10 @@ class SealedDecisionReplayTest {
                     if (request.getContext() instanceof SecurityDecisionContext decision) {
                         decision.getSecurityEvent().getMetadata()
                                 .putIfAbsent(PromptRuntimeTelemetrySupport.FIRST_PASS_USER_PROMPT, userPrompt);
+                        Map<String, Object> metadata = decision.getSecurityEvent().getMetadata();
+                        pinned.add(metadata.get(SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION) + " "
+                                + metadata.get(SecurityDecisionPromptSections.EVENT_BUNDLE_SOURCE) + " "
+                                + metadata.get(SecurityDecisionPromptSections.EVENT_BUNDLE_CONTENT_HASH));
                     }
                     SecurityDecisionResponse response = new SecurityDecisionResponse();
                     response.setAction(tier != null && tier == 2 ? ("model-two".equals(model) ? "BLOCK" : "CHALLENGE")
@@ -192,8 +331,8 @@ class SealedDecisionReplayTest {
             SealedDecisionReplayService.Result result = service.replay(sealed(goldenCase),
                     vector(goldenCase.path("learningEvidence").path("personalBaseline")),
                     vector(goldenCase.path("learningEvidence").path("organizationBaseline")),
-                    SecurityDecisionPromptBundles.V21.version(), Duration.ofSeconds(30), secondPassModels);
-            return new Drawing(result, userPrompts, tiers, models);
+                    release, Duration.ofSeconds(30), secondPassModels);
+            return new Drawing(result, userPrompts, tiers, models, pinned, systemPrompts);
         }
         finally {
             TimeZone.setDefault(original);

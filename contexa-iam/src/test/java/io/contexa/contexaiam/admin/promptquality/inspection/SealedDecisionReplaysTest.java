@@ -23,6 +23,8 @@ import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
@@ -54,7 +56,7 @@ import static org.mockito.Mockito.when;
 /** docs/agent OC-5: an operator replays a sealed decision with a chosen bundle through the admin API. */
 class SealedDecisionReplaysTest {
 
-    private static final String BUNDLE = SecurityDecisionPromptBundles.V21.version();
+    private static final String BUNDLE = SecurityDecisionPromptBundles.V1.version();
     private static final ObjectMapper JSON = new ObjectMapper().findAndRegisterModules();
 
     private final SealedEvidencePackageRepository packages = mock(SealedEvidencePackageRepository.class);
@@ -67,20 +69,40 @@ class SealedDecisionReplaysTest {
     private final Authentication operator = new UsernamePasswordAuthenticationToken("admin-1", null, List.of());
     private final SealedEvidencePackage sealed = sealed();
 
+    /** Plan 6-2: without the version tables, v1.0, the one bundle the build runs, is the replay target. */
+    @Test
+    void withoutTheVersionTablesTheBundleOfTheBuildIsTheReplayTarget() {
+        assertThat(replays.bundles()).containsExactly(SecurityDecisionPromptBundles.V1.version());
+    }
+
     /**
-     * Plan 1-6 and 1-9: v1.0, the build default, and the four v1.0 variants are replay targets beside v19, v20 and v21.
+     * Plan 3.8 (10), 3.9: the replay targets are the versions of the database that are not hidden, newest first; a
+     * replay names a version, hidden or not, and draws it; a name the table does not have is refused before the replay.
      */
     @Test
-    void v1AndItsVariantsAreReplayTargetsBesideV19V20V21() {
-        assertThat(replays.bundles()).containsExactly(SecurityDecisionPromptBundles.V1.version(),
-                SecurityDecisionPromptBundles.V19.version(),
-                SecurityDecisionPromptBundles.V20.version(), SecurityDecisionPromptBundles.V21.version(),
-                SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR.version(),
-                SecurityDecisionPromptBundles.V1_FALLBACK_EXACT.version(),
-                SecurityDecisionPromptBundles.V1_RECORD_SIMILAR.version(),
-                SecurityDecisionPromptBundles.V1_RECORD_EXACT.version());
-        assertThat(SecurityDecisionPromptBundles.V19.layout())
-                .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V19_SECTIONS);
+    void theReplayTargetsAreTheShownVersionsOfTheDatabaseAndAReplayNamesOne() {
+        PromptVersionCatalog catalog = mock(PromptVersionCatalog.class);
+        List<PromptVersionCatalog.Entry> entries = List.of(entry(3, false), entry(2, true), entry(1, false));
+        when(catalog.versions(any(), any())).thenReturn(entries);
+        when(catalog.shown(any(), any())).thenCallRealMethod();
+        when(catalog.find(any(), any(), any())).thenCallRealMethod();
+        SealedDecisionReplays withVersions = new SealedDecisionReplays(packages, () -> service, baselines, audit, JSON,
+                integrity, () -> catalog);
+        when(packages.findByPackageId("pkg-1")).thenReturn(Optional.of(sealed));
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result("ALLOW", null));
+
+        assertThat(withVersions.bundles()).containsExactly("v3.0", "v1.0");
+        assertThat(withVersions.replayPackage("admin-1", "pkg-1", new ReplayRequest("v2.0", null, null, null)))
+                .isPresent();
+        verify(service).replay(eq(sealed), any(), any(), eq("v2.0"), any(), any());
+        assertThatThrownBy(() -> withVersions.replayPackage("admin-1", "pkg-1",
+                new ReplayRequest("v9.0", null, null, null))).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("v9.0");
+    }
+
+    private static PromptVersionCatalog.Entry entry(int number, boolean hidden) {
+        return new PromptVersionCatalog.Entry("PLATFORM_GLOBAL", SecurityDecisionPromptDocument.PROMPT, number,
+                "hash-" + number, number == 1 ? null : 1, number == 1 ? "CONTEXA" : "ORGANIZATION", hidden);
     }
 
     @Test

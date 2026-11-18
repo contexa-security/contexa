@@ -177,6 +177,23 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
                 Math.max(0, limit));
     }
 
+    /** N10: the confirmations waiting for their person, counted by the rule {@link #waiting} asks it with. */
+    @Override
+    public long countWaiting(Instant now) {
+        Long count = jdbc.queryForObject("select count(*) from ctxa_agent_confirmation where status = ? and expires_at > ?",
+                Long.class, AgentConfirmation.Status.PENDING.name(), timestamp(now));
+        return count == null ? 0 : count;
+    }
+
+    /** N10: the confirmations {@link #overdue} lists, counted. */
+    @Override
+    public long countOverdue(Instant now) {
+        Long count = jdbc.queryForObject("select count(*) from ctxa_agent_confirmation where status in (?, ?) "
+                        + "and expires_at <= ?", Long.class, AgentConfirmation.Status.PENDING.name(),
+                AgentConfirmation.Status.APPROVED.name(), timestamp(now));
+        return count == null ? 0 : count;
+    }
+
     @Override
     public void removeForUser(String userId) {
         if (userId != null) {

@@ -22,6 +22,8 @@ import static org.mockito.Mockito.*;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.common.event.dto.PolicyChangedEvent;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
@@ -934,6 +936,22 @@ class DefaultPolicyServiceTest {
         }
 
         @Test
+        @DisplayName("N21: an approval is recorded as an approval of the policy, under its update")
+        void anApprovalIsRecordedAsWhatItWas() {
+            Policy policy = createPolicyEntity(1L, "manual-policy");
+            policy.setSource(Policy.PolicySource.MANUAL);
+            when(policyRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(policy));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            policyService.approvePolicy(1L, "admin");
+
+            ArgumentCaptor<AuditRecord> recorded = ArgumentCaptor.forClass(AuditRecord.class);
+            verify(centralAuditFacade).recordAsync(recorded.capture());
+            assertThat(recorded.getValue().getEventCategory()).isEqualTo(AuditEventCategory.POLICY_UPDATED);
+            assertThat(recorded.getValue().getAction()).isEqualTo("APPROVED");
+        }
+
+        @Test
         @DisplayName("should throw when already approved")
         void shouldThrowWhenAlreadyApproved() {
             Policy policy = createPolicyEntity(1L, "policy");
@@ -964,6 +982,11 @@ class DefaultPolicyServiceTest {
             assertThat(policy.getApprovalStatus()).isEqualTo(Policy.ApprovalStatus.REJECTED);
             assertThat(policy.getIsActive()).isFalse();
             verify(policyRepository).save(policy);
+            // N21: a rejection is recorded as a rejection of the policy, under its update
+            ArgumentCaptor<AuditRecord> recorded = ArgumentCaptor.forClass(AuditRecord.class);
+            verify(centralAuditFacade).recordAsync(recorded.capture());
+            assertThat(recorded.getValue().getEventCategory()).isEqualTo(AuditEventCategory.POLICY_UPDATED);
+            assertThat(recorded.getValue().getAction()).isEqualTo("REJECTED");
         }
 
         @Test

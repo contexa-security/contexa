@@ -294,6 +294,80 @@ class PromptAssemblerTest {
                 .isInstanceOf(PromptVersionDocumentException.class).hasMessageContaining("TOO_LONG");
     }
 
+    /**
+     * K64 (plan 3.5, check 4): a block added to the user prompt counts in the length and in the size against the base,
+     * as the prompt draws it with its header; a block the base added counts once, and one taken out counts no more.
+     */
+    @Test
+    void theBlocksAddedToTheUserPromptCountInTheLengthAndTheSize() {
+        String block = """
+                user:
+                  - key: org-closing
+                    add-after: REQUEST
+                    title: Finance closing
+                    text: |
+                """;
+        PromptVersionDocument longBlock = organization(block + "      " + "word ".repeat(4_000) + "\n");
+        PromptVersionDocument shortBlock = organization(block + "      The ledger is exported on the last day.\n");
+        int baseTokens = PromptAssembler.systemTokens(product);
+        String drawn = "=== Finance closing (reference written by your organization) ===\n"
+                + "The ledger is exported on the last day.\n";
+        int shortTokens = PromptAssembler.tokensOf(1 + drawn.length());
+
+        PromptAssembler.Check small = assembler.check(product, shortBlock, null,
+                SecurityDecisionPromptDocument::organizationBlockTokens);
+        assertThat(small.systemTokens()).isEqualTo(baseTokens).isEqualTo(small.baseSystemTokens());
+        assertThat(small.baseAddedUserTokens()).isZero();
+        assertThat(small.addedUserTokens()).isEqualTo(shortTokens);
+        assertThat(small.tokenDelta()).isEqualTo(shortTokens);
+
+        // The limit holds the finished prompt: the system prompt, the longest recent input with the added blocks, the
+        // answer. A limit the system prompt alone fits refuses the long block and passes the short one.
+        PromptAssembler.LengthLimit limit = new PromptAssembler.LengthLimit(baseTokens + 1_500 + 300 + 2_000, 300, 1_500);
+        PromptAssembler.Check refused = assembler.check(product, longBlock, limit,
+                SecurityDecisionPromptDocument::organizationBlockTokens);
+        assertThat(refused.problems()).extracting(PromptVersionProblem::code)
+                .containsExactly(PromptVersionProblem.Code.TOO_LONG);
+        assertThat(refused.problems().get(0).detail()).isEqualTo(baseTokens + " + "
+                + (1_500 + refused.addedUserTokens()) + " + 300 > " + limit.contextTokens());
+        assertThat(refused.addedUserTokens()).isGreaterThan(4_000);
+        assertThat(assembler.check(product, shortBlock, limit, SecurityDecisionPromptDocument::organizationBlockTokens)
+                .passed()).isTrue();
+        // Without a recent input the added blocks are the input.
+        assertThat(assembler.check(product, longBlock, new PromptAssembler.LengthLimit(baseTokens + 300 + 2_000, 300, 0),
+                SecurityDecisionPromptDocument::organizationBlockTokens).passed()).isFalse();
+
+        // On a base that added the block already, the recent input may hold it: only what the new version adds more
+        // counts, and a block taken out counts less.
+        AssembledPrompt base = assembler.apply(product, shortBlock);
+        PromptAssembler.Check more = assembler.check(base, organization("""
+                user:
+                  - key: org-desk
+                    add-after: org-closing
+                    title: Security desk
+                    text: The desk answers within an hour.
+                """), limit, SecurityDecisionPromptDocument::organizationBlockTokens);
+        int desk = PromptAssembler.tokensOf(1 + ("=== Security desk (reference written by your organization) ===\n"
+                + "The desk answers within an hour.\n").length());
+        assertThat(more.baseAddedUserTokens()).isEqualTo(shortTokens);
+        assertThat(more.addedUserTokens()).isEqualTo(PromptAssembler.tokensOf(2L + drawn.length()
+                + ("=== Security desk (reference written by your organization) ===\n"
+                + "The desk answers within an hour.\n").length()));
+        assertThat(more.tokenDelta()).isBetween(desk - 1, desk + 1);
+        PromptAssembler.Check fewer = assembler.check(base, organization("""
+                user:
+                  - key: org-closing
+                    delete: true
+                """), limit, SecurityDecisionPromptDocument::organizationBlockTokens);
+        assertThat(fewer.addedUserTokens()).isZero();
+        assertThat(fewer.tokenDelta()).isEqualTo(-shortTokens);
+
+        // Another prompt draws an added user part under its title; the default count is that drawing's.
+        assertThat(assembler.check(product, shortBlock, null).addedUserTokens())
+                .isEqualTo(PromptAssembler.tokensOf(1 + "Finance closing:\n".length()
+                        + "The ledger is exported on the last day.\n".length()));
+    }
+
     @Test
     void theDocumentMustBeAnOrganizationsChangesOfTheSamePromptOnABase() {
         assertProblems(reader.read("prompt: cortex.policy-generation\nbasedOn: v1.0\n"),

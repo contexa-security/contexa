@@ -55,16 +55,15 @@ class V21PastRecordSourceTest {
     private static final PromptDictionaryEntry NEW_PAST_RECORD = entry("NewPastRecord{i}");
 
     private static PromptDictionaryEntry entry(String name) {
-        return SecurityDecisionPromptDictionary.V21_ENTRIES.stream().filter(candidate -> candidate.name().equals(name))
+        return SecurityDecisionPromptDictionary.V1_ENTRIES.stream().filter(candidate -> candidate.name().equals(name))
                 .findFirst().orElseThrow();
     }
 
     @Test
-    void aV21RecordOfNoStatedSourceIsSaidNotToHaveOneAndTheV20LineStaysTheTwelveFields() {
+    void aRecordOfNoStatedSourceIsSaidNotToHaveOne() {
         JsonNode goldenCase = firstWithPastRecords();
 
-        InspectionGolden.Render v21 = render(goldenCase, SecurityDecisionPromptBundles.V21);
-        InspectionGolden.Render v20 = render(goldenCase, SecurityDecisionPromptBundles.V20);
+        InspectionGolden.Render v21 = render(goldenCase, SecurityDecisionPromptBundles.V1);
 
         List<String> lines = recordLines(v21.userPrompt(), "PastRecord");
         assertThat(lines).isNotEmpty().allSatisfy(line -> assertThat(line)
@@ -72,36 +71,29 @@ class V21PastRecordSourceTest {
                         value -> assertThat(value).matches(".*PastRecord\\d+: \\+\\d+ more")));
         assertThat(lines).filteredOn(line -> !line.contains("more")).allSatisfy(line ->
                 assertThat(PAST_RECORD.acceptsValue(value(line))).as(line).isTrue());
-        assertThat(recordLines(v20.userPrompt(), "PastRecord")).allSatisfy(line -> assertThat(line)
-                .doesNotContain("learned:").doesNotContain("args from tool output"));
     }
 
     @Test
-    void aV21RecordStatesTheSourceAndTheArgumentsFromAToolsOutputItWasStoredWith() {
-        JsonNode goldenCase = firstWithPastRecords();
-        JsonNode original = goldenCase;
-        JsonNode stated = withSources(goldenCase);
+    void aRecordStatesTheSourceAndTheArgumentsFromAToolsOutputItWasStoredWith() {
+        JsonNode stated = withSources(firstWithPastRecords());
 
-        InspectionGolden.Render v21 = render(stated, SecurityDecisionPromptBundles.V21);
-        InspectionGolden.Render v20 = render(stated, SecurityDecisionPromptBundles.V20);
+        InspectionGolden.Render v21 = render(stated, SecurityDecisionPromptBundles.V1);
 
         List<String> lines = recordLines(v21.userPrompt(), "PastRecord");
-        writeExample(lines, recordLines(renderSecondPass(stated, SecurityDecisionPromptBundles.V21), "NewPastRecord"));
+        writeExample(lines, recordLines(renderSecondPass(stated, SecurityDecisionPromptBundles.V1), "NewPastRecord"));
         String joined = String.join("\n", lines);
         assertThat(joined).contains(" / learned: by the model alone / ").contains(" / learned: after verification / ")
                 .contains(" / learned: after promotion / ").contains(" / learned: by administrator release / ")
                 .contains(" / args from tool output: iban, recipient / authorized as ");
         assertThat(lines).filteredOn(line -> !line.contains("more")).allSatisfy(line ->
                 assertThat(PAST_RECORD.acceptsValue(value(line))).as(line).isTrue());
-        // The v20 prompt of the same records is the v20 prompt of the records without the two keys, byte for byte.
-        assertThat(v20.userPrompt()).isEqualTo(render(original, SecurityDecisionPromptBundles.V20).userPrompt());
     }
 
     @Test
-    void theSecondPassOfAV21PromptDrawsTheSameFields() {
+    void theSecondPassDrawsTheSameFields() {
         JsonNode stated = withSources(firstWithPastRecords());
 
-        String secondPass = renderSecondPass(stated, SecurityDecisionPromptBundles.V21);
+        String secondPass = renderSecondPass(stated, SecurityDecisionPromptBundles.V1);
 
         List<String> lines = recordLines(secondPass, "NewPastRecord");
         assertThat(lines).isNotEmpty().filteredOn(line -> !line.contains("more")).allSatisfy(line -> {
@@ -114,7 +106,7 @@ class V21PastRecordSourceTest {
     @Test
     void theInspectorFindsTheLinesAsTheSealedRecordsDrawThem() {
         JsonNode stated = withSources(firstWithPastRecords());
-        InspectionGolden.Render v21 = render(stated, SecurityDecisionPromptBundles.V21);
+        InspectionGolden.Render v21 = render(stated, SecurityDecisionPromptBundles.V1);
 
         PromptInspectionResult result = INSPECTOR.inspect(v21.sealed());
 
@@ -148,7 +140,7 @@ class V21PastRecordSourceTest {
     @Test
     void theInspectorPointsAtALearnedFieldTheSealedRecordsDoNotHold() {
         JsonNode stated = withSources(firstWithPastRecords());
-        InspectionGolden.Render v21 = render(stated, SecurityDecisionPromptBundles.V21);
+        InspectionGolden.Render v21 = render(stated, SecurityDecisionPromptBundles.V1);
         String drawn = recordLines(v21.userPrompt(), "PastRecord").stream()
                 .filter(line -> line.contains("learned: after verification")).findFirst().orElseThrow();
         String forged = drawn.replace("learned: after verification", "learned: by the model alone");
@@ -164,7 +156,7 @@ class V21PastRecordSourceTest {
 
     @Test
     void theInspectorPointsAtAV21LineWithoutItsLearnedField() {
-        InspectionGolden.Render v21 = render(firstWithPastRecords(), SecurityDecisionPromptBundles.V21);
+        InspectionGolden.Render v21 = render(firstWithPastRecords(), SecurityDecisionPromptBundles.V1);
         String drawn = recordLines(v21.userPrompt(), "PastRecord").stream().filter(line -> !line.contains("more"))
                 .findFirst().orElseThrow();
         String cut = drawn.replace(" / learned: source not recorded", "");
@@ -190,7 +182,7 @@ class V21PastRecordSourceTest {
                 most = goldenCase;
             }
         }
-        InspectionGolden.Render v21 = render(most, SecurityDecisionPromptBundles.V21);
+        InspectionGolden.Render v21 = render(most, SecurityDecisionPromptBundles.V1);
         assertThat(recordLines(v21.userPrompt(), "PastRecord")).as("the golden case with most past records").isNotEmpty();
         assertThat(most.path("ragResults").path("relatedDocuments").size()).isGreaterThanOrEqualTo(4);
         return most;

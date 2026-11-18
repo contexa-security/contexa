@@ -1,0 +1,22 @@
+**Reference Context:**
+Reference about groups
+
+**Required:** Generate hasPermission conditions for **all** of the following **exactly 3** method signatures **without any exceptions**!
+
+**Important:** 3 inputs -> 3 outputs are required. Missing items will cause a system error!
+
+1. getGroup(Long id)
+2. createGroup(Group group)
+3. listAll()
+
+Generation rules:
+- ID parameter: hasPermission(#parameterName, 'RESOURCE_TYPE', 'ACTION')
+- Object parameter: hasPermission(#parameterName, 'RESOURCE_TYPE_ACTION')
+- No parameters: Set spelTemplate to an empty string
+- Positional indices like #p0, #p1 are strictly prohibited. You must use actual parameter names (#id, #group, etc.)
+
+Important notes:
+- Write names and descriptions in English
+- Never use the word "permission" in names
+
+**Confirm once more:** Provide name, description, spelTemplate, category, classification for **all 3 items** listed above!

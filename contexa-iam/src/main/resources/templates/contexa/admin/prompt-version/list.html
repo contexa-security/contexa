@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{pv.ui.title.list})}"></th:block>
+    <link rel="stylesheet" th:href="@{/contexa/css/policy-center.css}" />
+    <link rel="stylesheet" th:href="@{/contexa/css/zero-trust-console.css?v=20261118-k119}" />
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+<div th:insert="~{contexa/fragments/header :: header}"></div>
+<div class="flex flex-1 overflow-hidden">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
+    <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
+        <div th:replace="~{contexa/admin/prompt-version/fragments :: console(title=#{pv.ui.title.list}, question=#{pv.ui.question.list}, tab='list')}"></div>
+    </main>
+</div>
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+<script th:src="@{/contexa/js/admin/zero-trust/console-common.js?v=20261118-k119}"></script>
+<script th:src="@{/contexa/js/admin/prompt-version/pv-common.js?v=20261117-k96}"></script>
+<script th:src="@{/contexa/js/admin/prompt-version/list.js?v=20261117-k96}"></script>
+</body>
+</html>

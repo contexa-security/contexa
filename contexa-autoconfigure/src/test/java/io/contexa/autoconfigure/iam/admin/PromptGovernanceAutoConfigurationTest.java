@@ -18,10 +18,8 @@ import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceM
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceRegistryService;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
+import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRuntimeCacheInvalidationService;
-import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseConsole;
-import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseConsoleApiController;
-import io.contexa.contexaiam.admin.promptquality.governance.PromptReleasePageController;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptRuntimeGovernanceDescriptorVerifier;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import org.junit.jupiter.api.Test;
@@ -52,10 +50,16 @@ class PromptGovernanceAutoConfigurationTest {
             PromptGovernanceReleaseGateService.class,
             PromptGovernanceEmpiricalEvalService.class,
             PromptRuntimeGovernanceDescriptorVerifier.class,
-            // W7-14: the version screens with their read API.
-            PromptReleaseConsole.class,
-            PromptReleaseConsoleApiController.class,
-            PromptReleasePageController.class);
+            PromptBundleRollbackService.class);
+
+    /** Plan 6-6 (5): the release screens and their API, whose features the prompt version screens took over. */
+    private static final List<String> RELEASE_SCREEN_BEANS = List.of(
+            "contexaPromptReleaseApiController",
+            "contexaPromptBundleRollbackApiController",
+            "contexaPromptReleaseTransitionApiController",
+            "contexaPromptReleaseConsole",
+            "contexaPromptReleaseConsoleApiController",
+            "contexaPromptReleasePageController");
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(PromptGovernanceAutoConfiguration.class))
@@ -80,6 +84,16 @@ class PromptGovernanceAutoConfigurationTest {
             }
             assertThat(context).hasBean("contexaPromptGovernanceRegistryBootstrapRunner");
             assertThat(context.getBean("contexaPromptGovernanceRegistryBootstrapRunner")).isInstanceOf(ApplicationRunner.class);
+        });
+    }
+
+    @Test
+    void theReleaseScreensAndTheirApiAreGone() {
+        runner.run(context -> {
+            assertThat(context).hasNotFailed();
+            for (String bean : RELEASE_SCREEN_BEANS) {
+                assertThat(context).as(bean).doesNotHaveBean(bean);
+            }
         });
     }
 

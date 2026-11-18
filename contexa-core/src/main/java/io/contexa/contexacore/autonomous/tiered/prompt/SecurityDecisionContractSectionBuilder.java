@@ -15,81 +15,16 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
-public class SecurityDecisionContractSectionBuilder implements SecurityPromptSectionBuilder {
+/**
+ * The output format of the security decision prompt (plan 6-2): the format part of the product prompt document with the
+ * schema of the output contract v5 in place, worked out once with the product version.
+ */
+final class SecurityDecisionContractSectionBuilder {
 
-    static final String MINIMAL_RESPONSE_EXAMPLE =
-            "{\"action\":\"ALLOW|CHALLENGE|ESCALATE|BLOCK\",\"reasoning\":\"one concise evidence-based sentence\"}";
-
-    private static final String JSON_SCHEMA = """
-            {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"action":{"type":"string","enum":["ALLOW","CHALLENGE","ESCALATE","BLOCK"]},"reasoning":{"type":"string","maxLength":180},"mitre":{"type":"string"},"riskScore":{"type":"number","minimum":0.0,"maximum":1.0},"confidence":{"type":"number","minimum":0.0,"maximum":1.0},"evidenceRefs":{"type":"array","items":{"type":"string"}}},"required":["action","reasoning"],"additionalProperties":false}
-            """.trim();
+    private SecurityDecisionContractSectionBuilder() {
+    }
 
     static String formatInstructions() {
-        return formatInstructions(false);
-    }
-
-    /**
-     * The output format of the bundle: a bundle with the short output (v1.0, K30) states the output contract v5 in the
-     * words of the product prompt document (plan 6-1), the other bundles as their layout does.
-     */
-    static String formatInstructions(SecurityDecisionPromptBundles.Bundle bundle) {
-        if (bundle != null && bundle.layout().recordsNotation() && bundle.features().compactOutput()) {
-            // Worked out once with the product version; a request does no work for it.
-            return SecurityDecisionPromptDocument.productOutputFormat();
-        }
-        return formatInstructions(bundle != null ? bundle.layout() : SecurityDecisionPromptBundles.DEFAULT.layout());
-    }
-
-    /** The output format of the layout's bundle: v21 states the output contract v4, v20 the v3, v19 its own format. */
-    static String formatInstructions(SecurityDecisionPromptBundles.UserPromptLayout layout) {
-        if (layout.recordsNotation()) {
-            return """
-                    Your response should be in JSON format.
-                    Return one RFC8259 compliant JSON object without explanations or markdown.
-                    The response must satisfy this JSON Schema:
-                    ```%s```
-                    """.formatted(SecurityDecisionOutputContractV4.textSchema());
-        }
-        return formatInstructions(layout == SecurityDecisionPromptBundles.UserPromptLayout.V20_BLOCKS);
-    }
-
-    /**
-     * The output format; the v20 bundle's wording check names the dictionary's facts (TO-4), the v19 bundle's keeps its
-     * labels.
-     */
-    static String formatInstructions(boolean v20) {
-        if (v20) {
-            // W4-2: a provider without structured output gets the output contract v3 schema as text; no wording check.
-            return """
-                    Your response should be in JSON format.
-                    Return one RFC8259 compliant JSON object without explanations or markdown.
-                    The response must satisfy this JSON Schema:
-                    ```%s```
-                    """.formatted(SecurityDecisionOutputContract.textSchema());
-        }
-        String wordingCheck = "Final wording check: decide action first. For ALLOW with SAME_RESOURCE authorized RAG, copy the matching "
-                + "exact system-contract sentence for the current PersonalBaselineEstablished value; for any other ALLOW, "
-                + "copy the matching no-RAG sentence and never mention RAG; never assert an established baseline when it is "
-                + "false or absent.";
-        return """
-                Your response should be in JSON format.
-                Return one RFC8259 compliant JSON object without explanations or markdown.
-                The response must satisfy this JSON Schema:
-                ```%s```
-                %s
-                """.formatted(JSON_SCHEMA, wordingCheck);
-    }
-
-    static String runtimeReasoningGate() {
-        return "FINAL RESPONSE COMPACTNESS - use at most 20 words and 140 characters; "
-                + "never exceed 25 words or 180 characters; "
-                + "before using fresh-verification wording, require explicit current-request security evidence; PromptQualityVerificationRequired is only a prerequisite for LLM analysis, never user-MFA evidence; "
-                + "MfaVerified=false or weak baseline evidence must not create that fact; "
-                + "copy any matching exact system-contract sentence verbatim without paraphrasing.";
-    }
-
-    @Override
-    public String build(SecurityDecisionPromptSections template, SecurityPromptBuildContext context) {
-        return template.buildDecisionSection(context.getStructuredOutputMode());
+        return SecurityDecisionPromptDocument.productOutputFormat();
     }
 }

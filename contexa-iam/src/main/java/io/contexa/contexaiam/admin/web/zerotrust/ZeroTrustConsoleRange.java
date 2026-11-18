@@ -29,7 +29,9 @@ import java.util.Locale;
 
 /**
  * The period a screen reads (console design 6.0): the last 24 hours, 7, 30 or 90 days, or the days an operator chose.
- * The hourly tables are read from the hour the period starts in.
+ * The hourly tables are read from the hour the period starts in, and so is the decision list (K87), so a number of a
+ * screen opens the decisions it counted. A link of a screen whose period is no whole days (the adoption trial since
+ * SHADOW started) names its first moment exactly, as an ISO instant in place of the first day.
  */
 record ZeroTrustConsoleRange(String key, Instant from, Instant to) {
 
@@ -51,19 +53,33 @@ record ZeroTrustConsoleRange(String key, Instant from, Instant to) {
     private static ZeroTrustConsoleRange custom(String fromDay, String toDay, Clock clock) {
         ZoneId zone = clock.getZone();
         try {
-            LocalDate first = LocalDate.parse(fromDay);
-            LocalDate last = toDay == null || toDay.isBlank() ? LocalDate.now(clock) : LocalDate.parse(toDay);
-            if (last.isBefore(first)) {
+            Instant from = moment(fromDay, zone, false);
+            Instant to = toDay == null || toDay.isBlank()
+                    ? LocalDate.now(clock).plusDays(1).atStartOfDay(zone).toInstant() : moment(toDay, zone, true);
+            if (!to.isAfter(from)) {
                 throw new IllegalArgumentException("The period ends before it starts");
             }
+            LocalDate first = LocalDate.ofInstant(from, zone);
+            LocalDate last = LocalDate.ofInstant(to.minusNanos(1), zone);
             if (ChronoUnit.DAYS.between(first, last) >= MAX_DAYS) {
                 throw new IllegalArgumentException("The period is longer than " + MAX_DAYS + " days");
             }
-            return new ZeroTrustConsoleRange("custom", first.atStartOfDay(zone).toInstant(),
-                    last.plusDays(1).atStartOfDay(zone).toInstant());
+            return new ZeroTrustConsoleRange("custom", from, to);
         } catch (DateTimeParseException | NullPointerException unreadable) {
             throw new IllegalArgumentException("A custom period needs its first day as yyyy-MM-dd");
         }
+    }
+
+    /**
+     * A day of the address (yyyy-MM-dd): its start, or the start of the next day for the last day; or an exact moment a
+     * screen's link names (an ISO instant).
+     */
+    private static Instant moment(String text, ZoneId zone, boolean last) {
+        if (text.indexOf('T') >= 0) {
+            return Instant.parse(text);
+        }
+        LocalDate day = LocalDate.parse(text);
+        return (last ? day.plusDays(1) : day).atStartOfDay(zone).toInstant();
     }
 
     Timestamp fromTimestamp() {

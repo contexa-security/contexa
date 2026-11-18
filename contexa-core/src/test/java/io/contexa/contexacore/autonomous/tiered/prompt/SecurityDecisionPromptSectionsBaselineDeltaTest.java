@@ -367,8 +367,8 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
     }
 
     @Test
-    @DisplayName("the user profile states the work profile evidence of the one baseline view and the session rate in its unit")
-    void theUserProfileAndTheSessionTimelineReadTheBaselineView() {
+    @DisplayName("the user profile states the work profile evidence of the one baseline view")
+    void theUserProfileReadsTheBaselineView() {
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties());
@@ -396,21 +396,12 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
 
         String profile = sections.buildUserProfileNarrative(event, new SecurityDecisionStandardPromptTemplate.DetectedPatterns(),
                 behaviorAnalysis, BaselineStatus.ESTABLISHED);
-        SecurityDecisionStandardPromptTemplate.SessionContext session = new SecurityDecisionStandardPromptTemplate.SessionContext();
-        session.setSessionAgeMinutes(90);
-        session.setRequestCount(10);
-        String timeline = sections.buildSessionTimelineSection(session, behaviorAnalysis);
 
         // B-2: an established baseline whose actions are inferred is still provisional evidence, as the work profile says.
         assertThat(profile).contains("WorkProfileEvidenceState: PROVISIONAL").doesNotContain("WorkProfileEvidenceState: TRUSTED");
-        // S-29: 10 requests over the 2 hours the session spans against the usual 5 per active hour.
+        // S-29: the usual rate the session is compared with, 5 requests per active hour (plan 6-2: the v19 session
+        // timeline that stated the comparison went with its bundle).
         assertThat(view.requestsPerActiveHour()).isEqualTo(5.0);
-        assertThat(timeline)
-                .contains("SessionRequestsPerMinute: 0.1")
-                .contains("SessionRequestsPerActiveHour: 5.00")
-                .contains("BaselineRequestsPerActiveHour: 5.00")
-                .contains("SessionRateVsBaseline: 1.0x")
-                .doesNotContain("BaselineRequestsPerMinute");
     }
 
     @Test

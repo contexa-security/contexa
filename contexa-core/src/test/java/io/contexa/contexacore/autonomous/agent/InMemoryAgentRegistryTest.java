@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -44,6 +45,20 @@ class InMemoryAgentRegistryTest {
         assertThat(registry.findByClientId("tenant-acme", "agent-client")).isEmpty();
         assertThat(registry.find("tenant-acme", "agent-8")).isPresent();
         assertThat(registry.remove("tenant-acme", "agent-7")).isEmpty();
+    }
+
+    /** Plan step 9 (N10): the agents counted by status, of a tenant or of every tenant, a state nobody is in left out. */
+    @Test
+    void theAgentsAreCountedByStatus() {
+        registry.register(new AgentRegistrationRequest("tenant-acme", "agent-1", "One", null, "client-1", "carol", true));
+        registry.register(new AgentRegistrationRequest("tenant-acme", "agent-2", "Two", null, "client-2", "carol", true));
+        registry.register(new AgentRegistrationRequest("tenant-other", "agent-3", "Three", null, "client-3", "dave", true));
+        registry.suspend("tenant-acme", "agent-2", "stopped");
+
+        assertThat(registry.countByStatus(null)).containsExactlyInAnyOrderEntriesOf(Map.of(
+                AgentStatus.ACTIVE, 2L, AgentStatus.SUSPENDED, 1L));
+        assertThat(registry.countByStatus("tenant-acme")).containsExactlyInAnyOrderEntriesOf(Map.of(
+                AgentStatus.ACTIVE, 1L, AgentStatus.SUSPENDED, 1L));
     }
 
     @Test

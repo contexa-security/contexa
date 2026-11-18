@@ -2,7 +2,6 @@ package io.contexa.contexacore.verification.runtime.prompt;
 
 import java.time.ZoneId;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.autonomous.tiered.prompt.V19BundleProperties;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
@@ -45,7 +44,7 @@ final class PromptGovernanceExtremeTestHarness {
     SecurityDecisionStandardPromptTemplate.StructuredPrompt productionPromptWithRagDocuments() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                V19BundleProperties.create());
+                new TieredStrategyProperties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-pqa-extreme-production")
@@ -83,7 +82,7 @@ final class PromptGovernanceExtremeTestHarness {
                 : new PromptContextComposer(new PromptSlotRenderer(), businessLabelSlotPlanProvider());
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                V19BundleProperties.create(),
+                new TieredStrategyProperties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),

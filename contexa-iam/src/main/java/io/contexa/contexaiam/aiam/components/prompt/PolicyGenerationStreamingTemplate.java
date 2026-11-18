@@ -15,175 +15,174 @@
  */
 package io.contexa.contexaiam.aiam.components.prompt;
 
-import java.util.Locale;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.std.components.prompt.AbstractStreamingPromptTemplate;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
+import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
+import io.contexa.contexacore.std.components.prompt.version.ProductPromptDocuments;
+import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
+import io.contexa.contexacore.std.components.prompt.version.PromptDrawing;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionInUse;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionPin;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompt;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
-import lombok.extern.slf4j.Slf4j;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
- * Streaming template for IAM policy generation.
- * <p>
- * This template generates prompts for creating IAM policies based on
- * natural language requirements with real-time streaming feedback
- * and structured JSON output.
- * </p>
+ * Streaming template for policy generation: the analysis in natural language first, then the policy as JSON between
+ * the streaming markers. It shares the JSON schema of {@link PolicyGenerationTemplate}. Every sentence of the prompt is
+ * the version's (plan 3.11): the version the resolver chooses for the prompt, else the product document
+ * {@code prompt-versions/PolicyGenerationStreaming}. The code fills in the requirements, the items, the data, the
+ * reference and the markers.
  */
-@Slf4j
-public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTemplate {
+public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTemplate implements VersionedPrompt {
 
-    @Override
-    protected String generateDomainSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
-        return """
-            You are not a conversational AI, but an IAM policy generation API that outputs data only in the specified JSON format.
+    /** The prompt key, the template key the prompt is called by. */
+    public static final String PROMPT = "PolicyGenerationStreaming";
+    /** The product releases this build ships, the latest last. */
+    public static final List<String> RELEASES = List.of("2026.11.17");
 
-            Generate security policies based on natural language requirements including:
-            - Role assignment and permission mapping
-            - Condition configuration
-            - AI-based action evaluation settings (allowedActions: ALLOW, CHALLENGE, ESCALATE, BLOCK)
-            - Compliance verification
+    private static final ProductPromptDocuments DOCUMENTS =
+            new ProductPromptDocuments(PolicyGenerationStreamingTemplate.class, PROMPT, RELEASES);
+    /** The default descriptor of the template, the version of the call in place of its bundle version. */
+    private static final PromptGovernanceDescriptor DESCRIPTOR =
+            PromptGovernanceSupport.buildVersionedPromptDescriptor(PROMPT, PolicyGenerationStreamingTemplate.class);
+    private static final Map<String, String> MARKERS = Map.of(
+            "start", StreamingProtocol.JSON_START_MARKER,
+            "end", StreamingProtocol.JSON_END_MARKER);
 
-            **Required rules:**
-            - Use only the IDs provided in the 'Available Items' section
-            - Generate policies following the principle of least privilege
-            - Meet appropriate security and compliance requirements
-            - The "conditions" field must be a map with numeric condition template IDs from the condition list as keys and string arrays as values
-            - Never use descriptive strings like "time.hour" as condition keys. Use only numeric IDs provided in the condition list
-            - If no applicable conditions exist in the condition list, set "conditions" to an empty object {}
-            - Always include a "reasoning" field explaining why you chose these specific roles, CRUD permissions, and conditions
-            - The "crudPermissions" field is REQUIRED. Select from: READ, WRITE, UPDATE, DELETE
-            - Based on the target resource HTTP method: GET=READ, POST=WRITE, PUT/PATCH=UPDATE, DELETE=DELETE
-            - If HTTP method is ANY or unspecified, select based on the policy requirements
-            - Do NOT include permissionIds. Use crudPermissions for access control
-            - If an [Existing Policies] section is provided, avoid creating conflicting or duplicate policies
-            - If a [Role Hierarchy] section is provided, leverage role inheritance instead of assigning redundant lower-level roles
-            """;
-    }
+    private final PromptVersionPin pin = new PromptVersionPin();
+    private PromptVersionInUse versions = PromptVersionInUse.productOnly();
 
-    @Override
-    protected String getJsonSchemaExample() {
-        return """
-            {
-              "policyData": {
-                "policyName": "Actual policy name based on requirements",
-                "description": "Actual policy description based on requirements",
-                "effect": "ALLOW",
-                "roleIds": [101, 102],
-                "crudPermissions": ["READ", "WRITE"],
-                "conditions": {
-                  "301": ["true"],
-                  "302": ["192.168.1.0/24"]
-                }
-              },
-              "roleIdToNameMap": {
-                "101": "Team Manager",
-                "102": "Document Handler"
-              },
-              "conditionIdToNameMap": {
-                "301": "Within Business Hours",
-                "302": "Internal Network"
-              },
-              "reasoning": "Explain why these roles, CRUD permissions, and conditions were selected based on the requirements.",
-              "generatedAt": "2026-04-03T10:00:00Z",
-              "version": "1.0.0"
-            }
-            """;
+    /** The versions the template reads; without them it draws the product document. */
+    public void setPromptVersions(PromptVersionInUse versions) {
+        this.versions = Objects.requireNonNull(versions, "versions");
     }
 
     @Override
     public TemplateType getSupportedType() {
-        return new TemplateType("PolicyGenerationStreaming");
+        return new TemplateType(PROMPT);
+    }
+
+    @Override
+    public PromptGovernanceDescriptor getPromptGovernanceDescriptor() {
+        return pin.last(this::choose).describe(DESCRIPTOR);
+    }
+
+    @Override
+    protected String generateDomainSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
+        return PromptDrawing.system(version(request), AssembledPrompt.JUDGMENT, Set.of(), MARKERS);
+    }
+
+    @Override
+    protected String streamingInstructions(AIRequest<? extends DomainContext> request) {
+        return PromptDrawing.system(version(request), VersionedTemplateDrawing.OUTPUT, Set.of(), MARKERS);
+    }
+
+    @Override
+    protected String contextHeading(AIRequest<? extends DomainContext> request) {
+        return VersionedTemplateDrawing.item(version(request), "structure-intro", "context-heading");
+    }
+
+    @Override
+    protected String getJsonSchemaExample(AIRequest<? extends DomainContext> request) {
+        return PromptDrawing.system(version(request), VersionedTemplateDrawing.FORMAT, Set.of(), MARKERS);
     }
 
     @Override
     public String generateUserPrompt(AIRequest<? extends DomainContext> request, String contextInfo) {
-        PolicyGenerationItem.AvailableItems availableItems = extractAvailableItems(request);
-        String naturalQuery = extractNaturalQuery(request);
+        AssembledPrompt version = version(request);
+        PolicyGenerationItem.AvailableItems availableItems =
+                request.getParameter("availableItems", PolicyGenerationItem.AvailableItems.class);
         String iamDataContext = request.getParameter("iamDataContext", String.class);
-
-        return buildUserPrompt(naturalQuery, availableItems, contextInfo, iamDataContext);
+        return user(version, naturalQuery(request, version), availableItems, iamDataContext, contextInfo);
     }
 
-    private String buildUserPrompt(String naturalQuery, PolicyGenerationItem.AvailableItems availableItems,
-                                   String contextInfo, String iamDataContext) {
-        String ragSection = (contextInfo != null && !contextInfo.isBlank())
-                ? "\n**Reference (Similar policy patterns from history):**\n" + contextInfo + "\n"
+    private static String user(AssembledPrompt version, String naturalQuery,
+                               PolicyGenerationItem.AvailableItems availableItems, String iamDataContext,
+                               String contextInfo) {
+        String reference = contextInfo != null && !contextInfo.isBlank()
+                ? "\n" + VersionedTemplateDrawing.item(version, "request", "reference") + "\n" + contextInfo + "\n"
                 : "";
-        String dbContextSection = (iamDataContext != null && !iamDataContext.isBlank())
-                ? "\n**System Context (from database):**\n" + iamDataContext + "\n"
+        String systemContext = iamDataContext != null && !iamDataContext.isBlank()
+                ? "\n" + VersionedTemplateDrawing.item(version, "request", "system-context") + "\n" + iamDataContext + "\n"
                 : "";
-        return String.format("""
-            **Natural Language Requirements:**
-            "%s"
-
-            **Available Items (Use only the IDs and names from this list):**
-            %s
-            %s
-            %s
-            %s
-            """, naturalQuery, formatAvailableItems(availableItems), dbContextSection, ragSection, buildUserPromptExecutionInstructions());
+        return PromptDrawing.user(version, Set.of(), Map.of(
+                "query", String.valueOf(naturalQuery),
+                "items", VersionedTemplateDrawing.availableItems(version, "request", availableItems),
+                "system-context", systemContext,
+                "reference", reference,
+                "start", StreamingProtocol.JSON_START_MARKER,
+                "end", StreamingProtocol.JSON_END_MARKER));
     }
 
     /**
-     * Extracts the natural language query from the request.
+     * Extracts the natural language query from the request: the parameter, else the request's context, else the
+     * version's sentence that none was given.
      *
      * @param request the AI request
      * @return the natural language query or a default message
      */
     public String extractNaturalQuery(AIRequest<? extends DomainContext> request) {
+        return naturalQuery(request, version(request));
+    }
+
+    private static String naturalQuery(AIRequest<? extends DomainContext> request, AssembledPrompt version) {
         String naturalQuery = request.getParameter("naturalLanguageQuery", String.class);
         if (naturalQuery != null) {
             return naturalQuery;
         }
-        return request.getContext() != null ? request.getContext().toString() : "Natural language requirements were not provided";
+        return request.getContext() != null ? request.getContext().toString()
+                : VersionedTemplateDrawing.item(version, "request", "missing");
     }
 
-    /**
-     * Extracts the available items from the request.
-     *
-     * @param request the AI request
-     * @return the available items for policy generation
-     */
-    private PolicyGenerationItem.AvailableItems extractAvailableItems(AIRequest<? extends DomainContext> request) {
-        return request.getParameter("availableItems", PolicyGenerationItem.AvailableItems.class);
+    private AssembledPrompt version(AIRequest<? extends DomainContext> request) {
+        return pin.of(request, this::choose).version();
     }
 
-    /**
-     * Formats the available items for display in the prompt.
-     *
-     * @param availableItems the available items to format
-     * @return the formatted string representation
-     */
-    private String formatAvailableItems(PolicyGenerationItem.AvailableItems availableItems) {
-        if (availableItems == null) {
-            return "No available item information was provided.";
-        }
-        StringBuilder info = new StringBuilder();
-        if (availableItems.roles() != null && !availableItems.roles().isEmpty()) {
-            info.append("**Role List:**\n");
-            availableItems.roles().forEach(role ->
-                    info.append(String.format(Locale.ROOT, "- %s (ID: %d)\n", role.name(), role.id())));
-        }
-        if (availableItems.permissions() != null && !availableItems.permissions().isEmpty()) {
-            info.append("\n**Permission List:**\n");
-            availableItems.permissions().forEach(permission -> {
-                info.append(String.format(Locale.ROOT, "- %s (ID: %d)", permission.name(), permission.id()));
-                if (permission.targetType() != null && permission.resourceIdentifier() != null) {
-                    info.append(String.format(" [Protects: %s %s %s]",
-                            permission.targetType(),
-                            permission.httpMethod() != null ? permission.httpMethod() : "",
-                            permission.resourceIdentifier()));
-                }
-                info.append("\n");
-            });
-        }
-        if (availableItems.conditions() != null && !availableItems.conditions().isEmpty()) {
-            info.append("\n**Condition List (You must use only these numeric IDs as keys for the \"conditions\" field):**\n");
-            availableItems.conditions().forEach(condition ->
-                    info.append(String.format(Locale.ROOT, "- ID: %d, Name: %s\n", condition.id(), condition.name())));
-        }
-        return info.length() > 0 ? info.toString() : "No available items found.";
+    private PromptVersionInUse.Choice choose() {
+        return versions.choose(PROMPT, DOCUMENTS.product(), null);
+    }
+
+    // ----- the prompt's versions (plan 3.11) -----
+
+    @Override
+    public String prompt() {
+        return PROMPT;
+    }
+
+    @Override
+    public List<ProductPromptRelease> productReleases() {
+        return DOCUMENTS.releases();
+    }
+
+    @Override
+    public AssembledPrompt product() {
+        return DOCUMENTS.product();
+    }
+
+    @Override
+    public PromptGovernanceDescriptor registryDescriptor() {
+        return DESCRIPTOR;
+    }
+
+    @Override
+    public Example example(AssembledPrompt version) {
+        PolicyGenerationItem.AvailableItems items = new PolicyGenerationItem.AvailableItems(
+                List.of(new PolicyGenerationItem.RoleItem(101L, "Team Manager", null)),
+                List.of(new PolicyGenerationItem.PermissionItem(201L, "Read documents", null, "URL", "/api/documents",
+                        "GET")),
+                List.of(new PolicyGenerationItem.ConditionItem(301L, "Within Business Hours", null, true)));
+        String system = pin.with(version, () -> generateSystemPrompt(null, null));
+        return new Example(system, user(version, "Let team managers read the documents of their team", items,
+                "Roles: Team Manager, Document Handler", null));
     }
 }

@@ -14,6 +14,7 @@ import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRelease;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -23,6 +24,7 @@ import org.springframework.util.StringUtils;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -62,6 +64,7 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
     private volatile long lastInvalidationId;
     private volatile boolean releaseReadFailing;
     private volatile boolean invalidationReadFailing;
+    private volatile boolean shadowSettingsReadFailing;
 
     public JdbcPromptGovernanceDescriptorResolver(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
         this(jdbcTemplate, objectMapper, CACHE_TTL_MILLIS, INVALIDATION_POLL_INTERVAL_MILLIS);
@@ -99,9 +102,12 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
     }
 
     /**
-     * The registry selector: the request's scope runs its own releases, or the platform's when it has none. A canary
-     * release runs for the requests whose subject falls inside its share ({@code canary_percent}; no share is the whole
-     * scope), the others run the latest active release; without either the build default runs.
+     * The registry selector (plan 3.4): the label of the request's scope, else the label of the platform. In a scope a
+     * canary release runs for the requests of its target tenants and resource families whose requester falls inside its
+     * share ({@code canary_percent}; no share is the whole scope); the others run the scope's latest active release. A
+     * scope whose releases choose nothing for the request (a shadow alone, a canary the request is outside of) leaves
+     * the choice to the platform (K45); without a choice the build default runs. A release is named as a bundle or as a
+     * version of the database ({@code v2.0}) alike.
      */
     public PromptBundleSelector registrySelector() {
         return new PromptBundleSelector() {
@@ -112,45 +118,72 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
 
             @Override
             public PromptBundleSelection shadow(PromptGovernanceResolutionContext context, String subjectKey) {
+                PromptShadowRelease shadow = shadowRelease(context, subjectKey);
+                return shadow.present() ? new PromptBundleSelection(shadow.version(), PromptBundleSelectionSource.SHADOW)
+                        : PromptBundleSelection.none();
+            }
+
+            @Override
+            public PromptShadowRelease shadowRelease(PromptGovernanceResolutionContext context, String subjectKey) {
                 return JdbcPromptGovernanceDescriptorResolver.this.shadow(context);
             }
         };
     }
 
-    /** W6-9 (P6-CHANGE-6): the scope's shadow release, the candidate a shadow run draws; none without one. */
-    private PromptBundleSelection shadow(PromptGovernanceResolutionContext context) {
+    /**
+     * W6-9 (P6-CHANGE-6), plan 3.4: the shadow release of the request's scope, else of the platform, the candidate a
+     * shadow run draws, with the sample share and daily limit its row sets; none without one.
+     */
+    private PromptShadowRelease shadow(PromptGovernanceResolutionContext context) {
         if (context == null || !StringUtils.hasText(context.promptKey())) {
-            return PromptBundleSelection.none();
+            return PromptShadowRelease.none();
         }
-        return releases(new CacheKey(normalizeScope(context.registryScope()), normalizeIdentifier(context.promptKey()),
-                normalizeIdentifier(context.templateKey()))).selectionScope().stream()
-                .filter(release -> PromptBundleState.is(release.releaseStatus(), PromptBundleState.SHADOW))
-                .findFirst()
-                .map(release -> new PromptBundleSelection(release.promptVersion(), PromptBundleSelectionSource.SHADOW))
-                .orElseGet(PromptBundleSelection::none);
+        Releases releases = releases(cacheKey(context));
+        for (List<RegistryRelease> scope : releases.selectionScopes()) {
+            Optional<RegistryRelease> shadow = scope.stream()
+                    .filter(release -> PromptBundleState.is(release.releaseStatus(), PromptBundleState.SHADOW))
+                    .findFirst();
+            if (shadow.isPresent()) {
+                return new PromptShadowRelease(shadow.get().promptVersion(), shadow.get().shadowSamplePercent(),
+                        shadow.get().shadowDailyLimit());
+            }
+        }
+        return PromptShadowRelease.none();
     }
 
     private PromptBundleSelection select(PromptGovernanceResolutionContext context, String subjectKey) {
         if (context == null || !StringUtils.hasText(context.promptKey())) {
             return PromptBundleSelection.none();
         }
-        Releases releases = releases(new CacheKey(
-                normalizeScope(context.registryScope()),
-                normalizeIdentifier(context.promptKey()),
-                normalizeIdentifier(context.templateKey())));
-        List<RegistryRelease> scope = releases.selectionScope();
+        Releases releases = releases(cacheKey(context));
+        for (List<RegistryRelease> scope : releases.selectionScopes()) {
+            Optional<PromptBundleSelection> label = label(scope, context, subjectKey);
+            if (label.isPresent()) {
+                return label.get();
+            }
+        }
+        return PromptBundleSelection.none();
+    }
+
+    /** The release one scope chooses for the request: its canary when the request falls inside it, else its active one. */
+    private static Optional<PromptBundleSelection> label(List<RegistryRelease> scope,
+                                                         PromptGovernanceResolutionContext context, String subjectKey) {
         Optional<RegistryRelease> canary = scope.stream()
                 .filter(release -> PromptBundleState.is(release.releaseStatus(), PromptBundleState.CANARY))
                 .findFirst();
         if (canary.isPresent() && insideTargets(canary.get(), context)
                 && insideShare(canary.get().canaryPercent(), subjectKey)) {
-            return new PromptBundleSelection(canary.get().promptVersion(), PromptBundleSelectionSource.CANARY);
+            return Optional.of(new PromptBundleSelection(canary.get().promptVersion(), PromptBundleSelectionSource.CANARY));
         }
         return scope.stream()
                 .filter(release -> PromptBundleState.is(release.releaseStatus(), PromptBundleState.ACTIVE))
                 .findFirst()
-                .map(release -> new PromptBundleSelection(release.promptVersion(), PromptBundleSelectionSource.REGISTRY))
-                .orElseGet(PromptBundleSelection::none);
+                .map(release -> new PromptBundleSelection(release.promptVersion(), PromptBundleSelectionSource.REGISTRY));
+    }
+
+    private static CacheKey cacheKey(PromptGovernanceResolutionContext context) {
+        return new CacheKey(normalizeScope(context.registryScope()), normalizeIdentifier(context.promptKey()),
+                normalizeIdentifier(context.templateKey()));
     }
 
     /**
@@ -172,9 +205,17 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
         return Arrays.stream(value.split(",")).map(String::trim).filter(StringUtils::hasText).toList();
     }
 
-    private static boolean insideShare(Integer canaryPercent, String subjectKey) {
+    /**
+     * Plan 3.4: whether the requester falls inside the canary's share. The same requester always falls on the same
+     * side: the share is drawn by the hash of the requester's key, which is the same on every server. A request without
+     * a requester (a screen asking what the scope runs) is inside only a canary of the whole scope.
+     */
+    static boolean insideShare(Integer canaryPercent, String subjectKey) {
         int percent = canaryPercent == null ? WHOLE_SCOPE_PERCENT : Math.max(0, Math.min(WHOLE_SCOPE_PERCENT, canaryPercent));
-        return Math.floorMod(Objects.hashCode(subjectKey), WHOLE_SCOPE_PERCENT) < percent;
+        if (!StringUtils.hasText(subjectKey)) {
+            return percent >= WHOLE_SCOPE_PERCENT;
+        }
+        return Math.floorMod(subjectKey.hashCode(), WHOLE_SCOPE_PERCENT) < percent;
     }
 
     private Releases releases(CacheKey key) {
@@ -213,6 +254,7 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
                     key.promptKey(),
                     key.templateKey());
             releaseReadFailing = false;
+            rows = withShadowSettings(rows);
             return new Releases(
                     rows.stream().filter(row -> key.registryScope().equals(normalizeScope(row.registryScope()))).toList(),
                     rows.stream().filter(row -> DEFAULT_SCOPE.equals(normalizeScope(row.registryScope()))).toList(),
@@ -226,6 +268,42 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
             }
             return new Releases(List.of(), List.of(), true);
         }
+    }
+
+    /**
+     * Plan 3.4: the sample share and daily limit the rows of shadow releases set, read apart from the releases: a
+     * schema without the two columns keeps its releases, and its shadow runs keep the configured share and limit.
+     */
+    private List<RegistryRelease> withShadowSettings(List<RegistryRelease> rows) {
+        if (rows.stream().noneMatch(row -> PromptBundleState.is(row.releaseStatus(), PromptBundleState.SHADOW))) {
+            return rows;
+        }
+        List<RegistryRelease> read = new ArrayList<>(rows.size());
+        for (RegistryRelease row : rows) {
+            if (!PromptBundleState.is(row.releaseStatus(), PromptBundleState.SHADOW)) {
+                read.add(row);
+                continue;
+            }
+            try {
+                List<Integer[]> settings = jdbcTemplate.query("select shadow_sample_percent, shadow_daily_limit from"
+                                + " ctxa_prompt_governance_registry where registry_scope = ? and prompt_key = ? and"
+                                + " prompt_version = ?",
+                        (rs, rowNum) -> new Integer[] {rs.getObject(1, Integer.class), rs.getObject(2, Integer.class)},
+                        row.registryScope(), row.promptKey(), row.promptVersion());
+                Integer[] setting = settings.isEmpty() ? new Integer[2] : settings.get(0);
+                read.add(row.withShadow(setting[0], setting[1]));
+                shadowSettingsReadFailing = false;
+            }
+            catch (DataAccessException exception) {
+                if (!shadowSettingsReadFailing) {
+                    shadowSettingsReadFailing = true;
+                    log.warn("The sample share and daily limit of the shadow release {} could not be read; the shadow"
+                            + " run keeps its configured ones", row.promptVersion(), exception);
+                }
+                read.add(row);
+            }
+        }
+        return List.copyOf(read);
     }
 
     private PromptGovernanceDescriptorResolution releaseResolution(
@@ -330,7 +408,9 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
                 rs.getObject("canary_percent", Integer.class),
                 targets(rs.getString("canary_tenants")),
                 targets(rs.getString("canary_resource_families")),
-                rs.getTimestamp("updated_at"));
+                rs.getTimestamp("updated_at"),
+                null,
+                null);
     }
 
     private PromptReleaseStatus descriptorReleaseStatus(String releaseStatus) {
@@ -387,9 +467,12 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
      */
     private record Releases(List<RegistryRelease> requestScope, List<RegistryRelease> platformScope, boolean unavailable) {
 
-        /** The releases a selection draws from: the request scope's own, or the platform's when it has none. */
-        private List<RegistryRelease> selectionScope() {
-            return requestScope.isEmpty() ? platformScope : requestScope;
+        /**
+         * The releases a selection draws from, in order (plan 3.4): the request scope's own, then the platform's; a
+         * scope that chooses nothing for a request leaves the choice to the next.
+         */
+        private List<List<RegistryRelease>> selectionScopes() {
+            return List.of(requestScope, platformScope);
         }
 
         /** The release of a version and contract, in the request scope first and then in the platform scope. */
@@ -430,10 +513,19 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
             Integer canaryPercent,
             List<String> canaryTenants,
             List<String> canaryResourceFamilies,
-            Timestamp updatedAt) {
+            Timestamp updatedAt,
+            Integer shadowSamplePercent,
+            Integer shadowDailyLimit) {
 
         private boolean is(String version, String contract) {
             return version.equals(normalizeIdentifier(promptVersion)) && contract.equals(normalizeIdentifier(contractVersion));
+        }
+
+        private RegistryRelease withShadow(Integer samplePercent, Integer dailyLimit) {
+            return new RegistryRelease(registryScope, promptKey, templateKey, promptVersion, contractVersion, artifactHash,
+                    releaseStatus, owner, releaseApprovalReference, evaluationBaselineReference, rollbackPromptVersion,
+                    changeSummary, templateClassName, supportedModelProfilesJson, canaryPercent, canaryTenants,
+                    canaryResourceFamilies, updatedAt, samplePercent, dailyLimit);
         }
     }
 }

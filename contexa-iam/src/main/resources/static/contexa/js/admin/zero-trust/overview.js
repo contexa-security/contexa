@@ -32,6 +32,11 @@
         return t(P + key + (shadow ? '.shadow' : ''), ...args);
     }
 
+    /** K110: a card title in the mode's form, with its short form for a phone when it has one. */
+    function heading(key, ...args) {
+        return ZT.title(P + key + (shadow ? '.shadow' : ''), ...args);
+    }
+
     function span(node, columns) {
         node.classList.add('zt-span-' + columns);
         return node;
@@ -124,6 +129,16 @@
         return all === 0 ? null : (point.challenge + point.escalate + point.block) / all;
     }
 
+    /** The protected calls of the day no new decision answered: reused, skipped or failed (design 6.0). */
+    function noDecisionOf(point) {
+        return point.noDecision + (point.reused || 0) + (point.skipped || 0);
+    }
+
+    /** The challenges the account owner passed, of the day's challenges: the pass card's daily trend. */
+    function passOf(point) {
+        return point.challenge > 0 ? (point.passed || 0) / point.challenge : null;
+    }
+
     function modelOf(point) {
         const all = decided(point);
         return all === 0 ? null : point.model / all;
@@ -161,9 +176,25 @@
 
     // ----- the four key numbers: the dashboard's gradient cards (ZT.kpiMetric) -----
 
+    /**
+     * Design 6.1: how a share changed from the period of the same length before, in percentage points; nothing when
+     * either period has no value.
+     */
+    function change(current, previous) {
+        if (current == null || previous == null) {
+            return null;
+        }
+        const points = (current - previous) * 100;
+        const shown = new Intl.NumberFormat(document.documentElement.lang || 'en', {maximumFractionDigits: 1,
+            signDisplay: 'exceptZero'}).format(points);
+        return m('kpi.delta', m('kpi.deltaPoints', shown));
+    }
+
     /** A key card of a metric: it opens the screen that explains the number and draws the number's daily trend. */
-    function keyCard(tone, icon, value, sub, trendValues, href) {
+    function keyCard(tone, icon, value, sub, trendValues, href, before) {
         const metric = value || {};
+        const delta = change(metric.value, before);
+        sub = delta ? (sub ? sub + ' · ' + delta : delta) : sub;
         return ZT.kpiMetric(metric, {tone, icon, sub, href, trend: trendValues,
             trendLabel: m('kpi.trend', metric.label || '')});
     }
@@ -179,19 +210,20 @@
         const perUser = (value.impact && value.impact.challengesPerUserWeek) || {};
         const model = (value.trust && value.trust.modelDecided) || {};
         const modelLess = (value.trust && value.trust.modelLess) || {};
+        const previous = value.previous || {};
         return ZT.kpiRow(
             keyCard('indigo', 'fa-shield-alt', coverage,
                 m('kpi.coverage.sub', ZT.count(coverage.numerator), ZT.count(coverage.denominator)),
-                series(days, coverageOf), ZT.consoleLink('/operations')),
+                series(days, coverageOf), ZT.consoleLink('/operations'), previous.coverage),
             keyCard('purple', 'fa-hand-paper', stopped,
                 m('kpi.stopped.sub', ZT.count(stopped.numerator), count('CHALLENGE'), count('BLOCK')),
-                series(days, stoppedOf), ZT.consoleLink('/impact')),
+                series(days, stoppedOf), ZT.consoleLink('/impact'), previous.stopped),
             keyCard('teal', 'fa-user-check', pass,
                 m('kpi.pass.sub', ZT.metricText(perUser)),
-                series(days, point => point.challenge), ZT.consoleLink('/impact')),
+                series(days, passOf), ZT.consoleLink('/impact'), previous.challengePass),
             keyCard('green', 'fa-robot', model,
                 m('kpi.trust.sub', ZT.metricText(modelLess)),
-                series(days, modelOf), ZT.consoleLink('/trust')));
+                series(days, modelOf), ZT.consoleLink('/trust'), previous.modelDecided));
     }
 
     // ----- the decisions of each day, and their share by action -----
@@ -201,8 +233,12 @@
         const datasets = ACTIONS.map(action => ({type: 'bar', label: t('zt.console.ui.action.' + action),
             data: series(days, point => point[action.toLowerCase()]), backgroundColor: C[action], stack: 'decisions',
             borderRadius: 4, maxBarThickness: 48}));
-        datasets.push({type: 'line', label: m('trend.noDecision'), data: series(days, point => point.noDecision),
+        // Design 6.0, 6.1: "no decision" is every protected call no new decision answered: a decision reused, an
+        // analysis skipped and a technical failure (the counts of the calls are over every tenant).
+        datasets.push({type: 'line', label: m('trend.noDecision'), data: series(days, noDecisionOf),
             borderColor: C.MUTED, backgroundColor: C.MUTED, borderDash: [4, 4], pointRadius: 2, stack: 'noDecision'});
+        datasets.push({type: 'line', label: m('trend.baseline'), data: series(days, point => point.baselineEstablished),
+            yAxisID: 'ratio', borderColor: C.ACCENT, backgroundColor: C.ACCENT, pointRadius: 2, stack: 'baseline'});
         const box = el('div');
         const body = [];
         if (has) {
@@ -214,7 +250,7 @@
         }
         charts.push(() => ZT.chart(box, 'l', {type: 'bar', label: m('trend.label'),
             data: {labels: days.map(day => ZT.day(day.day)), datasets},
-            axes: {x: {stacked: true}, y: {stacked: true}}}, has, 'NO_DECISIONS'));
+            axes: {x: {stacked: true}, y: {stacked: true}, ratio: true}}, has, 'NO_DECISIONS'));
         return ZT.card(m('trend.title'), m('trend.aside'), ...body);
     }
 
@@ -243,7 +279,7 @@
     function reasonsCard(groups, summary) {
         const total = groups.reduce((sum, group) => sum + group.count, 0);
         if (!summary.decisions || total === 0) {
-            return ZT.card(s('reasons.title'), null,
+            return ZT.card(heading('reasons.title'), null,
                 summary.decisions ? ZT.emptyNote(s('reasons.none')) : ZT.empty('NO_DECISIONS'));
         }
         const max = Math.max(...groups.map(group => group.count));
@@ -255,7 +291,7 @@
                         ZT.percent(group.ratio))})),
                 ZT.bar(group.count, max, {color: ZT.SERIES[index % ZT.SERIES.length], label}));
         }));
-        return foot(ZT.card(s('reasons.title'), s('reasons.aside', ZT.count(total)), rows),
+        return foot(ZT.card(heading('reasons.title'), s('reasons.aside', ZT.count(total)), rows),
             link(ZT.consoleLink('/impact'), m('reasons.link')));
     }
 

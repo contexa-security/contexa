@@ -63,26 +63,10 @@ class SecurityDecisionPromptBundleTest {
 
     private static final String MINIMUM_ACTION_RULES_SOURCE =
             "src/main/java/io/contexa/contexacore/autonomous/context/decision/MinimumActionRules.java";
-    private static final String INSPECTOR_SOURCE =
-            "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionRawOutputContractInspector.java";
-    /** The v21 response check: the inspector and the fact checks it runs (V-5). */
-    private static final List<String> V21_INSPECTOR_SOURCES = List.of(
+    /** The v1.0 response check (K30): the v21 check and the v1.0 rules, read through the short answer's adapter. */
+    private static final List<String> INSPECTOR_SOURCES = List.of(
             "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionV21OutputInspector.java",
-            "src/main/java/io/contexa/contexacore/autonomous/tiered/prompt/SecurityDecisionV21FactChecks.java");
-    /**
-     * The v1.0 response check (plan 2.2 B6): the v21 check it runs first, the v1.0 checks after it (the past record
-     * claim, the boundaries and the floors), and the fallback actions a fallback variant takes.
-     */
-    private static final List<String> V1_INSPECTOR_SOURCES = List.of(
-            "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionV21OutputInspector.java",
-            "src/main/java/io/contexa/contexacore/autonomous/tiered/prompt/SecurityDecisionV21FactChecks.java",
-            "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionV1OutputInspector.java",
-            "src/main/java/io/contexa/contexacore/autonomous/tiered/prompt/SecurityDecisionFactChecks.java",
-            "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionRawOutputContractInspector.java");
-    /** The v1.0 response check of the short output (K30): the check above, read through the short answer's adapter. */
-    private static final List<String> V1_COMPACT_INSPECTOR_SOURCES = List.of(
-            "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionV21OutputInspector.java",
-            "src/main/java/io/contexa/contexacore/autonomous/tiered/prompt/SecurityDecisionV21FactChecks.java",
+            "src/main/java/io/contexa/contexacore/autonomous/tiered/prompt/SecurityDecisionAnswerChecks.java",
             "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionV1OutputInspector.java",
             "src/main/java/io/contexa/contexacore/autonomous/tiered/prompt/SecurityDecisionFactChecks.java",
             "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionRawOutputContractInspector.java",
@@ -195,56 +179,10 @@ class SecurityDecisionPromptBundleTest {
         assertThat(descriptor.artifactHashSha256()).isEqualTo(shipped.bundleHash());
     }
 
-    @Test
-    void goldenRenderFidelityAgainstTheSealedPromptsIsReported() throws IOException {
-        Map<String, Object> report = new LinkedHashMap<>();
-        int sections = 0;
-        int identical = 0;
-        for (JsonNode goldenCase : golden.cases()) {
-            PromptBudgetProfile profile = PromptBudgetProfile.fromKey(goldenCase.path("budgetProfile").asText(),
-                    PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
-            SecurityDecisionGoldenRender.RenderedCase item = rendered(SecurityDecisionPromptBundles.V19).stream()
-                    .filter(candidate -> candidate.caseKey().equals(goldenCase.path("caseKey").asText())
-                            && candidate.profile() == profile)
-                    .findFirst()
-                    .orElseThrow();
-            Map<String, String> sealed = sections(goldenCase.path("rawUserPrompt").asText(""));
-            Map<String, String> renderedSections = sections(item.userText());
-            List<String> differing = new ArrayList<>();
-            for (Map.Entry<String, String> entry : sealed.entrySet()) {
-                sections++;
-                if (entry.getValue().equals(renderedSections.get(entry.getKey()))) {
-                    identical++;
-                }
-                else {
-                    differing.add(entry.getKey());
-                }
-            }
-            Map<String, Object> caseReport = new LinkedHashMap<>();
-            caseReport.put("profile", profile.name());
-            caseReport.put("sealedSections", sealed.size());
-            caseReport.put("differingSections", differing);
-            caseReport.put("systemTextIdentical", item.systemText().equals(goldenCase.path("rawSystemPrompt").asText("")));
-            report.put(item.caseKey(), caseReport);
-            Path renderedDirectory = Path.of("build/reports/prompt-bundle/rendered");
-            Files.createDirectories(renderedDirectory);
-            Files.writeString(renderedDirectory.resolve(item.caseKey() + "-system.txt"), item.systemText());
-            Files.writeString(renderedDirectory.resolve(item.caseKey() + "-user.txt"), item.userText());
-        }
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("sections", sections);
-        summary.put("identicalSections", identical);
-        summary.put("cases", report);
-        Path path = Path.of("build/reports/prompt-bundle/security-decision-golden-fidelity.json");
-        Files.createDirectories(path.getParent());
-        Files.writeString(path, OBJECT_MAPPER.writeValueAsString(summary));
-        assertThat(sections).isPositive();
-    }
-
     /**
-     * The golden renders of a bundle: every case with the L1 and L2 budget profiles, and for a v20 bundle the second
-     * analysis as well: the second-pass layout over a case's first prompt, for each case with past records the first
-     * pass could not retrieve (W3-9).
+     * The golden renders of a bundle: every case with the L1 and L2 budget profiles, and the second analysis as well:
+     * the second-pass layout over a case's first prompt, for each case with past records the first pass could not
+     * retrieve (W3-9).
      */
     private static List<SecurityDecisionGoldenRender.RenderedCase> renderAll(SecurityDecisionPromptBundles.Bundle bundle) {
         TieredStrategyProperties properties = new TieredStrategyProperties();
@@ -255,18 +193,16 @@ class SecurityDecisionPromptBundleTest {
                 rendered.add(golden.render(goldenCase, profile, properties));
             }
         }
-        if (bundle.layout().dictionaryBlocks()) {
-            for (JsonNode goldenCase : golden.cases()) {
-                if (goldenCase.path("ragResults").path("relatedDocuments").isEmpty()) {
-                    continue;
-                }
-                String first = golden.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties)
-                        .userText();
-                rendered.add(golden.render(goldenCase, PromptBudgetProfile.CORTEX_L2_EXPERT_STRICT, properties, null,
-                        Map.of("layer2FirstPassUserPrompt", first,
-                                "layer2FirstPassVerdict", "ESCALATE",
-                                "layer2FirstPassPastRecordsState", "TIMEOUT")));
+        for (JsonNode goldenCase : golden.cases()) {
+            if (goldenCase.path("ragResults").path("relatedDocuments").isEmpty()) {
+                continue;
             }
+            String first = golden.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties)
+                    .userText();
+            rendered.add(golden.render(goldenCase, PromptBudgetProfile.CORTEX_L2_EXPERT_STRICT, properties, null,
+                    Map.of("layer2FirstPassUserPrompt", first,
+                            "layer2FirstPassVerdict", "ESCALATE",
+                            "layer2FirstPassPastRecordsState", "TIMEOUT")));
         }
         return rendered;
     }
@@ -278,87 +214,27 @@ class SecurityDecisionPromptBundleTest {
     private PromptBundleManifest computedManifest(SecurityDecisionPromptBundles.Bundle bundle) throws IOException {
         PromptGovernanceDescriptor descriptor = bundle.descriptor();
         List<SecurityDecisionGoldenRender.RenderedCase> rendered = rendered(bundle);
-        boolean v20 = bundle.layout().dictionaryBlocks();
-        boolean v21 = bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS;
-        // Plan 1-6: a v1.0 variant draws the v1.0 dictionary, or the one with the decision rules' conclusions.
-        boolean v1 = bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS;
-        boolean v1Rules = v1 && bundle.features().decisionRules();
         long secondPasses = rendered.size() - (long) golden.cases().size() * SecurityDecisionGoldenRender.PROFILES.size();
         List<PromptBundleElement> elements = new ArrayList<>();
-        // docs/agent A4-4: an agent's request leaves the automation client boundary out of the v19 and v20 texts.
-        String agentLeavesOut = switch (bundle.layout()) {
-            case V19_SECTIONS -> SecurityDecisionPromptSections.V19_AUTOMATION_BOUNDARY;
-            case V20_BLOCKS -> SecurityDecisionPromptSections.V20_AUTOMATION_CATEGORY
-                    + SecurityDecisionPromptSections.V20_AUTOMATION_BOUNDARY;
-            case V21_BLOCKS -> "";
-            // v1.0: only the variants with the decision rules state the automation boundary (K6: one place).
-            case V1_BLOCKS -> bundle.features().decisionRules()
-                    ? SecurityDecisionPromptSections.V20_AUTOMATION_CATEGORY
-                    + SecurityDecisionPromptSections.V20_AUTOMATION_BOUNDARY
-                    : "";
-        };
-        elements.add(agentLeavesOut.isEmpty()
-                ? PromptBundleHashes.present("B1", systemTexts(rendered),
-                "rendered system text of the L1 and L2 budget profiles")
-                : PromptBundleHashes.present("B1", systemTexts(rendered) + "AGENT LEAVES OUT:\n" + agentLeavesOut,
-                "rendered system text of the L1 and L2 budget profiles and the part an agent's request leaves out"
-                        + " (docs/agent A4-4)"));
-        elements.add(v1
-                ? PromptBundleHashes.present("B2", v1Rules ? SecurityDecisionPromptDictionary.contentTextV1Rules()
-                        : SecurityDecisionPromptDictionary.contentTextV1(), "prompt dictionary "
-                        + (v1Rules ? SecurityDecisionPromptDictionary.V1_RULES_VERSION
-                        : SecurityDecisionPromptDictionary.V1_VERSION) + ": every entry with all its fields, the block"
-                        + " header labels and the block titles (plan 2.9)")
-                : v21
-                ? PromptBundleHashes.present("B2", SecurityDecisionPromptDictionary.contentTextV21(), "prompt dictionary "
-                        + SecurityDecisionPromptDictionary.V21_VERSION + ": every entry with all its fields, the block"
-                        + " header labels and the block titles (V-4)")
-                : v20
-                ? PromptBundleHashes.present("B2", SecurityDecisionPromptDictionary.contentText(), "prompt dictionary "
-                        + SecurityDecisionPromptDictionary.VERSION + ": every entry with all its fields and the block header labels (W3-1)")
-                : PromptBundleHashes.marker("B2", PromptBundleElementState.ABSENT, "no prompt dictionary in v19 (v20, W3-1)"));
+        // docs/agent A4-4: the product version states no automation client boundary, so an agent's request leaves nothing
+        // out of it (a version with the decision rules leaves it out, PreparedPartsEquivalenceTest).
+        elements.add(PromptBundleHashes.present("B1", systemTexts(rendered),
+                "rendered system text of the L1 and L2 budget profiles"));
+        elements.add(PromptBundleHashes.present("B2", SecurityDecisionPromptDictionary.contentTextV1(), "prompt dictionary "
+                + SecurityDecisionPromptDictionary.V1_VERSION + ": every entry with all its fields, the block"
+                + " header labels and the block titles (plan 2.9)"));
         elements.add(PromptBundleHashes.presentHash("B3", SecurityDecisionGoldenRender.digest(rendered),
-                "golden render digest: " + golden.cases().size() + " cases x L1/L2"
-                        + (v20 ? " and " + secondPasses + " second passes" : "") + ", inputs " + golden.contentSha256()));
-        boolean compact = v1 && bundle.features().compactOutput();
-        elements.add(compact
-                ? PromptBundleHashes.present("B4", outputContractV1Compact(bundle),
-                        "format instructions, the output contract v5 schema and the response fields (K30)")
-                : v1
-                ? PromptBundleHashes.present("B4", outputContractV1(),
-                        "format instructions, the output contract v4 schema and the response fields (plan 2.3 A4)")
-                : v21
-                ? PromptBundleHashes.present("B4", outputContractV21(),
-                        "format instructions, the output contract v4 schema and the response fields (V-3)")
-                : PromptBundleHashes.present("B4", outputContract(), "format instructions and the response fields"));
-        // W4-4: the v20 system text states the minimum action rules (dictionary 6) with the default settings.
-        // D2: v1.0 keeps the minimum action rules; the fallback variants state them, every variant records them.
-        elements.add(v1
-                ? PromptBundleHashes.present("B5", Files.readString(Path.of(MINIMUM_ACTION_RULES_SOURCE),
+                "golden render digest: " + golden.cases().size() + " cases x L1/L2 and " + secondPasses
+                        + " second passes, inputs " + golden.contentSha256()));
+        elements.add(PromptBundleHashes.present("B4", outputContract(),
+                "format instructions, the output contract v5 schema and the response fields (K30)"));
+        // D2: v1.0 keeps the minimum action rules; it states them when the host enforces them and records them always.
+        elements.add(PromptBundleHashes.present("B5", Files.readString(Path.of(MINIMUM_ACTION_RULES_SOURCE),
                         StandardCharsets.UTF_8) + MinimumActionRules.Settings.DEFAULTS,
-                        "minimum action rules P1-P3 (D2): the rule source and the default settings")
-                : v21
-                ? PromptBundleHashes.marker("B5", PromptBundleElementState.ABSENT,
-                        "no minimum action rules in v21: the model judges and no rule changes its response (V-5)")
-                : v20
-                ? PromptBundleHashes.present("B5", Files.readString(Path.of(MINIMUM_ACTION_RULES_SOURCE),
-                        StandardCharsets.UTF_8) + MinimumActionRules.Settings.DEFAULTS,
-                        "minimum action rules P1-P3 (dictionary 6): the rule source and the default settings")
-                : PromptBundleHashes.marker("B5", PromptBundleElementState.ABSENT, "no minimum response rules in v19 (W4-4)"));
-        elements.add(compact
-                ? PromptBundleHashes.present("B6", sources(V1_COMPACT_INSPECTOR_SOURCES),
-                        "v1.0 response check sources: the v21 check, the past record claim, the boundaries and the floors,"
-                                + " and the fallback actions, read through the short answer's adapter (K30)")
-                : v1
-                ? PromptBundleHashes.present("B6", sources(V1_INSPECTOR_SOURCES),
-                        "v1.0 response check sources: the v21 check, the past record claim, the boundaries and the floors,"
-                                + " and the fallback actions (plan 2.2 B6)")
-                : v21
-                ? PromptBundleHashes.present("B6", v21InspectorSources(),
-                        "v21 response check sources: the citation and honesty checks, no action check (V-5)")
-                : PromptBundleHashes.present("B6", Files.readString(Path.of(INSPECTOR_SOURCE), StandardCharsets.UTF_8),
-                v20 ? "response inspector definition source (no declarative rule list yet, W4-4)"
-                        : "response inspector definition source (no declarative rule list in v19)"));
+                "minimum action rules P1-P3 (D2): the rule source and the default settings"));
+        elements.add(PromptBundleHashes.present("B6", sources(INSPECTOR_SOURCES),
+                "v1.0 response check sources: the v21 check, the past record claim, the boundaries and the floors,"
+                        + " and the fallback actions, read through the short answer's adapter (K30)"));
         elements.add(PromptBundleHashes.present("B7", retrievalSettings(), "retrieval counts, thresholds, waits and document truncation defaults"));
         elements.add(PromptBundleHashes.present("B8", budgetProfiles(), "all prompt budget profiles"));
         elements.add(PromptBundleHashes.marker("B9", PromptBundleElementState.ABSENT,
@@ -367,8 +243,7 @@ class SecurityDecisionPromptBundleTest {
         elements.add(PromptBundleHashes.present("B10", vocabulary(), "vocabulary " + VocabularyVersion.CURRENT
                 + ": the version and the classifier sources it was given for (W5-7)"));
         elements.add(PromptBundleHashes.marker("B11", PromptBundleElementState.INCLUDED,
-                v20 ? "the second analysis renders inside B3: the L2 budget profile and the second-pass layout (W3-9)"
-                        : "the second analysis renders with the L2 budget profile inside B3"));
+                "the second analysis renders inside B3: the L2 budget profile and the second-pass layout (W3-9)"));
         Map<String, String> excluded = golden.excludedCases();
         return new PromptBundleManifest(
                 descriptor.promptKey(),
@@ -412,20 +287,9 @@ class SecurityDecisionPromptBundleTest {
         return text.toString();
     }
 
-    /** R1b-7: the dictionary's digest in main code is the hash of the bundle's dictionary element. */
-    @Test
     void theDictionaryDigestIsTheHashOfTheBundlesDictionaryElement() {
-        assertThat(SecurityDecisionPromptDictionary.contentDigest())
-                .isEqualTo(dictionaryElement(SecurityDecisionPromptBundles.V20).hash());
-        assertThat(SecurityDecisionPromptDictionary.contentDigestV21())
-                .isEqualTo(dictionaryElement(SecurityDecisionPromptBundles.V21).hash());
-        // Plan 1-6: the v1.0 dictionaries the inspector names are those its variants ship.
         assertThat(SecurityDecisionPromptDictionary.contentDigestV1())
-                .isEqualTo(dictionaryElement(SecurityDecisionPromptBundles.V1_RECORD_EXACT).hash())
-                .isEqualTo(dictionaryElement(SecurityDecisionPromptBundles.V1_RECORD_SIMILAR).hash());
-        assertThat(SecurityDecisionPromptDictionary.contentDigestV1Rules())
-                .isEqualTo(dictionaryElement(SecurityDecisionPromptBundles.V1_FALLBACK_EXACT).hash())
-                .isEqualTo(dictionaryElement(SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR).hash());
+                .isEqualTo(dictionaryElement(SecurityDecisionPromptBundles.V1).hash());
     }
 
     private static PromptBundleElement dictionaryElement(SecurityDecisionPromptBundles.Bundle bundle) {
@@ -433,26 +297,6 @@ class SecurityDecisionPromptBundleTest {
                 .find("cortex.security-decision", bundle.descriptor().promptVersion())
                 .orElseThrow();
         return shipped.elements().stream().filter(element -> "B2".equals(element.id())).findFirst().orElseThrow();
-    }
-
-    /** The v21 output: its format instructions, the output contract v4 schema and the response fields. */
-    private static String outputContractV21() {
-        return SecurityDecisionContractSectionBuilder.formatInstructions(
-                SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS) + '\n'
-                + SecurityDecisionOutputContractV4.providerSchema() + '\n' + outputContract();
-    }
-
-    /** The output contract of a bundle with the short output (v1.0, K30): its format instructions and the v5 schema. */
-    private static String outputContractV1Compact(SecurityDecisionPromptBundles.Bundle bundle) {
-        return SecurityDecisionContractSectionBuilder.formatInstructions(bundle) + '\n'
-                + SecurityDecisionOutputContractV5.providerSchema() + '\n' + outputContract();
-    }
-
-    /** The v1.0 output: its format instructions, the output contract v4 schema and the response fields. */
-    private static String outputContractV1() {
-        return SecurityDecisionContractSectionBuilder.formatInstructions(
-                SecurityDecisionPromptBundles.UserPromptLayout.V1_BLOCKS) + '\n'
-                + SecurityDecisionOutputContractV4.providerSchema() + '\n' + outputContract();
     }
 
     private static String sources(List<String> paths) throws IOException {
@@ -463,16 +307,10 @@ class SecurityDecisionPromptBundleTest {
         return text.toString();
     }
 
-    private static String v21InspectorSources() throws IOException {
-        StringBuilder text = new StringBuilder();
-        for (String source : V21_INSPECTOR_SOURCES) {
-            text.append(Files.readString(Path.of(source), StandardCharsets.UTF_8));
-        }
-        return text.toString();
-    }
-
+    /** The output of the product version: its format instructions, the output contract v5 schema, the response fields. */
     private static String outputContract() {
-        StringBuilder text = new StringBuilder(SecurityDecisionContractSectionBuilder.formatInstructions()).append('\n');
+        StringBuilder text = new StringBuilder(SecurityDecisionContractSectionBuilder.formatInstructions()).append('\n')
+                .append(SecurityDecisionOutputContractV5.providerSchema()).append('\n');
         Arrays.stream(SecurityDecisionResponseLite.class.getDeclaredFields())
                 .filter(field -> !field.isSynthetic() && !Modifier.isStatic(field.getModifiers()))
                 .sorted(Comparator.comparing(Field::getName))
@@ -508,21 +346,4 @@ class SecurityDecisionPromptBundleTest {
         return text.toString();
     }
 
-    private static Map<String, String> sections(String prompt) {
-        Map<String, String> sections = new LinkedHashMap<>();
-        String current = "(preamble)";
-        StringBuilder body = new StringBuilder();
-        for (String line : PromptBundleHashes.normalizeText(prompt).split("\n", -1)) {
-            if (line.startsWith("=== ") && line.endsWith(" ===")) {
-                sections.merge(current, body.toString(), (left, right) -> left + right);
-                current = line;
-                body = new StringBuilder();
-            }
-            else {
-                body.append(line).append('\n');
-            }
-        }
-        sections.merge(current, body.toString(), (left, right) -> left + right);
-        return sections;
-    }
 }

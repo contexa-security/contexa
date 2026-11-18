@@ -41,9 +41,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * V-5 of docs/showcase/프롬프트-v21-구현계획.md (발견 6): a v21 retry whose answer still cites what the prompt does not
- * give is kept as the model gave it, and the record of that retry names the same failure in the model call's retry
- * fields as in the run's retries, so the seal's integrity check reads them as one retry.
+ * V-5 of docs/showcase/프롬프트-v21-구현계획.md (발견 6), which v1.0 keeps: a retry whose answer still cites what the
+ * prompt does not give is kept as the model gave it, and the record of that retry names the same failure in the model
+ * call's retry fields as in the run's retries, so the seal's integrity check reads them as one retry.
  */
 class V21RetryRecordTest {
 
@@ -57,7 +57,6 @@ class V21RetryRecordTest {
     void aRetryWhoseCitationStaysWrongNamesItsFailureInTheCallFieldsAndInTheRetries() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         JsonNode a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
                 .orElseThrow();
         SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(a3,
@@ -87,8 +86,12 @@ class V21RetryRecordTest {
                 .satisfies(retry -> assertThat(((Map<?, ?>) retry).get("failureReason")).isEqualTo(failure));
     }
 
-    /** An answer whose only fault is a code citing a line that exists but that the code may not cite (RL-4). */
-    private static final String UNSUPPORTED_CODE = "{\"action\":\"BLOCK\",\"hypotheses\":[{\"id\":\"H1\",\"name\":null,"
+    /**
+     * An answer whose only fault is a code citing a line that exists but that the code may not cite (RL-4). Its action
+     * is one no boundary of the A3 conclusions turns, as v1.0 checks the boundaries besides (a BLOCK the conclusions
+     * give no decisive evidence for is asked again for that).
+     */
+    private static final String UNSUPPORTED_CODE = "{\"action\":\"ESCALATE\",\"hypotheses\":[{\"id\":\"H1\",\"name\":null,"
             + "\"assessment\":\"POSSIBLE\",\"for\":[\"S1\"],\"against\":[\"F1\"]},{\"id\":\"H3\",\"name\":null,"
             + "\"assessment\":\"MOST_LIKELY\",\"for\":[\"F1\"],\"against\":[]}],\"reasonCodes\":[{\"code\":"
             + "\"DEVIATION_NETWORK\",\"fact\":\"F1\"}],\"reason\":\"The owner exports a project outside their work at"
@@ -103,7 +106,6 @@ class V21RetryRecordTest {
     void anAnswerWhoseOnlyFaultIsUnsupportedCodesIsKeptWithoutAskingAgain() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         JsonNode a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
                 .orElseThrow();
         SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(a3,
@@ -119,6 +121,13 @@ class V21RetryRecordTest {
         assertThat(context.getMetadata(SecurityDecisionV21OutputInspector.UNRESOLVED_FINDINGS, String.class))
                 .contains("REASON_CODE_MISMATCH").contains("DEVIATION_NETWORK F1");
         assertThat(context.getMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, List.class)).hasSize(2);
+
+        AnsweringClient blockClient = new AnsweringClient(UNSUPPORTED_CODE.replace("\"ESCALATE\"", "\"BLOCK\""));
+        PipelineExecutionContext blockContext = contextOf(rendered, "exec-unsupported-codes-block");
+        new LLMExecutionStep(blockClient).execute(requestOf(rendered), blockContext).block();
+        assertThat(blockClient.calls).as("the same codes on a BLOCK the boundaries turn").isEqualTo(2);
+        assertThat(blockContext.getMetadata("securityDecisionOutputRetryReason", String.class))
+                .contains(SecurityDecisionFactChecks.BLOCK_WITHOUT_EVIDENCE);
     }
 
     /** An ESCALATE that cites only what the A3 prompt states. */
@@ -140,7 +149,6 @@ class V21RetryRecordTest {
     void aSecondPassEscalateIsAskedOnceMoreAndAFirstPassEscalateIsKept() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         JsonNode a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
                 .orElseThrow();
         SecurityDecisionGoldenRender.RenderedCase first = golden.render(a3,
@@ -164,7 +172,7 @@ class V21RetryRecordTest {
     }
 
     /**
-     * QF-50 (DD-65 A): a v21 corrective retry goes out with the first call's output limit and a longer prompt, so the
+     * QF-50 (DD-65 A): a corrective retry goes out with the first call's output limit and a longer prompt, so the
      * model can spend the whole limit thinking and the provider ends at the limit before any text. That retry is asked
      * again once with twice the limit, and the decision is read from that answer as the retry's (one retry, as the
      * seal's integrity check reads it). Through the orchestrator, so the thinking-only answer fails as in production.
@@ -173,7 +181,6 @@ class V21RetryRecordTest {
     void aCorrectiveRetryCutBeforeAnyTextIsAskedAgainWithTwiceTheOutputLimit() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         JsonNode a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
                 .orElseThrow();
         SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(a3,
@@ -241,7 +248,7 @@ class V21RetryRecordTest {
 
         @Override
         public <T> Mono<T> executeEntity(ExecutionContext context, Class<T> targetType) {
-            return Mono.error(new UnsupportedOperationException("a v21 decision is read raw"));
+            return Mono.error(new UnsupportedOperationException("a security decision is read raw"));
         }
 
         @Override
@@ -252,7 +259,7 @@ class V21RetryRecordTest {
 
         @Override
         public <T> Mono<T> entity(Prompt prompt, Class<T> targetType) {
-            return Mono.error(new UnsupportedOperationException("a v21 decision is read raw"));
+            return Mono.error(new UnsupportedOperationException("a security decision is read raw"));
         }
 
         @Override

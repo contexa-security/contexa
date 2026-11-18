@@ -16,11 +16,13 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import java.time.ZoneId;
-import io.contexa.contexacore.autonomous.tiered.prompt.V19BundleProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
+import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
+import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
+import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
@@ -75,7 +77,7 @@ class Layer1ContextualStrategyPipelineTest {
                 null,
                 null,
                 new SecurityEventEnricher(),
-                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), V19BundleProperties.create()),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
                 null,
                 null,
                 null,
@@ -85,7 +87,7 @@ class Layer1ContextualStrategyPipelineTest {
                 new PromptContextAuthorizationService(),
                 null,
                 pipelineOrchestrator,
-                V19BundleProperties.create()
+                new TieredStrategyProperties()
         );
 
         SecurityEvent event = SecurityEvent.builder()
@@ -116,7 +118,7 @@ class Layer1ContextualStrategyPipelineTest {
     @Test
     @DisplayName("Layer1 pipeline should fail closed when LLM execution exceeds layer budget")
     void analyzeWithContext_pipelineTimeout_returnsEscalationFallback() {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer1().getTimeout().setLlmMs(10);
 
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
@@ -158,7 +160,7 @@ class Layer1ContextualStrategyPipelineTest {
     @Test
     @DisplayName("N-OUT-1 (G1-7): the Layer1 budget holds when the pipeline runs synchronously")
     void theLayerOneBudgetHoldsWhenThePipelineRunsSynchronously() {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer1().getTimeout().setLlmMs(200);
 
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
@@ -206,7 +208,7 @@ class Layer1ContextualStrategyPipelineTest {
     @Test
     @DisplayName("N-OUT-1 (G1-7): the Layer1 total budget holds for the asynchronous analysis")
     void theLayerOneTotalBudgetHoldsForTheAsynchronousAnalysis() {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer1().getTimeout().setLlmMs(5000);
         properties.getLayer1().getTimeout().setTotalMs(200);
 
@@ -271,7 +273,7 @@ class Layer1ContextualStrategyPipelineTest {
                 eq(SecurityDecisionResponse.class)))
                 .thenReturn(Mono.just(response));
 
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         Layer1ContextualStrategy strategy = new Layer1ContextualStrategy(
                 null,
                 null,
@@ -362,7 +364,7 @@ class Layer1ContextualStrategyPipelineTest {
     void theStageTotalCountsOnlyTheTimeBlockedOnTheSearch() {
         SecurityEvent event = pastRecordEvent("event-w34-total");
 
-        layer1(null, null, V19BundleProperties.create())
+        layer1(null, null, new TieredStrategyProperties())
                 .recordLayer1TimingMetadata(event, 0L, 400L, 0L, 700L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 710L);
 
         assertThat(millis(event, "layer1RagSearchMs")).isEqualTo(400L);
@@ -386,7 +388,7 @@ class Layer1ContextualStrategyPipelineTest {
     }
 
     private TieredStrategyProperties interactiveWait(long waitMs) {
-        TieredStrategyProperties properties = V19BundleProperties.create();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer1().getTimeout().setInteractiveRagWaitMs(waitMs);
         properties.getLayer1().getTimeout().setRagMs(5000);
         SecurityDecisionResponse response = new SecurityDecisionResponse();
@@ -397,6 +399,10 @@ class Layer1ContextualStrategyPipelineTest {
         return properties;
     }
 
+    /**
+     * A store whose past record search takes the given time: the exact lookup, whose state the event keeps (D3), and the
+     * similar case search beside it, which finds the same record.
+     */
     private static UnifiedVectorService searchTaking(long millis, AtomicLong ended) {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
         Document record = new Document("User accessed a previous public resource.", Map.of(
@@ -412,6 +418,32 @@ class Layer1ContextualStrategyPipelineTest {
                 ended.set(System.nanoTime());
             }
             return List.of(record);
+        });
+        when(vectorService.pastRecordQuery()).thenReturn(new PastRecordQuery() {
+            @Override
+            public boolean available() {
+                return true;
+            }
+
+            @Override
+            public List<PastRecordGroup> groups(PastRecordScope scope) {
+                return List.of(new PastRecordGroup("/api/data", "/api/data", "GET", 1, null));
+            }
+
+            @Override
+            public List<Document> records(PastRecordScope scope, List<String> firstPaths, int limit) {
+                try {
+                    Thread.sleep(millis);
+                }
+                catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("The past record lookup was interrupted", interrupted);
+                }
+                if (ended != null) {
+                    ended.set(System.nanoTime());
+                }
+                return List.of(record);
+            }
         });
         return vectorService;
     }

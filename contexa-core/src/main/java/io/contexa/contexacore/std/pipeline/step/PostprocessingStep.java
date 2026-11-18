@@ -24,6 +24,7 @@ import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySuppor
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV1OutputInspector;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV21OutputInspector;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -176,9 +177,11 @@ public class PostprocessingStep implements PipelineStep {
             if (retries != null) {
                 aiResponse.withMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, retries);
             }
-            // V-3: the explanations a v21 answer weighed and what it still said wrongly after its retry.
+            // V-3: the explanations a v21 answer weighed and what it still said wrongly after its retry; K17: the
+            // decision rule a v1.0 answer still broke after its retry, kept for a person's review.
             for (String key : List.of(SecurityDecisionV21OutputInspector.HYPOTHESES,
-                    SecurityDecisionV21OutputInspector.UNRESOLVED_FINDINGS)) {
+                    SecurityDecisionV21OutputInspector.UNRESOLVED_FINDINGS,
+                    SecurityDecisionV1OutputInspector.V1_RULE_BREACH)) {
                 Object value = context.getMetadata(key, Object.class);
                 if (value != null) {
                     aiResponse.withMetadata(key, value);

@@ -22,7 +22,10 @@ import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningPropert
 import lombok.Data;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,6 +48,11 @@ public final class SystemSettingsDtos {
         private String noMatchingUrlPolicyDecision = SystemRuntimeSettingsService.DEFAULT_NO_MATCHING_URL_POLICY_DECISION.name();
         private String missingMethodPolicyDecision = SystemRuntimeSettingsService.DEFAULT_MISSING_METHOD_POLICY_DECISION.name();
         private String securityZeroTrustMode = SystemRuntimeSettingsService.DEFAULT_SECURITY_ZEROTRUST_MODE.name();
+        /**
+         * Console design 6.5: why the operator changes the mode, kept with the mode change in the audit record; not
+         * stored with the settings.
+         */
+        private String modeChangeReason;
         private String mvcResourceScannerBasePackages = SystemRuntimeSettingsService.DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES;
         /**
          * The Zero Trust console's settings by their key ({@code ZeroTrustConsoleSettings.SETTINGS}), in the screen's
@@ -102,11 +110,32 @@ public final class SystemSettingsDtos {
      * is the human-readable text shown to the operator.
      */
     public record RoleOption(String value, String label) {
+
+        /** A role's option on its own: its description, else its name when it has none. */
         public static RoleOption of(String roleName, String roleDesc) {
-            String label = (roleDesc == null || roleDesc.isBlank())
-                    ? roleName
-                    : roleDesc + " (" + roleName + ")";
-            return new RoleOption(roleName, label);
+            return new RoleOption(roleName, hasText(roleDesc) ? roleDesc.trim() : roleName);
+        }
+
+        /**
+         * K28: the options of the roles in their order, each labelled by its description alone. Only roles that share
+         * a description also name their role, since nothing else tells them apart in the drop-down.
+         *
+         * @param roles the role names with their descriptions, in the order the drop-down lists them
+         */
+        public static List<RoleOption> of(Map<String, String> roles) {
+            Map<String, Integer> labels = new HashMap<>();
+            roles.forEach((name, desc) -> labels.merge(of(name, desc).label(), 1, Integer::sum));
+            List<RoleOption> options = new ArrayList<>();
+            roles.forEach((name, desc) -> {
+                RoleOption option = of(name, desc);
+                options.add(labels.get(option.label()) > 1 && !option.label().equals(name)
+                        ? new RoleOption(name, option.label() + " (" + name + ")") : option);
+            });
+            return options;
+        }
+
+        private static boolean hasText(String value) {
+            return value != null && !value.isBlank();
         }
     }
 }

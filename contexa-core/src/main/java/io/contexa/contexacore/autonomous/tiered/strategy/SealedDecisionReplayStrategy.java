@@ -20,6 +20,7 @@ import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
@@ -103,13 +104,27 @@ public class SealedDecisionReplayStrategy extends AbstractTieredStrategy {
                 .block(timeout);
     }
 
+    /**
+     * Plan 3.10 (2): the request a replay of the first pass hands the pipeline, with the sealed inputs restored and the
+     * version fixed on the event; the engine's prompt template draws from it the prompts the replay's model call gets,
+     * so they can be shown without the call.
+     */
+    public SecurityDecisionRequest request(SealedDecisionReplayInputs inputs, String bundleVersion) {
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = prepare(inputs, bundleVersion);
+        return buildSecurityDecisionRequest(inputs.event(), inputs.session(), analysis, inputs.documents());
+    }
+
     /** Restores the sealed inputs on the event with the bundle fixed and returns the behaviour analysis drawn. */
     private SecurityDecisionStandardPromptTemplate.BehaviorAnalysis prepare(SealedDecisionReplayInputs inputs,
                                                                             String bundleVersion) {
         SecurityEvent event = inputs.event();
-        // The bundle is fixed on the event as the first prompt of an event fixes it (W3-16).
-        event.addMetadata("promptBundleSelection.version", bundleVersion);
-        event.addMetadata("promptBundleSelection.source", PromptBundleSelectionSource.REPLAY.name());
+        // The version is fixed on the event as a decision fixes it when it starts (W3-16, plan 3.4): a version of the
+        // database (v2.0) is drawn with its parts, and the content hash the sealed decision kept is read again.
+        event.addMetadata(SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION, bundleVersion);
+        event.addMetadata(SecurityDecisionPromptSections.EVENT_BUNDLE_SOURCE, PromptBundleSelectionSource.REPLAY.name());
+        if (event.getMetadata() != null) {
+            event.getMetadata().remove(SecurityDecisionPromptSections.EVENT_BUNDLE_CONTENT_HASH);
+        }
         promptTemplate.useCanonicalContext(event, inputs.canonicalContext());
         BaseBehaviorAnalysis base = analyzeBehaviorPatternsBase(event, baselineLearningService, List.of());
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis =

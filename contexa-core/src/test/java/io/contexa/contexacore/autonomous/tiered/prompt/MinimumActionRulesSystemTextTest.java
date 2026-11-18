@@ -26,63 +26,77 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * W4-4 (dictionary 6): the v20 system text states the minimum action rules the host turned on, with the values the host
- * set, and nothing about them when none is on; a changed setting is not served from the cached system text.
+ * W4-4 (dictionary 6), K32: when the host enforces the minimum action rules, the system text states the rules the host
+ * turned on, with the values the host set, and nothing about them when none is on or when the host only observes them;
+ * a changed setting is not served from the cached system text. Plan 6-2: the v20 system text said this before; the
+ * product document's minimum action part says it now.
  */
 class MinimumActionRulesSystemTextTest {
 
     @Test
     void theSystemTextStatesTheRulesTheHostTurnedOnWithItsValues() {
         SecurityDecisionPromptSections sections = sections();
-        sections.setMinimumActionSettings(new MinimumActionRules.Settings(true, 3, "CRITICAL", false, true, "CHALLENGE"));
+        sections.setMinimumActionSettings(new MinimumActionRules.Settings(true, 3, "CRITICAL", false, true, "CHALLENGE"),
+                "ENFORCE");
 
-        assertThat(sections.buildSystemInstructionV20())
-                .contains("P1 MIN_P1_IDENTITY_DEVIATION: ResourceClass is CRITICAL and DeviationsFromBaseline names at"
-                                + " least 3 of time, day, network and device as unexplained.",
-                        "P3 MIN_P3_POLICY_NOT_SATISFIED: PolicySatisfied is no. Floor: CHALLENGE.")
-                .doesNotContain("MIN_P2");
+        assertThat(sections.buildSystemInstructionV1(contextOf()))
+                .contains("P1: ResourceClass is CRITICAL,", "in at least 3 of time, day, network and device",
+                        "P3: the company policy", "Floor: CHALLENGE.")
+                .doesNotContain("P2:");
 
-        sections.setMinimumActionSettings(new MinimumActionRules.Settings(false, 2, "SENSITIVE", false, false, "CHALLENGE"));
+        sections.setMinimumActionSettings(new MinimumActionRules.Settings(false, 2, "SENSITIVE", false, false, "CHALLENGE"),
+                "ENFORCE");
 
-        assertThat(sections.buildSystemInstructionV20()).doesNotContainIgnoringCase("minimum action rule")
-                .doesNotContain("MIN_P")
-                .contains("Use only the facts the user prompt states. Make one holistic judgment:");
+        assertThat(sections.buildSystemInstructionV1(contextOf())).doesNotContain("Minimum action rules")
+                .doesNotContain("P1:").doesNotContain("P3:");
+    }
+
+    /** K32: the host only observing the rules, the system text says nothing about them. */
+    @Test
+    void anObservedRuleIsNotStated() {
+        SecurityDecisionPromptSections sections = sections();
+        sections.setMinimumActionSettings(MinimumActionRules.Settings.DEFAULTS, "OBSERVE");
+
+        assertThat(sections.buildSystemInstructionV1(contextOf())).doesNotContain("Minimum action rules");
     }
 
     /** Q-87 (N-P3-1): every rule names its floor; P3's is a review, with the reason a verification does not do. */
     @Test
     void everyRuleNamesItsFloor() {
         SecurityDecisionPromptSections sections = sections();
+        sections.setMinimumActionSettings(MinimumActionRules.Settings.DEFAULTS, "ENFORCE");
 
-        assertThat(sections.buildSystemInstructionV20())
-                .contains("as unexplained. Floor: CHALLENGE.",
-                        "P3 MIN_P3_POLICY_NOT_SATISFIED: PolicySatisfied is no. Floor: ESCALATE (a verified user does not"
-                                + " supply the missing record).",
-                        "from the weakest: ALLOW, CHALLENGE, ESCALATE, BLOCK");
+        assertThat(sections.buildSystemInstructionV1(contextOf()))
+                .contains("Floor: CHALLENGE.", "Floor: ESCALATE (a verified user does not supply the missing record).",
+                        "A later check raises a response weaker than the floor of a rule that applies to that floor.");
     }
 
     @Test
     void aChangedSettingIsNotServedFromTheCachedSystemText() {
         SecurityDecisionPromptSections sections = sections();
+        sections.setMinimumActionSettings(MinimumActionRules.Settings.DEFAULTS, "ENFORCE");
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(sections);
         String before = template.generateSystemPrompt(request(), null);
 
-        sections.setMinimumActionSettings(new MinimumActionRules.Settings(true, 2, "SENSITIVE", true, false, "CHALLENGE"));
+        sections.setMinimumActionSettings(new MinimumActionRules.Settings(true, 2, "SENSITIVE", true, false, "CHALLENGE"),
+                "ENFORCE");
 
         String after = template.generateSystemPrompt(request(), null);
-        assertThat(before).contains("P3 MIN_P3_POLICY_NOT_SATISFIED");
-        assertThat(after).doesNotContain("P3 MIN_P3_POLICY_NOT_SATISFIED").contains("P1 MIN_P1_IDENTITY_DEVIATION");
+        assertThat(before).contains("P3: the company policy");
+        assertThat(after).doesNotContain("P3: the company policy").contains("P1: ResourceClass is");
     }
 
     private static SecurityDecisionPromptSections sections() {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
-        return new SecurityDecisionPromptSections(new SecurityEventEnricher(), properties, event -> Optional.empty(),
-                new PromptContextComposer(), null, null, null);
+        return new SecurityDecisionPromptSections(new SecurityEventEnricher(), new TieredStrategyProperties(),
+                event -> Optional.empty(), new PromptContextComposer(), null, null, null);
+    }
+
+    private static SecurityPromptBuildContext contextOf() {
+        SecurityEvent event = SecurityEvent.builder().eventId("event-w44-floors").metadata(new LinkedHashMap<>()).build();
+        return new SecurityPromptBuildContext(event, null, null, List.of(), null, null, null, null, null, null, null);
     }
 
     private static SecurityDecisionRequest request() {

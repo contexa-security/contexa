@@ -106,6 +106,10 @@ public class DefaultPolicyService implements PolicyService {
     public static final int CONDITION_MAX = 2048;
     /** ctxa_policy_version.change_reason */
     public static final int CHANGE_REASON_MAX = 1024;
+    /** N21: the audit action of a policy's approval, recorded under POLICY_UPDATED. */
+    public static final String APPROVED = "APPROVED";
+    /** N21: the audit action of a policy's rejection, recorded under POLICY_UPDATED. */
+    public static final String REJECTED = "REJECTED";
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -416,7 +420,8 @@ public class DefaultPolicyService implements PolicyService {
 
         policy.approve(approver);
         policyRepository.save(policy);
-        auditPolicyChange(AuditEventCategory.POLICY_UPDATED, policy);
+        // N21: an approval is a change of the policy, recorded as what it was
+        auditPolicyChange(AuditEventCategory.POLICY_UPDATED, policy, APPROVED);
         reloadAuthorizationSystem();
     }
 
@@ -429,7 +434,8 @@ public class DefaultPolicyService implements PolicyService {
         }
         policy.reject(rejector);
         policyRepository.save(policy);
-        auditPolicyChange(AuditEventCategory.POLICY_UPDATED, policy);
+        // N21: a rejection is a change of the policy, recorded as what it was
+        auditPolicyChange(AuditEventCategory.POLICY_UPDATED, policy, REJECTED);
         reloadAuthorizationSystem();
     }
 
@@ -646,6 +652,11 @@ public class DefaultPolicyService implements PolicyService {
     }
 
     private void auditPolicyChange(AuditEventCategory category, Policy policy) {
+        auditPolicyChange(category, policy, category.name());
+    }
+
+    /** A change of the policy in the audit log, its action the change made (an approval, a rejection, the category). */
+    private void auditPolicyChange(AuditEventCategory category, Policy policy, String action) {
         try {
             String principal = "SYSTEM";
             var auth = SecurityContextHolder.getContext().getAuthentication();
@@ -656,7 +667,7 @@ public class DefaultPolicyService implements PolicyService {
                     .principalName(principal)
                     .resourceIdentifier(policy.getName() != null ? policy.getName() : "")
                     .eventSource("IAM")
-                    .action(category.name())
+                    .action(action)
                     .decision("SUCCESS")
                     .outcome("SUCCESS")
                     .details(Map.of(

@@ -135,6 +135,14 @@ public final class ProviderAwareChatOptionsFactory {
     }
 
     /**
+     * Plan 3.5 (check 4): the largest context an Ollama call asks for, which a prompt version and the longest input
+     * must fit in.
+     */
+    public static int ollamaMaxContextLength() {
+        return CONFIGURED_OLLAMA_MAX_CONTEXT_LENGTH.get();
+    }
+
+    /**
      * K13: the context every Ollama call asks for unless its prompt needs more (from the application configuration);
      * none keeps the default. A num_ctx set on the Ollama options stands before it.
      */

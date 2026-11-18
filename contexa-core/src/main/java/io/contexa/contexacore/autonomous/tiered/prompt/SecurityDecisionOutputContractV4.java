@@ -15,28 +15,23 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * The output contract v4 of the v21 security decision: the response fields with the explanations the model weighed, and
  * the reason codes it cites with a fact ID. A code names a fact the model weighed or a judgment the model made on the
  * lines it cites (a record that covers the work is the model's judgment of the record's line, not the core's); no code
- * belongs to a decision rule. The provider schema, the system text's output block and the response check read this one
- * source.
+ * belongs to a decision rule. The output contract v5 and the response check read its reason codes, and the response
+ * check still reads an answer of this contract with the explanations it weighed (plan 6-2: the v4 schema and output
+ * block went with the bundles that asked for them).
  */
 public final class SecurityDecisionOutputContractV4 {
 
     public static final List<String> ACTIONS = SecurityDecisionOutputContract.ACTIONS;
-    public static final int MIN_REASON_CODES = 1;
-    public static final int MAX_REASON_CODES = 5;
     /** The longest reason the response processor keeps: 40 words fit in it. */
     public static final int MAX_REASON_CHARACTERS = 300;
     public static final String FACT_ID_PATTERN = SecurityDecisionOutputContract.FACT_ID_PATTERN;
@@ -188,14 +183,12 @@ public final class SecurityDecisionOutputContractV4 {
     static {
         // The start fails when the document names other codes than the engine (plan 6-1).
         SecurityDecisionPromptDocument.verifyReasonCodes(SecurityDecisionPromptDocument.product(), CODES);
+        // Plan 3.9: the prompt injection guard of every Contexa version is checked here, not by an evaluation record.
+        SecurityDecisionPromptDocument.verifyInjectionGuardOfReleases();
     }
 
     /** The line names each code may cite, by code, as the output block names them. */
     private static final Map<String, List<String>> CITED_LINES = citedLinesByCode();
-    private static final String PROVIDER_SCHEMA = writeProviderSchema(true);
-    private static final String TEXT_SCHEMA = writeProviderSchema(false);
-    private static final String OUTPUT_BLOCK = writeOutputBlock();
-
     private SecurityDecisionOutputContractV4() {
     }
 
@@ -206,50 +199,6 @@ public final class SecurityDecisionOutputContractV4 {
     /** The code of that name, if the contract has it. */
     public static Optional<ReasonCode> find(String code) {
         return REASON_CODES.stream().filter(reason -> reason.code().equals(code)).findFirst();
-    }
-
-    /** The strict JSON schema for a provider with structured output: every field required, no other keys. */
-    public static String providerSchema() {
-        return PROVIDER_SCHEMA;
-    }
-
-    /** The schema as text for a provider without structured output; the output block states the code meanings. */
-    public static String textSchema() {
-        return TEXT_SCHEMA;
-    }
-
-    /** The output block of the v21 system text: the fields, how a code cites a fact and the meaning of every code. */
-    public static String systemOutputBlock() {
-        return OUTPUT_BLOCK;
-    }
-
-    private static String writeOutputBlock() {
-        StringBuilder block = new StringBuilder();
-        block.append("=== OUTPUT ===\n");
-        block.append("Return one JSON object with exactly these keys: action, hypotheses, reasonCodes, reason, riskScore,"
-                + " confidence, mitre.\n");
-        block.append("action: ALLOW, CHALLENGE, ESCALATE or BLOCK.\n");
-        block.append("hypotheses: one object per explanation you weighed: {\"id\": \"H1\" | \"H2\" | \"H3\" | \"H4\" |"
-                + " \"H5\", \"name\": a short name for H5 or null, \"assessment\": \"MOST_LIKELY\" | \"POSSIBLE\" |"
-                + " \"UNLIKELY\" | \"NO_EVIDENCE\", \"for\": [fact ids], \"against\": [fact ids]}. H5 is another"
-                + " explanation you named.\n");
-        block.append("reasonCodes: ").append(MIN_REASON_CODES).append(" to ").append(MAX_REASON_CODES)
-                .append(" objects {\"code\": ..., \"fact\": ...} for the facts that weigh most in your judgment, first the"
-                        + " strongest. code is one of the codes below; fact is the id at the start of the line it cites"
-                        + " (F1, B2, S3, R1, P1); MATERIAL_MISSING_EVIDENCE cites the id the UNKNOWN line gives the"
-                        + " missing fact (U1).\n");
-        block.append("reason: one sentence of at most 40 words, in your own words, that names the explanation you judged"
-                + " most likely and the facts behind it.\n");
-        block.append("riskScore and confidence: numbers from 0 to 1, or null. mitre: a list of MITRE ATT&CK technique ids,"
-                + " or null. These three are kept for audit.\n");
-        block.append("Reason codes (code: meaning; the lines it cites):\n");
-        for (ReasonCode code : REASON_CODES) {
-            block.append("- ").append(code.code()).append(": ").append(code.meaning()).append("; ")
-                    .append(String.join(", ", code.citedFacts().stream()
-                            .map(SecurityDecisionOutputContractV4::citedName).distinct().toList()))
-                    .append('\n');
-        }
-        return block.toString();
     }
 
     /** A cited entry as the output block names it: its line name. */
@@ -275,91 +224,4 @@ public final class SecurityDecisionOutputContractV4 {
         return Collections.unmodifiableMap(lines);
     }
 
-    private static String writeProviderSchema(boolean withCodeMeanings) {
-        Map<String, Object> factId = new LinkedHashMap<>();
-        factId.put("type", "string");
-        factId.put("pattern", FACT_ID_PATTERN);
-
-        Map<String, Object> hypothesisId = new LinkedHashMap<>();
-        hypothesisId.put("type", "string");
-        hypothesisId.put("enum", HYPOTHESES);
-        Map<String, Object> assessment = new LinkedHashMap<>();
-        assessment.put("type", "string");
-        assessment.put("enum", ASSESSMENTS);
-        Map<String, Object> facts = new LinkedHashMap<>();
-        facts.put("type", "array");
-        facts.put("items", factId);
-        Map<String, Object> name = new LinkedHashMap<>();
-        name.put("type", List.of("string", "null"));
-        Map<String, Object> hypothesisProperties = new LinkedHashMap<>();
-        hypothesisProperties.put("id", hypothesisId);
-        hypothesisProperties.put("name", name);
-        hypothesisProperties.put("assessment", assessment);
-        hypothesisProperties.put("for", facts);
-        hypothesisProperties.put("against", facts);
-        Map<String, Object> hypothesis = new LinkedHashMap<>();
-        hypothesis.put("type", "object");
-        hypothesis.put("additionalProperties", false);
-        hypothesis.put("required", List.copyOf(hypothesisProperties.keySet()));
-        hypothesis.put("properties", hypothesisProperties);
-        Map<String, Object> hypotheses = new LinkedHashMap<>();
-        hypotheses.put("type", "array");
-        hypotheses.put("minItems", 1);
-        hypotheses.put("maxItems", HYPOTHESES.size());
-        hypotheses.put("items", hypothesis);
-
-        Map<String, Object> code = new LinkedHashMap<>();
-        code.put("type", "string");
-        code.put("enum", CODES);
-        if (withCodeMeanings) {
-            code.put("description", REASON_CODES.stream().map(reason -> reason.code() + ": " + reason.meaning())
-                    .collect(Collectors.joining("\n")));
-        }
-        Map<String, Object> itemProperties = new LinkedHashMap<>();
-        itemProperties.put("code", code);
-        itemProperties.put("fact", factId);
-        Map<String, Object> item = new LinkedHashMap<>();
-        item.put("type", "object");
-        item.put("additionalProperties", false);
-        item.put("required", List.of("code", "fact"));
-        item.put("properties", itemProperties);
-        Map<String, Object> reasonCodes = new LinkedHashMap<>();
-        reasonCodes.put("type", "array");
-        reasonCodes.put("minItems", MIN_REASON_CODES);
-        reasonCodes.put("maxItems", MAX_REASON_CODES);
-        reasonCodes.put("items", item);
-
-        Map<String, Object> properties = new LinkedHashMap<>();
-        Map<String, Object> action = new LinkedHashMap<>();
-        action.put("type", "string");
-        action.put("enum", ACTIONS);
-        properties.put("action", action);
-        properties.put("hypotheses", hypotheses);
-        properties.put("reasonCodes", reasonCodes);
-        properties.put("reason", Map.of("type", "string"));
-        properties.put("riskScore", score());
-        properties.put("confidence", score());
-        Map<String, Object> mitre = new LinkedHashMap<>();
-        mitre.put("type", List.of("array", "null"));
-        mitre.put("items", Map.of("type", "string"));
-        properties.put("mitre", mitre);
-        Map<String, Object> schema = new LinkedHashMap<>();
-        schema.put("type", "object");
-        schema.put("additionalProperties", false);
-        schema.put("required", List.copyOf(properties.keySet()));
-        schema.put("properties", properties);
-        try {
-            return new ObjectMapper().writeValueAsString(schema);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("The output contract v4 schema cannot be written", e);
-        }
-    }
-
-    private static Map<String, Object> score() {
-        Map<String, Object> score = new LinkedHashMap<>();
-        score.put("type", List.of("number", "null"));
-        score.put("minimum", 0);
-        score.put("maximum", 1);
-        return score;
-    }
 }

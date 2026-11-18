@@ -22,7 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * The fact accuracy check on the USER BASELINE lines drawn from the sealed baseline view (the canonical context seals
- * the final view the decision used), on real packages the showcase engine sealed and on golden renders.
+ * the final view the decision used), on golden renders; the real v20 packages the showcase engine sealed are not read
+ * again (decision D7).
  */
 class PromptInspectionBaselineFactsTest {
 
@@ -33,38 +34,39 @@ class PromptInspectionBaselineFactsTest {
             "UsualResourceClass", "UsualExportSize", "UsualRequestRate", "UsualSessionLength", "UsualPrivilegedActions",
             "KnownRareTasks");
 
+    /** Plan 6-2 (decision D7): the showcase engine's v20 packages are of a bundle this build no longer ships. */
     @Test
-    void realShowcasePackagesStateEveryFactAsTheirSealedSources() {
-        int matched = 0;
-        for (SealedEvidencePackage sealed : InspectionGolden.showcaseSealed()) {
-            PromptInspectionCheckResult check = check(sealed);
-            assertThat(check.findings().stream().filter(finding -> finding.outcome() == PromptInspectionOutcome.MISMATCH))
-                    .as(sealed.getPackageId()).isEmpty();
-            matched += check.matched();
-        }
-        assertThat(matched).isPositive();
+    void realShowcasePackagesOfTheV20BundleAreNotReadAgain() {
+        assertThat(EarlierBundleInspection.assertNotReadAgain(INSPECTOR, InspectionGolden.showcaseSealed())).isPositive();
     }
 
+    /** Every baseline view line a golden render draws is compared with the sealed view and found the same. */
     @Test
-    void realShowcasePackagesHaveTheirBaselineViewLinesCompared() {
+    void goldenRendersHaveTheirBaselineViewLinesCompared() {
         int compared = 0;
-        for (SealedEvidencePackage sealed : InspectionGolden.showcaseSealed()) {
-            List<PromptInspectionFinding> unverifiable = check(sealed).findings().stream()
-                    .filter(finding -> VIEW_LINES.contains(finding.entry())).toList();
-            assertThat(unverifiable).as(sealed.getPackageId()).isEmpty();
-            compared += (int) VIEW_LINES.stream()
-                    .filter(name -> sealed.getUserPromptText().contains("\n" + name + ": ")).count();
+        for (InspectionGolden.Render render : InspectionGolden.renders()) {
+            PromptInspectionCheckResult check = check(render.sealed());
+            assertThat(check.findings()).as(render.caseKey() + " " + render.profile())
+                    .noneMatch(finding -> VIEW_LINES.contains(finding.entry()));
+            List<String> lines = Arrays.asList(render.userPrompt().split("\n", -1));
+            for (int index = 0; index < lines.size(); index++) {
+                String line = InspectionGolden.bare(lines.get(index));
+                if (VIEW_LINES.stream().anyMatch(name -> line.startsWith(name + ": "))) {
+                    assertThat(check.matchedLines()).as(render.caseKey() + " " + line).contains(index + 1);
+                    compared++;
+                }
+            }
         }
         assertThat(compared).isPositive();
     }
 
     @Test
     void aBaselineLineSayingOtherThanTheSealedViewIsPointedAt() {
-        SealedEvidencePackage sealed = withLine("UsualHours: ");
-        String line = lineStarting(sealed.getUserPromptText(), "UsualHours: ");
-        sealed.setUserPromptText(sealed.getUserPromptText().replace(line, "UsualHours: 00-23"));
+        InspectionGolden.Render render = withLine("UsualHours: ");
+        String line = lineStarting(render.userPrompt(), "UsualHours: ");
 
-        List<PromptInspectionFinding> found = mismatches(check(sealed), "UsualHours");
+        List<PromptInspectionFinding> found = mismatches(check(render.sealed(render.userPrompt().replace(line,
+                "UsualHours: 00-23"))), "UsualHours");
         assertThat(found).hasSize(1);
         assertThat(found.get(0).expected()).isEqualTo(line.substring("UsualHours: ".length()));
         assertThat(found.get(0).sourceRef()).isEqualTo("canonicalContext.workProfile.baselineView");
@@ -72,7 +74,7 @@ class PromptInspectionBaselineFactsTest {
 
     @Test
     void withoutASealedBaselineViewTheViewLinesCannotBeComparedAndSaySo() {
-        SealedEvidencePackage sealed = withLine("UsualHours: ");
+        SealedEvidencePackage sealed = withLine("UsualHours: ").sealed();
         CanonicalSecurityContext context = InspectionGolden.SERIALIZER.deserialize(sealed.getCanonicalContextJson());
         context.getWorkProfile().setBaselineView(null);
         sealed.setCanonicalContextJson(InspectionGolden.SERIALIZER.serialize(context));
@@ -246,17 +248,16 @@ class PromptInspectionBaselineFactsTest {
         assertThat(unverifiable.get(0).reason()).contains("seals no baseline state");
     }
 
-    /** A baseline line the dictionary leaves out when it has no value (it has no missing text). */
+    /** A baseline line the v1.0 dictionary leaves out when it has no value (it has no missing text). */
     private static boolean leftOutWithoutValue(String name) {
-        return SecurityDecisionPromptDictionary.ENTRIES.stream()
+        return SecurityDecisionPromptDictionary.V1_ENTRIES.stream()
                 .filter(entry -> entry.block() == PromptBlock.USER_BASELINE && entry.name().equals(name))
                 .anyMatch(entry -> entry.missing() == PromptMissingNotation.LINE_OMITTED);
     }
 
-    private static SealedEvidencePackage withLine(String start) {
-        return InspectionGolden.showcaseSealed().stream()
-                .filter(sealed -> sealed.getUserPromptText().contains("\n" + start))
-                .findFirst().orElseThrow();
+    /** A golden render that draws a line starting with the text. */
+    private static InspectionGolden.Render withLine(String start) {
+        return InspectionGolden.render(text -> InspectionGolden.hasLine(text, start));
     }
 
     private static SealedEvidencePackage sealedWith(InspectionGolden.Render render, String userPrompt,

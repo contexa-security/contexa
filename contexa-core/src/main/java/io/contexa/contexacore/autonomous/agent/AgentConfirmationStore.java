@@ -84,6 +84,23 @@ public interface AgentConfirmationStore {
     /** The confirmations still waiting, or approved and not used, whose time ran out by {@code now}. */
     List<AgentConfirmation> overdue(Instant now, int limit);
 
+    /**
+     * How many confirmations of every tenant wait for their person at {@code now}: pending and not expired, as
+     * {@link #waiting} asks it of one subject. A store that does not override it reads every confirmation it holds.
+     */
+    default long countWaiting(Instant now) {
+        return list(null, Integer.MAX_VALUE).stream().filter(confirmation -> confirmation.status()
+                == AgentConfirmation.Status.PENDING && confirmation.expiresAt().isAfter(now)).count();
+    }
+
+    /**
+     * How many confirmations of every tenant are past their time at {@code now} and not closed yet, as
+     * {@link #overdue} lists them. A store that does not override it reads them.
+     */
+    default long countOverdue(Instant now) {
+        return overdue(now, Integer.MAX_VALUE).size();
+    }
+
     /** Every confirmation of the tenant (every tenant's for {@code null}), latest first. */
     List<AgentConfirmation> list(@Nullable String tenantId, int limit);
 

@@ -221,21 +221,27 @@ class PromptInspectionRequestFactsTest {
         assertThat(finding.sourceRef()).isEqualTo("canonicalContext.resource.requestedItems");
     }
 
+    /**
+     * The network line against the sealed session's address and the sealed location's zone; v1.0 states the zone again
+     * on its NetworkZone line (F7), which the render draws from the same sealed zone.
+     */
     @Test
     void theNetworkAddressAndZoneAreComparedWithTheSealedSessionAndLocation() {
-        InspectionGolden.Render render = base();
+        InspectionGolden.Render render = InspectionGolden.renderWith(base(), context -> {
+            if (context.getSession() == null) {
+                context.setSession(new CanonicalSecurityContext.Session());
+            }
+            context.getSession().setClientIp("10.40.12.7");
+            if (context.getLocation() == null) {
+                context.setLocation(new CanonicalSecurityContext.Location());
+            }
+            context.getLocation().setNetworkZone("OFFICE");
+        });
         CanonicalSecurityContext context = copy(render.used());
-        if (context.getSession() == null) {
-            context.setSession(new CanonicalSecurityContext.Session());
-        }
-        context.getSession().setClientIp("10.40.12.7");
-        if (context.getLocation() == null) {
-            context.setLocation(new CanonicalSecurityContext.Location());
-        }
-        context.getLocation().setNetworkZone("OFFICE");
         // R1b-7: the line is compared whole, with the band of the sealed location.
         String band = context.getLocation().getIpBand();
         assertThat(band).isNotBlank();
+        assertThat(InspectionGolden.hasLine(render.userPrompt(), "NetworkZone: ")).isTrue();
 
         assertThat(mismatches(check(withLine(render, "Network: 10.40.12.7 (" + band + ", zone OFFICE)"), render, context)))
                 .isEmpty();

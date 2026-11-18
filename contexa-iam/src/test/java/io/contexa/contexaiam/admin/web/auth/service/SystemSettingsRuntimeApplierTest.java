@@ -249,7 +249,7 @@ class SystemSettingsRuntimeApplierTest {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("admin", "n/a",
                 AuthorityUtils.createAuthorityList("ROLE_ADMIN")));
         try {
-            applier.apply();
+            applier.apply("pilot done");
             applier.apply();
         } finally {
             SecurityContextHolder.clearContext();
@@ -260,7 +260,9 @@ class SystemSettingsRuntimeApplierTest {
         assertThat(recorded.getValue().getEventCategory()).isEqualTo(AuditEventCategory.ZERO_TRUST_MODE_CHANGED);
         assertThat(recorded.getValue().getPrincipalName()).isEqualTo("admin");
         assertThat(recorded.getValue().getDecision()).isEqualTo("ENFORCE");
-        assertThat(recorded.getValue().getDetails()).containsEntry("previousMode", "SHADOW");
+        assertThat(recorded.getValue().getDetails()).containsEntry("previousMode", "SHADOW")
+                // console design 6.5: the operator's reason for the change
+                .containsEntry("reason", "pilot done");
     }
 
     @Test

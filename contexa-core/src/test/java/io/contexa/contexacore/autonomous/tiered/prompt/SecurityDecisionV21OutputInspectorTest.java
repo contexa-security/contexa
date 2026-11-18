@@ -31,8 +31,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The v21 response check (V-5) on v21 prompts of the golden inputs: it asks again only for an answer without a usable
- * form or one that says what the lines do not state, and never for its action.
+ * The response check of the v21 answer form (V-5), which v1.0 keeps, on the product version's prompts of the golden
+ * inputs: it asks again only for an answer without a usable form or one that says what the lines do not state, and never
+ * for its action.
  */
 class SecurityDecisionV21OutputInspectorTest {
 
@@ -49,7 +50,6 @@ class SecurityDecisionV21OutputInspectorTest {
     static void render() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
         for (JsonNode goldenCase : golden.cases()) {
             String key = goldenCase.path("caseKey").asText();
             if (key.equals("A3") || key.equals("A3T") || key.equals("S12")) {
@@ -88,13 +88,16 @@ class SecurityDecisionV21OutputInspectorTest {
 
     @Test
     void aDecisionTimeIsReadAsTheApprovalLineStatesIt() {
-        // A3T: the approval's decision time is not recorded; S12: it was decided 20 minutes after the request.
+        // A3T: the approval's decision time is not recorded; S12: it was decided 20 minutes after the request. v1.0
+        // draws the records looked up before the approval line, so the line is cited by the ID the prompt gives it.
+        String a3t = approvalId("A3T");
+        String s12 = approvalId("S12");
         Inspection notRecorded = inspect("A3T", answer("ALLOW", HYPOTHESES,
-                "{\"code\":\"RECORD_DECIDED_AFTER_REQUEST\",\"fact\":\"F4\"}"));
+                "{\"code\":\"RECORD_DECIDED_AFTER_REQUEST\",\"fact\":\"" + a3t + "\"}"));
         Inspection late = inspect("S12", answer("ESCALATE", HYPOTHESES,
-                "{\"code\":\"RECORD_DECIDED_AFTER_REQUEST\",\"fact\":\"F4\"}"));
+                "{\"code\":\"RECORD_DECIDED_AFTER_REQUEST\",\"fact\":\"" + s12 + "\"}"));
         Inspection covers = inspect("A3T", answer("ALLOW", HYPOTHESES,
-                "{\"code\":\"RECORD_COVERS_WORK\",\"fact\":\"F4\"}"));
+                "{\"code\":\"RECORD_COVERS_WORK\",\"fact\":\"" + a3t + "\"}"));
 
         assertThat(notRecorded.requiresRetry()).isTrue();
         assertThat(late.requiresRetry()).isFalse();
@@ -163,6 +166,13 @@ class SecurityDecisionV21OutputInspectorTest {
 
         assertThat(inspection.hypotheses()).hasSize(4);
         assertThat(inspection.hypotheses().get(2)).containsEntry("id", "H3").containsEntry("assessment", "MOST_LIKELY");
+    }
+
+    /** The fact ID the case's prompt gives its approval line. */
+    private static String approvalId(String caseKey) {
+        String line = InspectionGolden.lineStarting(RENDERED.get(caseKey).userText(), "Approval: ");
+        assertThat(InspectionGolden.factIdOf(line)).isNotEmpty();
+        return InspectionGolden.factIdOf(line).substring(1, InspectionGolden.factIdOf(line).indexOf(']'));
     }
 
     private static Inspection inspect(String caseKey, String raw) {

@@ -2017,6 +2017,24 @@ CREATE TABLE IF NOT EXISTS ctxa_zt_stats_hourly (
 CREATE INDEX IF NOT EXISTS ctxa_idx_zt_stats_hourly_bucket
     ON ctxa_zt_stats_hourly (bucket_start);
 
+-- Console design 6.2: the time from a decision to its release by an administrator, in buckets (15 minutes to 7 days
+-- and past), so the median of any period is read from this table. A database installed before gains them here.
+ALTER TABLE ctxa_zt_stats_hourly
+    ADD COLUMN IF NOT EXISTS release_le_15m BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_30m BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_1h BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_2h BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_4h BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_8h BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_24h BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_72h BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_le_7d BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS release_gt_7d BIGINT NOT NULL DEFAULT 0,
+    -- Console design 6.2: the challenges whose owner was mailed a code (the funnel's code requested)
+    ADD COLUMN IF NOT EXISTS challenge_code_requested_count BIGINT NOT NULL DEFAULT 0,
+    -- Console design 6.1 (K81): the blocks no administrator released, kept or evaluated, each counted once
+    ADD COLUMN IF NOT EXISTS block_unreviewed_count BIGINT NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS ctxa_zt_coverage_hourly (
     bucket_start TIMESTAMP(6) NOT NULL,
     tenant_id VARCHAR(160) NOT NULL DEFAULT '',
@@ -2042,6 +2060,11 @@ CREATE TABLE IF NOT EXISTS ctxa_zt_review_queue (
 
 CREATE INDEX IF NOT EXISTS ctxa_idx_zt_review_queue_day
     ON ctxa_zt_review_queue (sample_day, review_status);
+
+-- K17 (decision D11): why a decision waits for review: the daily sample, or a decision rule its model answer still
+-- broke after the retry. A database installed before it gains the column at the next start.
+ALTER TABLE ctxa_zt_review_queue
+    ADD COLUMN IF NOT EXISTS review_reason VARCHAR(32) NOT NULL DEFAULT 'SAMPLE';
 
 -- The lists the console ranks and the people it counts, by hour: decisions per user and action, challenges passed
 -- per user, stopped decisions per resource, first reasons, unknown facts, paths without a decision. They name users,
@@ -2085,6 +2108,34 @@ CREATE TABLE IF NOT EXISTS ctxa_zt_latency_hourly (
 
 CREATE INDEX IF NOT EXISTS ctxa_idx_zt_latency_hourly_bucket
     ON ctxa_zt_latency_hourly (bucket_start);
+
+-- Plan step 9 (N20): the admin dashboard's refused requests of signed-in users (the URL authorization's
+-- AUTHORIZATION_DENIED records), by hour, counted by resource and by user. They name users, so they are kept as long
+-- as the decision rows. A database installed before it gains the table at the next start.
+CREATE TABLE IF NOT EXISTS ctxa_dashboard_denial_hourly (
+    bucket_start TIMESTAMP(6) NOT NULL,
+    dimension VARCHAR(16) NOT NULL,
+    item VARCHAR(512) NOT NULL,
+    counted BIGINT NOT NULL DEFAULT 0,
+    computed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (bucket_start, dimension, item)
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_dashboard_denial_hourly_dimension
+    ON ctxa_dashboard_denial_hourly (dimension, bucket_start);
+
+-- Plan step 9 (N7): the seal check of the decision records, by hour: how many were checked, how many did not match
+-- their seal and how many could not be verified. The hours checked longest ago are checked again.
+CREATE TABLE IF NOT EXISTS ctxa_dashboard_seal_hourly (
+    bucket_start TIMESTAMP(6) NOT NULL PRIMARY KEY,
+    checked BIGINT NOT NULL DEFAULT 0,
+    mismatched BIGINT NOT NULL DEFAULT 0,
+    unverifiable BIGINT NOT NULL DEFAULT 0,
+    computed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_dashboard_seal_hourly_computed
+    ON ctxa_dashboard_seal_hourly (computed_at);
 
 CREATE INDEX IF NOT EXISTS ctxa_idx_audit_log_timestamp
     ON ctxa_audit_log (timestamp);
@@ -4199,6 +4250,10 @@ alter table ctxa_prompt_governance_registry add column if not exists canary_perc
 -- W6-9 (P6-CHANGE-6): a canary release's target tenants and resource families (comma separated, none is every one).
 alter table ctxa_prompt_governance_registry add column if not exists canary_tenants varchar(2000);
 alter table ctxa_prompt_governance_registry add column if not exists canary_resource_families varchar(2000);
+-- Plan 3.4: the share of requests and the daily runs of a version running alongside the decisions (its shadow);
+-- empty, the shadow runner keeps the values of its configuration.
+alter table ctxa_prompt_governance_registry add column if not exists shadow_sample_percent integer check (shadow_sample_percent between 0 and 100);
+alter table ctxa_prompt_governance_registry add column if not exists shadow_daily_limit integer check (shadow_daily_limit >= 0);
 
 create unique index if not exists ctxa_idx_prompt_governance_registry_identity
     on ctxa_prompt_governance_registry (registry_scope, prompt_key, prompt_version);

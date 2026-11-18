@@ -40,7 +40,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * W5-4: the past record check compares the drawn PastDeniedDecision lines with the decisions that did not allow sealed
- * with the render, drawn again the way the render draws them, the times measured from the sealed request time.
+ * with the render, drawn again the way the render draws them (the target written apart, A3-5), the times measured from
+ * the sealed request time.
  */
 class PromptInspectionPastDeniedDecisionsTest {
 
@@ -113,8 +114,9 @@ class PromptInspectionPastDeniedDecisionsTest {
                 "projectKey=GB-500", "CHALLENGE", outcome)));
     }
 
+    /** The denied line as v1.0 draws it: the target written apart, its value an untrusted text (A3-5). */
     private static String line(InspectionGolden.Render render, PastDeniedDecisions denied) {
-        List<PromptListItem> items = PastDeniedLines.items(denied, LocalDateTime.ofInstant(REQUEST, zone(render)));
+        List<PromptListItem> items = PastDeniedLines.items(denied, LocalDateTime.ofInstant(REQUEST, zone(render)), true);
         return items.isEmpty() ? null : items.get(0).text();
     }
 

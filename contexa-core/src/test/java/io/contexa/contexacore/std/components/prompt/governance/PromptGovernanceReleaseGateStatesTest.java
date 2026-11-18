@@ -55,7 +55,8 @@ class PromptGovernanceReleaseGateStatesTest {
     private static final String KEY = "cortex.security-decision";
     private static final String TEMPLATE = "SecurityDecisionStandard";
     private static final String CONTRACT = "CORTEX_PROMPT_CONTRACT_V3";
-    private static final String V20 = "2026.10.16-v20.22";
+    /** Plan 6-2: the bundle a transition releases, the one whose manifest the build ships (D7). */
+    private static final String RELEASED = "2026.11.16-v1.0";
     private static final String V19 = "2026.10.16-v19.18";
     private static final String V19_OLDER = "2026.10.15-v19.17";
 
@@ -93,7 +94,7 @@ class PromptGovernanceReleaseGateStatesTest {
     void theReceiptNamesThePreviousStateInTheCanonicalVocabulary() {
         records("PRODUCTION", true);
 
-        PromptGovernanceReleaseGateService.ReleaseTransitionReceipt receipt = transition(V20,
+        PromptGovernanceReleaseGateService.ReleaseTransitionReceipt receipt = transition(RELEASED,
                 PromptBundleState.CANARY);
 
         // N-GOV-4: the receipt named the stored value (PRODUCTION here) beside a canonical target.
@@ -111,7 +112,7 @@ class PromptGovernanceReleaseGateStatesTest {
         PromptGovernanceRegistryRecord deprecated = row("2026.10.13-v19.9", "DEPRECATED", TEMPLATE);
         scope(activated, v19, older, otherTemplate, deprecated);
 
-        PromptGovernanceReleaseGateService.ReleaseTransitionReceipt receipt = transition(V20,
+        PromptGovernanceReleaseGateService.ReleaseTransitionReceipt receipt = transition(RELEASED,
                 PromptBundleState.ACTIVE);
 
         assertThat(receipt.applied()).isTrue();
@@ -128,14 +129,14 @@ class PromptGovernanceReleaseGateStatesTest {
                 ArgumentCaptor.forClass(PromptGovernanceReleaseWorkflowRecord.class);
         verify(workflowRepository, atLeastOnce()).save(workflows.capture());
         List<PromptGovernanceReleaseWorkflowRecord> superseded = workflows.getAllValues().stream()
-                .filter(workflow -> !V20.equals(workflow.getPromptVersion())).toList();
+                .filter(workflow -> !RELEASED.equals(workflow.getPromptVersion())).toList();
         assertThat(superseded).extracting(PromptGovernanceReleaseWorkflowRecord::getPromptVersion,
                         PromptGovernanceReleaseWorkflowRecord::getCurrentReleaseStatus,
                         PromptGovernanceReleaseWorkflowRecord::getTargetReleaseStatus,
                         PromptGovernanceReleaseWorkflowRecord::getGateState)
                 .containsExactlyInAnyOrder(tuple(V19, "ACTIVE", "DEPRECATED", "SUPERSEDED"),
                         tuple(V19_OLDER, "ACTIVE", "DEPRECATED", "SUPERSEDED"));
-        assertThat(superseded).allMatch(workflow -> workflow.getRationale().contains(V20));
+        assertThat(superseded).allMatch(workflow -> workflow.getRationale().contains(RELEASED));
         // The replaced releases are not rolled back: only the activated release's own rollback state is written.
         verify(rollbackRepository, times(1)).save(any(PromptGovernanceRollbackRecord.class));
         verify(releaseApprovalRepository, times(1)).save(any(PromptGovernanceReleaseApprovalRecord.class));
@@ -147,7 +148,7 @@ class PromptGovernanceReleaseGateStatesTest {
         PromptGovernanceRegistryRecord v19 = row(V19, "ACTIVE", TEMPLATE);
         scope(activated, v19);
 
-        PromptGovernanceReleaseGateService.ReleaseTransitionReceipt receipt = transition(V20,
+        PromptGovernanceReleaseGateService.ReleaseTransitionReceipt receipt = transition(RELEASED,
                 PromptBundleState.ACTIVE);
 
         assertThat(receipt.applied()).isFalse();
@@ -158,7 +159,7 @@ class PromptGovernanceReleaseGateStatesTest {
     @Test
     void aBundleAnotherActiveReleaseReplacesIsDeprecatedWithoutARollbackTargetOfItsOwn() {
         PromptGovernanceRegistryRecord v19 = release(V19, "ACTIVE", null);
-        PromptGovernanceRegistryRecord v20 = row(V20, "ACTIVE", TEMPLATE);
+        PromptGovernanceRegistryRecord v20 = row(RELEASED, "ACTIVE", TEMPLATE);
         scope(v19, v20);
 
         PromptGovernanceReleaseGateService.ReleaseGateTarget assessed = service.assessPromptRelease(SCOPE, KEY, V19)
@@ -231,36 +232,36 @@ class PromptGovernanceReleaseGateStatesTest {
 
     /** The v20 release with the evidence a canary and an activation need (budget profiles when asked). */
     private PromptGovernanceRegistryRecord records(String releaseStatus, boolean budgetProfiles) {
-        PromptGovernanceRegistryRecord record = release(V20, releaseStatus, V19);
+        PromptGovernanceRegistryRecord record = release(RELEASED, releaseStatus, V19);
         record.setReleaseApprovalReference("P8-GATE-1");
         when(modelCompatibilityRepository.findByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(SCOPE,
-                KEY, V20)).thenReturn(List.of(PromptGovernanceModelCompatibilityRecord.builder().registryScope(SCOPE)
-                .promptKey(KEY).promptVersion(V20).modelProfileKey("MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI")
+                KEY, RELEASED)).thenReturn(List.of(PromptGovernanceModelCompatibilityRecord.builder().registryScope(SCOPE)
+                .promptKey(KEY).promptVersion(RELEASED).modelProfileKey("MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI")
                 .profileCategory("PROVIDER_COMPATIBILITY").providerScope("OPENAI|ANTHROPIC|GEMINI")
                 .compatibilityState("DECLARED_NOT_VERIFIED").tokenCountingPolicyKey("MODEL_AWARE_TOKEN_COUNTING_V1")
                 .cachePolicyKey("STRUCTURED_PROMPT_CACHE_BY_REQUEST_AND_BUDGET_V1")
                 .compactionPolicyKey("LOSSLESS_PROMPT_OPTIMIZATION_V1").registrationSource("test").build()));
         when(budgetProfileRepository.findByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(SCOPE, KEY,
-                V20)).thenReturn(budgetProfiles ? List.of(PromptGovernanceBudgetProfileRecord.builder()
-                .registryScope(SCOPE).promptKey(KEY).promptVersion(V20)
+                RELEASED)).thenReturn(budgetProfiles ? List.of(PromptGovernanceBudgetProfileRecord.builder()
+                .registryScope(SCOPE).promptKey(KEY).promptVersion(RELEASED)
                 .budgetProfileKey("CORTEX_L1_INTERACTIVE_STRICT").maxInputTokens(4200).budgetState("DECLARED_IMPORTED")
                 .tokenCountingPolicyKey("MODEL_AWARE_TOKEN_COUNTING_V1")
                 .cachePolicyKey("STRUCTURED_PROMPT_CACHE_BY_REQUEST_AND_BUDGET_V1").cachePolicyState("DECLARED")
                 .compactionPolicyKey("LOSSLESS_PROMPT_OPTIMIZATION_V1").compactionPolicyState("DECLARED")
                 .registrationSource("test").build()) : List.of());
         when(evaluationRepository.findFirstByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(SCOPE, KEY,
-                V20)).thenReturn(Optional.of(PromptGovernanceEvaluationRecord.builder()
+                RELEASED)).thenReturn(Optional.of(PromptGovernanceEvaluationRecord.builder()
                 .evaluationReference("P8-GATE-1").evaluationState("PASSED").empiricalEvidenceState("SATISFIED")
                 .tevvGateState("READY_FOR_PRODUCTION").promptInjectionState("PASSED").latencyGateState("PASSED")
-                .costGateState("PASSED").bundleHash(PromptBundleCatalog.shared().find(KEY, V20).orElseThrow()
+                .costGateState("PASSED").bundleHash(PromptBundleCatalog.shared().find(KEY, RELEASED).orElseThrow()
                         .bundleHash()).runReference("protocol-4e311e2c").build()));
         when(releaseApprovalRepository
                 .findFirstByRegistryScopeAndPromptKeyAndTemplateKeyAndPromptVersionAndContractVersionOrderByUpdatedAtDesc(
-                        SCOPE, KEY, TEMPLATE, V20, CONTRACT))
+                        SCOPE, KEY, TEMPLATE, RELEASED, CONTRACT))
                 .thenReturn(Optional.of(PromptGovernanceReleaseApprovalRecord.builder().approvalState("APPROVED")
                         .approvedBy("operator-a").build()));
         when(rollbackRepository.findFirstByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(SCOPE, KEY,
-                V20)).thenReturn(Optional.of(PromptGovernanceRollbackRecord.builder()
+                RELEASED)).thenReturn(Optional.of(PromptGovernanceRollbackRecord.builder()
                 .rollbackTargetPromptVersion(V19).rollbackReadinessState("READY").build()));
         return record;
     }

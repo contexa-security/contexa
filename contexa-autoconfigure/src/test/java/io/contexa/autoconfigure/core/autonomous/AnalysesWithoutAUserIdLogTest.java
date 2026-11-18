@@ -180,13 +180,13 @@ class AnalysesWithoutAUserIdLogTest {
     }
 
     @Test
-    @DisplayName("The exact past-record lookup of a v20 analysis without a user is skipped every time and written once")
+    @DisplayName("The past-record reads of a v1.0 analysis without a user are skipped every time and each written once")
     void theExactPastRecordLookupWithoutAUserIsWrittenOnce() {
         contextRunner.run(context -> {
             Layer1ContextualStrategy strategy = context.getBean(Layer1ContextualStrategy.class);
             UnifiedVectorService vectors = context.getBean(UnifiedVectorService.class);
             SecurityDecisionStandardPromptTemplate template = context.getBean(SecurityDecisionStandardPromptTemplate.class);
-            when(template.promptBundle(any(SecurityEvent.class))).thenReturn(SecurityDecisionPromptBundles.V20);
+            when(template.promptBundle(any(SecurityEvent.class))).thenReturn(SecurityDecisionPromptBundles.V1);
 
             List<SecurityEvent> withoutAUser = new ArrayList<>();
             List<String> notes = infoLinesDuring(() -> {
@@ -197,8 +197,10 @@ class AnalysesWithoutAUserIdLogTest {
                 }
             });
 
+            // The product version reads past records both ways (plan 6-2): the exact lookup and the similar case
+            // search are each skipped every time and each written once.
             assertThat(notes).filteredOn(line -> line.contains(PAST_RECORD_LOOKUP_SKIPPED)).hasSize(1);
-            assertThat(notes).noneMatch(line -> line.contains(RAG_SEARCH_SKIPPED));
+            assertThat(notes).filteredOn(line -> line.contains(RAG_SEARCH_SKIPPED)).hasSize(1);
             verify(vectors, never()).pastRecordQuery();
             assertThat(withoutAUser).allSatisfy(event -> assertThat(event.getMetadata())
                     .containsEntry("ragAbsenceReason", "USER_ID_MISSING"));

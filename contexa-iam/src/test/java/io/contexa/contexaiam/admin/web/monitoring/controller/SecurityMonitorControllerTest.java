@@ -41,11 +41,13 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Locale;
 import java.util.List;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
 import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
@@ -94,6 +96,55 @@ class SecurityMonitorControllerTest {
             assertThat(model.getAttribute("userBlocked")).isEqualTo(5L);
             assertThat(model.getAttribute("mfaVerified")).isEqualTo(20L);
             assertThat(model.getAttribute("adminOverride")).isEqualTo(3L);
+        }
+
+        @Test
+        @DisplayName("K103: a link's start is where the list starts, and the screen's links keep it")
+        void aLinksStartIsWhereTheListStarts() {
+            Model model = new ConcurrentModel();
+            stubRepositoryCounts();
+            LocalDateTime hour = LocalDateTime.now().minusDays(7).withMinute(0).withSecond(0).withNano(0);
+            String start = hour.atZone(ZoneId.systemDefault()).toInstant().toString();
+            when(auditLogRepository.findByTimestampAfterAndCategory(eq(hour), eq("SECURITY_DECISION"), any(Pageable.class)))
+                    .thenReturn(Page.empty());
+
+            controller.monitor("SECURITY_DECISION", null, null, null, 168, start, 0, model);
+
+            verify(auditLogRepository).findByTimestampAfterAndCategory(eq(hour), eq("SECURITY_DECISION"), any(Pageable.class));
+            verify(auditLogRepository).countAdminOverridesBetween(eq(hour), any(LocalDateTime.class));
+            assertThat(model.getAttribute("from")).isEqualTo(start);
+        }
+
+        @Test
+        @DisplayName("K103: a start after now or one that is no instant leaves the last hours")
+        void aStartAfterNowOrUnreadableLeavesTheLastHours() {
+            LocalDateTime now = LocalDateTime.of(2026, 11, 18, 10, 30);
+            LocalDateTime hour = now.minusDays(7).withMinute(0);
+
+            assertThat(SecurityMonitorController.start(hour.atZone(ZoneId.systemDefault()).toInstant().toString(), now))
+                    .isEqualTo(hour);
+            assertThat(SecurityMonitorController.start(now.plusHours(1).atZone(ZoneId.systemDefault()).toInstant()
+                    .toString(), now)).isNull();
+            assertThat(SecurityMonitorController.start("yesterday", now)).isNull();
+            assertThat(SecurityMonitorController.start(" ", now)).isNull();
+        }
+
+        @Test
+        @DisplayName("K105: the admin override card's filter lists the overrides the card counts, the CSV too")
+        void theOverrideCardsFilterListsTheOverridesItCounts() throws Exception {
+            Model model = new ConcurrentModel();
+            stubRepositoryCounts();
+            when(auditLogRepository.findAdminOverridesBetween(any(LocalDateTime.class), any(LocalDateTime.class),
+                    any(Pageable.class))).thenReturn(Page.empty());
+            doAnswer(invocation -> ((Supplier<?>) invocation.getArgument(3)).get()).when(csvExportService)
+                    .export(any(), any(), anyList(), any());
+
+            controller.monitor("ADMIN_OVERRIDE", "ADMIN_OVERRIDE_APPLIED", null, 24, 0, model);
+            controller.exportCsv("ADMIN_OVERRIDE", "ADMIN_OVERRIDE_APPLIED", 24, mock(HttpServletResponse.class));
+
+            verify(auditLogRepository, times(2)).findAdminOverridesBetween(any(LocalDateTime.class),
+                    any(LocalDateTime.class), any(Pageable.class));
+            verify(auditLogRepository, never()).findByTimestampAfterAndCategory(any(), any(), any());
         }
 
         @Test
@@ -231,7 +282,8 @@ class SecurityMonitorControllerTest {
             when(auditLogRepository.countZeroTrustTotalSince(any(LocalDateTime.class))).thenReturn(30L);
             when(auditLogRepository.countByEventCategoryAndTimestampAfter(eq("USER_BLOCKED"), any(LocalDateTime.class))).thenReturn(5L);
             when(auditLogRepository.countByEventCategoryAndTimestampAfter(eq("MFA_VERIFICATION_SUCCESS"), any(LocalDateTime.class))).thenReturn(20L);
-            when(auditLogRepository.countAdminOverridesSince(any(LocalDateTime.class))).thenReturn(3L);
+            when(auditLogRepository.countAdminOverridesBetween(any(LocalDateTime.class), any(LocalDateTime.class)))
+                    .thenReturn(3L);
         }
     }
 

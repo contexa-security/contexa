@@ -16,6 +16,8 @@
     const BASELINE_COLORS = {ESTABLISHED: C.GOOD, PROVISIONAL: C.WARN, NONE: C.MUTED, UNKNOWN: C.TEXT};
     const CONTEXTS = ['ENVIRONMENT_ONLY', 'IDENTITY_AWARE', 'SCOPE_AWARE', 'BUSINESS_AWARE', 'UNKNOWN'];
     const INVALID = ['OVERREACTION', 'FACTS_WRONG', 'MISSED_SIGNAL', 'OTHER'];
+    /** The screen the business records are connected on (company records). */
+    const COMPANY_RECORDS = '/contexa/admin/company-records';
 
     let shadow = false;
     let decided = 0;
@@ -157,7 +159,7 @@
             ? ZT.valueRows(reasons.map(share => ({label: ZT.keyLabel(P + 'invalid.', share.key),
                 value: m('countShareRatio', ZT.count(share.count), ZT.percent(share.ratio))})))
             : ZT.emptyNote(m('outcomes.invalidNone')));
-        return ZT.withTip(ZT.card(m('outcomes.title'), m('outcomes.pending', ZT.count(outcomes.reviewPending)), ...body),
+        return ZT.withTip(ZT.card(ZT.title(P + 'outcomes.title'), m('outcomes.pending', ZT.count(outcomes.reviewPending)), ...body),
             [m('outcomes.challengeNote'), m('review.how')].join(' '));
     }
 
@@ -201,7 +203,13 @@
         if (reason === 'UNAVAILABLE_NOW') {
             return link(ZT.consoleLink('/operations'), m('unknown.operationsLink'));
         }
-        return reason === 'NOT_INTEGRATED' ? el('span', {class: 'zt-muted', text: m('unknown.integrateHint')}) : '—';
+        if (reason !== 'NOT_INTEGRATED') {
+            return '—';
+        }
+        // Design 6.3: a fact no record supplies opens the screen its records are connected on.
+        const connect = link(COMPANY_RECORDS, m('unknown.integrateLink'));
+        connect.title = m('unknown.integrateHint');
+        return connect;
     }
 
     function unknownCard(evidence) {
@@ -250,7 +258,7 @@
 
     function changesCard(changes) {
         if (!changes.length) {
-            return ZT.card(m('changes.title'), null, ZT.empty('NO_DECISIONS'));
+            return ZT.card(ZT.title(P + 'changes.title'), null, ZT.empty('NO_DECISIONS'));
         }
         const columns = [{label: m('changes.pair'), fill: true}, {label: m('changes.period'), wide: true},
             {label: m('changes.decisions'), num: true}, {label: s('changes.stopped'), num: true},
@@ -266,8 +274,26 @@
                 el('td', {class: 'zt-num'}, ratioCell(row.stoppedRatio, row.decisions)),
                 el('td', {class: 'zt-num zt-wide'}, ratioCell(row.modelLessRatio, row.decisions)));
         }));
-        return ZT.withTip(ZT.card(m('changes.title'), m('changes.aside'), el('div', {class: 'modern-table zt-table-wrap'},
+        return ZT.withTip(ZT.card(ZT.title(P + 'changes.title'), m('changes.aside'), el('div', {class: 'modern-table zt-table-wrap'},
             el('table', {class: 'zt-table'}, el('thead', {}, head), body))), m('changes.note'));
+    }
+
+    /**
+     * Design 6.3: the decisions of each day by who set their action (the model, the engine over the model, no model),
+     * stacked so a day of more decisions set without the model shows.
+     */
+    function sourceTrendCard(days) {
+        const series = [['model', C.GOOD], ['engineChanged', C.WARN], ['modelLess', C.BAD]];
+        const total = days.reduce((sum, day) => sum + day.model + day.engineChanged + day.modelLess, 0);
+        const box = el('div');
+        const datasets = series.map(([key, color]) => ({label: m('sourceTrend.' + key), data: days.map(day => day[key]),
+            backgroundColor: color, stack: 'source', borderRadius: 4, maxBarThickness: 48}));
+        charts.push(() => ZT.chart(box, 'm', {type: 'bar', label: m('sourceTrend.label', ZT.count(total)),
+            data: {labels: days.map(day => ZT.day(day.day)), datasets},
+            axes: {x: {stacked: true}, y: {stacked: true}}}, total > 0, 'NO_DECISIONS'));
+        return ZT.card(m('sourceTrend.title'), m('sourceTrend.aside'),
+            total > 0 ? ZT.legend(datasets.map(dataset => ({label: dataset.label, color: dataset.backgroundColor}))) : null,
+            box);
     }
 
     function render(content, value) {
@@ -283,6 +309,7 @@
         content.append(
             keyCards(source, evidence, outcomes),
             grid(span(sourceCard(source), 6), span(outcomesCard(outcomes), 6)),
+            grid(span(sourceTrendCard(value.trend || []), 12)),
             grid(span(baselineCard(evidence), 4), span(contextCard(evidence), 8)),
             unknownCard(evidence),
             grid(span(qualityCard(value.quality || {}), 4), span(changesCard(value.changes || []), 8)));

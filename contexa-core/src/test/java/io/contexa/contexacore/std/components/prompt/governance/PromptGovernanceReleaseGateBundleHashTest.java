@@ -43,7 +43,8 @@ class PromptGovernanceReleaseGateBundleHashTest {
 
     private static final String SCOPE = PromptGovernanceRegistryService.PLATFORM_GLOBAL_SCOPE;
     private static final String KEY = "cortex.security-decision";
-    private static final String VERSION = "2026.10.16-v20.22";
+    /** Plan 6-2: the gate reads the manifest of the one bundle the build ships (the earlier manifests went, D7). */
+    private static final String VERSION = "2026.11.16-v1.0";
     private static final String CONTRACT = "CORTEX_PROMPT_CONTRACT_V3";
 
     @Mock

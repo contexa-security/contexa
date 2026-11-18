@@ -33,6 +33,14 @@ public class ConditionTemplateGenerationResponse extends AIResponse {
     private final Map<String, ConditionTemplateItem> batchResults;
     private final List<String> failedIdentifiers;
 
+    /**
+     * K123: the answer the pipeline fills when the model's call failed (PipelineOrchestrator's fallback, which sets its
+     * error): no template, so the caller keeps its own fallback templates.
+     */
+    public ConditionTemplateGenerationResponse() {
+        this(null, null, null, null, null, null);
+    }
+
     public ConditionTemplateGenerationResponse(String templateResult, String templateType,
                                              String resourceIdentifier, Map<String, Object> processingMetadata) {
         this(templateResult, templateType, resourceIdentifier, processingMetadata, null, null);

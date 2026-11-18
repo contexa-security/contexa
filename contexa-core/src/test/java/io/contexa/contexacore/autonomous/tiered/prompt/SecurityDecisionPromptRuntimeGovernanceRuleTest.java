@@ -43,26 +43,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class SecurityDecisionPromptRuntimeGovernanceRuleTest {
 
+    /** An active rule of a dictionary slot is applied while the prompt is built, and its application is recorded. */
     @Test
     void appliesActiveRuntimeGovernanceRulesDuringPromptBuildAndRecordsApplications() {
         CapturingRuleProvider provider = new CapturingRuleProvider(List.of(new PromptRuntimeGovernanceRule(
                 "pqa-rtg-rule-runtime-test",
                 "pqa-rtg-action-runtime-test",
                 "cortex.security-decision",
-                "runtime.test.narrative",
-                "ADD_NARRATIVE",
+                "REQUEST.Size",
+                "ADD_SLOT",
                 100,
-                Map.of("narrative", "RuntimeGovernanceNarrative: preserve browser transition context."))));
+                Map.of("renderedValue", "Size: 4,831 items"))));
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                SecurityDecisionGoldenRender.v19Properties(),
+                new TieredStrategyProperties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
-                promptContextComposer(List.of(slotPlan(
-                        "runtime.test.narrative",
-                        "CURRENT REQUEST AND EVENT",
-                        "EventId"))),
+                new PromptContextComposer(),
                 null,
                 provider);
 
@@ -88,7 +86,10 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
                 List.of());
 
-        assertThat(prompt.userText()).contains("RuntimeGovernanceNarrative: preserve browser transition context.");
+        assertThat(prompt.userText()).contains("\nSize: 4,831 items\n");
+        assertThat(prompt.userText().indexOf("\nSize: 4,831 items\n"))
+                .isGreaterThan(prompt.userText().indexOf("=== REQUEST"))
+                .isLessThan(prompt.userText().indexOf("=== RECORDS AND COMPARISONS"));
         assertThat(provider.requestedContexts()).hasSize(1);
         assertThat(provider.requestedContexts().get(0).promptKey()).isEqualTo("cortex.security-decision");
         assertThat(provider.requestedContexts().get(0).resourceUrl())
@@ -112,110 +113,45 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 .satisfies(applicationState -> assertThat(applicationState)
                         .containsEntry("ruleId", "pqa-rtg-rule-runtime-test")
                         .containsEntry("sourceActionId", "pqa-rtg-action-runtime-test")
-                        .containsEntry("slotKey", "runtime.test.narrative")
+                        .containsEntry("slotKey", "REQUEST.Size")
                         .containsEntry("resultState", "APPLIED")
                         .containsEntry("changedPrompt", true));
     }
 
-    @Test
-    void appliesNoveltyNarrativeToItsRenderedSectionWhenRagContainsTheSameLabel() {
-        String narrative = "Explain whether the current access hour appears in observed hours.";
-        CapturingRuleProvider provider = new CapturingRuleProvider(List.of(new PromptRuntimeGovernanceRule(
-                "pqa-rtg-rule-novelty-test",
-                "pqa-rtg-action-novelty-test",
-                "cortex.security-decision",
-                "user.novelty.current-access-hour",
-                "ADD_NARRATIVE",
-                100,
-                Map.of("narrative", narrative))));
-        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
-                new SecurityEventEnricher(),
-                SecurityDecisionGoldenRender.v19Properties(),
-                new DefaultCanonicalSecurityContextProvider(
-                        new InMemoryResourceContextRegistry(),
-                        new ContextCoverageEvaluator()),
-                promptContextComposer(List.of(slotPlan(
-                        "user.novelty.current-access-hour",
-                        "PERSONAL WORK PROFILE",
-                        "CurrentAccessHourPresentInObservedHours"))),
-                null,
-                provider);
-
-        SecurityEvent event = SecurityEvent.builder()
-                .eventId("event-runtime-governance-novelty-001")
-                .timestamp(LocalDateTime.of(2026, 7, 24, 11, 30).atZone(ZoneId.systemDefault()).toInstant())
-                .userId("persona_hr_admin")
-                .sessionId("session-runtime-governance-novelty")
-                .description("GET /api/security-test/sensitive/resource-001")
-                .build();
-        event.addMetadata("httpMethod", "GET");
-        event.addMetadata("requestPath", "/api/security-test/sensitive/resource-001");
-        event.addMetadata("protectableResourceUrl", "/api/security-test/sensitive/{resourceId}");
-        event.addMetadata("protectableHttpMethod", "GET");
-        event.addMetadata("resourceId", "resource-001");
-        event.addMetadata("tenantId", "demo");
-        event.addMetadata("authorizationEffect", "ALLOW");
-
-        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
-                event,
-                new SecurityDecisionStandardPromptTemplate.SessionContext(),
-                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
-                List.of(new Document(
-                        "CurrentAccessHourPresentInObservedHours: historical document text",
-                        Map.of(
-                                VectorDocumentMetadata.DOCUMENT_TYPE, "behavior",
-                                VectorDocumentMetadata.USER_ID, "persona_hr_admin",
-                                VectorDocumentMetadata.TENANT_ID, "demo",
-                                VectorDocumentMetadata.AUTHORIZATION_DECISION, "ALLOWED_USER_SCOPE",
-                                VectorDocumentMetadata.ACCESS_SCOPE, "USER",
-                                VectorDocumentMetadata.PURPOSE_MATCH, true,
-                                VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation"))));
-
-        assertThat(prompt.userText()).contains(narrative);
-        assertThat(provider.recordedApplications())
-                .singleElement()
-                .satisfies(application -> assertThat(application)
-                        .extracting(
-                                PromptRuntimeGovernanceRuleApplication::resultState,
-                                PromptRuntimeGovernanceRuleApplication::changedPrompt)
-                        .containsExactly("APPLIED", true));
-    }
-
     /**
-     * W3-14: a v20 render offers its rules to the dictionary slots only, so the v19 rules the v19 descriptor still
-     * returns (until W3-16) leave the v20 prompt as it is. The renderer injects no fault (R4-C9), so the rules meet the
-     * prompt as it was drawn.
+     * W3-14: a render offers its rules to the dictionary slots only, so a rule of a section label that no dictionary
+     * slot holds leaves the prompt as it is. The renderer injects no fault (R4-C9), so the rules meet the prompt as it
+     * was drawn.
      */
     @Test
-    void aV20RenderTakesDictionaryRulesAndLeavesV19RulesOut() {
+    void aRenderTakesDictionaryRulesAndLeavesARuleWithoutADictionarySlotOut() {
         CapturingRuleProvider provider = new CapturingRuleProvider(List.of(
                 new PromptRuntimeGovernanceRule(
-                        "pqa-rtg-rule-v19-auth-narrative",
-                        "pqa-rtg-action-v19-auth-narrative",
+                        "pqa-rtg-rule-section-auth-narrative",
+                        "pqa-rtg-action-section-auth-narrative",
                         "cortex.security-decision",
                         "user_ragevidence_authorizationreason_groupterm_authorized_test",
                         "ADD_NARRATIVE",
                         5,
                         Map.of("narrative", "RagAuthorizationRepair: authorization=ALLOWED_USER_SCOPE")),
                 new PromptRuntimeGovernanceRule(
-                        "pqa-rtg-rule-v20-rag-scope",
-                        "pqa-rtg-action-v20-rag-scope",
+                        "pqa-rtg-rule-dictionary-rag-scope",
+                        "pqa-rtg-action-dictionary-rag-scope",
                         "cortex.security-decision",
                         "PAST RECORDS.PastRecordsState",
                         "SUPPRESS_SLOT",
                         10,
                         Map.of("checkCode", "rag_scope_boundary")),
                 new PromptRuntimeGovernanceRule(
-                        "pqa-rtg-rule-v20-rag-auth",
-                        "pqa-rtg-action-v20-rag-auth",
+                        "pqa-rtg-rule-dictionary-rag-auth",
+                        "pqa-rtg-action-dictionary-rag-auth",
                         "cortex.security-decision",
                         "PAST RECORDS.PastRecordsState",
                         "ADD_NARRATIVE",
                         20,
                         Map.of("checkCode", "rag_authorization_reason",
                                 "narrative", "Each record must say why it is authorized."))));
-        TieredStrategyProperties properties = SecurityDecisionGoldenRender.v19Properties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
+        TieredStrategyProperties properties = new TieredStrategyProperties();
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 properties,
@@ -227,10 +163,10 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 provider);
 
         SecurityEvent event = SecurityEvent.builder()
-                .eventId("event-runtime-governance-v20-fault-001")
+                .eventId("event-runtime-governance-dictionary-fault-001")
                 .timestamp(LocalDateTime.of(2026, 6, 7, 10, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
-                .sessionId("session-runtime-governance-v20-fault")
+                .sessionId("session-runtime-governance-dictionary-fault")
                 .description("GET /admin/api/security-test/sensitive/resource-001")
                 .build();
         event.addMetadata("httpMethod", "GET");
@@ -265,73 +201,21 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 .containsEntry("promptRuntimeGovernanceRuleCount", 3);
         assertThat(provider.recordedApplications())
                 .extracting(PromptRuntimeGovernanceRuleApplication::resultState)
-                // The v19 rule never reaches the prompt; the v20 rules reach their dictionary slot and find nothing to
+                // The section rule never reaches the prompt; the dictionary rules reach their slot and find nothing to
                 // suppress, and a free-text narrative is not an entry line.
                 .containsExactly("SKIPPED_SLOT_NOT_IN_DICTIONARY", "SKIPPED_NO_MATCH",
                         "SKIPPED_FREE_TEXT_ON_DICTIONARY_PROMPT");
     }
 
     /**
-     * W3-14: a v19 render leaves out a rule of the v20 dictionary even when the slot contract rows give its slot key a
-     * plan (as the enterprise rows of W3-17 will), so a v20 rule never rewrites the v19 line of the same name.
+     * Plan 2.3 A10: a render moves a rule written for a label of the earlier section prompt to the dictionary slot that
+     * label went to, so the rule reaches the line of that fact.
      */
     @Test
-    void aV19RenderLeavesDictionaryRulesOutWhateverTheSlotRowsSay() {
-        CapturingRuleProvider provider = new CapturingRuleProvider(List.of(
-                new PromptRuntimeGovernanceRule(
-                        "pqa-rtg-rule-v20-effect",
-                        "pqa-rtg-action-v20-effect",
-                        "cortex.security-decision",
-                        "DECISION FACTS.AuthorizationEffect",
-                        "UPDATE_SLOT_VALUE",
-                        10,
-                        Map.of("label", "AuthorizationEffect",
-                                "renderedValue", "ALLOW by policy W314 (METHOD_AUTHORIZATION_CHECK)"))));
-        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
-                new SecurityEventEnricher(),
-                SecurityDecisionGoldenRender.v19Properties(),
-                new DefaultCanonicalSecurityContextProvider(
-                        new InMemoryResourceContextRegistry(),
-                        new ContextCoverageEvaluator()),
-                promptContextComposer(List.of(slotPlan(
-                        "DECISION FACTS.AuthorizationEffect", "DECISION FACTS", "AuthorizationEffect"))),
-                null,
-                provider);
-        SecurityEvent event = SecurityEvent.builder()
-                .eventId("event-runtime-governance-v19-dictionary-rule-001")
-                .timestamp(LocalDateTime.of(2026, 6, 7, 10, 30).atZone(ZoneId.systemDefault()).toInstant())
-                .userId("persona_fin_lead")
-                .sessionId("session-runtime-governance-v19-dictionary-rule")
-                .description("GET /admin/api/security-test/sensitive/resource-001")
-                .build();
-        event.addMetadata("httpMethod", "GET");
-        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
-        event.addMetadata("authorizationEffect", "ALLOW");
-
-        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
-                event,
-                new SecurityDecisionStandardPromptTemplate.SessionContext(),
-                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
-                List.of());
-
-        assertThat(prompt.userText())
-                .doesNotStartWith("=== USER BASELINE")
-                .containsPattern("(?m)^AuthorizationEffect: ")
-                .doesNotContain("W314");
-        assertThat(provider.recordedApplications())
-                .extracting(PromptRuntimeGovernanceRuleApplication::resultState)
-                .containsExactly("SKIPPED_DICTIONARY_SLOT_ON_SECTION_PROMPT");
-    }
-
-    /**
-     * v1.0 (plan 2.3 A10): a v1.0 render moves a rule of the v19 bundle to the dictionary slot its v19 label went to, so
-     * the rule reaches the line of the v19 fact; a v21 render leaves the same rule out, as before.
-     */
-    @Test
-    void aV1RenderMovesAV19RuleToTheSlotItsLabelWentTo() {
+    void aRenderMovesARuleOfASectionLabelToTheSlotItsLabelWentTo() {
         PromptRuntimeGovernanceRule rule = new PromptRuntimeGovernanceRule(
-                "pqa-rtg-rule-v19-request-path",
-                "pqa-rtg-action-v19-request-path",
+                "pqa-rtg-rule-section-request-path",
+                "pqa-rtg-action-section-request-path",
                 "cortex.security-decision",
                 "user_request_requestpath_v1_test",
                 "SUPPRESS_SLOT",
@@ -339,29 +223,20 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 Map.of("label", "RequestPath", "sectionKey", "CURRENT REQUEST AND EVENT"));
         PromptContextComposer contract = promptContextComposer(List.of(slotPlan(
                 "user_request_requestpath_v1_test", "CURRENT REQUEST AND EVENT", "RequestPath")));
-        CapturingRuleProvider v1 = new CapturingRuleProvider(List.of(rule));
-        CapturingRuleProvider v21 = new CapturingRuleProvider(List.of(rule));
+        CapturingRuleProvider provider = new CapturingRuleProvider(List.of(rule));
 
-        String v1Text = renderWithRules(SecurityDecisionPromptBundles.V1_RECORD_EXACT, contract, v1);
-        String v21Text = renderWithRules(SecurityDecisionPromptBundles.V21, contract, v21);
+        String text = renderWithRules(contract, provider);
 
-        assertThat(v1.recordedApplications())
+        assertThat(provider.recordedApplications())
                 .extracting(PromptRuntimeGovernanceRuleApplication::resultState).containsExactly("APPLIED");
-        assertThat(v1.recordedApplications().get(0).slotKey()).endsWith(".Action");
-        assertThat(v1Text).doesNotContainPattern("(?m)^(\\[[A-Z]\\d+\\] )?Action: ");
-        assertThat(v21.recordedApplications())
-                .extracting(PromptRuntimeGovernanceRuleApplication::resultState)
-                .containsExactly("SKIPPED_SLOT_NOT_IN_DICTIONARY");
-        assertThat(v21Text).containsPattern("(?m)^(\\[[A-Z]\\d+\\] )?Action: ");
+        assertThat(provider.recordedApplications().get(0).slotKey()).isEqualTo("REQUEST.Action");
+        assertThat(text).doesNotContainPattern("(?m)^(\\[[A-Z]\\d+\\] )?Action: ");
     }
 
-    private static String renderWithRules(SecurityDecisionPromptBundles.Bundle bundle, PromptContextComposer contract,
-                                          CapturingRuleProvider provider) {
-        TieredStrategyProperties properties = SecurityDecisionGoldenRender.v19Properties();
-        properties.getPromptBundle().setActive(bundle.version());
+    private static String renderWithRules(PromptContextComposer contract, CapturingRuleProvider provider) {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                properties,
+                new TieredStrategyProperties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
@@ -369,10 +244,10 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 null,
                 provider);
         SecurityEvent event = SecurityEvent.builder()
-                .eventId("event-runtime-governance-v1-" + bundle.version())
+                .eventId("event-runtime-governance-moved-rule")
                 .timestamp(LocalDateTime.of(2026, 6, 7, 10, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
-                .sessionId("session-runtime-governance-v1")
+                .sessionId("session-runtime-governance-moved-rule")
                 .description("GET /admin/api/security-test/sensitive/resource-001")
                 .build();
         event.addMetadata("httpMethod", "GET");

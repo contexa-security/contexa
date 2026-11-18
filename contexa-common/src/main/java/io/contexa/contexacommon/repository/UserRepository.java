@@ -109,23 +109,33 @@ public interface UserRepository extends JpaRepository<Users, Long> {
             "LEFT JOIN FETCH rp.permission p")
     List<Users> findAllWithDetails();
 
-    @Query("SELECT DISTINCT u FROM Users u " +
-            "JOIN u.userGroups ug " +
-            "JOIN ug.group g " +
-            "JOIN g.groupRoles gr " +
-            "JOIN gr.role r " +
-            "WHERE u.mfaEnabled = false AND r.roleName = 'ADMIN'")
-    List<Users> findAdminsWithMfaDisabled();
+    /**
+     * How many enabled accounts of Contexa's own hold one of the roles, directly or through a group of theirs: the
+     * console's administrators when the roles are the ones that grant {@code ROLE_ADMIN}.
+     */
+    @Query("SELECT count(DISTINCT u.id) FROM Users u LEFT JOIN u.userRoles ur LEFT JOIN u.userGroups ug "
+            + "LEFT JOIN ug.group g LEFT JOIN g.groupRoles gr "
+            + "WHERE u.enabled = true AND u.bridgeManaged = false "
+            + "AND (ur.role.id IN :roleIds OR gr.role.id IN :roleIds)")
+    long countEnabledOwnAccountsHoldingAnyRole(@Param("roleIds") Collection<Long> roleIds);
 
-    
-    @Query("SELECT count(DISTINCT u) FROM Users u JOIN u.userGroups ug JOIN ug.group g JOIN g.groupRoles gr JOIN gr.role r WHERE r.roleName = :roleName")
-    long countByRoles(@Param("roleName") String roleName);
+    /** As {@link #countEnabledOwnAccountsHoldingAnyRole(Collection)}, of the accounts that have not turned MFA on. */
+    @Query("SELECT count(DISTINCT u.id) FROM Users u LEFT JOIN u.userRoles ur LEFT JOIN u.userGroups ug "
+            + "LEFT JOIN ug.group g LEFT JOIN g.groupRoles gr "
+            + "WHERE u.enabled = true AND u.bridgeManaged = false AND u.mfaEnabled = false "
+            + "AND (ur.role.id IN :roleIds OR gr.role.id IN :roleIds)")
+    long countEnabledOwnAccountsHoldingAnyRoleWithoutMfa(@Param("roleIds") Collection<Long> roleIds);
 
-    
-    @Query("SELECT count(DISTINCT u) FROM Users u JOIN u.userGroups ug JOIN ug.group g JOIN g.groupRoles gr JOIN gr.role r WHERE u.mfaEnabled = :mfaEnabled AND r.roleName = :roleName")
-    long countByMfaEnabledAndRoles(@Param("mfaEnabled") boolean mfaEnabled, @Param("roleName") String roleName);
-
-    long countByMfaEnabled(boolean mfaEnabled);
+    /**
+     * The user names of the enabled accounts of Contexa's own that hold one of the roles and have not turned MFA on, in
+     * the order of the names; the page bounds how many are read.
+     */
+    @Query("SELECT DISTINCT u.username FROM Users u LEFT JOIN u.userRoles ur LEFT JOIN u.userGroups ug "
+            + "LEFT JOIN ug.group g LEFT JOIN g.groupRoles gr "
+            + "WHERE u.enabled = true AND u.bridgeManaged = false AND u.mfaEnabled = false "
+            + "AND (ur.role.id IN :roleIds OR gr.role.id IN :roleIds) ORDER BY u.username")
+    List<String> findEnabledOwnUsernamesHoldingAnyRoleWithoutMfa(@Param("roleIds") Collection<Long> roleIds,
+                                                                Pageable pageable);
 
     /**
      * How many enabled accounts of Contexa's own, other than the one named, hold one of the roles, directly or through

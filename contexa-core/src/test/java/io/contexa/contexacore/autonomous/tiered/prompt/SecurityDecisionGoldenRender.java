@@ -27,6 +27,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
@@ -123,21 +124,11 @@ final class SecurityDecisionGoldenRender {
     }
 
     /**
-     * Renders in UTC, the time zone of the showcase engine the inputs were sealed on, so that times in the prompt do
-     * not depend on the machine that runs the build.
+     * Renders the product version in UTC, the time zone of the showcase engine the inputs were sealed on, so that times
+     * in the prompt do not depend on the machine that runs the build.
      */
     RenderedCase render(JsonNode goldenCase, PromptBudgetProfile profile) {
-        return render(goldenCase, profile, v19Properties());
-    }
-
-    /**
-     * Settings that choose the v19 bundle. The golden render and the tests of the v19 prompt drew v19 as the build
-     * default; v1.0 is the build default since plan 1-9, so they choose v19 by its version and draw the same prompt.
-     */
-    static TieredStrategyProperties v19Properties() {
-        TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V19.version());
-        return properties;
+        return render(goldenCase, profile, new TieredStrategyProperties());
     }
 
     /** Renders with the given settings (the bundle the configuration chooses, W3-16, for example). */
@@ -210,7 +201,8 @@ final class SecurityDecisionGoldenRender {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(sections);
         SecurityEvent event = event(goldenCase);
         if (version != null) {
-            event.addMetadata(SecurityDecisionPromptDocument.EVENT_PROMPT_VERSION, version);
+            event.addMetadata(SecurityDecisionPromptSections.EVENT_BUNDLE_VERSION, version);
+            event.addMetadata(SecurityDecisionPromptSections.EVENT_BUNDLE_SOURCE, PromptBundleSelectionSource.CONFIGURATION.name());
         }
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = behaviorAnalysis != null ? behaviorAnalysis
                 : SecurityDecisionGoldenLearning.analysis(goldenCase, event, OBJECT_MAPPER);

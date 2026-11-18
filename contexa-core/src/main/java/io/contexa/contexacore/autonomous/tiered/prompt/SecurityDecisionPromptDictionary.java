@@ -1293,15 +1293,6 @@ public final class SecurityDecisionPromptDictionary {
     private SecurityDecisionPromptDictionary() {
     }
 
-    public static PromptDictionarySlotPlanProvider slotPlanProvider() {
-        return new PromptDictionarySlotPlanProvider(ENTRIES, VERSION);
-    }
-
-    /** The slot plans of the v21 dictionary. */
-    public static PromptDictionarySlotPlanProvider v21SlotPlanProvider() {
-        return new PromptDictionarySlotPlanProvider(V21_ENTRIES, V21_VERSION);
-    }
-
     private static List<PromptDictionaryEntry> v21Entries() {
         List<PromptDictionaryEntry> entries = new ArrayList<>();
         for (PromptDictionaryEntry entry : ENTRIES) {

@@ -73,7 +73,6 @@ class SecurityDecisionStructuredOutputPipelineIntegrationTest {
 
         UniversalPipelineExecutor executor = buildExecutor(llmClient);
         SecurityDecisionRequest compactRequest = buildRequest();
-        compactRequest.withParameter(SecurityDecisionCompactAnswer.REQUEST_PARAMETER, true);
         SecurityDecisionResponse response = executor.execute(
                         compactRequest,
                         PipelineConfiguration.createPipelineConfig(),

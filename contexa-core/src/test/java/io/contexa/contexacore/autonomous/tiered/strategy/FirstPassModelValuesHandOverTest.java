@@ -175,7 +175,7 @@ class FirstPassModelValuesHandOverTest {
 
     private static PromptGenerationResult drawn() {
         return new PromptGenerationResult(null, "SYSTEM", "FIRST PROMPT",
-                Map.of("userPromptLayoutVersion", Layer2SecondPass.V20_LAYOUT), null);
+                Map.of("userPromptLayoutVersion", Layer2SecondPass.V1_LAYOUT), null);
     }
 
     private static SecurityEvent event(String requestId) {

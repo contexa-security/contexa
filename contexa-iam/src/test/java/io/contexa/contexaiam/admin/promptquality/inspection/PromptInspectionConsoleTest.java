@@ -171,6 +171,19 @@ class PromptInspectionConsoleTest {
         assertThat(resource("static/contexa/js/admin/prompt-inspection/detail-page.js")).contains("detail.errorReason");
     }
 
+    /**
+     * Plan 3.12 D7: a package of an earlier bundle is not inspected again; the detail screen says so in the reader's
+     * language instead of the engine's sentence (which the core tests hold to "cannot be inspected again (decision
+     * D7)"), and the message is one the scripts are given.
+     */
+    @Test
+    void theDetailScreenSaysAnEarlierBundleIsNotInspectedAgainInTheReadersLanguage() throws IOException {
+        assertThat(resource("static/contexa/js/admin/prompt-inspection/detail-page.js"))
+                .contains("'(decision D7)'").contains("t('promptInspection.detail.reason.earlierBundle')")
+                .contains("reasonText(finding.reason)");
+        assertThat(PromptInspectionPageController.SCRIPT_KEYS).contains("promptInspection.detail.reason.earlierBundle");
+    }
+
     private static List<String> components(Class<?> type) {
         return Arrays.stream(type.getRecordComponents()).map(RecordComponent::getName).toList();
     }
@@ -199,8 +212,8 @@ class PromptInspectionConsoleTest {
                 .requestFactsJson("{\"httpMethod\":\"POST\",\"requestPath\":\"/api/projects/GB-500/exports\","
                         + "\"resourceId\":\"exportDocuments\"}")
                 .promptExecutionMetadataJson("{\"governanceDescriptor\":{\"userPromptLayoutVersion\":\""
-                        + PromptInspector.V20_LAYOUT + "\",\"promptKey\":\"cortex.security-decision\","
-                        + "\"promptBundleVersion\":\"" + SecurityDecisionPromptBundles.V20.descriptor().promptVersion()
+                        + PromptInspector.V1_LAYOUT + "\",\"promptKey\":\"cortex.security-decision\","
+                        + "\"promptBundleVersion\":\"" + SecurityDecisionPromptBundles.V1.descriptor().promptVersion()
                         + "\"}}")
                 .build();
     }

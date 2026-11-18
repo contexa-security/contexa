@@ -18,15 +18,11 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFact;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
-import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
-import io.contexa.contexacore.autonomous.context.decision.PolicyReason;
 import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.context.prompt.PromptUnknownKind;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
-import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -143,16 +139,10 @@ public final class SecurityDecisionFactChecks {
     }
 
     /**
-     * The first boundary of the v20 system text the action breaks, in the text's order, or null: the required BLOCK
-     * boundary, BLOCK without it, the required low-risk boundary, the required covered-work boundary.
-     */
-    public static String boundaryViolation(CanonicalSecurityContext context, DrawnPrompt prompt, String rawAction) {
-        return boundaryViolation(context, context != null ? context.getDecisionFacts() : null, prompt, rawAction);
-    }
-
-    /**
-     * v1.0: the same boundaries read on the given decision facts: the conclusions the v1.0 decision rules state, which
-     * the context keeps beside the records its prompt states.
+     * The first boundary of the decision rules the action breaks, in their order, or null: the required BLOCK boundary,
+     * BLOCK without it, the required low-risk boundary, the required covered-work boundary. The boundaries read the
+     * given decision facts: the conclusions the decision rules state, which the context keeps beside the records its
+     * prompt states.
      */
     public static String boundaryViolation(CanonicalSecurityContext context, DecisionFacts facts, DrawnPrompt prompt,
                                            String rawAction) {
@@ -224,168 +214,11 @@ public final class SecurityDecisionFactChecks {
         return null;
     }
 
-    /**
-     * Each reason code with the fact it cites (dictionary 5): the ID is in the prompt, its line is one the code cites
-     * (a fact the UNKNOWN line names is cited by MATERIAL_MISSING_EVIDENCE and by a code that cites that fact), and the
-     * code's condition holds on the facts. A condition whose facts the canonical context does not hold is UNDECIDED.
-     */
-    public static List<ReasonFinding> reasonFindings(CanonicalSecurityContext context,
-                                                     MinimumActionRules.Settings settings, DrawnPrompt prompt,
-                                                     List<SecurityDecisionOutputContract.Citation> citations) {
-        List<ReasonFinding> findings = new ArrayList<>();
-        if (prompt == null || citations == null) {
-            return findings;
-        }
-        Map<String, SecurityDecisionOutputContract.ReasonCode> codes = new LinkedHashMap<>();
-        SecurityDecisionOutputContract.REASON_CODES.forEach(code -> codes.put(code.code(), code));
-        for (SecurityDecisionOutputContract.Citation citation : citations) {
-            if (citation == null || citation.code() == null) {
-                continue;
-            }
-            String fact = citation.fact() != null ? citation.fact().trim().toUpperCase(Locale.ROOT) : "";
-            findings.add(finding(context, settings, prompt, codes.get(citation.code()), citation.code(), fact));
-        }
-        return findings;
-    }
-
     /** The reason findings that do not hold, as a violation the corrective retry can name; null when none. */
     public static String reasonViolation(List<ReasonFinding> findings) {
         List<String> parts = findings.stream().filter(finding -> finding.outcome() == Outcome.MISMATCH)
                 .map(finding -> finding.code() + " " + finding.fact() + " (" + finding.reason() + ")").toList();
         return parts.isEmpty() ? null : REASON_CODE_MISMATCH + ": " + String.join("; ", parts);
-    }
-
-    private static ReasonFinding finding(CanonicalSecurityContext context, MinimumActionRules.Settings settings,
-                                         DrawnPrompt prompt, SecurityDecisionOutputContract.ReasonCode code,
-                                         String name, String fact) {
-        if (code == null) {
-            return new ReasonFinding(name, fact, Outcome.MISMATCH, "not a reason code of the output contract");
-        }
-        String unknown = prompt.unknownIds().get(fact);
-        String entry = prompt.lineIds().get(fact);
-        if (unknown == null && entry == null) {
-            return new ReasonFinding(name, fact, Outcome.MISMATCH, "the prompt gives no fact this ID");
-        }
-        if (unknown != null) {
-            boolean cited = "MATERIAL_MISSING_EVIDENCE".equals(name)
-                    || code.citedFacts().stream().anyMatch(cite -> nameOf(cite).equals(unknown));
-            return cited ? new ReasonFinding(name, fact, Outcome.MATCH, "the UNKNOWN line names " + unknown)
-                    : new ReasonFinding(name, fact, Outcome.MISMATCH, "the code does not cite " + unknown);
-        }
-        if (code.citedFacts().stream().noneMatch(cite -> cites(cite, entry))) {
-            return new ReasonFinding(name, fact, Outcome.MISMATCH, "the code does not cite " + entry);
-        }
-        Boolean holds = context == null ? null : condition(context, settings, name, entry);
-        if (holds == null) {
-            return new ReasonFinding(name, fact, Outcome.UNDECIDED, undecided(name, settings));
-        }
-        return holds ? new ReasonFinding(name, fact, Outcome.MATCH, entry)
-                : new ReasonFinding(name, fact, Outcome.MISMATCH, "the condition of " + name + " does not hold");
-    }
-
-    /** Why a code's condition cannot be decided: the rule settings a sealed package does not keep, or the facts. */
-    private static String undecided(String code, MinimumActionRules.Settings settings) {
-        if (code.startsWith("MIN_P") && settings == null) {
-            return "the minimum action settings are not sealed, so the condition of " + code + " cannot be decided";
-        }
-        return "the condition of " + code + " cannot be decided on the facts here";
-    }
-
-    /** Whether a cited entry of the contract ({@code PAST_RECORDS.PastRecord{i}}) names a drawn entry. */
-    private static boolean cites(String cite, String entry) {
-        if (!cite.endsWith("{i}")) {
-            return cite.equals(entry);
-        }
-        String stem = cite.substring(0, cite.length() - "{i}".length());
-        return entry.startsWith(stem) && entry.length() > stem.length()
-                && entry.substring(stem.length()).chars().allMatch(Character::isDigit);
-    }
-
-    private static String nameOf(String cite) {
-        String name = cite.substring(cite.indexOf('.') + 1);
-        return name.endsWith("{i}") ? name.substring(0, name.length() - "{i}".length()) : name;
-    }
-
-    /** Dictionary 5, the condition column; null when the canonical context does not hold the facts it needs. */
-    private static Boolean condition(CanonicalSecurityContext context, MinimumActionRules.Settings settings,
-                                     String code, String entry) {
-        DecisionFacts facts = context.getDecisionFacts();
-        CanonicalSecurityContext.Session session = context.getSession();
-        CanonicalSecurityContext.RoleScopeProfile scope = context.getRoleScopeProfile();
-        if (code.startsWith("MIN_P")) {
-            // The rules are the host's settings: a sealed package does not keep them, the response checker does.
-            if (facts == null || settings == null) {
-                return null;
-            }
-            CanonicalSecurityContext.Resource resource = context.getResource();
-            return MinimumActionRules.evaluate(facts, resource != null ? resource.getResourceClass() : null,
-                            resource != null ? resource.getActionFamily() : null, settings).stream()
-                    .anyMatch(hit -> hit.rule().code().equals(code));
-        }
-        if (code.equals("POLICY_UNKNOWN")) {
-            // Valid when the UNKNOWN line names the policy (its U ID); a drawn Policy line is a known policy.
-            return facts == null ? null : facts.unknown().contains("Policy");
-        }
-        if (code.equals("POLICY_SATISFIED")) {
-            return facts == null ? null : Boolean.TRUE.equals(facts.policy().satisfied());
-        }
-        if (code.startsWith("POLICY_NOT_SATISFIED_")) {
-            if (facts == null) {
-                return null;
-            }
-            PolicyReason reason = facts.policy().reason();
-            return Boolean.FALSE.equals(facts.policy().satisfied()) && reason != null && reason.code().equals(code);
-        }
-        switch (code) {
-            case "BREAK_GLASS":
-                return context.getFrictionProfile() != null && Boolean.TRUE.equals(context.getFrictionProfile().getBreakGlass());
-            case "RECENT_PERMISSION_CHANGE":
-                return scope != null && scope.getRecentPermissionChanges() != null
-                        && !scope.getRecentPermissionChanges().isEmpty();
-            case "TEMPORARY_ELEVATION":
-                return scope != null && Boolean.TRUE.equals(scope.getTemporaryElevation());
-            case "DELEGATION_SCOPE_DRIFT":
-                return context.getDelegation() != null && Boolean.TRUE.equals(context.getDelegation().getObjectiveDrift());
-            case "PRIOR_CHALLENGE_IN_SESSION":
-                return priorNonAllow(context);
-            case "CHALLENGE_VERIFIED_IN_SESSION":
-                return session != null && session.getChallengeVerifiedAt() != null
-                        && !session.getChallengeVerifiedAt().isBlank();
-            case "FAILED_LOGINS":
-                return session != null && atLeast(session.getFailedLoginAttempts(), 1);
-            case "MFA_FAILURES":
-                return session != null && atLeast(session.getRecentMfaFailureCount(), 1);
-            case "CLIENT_SIGNAL_TAMPERING":
-                return anySignal(context.getIntent());
-            case "TENANT_CONFLICT", "AUTHORIZATION_CONFLICT", "DATA_CONFLICT":
-                // Whichever line it cites, a conflict code holds when the data conflicts name that conflict.
-                return facts == null ? null : facts.fact(DecisionFactNames.DATA_CONFLICTS)
-                        .map(found -> found.codes().contains(code)).orElse(false);
-            case "MATERIAL_CONTRADICTION":
-                return facts == null ? null : facts.fact(DecisionFactNames.DATA_CONFLICTS).isPresent();
-            case "BASELINE_NOT_ESTABLISHED", "PAST_RECORD_SAME_TARGET", "PAST_DENIED_SAME_ACTION",
-                 "VALIDATED_CASE_MATCH", "THREAT_MATCH", "MATERIAL_MISSING_EVIDENCE":
-                // Their facts (the baseline state, past records, threat knowledge) are not in the canonical context.
-                return null;
-            default:
-                // The resolver puts the code on the fact that holds it (W4-8 (5): its codes are the contract's).
-                if (facts == null) {
-                    return null;
-                }
-                String name = entry.substring(entry.indexOf('.') + 1);
-                Optional<DecisionFact> cited = facts.fact(name);
-                if (cited.isEmpty() && entry.startsWith(PromptBlock.SESSION.name() + ".")) {
-                    cited = facts.fact(DecisionFactNames.REPEAT_IN_SESSION);
-                }
-                return cited.map(found -> found.codes().contains(code)).orElse(false);
-        }
-    }
-
-    private static boolean priorNonAllow(CanonicalSecurityContext context) {
-        CanonicalSecurityContext.SessionNarrativeProfile narrative = context.getSessionNarrativeProfile();
-        List<SessionDecisionRecord> decisions = narrative != null ? narrative.getSessionDecisions() : null;
-        return decisions != null && decisions.stream().anyMatch(decision -> decision != null && decision.outcome() != null
-                && !"ALLOW".equalsIgnoreCase(decision.outcome().trim()));
     }
 
     private static boolean anySignal(CanonicalSecurityContext.Intent intent) {
@@ -399,12 +232,6 @@ public final class SecurityDecisionFactChecks {
 
     private static boolean atLeast(Integer count, int minimum) {
         return count != null && count >= minimum;
-    }
-
-    /** The decision fact names the checks read (the dictionary's DECISION FACTS entries). */
-    private static final class DecisionFactNames {
-        static final String DATA_CONFLICTS = "DataConflicts";
-        static final String REPEAT_IN_SESSION = "RepeatInSession";
     }
 
     /** The facts the boundaries read, on the stated lines only (a fact the UNKNOWN line names states nothing). */

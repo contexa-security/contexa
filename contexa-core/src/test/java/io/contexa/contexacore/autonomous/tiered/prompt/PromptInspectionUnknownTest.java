@@ -2,6 +2,7 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
+import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCheckResult;
 import io.contexa.contexacore.verification.inspection.PromptInspectionFinding;
@@ -32,7 +33,7 @@ class PromptInspectionUnknownTest {
             new PromptInspector(List.of(new UnknownDeclaredCheck()), InspectionGolden.JSON);
 
     @Test
-    void everyV20RenderOfTheGoldenCasesNamesItsUnknownFactsAsTheDictionaryRules() {
+    void everyGoldenRenderNamesItsUnknownFactsAsTheDictionaryRules() {
         int matched = 0;
         for (InspectionGolden.Render render : InspectionGolden.renders()) {
             PromptInspectionCheckResult check = check(render.userPrompt(), render);
@@ -128,8 +129,9 @@ class PromptInspectionUnknownTest {
     void aFactNamedUnknownButDrawnWithAValueIsPointedAtOnTheDrawnLine() {
         InspectionGolden.Render render = withSealedUnknown(false);
         String name = sealedUnknown(render, false);
-        // The header names the time zone when a fact of the block is on the event clock (W3-13).
-        String header = lineStarting(render.userPrompt(), "=== DECISION FACTS");
+        // The header names the time zone when a fact of the block is on the event clock (W3-13); v1.0 titles the
+        // block RECORDS AND COMPARISONS.
+        String header = lineStarting(render.userPrompt(), "=== " + PromptBlock.DECISION_FACTS.v21Title());
         String broken = render.userPrompt().replace(header + "\n", header + "\n" + name + ": made up\n");
         assertThat(broken).isNotEqualTo(render.userPrompt());
 
@@ -437,13 +439,13 @@ class PromptInspectionUnknownTest {
         return name;
     }
 
-    /** A sealed unknown decision fact the dictionary draws, of the wanted kind. */
+    /** A sealed unknown decision fact the v1.0 dictionary draws, of the wanted kind. */
     private static String sealedUnknownOrNull(InspectionGolden.Render render, boolean unavailable) {
         DecisionFacts facts = render.used().getDecisionFacts();
         Map<String, String> reasons = facts.unavailable();
         return facts.unknown().stream()
                 .filter(name -> unavailable == reasons.containsKey(name))
-                .filter(name -> SecurityDecisionPromptDictionary.ENTRIES.stream()
+                .filter(name -> SecurityDecisionPromptDictionary.V1_ENTRIES.stream()
                         .anyMatch(entry -> entry.block().name().equals("DECISION_FACTS") && entry.matchesLabel(name)))
                 .filter(name -> render.userPrompt().contains("Unknown: "))
                 .findFirst().orElse(null);

@@ -30,7 +30,7 @@ class PromptGovernanceDescriptorResolutionTest {
      */
     @Test
     void theStaticDescriptorIsTheNormalPathAndFallbackIsForAFailedLookup() {
-        PromptGovernanceDescriptor descriptor = SecurityDecisionPromptBundles.V20.descriptor();
+        PromptGovernanceDescriptor descriptor = SecurityDecisionPromptBundles.V1.descriptor();
         PromptGovernanceResolutionContext context =
                 new PromptGovernanceResolutionContext(null, null, null, null, null, null, null, Map.of());
 

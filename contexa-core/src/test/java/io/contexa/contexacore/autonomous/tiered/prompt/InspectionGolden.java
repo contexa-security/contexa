@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
 /**
- * The v20 renders of the golden cases as the sealed packages the prompt inspector reads: the user prompt the model got
+ * The renders of the golden cases by the product version as the sealed packages the prompt inspector reads: the user prompt the model got
  * and the canonical context the render used (decision facts with their drawn ids), as the assembler seals them.
  */
 final class InspectionGolden {
@@ -44,7 +44,7 @@ final class InspectionGolden {
     private InspectionGolden() {
     }
 
-    /** One v20 render of a golden case and profile. */
+    /** One render of a golden case and profile by the product version (plan 6-2: the v20 and v21 renders went). */
     record Render(String caseKey, PromptBudgetProfile profile, String systemPrompt, String userPrompt,
                   CanonicalSecurityContext used, Map<String, Object> executionMetadata, String ragResultsJson,
                   String requestFactsJson) {
@@ -99,7 +99,6 @@ final class InspectionGolden {
         if (renders == null) {
             SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
             TieredStrategyProperties properties = new TieredStrategyProperties();
-            properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
             List<Render> all = new ArrayList<>();
             for (JsonNode goldenCase : golden.cases()) {
                 for (PromptBudgetProfile profile : SecurityDecisionGoldenRender.PROFILES) {
@@ -115,12 +114,11 @@ final class InspectionGolden {
         return renders;
     }
 
-    /** V-6: the v21 renders of the golden cases with the L1 profile, as the packages a v21 decision seals. */
+    /** V-6: the renders of the golden cases with the L1 profile, as the packages a decision seals. */
     static synchronized List<Render> v21Renders() {
         if (v21Renders == null) {
             SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
             TieredStrategyProperties properties = new TieredStrategyProperties();
-            properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
             List<Render> all = new ArrayList<>();
             for (JsonNode goldenCase : golden.cases()) {
                 SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(goldenCase,
@@ -168,7 +166,7 @@ final class InspectionGolden {
                 .orElseThrow(() -> new IllegalStateException("no golden render has the wanted lines"));
     }
 
-    /** The v20 render of the base render's golden case and profile after a change to the case's canonical context. */
+    /** The render of the base render's golden case and profile after a change to the case's canonical context. */
     static Render renderWith(Render base, Consumer<CanonicalSecurityContext> change) {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         JsonNode goldenCase = golden.cases().stream()
@@ -183,7 +181,6 @@ final class InspectionGolden {
             throw new UncheckedIOException(exception);
         }
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(changed, base.profile(), properties);
         return new Render(rendered.caseKey(), base.profile(), rendered.systemText(), rendered.userText(),
                 rendered.canonicalContext(), rendered.executionMetadata().toMetadataMap(),
@@ -191,7 +188,7 @@ final class InspectionGolden {
     }
 
     /**
-     * The v20 render of the base render's golden case and profile when its past-record search timed out, as the P2 gate
+     * The render of the base render's golden case and profile when its past-record search timed out, as the P2 gate
      * measurement sealed one (the search inputs of the template test's timed-out case). N-INS-2: the render's caller
      * names the past records unknown now.
      */
@@ -213,7 +210,6 @@ final class InspectionGolden {
         rag.remove("ragEarlierRetrievalState");
         rag.putArray("relatedDocuments");
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(changed, base.profile(), properties);
         return new Render(rendered.caseKey(), base.profile(), rendered.systemText(), rendered.userText(),
                 rendered.canonicalContext(), rendered.executionMetadata().toMetadataMap(),
@@ -275,9 +271,9 @@ final class InspectionGolden {
                     .userPromptText(userPrompt)
                     .canonicalContextJson(canonicalContextJson)
                     .promptExecutionMetadataJson(JSON.writeValueAsString(Map.of("governanceDescriptor",
-                            Map.of("userPromptLayoutVersion", PromptInspector.V20_LAYOUT,
+                            Map.of("userPromptLayoutVersion", PromptInspector.V1_LAYOUT,
                                     "promptKey", "cortex.security-decision",
-                                    "promptBundleVersion", SecurityDecisionPromptBundles.V20.descriptor().promptVersion()))))
+                                    "promptBundleVersion", SecurityDecisionPromptBundles.V1.descriptor().promptVersion()))))
                     .build();
         }
         catch (Exception exception) {

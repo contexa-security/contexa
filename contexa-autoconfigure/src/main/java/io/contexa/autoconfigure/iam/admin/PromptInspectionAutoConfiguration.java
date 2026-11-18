@@ -13,6 +13,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardP
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceRegistryService;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
@@ -107,6 +108,7 @@ public class PromptInspectionAutoConfiguration {
             ObjectProvider<BaselineDataStore> baselineDataStore,
             ObjectProvider<CentralAuditFacade> auditFacade,
             ObjectProvider<SealedEvidencePackageIntegrity> integrity,
+            ObjectProvider<PromptVersionCatalog> promptVersionCatalog,
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         ObjectMapper tolerant = objectMapper.copy().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         Supplier<SealedDecisionReplayService> service = () -> {
@@ -124,8 +126,10 @@ public class PromptInspectionAutoConfiguration {
                     zeroTrust.getMinimumAction().getMode().name(),
                     serializers.getIfAvailable(() -> new CanonicalSecurityContextSerializer(tolerant)), tolerant);
         };
+        // Plan 3.9: a replay names a version of the database (v2.0), drawn with its parts.
         return new SealedDecisionReplays(sealedEvidencePackageRepository, service, baselineDataStore.getIfAvailable(),
-                auditFacade.getIfAvailable(), objectMapper, integrity.getIfAvailable(SealedEvidencePackageIntegrity::new));
+                auditFacade.getIfAvailable(), objectMapper, integrity.getIfAvailable(SealedEvidencePackageIntegrity::new),
+                () -> promptVersionCatalog.getIfAvailable(PromptVersionCatalog::none));
     }
 
     @Bean(name = "contexaSealedDecisionReplayApiController")

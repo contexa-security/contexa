@@ -1,0 +1,17 @@
+**Required:** Generate hasPermission conditions for **all** of the following **exactly 1** method signatures **without any exceptions**!
+
+**Important:** 1 inputs -> 1 outputs are required. Missing items will cause a system error!
+
+1. deleteRole(Long roleId)
+
+Generation rules:
+- ID parameter: hasPermission(#parameterName, 'RESOURCE_TYPE', 'ACTION')
+- Object parameter: hasPermission(#parameterName, 'RESOURCE_TYPE_ACTION')
+- No parameters: Set spelTemplate to an empty string
+- Positional indices like #p0, #p1 are strictly prohibited. You must use actual parameter names (#id, #group, etc.)
+
+Important notes:
+- Write names and descriptions in English
+- Never use the word "permission" in names
+
+**Confirm once more:** Provide name, description, spelTemplate, category, classification for **all 1 items** listed above!

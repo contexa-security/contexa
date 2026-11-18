@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
-import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
+import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
+import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCheckResult;
 import io.contexa.contexacore.verification.inspection.PromptInspectionFinding;
 import io.contexa.contexacore.verification.inspection.PromptInspectionOutcome;
@@ -9,7 +10,9 @@ import io.contexa.contexacore.verification.inspection.SameFactCheck;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -26,37 +29,37 @@ class PromptInspectionSameFactTest {
     private static final PromptInspector INSPECTOR =
             new PromptInspector(List.of(new SameFactCheck()), InspectionGolden.JSON);
 
-    /** The golden cases have no learned baseline, so their differences are unknown: nothing is pointed at. */
+    /**
+     * The golden cases of a user with a learned baseline (a differences line) have facts to compare; every render states
+     * each fact with one value.
+     */
     @Test
     void everyGoldenRenderStatesEachFactWithOneValue() {
-        for (InspectionGolden.Render render : InspectionGolden.renders()) {
-            assertThat(mismatches(check(render.userPrompt(), render))).as(render.caseKey() + " " + render.profile())
-                    .isEmpty();
-        }
-    }
-
-    /** The real packages: those of a user with a learned baseline (a differences line) have facts to compare. */
-    @Test
-    void theShowcaseEnginesPackagesStateEachFactWithOneValue() {
         int learned = 0;
-        for (SealedEvidencePackage sealed : InspectionGolden.showcaseSealed()) {
-            PromptInspectionCheckResult check = INSPECTOR.inspect(sealed).checks().get(0);
-            assertThat(mismatches(check)).as(sealed.getPackageId()).isEmpty();
-            if (!valueOf(sealed.getUserPromptText(), "DeviationsFromBaseline: ").isEmpty()) {
+        for (InspectionGolden.Render render : InspectionGolden.renders()) {
+            PromptInspectionCheckResult check = check(render.userPrompt(), render);
+            assertThat(mismatches(check)).as(render.caseKey() + " " + render.profile()).isEmpty();
+            if (!valueOf(render.userPrompt(), "DeviationsFromBaseline: ").isEmpty()) {
                 learned++;
-                assertThat(check.matched()).as(sealed.getPackageId()).isPositive();
+                assertThat(check.matched()).as(render.caseKey() + " " + render.profile()).isPositive();
             }
         }
         assertThat(learned).isPositive();
     }
 
+    /** Plan 6-2 (decision D7): the showcase engine's v20 packages are of a bundle this build no longer ships. */
+    @Test
+    void theShowcaseEnginesV20PackagesAreNotReadAgain() {
+        assertThat(EarlierBundleInspection.assertNotReadAgain(INSPECTOR, InspectionGolden.showcaseSealed())).isPositive();
+    }
+
     @Test
     void aRequestLineOtherThanTheValueTheDifferencesLineStatesIsPointedAt() {
-        SealedEvidencePackage sealed = learned(text -> valueOf(text, "DeviationsFromBaseline: ").contains("class "));
-        String line = InspectionGolden.lineStarting(sealed.getUserPromptText(), "ResourceClass: ");
+        InspectionGolden.Render render = learned(text -> valueOf(text, "DeviationsFromBaseline: ").contains("class "));
+        String line = InspectionGolden.lineStarting(render.userPrompt(), "ResourceClass: ");
         String drawn = valueOf(line).split(" ")[0];
 
-        PromptInspectionFinding finding = single(check(sealed, line,
+        PromptInspectionFinding finding = single(check(render, line,
                 line.replace("ResourceClass: " + drawn, "ResourceClass: PUBLIC")));
         assertThat(finding.entry()).isEqualTo("ResourceClass");
         assertThat(finding.expected()).isEqualTo(drawn);
@@ -66,60 +69,66 @@ class PromptInspectionSameFactTest {
 
     @Test
     void aUsualListThatHoldsAValueTheDifferencesLineCallsNewIsPointedAt() {
-        SealedEvidencePackage sealed = learned(text -> valueOf(text, "DeviationsFromBaseline: ").contains("time ")
+        InspectionGolden.Render render = learned(text -> valueOf(text, "DeviationsFromBaseline: ").contains("time ")
                 && valueOf(text, "UsualHours: ").contains("(seen "));
-        String time = valueOf(InspectionGolden.lineStarting(sealed.getUserPromptText(), "Time: "));
+        String time = valueOf(InspectionGolden.lineStarting(render.userPrompt(), "Time: "));
         String hour = String.valueOf(Integer.parseInt(time.substring(4, 6)));
-        String line = InspectionGolden.lineStarting(sealed.getUserPromptText(), "UsualHours: ");
+        String line = InspectionGolden.lineStarting(render.userPrompt(), "UsualHours: ");
 
-        PromptInspectionFinding finding = single(check(sealed, line, line.replace("(seen ", "(seen " + hour + ",")));
+        PromptInspectionFinding finding = single(check(render, line, line.replace("(seen ", "(seen " + hour + ",")));
         assertThat(finding.entry()).isEqualTo("UsualHours");
         assertThat(finding.sourceRef()).isEqualTo("DECISION FACTS.DeviationsFromBaseline");
     }
 
     @Test
     void aUsualListWithoutAValueTheSameLineCallsUsualIsPointedAt() {
-        SealedEvidencePackage sealed = learned(text -> valueOf(text, "SameAsBaseline: ").contains("network")
+        InspectionGolden.Render render = learned(text -> valueOf(text, "SameAsBaseline: ").contains("network")
                 && valueOf(text, "UsualNetworks: ").contains("/"));
-        String line = InspectionGolden.lineStarting(sealed.getUserPromptText(), "UsualNetworks: ");
+        String line = InspectionGolden.lineStarting(render.userPrompt(), "UsualNetworks: ");
 
-        PromptInspectionFinding finding = single(check(sealed, line,
+        PromptInspectionFinding finding = single(check(render, line,
                 InspectionGolden.factIdOf(line) + "UsualNetworks: 192.0.2.0/24"));
         assertThat(finding.entry()).isEqualTo("UsualNetworks");
         assertThat(finding.sourceRef()).isEqualTo("DECISION FACTS.SameAsBaseline");
     }
 
-    /** A real package of a user with a learned baseline whose prompt has the wanted lines. */
-    private static SealedEvidencePackage learned(Predicate<String> wanted) {
-        return InspectionGolden.showcaseSealed().stream().filter(sealed -> wanted.test(sealed.getUserPromptText()))
-                .findFirst().orElseThrow();
+    /** A golden render of a user with a learned baseline whose prompt has the wanted lines. */
+    private static InspectionGolden.Render learned(Predicate<String> wanted) {
+        return InspectionGolden.render(wanted);
     }
 
-    /** The package's check result with one drawn line changed. */
-    private static PromptInspectionCheckResult check(SealedEvidencePackage sealed, String line, String changed) {
+    /** The render's check result with one drawn line changed. */
+    private static PromptInspectionCheckResult check(InspectionGolden.Render render, String line, String changed) {
         assertThat(changed).isNotEqualTo(line);
-        sealed.setUserPromptText(sealed.getUserPromptText().replace(line, changed));
-        sealed.setRawUserPrompt(sealed.getUserPromptText());
-        return INSPECTOR.inspect(sealed).checks().get(0);
+        return check(render.userPrompt().replace(line, changed), render);
     }
 
+    /**
+     * The golden renders count no past record facts (the UNKNOWN line names them not counted), so the counts are sealed
+     * here with the candidates the state line names, and the counts line is drawn.
+     */
     @Test
     void thePastRecordStateNamesTheCandidatesTheCountsLineCounts() {
-        SealedEvidencePackage sealed = InspectionGolden.showcaseSealed().stream()
-                .filter(candidate -> valueOf(candidate.getUserPromptText(), "PastRecordCounts: ").length() > 0
-                        && CANDIDATES.matcher(valueOf(candidate.getUserPromptText(), "PastRecordsState: ")).find())
-                .findFirst().orElseThrow();
-        String text = sealed.getUserPromptText();
-        String line = InspectionGolden.lineStarting(text, "PastRecordsState: ");
-        Matcher candidates = CANDIDATES.matcher(line);
+        InspectionGolden.Render render = InspectionGolden.render(text ->
+                CANDIDATES.matcher(valueOf(text, "PastRecordsState: ")).find());
+        String state = InspectionGolden.lineStarting(render.userPrompt(), "PastRecordsState: ");
+        Matcher candidates = CANDIDATES.matcher(state);
         assertThat(candidates.find()).isTrue();
-        String changed = line.replace(candidates.group(), "of " + (Integer.parseInt(candidates.group(1)) + 7) + " candidates");
-        sealed.setUserPromptText(text.replace(line, changed));
-        sealed.setRawUserPrompt(sealed.getUserPromptText());
+        long total = Long.parseLong(candidates.group(1));
+        PastRecordCounts counts = new PastRecordCounts("READ", "GET /api/documents/{documentKey}", 1, null, total - 1,
+                null, 0, total);
+        Map<String, Object> metadata = new LinkedHashMap<>(render.executionMetadata());
+        metadata.put(PromptExecutionMetadata.PROMPT_PAST_RECORD_COUNTS, counts.toMetadata());
+        String counted = render.userPrompt().replace(state + "\n", state + "\nPastRecordCounts: " + counts.line(null)
+                + "\n");
+        InspectionGolden.Render withCounts = new InspectionGolden.Render(render.caseKey(), render.profile(),
+                render.systemPrompt(), counted, render.used(), metadata, render.ragResultsJson(), render.requestFactsJson());
+        assertThat(mismatches(check(counted, withCounts))).isEmpty();
 
-        PromptInspectionFinding finding = single(INSPECTOR.inspect(sealed).checks().get(0));
+        String changed = state.replace(candidates.group(), "of " + (total + 7) + " candidates");
+        PromptInspectionFinding finding = single(check(counted.replace(state, changed), withCounts));
         assertThat(finding.entry()).isEqualTo("PastRecordsState");
-        assertThat(finding.expected()).isEqualTo(candidates.group(1) + " candidates");
+        assertThat(finding.expected()).isEqualTo(total + " candidates");
         assertThat(finding.sourceRef()).isEqualTo("PAST RECORDS.PastRecordCounts");
     }
 

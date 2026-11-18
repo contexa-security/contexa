@@ -24,10 +24,14 @@ import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,12 +40,12 @@ import java.util.function.Consumer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Plan 6-1 (Q1): the prompts of the v1.0 bundles are the ones the code drew before their sentences moved to the product
- * prompt document. Every golden case is rendered by v1.0, its four measured variants and v21 (whose sentences the
- * document holds as well) for the first pass of both profiles and for the second pass, and an agent's request, a
- * timed-out past record search and a provider with structured output are rendered as well; the sha-256 of each system
- * and user prompt must be the one recorded from the code before the move
- * ({@code v1-texts-before-prompt-document.txt}).
+ * Plan 6-1 (Q1) and 6-2: the prompts of the product version v1.0 are the ones the code drew before their sentences moved
+ * to the product prompt document, and before the earlier bundles went. Every golden case is rendered for the first pass
+ * of both profiles and for the second pass, and an agent's request, a timed-out past record search and a provider with
+ * structured output are rendered as well; the sha-256 of each system and user prompt must be the one recorded from the
+ * code before the move ({@code v1-texts-before-prompt-document.txt}; the lines of the measured variants and of v21 went
+ * with them, their equivalence is PreparedPartsEquivalenceTest's).
  *
  * <p>Record the digests again only when a prompt changes on purpose: run this test with the environment variable
  * {@code CONTEXA_PIN_CAPTURE_V1_DOCUMENT} set to the path of the resource file; it then writes the file instead of
@@ -51,19 +55,13 @@ class PromptDocumentRenderIdentityTest {
 
     static final String PINNED = "prompt-bundles/golden/cortex.security-decision/v1-texts-before-prompt-document.txt";
 
-    private static final List<SecurityDecisionPromptBundles.Bundle> BUNDLES = List.of(
-            SecurityDecisionPromptBundles.V1,
-            SecurityDecisionPromptBundles.V1_RECORD_SIMILAR,
-            SecurityDecisionPromptBundles.V1_RECORD_EXACT,
-            SecurityDecisionPromptBundles.V1_FALLBACK_SIMILAR,
-            SecurityDecisionPromptBundles.V1_FALLBACK_EXACT,
-            SecurityDecisionPromptBundles.V21);
+    private static final List<SecurityDecisionPromptBundles.Bundle> BUNDLES = List.of(SecurityDecisionPromptBundles.V1);
 
     @Test
     void everyV1PromptIsTheOneTheCodeDrewBeforeTheProductDocument() throws IOException {
         Map<String, String> texts = renderedTexts();
         Map<String, String> now = new LinkedHashMap<>();
-        texts.forEach((key, text) -> now.put(key, V21UserPromptByteIdentityTest.sha256(text)));
+        texts.forEach((key, text) -> now.put(key, sha256(text)));
         String dump = System.getenv("CONTEXA_PIN_DUMP_V1_DOCUMENT");
         if (dump != null && !dump.isBlank()) {
             Path directory = Files.createDirectories(Path.of(dump));
@@ -79,7 +77,7 @@ class PromptDocumentRenderIdentityTest {
             Files.writeString(Path.of(capture), file.toString(), StandardCharsets.UTF_8);
             return;
         }
-        Map<String, String> pinned = V21UserPromptByteIdentityTest.pinned(PINNED);
+        Map<String, String> pinned = pinned(PINNED);
         assertThat(pinned).as("the recorded digests").isNotEmpty();
         assertThat(now.keySet()).as("the rendered prompts").containsExactlyElementsOf(pinned.keySet());
         Map<String, String> changed = new LinkedHashMap<>();
@@ -167,5 +165,31 @@ class PromptDocumentRenderIdentityTest {
         rag.remove("ragEarlierRetrievalState");
         rag.putArray("relatedDocuments");
         return changed;
+    }
+
+    static Map<String, String> pinned(String resource) throws IOException {
+        Map<String, String> digests = new LinkedHashMap<>();
+        try (InputStream input = PromptDocumentRenderIdentityTest.class.getClassLoader().getResourceAsStream(resource)) {
+            if (input == null) {
+                return digests;
+            }
+            for (String line : new String(input.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
+                int equals = line.indexOf('=');
+                if (equals > 0) {
+                    digests.put(line.substring(0, equals), line.substring(equals + 1).trim());
+                }
+            }
+        }
+        return digests;
+    }
+
+    static String sha256(String text) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(text.getBytes(StandardCharsets.UTF_8)));
+        }
+        catch (NoSuchAlgorithmException exception) {
+            throw new UncheckedIOException(new IOException(exception));
+        }
     }
 }

@@ -23,9 +23,7 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
-import io.contexa.contexaiam.admin.web.monitoring.service.DashboardService;
-import io.contexa.contexaiam.admin.web.monitoring.service.PermissionMatrixService;
-import io.contexa.contexaiam.admin.web.monitoring.service.SecurityScoreCalculator;
+import io.contexa.contexaiam.admin.web.dashboard.DashboardService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.InitializingBean;
@@ -53,8 +51,6 @@ class IamAdminMonitoringAutoConfigurationTest {
             .withBean(AuditLogRepository.class, () -> mock(AuditLogRepository.class))
             .withBean(RoleRepository.class, () -> mock(RoleRepository.class))
             .withBean(DashboardService.class, () -> mock(DashboardService.class))
-            .withBean(SecurityScoreCalculator.class, () -> mock(SecurityScoreCalculator.class))
-            .withBean(PermissionMatrixService.class, () -> mock(PermissionMatrixService.class))
             .withBean(MessageSource.class, () -> mock(MessageSource.class));
 
     @Test

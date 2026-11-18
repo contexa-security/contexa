@@ -30,7 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Manages the singleton {@link SystemSettings} row.
@@ -74,11 +76,13 @@ public class SystemSettingsService {
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<RoleOption> getDefaultRoleOptions() {
-        return roleRepository.findAllRolesWithoutExpression().stream()
+        Map<String, String> roles = new LinkedHashMap<>();
+        roleRepository.findAllRolesWithoutExpression().stream()
                 .filter(Role::isEnabled)
                 .sorted(Comparator.comparing(Role::getRoleName, String.CASE_INSENSITIVE_ORDER))
-                .map(role -> RoleOption.of(role.getRoleName(), role.getRoleDesc()))
-                .toList();
+                .forEach(role -> roles.put(role.getRoleName(), role.getRoleDesc()));
+        // K28: the operator reads the roles by their descriptions; a role's name shows only beside a shared one.
+        return RoleOption.of(roles);
     }
 
     /**

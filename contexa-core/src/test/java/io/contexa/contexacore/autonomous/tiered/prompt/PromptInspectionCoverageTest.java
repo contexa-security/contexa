@@ -28,6 +28,7 @@ class PromptInspectionCoverageTest {
     private static final PromptInspector INSPECTOR =
             new PromptInspector(List.of(new FactAccuracyCheck()), InspectionGolden.JSON);
 
+    /** The entries of the base (v20) dictionary, which the v21 and v1.0 dictionaries are built on. */
     @Test
     void everyDictionaryEntryIsComparedInspectedElsewhereOrNamedNotComparable() {
         Set<String> entries = SecurityDecisionPromptDictionary.ENTRIES.stream()
@@ -83,11 +84,9 @@ class PromptInspectionCoverageTest {
 
     @Test
     void aDrawnLineOfAnEntryWithoutASealedSourceIsCountedNotComparableWithItsReason() {
-        SealedEvidencePackage sealed = InspectionGolden.showcaseSealed().stream()
-                .filter(candidate -> candidate.getUserPromptText().contains("\nPeerReference: "))
-                .findFirst().orElseThrow();
+        InspectionGolden.Render render = InspectionGolden.render(text -> InspectionGolden.hasLine(text, "PeerReference: "));
 
-        PromptInspectionFinding finding = check(sealed).findings().stream()
+        PromptInspectionFinding finding = check(render.sealed()).findings().stream()
                 .filter(candidate -> "PeerReference".equals(candidate.entry())).findFirst().orElseThrow();
         assertThat(finding.outcome()).isEqualTo(PromptInspectionOutcome.UNVERIFIABLE);
         FactAccuracyCheck.NotComparable why = FactAccuracyCheck.NOT_COMPARABLE.get("USER_BASELINE.PeerReference");
@@ -97,17 +96,15 @@ class PromptInspectionCoverageTest {
 
     @Test
     void theRequestPathTextIsComparedWithTheSealedRequestPath() {
-        SealedEvidencePackage sealed = InspectionGolden.showcaseSealed().stream()
-                .filter(candidate -> candidate.getUserPromptText().contains("source=request path (requester); \""))
-                .findFirst().orElseThrow();
-        String line = Arrays.stream(sealed.getUserPromptText().split("\n"))
+        InspectionGolden.Render render = InspectionGolden.render(text ->
+                text.contains("source=request path (requester); \""));
+        String line = Arrays.stream(render.userPrompt().split("\n"))
                 .filter(candidate -> candidate.contains("source=request path (requester); \"")).findFirst().orElseThrow();
-        assertThat(mismatches(check(sealed), line.substring(0, line.indexOf(": ")))).isEmpty();
-
         String label = line.substring(0, line.indexOf(": "));
-        sealed.setUserPromptText(sealed.getUserPromptText().replace(line,
-                label + ": source=request path (requester); \"/api/admin/everything\""));
-        List<PromptInspectionFinding> found = mismatches(check(sealed), label);
+        assertThat(mismatches(check(render.sealed()), label)).isEmpty();
+
+        List<PromptInspectionFinding> found = mismatches(check(render.sealed(render.userPrompt().replace(line,
+                label + ": source=request path (requester); \"/api/admin/everything\""))), label);
         assertThat(found).hasSize(1);
         assertThat(found.get(0).sourceRef()).isEqualTo("canonicalContext.resource.requestPath");
     }

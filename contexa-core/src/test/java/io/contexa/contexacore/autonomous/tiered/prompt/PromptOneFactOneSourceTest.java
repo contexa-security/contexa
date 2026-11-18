@@ -172,7 +172,6 @@ class PromptOneFactOneSourceTest {
     private static String render(SecurityEvent event, SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis,
                                  CanonicalSecurityContext context, List<Document> records) {
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(new SecurityEventEnricher(),
                 properties, ignored -> Optional.of(context), new PromptContextComposer());
         SecurityDecisionStandardPromptTemplate.SessionContext session = new SecurityDecisionStandardPromptTemplate.SessionContext();

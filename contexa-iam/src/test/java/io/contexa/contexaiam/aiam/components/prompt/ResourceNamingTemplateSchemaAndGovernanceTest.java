@@ -108,9 +108,10 @@ class ResourceNamingTemplateSchemaAndGovernanceTest {
         assertThat(descriptor.owner())
                 .as("owner must be explicitly assigned for audit purposes")
                 .containsIgnoringCase("IAM");
+        // Plan 6-7: the version is the prompt version the call drew; without a database, the product document's release.
         assertThat(descriptor.promptVersion())
-                .as("version must follow semantic versioning")
-                .matches("\\d+\\.\\d+\\.\\d+");
+                .as("version names the prompt version the call drew")
+                .isEqualTo(template.product().release());
     }
 
     @Test

@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.web.monitoring.controller;
 
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationAuditReason;
 import io.contexa.contexaiam.admin.web.monitoring.dto.DecisionRecordIntegrity;
+import io.contexa.contexaiam.admin.web.monitoring.service.DecisionRecordSealCheck;
 import java.util.Locale;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
@@ -42,15 +43,17 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import org.springframework.lang.Nullable;
-import io.contexa.contexacore.autonomous.audit.DecisionRecordSeal;
 import io.contexa.contexacore.verification.evidence.EvidenceSigner;
 
 /**
@@ -65,12 +68,19 @@ public class SecurityMonitorController {
 
     /** docs/agent A5-5: the subject chips the list filters by (A1-3 subject kinds). */
     static final List<String> SUBJECT_KINDS = List.of("HUMAN_USER", "DELEGATED_AGENT", "AUTONOMOUS_AGENT");
+    /**
+     * K105: the filter of the overrides the "admin override" card counts (countAdminOverridesBetween): a refused one
+     * none, the screen's period [since, now). The category chip lists every override, a refused one too.
+     */
+    static final String ADMIN_OVERRIDE_APPLIED = "ADMIN_OVERRIDE_APPLIED";
 
     private final AuditLogRepository auditLogRepository;
     private final CsvExportService csvExportService;
     private final DelegationRegistry delegationRegistry;
     /** docs/agent A5-6: the signer the decision records are verified with; none reads them as not verifiable. */
     private EvidenceSigner evidenceSigner;
+    /** docs/agent A5-6: the seal check, with the signer set on this controller. */
+    private final DecisionRecordSealCheck sealCheck;
     private MessageSource messageSource;
 
     public SecurityMonitorController(AuditLogRepository auditLogRepository, CsvExportService csvExportService) {
@@ -86,6 +96,7 @@ public class SecurityMonitorController {
         this.auditLogRepository = auditLogRepository;
         this.csvExportService = csvExportService;
         this.delegationRegistry = delegationRegistry;
+        this.sealCheck = new DecisionRecordSealCheck(auditLogRepository, () -> this.evidenceSigner);
     }
 
     /** IAM-D05: the notices of the screen in the administrator's language; without it they are in English. */
@@ -100,7 +111,13 @@ public class SecurityMonitorController {
 
     /** The list without a subject chip, as before A5-5. */
     public String monitor(String category, String filter, String keyword, int hours, int page, Model model) {
-        return monitor(category, filter, keyword, null, hours, page, model);
+        return monitor(category, filter, keyword, null, hours, null, page, model);
+    }
+
+    /** The list of the last hours, without a start a link names. */
+    public String monitor(String category, String filter, String keyword, String subject, int hours, int page,
+                          Model model) {
+        return monitor(category, filter, keyword, subject, hours, null, page, model);
     }
 
     @GetMapping
@@ -110,12 +127,17 @@ public class SecurityMonitorController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String subject,
             @RequestParam(required = false, defaultValue = "24") int hours,
+            @RequestParam(required = false) String from,
             @RequestParam(required = false, defaultValue = "0") int page,
             Model model) {
 
         model.addAttribute("activePage", "security-monitor");
 
-        LocalDateTime since = LocalDateTime.now().minusHours(hours);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start = start(from, now);
+        LocalDateTime since = start != null ? start : now.minusHours(hours);
+        // K103: the start a link named stays with the screen's own links (its pages, its categories, its CSV)
+        model.addAttribute("from", start != null ? from.trim() : null);
         // docs/agent A5-5: a subject chip lists the decisions of that subject kind.
         String subjectKind = subject != null && SUBJECT_KINDS.contains(subject) ? subject : null;
         model.addAttribute("subject", subjectKind);
@@ -123,17 +145,17 @@ public class SecurityMonitorController {
         Page<AuditLog> logPage = subjectKind != null
                 ? auditLogRepository.findByTimestampAfterAndSubjectKind(since, subjectKind,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "timestamp")))
-                : loadLogPage(category, filter, keyword, page, since, model);
+                : loadLogPage(category, filter, keyword, page, since, now, model);
         model.addAttribute("integrity", integrityOf(logPage.getContent()));
 
-        prepareMonitorModel(model, logPage, hours, category, filter, keyword, since);
+        prepareMonitorModel(model, logPage, hours, category, filter, keyword, since, now);
 
         return "contexa/admin/security-monitor";
     }
 
     private Page<AuditLog> loadLogPage(
             String category, String filter, String keyword, int page,
-            LocalDateTime since, Model model) {
+            LocalDateTime since, LocalDateTime until, Model model) {
         int pageSize = 20;
         Pageable pageable = PageRequest.of(page, pageSize, Sort.by(Sort.Direction.DESC, "timestamp"));
         boolean hasKeyword = keyword != null && !keyword.isBlank();
@@ -150,6 +172,7 @@ public class SecurityMonitorController {
                 case "ZT_BLOCK" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "BLOCK", since, pageable);
                 case "ZT_CHALLENGE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "CHALLENGE", since, pageable);
                 case "ZT_ESCALATE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ESCALATE", since, pageable);
+                case ADMIN_OVERRIDE_APPLIED -> auditLogRepository.findAdminOverridesBetween(since, until, pageable);
                 default -> auditLogRepository.findByTimestampAfterAndCategory(since, filter, pageable);
             };
             if ("DISTINCT_IP".equals(filter)) {
@@ -176,9 +199,27 @@ public class SecurityMonitorController {
         return auditLogRepository.findByTimestampAfter(since, pageable);
     }
 
+    /**
+     * K103: the start a link names, an instant (the dashboard's seal count starts at the hour its period starts in);
+     * none when it is missing, unreadable or after now, and the screen reads its last hours.
+     */
+    @Nullable
+    static LocalDateTime start(@Nullable String from, LocalDateTime now) {
+        if (from == null || from.isBlank()) {
+            return null;
+        }
+        try {
+            LocalDateTime start = LocalDateTime.ofInstant(Instant.parse(from.trim()), ZoneId.systemDefault());
+            return start.isAfter(now) ? null : start;
+        } catch (DateTimeParseException unreadable) {
+            log.debug("[SecurityMonitor] The start {} is no instant; the last hours are read", from);
+            return null;
+        }
+    }
+
     private void prepareMonitorModel(
             Model model, Page<AuditLog> logPage, int hours,
-            String category, String filter, String keyword, LocalDateTime since) {
+            String category, String filter, String keyword, LocalDateTime since, LocalDateTime until) {
         model.addAttribute("logPage", logPage);
         model.addAttribute("hours", hours);
         model.addAttribute("category", category);
@@ -194,7 +235,8 @@ public class SecurityMonitorController {
                 "USER_BLOCKED", since));
         model.addAttribute("mfaVerified", auditLogRepository.countByEventCategoryAndTimestampAfter(
                 "MFA_VERIFICATION_SUCCESS", since));
-        model.addAttribute("adminOverride", auditLogRepository.countAdminOverridesSince(since));
+        // K102: the overrides of the screen's period as the dashboard counts them, a refused one none
+        model.addAttribute("adminOverride", auditLogRepository.countAdminOverridesBetween(since, until));
     }
 
     @GetMapping("/{id:\\d+}")
@@ -230,21 +272,9 @@ public class SecurityMonitorController {
     private DecisionRecordIntegrity integrityOf(List<AuditLog> records) {
         DecisionRecordIntegrity integrity = new DecisionRecordIntegrity();
         for (AuditLog record : records) {
-            if (record.getId() == null || !"SECURITY_DECISION".equals(record.getEventCategory())) {
-                continue;
-            }
-            try {
+            if (DecisionRecordSealCheck.sealed(record)) {
                 // The oldest kept record names a previous record the audit retention deleted: not a mismatch.
-                integrity.found(record.getId(), DecisionRecordSeal.evaluate(record, evidenceSigner,
-                        auditLogRepository::existsByRecordHash, kept -> auditLogRepository
-                                .existsByEventCategoryAndRecordHashIsNotNullAndIdLessThan("SECURITY_DECISION",
-                                        kept.getId()),
-                        kept -> evidenceSigner != null && auditLogRepository
-                                .existsByEventCategoryAndSignatureKeyIdAndIdLessThan("SECURITY_DECISION",
-                                        evidenceSigner.activeKeyId(), kept.getId())).name());
-            } catch (RuntimeException e) {
-                log.error("Integrity check failed for audit log {}", record.getId(), e);
-                integrity.found(record.getId(), "UNVERIFIABLE");
+                integrity.found(record.getId(), sealCheck.check(record).name());
             }
         }
         return integrity;
@@ -264,14 +294,22 @@ public class SecurityMonitorController {
         }
     }
 
+    /** The CSV of the last hours, without a start a link names. */
+    public void exportCsv(String category, String filter, int hours, HttpServletResponse response) throws IOException {
+        exportCsv(category, filter, hours, null, response);
+    }
+
     @GetMapping("/export")
     public void exportCsv(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String filter,
             @RequestParam(required = false, defaultValue = "24") int hours,
+            @RequestParam(required = false) String from,
             HttpServletResponse response) throws IOException {
 
-        LocalDateTime since = LocalDateTime.now().minusHours(hours);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start = start(from, now);
+        LocalDateTime since = start != null ? start : now.minusHours(hours);
         DateTimeFormatter ts = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
         List<CsvColumn<AuditLog>> columns = List.of(
@@ -290,10 +328,10 @@ public class SecurityMonitorController {
                 new CsvColumn<>("Correlation ID", l -> l.getCorrelationId() != null ? l.getCorrelationId() : "")
         );
 
-        csvExportService.export(response, "audit-log", columns, () -> loadAllLogs(since, category, filter));
+        csvExportService.export(response, "audit-log", columns, () -> loadAllLogs(since, now, category, filter));
     }
 
-    private Stream<AuditLog> loadAllLogs(LocalDateTime since, String category, String filter) {
+    private Stream<AuditLog> loadAllLogs(LocalDateTime since, LocalDateTime until, String category, String filter) {
         int batchSize = 500;
         List<AuditLog> allLogs = new ArrayList<>();
         Pageable pageable = PageRequest.of(0, batchSize, Sort.by(Sort.Direction.DESC, "timestamp"));
@@ -310,6 +348,7 @@ public class SecurityMonitorController {
                     case "ZT_BLOCK" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "BLOCK", since, pageable);
                     case "ZT_CHALLENGE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "CHALLENGE", since, pageable);
                     case "ZT_ESCALATE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ESCALATE", since, pageable);
+                    case ADMIN_OVERRIDE_APPLIED -> auditLogRepository.findAdminOverridesBetween(since, until, pageable);
                     default -> auditLogRepository.findByTimestampAfterAndCategory(since, filter, pageable);
                 };
             } else if (category != null && !category.isBlank()) {

@@ -27,6 +27,19 @@ public interface PromptVersionAudit {
     String IMPORTED = "PROMPT_VERSION_IMPORTED";
     String FOLDER_REGISTERED = "PROMPT_VERSION_FOLDER_REGISTERED";
     String USED_FOR_DECISIONS = "PROMPT_VERSION_USED_FOR_DECISIONS";
+    String CANARY_STARTED = "PROMPT_VERSION_CANARY_STARTED";
+    String CANARY_STOPPED = "PROMPT_VERSION_CANARY_STOPPED";
+    String SHADOW_STARTED = "PROMPT_VERSION_SHADOW_STARTED";
+    String SHADOW_STOPPED = "PROMPT_VERSION_SHADOW_STOPPED";
+    String EMERGENCY_ROLLBACK = "PROMPT_VERSION_EMERGENCY_ROLLBACK";
+    String ROLLBACK_APPROVED = "PROMPT_VERSION_ROLLBACK_APPROVED";
+    String TRIAL_STARTED = "PROMPT_VERSION_TRIAL_STARTED";
+    String TRIAL_CANCELLED = "PROMPT_VERSION_TRIAL_CANCELLED";
+
+    /** Who the product's versions are registered by at start (plan 3.3): the product, no person. */
+    String PRODUCT_ACTOR = "contexa";
+    /** The start of who a version registered from a node's document folder is made by: the folder an operator filled. */
+    String FOLDER_ACTOR = "folder:";
 
     void record(String action, String scope, String prompt, String version, String actor, String detail);
 

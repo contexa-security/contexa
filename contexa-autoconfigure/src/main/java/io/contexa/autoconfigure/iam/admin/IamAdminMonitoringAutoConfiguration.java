@@ -18,18 +18,31 @@ package io.contexa.autoconfigure.iam.admin;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.*;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
-import io.contexa.contexaiam.admin.support.context.service.UserContextService;
 import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.admin.web.menu.controller.AdminMenuController;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuManagementService;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuQueryCache;
 import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
-import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.admin.web.monitoring.controller.AiMonitorController;
-import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
 import io.contexa.contexaiam.admin.web.monitoring.controller.SecurityMonitorController;
-import io.contexa.contexaiam.admin.web.monitoring.service.*;
+import io.contexa.contexaiam.admin.web.monitoring.service.DecisionRecordSealCheck;
+import io.contexa.contexaiam.admin.web.dashboard.DashboardController;
+import io.contexa.contexaiam.admin.web.dashboard.DashboardHourlyStats;
+import io.contexa.contexaiam.admin.web.dashboard.DashboardQueries;
+import io.contexa.contexaiam.admin.web.dashboard.DashboardService;
+import io.contexa.contexaiam.admin.web.dashboard.DashboardServiceImpl;
+import io.contexa.contexaiam.admin.web.dashboard.DashboardSources;
+import io.contexa.contexaiam.admin.web.agent.service.AgentContainmentAdminService;
+import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
+import io.contexa.contexaiam.admin.web.auth.service.VerificationCoverageService;
+import io.contexa.contexaiam.admin.web.center.service.AccessCenterService;
+import io.contexa.contexaiam.admin.web.center.service.PolicyCenterCommandService;
+import io.contexa.contexacore.autonomous.agent.AgentConfirmationStore;
+import io.contexa.contexacore.autonomous.agent.AgentRegistry;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleController;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleService;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustDecisionRecords;
@@ -37,7 +50,6 @@ import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.env.Environment;
-import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
@@ -66,10 +78,15 @@ public class IamAdminMonitoringAutoConfiguration {
     private static final String IAM_SEED_DATA_INITIALIZER_BEAN = "contexaIamSeedDataInitializer";
     private static final String ADMIN_MENU_SERVICE_BEAN = "contexaAdminMenuService";
 
+    /** Plan step 9 (N1): the admin dashboard's page and the JSON its script draws. */
     @Bean(name = "contexaIamAdminDashboardController")
     @ConditionalOnMissingBean
-    public DashboardController iamAdminDashboardController(DashboardService contexaDashboardService) {
-        return new DashboardController(contexaDashboardService);
+    public DashboardController iamAdminDashboardController(DashboardService contexaDashboardService,
+                                                           MessageSource messageSource,
+                                                           @Qualifier("contexaObjectMapper")
+                                                           ObjectProvider<ObjectMapper> objectMapper) {
+        return new DashboardController(contexaDashboardService, messageSource,
+                objectMapper.getIfAvailable(ObjectMapper::new));
     }
 
     @Bean(name = "contexaSecurityMonitorController")
@@ -118,9 +135,13 @@ public class IamAdminMonitoringAutoConfiguration {
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
             ObjectProvider<ZeroTrustDecisionOutcomes> decisionOutcomes,
             MessageSource messageSource,
-            @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
-        return new ZeroTrustDecisionRecords(jdbcOperationsProvider::getIfAvailable, decisionOutcomes.getIfAvailable(),
-                messageSource, objectMapper.getIfAvailable(), null);
+            @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper,
+            Environment environment) {
+        ZeroTrustDecisionRecords records = new ZeroTrustDecisionRecords(jdbcOperationsProvider::getIfAvailable,
+                decisionOutcomes.getIfAvailable(), messageSource, objectMapper.getIfAvailable(), null);
+        // Console design 6.0: the decision detail warns of the standalone mode as every screen's band does.
+        records.setStandalone(!"distributed".equalsIgnoreCase(environment.getProperty("contexa.infrastructure.mode")));
+        return records;
     }
 
     @Bean(name = "contexaZeroTrustConsoleController")
@@ -140,60 +161,65 @@ public class IamAdminMonitoringAutoConfiguration {
         return new CsvExportService();
     }
 
+    /** Plan step 9: the dashboard's own counts, one statement each. */
+    @Bean(name = "contexaDashboardQueries")
+    @ConditionalOnMissingBean
+    public DashboardQueries dashboardQueries(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider) {
+        return new DashboardQueries(jdbcOperationsProvider::getIfAvailable);
+    }
+
+    /**
+     * Plan step 9 (N7, N20): the dashboard's hourly tables, the refusals of signed-in users and the seal checks of the
+     * decision records, rebuilt as the Zero Trust console's are and kept as long.
+     */
+    @Bean(name = "contexaDashboardHourlyStats")
+    @ConditionalOnMissingBean
+    public DashboardHourlyStats dashboardHourlyStats(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            ObjectProvider<AuditLogRepository> auditLogRepository,
+            ObjectProvider<EvidenceSigner> evidenceSigner,
+            SecurityZeroTrustProperties zeroTrustProperties) {
+        AuditLogRepository records = auditLogRepository.getIfAvailable();
+        return new DashboardHourlyStats(jdbcOperationsProvider::getIfAvailable, records,
+                records != null ? new DecisionRecordSealCheck(records, evidenceSigner::getIfAvailable) : null,
+                zeroTrustProperties, null);
+    }
+
+    /** Plan step 9 (N1): every card's numbers, read from the services of the screens. */
     @Bean(name = "contexaDashboardService")
     @ConditionalOnMissingBean
     public DashboardService dashboardService(
-            UserRepository userRepository,
-            GroupRepository groupRepository,
+            ZeroTrustConsoleService contexaZeroTrustConsoleService,
+            ZeroTrustDecisionRecords contexaZeroTrustDecisionRecords,
+            DashboardQueries contexaDashboardQueries,
+            AccessCenterService contexaAccessCenterService,
+            LastAdministratorGuard contexaLastAdministratorGuard,
+            VerificationCoverageService contexaVerificationCoverageService,
+            RoleHierarchyRepository roleHierarchyRepository,
             RoleRepository roleRepository,
-            PermissionRepository permissionRepository,
-            PolicyRepository policyRepository,
-            AuditLogRepository auditLogRepository,
-            RoleHierarchyRepository roleHierarchyRepository,
-            UserContextService contexaUserContextService,
-            SecurityScoreCalculator contexaSecurityScoreCalculator,
-            PermissionMatrixService contexaPermissionMatrixService,
+            PasswordPolicyService contexaPasswordPolicyService,
             ManagedResourceRepository managedResourceRepository,
-            BlockedUserJpaRepository blockedUserJpaRepository,
-            PolicyValidationService contexaPolicyValidationService,
-            PolicyCombiningProperties policyCombiningProperties) {
-        return new DashboardServiceImpl(
-                userRepository,
-                groupRepository,
-                roleRepository,
-                permissionRepository,
-                policyRepository,
-                auditLogRepository,
-                roleHierarchyRepository,
-                contexaUserContextService,
-                contexaSecurityScoreCalculator,
-                contexaPermissionMatrixService,
-                managedResourceRepository,
-                blockedUserJpaRepository,
-                contexaPolicyValidationService,
-                policyCombiningProperties);
-    }
-
-    @Bean(name = "contexaSecurityScoreCalculator")
-    @ConditionalOnMissingBean
-    public SecurityScoreCalculator securityScoreCalculator(
-            UserRepository userRepository,
             PolicyRepository policyRepository,
-            RoleHierarchyRepository roleHierarchyRepository,
-            AuditLogRepository auditLogRepository) {
-        return new SecurityScoreCalculatorImpl(
-                userRepository,
-                policyRepository,
-                roleHierarchyRepository,
-                auditLogRepository);
-    }
-
-    @Bean(name = "contexaPermissionMatrixService")
-    @ConditionalOnMissingBean
-    public PermissionMatrixService permissionMatrixService(
-            GroupRepository groupRepository,
-            PermissionCatalogService contexaPermissionCatalogService) {
-        return new PermissionMatrixServiceImpl(groupRepository, contexaPermissionCatalogService);
+            PolicyValidationService contexaPolicyValidationService,
+            PolicyCenterCommandService contexaPolicyCenterCommandService,
+            IpAccessRuleService contexaIpAccessRuleService,
+            AuditLogRepository auditLogRepository,
+            SystemSettingsService contexaSystemSettingsService,
+            PolicyCombiningProperties policyCombiningProperties,
+            ObjectProvider<AgentRegistry> agentRegistry,
+            ObjectProvider<DelegationRegistry> delegationRegistry,
+            ObjectProvider<AgentConfirmationStore> agentConfirmationStore,
+            ObjectProvider<AgentContainmentAdminService> agentContainmentAdminService,
+            MessageSource messageSource) {
+        return new DashboardServiceImpl(new DashboardSources(contexaZeroTrustConsoleService,
+                contexaZeroTrustDecisionRecords, contexaDashboardQueries, contexaAccessCenterService,
+                contexaLastAdministratorGuard, contexaVerificationCoverageService, roleHierarchyRepository, roleRepository,
+                contexaPasswordPolicyService, managedResourceRepository, policyRepository, contexaPolicyValidationService,
+                contexaPolicyCenterCommandService, contexaIpAccessRuleService, auditLogRepository,
+                contexaSystemSettingsService, policyCombiningProperties, agentRegistry.getIfAvailable(),
+                delegationRegistry.getIfAvailable(), agentConfirmationStore.getIfAvailable(),
+                agentContainmentAdminService.getIfAvailable(), messageSource), null);
     }
 
     @Bean(name = "contexaAdminEnterpriseModelAdvice")

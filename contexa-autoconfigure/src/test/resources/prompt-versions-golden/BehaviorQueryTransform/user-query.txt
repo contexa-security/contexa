@@ -1,0 +1,11 @@
+Optimize the following query for user behavior pattern analysis:
+
+Original Query: who exported the payroll report last night
+
+Optimization Guidelines:
+1. Include temporal context (last 30 days)
+2. Add keywords to search for similar behavior patterns
+3. Reinforce anomaly-related terms
+4. Consider user role and permission context
+
+Return only the optimized query.

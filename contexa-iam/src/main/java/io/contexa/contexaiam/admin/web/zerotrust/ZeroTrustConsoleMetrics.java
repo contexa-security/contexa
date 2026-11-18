@@ -42,6 +42,8 @@ public final class ZeroTrustConsoleMetrics {
     public static final String TENANT_FILTERED = "TENANT_FILTERED";
     /** Nothing records this number. */
     public static final String NOT_RECORDED = "NOT_RECORDED";
+    /** The period's decisions were stored before this number was recorded (K22). */
+    public static final String NOT_MEASURED = "NOT_MEASURED";
     /** No price is set, so no cost can be estimated. */
     public static final String NO_PRICE = "NO_PRICE";
     /** Nobody waited for a decision: no synchronous decision in the period. */
@@ -90,6 +92,15 @@ public final class ZeroTrustConsoleMetrics {
                 value == null ? (noDataReason != null ? noDataReason : EMPTY_DENOMINATOR) : null);
     }
 
+    /**
+     * A value shown as the bucket of a histogram it falls in (the unit names the buckets' words): the bucket's index,
+     * with the count it was read from; without a count, "—" and why.
+     */
+    MetricValue bucket(String key, Integer index, long counted, String unit, String noDataReason) {
+        return new MetricValue(key, label(key), description(key), index == null ? null : index.doubleValue(),
+                counted, null, unit, index == null ? noDataReason : null);
+    }
+
     MetricValue unavailable(String key, String unit, String reason) {
         return new MetricValue(key, label(key), description(key), null, null, null, unit, reason);
     }
@@ -120,6 +131,37 @@ public final class ZeroTrustConsoleMetrics {
      * read linearly inside its bucket; a percentile past the last bound is the last bound. Null for no measurement.
      */
     static Long percentile(long[] buckets, double p) {
+        return percentile(buckets, LATENCY_BOUNDS, p);
+    }
+
+    /** The bounds of the decision time buckets of the hourly table (1 s to 90 s, and one past the last). */
+    static final long[] HOURLY_LATENCY_BOUNDS = {1_000, 2_000, 5_000, 10_000, 30_000, 60_000, 90_000};
+
+    /** As {@link #percentile(long[], double)}, for a histogram of the given bounds. */
+    /**
+     * The bucket of a histogram the p-th percentile falls in: the first bucket whose running count reaches p of the
+     * whole, so the median of an even count is the bucket of the lower of the two middle values. Null for no count.
+     */
+    static Integer bucketOf(long[] buckets, double p) {
+        long total = 0;
+        for (long count : buckets) {
+            total += count;
+        }
+        if (total == 0) {
+            return null;
+        }
+        double rank = p * total;
+        long below = 0;
+        for (int i = 0; i < buckets.length; i++) {
+            below += buckets[i];
+            if (buckets[i] > 0 && below >= rank) {
+                return i;
+            }
+        }
+        return buckets.length - 1;
+    }
+
+    static Long percentile(long[] buckets, long[] bounds, double p) {
         long total = 0;
         for (long count : buckets) {
             total += count;
@@ -132,17 +174,17 @@ public final class ZeroTrustConsoleMetrics {
         for (int i = 0; i < buckets.length; i++) {
             long inBucket = buckets[i];
             if (inBucket > 0 && below + inBucket >= rank) {
-                if (i >= LATENCY_BOUNDS.length) {
-                    return LATENCY_BOUNDS[LATENCY_BOUNDS.length - 1];
+                if (i >= bounds.length) {
+                    return bounds[bounds.length - 1];
                 }
-                long lower = i == 0 ? 0 : LATENCY_BOUNDS[i - 1];
-                long upper = LATENCY_BOUNDS[i];
+                long lower = i == 0 ? 0 : bounds[i - 1];
+                long upper = bounds[i];
                 double inside = (rank - below) / inBucket;
                 return Math.round(lower + inside * (upper - lower));
             }
             below += inBucket;
         }
-        return LATENCY_BOUNDS[LATENCY_BOUNDS.length - 1];
+        return bounds[bounds.length - 1];
     }
 
     /** The value at a percentile of a list of values (nearest rank); null for an empty list. */

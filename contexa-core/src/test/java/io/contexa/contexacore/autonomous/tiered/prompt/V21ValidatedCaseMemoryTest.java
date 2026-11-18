@@ -32,8 +32,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Bundle v21.13 (docs/agent B3-3): the validated case memory's lines that hold stored free text (an earlier analysis'
  * summary, a threat signal's summary, matched threat knowledge) leave the ValidatedCases line, and the UNTRUSTED TEXT
- * block quotes each of their texts once; the counts and states stay. The v20 render is unchanged, and the inspector
- * compares the quoted texts with the sealed reasoning memory.
+ * block quotes each of their texts once; the counts and states stay. The inspector compares the quoted texts with the
+ * sealed reasoning memory.
  */
 class V21ValidatedCaseMemoryTest {
 
@@ -48,7 +48,7 @@ class V21ValidatedCaseMemoryTest {
 
     @Test
     void aV21RenderQuotesTheStoredMemoryTextsAndKeepsTheCountsOnTheValidatedCasesLine() {
-        InspectionGolden.Render v21 = render(SecurityDecisionPromptBundles.V21);
+        InspectionGolden.Render v21 = render(SecurityDecisionPromptBundles.V1);
 
         String cases = value(v21.userPrompt(), "ValidatedCases");
         assertThat(cases).contains("ReinforcedCaseCount: 3", "HardNegativeCaseCount: 1", "RetentionTier: HOT");
@@ -65,18 +65,8 @@ class V21ValidatedCaseMemoryTest {
     }
 
     @Test
-    void theV20RenderKeepsTheMemoryTextsOnTheValidatedCasesLine() {
-        InspectionGolden.Render v20 = render(SecurityDecisionPromptBundles.V20);
-
-        assertThat(value(v20.userPrompt(), "ValidatedCases")).contains("ReinforcedCaseCount: 3",
-                "ObjectiveAwareReasoningMemory: " + OBJECTIVE_MEMORY, "XaiLinkedFacts: " + XAI_FACT,
-                "CrossTenantObjectiveMisuseFacts: " + CROSS_TENANT_FACT);
-        assertThat(v20.userPrompt()).doesNotContain(UntrustedTextSources.VALIDATED_CASE_MEMORY);
-    }
-
-    @Test
     void theInspectorPointsAtAQuotedMemoryTextTheSealedMemoryDoesNotHold() {
-        InspectionGolden.Render v21 = render(SecurityDecisionPromptBundles.V21);
+        InspectionGolden.Render v21 = render(SecurityDecisionPromptBundles.V1);
         String line = Arrays.stream(v21.userPrompt().split("\n"))
                 .filter(each -> each.contains(quoted(XAI_FACT))).findFirst().orElseThrow();
         InspectionGolden.Render tampered = new InspectionGolden.Render(v21.caseKey(), v21.profile(),

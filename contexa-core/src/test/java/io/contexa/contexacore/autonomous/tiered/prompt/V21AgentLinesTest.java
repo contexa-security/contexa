@@ -61,8 +61,8 @@ class V21AgentLinesTest {
     private static final String DELEGATION_MISSING = "Bridge missing context: DELEGATION.";
 
     @Test
-    void aV21RenderDrawsTheAgentLinesAndAV20RenderDoesNot() {
-        InspectionGolden.Render agent = render(SecurityDecisionPromptBundles.V21, V21AgentLinesTest::delegatedAgent);
+    void aRenderDrawsTheAgentLines() {
+        InspectionGolden.Render agent = render(V21AgentLinesTest::delegatedAgent);
         String user = agent.used().getActor().getUserId();
         List<String> lines = Arrays.asList(agent.userPrompt().split("\n"));
         int subject = lines.indexOf(InspectionGolden.lineStarting(agent.userPrompt(), "Subject: "));
@@ -88,22 +88,13 @@ class V21AgentLinesTest {
         assertThat(InspectionGolden.lineStarting(agent.userPrompt(), "Delegation: ")).doesNotContain(OBJECTIVE);
         assertThat(InspectionGolden.lineStarting(agent.userPrompt(), "Coverage: ")).doesNotContain(DELEGATION_MISSING)
                 .doesNotContain("If delegated agents are used").doesNotContain("any ALLOW conclusion");
-
-        InspectionGolden.Render v20 = render(SecurityDecisionPromptBundles.V20, V21AgentLinesTest::delegatedAgent);
-        assertThat(InspectionGolden.lineStarting(v20.userPrompt(), "Subject: ")).doesNotContain("through agent");
-        assertThat(InspectionGolden.hasLine(v20.userPrompt(), "Credential: ")).isFalse();
-        assertThat(InspectionGolden.hasLine(v20.userPrompt(), "DelegationActivity: ")).isFalse();
-        assertThat(InspectionGolden.hasLine(v20.userPrompt(), "RecordProvenance: ")).isFalse();
         // The delegated request's subject is the person: its records are the person's own, with no holder line.
         assertThat(InspectionGolden.hasLine(agent.userPrompt(), "RecordsHolder: ")).isFalse();
-        assertThat(v20.userPrompt()).doesNotContain("source=" + UntrustedTextSources.CALL_ARGUMENTS)
-                .doesNotContain("source=" + UntrustedTextSources.DELEGATION_OBJECTIVE);
-        assertThat(InspectionGolden.lineStarting(v20.userPrompt(), "Coverage: ")).contains(DELEGATION_MISSING);
     }
 
     @Test
     void anAgentOnItsOwnIsNamedByItsRegistrationWithItsClient() {
-        InspectionGolden.Render alone = render(SecurityDecisionPromptBundles.V21, context -> {
+        InspectionGolden.Render alone = render(context -> {
             context.getAttributes().put("executionSubjectKind", SubjectKind.AUTONOMOUS_AGENT.name());
             context.getAttributes().put("agentId", "report-agent");
             context.getAttributes().put("agentSponsorId", "bob");
@@ -144,7 +135,7 @@ class V21AgentLinesTest {
                 new AgentBaselineView.Facts("report-agent-client", "1a2b3c4d5e6f7a8b", null, "READ"),
                 new AgentBaselineView.Facts("report-agent-client", "1a2b3c4d5e6f7a8b", "READ", "READ")),
                 new AgentBaselineView.Facts("report-agent-client", "1a2b3c4d5e6f7a8b", "READ", "EXPORT"));
-        InspectionGolden.Render agent = render(SecurityDecisionPromptBundles.V21, context -> {
+        InspectionGolden.Render agent = render(context -> {
             delegatedAgent(context);
             CanonicalSecurityContext.WorkProfile profile = context.getWorkProfile() != null ? context.getWorkProfile()
                     : new CanonicalSecurityContext.WorkProfile();
@@ -165,37 +156,27 @@ class V21AgentLinesTest {
         assertThat(INSPECTOR.inspect(agent.sealed()).findings()).extracting(PromptInspectionFinding::entry)
                 .doesNotContain("BaselineSubject", "UsualSequence", "UsualClients");
 
-        InspectionGolden.Render person = render(SecurityDecisionPromptBundles.V21, context -> { });
+        InspectionGolden.Render person = render(context -> { });
         assertThat(InspectionGolden.hasLine(person.userPrompt(), "BaselineSubject: ")).isFalse();
         assertThat(InspectionGolden.hasLine(person.userPrompt(), "UsualSequence: ")).isFalse();
         assertThat(InspectionGolden.hasLine(person.userPrompt(), "UsualClients: ")).isFalse();
     }
 
     /**
-     * docs/agent A4-4: the v19 and v20 system texts leave the automation client boundary out for an agent's request
-     * only; the v21 text has none and is the same for both.
+     * docs/agent A4-4: the product version states no automation client boundary, so an agent's request is judged by the
+     * same system text as a person's (a version with the decision rules leaves that boundary out for an agent's request,
+     * SecurityDecisionV1BundleTest; the v19 and v20 texts that left it out went with their bundles, plan 6-2).
      */
     @Test
     void anAgentsRequestIsJudgedWithoutTheAutomationClientBoundary() {
-        String v19Person = render(SecurityDecisionPromptBundles.V19, context -> { }).systemPrompt();
-        String v19Agent = render(SecurityDecisionPromptBundles.V19, V21AgentLinesTest::delegatedAgent).systemPrompt();
-        assertThat(v19Person).contains("BotUserAgent=true");
-        assertThat(v19Agent).doesNotContain("BotUserAgent=true")
-                .isEqualTo(v19Person.replace(SecurityDecisionPromptSections.V19_AUTOMATION_BOUNDARY, ""));
-
-        String v20Person = render(SecurityDecisionPromptBundles.V20, context -> { }).systemPrompt();
-        String v20Agent = render(SecurityDecisionPromptBundles.V20, V21AgentLinesTest::delegatedAgent).systemPrompt();
-        assertThat(v20Person).contains("automation or transport anomalies (ClientSignals)").contains("a bot UA");
-        assertThat(v20Agent).doesNotContain("automation or transport anomalies").doesNotContain("a bot UA")
-                .contains("a device that does not match (Device), or impossible travel");
-
-        assertThat(render(SecurityDecisionPromptBundles.V21, V21AgentLinesTest::delegatedAgent).systemPrompt())
-                .isEqualTo(render(SecurityDecisionPromptBundles.V21, context -> { }).systemPrompt());
+        assertThat(render(V21AgentLinesTest::delegatedAgent).systemPrompt())
+                .isEqualTo(render(context -> { }).systemPrompt())
+                .doesNotContain("BotUserAgent=true").doesNotContain("automation or transport anomalies");
     }
 
     @Test
     void theInspectorComparesEveryAgentLineWithTheSealedContext() {
-        InspectionGolden.Render agent = render(SecurityDecisionPromptBundles.V21, V21AgentLinesTest::delegatedAgent);
+        InspectionGolden.Render agent = render(V21AgentLinesTest::delegatedAgent);
 
         PromptInspectionResult matched = INSPECTOR.inspect(agent.sealed());
         assertThat(matched.verdict()).isIn(PromptInspectionVerdict.PASS, PromptInspectionVerdict.INCOMPLETE);
@@ -270,9 +251,8 @@ class V21AgentLinesTest {
                 coverage != null ? coverage.summary() : null));
     }
 
-    /** The L1 render of the golden case by the given bundle after a change to its sealed context. */
-    private static InspectionGolden.Render render(SecurityDecisionPromptBundles.Bundle bundle,
-                                                  Consumer<CanonicalSecurityContext> change) {
+    /** The L1 render of the golden case by the product version after a change to its sealed context. */
+    private static InspectionGolden.Render render(Consumer<CanonicalSecurityContext> change) {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         JsonNode goldenCase = golden.cases().stream().filter(node -> CASE.equals(node.path("caseKey").asText()))
                 .findFirst().orElseThrow();
@@ -286,10 +266,8 @@ class V21AgentLinesTest {
         catch (IOException exception) {
             throw new UncheckedIOException(exception);
         }
-        TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(bundle.version());
         SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(changed,
-                PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties);
+                PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, new TieredStrategyProperties());
         return new InspectionGolden.Render(rendered.caseKey(), PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
                 rendered.systemText(), rendered.userText(), rendered.canonicalContext(),
                 rendered.executionMetadata().toMetadataMap(), goldenCase.path("ragResults").toString(),

@@ -196,7 +196,7 @@ class PromptGovernanceRegistryServiceTest {
     @Test
     void aDeclaredProductionEntersAvailableBesideAnActiveReleaseOfABundleThisBuildRuns() {
         PromptGovernanceDescriptor descriptor = descriptor();
-        PromptGovernanceRegistryRecord active = release(SecurityDecisionPromptBundles.V20.version(), "ACTIVE");
+        PromptGovernanceRegistryRecord active = release(SecurityDecisionPromptBundles.V1.version(), "ACTIVE");
         when(repository.findFirstByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(
                 PromptGovernanceRegistryService.PLATFORM_GLOBAL_SCOPE,
                 descriptor.promptKey(),

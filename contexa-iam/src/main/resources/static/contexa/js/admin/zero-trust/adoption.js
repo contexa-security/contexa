@@ -16,6 +16,12 @@
     /** The axis of an open-ended bar reaches past the larger of value and bound, so both stay inside the track. */
     const HEADROOM = 1.25;
     const STOPPED = ['CHALLENGE', 'ESCALATE', 'BLOCK'];
+    /**
+     * Design 6.5: an unmet criterion opens the screen that shows what holds it back; the period is the SHADOW trial's.
+     */
+    const CRITERION_SCREENS = {modelDecided: '/trust', modelLess: '/trust', baselineEstablished: '/trust',
+        reviewValid: '/decisions?view=review', burdenP95: '/impact', userWaitP95: '/operations',
+        businessContext: '/trust'};
 
     function known(key, fallback) {
         const text = t(key);
@@ -147,7 +153,7 @@
             ZT.kpi({tone: 'purple', icon: 'fa-hand-paper', label: t(P + 'wouldHave.stopped'),
                 value: would.stopped == null ? null : ZT.count(would.stopped),
                 sub: t(P + 'kpi.usersSub', would.users == null ? '—' : ZT.count(would.users)),
-                title: t(P + 'wouldHave.stoppedDefinition')}),
+                title: t(P + 'wouldHave.stoppedDefinition'), href: stoppedUrl(adoption)}),
             ZT.kpi({tone: 'red', icon: 'fa-user-lock', label: t(P + 'wouldHave.blockedAccounts'),
                 value: would.blockedAccounts == null ? null : ZT.count(would.blockedAccounts),
                 sub: t(P + 'links.shadowBlocks'), href: shadowBlocksUrl(adoption),
@@ -208,7 +214,8 @@
             const current = criterion.current || {};
             const reason = current.value == null && current.noDataReason ? ZT.reason(current.noDataReason) : null;
             table.append(
-                el('span', {title: reason ? shown.name + ' · ' + reason : shown.name}, el('div', {text: shown.name}),
+                el('span', {title: reason ? shown.name + ' · ' + reason : shown.name}, el('div', {}, shown.name,
+                    criterion.status === 'UNMET' || criterion.status === 'INSUFFICIENT' ? criterionLink(criterion) : null),
                     el('div', {class: 'zt-muted', text: t(P + 'criteria.recommended', shown.bound), title: shown.bound})),
                 el('span', {}, ZT.bar(shown.bar.value, shown.bar.max, {mark: shown.bar.mark,
                     color: statusColor(criterion.status), label: shown.name + ' ' + shown.text + ' / ' + shown.bound})),
@@ -219,6 +226,13 @@
             criteria.length ? table : ZT.empty('NO_DECISIONS'));
         card.append(foot(link(SETTINGS, t(P + 'links.bounds'))));
         return ZT.withTip(card, t(P + 'criteria.note'));
+    }
+
+    /** The "›" of an unmet criterion, to the screen that explains it (none for the observation itself). */
+    function criterionLink(criterion) {
+        const screen = CRITERION_SCREENS[criterion.key];
+        return screen ? [' ', el('a', {class: 'zt-link', href: ZT.keepPeriod(PAGES + screen), text: '›',
+            'aria-label': t(P + 'criteria.open', known(P + 'criterion.' + criterion.key, criterion.key))})] : null;
     }
 
     // ----- what SHADOW would have stopped -----
@@ -248,19 +262,29 @@
                     ZT.percent(present[present.length - 1], 0))})),
             ZT.sparkline(shares, {min: 0, max: 1, color: ZT.COLORS.GOOD,
                 label: t(P + 'trend.baseline')})) : null;
-        return ZT.card(t(P + 'trend.title'), t(P + 'trend.aside', ZT.count(total)),
+        return ZT.card(ZT.title(P + 'trend.title'), t(P + 'trend.aside', ZT.count(total)),
             hasData ? ZT.legend(STOPPED.map(action => ({label: t('zt.console.ui.action.' + action),
                 color: ZT.COLORS[action]}))) : null,
             box, baseline);
     }
 
-    function shadowBlocksUrl(adoption) {
-        const params = new URLSearchParams({mode: 'SHADOW', action: 'BLOCK'});
+    /**
+     * Design 6.5 (G18): a block SHADOW would have made blocks nobody, so the accounts it would have blocked are
+     * reviewed in the review queue, which holds those blocks for it.
+     */
+    function shadowBlocksUrl() {
+        return PAGES + '/decisions?view=review&reason=SHADOW_BLOCK';
+    }
+
+    /** The requests SHADOW would have stopped, in the decision list of the trial's period. */
+    function stoppedUrl(adoption) {
+        const params = new URLSearchParams({mode: 'SHADOW', action: 'STOPPED'});
         const period = adoption.header && adoption.header.period;
         if (period && period.from) {
-            // The trial's own period: from its first day (the server reads the day in its zone) to today.
+            // K87: the trial's own period from the moment it starts (the list reads it from that hour, as the
+            // number counts it) to today.
             params.set('period', 'custom');
-            params.set('from', String(period.from).slice(0, 10));
+            params.set('from', String(period.from));
         }
         if (adoption.header && adoption.header.tenant) {
             params.set('tenant', adoption.header.tenant);
@@ -275,7 +299,7 @@
         const median = would.burdenMedianPerWeek || {};
         const top = would.burdenP95PerWeek || {};
         return ZT.card(t(P + 'wouldHave.title'), t(P + 'wouldHave.aside'), ZT.valueRows([
-            count('stopped', would.stopped), count('users', would.users),
+            Object.assign(count('stopped', would.stopped), {href: stoppedUrl(adoption)}), count('users', would.users),
             Object.assign(count('blockedAccounts', would.blockedAccounts), {href: shadowBlocksUrl(adoption)}),
             {label: median.label || '', value: ZT.metricText(median), title: median.description || null},
             {label: top.label || t(P + 'wouldHave.burdenP95', ''), value: ZT.metricText(top),
@@ -291,7 +315,9 @@
     function historyCard(adoption) {
         const history = adoption.modeHistory || [];
         const body = history.length ? ZT.valueRows(history.map(change => {
-            const text = t(P + 'history.change', modeName(change.from), modeName(change.to), change.by || '—');
+            // design 6.5: the change with the reason its operator gave
+            const text = t(P + 'history.change', modeName(change.from), modeName(change.to), change.by || '—')
+                + (change.reason ? ' · ' + t(P + 'history.reason', change.reason) : '');
             return {label: text, title: text, value: ZT.time(change.at)};
         })) : ZT.emptyNote(t(P + 'history.none'));
         const card = ZT.card(t(P + 'history.title'), history.length ? t(P + 'history.aside', ZT.count(history.length))

@@ -87,6 +87,45 @@ class AdminMenuSeedPostgresTest {
         assertThat(screens()).isEqualTo(screens);
     }
 
+    @Test
+    @DisplayName("plan 6-6: the prompt quality group holds the prompt versions, not the releases")
+    void thePromptQualityGroupHoldsThePromptVersions() {
+        assertThat(jdbc.queryForList("""
+                SELECT m.menu_order || ' ' || m.name || ' ' || m.url
+                  FROM ctxa_admin_menu m
+                  JOIN ctxa_admin_menu g ON g.id = m.parent_id AND g.data_page = 'prompt-quality'
+                 WHERE m.data_page = 'prompt-quality-versions'
+                """, String.class)).containsExactly("5 menu.pqa.versions /contexa/admin/prompt-quality/versions");
+        assertThat(count("SELECT count(*) FROM ctxa_admin_menu WHERE data_page = 'prompt-quality-releases'")).isZero();
+    }
+
+    @Test
+    @DisplayName("plan 6-6: an installation's releases menu becomes the prompt versions with its roles; a second run changes nothing")
+    void theReleasesMenuOfAnInstallationBecomesThePromptVersions() throws Exception {
+        // An installation seeded before the version screens: its menu row is the releases', with a role on it.
+        jdbc.update("UPDATE ctxa_admin_menu SET data_page = 'prompt-quality-releases', name = 'menu.pqa.releases',"
+                + " url = '/contexa/admin/prompt-quality/releases' WHERE data_page = 'prompt-quality-versions'");
+        Long id = jdbc.queryForObject("SELECT id FROM ctxa_admin_menu WHERE data_page = 'prompt-quality-releases'",
+                Long.class);
+        jdbc.update("INSERT INTO ctxa_admin_menu_role (menu_id, role_name) VALUES (?, 'ROLE_AUDITOR')", id);
+        long menusBefore = count("SELECT count(*) FROM ctxa_admin_menu");
+
+        run("META-INF/contexa/db/data-menu.sql");
+
+        assertThat(count("SELECT count(*) FROM ctxa_admin_menu WHERE data_page = 'prompt-quality-releases'")).isZero();
+        assertThat(jdbc.queryForObject("SELECT id || ' ' || name || ' ' || url FROM ctxa_admin_menu"
+                + " WHERE data_page = 'prompt-quality-versions'", String.class))
+                .isEqualTo(id + " menu.pqa.versions /contexa/admin/prompt-quality/versions");
+        assertThat(jdbc.queryForList("SELECT role_name FROM ctxa_admin_menu_role WHERE menu_id = ?", String.class, id))
+                .contains("ROLE_AUDITOR");
+        assertThat(count("SELECT count(*) FROM ctxa_admin_menu")).isEqualTo(menusBefore);
+
+        run("META-INF/contexa/db/data-menu.sql");
+
+        assertThat(count("SELECT count(*) FROM ctxa_admin_menu")).isEqualTo(menusBefore);
+        assertThat(count("SELECT count(*) FROM ctxa_admin_menu WHERE data_page = 'prompt-quality-versions'")).isEqualTo(1);
+    }
+
     private static List<String> screens() {
         return jdbc.queryForList("""
                 SELECT m.menu_order || ' ' || m.name || ' ' || m.url || ' ' || m.data_page

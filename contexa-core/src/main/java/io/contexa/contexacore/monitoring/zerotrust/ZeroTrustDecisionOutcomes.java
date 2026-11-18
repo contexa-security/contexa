@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * What happened after a decision (console design 7.3): the account owner passed or failed the challenge, it expired,
@@ -37,6 +38,11 @@ public class ZeroTrustDecisionOutcomes {
 
     /** The outcome of a decision. */
     public enum Kind {
+        /**
+         * Console design 6.2: a code was mailed to the challenged account owner for the additional authentication (the
+         * funnel's "code requested"); a factor without a mailed code (a passkey, an authenticator app) has none.
+         */
+        CHALLENGE_CODE_REQUESTED,
         /** The challenged account owner passed the additional authentication. */
         CHALLENGE_PASSED,
         /** The additional authentication failed. */
@@ -69,6 +75,18 @@ public class ZeroTrustDecisionOutcomes {
     /** The outcome kinds that answer a challenge; the aggregation records an expiry only for a challenge without one. */
     public static final List<Kind> CHALLENGE_ANSWERS =
             List.of(Kind.CHALLENGE_PASSED, Kind.CHALLENGE_FAILED, Kind.CHALLENGE_EXPIRED);
+
+    /**
+     * K81, console design 6.1 and 6.4: the outcome kinds that are an administrator's review of a decision, a release, a
+     * kept block or an evaluation. A block with none of them is unreviewed, whether its user asked to be unblocked or
+     * not; the overview and the decision list count it by this one definition.
+     */
+    public static final List<Kind> REVIEWS =
+            List.of(Kind.ADMIN_RELEASED, Kind.BLOCK_KEPT, Kind.EVALUATED_VALID, Kind.EVALUATED_INVALID);
+
+    /** {@link #REVIEWS} as the values of an SQL {@code IN} list of the outcome kind column. */
+    public static final String REVIEWS_SQL = REVIEWS.stream().map(kind -> "'" + kind.name() + "'")
+            .collect(Collectors.joining(", "));
 
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
     private final Clock clock;

@@ -18,9 +18,13 @@ import io.contexa.contexacore.repository.prompt.PromptGovernanceReleaseWorkflowR
 import io.contexa.contexacore.repository.prompt.PromptGovernanceRollbackRecordRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
+import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
+import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -49,11 +53,23 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
     private final PromptGovernanceReleaseWorkflowRepository workflowRepository;
     private final PromptGovernanceModelCompatibilityRepository modelCompatibilityRepository;
     private final PromptGovernanceBudgetProfileRepository budgetProfileRepository;
+    private final PromptVersionCatalog versions;
+    /** Plan 3.11: the prompts other than the security decision whose products declare the policy of their versions. */
+    private final VersionedPrompts versionedPrompts;
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     /** N-GOV-5: the gate state of a deprecation, by a transition or by the activation of the bundle in its place. */
     private static final String SUPERSEDED = "SUPERSEDED";
     private static final String NO_OTHER_ACTIVE_RELEASE = "NO_OTHER_ACTIVE_RELEASE no other active release of this"
             + " scope, prompt key and template runs in its place; activate another bundle or roll back instead.";
+    /**
+     * Plan 3.9: the warning a transition to decide, or to a canary, gives when no trial decided recent sealed decisions
+     * again with the version. It does not block: the "use for decisions" confirmation shows it.
+     */
+    public static final String TRIAL_RECOMMENDED = "TRIAL_RECOMMENDED";
+    private static final String TRIAL_RECOMMENDED_WARNING = TRIAL_RECOMMENDED + " no trial decided recent sealed"
+            + " decisions again with this version; a trial is recommended before it decides.";
+    private static final String VERSION_IN_USE = "NO_OTHER_ACTIVE_RELEASE the version is used for decisions; use"
+            + " another version for decisions first.";
 
     public PromptGovernanceReleaseGateService(
             PromptGovernanceLifecycleLedgerService lifecycleLedgerService,
@@ -65,6 +81,52 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             PromptGovernanceReleaseWorkflowRepository workflowRepository,
             PromptGovernanceModelCompatibilityRepository modelCompatibilityRepository,
             PromptGovernanceBudgetProfileRepository budgetProfileRepository) {
+        this(lifecycleLedgerService, registryRepository, changeRepository, evaluationRepository,
+                releaseApprovalRepository, rollbackRepository, workflowRepository, modelCompatibilityRepository,
+                budgetProfileRepository, PromptVersionCatalog.none());
+    }
+
+    /** Plan 3.9: the gate of the bundles and of the versions of the security decision alone. */
+    public PromptGovernanceReleaseGateService(
+            PromptGovernanceLifecycleLedgerService lifecycleLedgerService,
+            PromptGovernanceRegistryRepository registryRepository,
+            PromptGovernanceChangeRecordRepository changeRepository,
+            PromptGovernanceEvaluationRecordRepository evaluationRepository,
+            PromptGovernanceReleaseApprovalRepository releaseApprovalRepository,
+            PromptGovernanceRollbackRecordRepository rollbackRepository,
+            PromptGovernanceReleaseWorkflowRepository workflowRepository,
+            PromptGovernanceModelCompatibilityRepository modelCompatibilityRepository,
+            PromptGovernanceBudgetProfileRepository budgetProfileRepository,
+            PromptVersionCatalog versions) {
+        this(lifecycleLedgerService, registryRepository, changeRepository, evaluationRepository,
+                releaseApprovalRepository, rollbackRepository, workflowRepository, modelCompatibilityRepository,
+                budgetProfileRepository, versions, null);
+    }
+
+    /**
+     * Plan 3.9, 3.11: the gate of the bundles and of the versions of the database. A release named as a version
+     * ({@code v2.0}) is read from the version table and the product policy of its prompt, the security decision or one
+     * of the other prompts; the start fails when the product of a prompt the build ships does not declare the policy
+     * its versions inherit.
+     *
+     * @param versionedPrompts the prompts other than the security decision that run from their versions, none when
+     *                         null
+     */
+    public PromptGovernanceReleaseGateService(
+            PromptGovernanceLifecycleLedgerService lifecycleLedgerService,
+            PromptGovernanceRegistryRepository registryRepository,
+            PromptGovernanceChangeRecordRepository changeRepository,
+            PromptGovernanceEvaluationRecordRepository evaluationRepository,
+            PromptGovernanceReleaseApprovalRepository releaseApprovalRepository,
+            PromptGovernanceRollbackRecordRepository rollbackRepository,
+            PromptGovernanceReleaseWorkflowRepository workflowRepository,
+            PromptGovernanceModelCompatibilityRepository modelCompatibilityRepository,
+            PromptGovernanceBudgetProfileRepository budgetProfileRepository,
+            PromptVersionCatalog versions,
+            VersionedPrompts versionedPrompts) {
+        this.versionedPrompts = versionedPrompts != null ? versionedPrompts : new VersionedPrompts(List.of());
+        ProductPromptPolicy.verify(this.versionedPrompts);
+        this.versions = versions != null ? versions : PromptVersionCatalog.none();
         this.lifecycleLedgerService = lifecycleLedgerService;
         this.registryRepository = registryRepository;
         this.changeRepository = changeRepository;
@@ -152,6 +214,7 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
         }
         PromptLifecycleContext context = resolveContext(safeScope, promptKey, promptVersion);
         List<String> blockers = determineBlockers(context, targetState);
+        List<String> warnings = determineWarnings(context, targetState);
         String workflowState = blockers.isEmpty() ? "APPROVED_AND_APPLIED" : "BLOCKED";
         String gateState = determineTransitionGateState(context.currentReleaseStatus(), targetState, blockers);
         String normalizedChannel = normalizeApprovalChannel(approvalChannel);
@@ -185,7 +248,8 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                     false,
                     gateState,
                     List.copyOf(blockers),
-                    savedWorkflow.getCreatedAt());
+                    savedWorkflow.getCreatedAt(),
+                    warnings);
         }
 
         PromptGovernanceRegistryRecord registryRecord = context.registryRecord();
@@ -195,7 +259,8 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
         registryRepository.save(registryRecord);
         if (targetState == PromptBundleState.ACTIVE) {
             // N-GOV-5 (version management 8: a bundle is DEPRECATED when another becomes ACTIVE): the activated
-            // release is the one active release of its scope, prompt key and template.
+            // release is the one active release of its scope, prompt key and template. Plan 3.9: a version used for
+            // decisions before is no longer used and becomes AVAILABLE.
             deprecateSupersededReleases(registryRecord, actor.trim(), normalizedChannel);
         }
 
@@ -211,7 +276,8 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                 true,
                 gateState,
                 List.of(),
-                savedWorkflow.getCreatedAt());
+                savedWorkflow.getCreatedAt(),
+                warnings);
     }
 
     /**
@@ -226,12 +292,12 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
         validatePromptVersion(promptVersion);
         PromptLifecycleContext context = resolveContext(safeScope, promptKey, promptVersion);
         List<ReleaseGateTarget> targets = new ArrayList<>();
-        for (String next : allowedNextReleaseStatuses(context.currentReleaseStatus())) {
+        for (String next : allowedNextStates(context)) {
             PromptBundleState target = PromptBundleState.valueOf(next);
             List<String> blockers = determineBlockers(context, target);
             targets.add(new ReleaseGateTarget(target.name(), blockers.isEmpty(),
                     determineTransitionGateState(context.currentReleaseStatus(), target, blockers),
-                    List.copyOf(blockers)));
+                    List.copyOf(blockers), determineWarnings(context, target)));
         }
         PromptGovernanceEvaluationRecord evaluation = evaluationRepository
                 .findFirstByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(safeScope, promptKey.trim(),
@@ -415,6 +481,10 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                         registryScope,
                         promptKey.trim(),
                         promptVersion.trim()));
+        if (PromptBundleCatalog.isVersionName(promptVersion)) {
+            return versionContext(registryScope, promptKey.trim(), promptVersion.trim(), registryRecord,
+                    releaseApprovalRecord, rollbackRecord);
+        }
         return new PromptLifecycleContext(
                 registryRecord,
                 registryRecord.getReleaseStatus(),
@@ -449,10 +519,162 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                         .map(PromptGovernanceBudgetProfileRecord::getBudgetProfileKey)
                         .filter(StringUtils::hasText)
                         .distinct()
-                        .toList());
+                        .toList(),
+                null);
+    }
+
+    /**
+     * Plan 3.9: the gate's evidence of a version of the database ({@code v2.0}). Its change record is its description
+     * and its parts, which every version has. Its model compatibility, budget profiles and token counting, cache and
+     * compaction policies are the product policy it inherits (checked at the start). Its evaluation is a trial with it,
+     * which is recommended, not required. Its rollback target is the version the scope decides with now.
+     */
+    private PromptLifecycleContext versionContext(String registryScope, String promptKey, String promptVersion,
+                                                  PromptGovernanceRegistryRecord registryRecord,
+                                                  PromptGovernanceReleaseApprovalRecord releaseApprovalRecord,
+                                                  PromptGovernanceRollbackRecord rollbackRecord) {
+        PromptVersionCatalog.Entry entry = versions.find(registryScope, promptKey, promptVersion).orElse(null);
+        String deciding = versions.deciding(registryScope, promptKey).orElse(null);
+        boolean decidesNow = deciding != null && PromptVersionNames.number(deciding)
+                .equals(PromptVersionNames.number(promptVersion));
+        String rollbackTarget = deciding != null && !decidesNow ? deciding : null;
+        boolean onlyVersion = versions.shown(registryScope, promptKey).stream()
+                .allMatch(shown -> shown.number() == entry(entry));
+        boolean injectionGuardKept = !SecurityDecisionPromptDocument.PROMPT.equals(promptKey)
+                || versions.assembled(registryScope, promptKey, promptVersion)
+                .map(SecurityDecisionPromptDocument::keepsInjectionGuard).orElse(false);
+        VersionEvidence version = new VersionEvidence(entry, versions.trialFinished(registryScope, promptKey,
+                promptVersion), rollbackTarget, decidesNow, onlyVersion, injectionGuardKept);
+        ProductPromptPolicy.Policy policy = ProductPromptPolicy.of(promptKey, versionedPrompts).orElse(null);
+        List<String> gaps = policy != null ? policy.gaps() : List.of("MODEL_COMPATIBILITY_MISSING",
+                "BUDGET_PROFILE_MISSING", "TOKEN_COUNTING_POLICY_MISSING", "CACHE_POLICY_MISSING",
+                "COMPACTION_POLICY_MISSING");
+        return new PromptLifecycleContext(
+                registryRecord,
+                registryRecord.getReleaseStatus(),
+                true,
+                version.trialFinished(),
+                false,
+                releaseApprovalRecord != null && "APPROVED".equals(releaseApprovalRecord.getApprovalState()),
+                rollbackRecord != null && "READY".equals(rollbackRecord.getRollbackReadinessState()),
+                rollbackTarget != null,
+                version.trialFinished() ? "READY_FOR_PRODUCTION" : "NOT_READY",
+                injectionGuardKept ? "PASSED" : "FAILED",
+                "NOT_VERIFIED",
+                "NOT_VERIFIED",
+                releaseApprovalRecord,
+                rollbackRecord,
+                policy != null ? policy.modelProfiles() : List.of(),
+                !gaps.contains("MODEL_COMPATIBILITY_MISSING"),
+                !gaps.contains("BUDGET_PROFILE_MISSING"),
+                !gaps.contains("TOKEN_COUNTING_POLICY_MISSING"),
+                !gaps.contains("CACHE_POLICY_MISSING"),
+                !gaps.contains("COMPACTION_POLICY_MISSING"),
+                policy != null ? policy.budgetProfiles() : List.of(),
+                version);
+    }
+
+    private static int entry(PromptVersionCatalog.Entry entry) {
+        return entry != null ? entry.number() : -1;
+    }
+
+    /** The next states a release may take: a version's (plan 3.9) or a bundle's. */
+    private List<String> allowedNextStates(PromptLifecycleContext context) {
+        return context.version() != null ? allowedNextVersionStates(context.currentReleaseStatus())
+                : allowedNextReleaseStatuses(context.currentReleaseStatus());
+    }
+
+    /**
+     * Plan 3.9: the states a version moves between, the labels of the screens: AVAILABLE (not used), ACTIVE (used for
+     * decisions), CANARY (used first for some users), SHADOW (run alongside the decisions) and RETIRED (hidden). A
+     * version used, used first or run alongside goes back to AVAILABLE, and may take its own state again to change its
+     * share; a hidden version takes no state. A row an earlier bundle left DEPRECATED reads as AVAILABLE.
+     */
+    private static List<String> allowedNextVersionStates(String currentReleaseStatus) {
+        PromptBundleState current = PromptBundleState.fromStoredValue(currentReleaseStatus).orElse(PromptBundleState.AVAILABLE);
+        return switch (current) {
+            case AVAILABLE, DEPRECATED -> List.of(PromptBundleState.ACTIVE.name(), PromptBundleState.CANARY.name(),
+                    PromptBundleState.SHADOW.name(), PromptBundleState.RETIRED.name());
+            case SHADOW -> List.of(PromptBundleState.ACTIVE.name(), PromptBundleState.CANARY.name(),
+                    PromptBundleState.SHADOW.name(), PromptBundleState.AVAILABLE.name());
+            case CANARY -> List.of(PromptBundleState.ACTIVE.name(), PromptBundleState.CANARY.name(),
+                    PromptBundleState.AVAILABLE.name());
+            case ACTIVE -> List.of(PromptBundleState.ACTIVE.name(), PromptBundleState.AVAILABLE.name(),
+                    PromptBundleState.RETIRED.name());
+            case RETIRED -> List.of();
+        };
+    }
+
+    /**
+     * Plan 3.9: the blockers of a version. ILLEGAL_STATE_TRANSITION: a hidden version, or one the version table does
+     * not have, is not used, used first or run alongside. NO_OTHER_ACTIVE_RELEASE: the version used for decisions is
+     * not hidden, nor left unused without another in its place. ROLLBACK_TARGET_MISSING: a version that is to decide in
+     * place of another goes back to the one deciding now; a prompt with this version alone needs none. The product
+     * policy (MODEL_COMPATIBILITY_MISSING, BUDGET_PROFILE_MISSING, TOKEN_COUNTING_POLICY_MISSING, CACHE_POLICY_MISSING,
+     * COMPACTION_POLICY_MISSING) is inherited, so it blocks only a prompt whose product declares none.
+     * PROMPT_INJECTION_GATE_FAILED: the version does not keep the injection guard of its product. A version's change
+     * record is always there (CHANGE_LEDGER_MISSING), its length is checked before it is saved
+     * (NON_FUNCTIONAL_GATE_FAILED), and an evaluation (EVALUATION_NOT_FOR_BUNDLE_HASH, EMPIRICAL_EVAL_MISSING,
+     * TEVV_GATE_NOT_READY) is a trial, which the gate recommends as a warning instead of requiring.
+     */
+    private List<String> versionBlockers(PromptLifecycleContext context, PromptBundleState target) {
+        VersionEvidence version = context.version();
+        List<String> blockers = new ArrayList<>();
+        boolean decides = target == PromptBundleState.ACTIVE || target == PromptBundleState.CANARY;
+        boolean shown = version.entry() != null && !version.entry().hidden();
+        if (!allowedNextVersionStates(context.currentReleaseStatus()).contains(target.name())
+                || ((decides || target == PromptBundleState.SHADOW) && !shown)) {
+            blockers.add(String.format(Locale.ROOT, "ILLEGAL_STATE_TRANSITION current=%s target=%s%s.",
+                    context.currentReleaseStatus(), target.name(), shown ? "" : " (the version is hidden or missing)"));
+            return blockers;
+        }
+        boolean active = PromptBundleState.is(context.currentReleaseStatus(), PromptBundleState.ACTIVE);
+        if (active && (target == PromptBundleState.RETIRED
+                || target == PromptBundleState.AVAILABLE && otherActiveReleases(context.registryRecord()).isEmpty())) {
+            blockers.add(VERSION_IN_USE);
+        }
+        if (decides) {
+            if (!context.providerCompatibilityDeclared()) {
+                blockers.add("MODEL_COMPATIBILITY_MISSING the product of this prompt declares no compatible model profile.");
+            }
+            if (!context.budgetProfilesGoverned()) {
+                blockers.add("BUDGET_PROFILE_MISSING the product of this prompt declares no budget profile.");
+            }
+            if (!version.injectionGuardKept()) {
+                blockers.add("PROMPT_INJECTION_GATE_FAILED the version does not keep the prompt injection guard of its"
+                        + " product as fixed parts.");
+            }
+            if (version.rollbackTarget() == null && !version.decidesNow() && !version.onlyVersion()) {
+                blockers.add("ROLLBACK_TARGET_MISSING no version decides now that a rollback would go back to.");
+            }
+        }
+        if (target == PromptBundleState.ACTIVE) {
+            if (!context.tokenCountingPolicyDeclared()) {
+                blockers.add("TOKEN_COUNTING_POLICY_MISSING the product of this prompt declares no token counting policy.");
+            }
+            if (!context.cachePolicyGoverned()) {
+                blockers.add("CACHE_POLICY_MISSING the product of this prompt declares no cache policy.");
+            }
+            if (!context.compactionPolicyGoverned()) {
+                blockers.add("COMPACTION_POLICY_MISSING the product of this prompt declares no compaction policy.");
+            }
+        }
+        return blockers;
+    }
+
+    /** Plan 3.9: what a transition warns of without blocking it: a version that decides without a trial. */
+    private List<String> determineWarnings(PromptLifecycleContext context, PromptBundleState target) {
+        if (context.version() == null || context.version().trialFinished()
+                || (target != PromptBundleState.ACTIVE && target != PromptBundleState.CANARY)) {
+            return List.of();
+        }
+        return List.of(TRIAL_RECOMMENDED_WARNING);
     }
 
     private List<String> determineBlockers(PromptLifecycleContext context, PromptBundleState targetReleaseStatus) {
+        if (context.version() != null) {
+            return versionBlockers(context, targetReleaseStatus);
+        }
         List<String> blockers = new ArrayList<>();
         if (!allowedNextReleaseStatuses(context.currentReleaseStatus()).contains(targetReleaseStatus.name())) {
             blockers.add(String.format(
@@ -809,16 +1031,21 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                 .toList();
     }
 
-    /** N-GOV-5: the active releases an activation replaces become DEPRECATED, each with its workflow record. */
+    /**
+     * N-GOV-5: the active releases an activation replaces become DEPRECATED, each with its workflow record. Plan 3.9: a
+     * version of the database used for decisions before becomes AVAILABLE, a version that is not used.
+     */
     private void deprecateSupersededReleases(PromptGovernanceRegistryRecord activated, String actor,
                                              String approvalChannel) {
         for (PromptGovernanceRegistryRecord superseded : otherActiveReleases(activated)) {
+            PromptBundleState replaced = PromptBundleCatalog.isVersionName(superseded.getPromptVersion())
+                    ? PromptBundleState.AVAILABLE : PromptBundleState.DEPRECATED;
             PromptGovernanceReleaseWorkflowRecord workflowRecord = PromptGovernanceReleaseWorkflowRecord.builder()
                     .registryScope(superseded.getRegistryScope())
                     .promptKey(superseded.getPromptKey())
                     .promptVersion(superseded.getPromptVersion())
                     .currentReleaseStatus(PromptBundleState.canonicalName(superseded.getReleaseStatus()))
-                    .targetReleaseStatus(PromptBundleState.DEPRECATED.name())
+                    .targetReleaseStatus(replaced.name())
                     .workflowState("APPROVED_AND_APPLIED")
                     .gateState(SUPERSEDED)
                     .approvalChannel(approvalChannel)
@@ -828,14 +1055,18 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                     .blockersJson(writeJsonList(List.of()))
                     .build();
             workflowRepository.save(workflowRecord);
-            superseded.setReleaseStatus(PromptBundleState.DEPRECATED.name());
+            superseded.setReleaseStatus(replaced.name());
             superseded.setReleaseApprovalReference(workflowReference(workflowRecord));
             superseded.setRegistrationSource("PROMPT_RELEASE_GATE_WORKFLOW");
             registryRepository.save(superseded);
         }
     }
 
+    /** The rollback target: a version's is the version deciding now (plan 3.9); a bundle's is the declared one. */
     private String resolveRollbackTarget(PromptLifecycleContext context) {
+        if (context.version() != null) {
+            return context.version().rollbackTarget();
+        }
         if (context.rollbackRecord() != null && StringUtils.hasText(context.rollbackRecord().getRollbackTargetPromptVersion())) {
             return context.rollbackRecord().getRollbackTargetPromptVersion();
         }
@@ -942,8 +1173,20 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
         return new ArrayList<>(latest.values());
     }
 
-    /** W7-14: one state the bundle may take next, whether the gate would apply it now and what blocks it. */
-    public record ReleaseGateTarget(String targetState, boolean ready, String gateState, List<String> blockers) {
+    /**
+     * W7-14: one state the bundle may take next, whether the gate would apply it now and what blocks it; plan 3.9: what
+     * it warns of without blocking ({@link #TRIAL_RECOMMENDED}).
+     */
+    public record ReleaseGateTarget(String targetState, boolean ready, String gateState, List<String> blockers,
+                                    List<String> warnings) {
+
+        public ReleaseGateTarget {
+            warnings = warnings != null ? List.copyOf(warnings) : List.of();
+        }
+
+        public ReleaseGateTarget(String targetState, boolean ready, String gateState, List<String> blockers) {
+            this(targetState, ready, gateState, blockers, List.of());
+        }
     }
 
     /** W7-14: the gate evidence of a bundle as the gate reads it for its blockers. */
@@ -985,6 +1228,7 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                                         ReleaseGateEvidence evidence) {
     }
 
+    /** A transition the gate applied or blocked, with its blockers and, plan 3.9, what it warns of without blocking. */
     public record ReleaseTransitionReceipt(
             String registryScope,
             String promptKey,
@@ -994,7 +1238,28 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             boolean applied,
             String gateState,
             List<String> blockers,
-            LocalDateTime recordedAt) {
+            LocalDateTime recordedAt,
+            List<String> warnings) {
+
+        public ReleaseTransitionReceipt {
+            warnings = warnings != null ? List.copyOf(warnings) : List.of();
+        }
+
+        public ReleaseTransitionReceipt(String registryScope, String promptKey, String promptVersion,
+                                        String previousReleaseStatus, String targetReleaseStatus, boolean applied,
+                                        String gateState, List<String> blockers, LocalDateTime recordedAt) {
+            this(registryScope, promptKey, promptVersion, previousReleaseStatus, targetReleaseStatus, applied, gateState,
+                    blockers, recordedAt, List.of());
+        }
+    }
+
+    /**
+     * Plan 3.9: what the gate reads of a version of the database: its row in the version table (null when it has
+     * none), whether a trial with it finished, the version a rollback would go back to (the one deciding now), whether
+     * it decides now already, whether it is the prompt's one shown version, and whether it keeps the injection guard.
+     */
+    private record VersionEvidence(PromptVersionCatalog.Entry entry, boolean trialFinished, String rollbackTarget,
+                                   boolean decidesNow, boolean onlyVersion, boolean injectionGuardKept) {
     }
 
     /**
@@ -1029,7 +1294,8 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             boolean tokenCountingPolicyDeclared,
             boolean cachePolicyGoverned,
             boolean compactionPolicyGoverned,
-            List<String> budgetProfileKeys) {
+            List<String> budgetProfileKeys,
+            VersionEvidence version) {
 
         private boolean modelProfilesDeclared() {
             return supportedModelProfiles != null && !supportedModelProfiles.isEmpty();

@@ -66,7 +66,8 @@
                 value: total.p95Ms != null ? ZT.seconds(total.p95Ms) : null,
                 sub: total.p50Ms != null ? t(P + 'kpi.totalP50', ZT.seconds(total.p50Ms)) : ZT.reason('NO_DECISIONS')}),
             ZT.kpi({tone: failures > 0 ? 'red' : 'green', icon: 'fa-exclamation-triangle', label: t(P + 'kpi.failures'),
-                value: ZT.count(failures), sub: t(P + 'kpi.failuresSub'), href: decisionsUrl({action: 'NO_DECISION'})}),
+                // the number counts both kinds of failure the failure card draws, and opens them both
+                value: ZT.count(failures), sub: t(P + 'kpi.failuresSub'), href: decisionsUrl({action: 'FAILED'})}),
             ZT.kpiMetric(cost.tokensPerDecision, {tone: 'purple', icon: 'fa-coins',
                 sub: t(P + 'kpi.costPerDay', ZT.metricText(cost.costPerDay))}));
     }
@@ -115,6 +116,8 @@
                 return t(P + 'component.value.model', ZT.count(Number(component.value)));
             case 'DECISION_STORE':
                 return t(P + 'component.value.persist', ZT.seconds(Number(component.value)));
+            case 'PAST_RECORDS':
+                return t(P + 'component.value.pastRecords', ZT.seconds(Number(component.value)));
             case 'STATE_STORE':
                 return known(P + 'component.value.' + component.value, component.value);
             case 'AGGREGATION':
@@ -150,8 +153,15 @@
         const inLine = {key: 'inLine', label: t(P + 'throughput.inLine'), value: throughput.inLine, unit: 'COUNT',
             description: t(P + 'throughput.inLineDefinition'),
             noDataReason: throughput.inLine == null ? 'NOT_RECORDED' : null};
+        // Design 6.6: the headroom of the analysis line and its bound, beside what is in it now.
+        const bounded = throughput.lineBound != null && throughput.inLine != null;
+        const headroom = {key: 'headroom', label: t(P + 'throughput.headroom'),
+            value: bounded ? Math.max(0, throughput.lineBound - throughput.inLine) : null, unit: 'COUNT',
+            description: t(P + 'throughput.headroomDefinition', throughput.lineBound == null ? '—'
+                : ZT.count(throughput.lineBound)),
+            noDataReason: throughput.inLine == null ? 'NOT_RECORDED' : null};
         const metrics = ZT.valueRows([metricRow(throughput.protectedPerMinute), metricRow(throughput.decisionsPerMinute),
-            metricRow(inLine)]);
+            metricRow(inLine), metricRow(headroom)]);
         const box = el('div');
         const hasData = hourly.some(point => point.decisions > 0);
         ZT.chart(box, 'm', {
@@ -169,7 +179,7 @@
                 }
             }}}}
         }, hasData, 'NO_DECISIONS');
-        return ZT.card(t(P + 'throughput.title'), hasData ? t(P + 'throughput.peak', perMinute(peak / 60)) : null,
+        return ZT.card(ZT.title(P + 'throughput.title'), hasData ? t(P + 'throughput.peak', perMinute(peak / 60)) : null,
             metrics, triggerLine(operations),
             hasData ? ZT.legend([{label: t(P + 'throughput.decisions'), color: ZT.COLORS.ACCENT}]) : null, box);
     }
@@ -190,7 +200,8 @@
     function noDecisionCard(operations) {
         const shares = (operations.noDecisionReasons || []).filter(share => share.count > 0);
         const total = shares.reduce((sum, share) => sum + share.count, 0);
-        const title = t(P + 'noDecision.title', ZT.count(total));
+        // K110: a phone reads the short title with the count shortened in place (1.3), the whole count in its tooltip
+        const title = [t(P + 'noDecision.title', ZT.count(total)), t(P + 'noDecision.title.short', ZT.shortCount(total))];
         if (total === 0) {
             const tenant = operations.header && operations.header.tenant;
             return ZT.card(title, null, ZT.empty(tenant ? 'TENANT_FILTERED' : 'NO_DECISIONS'));
@@ -327,7 +338,7 @@
                     muted(t(P + 'failure.peak', ZT.day(dayKeys[values.indexOf(peak)]), ZT.count(peak))));
             }));
         }
-        const card = ZT.withTip(ZT.card(t(P + 'failure.title'), kinds.length ? t(P + 'failure.aside', ZT.count(total)) : null,
+        const card = ZT.withTip(ZT.card(ZT.title(P + 'failure.title'), kinds.length ? t(P + 'failure.aside', ZT.count(total)) : null,
             body, kinds.length > KINDS_SHOWN ? muted(t(P + 'failure.more', ZT.count(kinds.length - KINDS_SHOWN))) : null),
         t(P + 'failure.note'));
         card.append(links);
@@ -430,7 +441,11 @@
         const card = ZT.card(t(P + 'storage.title'), null,
             ZT.valueRows([{label: t(P + 'storage.decisions'),
                 value: t(P + 'storage.days', ZT.count(storage.decisionRetentionDays))},
-            {label: t(P + 'storage.aggregates'), value: t(P + 'storage.days', ZT.count(storage.aggregateRetentionDays))}]),
+            {label: t(P + 'storage.aggregates'), value: t(P + 'storage.days', ZT.count(storage.aggregateRetentionDays))},
+            // Design 6.6: about how many decision rows are kept and when the retention removes the old ones next
+            {label: t(P + 'storage.rows'), value: storage.decisionRows == null ? '—' : t(P + 'storage.rowsValue',
+                ZT.count(storage.decisionRows)), title: t(P + 'storage.rowsDefinition')},
+            {label: t(P + 'storage.nextCleanup'), value: storage.nextCleanup ? ZT.time(storage.nextCleanup) : '—'}]),
             storage.standalone ? el('div', {class: 'zt-warning', role: 'note', text: t('zt.console.ui.band.standalone')})
                 : null);
         card.append(foot(link(SETTINGS, t(P + 'storage.settings'))));

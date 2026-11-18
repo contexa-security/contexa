@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV1OutputInspector;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -118,5 +119,24 @@ class PostprocessingStepTest {
 
         SecurityDecisionResponse response = (SecurityDecisionResponse) result;
         assertThat(response.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.class)).isEqualTo(retries);
+    }
+
+    /** K17 (D11): the decision rule a v1.0 answer still broke after its retry reaches the response. */
+    @Test
+    void theRuleTheAnswerStillBrokeReachesTheResponse() {
+        PostprocessingStep step = new PostprocessingStep(Optional.empty());
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(null, null, null, List.of()));
+        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
+        SecurityDecisionResponse parsedResponse = new SecurityDecisionResponse();
+        parsedResponse.setAction("ALLOW");
+        context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, parsedResponse);
+        context.addMetadata("targetResponseType", SecurityDecisionResponse.class);
+        context.addMetadata(SecurityDecisionV1OutputInspector.V1_RULE_BREACH, "REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH");
+
+        SecurityDecisionResponse response = (SecurityDecisionResponse) step.execute(request, context).block();
+
+        assertThat(response.getMetadata(SecurityDecisionV1OutputInspector.V1_RULE_BREACH, String.class))
+                .isEqualTo("REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH");
     }
 }

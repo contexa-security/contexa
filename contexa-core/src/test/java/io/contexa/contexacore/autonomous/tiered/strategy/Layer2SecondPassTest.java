@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -32,7 +33,7 @@ class Layer2SecondPassTest {
     @Test
     void theFirstPassIsReadFromTheLayer1AssessmentAndThePromptItLeft() {
         Layer2SecondPass.FirstPass first = Layer2SecondPass.FirstPass.of(event(assessment(true, false), "PROMPT",
-                "v20-dictionary-blocks", "TIMEOUT"));
+                Layer2SecondPass.V1_LAYOUT, "TIMEOUT"));
 
         assertThat(first.verdict()).isEqualTo("ESCALATE");
         assertThat(first.modelVerdict()).isTrue();
@@ -43,22 +44,26 @@ class Layer2SecondPassTest {
 
     @Test
     void aTechnicalFallbackOrAMissingAssessmentIsNoFirstVerdict() {
-        assertThat(Layer2SecondPass.FirstPass.of(event(assessment(true, true), "PROMPT", "v20-dictionary-blocks",
+        assertThat(Layer2SecondPass.FirstPass.of(event(assessment(true, true), "PROMPT", Layer2SecondPass.V1_LAYOUT,
                 "TIMEOUT")).givesASecondPass()).isFalse();
-        assertThat(Layer2SecondPass.FirstPass.of(event(assessment(false, false), "PROMPT", "v20-dictionary-blocks",
+        assertThat(Layer2SecondPass.FirstPass.of(event(assessment(false, false), "PROMPT", Layer2SecondPass.V1_LAYOUT,
                 "TIMEOUT")).givesASecondPass()).isFalse();
-        assertThat(Layer2SecondPass.FirstPass.of(event(null, "PROMPT", "v20-dictionary-blocks", "TIMEOUT"))
+        assertThat(Layer2SecondPass.FirstPass.of(event(null, "PROMPT", Layer2SecondPass.V1_LAYOUT, "TIMEOUT"))
                 .givesASecondPass()).isFalse();
     }
 
+    /** Plan 6-2: both passes run the one version, so only a first prompt of the v1.0 layout gives a second pass. */
     @Test
-    void onlyAV20FirstPromptGivesASecondPass() {
+    void onlyAV1FirstPromptGivesASecondPass() {
         assertThat(Layer2SecondPass.FirstPass.of(event(assessment(true, false), "PROMPT", null, "TIMEOUT"))
                 .givesASecondPass()).isFalse();
-        assertThat(Layer2SecondPass.FirstPass.of(event(assessment(true, false), "PROMPT", "2026.10.11-v19.8", "TIMEOUT"))
-                .givesASecondPass()).isFalse();
-        assertThat(Layer2SecondPass.FirstPass.of(event(assessment(true, false), " ", "v20-dictionary-blocks", "TIMEOUT"))
-                .givesASecondPass()).isFalse();
+        for (String earlier : List.of("2026.10.11-v19.8", SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V20,
+                SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21)) {
+            assertThat(Layer2SecondPass.FirstPass.of(event(assessment(true, false), "PROMPT", earlier, "TIMEOUT"))
+                    .givesASecondPass()).as(earlier).isFalse();
+        }
+        assertThat(Layer2SecondPass.FirstPass.of(event(assessment(true, false), " ", Layer2SecondPass.V1_LAYOUT,
+                "TIMEOUT")).givesASecondPass()).isFalse();
     }
 
     @Test
@@ -74,7 +79,7 @@ class Layer2SecondPassTest {
     }
 
     private static Layer2SecondPass.FirstPass firstPass(String pastRecordsState) {
-        return Layer2SecondPass.FirstPass.of(event(assessment(true, false), "PROMPT", "v20-dictionary-blocks",
+        return Layer2SecondPass.FirstPass.of(event(assessment(true, false), "PROMPT", Layer2SecondPass.V1_LAYOUT,
                 pastRecordsState));
     }
 

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -149,15 +150,30 @@ class PromptInspectionWholeLineTest {
                 });
     }
 
-    /** The real packages the showcase engine sealed under this bundle state the whole lines their sealed sources draw. */
+    /** Plan 6-2 (decision D7): the showcase engine's v20 packages are of a bundle this build no longer ships. */
     @Test
-    void theShowcaseEnginesPackagesStateTheWholeLinesTheirSealedSourcesDraw() {
-        for (SealedEvidencePackage sealed : InspectionGolden.showcaseSealed()) {
-            PromptInspectionCheckResult check = INSPECTOR.inspect(sealed).checks().get(0);
-            assertThat(check.findings()).as(sealed.getPackageId())
+    void theShowcaseEnginesV20PackagesAreNotReadAgain() {
+        assertThat(EarlierBundleInspection.assertNotReadAgain(INSPECTOR, InspectionGolden.showcaseSealed())).isPositive();
+    }
+
+    /** Every golden render states the whole lines its sealed sources draw: each such line is compared and matched. */
+    @Test
+    void everyGoldenRenderStatesTheWholeLinesItsSealedSourcesDraw() {
+        int compared = 0;
+        for (InspectionGolden.Render render : InspectionGolden.renders()) {
+            PromptInspectionCheckResult check = check(render.userPrompt(), render);
+            assertThat(check.findings()).as(render.caseKey() + " " + render.profile())
                     .filteredOn(finding -> LABELS.contains(finding.entry())).isEmpty();
-            assertThat(check.matched()).as(sealed.getPackageId()).isPositive();
+            List<String> lines = Arrays.asList(render.userPrompt().split("\n", -1));
+            for (int index = 0; index < lines.size(); index++) {
+                String line = InspectionGolden.bare(lines.get(index));
+                if (LABELS.stream().anyMatch(label -> line.startsWith(label + ": "))) {
+                    assertThat(check.matchedLines()).as(render.caseKey() + " " + line).contains(index + 1);
+                    compared++;
+                }
+            }
         }
+        assertThat(compared).isPositive();
     }
 
     /**

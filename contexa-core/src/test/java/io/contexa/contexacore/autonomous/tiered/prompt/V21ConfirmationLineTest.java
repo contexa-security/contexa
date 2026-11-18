@@ -58,8 +58,8 @@ class V21ConfirmationLineTest {
     private static final long USED_AFTER_REQUEST_SECONDS = 24L * 24 * 3600;
 
     @Test
-    void aConfirmedAgentRequestStatesItsConfirmationAfterItsCredentialInV21Only() {
-        InspectionGolden.Render confirmed = render(SecurityDecisionPromptBundles.V21,
+    void aConfirmedAgentRequestStatesItsConfirmationAfterItsCredential() {
+        InspectionGolden.Render confirmed = render(SecurityDecisionPromptBundles.V1,
                 V21ConfirmationLineTest::confirmedAgent);
         List<String> lines = Arrays.asList(confirmed.userPrompt().split("\n"));
         int credential = lines.indexOf(InspectionGolden.lineStarting(confirmed.userPrompt(), "Credential: "));
@@ -68,17 +68,15 @@ class V21ConfirmationLineTest {
                 + " asked 2 min before this request because the delegation had ended, for this request only,"
                 + " authorization " + AUTHORIZATION);
 
-        InspectionGolden.Render unconfirmed = render(SecurityDecisionPromptBundles.V21, V21ConfirmationLineTest::agent);
+        InspectionGolden.Render unconfirmed = render(SecurityDecisionPromptBundles.V1, V21ConfirmationLineTest::agent);
         assertThat(InspectionGolden.hasLine(unconfirmed.userPrompt(), "Confirmation: ")).isFalse();
-        InspectionGolden.Render v20 = render(SecurityDecisionPromptBundles.V20, V21ConfirmationLineTest::confirmedAgent);
-        assertThat(InspectionGolden.hasLine(v20.userPrompt(), "Confirmation: ")).isFalse();
         // The system text is the same with or without the line: only the dictionary entry is new.
         assertThat(confirmed.systemPrompt()).isEqualTo(unconfirmed.systemPrompt());
     }
 
     @Test
     void theInspectorComparesTheConfirmationWithTheSealedContext() {
-        InspectionGolden.Render confirmed = render(SecurityDecisionPromptBundles.V21,
+        InspectionGolden.Render confirmed = render(SecurityDecisionPromptBundles.V1,
                 V21ConfirmationLineTest::confirmedAgent);
 
         PromptInspectionResult matched = INSPECTOR.inspect(confirmed.sealed());
@@ -96,7 +94,7 @@ class V21ConfirmationLineTest {
 
     @Test
     void whatIsNotRecordedIsSaidSoAndTheLineStillMeetsItsDictionaryForm() {
-        InspectionGolden.Render bare = render(SecurityDecisionPromptBundles.V21, context -> {
+        InspectionGolden.Render bare = render(SecurityDecisionPromptBundles.V1, context -> {
             agent(context);
             context.getAttributes().putAll(AgentConfirmationFacts.of("cfm-2", null, null, null,
                     AgentConfirmation.DECISION_CHALLENGE, null, null));

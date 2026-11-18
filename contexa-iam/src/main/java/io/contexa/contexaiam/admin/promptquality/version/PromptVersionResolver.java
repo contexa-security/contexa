@@ -15,10 +15,12 @@
  */
 package io.contexa.contexaiam.admin.promptquality.version;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionContext;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRelease;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,8 +43,12 @@ import java.util.function.Supplier;
  * version ({@code v2.0}) that exists and is not hidden;</li>
  * <li>the newest version Contexa provided.</li>
  * </ol>
- * A setting that names no such version, or an earlier bundle, is logged once as a warning and passed over. A label or a
- * setting that names an earlier bundle is not a version: earlier bundles are gone.
+ * A setting that names no such version is logged once as a warning and passed over until the version exists; one that
+ * names an earlier bundle is logged once as a warning whatever runs. A label or a setting that names an earlier bundle
+ * is not a version: earlier bundles are gone. The resolver is the decision's selector in every installation with the
+ * console's database; without the registry (prompt governance turned off) it reads the setting and the newest version.
+ * A prompt other than the security decision (plan 3.11) runs its label, else its newest Contexa version: the setting
+ * names a version of the security decision.
  */
 public class PromptVersionResolver implements PromptBundleSelector {
 
@@ -79,20 +85,28 @@ public class PromptVersionResolver implements PromptBundleSelector {
         if (prompt == null || prompt.isBlank()) {
             return PromptBundleSelection.none();
         }
+        // The setting names a version of the security decision; another prompt runs its label, else its newest Contexa
+        // version (plan 3.11).
+        String configuredName = SecurityDecisionPromptDocument.PROMPT.equals(prompt) ? configured.get() : null;
+        String setting = configuredName != null && !configuredName.isBlank() ? configuredName.trim() : null;
+        if (setting != null && PromptVersionNames.number(setting).isEmpty() && warned.add(prompt + "|" + setting)) {
+            // Plan 3.4: a setting that names an earlier bundle is said once, whatever runs.
+            log.warn("contexa.security.tiered.prompt-bundle.active names {}, an earlier bundle of {}: earlier bundles"
+                    + " are gone and a version is named v1.0, v2.0 and so on; the label of the screen, else the newest"
+                    + " Contexa version runs", setting, prompt);
+        }
         PromptBundleSelection labelled = selection(() -> registry.select(context, subjectKey));
         if (labelled != null && isVersion(prompt, labelled.bundleVersion())) {
             return new PromptBundleSelection(PromptVersionNames.name(number(labelled.bundleVersion())), labelled.source());
         }
-        String setting = configured.get();
-        if (setting != null && !setting.isBlank()) {
+        if (setting != null && PromptVersionNames.number(setting).isPresent()) {
             if (isVersion(prompt, setting)) {
                 return new PromptBundleSelection(PromptVersionNames.name(number(setting)),
                         PromptBundleSelectionSource.CONFIGURATION);
             }
-            if (warned.add(prompt + "|" + setting.trim())) {
+            if (warned.add(prompt + "|" + setting)) {
                 log.warn("contexa.security.tiered.prompt-bundle.active names {}, which is not a version of {} that"
-                        + " exists and is shown (earlier bundles are gone); the newest Contexa version runs",
-                        setting.trim(), prompt);
+                        + " exists and is shown; the newest Contexa version runs until it is", setting, prompt);
             }
         }
         return latest(prompt)
@@ -102,15 +116,27 @@ public class PromptVersionResolver implements PromptBundleSelector {
 
     @Override
     public PromptBundleSelection shadow(PromptGovernanceResolutionContext context, String subjectKey) {
-        String prompt = context != null ? context.promptKey() : null;
-        PromptBundleSelection shadow = selection(() -> registry.shadow(context, subjectKey));
-        if (prompt != null && shadow != null && isVersion(prompt, shadow.bundleVersion())) {
-            return new PromptBundleSelection(PromptVersionNames.name(number(shadow.bundleVersion())), shadow.source());
-        }
-        return PromptBundleSelection.none();
+        PromptShadowRelease shadow = shadowRelease(context, subjectKey);
+        return shadow.present() ? new PromptBundleSelection(shadow.version(), PromptBundleSelectionSource.SHADOW)
+                : PromptBundleSelection.none();
     }
 
-    private PromptBundleSelection selection(Supplier<PromptBundleSelection> select) {
+    /**
+     * Plan 3.4, 3.9: the version the registry runs alongside the decisions of the request's scope, else of the
+     * platform, when it exists and is not hidden, with the sample share and daily limit its row sets.
+     */
+    @Override
+    public PromptShadowRelease shadowRelease(PromptGovernanceResolutionContext context, String subjectKey) {
+        String prompt = context != null ? context.promptKey() : null;
+        PromptShadowRelease shadow = selection(() -> registry.shadowRelease(context, subjectKey));
+        if (prompt != null && shadow != null && shadow.present() && isVersion(prompt, shadow.version())) {
+            return new PromptShadowRelease(PromptVersionNames.name(number(shadow.version())), shadow.samplePercent(),
+                    shadow.dailyLimit());
+        }
+        return PromptShadowRelease.none();
+    }
+
+    private <T> T selection(Supplier<T> select) {
         try {
             return select.get();
         }

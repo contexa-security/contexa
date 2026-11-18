@@ -22,11 +22,14 @@ import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.tiered.prompt.PastRecordLineValues;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.strategy.SealedDecisionReplayStrategy;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
@@ -122,6 +125,49 @@ public class SealedDecisionReplayService {
                              Object unresolvedFindings, Map<String, Object> telemetry, long elapsedMs, String failure) {
     }
 
+    /**
+     * The prompts a sealed decision draws with a version, the model not asked (plan 3.10 (2): the finished prompt of
+     * the version screen).
+     *
+     * @param packageId    the sealed package the prompts were drawn from
+     * @param version      the version they were drawn with ({@code v2.0}, or a bundle this build runs)
+     * @param contentHash  the content hash of that version
+     * @param systemPrompt the system prompt as the replay's model call gets it, with the output format when the call
+     *                     does not carry the schema itself
+     * @param userPrompt   the user prompt of the first pass with the sealed decision's values, with the blocks the
+     *                     version adds at their places
+     */
+    public record Drawing(String packageId, String version, String contentHash, String systemPrompt,
+                          String userPrompt) {
+    }
+
+    /**
+     * Plan 3.10 (2): the first pass prompts the sealed inputs draw with the version, on the baselines the caller gives,
+     * as a replay draws them for its model call (the same sealed inputs, first-layer request options, template and
+     * version fixed on the event), but without the call: nothing is asked, applied, learned or sealed.
+     *
+     * @throws IllegalArgumentException when the version is none this server can draw
+     */
+    public Drawing draw(SealedEvidencePackage sealed, BaselineVector personalBaseline,
+                        BaselineVector organizationBaseline, String version) {
+        String name = version != null ? version.trim() : null;
+        if (!replayable(name)) {
+            throw new IllegalArgumentException(PromptBundleCatalog.isVersionName(name)
+                    ? "Version " + name + " is not a version this server can draw"
+                    : "Bundle " + name + " is not a bundle this build runs");
+        }
+        SealedDecisionReplayInputs inputs = SealedDecisionReplayInputs.of(sealed,
+                SealedDecisionReplayInputs.REPLAY_ID_PREFIX + UUID.randomUUID(), objectMapper, serializer);
+        SecurityDecisionRequest request = strategy(SealedDecisionReplayStrategy.FIRST_LAYER, personalBaseline,
+                organizationBaseline).request(inputs, name);
+        String systemPrompt = promptTemplate.generateSystemPrompt(request, null);
+        String userPrompt = promptTemplate.generateUserPrompt(request, null);
+        Object contentHash = inputs.event().getMetadata() != null
+                ? inputs.event().getMetadata().get(SecurityDecisionPromptSections.EVENT_BUNDLE_CONTENT_HASH) : null;
+        return new Drawing(sealed.getPackageId(), name, contentHash != null ? String.valueOf(contentHash) : null,
+                systemPrompt, userPrompt);
+    }
+
     public Result replay(SealedEvidencePackage sealed, BaselineVector personalBaseline,
                          BaselineVector organizationBaseline, String bundleVersion, Duration timeout) {
         return replay(sealed, personalBaseline, organizationBaseline, bundleVersion, timeout, List.of());
@@ -134,8 +180,10 @@ public class SealedDecisionReplayService {
     public Result replay(SealedEvidencePackage sealed, BaselineVector personalBaseline,
                          BaselineVector organizationBaseline, String bundleVersion, Duration timeout,
                          List<String> secondPassModels) {
-        if (SecurityDecisionPromptBundles.find(bundleVersion).isEmpty()) {
-            throw new IllegalArgumentException("Bundle " + bundleVersion + " is not a bundle this build runs");
+        if (!replayable(bundleVersion)) {
+            throw new IllegalArgumentException(PromptBundleCatalog.isVersionName(bundleVersion)
+                    ? "Version " + bundleVersion + " is not a version this server can draw"
+                    : "Bundle " + bundleVersion + " is not a bundle this build runs");
         }
         String replayId = SealedDecisionReplayInputs.REPLAY_ID_PREFIX + UUID.randomUUID();
         long started = System.nanoTime();
@@ -160,6 +208,21 @@ public class SealedDecisionReplayService {
                     List.of(), null, null, Map.of(), elapsedMillis(started),
                     exception.getClass().getSimpleName() + ": " + exception.getMessage(), List.of());
         }
+    }
+
+    /**
+     * Plan 3.9: whether the replay can draw the release: a version of the database the store of the template reads
+     * ({@code v2.0}), or a bundle this build runs. A version the store does not have would be drawn as the product
+     * version under its name, so it is refused.
+     */
+    public boolean replayable(String release) {
+        if (release == null || release.isBlank()) {
+            return false;
+        }
+        if (PromptBundleCatalog.isVersionName(release)) {
+            return promptTemplate.findPromptVersion(release.trim()).isPresent();
+        }
+        return SecurityDecisionPromptBundles.find(release).isPresent();
     }
 
     private SealedDecisionReplayStrategy strategy(String layer, BaselineVector personalBaseline,

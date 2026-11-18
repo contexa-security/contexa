@@ -118,7 +118,7 @@ public class PipelineOrchestrator {
             if (responseType.equals(SoarResponse.class)) {
                 response = (R) createSoarFallbackResponse(error);
             } else {
-                response = createGenericFallbackResponse(responseType, error);
+                response = createGenericFallbackResponse(responseType, request.getRequestId(), error);
             }
 
             return Mono.just(response);
@@ -151,18 +151,26 @@ public class PipelineOrchestrator {
 
     private <R extends AIResponse> R createGenericFallbackResponse(
             Class<R> responseType,
+            String requestId,
             Throwable error) throws Exception {
 
-        R response = createResponseInstance(responseType);
+        R response = createResponseInstance(responseType, requestId);
         response.withError("Pipeline execution failed: " + error.getMessage())
                 .withMetadata("errorType", error.getClass().getSimpleName())
                 .withMetadata("timestamp", System.currentTimeMillis());
         return response;
     }
 
-    private <R extends AIResponse> R createResponseInstance(Class<R> responseType) throws Exception {
+    /**
+     * The empty answer of the type that the fallback fills: made with the request and a failure status by a type that
+     * takes them (K123: it was asked for without them, so such a type could not be made), else by its no-argument
+     * constructor.
+     */
+    private static <R extends AIResponse> R createResponseInstance(Class<R> responseType, String requestId)
+            throws Exception {
         try {
-            return responseType.getDeclaredConstructor(String.class, AIResponse.ExecutionStatus.class).newInstance();
+            return responseType.getDeclaredConstructor(String.class, AIResponse.ExecutionStatus.class)
+                    .newInstance(requestId, AIResponse.ExecutionStatus.FAILURE);
         } catch (NoSuchMethodException e) {
             try {
                 return responseType.getDeclaredConstructor().newInstance();

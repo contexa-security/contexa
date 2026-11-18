@@ -341,14 +341,16 @@ public class IpAccessRuleService {
                 .orElseThrow(() -> new IpRuleRefusedException("admin.ip.not.found", id));
     }
 
+    /** K74: the allow rules in force now; an expired rule is left out, as the filter leaves it out. */
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public long countAllowRules() {
-        return ipAccessRuleRepository.countByRuleTypeAndEnabledTrue(IpAccessRule.RuleType.ALLOW);
+        return ipAccessRuleRepository.countInForce(IpAccessRule.RuleType.ALLOW, LocalDateTime.now());
     }
 
+    /** K74: the deny rules in force now; an expired rule is left out, as the filter leaves it out. */
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public long countDenyRules() {
-        return ipAccessRuleRepository.countByRuleTypeAndEnabledTrue(IpAccessRule.RuleType.DENY);
+        return ipAccessRuleRepository.countInForce(IpAccessRule.RuleType.DENY, LocalDateTime.now());
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
