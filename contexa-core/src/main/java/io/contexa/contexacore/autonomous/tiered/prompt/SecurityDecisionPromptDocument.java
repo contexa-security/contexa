@@ -465,7 +465,8 @@ public final class SecurityDecisionPromptDocument {
         String judgment = version.draw(AssembledPrompt.JUDGMENT, Set.of(), null);
         String output = AssembledPrompt.draw(version.drawnParts(OUTPUT_GROUP, Set.of()), holding, (part, held) ->
                 REASON_CODES_PART.equals(part.key())
-                        ? reasonCodeLines(part, SecurityDecisionOutputContractV4.citedLines()) : null);
+                        ? reasonCodeLines(part, SecurityDecisionOutputContractV4.citedLines(
+                        SecurityDecisionVersionFeatures.of(version).decisionRules())) : null);
         return judgment + "\n" + output;
     }
 

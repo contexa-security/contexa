@@ -1,0 +1,13 @@
+# A test product prompt shipped in two releases (N3): the store finds each release by its own name.
+prompt: test.two-releases
+kind: product
+release: 2026.02.01-v1.0
+title: "Test prompt 2026.02.01"
+description: "The test prompt of release 2026.02.01."
+system: []
+user:
+  - key: query
+    title: "Query"
+    locked: true
+    text: |2
+      Release 2026.02.01 answers: {query}

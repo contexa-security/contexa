@@ -300,9 +300,20 @@ public final class SecurityDecisionFactChecks {
             return stated && context.getIntent() != null && Boolean.TRUE.equals(context.getIntent().getImpossibleTravel());
         }
 
+        /** N2: the stated TenantMatch line says the actor's tenant and the request's tenant differ. */
+        boolean tenantsDiffer() {
+            return prompt.states(PromptBlock.DECISION_FACTS, "TenantMatch")
+                    && Boolean.TRUE.equals(V1LineValues.tenantsDiffer(context));
+        }
+
+        /**
+         * The required BLOCK boundary as the decision rules state it: a negative authorization, a tenant conflict that
+         * DataConflicts names or TenantMatch states (N2), or two corroborated attack categories.
+         */
         boolean requiredBlock() {
             String effect = authorizationEffect();
-            if ("BLOCK".equals(effect) || "DENY".equals(effect) || factHas("DataConflicts", "TENANT_CONFLICT")) {
+            if ("BLOCK".equals(effect) || "DENY".equals(effect) || factHas("DataConflicts", "TENANT_CONFLICT")
+                    || tenantsDiffer()) {
                 return true;
             }
             int categories = (rateAbuse() ? 1 : 0) + (deviceMismatch() ? 1 : 0) + (automation() ? 1 : 0)
