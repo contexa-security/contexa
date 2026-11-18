@@ -158,6 +158,48 @@ final class ZeroTrustFactWords {
             + " records; it first appeared in (?:the output of (.+?)|an earlier tool output)(?:, in the text: (.+))?$");
     private static final Pattern CONFLICT = Pattern.compile("^(.+?)(?: \\((.+)\\))?$");
 
+    // ----- K143: the v20 notation's verdict notes and policy details (CompanyRecordsEvaluator)
+    private static final String DASH = " \u2014 ";
+    private static final String NOT_COVERS = "does not cover: ";
+    private static final String UNDECIDED = "not known whether it covers: ";
+    private static final String NOT_KNOWN = "not known: ";
+    /** The approval or ticket lines once their notes are back with them, apart from each other. */
+    private static final String LINE_SEPARATOR = "\u0000";
+    private static final Pattern NOTE_STATE = Pattern.compile("^is ([A-Z][A-Z0-9_]*)$");
+    private static final Pattern NOTE_DECIDED = Pattern.compile("^decided ([0-9]+ (?:min|h|days) (?:before|after)) this request$");
+    private static final Pattern NOTE_OVER = Pattern.compile("^([0-9,]+) items over the limit of ([0-9,]+)$");
+    private static final Pattern NOTE_CUMULATIVE = Pattern.compile(
+            "^cumulative ([0-9,]+) of ([0-9,]+) items with ([0-9,]+) already exported (under it|in this session)$");
+    private static final Pattern NOTE_OUTSIDE = Pattern.compile("^valid (.+), the request is outside it$");
+    private static final Map<String, String> NOTES = Map.of(
+            "is not in an approved state (host)", "notApproved", "is not in an active state (host)", "notActive",
+            "was approved by the requester (host)", "selfApproved",
+            "has a purpose that does not cover this action (host)", "purpose", "covers another target (host)",
+            "otherTarget", "asks for more items than it allows (host)", "overAsk",
+            "is outside its validity (host)", "outsideHost", "named by the requester does not exist", "claimFalse");
+    private static final Pattern APPROVAL_COVER = Pattern.compile("^approval (\\S+)(?: (.+?))?(?: up to ([0-9,]+)"
+            + "(?:, requested ([0-9,]+))?(?: with ([0-9,]+) already exported)?)?(?:(, decided before the request)"
+            + "|(, valid at the request time)?, decision time not recorded \\(a decision after the request is not ruled"
+            + " out\\))$");
+    private static final Pattern TICKET_COVERS = Pattern.compile("^ticket (\\S+) covers (.+?)( and the requester is on call"
+            + "|, but the requester is not on call|, but whether the requester is on call is not reported)?$");
+    private static final Map<String, String> ON_CALL_TAILS = Map.of(" and the requester is on call", "yes",
+            ", but the requester is not on call", "no", ", but whether the requester is on call is not reported",
+            "unknown");
+    private static final Pattern WITHIN_LIMIT = Pattern.compile(
+            "^assigned to (.+), ([0-9,]+) items within the assigned limit of ([0-9,]+)$");
+    private static final Pattern ASSIGNED_UNKNOWN = Pattern.compile("^assigned to (.+), but the request does not state its"
+            + " item count against the assigned limit of ([0-9,]+)$");
+    private static final Pattern NO_APPROVAL = Pattern.compile("^no approval for (.+)$");
+    private static final Pattern OTHER_KIND = Pattern.compile("^ticket (\\S+) is not a ([A-Z][A-Z0-9_]*) ticket$");
+    private static final Pattern NO_TICKET = Pattern.compile("^no (?:([A-Z][A-Z0-9_]*) )?ticket covers (.+)$");
+    private static final Pattern HISTORY = Pattern.compile("^the work history on (.+) (was not looked up|gives no day count)$");
+    private static final Pattern ASSIGNMENT_UNKNOWN = Pattern.compile("^the assignment to (.+) was not looked up$");
+    private static final Pattern RECORD_UNDECIDED = Pattern.compile("^(approval|ticket) (\\S+): (.+)$");
+    private static final Pattern RECORD_FAILED = Pattern.compile("^(approval|ticket) (\\S+) (.+)$");
+    /** A name the host writes as a code ({@code EXPORT_APPROVAL}): capitals and digits with an underscore. */
+    private static final Pattern CODE_NAME = Pattern.compile("^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$");
+
     /** A code as the engine writes it ({@code EXPORT}, {@code PASSWORD+ONE_TIME_CODE}), set apart from other text. */
     private static final Pattern ENGINE_WORD = Pattern.compile(
             "(?<![\\w./@#:+-])[A-Z][A-Z0-9_]*(?:\\+[A-Z][A-Z0-9_]*)*(?![\\w./@#:+-])");
@@ -188,8 +230,8 @@ final class ZeroTrustFactWords {
             case DecisionFactsResolver.REPEAT_IN_SESSION -> whole(value, cut, this::repeat);
             case DecisionFactsResolver.POLICY -> policies(value, cut);
             case DecisionFactsResolver.POLICY_SATISFIED -> whole(value, cut, this::satisfied);
-            case DecisionFactsResolver.APPROVAL -> parts(value, PART_SEPARATOR, cut, line -> record(line, false));
-            case DecisionFactsResolver.TICKET -> parts(value, PART_SEPARATOR, cut, line -> record(line, true));
+            case DecisionFactsResolver.APPROVAL -> records(value, cut, false);
+            case DecisionFactsResolver.TICKET -> records(value, cut, true);
             case DecisionFactsResolver.ASSIGNMENT -> parts(value, PART_SEPARATOR, cut, this::assignment);
             case DecisionFactsResolver.ON_CALL -> whole(value, cut, this::onCall);
             case DecisionFactsResolver.TRAVEL -> whole(value, cut, this::travel);
@@ -540,7 +582,9 @@ final class ZeroTrustFactWords {
         if (!m.matches()) {
             return null;
         }
-        String id = "company policy".equals(m.group(1)) ? message(F + "policy.company", m.group(1)) : m.group(1);
+        // K143: a policy reads by its name, set apart as a name; a name the host writes as a code reads in words
+        String id = "company policy".equals(m.group(1)) ? message(F + "policy.company", m.group(1))
+                : message(F + "policy.named", m.group(1), hostWords(m.group(1)));
         String needs = m.group(2).equals("a covering approval") ? message(F + "policy.needs.approval", m.group(2))
                 : m.group(4) != null ? message(F + "policy.needs.record", m.group(2), "not stated".equals(m.group(4))
                 ? message(F + "policy.notStated", m.group(4)) : word(STATUS_WORD, m.group(4)))
@@ -583,7 +627,159 @@ final class ZeroTrustFactWords {
             return null;
         }
         String answer = message(F + "satisfied." + m.group(1), m.group(1));
-        return m.group(2) != null ? message(F + "satisfied.detail", value, answer, codes(m.group(2))) : answer;
+        if (m.group(2) == null) {
+            return answer;
+        }
+        // An unknown answer says what is not known once.
+        boolean unknown = "unknown".equals(m.group(1)) && m.group(2).startsWith(NOT_KNOWN);
+        return message(F + "satisfied.detail", value, answer, unknown
+                ? unknowns(m.group(2).substring(NOT_KNOWN.length())) : satisfaction(m.group(2)));
+    }
+
+    /**
+     * K143: what the engine says of the policy at the request time (v20 notation, CompanyRecordsEvaluator): the record
+     * or the exception that meets it, what is not known, or what fails, each part in words.
+     */
+    private String satisfaction(String detail) {
+        if (detail.startsWith(NOT_KNOWN)) {
+            return message(F + "record.notKnown", detail, unknowns(detail.substring(NOT_KNOWN.length())));
+        }
+        return read(this::satisfactionPart, detail);
+    }
+
+    private String unknowns(String unknowns) {
+        List<String> words = new ArrayList<>();
+        for (String unknown : unknowns.split(PART_SEPARATOR)) {
+            words.add(read(this::satisfactionPart, unknown.trim()));
+        }
+        return String.join(", ", words);
+    }
+
+    private String satisfactionPart(String part) {
+        Matcher cover = APPROVAL_COVER.matcher(part);
+        if (cover.matches()) {
+            List<String> words = new ArrayList<>(List.of(message(F + "met.approval", part, hostName(cover.group(1)))));
+            if (cover.group(2) != null) {
+                words.add(CODE.matcher(cover.group(2)).matches() ? word(STATUS_WORD, cover.group(2)) : cover.group(2));
+            }
+            if (cover.group(3) != null) {
+                words.add(message(F + "record.upTo", part, cover.group(3)));
+            }
+            if (cover.group(4) != null) {
+                words.add(message(F + "met.requested", part, cover.group(4)));
+            }
+            if (cover.group(5) != null) {
+                words.add(message(F + "met.exported", part, cover.group(5)));
+            }
+            if (cover.group(6) != null) {
+                words.add(message(F + "met.decidedBefore", part));
+            } else {
+                if (cover.group(7) != null) {
+                    words.add(message(F + "met.validAtRequest", part));
+                }
+                words.add(message(F + "met.notDecided", part));
+            }
+            return String.join(SEPARATOR, words);
+        }
+        Matcher ticket = TICKET_COVERS.matcher(part);
+        if (ticket.matches()) {
+            String covers = message(F + "met.ticket", part, hostName(ticket.group(1)), target(ticket.group(2)));
+            return ticket.group(3) == null ? covers
+                    : message(F + "met.onCall." + ON_CALL_TAILS.get(ticket.group(3)), part, covers);
+        }
+        Matcher within = WITHIN_LIMIT.matcher(part);
+        if (within.matches()) {
+            return message(F + "met.withinLimit", part, target(within.group(1)), within.group(2), within.group(3));
+        }
+        Matcher noApproval = NO_APPROVAL.matcher(part);
+        if (noApproval.matches()) {
+            return message(F + "met.noApproval", part, target(noApproval.group(1)));
+        }
+        Matcher otherKind = OTHER_KIND.matcher(part);
+        if (otherKind.matches()) {
+            return message(F + "met.otherKind", part, hostName(otherKind.group(1)),
+                    word(TICKET_KIND_WORD, otherKind.group(2)));
+        }
+        Matcher noTicket = NO_TICKET.matcher(part);
+        if (noTicket.matches()) {
+            return noTicket.group(1) != null ? message(F + "met.noKindTicket", part, target(noTicket.group(2)),
+                    word(TICKET_KIND_WORD, noTicket.group(1))) : message(F + "met.noTicket", part, target(noTicket.group(2)));
+        }
+        Matcher countUnknown = ASSIGNED_UNKNOWN.matcher(part);
+        if (countUnknown.matches()) {
+            return message(F + "met.assignedCountUnknown", part, target(countUnknown.group(1)), countUnknown.group(2));
+        }
+        Matcher history = HISTORY.matcher(part);
+        if (history.matches()) {
+            return message(F + (history.group(2).startsWith("was") ? "met.historyNotLookedUp" : "met.historyNoDays"),
+                    part, target(history.group(1)));
+        }
+        Matcher assignment = ASSIGNMENT_UNKNOWN.matcher(part);
+        if (assignment.matches()) {
+            return message(F + "met.assignmentNotLookedUp", part, target(assignment.group(1)));
+        }
+        if ("approvals were not looked up".equals(part)) {
+            return message(F + "met.approvalsNotLookedUp", part);
+        }
+        if ("tickets were not looked up".equals(part)) {
+            return message(F + "met.ticketsNotLookedUp", part);
+        }
+        Matcher undecided = RECORD_UNDECIDED.matcher(part);
+        if (undecided.matches()) {
+            return message(F + "met.recordNotes", part, message(F + "met.noun." + undecided.group(1), undecided.group(1)),
+                    hostName(undecided.group(2)), notes(undecided.group(3)));
+        }
+        Matcher failed = RECORD_FAILED.matcher(part);
+        if (failed.matches()) {
+            return message(F + "met.recordNotes", part, message(F + "met.noun." + failed.group(1), failed.group(1)),
+                    hostName(failed.group(2)), notes(failed.group(3)));
+        }
+        String note = note(part);
+        return note != null ? note : assignment(part);
+    }
+
+    /** The notes of a record check, joined by "; " (v20 notation), each in words. */
+    private String notes(String notes) {
+        List<String> words = new ArrayList<>();
+        for (String note : notes.split(PART_SEPARATOR)) {
+            String worded = note(note.trim());
+            words.add(worded != null ? worded : codes(note.trim()));
+        }
+        return String.join(", ", words);
+    }
+
+    /** K143: one note of a record check (CompanyRecordsEvaluator): a failure, or what could not be checked. */
+    private String note(String note) {
+        Matcher state = NOTE_STATE.matcher(note);
+        if (state.matches()) {
+            return message(F + "note.state", note, word(STATUS_WORD, state.group(1)));
+        }
+        Matcher decided = NOTE_DECIDED.matcher(note);
+        if (decided.matches()) {
+            return message(F + "record.decided", note, relative(decided.group(1)));
+        }
+        Matcher over = NOTE_OVER.matcher(note);
+        if (over.matches()) {
+            return message(F + "note.overLimit", note, over.group(1), over.group(2));
+        }
+        Matcher cumulative = NOTE_CUMULATIVE.matcher(note);
+        if (cumulative.matches()) {
+            return message(F + ("under it".equals(cumulative.group(4)) ? "note.cumulative" : "note.cumulativeSession"),
+                    note, cumulative.group(1), cumulative.group(2), cumulative.group(3));
+        }
+        Matcher outside = NOTE_OUTSIDE.matcher(note);
+        if (outside.matches()) {
+            return message(F + "note.outside", note, window(outside.group(1)));
+        }
+        Matcher count = ITEM_COUNT.matcher(note);
+        if (count.matches()) {
+            return message(F + "record.unknown.count", note, count.group(1));
+        }
+        if (OUTSIDE_SESSION.equals(note)) {
+            return message(F + "record.unknown.outside", note);
+        }
+        String key = NOTES.get(note);
+        return key != null ? message(F + "note." + key, note) : null;
     }
 
     // ----- the approval and ticket records
@@ -600,7 +796,7 @@ final class ZeroTrustFactWords {
         if (ticket && (CLAIMED + " does not exist").equals(line)) {
             return message(F + "ticket.claimFalse", line);
         }
-        int dash = line.indexOf(" — ");
+        int dash = line.indexOf(DASH);
         String body = dash >= 0 ? line.substring(0, dash) : line;
         List<String> tokens = new ArrayList<>(List.of(body.split(", ")));
         List<String> words = new ArrayList<>();
@@ -610,7 +806,7 @@ final class ZeroTrustFactWords {
             if (!m.matches()) {
                 return null;
             }
-            words.add(CLAIMED.equals(m.group(1)) ? message(F + "ticket.claimed", m.group(1)) : m.group(1));
+            words.add(CLAIMED.equals(m.group(1)) ? message(F + "ticket.claimed", m.group(1)) : hostName(m.group(1)));
             if (m.group(2) != null) {
                 words.add(message(F + "ticket.kind", m.group(2), word(TICKET_KIND_WORD, m.group(2))));
             }
@@ -622,7 +818,7 @@ final class ZeroTrustFactWords {
             if (!m.matches()) {
                 return null;
             }
-            words.add(m.group(1));
+            words.add(hostName(m.group(1)));
             if (m.group(2) != null) {
                 words.add(message(F + "record.by", m.group(2), m.group(2)));
             }
@@ -693,18 +889,36 @@ final class ZeroTrustFactWords {
         return CODE.matcher(piece).matches() ? word(STATUS_WORD, piece) : piece;
     }
 
-    /** Whether the record covers this request (v20 notation). */
+    /** Whether the record covers this request (v20 notation), its notes in words. */
     private String verdict(String verdict) {
         if ("covers this request".equals(verdict)) {
             return message(F + "record.covers", verdict);
         }
-        if (verdict.startsWith("does not cover: ")) {
-            return message(F + "record.notCovers", verdict, codes(verdict.substring(16)));
+        if (verdict.startsWith(NOT_COVERS)) {
+            return message(F + "record.notCovers", verdict, notes(verdict.substring(NOT_COVERS.length())));
         }
-        if (verdict.startsWith("not known whether it covers: ")) {
-            return message(F + "record.undecided", verdict, codes(verdict.substring(29)));
+        if (verdict.startsWith(UNDECIDED)) {
+            return message(F + "record.undecided", verdict, notes(verdict.substring(UNDECIDED.length())));
         }
         return codes(verdict);
+    }
+
+    /**
+     * K143: the approval or ticket lines, joined by "; ". A line of the v20 notation lists its notes after its dash,
+     * joined by "; " too: a note goes back to the line it follows, so each line reads whole.
+     */
+    private String records(String value, boolean cut, boolean ticket) {
+        List<String> lines = new ArrayList<>();
+        for (String piece : value.split(PART_SEPARATOR, -1)) {
+            String previous = lines.isEmpty() ? null : lines.get(lines.size() - 1);
+            if (previous != null && (previous.contains(DASH + NOT_COVERS) || previous.contains(DASH + UNDECIDED))
+                    && note(piece.trim()) != null) {
+                lines.set(lines.size() - 1, previous + PART_SEPARATOR + piece);
+            } else {
+                lines.add(piece);
+            }
+        }
+        return parts(String.join(LINE_SEPARATOR, lines), LINE_SEPARATOR, cut, line -> record(line, ticket));
     }
 
     private String assignment(String part) {
@@ -757,7 +971,7 @@ final class ZeroTrustFactWords {
             return null;
         }
         String place = "an unnamed place".equals(m.group(2)) ? message(F + "travel.unnamed", m.group(2)) : m.group(2);
-        String trip = m.group(1) != null ? message(F + "travel.plan", value, m.group(1), place)
+        String trip = m.group(1) != null ? message(F + "travel.plan", value, hostName(m.group(1)), place)
                 : message(F + "travel.noPlan", value, place);
         if (m.group(3) != null) {
             trip = message(F + "travel.network", value, trip, m.group(3));
@@ -781,7 +995,7 @@ final class ZeroTrustFactWords {
     private String cohort(String value, boolean cut) {
         Matcher named = COHORT.matcher(value);
         String parts = parts(named.matches() ? named.group(2) : value, PART_SEPARATOR, cut, this::cohortPart);
-        return named.matches() ? message(F + "cohort.named", value, named.group(1), parts) : parts;
+        return named.matches() ? message(F + "cohort.named", value, hostName(named.group(1)), parts) : parts;
     }
 
     private String cohortPart(String part) {
@@ -899,6 +1113,19 @@ final class ZeroTrustFactWords {
         }
         // A code no dictionary names is read in words when it is plainly one (two words or more).
         return code.contains("_") ? code.toLowerCase(Locale.ROOT).replace('_', ' ') : code;
+    }
+
+    /**
+     * K143: a name of the host's record, policy, cohort or trip: as the host wrote it, or, when the host wrote it as a
+     * code, in words set apart as a name ({@code EXPORT_APPROVAL} reads as "export approval").
+     */
+    private String hostName(String name) {
+        return CODE_NAME.matcher(name).matches() ? message(F + "name", name, hostWords(name)) : name;
+    }
+
+    /** A name the host wrote, a code of it in words. */
+    private static String hostWords(String name) {
+        return CODE_NAME.matcher(name).matches() ? name.toLowerCase(Locale.ROOT).replace('_', ' ') : name;
     }
 
     private String action(String code) {
