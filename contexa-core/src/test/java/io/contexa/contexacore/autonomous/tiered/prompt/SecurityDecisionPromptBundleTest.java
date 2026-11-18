@@ -186,7 +186,8 @@ class SecurityDecisionPromptBundleTest {
      */
     private static List<SecurityDecisionGoldenRender.RenderedCase> renderAll(SecurityDecisionPromptBundles.Bundle bundle) {
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(bundle.descriptor().promptVersion());
+        // N3: the bundle's name is also the earlier release's; the product version is named by its release.
+        properties.getPromptBundle().setActive(SecurityDecisionPromptDocument.product().release());
         List<SecurityDecisionGoldenRender.RenderedCase> rendered = new ArrayList<>();
         for (JsonNode goldenCase : golden.cases()) {
             for (PromptBudgetProfile profile : SecurityDecisionGoldenRender.PROFILES) {

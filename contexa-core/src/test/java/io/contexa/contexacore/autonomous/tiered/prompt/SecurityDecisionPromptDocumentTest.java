@@ -66,8 +66,13 @@ class SecurityDecisionPromptDocumentTest {
         assertThat(earlier.release()).isEqualTo("2026.11.16-v1.0");
         assertThat(SecurityDecisionPromptDocument.productStore()
                 .find(SecurityDecisionPromptDocument.PROMPT, "2026.11.18-v1.0")).containsSame(product);
-        assertThat(SecurityDecisionPromptDocument.productStore().find(SecurityDecisionPromptDocument.PROMPT,
-                SecurityDecisionPromptBundles.DEFAULT.version())).containsSame(product);
+        // N3: each release by its name; the earlier release's document, not the product version, under its name.
+        AssembledPrompt found = SecurityDecisionPromptDocument.productStore().find(SecurityDecisionPromptDocument.PROMPT,
+                "2026.11.16-v1.0").orElseThrow();
+        assertThat(found.release()).isEqualTo("2026.11.16-v1.0");
+        assertThat(found.contentHash()).isEqualTo(earlier.contentHash()).isNotEqualTo(product.contentHash());
+        assertThat(found.systemPart("organization-blocks")).isEmpty();
+        assertThat(SecurityDecisionPromptDocument.reasonCodes(found)).doesNotContain("VERIFIED_SIGNAL");
         assertThat(SecurityDecisionPromptDocument.productStore()
                 .find(SecurityDecisionPromptDocument.PROMPT, "v2.0")).isEmpty();
         assertThat(SecurityDecisionPromptDocument.productStore().find("PolicyGeneration", "2026.11.18-v1.0")).isEmpty();

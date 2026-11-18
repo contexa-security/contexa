@@ -649,7 +649,7 @@ class PromptVersionServicePostgresTest {
         assertThat(store.find(PROMPT, neverRead.name())).as("a version never read: the engine runs the product")
                 .isEmpty();
         assertThat(store.find(PROMPT, "2026.11.18-v1.0")).as("the product by its release").isPresent();
-        assertThat(store.find(PROMPT, "2026.11.16-v1.0")).as("the product by the bundle's name").isPresent();
+        assertThat(store.find(PROMPT, "2026.11.16-v1.0")).as("the earlier release by its name, the bundle's too").isPresent();
         PromptVersionResolver resolver = new PromptVersionResolver(null, failing, () -> null, clock);
         assertThat(resolver.select(context(null), "alice")).isEqualTo(PromptBundleSelection.none());
     }
