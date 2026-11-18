@@ -27,7 +27,10 @@ public class PqaOssSealedEvidenceCaptureProperties {
     /** R4-S6, decision D-B: the share of requests sealed outside the window after a change. */
     private int samplePercent = VersionChangeCaptureSampling.DEFAULT_SAMPLE_PERCENT;
 
-    /** R4-S6: the decisions sealed in full after a start or a change of the active prompt bundle. */
+    /**
+     * R4-S6, K43: the decisions sealed in full after a start and after the prompt version decisions run changes; a
+     * version a canary or a shadow runs beside it has a window of its own.
+     */
     private int fullCaptureAfterChange = VersionChangeCaptureSampling.DEFAULT_FULL_CAPTURE_AFTER_CHANGE;
 
     public boolean isCaptureEnabled() {
