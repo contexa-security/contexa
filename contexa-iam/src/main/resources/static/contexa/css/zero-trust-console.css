@@ -1729,17 +1729,14 @@ input[type="file"].modern-input::file-selector-button {
 
 /*
  * K89: words of any language stay inside their box at every width. A column head wraps rather than be cut (a head is
- * never cut) or widen its table past the card, the head of a column of numbers between its words only, so the column
- * keeps the room of its longest word; a row of a value keeps its name and its value
+ * never cut); a row of a value keeps its name and its value
  * inside the row, either wrapping and a long name breaking anywhere; a badge of a row or of a criterion wraps its
  * words; a key card's name wraps rather than push its definition mark out.
+ * K107: every column head wraps between its words, so its column keeps the room of its longest word (the fill column
+ * gives it); a word breaks inside only where a column has less room than that word, rather than be cut or run out.
  */
 .zt-page .zt-table th {
     white-space: normal;
-    overflow-wrap: anywhere;
-}
-
-.zt-page .zt-table th.zt-num {
     overflow-wrap: break-word;
 }
 
