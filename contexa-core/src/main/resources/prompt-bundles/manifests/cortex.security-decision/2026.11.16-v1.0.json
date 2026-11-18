@@ -1,7 +1,7 @@
 {
   "promptKey" : "cortex.security-decision",
   "bundleVersion" : "2026.11.16-v1.0",
-  "bundleHash" : "16e7a4401f36975d686219fd1125953e00052c66ca1f3cb17162f184304fb240",
+  "bundleHash" : "51bd250b10b6d4c2eaaa32b4a91c64f9d826784de27930d243074a150b56f3c7",
   "elements" : [ {
     "id" : "B1",
     "state" : "PRESENT",
@@ -30,7 +30,7 @@
   }, {
     "id" : "B6",
     "state" : "PRESENT",
-    "hash" : "256b343b078dc79a49c526c50376dee779ec02bdfb9358ccc066619466783f40",
+    "hash" : "bae3a84b8784e8966e19696ad705bbe212fae446050979593926c87d616d6e9a",
     "detail" : "v1.0 response check sources: the v21 check, the past record claim, the boundaries and the floors, and the fallback actions, read through the short answer's adapter (K30)"
   }, {
     "id" : "B7",
