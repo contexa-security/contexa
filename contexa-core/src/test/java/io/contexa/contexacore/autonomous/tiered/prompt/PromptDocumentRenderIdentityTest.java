@@ -96,7 +96,8 @@ class PromptDocumentRenderIdentityTest {
         for (SecurityDecisionPromptBundles.Bundle bundle : BUNDLES) {
             String name = bundle.version();
             TieredStrategyProperties properties = new TieredStrategyProperties();
-            properties.getPromptBundle().setActive(bundle.version());
+            // N3: the bundle's name is also the earlier release's; the product version is named by its release.
+            properties.getPromptBundle().setActive(SecurityDecisionPromptDocument.product().release());
             for (JsonNode goldenCase : golden.cases()) {
                 String caseKey = goldenCase.path("caseKey").asText();
                 for (PromptBudgetProfile profile : SecurityDecisionGoldenRender.PROFILES) {

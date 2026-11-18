@@ -97,16 +97,13 @@ public final class SecurityDecisionPromptDocument {
     }
 
     /**
-     * The store of the product version without the version tables: the product version by its release, and by the name
-     * of the bundle every version runs on, which names the build's product version (K66: since release 2026.11.18 the
-     * bundle's name is no longer the release's). An earlier release is read from the version tables, where the start
-     * registered it.
+     * The store of the product versions this build ships, without the version tables: each release by its name, so a
+     * decision or a replay that names an earlier release draws that release (N3; K66 made 2026.11.16 an earlier
+     * release, whose name is also the bundle's).
      */
     public static PromptVersionStore productStore() {
         return (prompt, version) -> PROMPT.equals(prompt) && version != null
-                && (product().release().equals(version.trim())
-                || SecurityDecisionPromptBundles.DEFAULT.version().equals(version.trim()))
-                ? Optional.of(product()) : Optional.empty();
+                ? Optional.ofNullable(Holder.RELEASED.get(version.trim())) : Optional.empty();
     }
 
     /**
@@ -529,9 +526,22 @@ public final class SecurityDecisionPromptDocument {
     private static final class Holder {
         private static final AssembledPrompt PRODUCT = new PromptAssembler()
                 .product(productDocument(RELEASES.get(RELEASES.size() - 1)));
+        /** N3: every product version this build ships by its release name, the latest being the product version. */
+        private static final Map<String, AssembledPrompt> RELEASED = released();
         private static final boolean VARIES_BY_AGENT = PRODUCT
                 .drawnParts(AssembledPrompt.JUDGMENT, Set.of(AGENT_REQUEST)).stream()
                 .anyMatch(part -> part.whenText().containsKey(AGENT_REQUEST));
+
+        private static Map<String, AssembledPrompt> released() {
+            Map<String, AssembledPrompt> released = new LinkedHashMap<>();
+            PromptAssembler assembler = new PromptAssembler();
+            for (String release : RELEASES.subList(0, RELEASES.size() - 1)) {
+                AssembledPrompt version = assembler.product(productDocument(release));
+                released.put(version.release(), version);
+            }
+            released.put(PRODUCT.release(), PRODUCT);
+            return Map.copyOf(released);
+        }
     }
 
     /**

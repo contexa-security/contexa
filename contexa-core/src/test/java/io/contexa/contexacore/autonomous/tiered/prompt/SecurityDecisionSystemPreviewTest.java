@@ -32,7 +32,7 @@ class SecurityDecisionSystemPreviewTest {
     void thePreviewOfTheProductVersionIsTheSystemTextOfAPersonsDecision() {
         SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.DEFAULT.version());
+        properties.getPromptBundle().setActive(SecurityDecisionPromptDocument.product().release());
         JsonNode first = golden.cases().get(0);
         String drawn = golden.render(first, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties).systemText();
 
