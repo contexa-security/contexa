@@ -376,21 +376,29 @@
         }
         if ((shadow.cases || []).length) {
             const body = el('tbody');
-            shadow.cases.forEach(item => body.append(el('tr', {},
-                el('td', {class: 'zt-fill'}, el('span', {class: 'pv-cut', title: item.requestId, text: item.requestId}),
-                    el('div', {class: 'zt-muted', text: ZT.time(item.capturedAt)})),
-                el('td', {class: 'zt-cell-chips'}, versionLink(item.decisionVersion), ' ',
-                    item.decisionAction ? ZT.chip(item.decisionAction, PV.actionName(item.decisionAction)) : null),
-                el('td', {class: 'zt-cell-chips'}, versionLink(item.shadowVersion), ' ',
-                    item.shadowAction ? ZT.chip(item.shadowAction, PV.actionName(item.shadowAction)) : null),
-                el('td', {class: 'pv-row-action'},
-                    item.decisionPackageId ? el('a', {class: 'zt-link', href: EVIDENCE + encodeURIComponent(item.decisionPackageId),
-                        text: t('pv.shadow.decisionSeal')}) : null, ' ',
-                    item.shadowPackageId ? el('a', {class: 'zt-link', href: EVIDENCE + encodeURIComponent(item.shadowPackageId),
-                        text: t('pv.shadow.shadowSeal')}) : null))));
+            // K115: a phone reads each side as a line under the request, and each seal by its side's short word
+            const side = (version, action) => (version || '—') + ' · ' + (action ? PV.actionName(action) : '—');
+            const seal = (id, key) => id ? el('a', {class: 'zt-link', href: EVIDENCE + encodeURIComponent(id), title: t(key)},
+                el('span', {class: 'zt-long', text: t(key)}), el('span', {class: 'zt-short', text: t(key + '.short')})) : null;
+            shadow.cases.forEach(item => {
+                const decision = side(item.decisionVersion, item.decisionAction);
+                const alongside = '→ ' + side(item.shadowVersion, item.shadowAction);
+                body.append(el('tr', {},
+                    el('td', {class: 'zt-fill'}, el('span', {class: 'pv-cut', title: item.requestId, text: item.requestId}),
+                        el('div', {class: 'zt-muted', text: ZT.time(item.capturedAt)}),
+                        el('div', {class: 'zt-short zt-muted', title: decision, text: decision}),
+                        el('div', {class: 'zt-short zt-muted', title: alongside, text: alongside})),
+                    el('td', {class: 'zt-cell-chips zt-wide'}, versionLink(item.decisionVersion), ' ',
+                        item.decisionAction ? ZT.chip(item.decisionAction, PV.actionName(item.decisionAction)) : null),
+                    el('td', {class: 'zt-cell-chips zt-wide'}, versionLink(item.shadowVersion), ' ',
+                        item.shadowAction ? ZT.chip(item.shadowAction, PV.actionName(item.shadowAction)) : null),
+                    el('td', {class: 'pv-row-action'}, seal(item.decisionPackageId, 'pv.shadow.decisionSeal'), ' ',
+                        seal(item.shadowPackageId, 'pv.shadow.shadowSeal'))));
+            });
             holder.append(el('div', {class: 'zt-subhead', text: t('pv.shadow.cases', ZT.count(shadow.cases.length))}),
-                table(['request', 'decision', 'alongside', 'evidence'].map(column =>
-                    el('th', {scope: 'col', text: t('pv.shadow.case.' + column)})), body));
+                table(['request', 'decision', 'alongside', 'evidence'].map(column => el('th', {scope: 'col',
+                    class: column === 'decision' || column === 'alongside' ? 'zt-wide' : null,
+                    text: t('pv.shadow.case.' + column)})), body));
         }
         return card;
     }
