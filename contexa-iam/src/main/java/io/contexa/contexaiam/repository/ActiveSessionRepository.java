@@ -48,6 +48,19 @@ public interface ActiveSessionRepository extends JpaRepository<ActiveSession, St
     @Query("DELETE FROM ActiveSession s WHERE s.expired = true AND s.lastAccessedAt < :before")
     void deleteExpiredBefore(@Param("before") LocalDateTime before);
 
+    /**
+     * K73: the sessions still counted active that no request reached since the moment: their HTTP session ended without
+     * a word (the node that held it stopped). They go rather than being marked expired, since a mark forces out a session
+     * that is still alive (SessionTrackingFilter): one that lives on under a longer idle limit of its own is tracked
+     * again at its next request.
+     *
+     * @return the sessions removed
+     */
+    @Modifying
+    @Query("DELETE FROM ActiveSession s WHERE s.expired = false AND (s.lastAccessedAt < :before "
+            + "OR (s.lastAccessedAt IS NULL AND s.createdAt < :before))")
+    int deleteIdleBefore(@Param("before") LocalDateTime before);
+
     Page<ActiveSession> findByExpiredFalse(Pageable pageable);
 
     @Query("SELECT s FROM ActiveSession s WHERE s.expired = false AND (lower(s.username) LIKE :keyword OR lower(s.clientIp) LIKE :keyword) ORDER BY s.lastAccessedAt DESC")

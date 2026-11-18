@@ -87,6 +87,20 @@ public enum AuditEventCategory {
     USER_MODIFIED("User information modified"),
     USER_DELETED("User account deleted"),
 
+    GROUP_CREATED("Group created"),
+    GROUP_UPDATED("Group updated"),
+    GROUP_DELETED("Group deleted"),
+
+    PERMISSION_CREATED("Permission created"),
+    PERMISSION_UPDATED("Permission updated"),
+    PERMISSION_DELETED("Permission deleted"),
+
+    ROLE_HIERARCHY_CHANGED("Role hierarchy created, updated, deleted, switched on or switched off"),
+    ROLE_ASSIGNMENT_CHANGED("A user's groups or roles, or a group's roles, assigned in the access center"),
+    PASSWORD_POLICY_CHANGED("Password policy changed"),
+    MENU_CHANGED("Admin menu created, updated, deleted, switched on or off, reordered or given other roles"),
+    SYSTEM_SETTINGS_CHANGED("System settings other than the Zero Trust mode changed"),
+
     SESSION_CREATED("Session created"),
     SESSION_DESTROYED("Session destroyed"),
     TOKEN_ISSUED("Token issued"),

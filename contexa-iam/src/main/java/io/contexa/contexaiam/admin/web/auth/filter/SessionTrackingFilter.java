@@ -51,6 +51,11 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
     private static final String WEBJARS = "/webjars";
     private static final String GUIDED_PAGE = "/contexa/admin/test/guided";
     private static final String GUIDED_API = "/contexa/admin/api/guided";
+    /**
+     * The session attribute that says when the session was last tracked: a session that holds it has a tracked row,
+     * which its end marks (K73, ActiveSessionEndListener).
+     */
+    public static final String TRACKED_AT = "_sessionTrackTime";
 
     private final SessionManagementService sessionManagementService;
     private final ActiveSessionRepository activeSessionRepository;
@@ -94,10 +99,10 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
         if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
             session = request.getSession(false);
             if (session != null) {
-                Long lastTrack = (Long) session.getAttribute("_sessionTrackTime");
+                Long lastTrack = (Long) session.getAttribute(TRACKED_AT);
                 long nowTrack = System.currentTimeMillis();
                 if (lastTrack == null || nowTrack - lastTrack > 30_000) {
-                    session.setAttribute("_sessionTrackTime", nowTrack);
+                    session.setAttribute(TRACKED_AT, nowTrack);
                     // Contexa's own work behind the application's request, bounded as the read ahead of it is
                     RequestPathScope.enter();
                     try {

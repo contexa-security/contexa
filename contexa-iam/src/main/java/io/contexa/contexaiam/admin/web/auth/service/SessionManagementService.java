@@ -29,6 +29,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -177,9 +178,27 @@ public class SessionManagementService {
         });
     }
 
+    /**
+     * K73: the session ended (its HTTP session was destroyed, by a logout, its idle limit or the application, or its id
+     * was replaced): it is no longer active.
+     */
     @Transactional(transactionManager = "contexaTransactionManager")
     public void markExpired(String sessionId) {
         activeSessionRepository.expireSession(RequestFactRedaction.sessionReference(sessionId));
+    }
+
+    /**
+     * K73: the sessions no request reached for longer than the idle limit are no longer active: they ended without a
+     * word, as the sessions of a node that stopped do. A limit of zero or less (sessions that never time out) ends none.
+     *
+     * @return the sessions removed
+     */
+    @Transactional(transactionManager = "contexaTransactionManager")
+    public int endIdleSessions(Duration idleLimit) {
+        if (idleLimit == null || idleLimit.isZero() || idleLimit.isNegative()) {
+            return 0;
+        }
+        return activeSessionRepository.deleteIdleBefore(LocalDateTime.now().minus(idleLimit));
     }
 
     /**

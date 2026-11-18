@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
@@ -41,7 +42,7 @@ class SystemSettingsZeroTrustModeWiringTest {
         SystemSettingsService service = new IamAdminPasswordPolicyAutoConfiguration().systemSettingsService(
                 mock(SystemSettingsRepository.class), mock(RoleRepository.class),
                 beans.getBeanProvider(SecurityZeroTrustProperties.class),
-                beans.getBeanProvider(PolicyCombiningProperties.class));
+                beans.getBeanProvider(PolicyCombiningProperties.class), beans.getBeanProvider(CentralAuditFacade.class));
 
         assertThat(ReflectionTestUtils.getField(service, "zeroTrustProperties")).isSameAs(properties);
         assertThat(ReflectionTestUtils.getField(service, "policyCombiningProperties")).isNull();
@@ -57,7 +58,7 @@ class SystemSettingsZeroTrustModeWiringTest {
         SystemSettingsService service = new IamAdminPasswordPolicyAutoConfiguration().systemSettingsService(
                 mock(SystemSettingsRepository.class), mock(RoleRepository.class),
                 beans.getBeanProvider(SecurityZeroTrustProperties.class),
-                beans.getBeanProvider(PolicyCombiningProperties.class));
+                beans.getBeanProvider(PolicyCombiningProperties.class), beans.getBeanProvider(CentralAuditFacade.class));
 
         assertThat(ReflectionTestUtils.getField(service, "policyCombiningProperties")).isSameAs(properties);
     }

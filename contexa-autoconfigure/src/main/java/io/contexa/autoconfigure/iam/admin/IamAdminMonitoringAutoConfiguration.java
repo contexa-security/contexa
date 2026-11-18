@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.*;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
@@ -289,11 +290,15 @@ public class IamAdminMonitoringAutoConfiguration {
     public AdminMenuManagementService adminMenuManagementService(
             AdminMenuService contexaAdminMenuService,
             RoleRepository roleRepository,
-            MessageSource messageSource) {
-        return new AdminMenuManagementService(
+            MessageSource messageSource,
+            ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+        AdminMenuManagementService service = new AdminMenuManagementService(
                 contexaAdminMenuService,
                 roleRepository,
                 messageSource);
+        // K75: a change of the menus is audited
+        centralAuditFacade.ifAvailable(service::setCentralAuditFacade);
+        return service;
     }
 
     @Bean(name = "contexaAdminMenuController")

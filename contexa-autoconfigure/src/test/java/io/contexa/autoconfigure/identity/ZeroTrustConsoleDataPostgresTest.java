@@ -365,6 +365,51 @@ class ZeroTrustConsoleDataPostgresTest {
         assertThat(hourly("SUM(decision_count)", hourOf(blockedAt))).isEqualTo(1L);
     }
 
+    /**
+     * K88: the hours a database kept before the unreviewed blocks, the code requests and the release times were counted
+     * (their columns came in at zero) are rebuilt once by the first run after a start; an hour rebuilt is not again.
+     */
+    @Test
+    void theHoursKeptBeforeTheNewColumnsAreRebuiltOnce() {
+        Instant decidedAt = clock.instant().minus(Duration.ofDays(3));
+        MovableClock then = new MovableClock(decidedAt.plus(Duration.ofMinutes(5)));
+        decision("old-block", decidedAt, "FIRST", "BLOCK", "request-old-block", null);
+        decision("old-released", decidedAt, "FIRST", "BLOCK", "request-old-released", null);
+        decision("old-challenge", decidedAt, "FIRST", "CHALLENGE", "request-old-challenge", null);
+        ZeroTrustDecisionOutcomes outcomes = new ZeroTrustDecisionOutcomes(() -> jdbc, then);
+        outcomes.record("request-old-released", "alice", null, ZeroTrustDecisionOutcomes.Kind.ADMIN_RELEASED, "admin",
+                "released");
+        outcomes.record("request-old-challenge", "alice", null,
+                ZeroTrustDecisionOutcomes.Kind.CHALLENGE_CODE_REQUESTED, "alice", null);
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, then).rebuildOnce();
+        assertThat(hourly("SUM(block_unreviewed_count)", hourOf(decidedAt))).isEqualTo(1L);
+        // the hour as a database installed before the columns kept it: they came in at zero
+        jdbc.update("UPDATE ctxa_zt_stats_hourly SET block_unreviewed_count = 0, challenge_code_requested_count = 0, "
+                + "release_le_15m = 0, release_le_30m = 0, release_le_1h = 0, release_le_2h = 0, release_le_4h = 0, "
+                + "release_le_8h = 0, release_le_24h = 0, release_le_72h = 0, release_le_7d = 0, release_gt_7d = 0, "
+                + "computed_at = ? WHERE bucket_start = ?", Timestamp.from(then.instant()),
+                Timestamp.from(hourOf(decidedAt)));
+
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+
+        assertThat(hourly("SUM(block_unreviewed_count)", hourOf(decidedAt))).isEqualTo(1L);
+        assertThat(hourly("SUM(challenge_code_requested_count)", hourOf(decidedAt))).isEqualTo(1L);
+        assertThat(hourly("SUM(release_le_15m + release_le_30m + release_le_1h + release_le_2h + release_le_4h "
+                + "+ release_le_8h + release_le_24h + release_le_72h + release_le_7d + release_gt_7d)",
+                hourOf(decidedAt))).isEqualTo(1L);
+        assertThat(hourly("SUM(decision_count)", hourOf(decidedAt))).isEqualTo(3L);
+        Timestamp corrected = jdbc.queryForObject("SELECT MAX(computed_at) FROM ctxa_zt_stats_hourly "
+                + "WHERE bucket_start = ?", Timestamp.class, Timestamp.from(hourOf(decidedAt)));
+        assertThat(corrected.toInstant()).isEqualTo(clock.instant());
+
+        clock.move(Duration.ofMinutes(10));
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+
+        assertThat(jdbc.queryForObject("SELECT MAX(computed_at) FROM ctxa_zt_stats_hourly WHERE bucket_start = ?",
+                Timestamp.class, Timestamp.from(hourOf(decidedAt))))
+                .as("the next start leaves the corrected hour as it is").isEqualTo(corrected);
+    }
+
     /** An outcome recorded before its decision row was written meets the row once it is there. */
     @Test
     void anOutcomeBeforeItsDecisionRowMeetsItLater() {
