@@ -27,6 +27,8 @@ import io.contexa.contexacommon.security.authority.RoleAuthority;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
@@ -135,6 +137,25 @@ public class LastAdministratorGuard {
             return List.of();
         }
         return users.findEnabledOwnUsernamesHoldingAnyRoleWithoutMfa(administratorRoles, PageRequest.of(0, limit));
+    }
+
+    /**
+     * K92: a page of the active administrators by user name, in the order of the names, of all of them or of the ones
+     * that have not turned MFA on; its total is what {@link #administratorCount} or
+     * {@link #administratorsWithoutMfaCount} counts.
+     */
+    public Page<String> administrators(boolean withoutMfaOnly, int page, int size) {
+        Set<Long> administratorRoles = administratorRoles(hierarchy);
+        PageRequest request = PageRequest.of(Math.max(0, page), Math.max(1, size));
+        if (administratorRoles.isEmpty()) {
+            return new PageImpl<>(List.of(), request, 0);
+        }
+        List<String> names = withoutMfaOnly
+                ? users.findEnabledOwnUsernamesHoldingAnyRoleWithoutMfa(administratorRoles, request)
+                : users.findEnabledOwnUsernamesHoldingAnyRole(administratorRoles, request);
+        long total = withoutMfaOnly ? users.countEnabledOwnAccountsHoldingAnyRoleWithoutMfa(administratorRoles)
+                : users.countEnabledOwnAccountsHoldingAnyRole(administratorRoles);
+        return new PageImpl<>(names, request, total);
     }
 
     /**

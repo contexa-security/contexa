@@ -2137,6 +2137,17 @@ CREATE TABLE IF NOT EXISTS ctxa_dashboard_seal_hourly (
 CREATE INDEX IF NOT EXISTS ctxa_idx_dashboard_seal_hourly_computed
     ON ctxa_dashboard_seal_hourly (computed_at);
 
+-- K92: the decision records the hourly seal check found not matching their seal, one row each, written with the hour's
+-- counts: the security event log lists them, the records the dashboard's broken seals count.
+CREATE TABLE IF NOT EXISTS ctxa_dashboard_seal_mismatch (
+    audit_id BIGINT NOT NULL PRIMARY KEY,
+    bucket_start TIMESTAMP(6) NOT NULL,
+    computed_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ctxa_idx_dashboard_seal_mismatch_bucket
+    ON ctxa_dashboard_seal_mismatch (bucket_start);
+
 CREATE INDEX IF NOT EXISTS ctxa_idx_audit_log_timestamp
     ON ctxa_audit_log (timestamp);
 

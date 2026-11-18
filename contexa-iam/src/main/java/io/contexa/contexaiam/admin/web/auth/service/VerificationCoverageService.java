@@ -20,6 +20,8 @@ import io.contexa.contexaiam.admin.web.agent.service.OAuth2AgentProvisioning;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
@@ -52,8 +54,18 @@ public class VerificationCoverageService implements ApplicationListener<Applicat
 
     public long usersWithoutFactor() {
         return users.countWithoutVerificationFactor(mailDelivers.getAsBoolean(), passkeysWork.getAsBoolean(),
-                "%@" + syntheticEmailDomain.toLowerCase(Locale.ROOT),
-                "%" + OAuth2AgentProvisioning.ACCOUNT_EMAIL_DOMAIN);
+                syntheticMail(), "%" + OAuth2AgentProvisioning.ACCOUNT_EMAIL_DOMAIN);
+    }
+
+    /** K92: a page of the IDs of the users {@link #usersWithoutFactor} counts, the newest first. */
+    public Page<Long> usersWithoutFactorIds(int page, int size) {
+        return users.findIdsWithoutVerificationFactor(mailDelivers.getAsBoolean(), passkeysWork.getAsBoolean(),
+                syntheticMail(), "%" + OAuth2AgentProvisioning.ACCOUNT_EMAIL_DOMAIN,
+                PageRequest.of(Math.max(0, page), Math.max(1, size)));
+    }
+
+    private String syntheticMail() {
+        return "%@" + syntheticEmailDomain.toLowerCase(Locale.ROOT);
     }
 
     /** A notice for the operator: a store that cannot be read at the start stops nothing. */

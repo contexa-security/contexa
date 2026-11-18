@@ -95,13 +95,16 @@ public class IamAdminMonitoringAutoConfiguration {
                                                                CsvExportService contexaCsvExportService,
                                                                ObjectProvider<DelegationRegistry> delegationRegistry,
                                                                ObjectProvider<EvidenceSigner> evidenceSigner,
-                                                               MessageSource messageSource) {
+                                                               MessageSource messageSource,
+                                                               ObjectProvider<DashboardQueries> dashboardQueries) {
         // docs/agent A5-5: the delegation an agent's decision ran under, when Contexa keeps delegations (OC-1).
         SecurityMonitorController controller = new SecurityMonitorController(auditLogRepository, contexaCsvExportService,
                 delegationRegistry.getIfAvailable());
         // docs/agent A5-6: the decision records' integrity.
         evidenceSigner.ifAvailable(controller::setEvidenceSigner);
         controller.setMessageSource(messageSource);
+        // K92: the decision records the dashboard's seal check found mismatched.
+        dashboardQueries.ifAvailable(controller::setDashboardQueries);
         return controller;
     }
 

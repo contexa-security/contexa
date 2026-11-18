@@ -57,20 +57,14 @@
                 </a>
             </div>
 
-            <div class="flex items-center gap-3 mb-6" style="background: rgba(30,41,59,0.4); border: 1px solid rgba(71,85,105,0.3); border-radius: 0.5rem; padding: 0.75rem 1rem;">
+            <div class="flex flex-wrap items-center gap-3 mb-6" style="background: rgba(30,41,59,0.4); border: 1px solid rgba(71,85,105,0.3); border-radius: 0.5rem; padding: 0.75rem 1rem;">
                 <span class="text-sm" style="color: #94a3b8;" th:text="#{admin.security.monitor.period}">Period:</span>
-                <a th:href="@{/contexa/admin/security-monitor(hours=1, category=${category}, keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
-                   th:style="${hours == 1 ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;" th:text="#{admin.security.monitor.period.1h}">1 Hour</a>
-                <a th:href="@{/contexa/admin/security-monitor(hours=6, category=${category}, keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
-                   th:style="${hours == 6 ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;" th:text="#{admin.security.monitor.period.6h}">6 Hours</a>
-                <a th:href="@{/contexa/admin/security-monitor(hours=24, category=${category}, keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
-                   th:style="${hours == 24 ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;" th:text="#{admin.security.monitor.period.24h}">24 Hours</a>
-                <a th:href="@{/contexa/admin/security-monitor(hours=72, category=${category}, keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
-                   th:style="${hours == 72 ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;" th:text="#{admin.security.monitor.period.3d}">3 Days</a>
+                <!-- K93: up to the dashboard's longest period; K108: a period keeps every other filter of the list -->
+                <a th:each="period : ${periods}" th:data-period="${period.key}"
+                   th:href="@{/contexa/admin/security-monitor(hours=${period.key}, category=${category}, filter=${filter}, keyword=${keyword}, subject=${subject})}" class="text-xs px-3 py-1 rounded-full"
+                   th:style="${hours == period.key ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
+                   th:attr="aria-current=${hours == period.key ? 'true' : null}"
+                   style="text-decoration: none;" th:text="#{${'admin.security.monitor.period.' + period.value}}">1 Hour</a>
 
                 <span class="mx-2" style="color: #334155;">|</span>
                 <span class="text-sm" style="color: #94a3b8;" th:text="#{admin.security.monitor.filter}">Filter:</span>
@@ -86,6 +80,10 @@
                 <a th:href="@{/contexa/admin/security-monitor(hours=${hours}, from=${from}, category='ADMIN_OVERRIDE', keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${category == 'ADMIN_OVERRIDE' ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
                    style="text-decoration: none;" th:text="#{admin.security.monitor.filter.admin.override}">Admin Override</a>
+                <!-- K92: the decision records the seal check found mismatched, the ones the dashboard counts -->
+                <a th:href="@{/contexa/admin/security-monitor(hours=${hours}, from=${from}, category='SECURITY_DECISION', filter='SEAL_MISMATCH', keyword=${keyword})}" class="text-xs px-3 py-1 rounded-full"
+                   th:style="${filter == 'SEAL_MISMATCH' ? 'background: rgba(248,113,113,0.3); color: #fca5a5; border: 1px solid rgba(248,113,113,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
+                   style="text-decoration: none;" th:text="#{admin.security.monitor.filter.seal.mismatch}">Seal mismatch</a>
                 <span class="mx-2" style="color: #334155;">|</span>
                 <!-- docs/agent A5-5 (AM-5): the decisions of one subject kind -->
                 <span class="text-sm" style="color: #94a3b8;" th:text="#{admin.security.monitor.subject}">Subject:</span>
@@ -107,7 +105,7 @@
                             style="background:rgba(99,102,241,0.3);color:#a5b4fc;border:1px solid rgba(99,102,241,0.5);">
                         <i class="fas fa-search"></i>
                     </button>
-                    <a th:href="@{/contexa/admin/security-monitor(hours=${hours}, from=${from}, category=${category}, filter=${filter})}"
+                    <a th:href="@{/contexa/admin/security-monitor(hours=${hours}, from=${from}, category=${category}, filter=${filter}, subject=${subject})}"
                        class="text-xs px-2 py-1 rounded-md" th:aria-label="#{common.search.clear}"
                        style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
                         <i class="fas fa-times"></i>
@@ -115,7 +113,7 @@
                 </form>
 
                 <span style="flex:1;"></span>
-                <a th:href="@{/contexa/admin/security-monitor/export(hours=${hours}, from=${from}, category=${category}, filter=${filter})}"
+                <a th:href="@{/contexa/admin/security-monitor/export(hours=${hours}, from=${from}, category=${category}, filter=${filter}, keyword=${keyword}, subject=${subject})}"
                    class="text-xs px-3 py-1 rounded-full" style="background:rgba(34,197,94,0.2);color:#4ade80;border:1px solid rgba(34,197,94,0.4);text-decoration:none;">
                     <i class="fas fa-download mr-1"></i><span th:text="#{admin.security.monitor.export.csv}">CSV Download</span>
                 </a>
@@ -150,6 +148,9 @@
                 <p class="text-xs mb-4" style="color: #64748b;" th:text="#{admin.security.monitor.ip.events.below}">Below is the full list of events with recorded IP addresses.</p>
             </div>
 
+            <!-- K92: how many records the list holds, the number a dashboard link opening it counts -->
+            <p class="text-xs mb-2" style="color: #94a3b8;" id="security-monitor-count"
+               th:text="#{admin.security.monitor.list.count(${#numbers.formatInteger(logPage.totalElements, 1, 'COMMA')})}">0 events</p>
             <div class="modern-table overflow-x-auto" tabindex="0" role="region"
                  th:aria-label="#{admin.security.monitor.events.region}">
                 <table class="w-full">
@@ -220,14 +221,49 @@
                 </table>
             </div>
 
-            <div th:if="${logPage.totalPages > 1}" class="flex flex-wrap justify-center gap-2 mt-6">
-                <a th:each="i : ${#numbers.sequence(0, logPage.totalPages - 1)}"
-                   th:href="@{/contexa/admin/security-monitor(page=${i}, hours=${hours}, from=${from}, category=${category}, filter=${filter}, keyword=${keyword})}"
-                   class="px-3 py-1 rounded text-sm"
-                   th:style="${i == logPage.number ? 'background: linear-gradient(135deg, #6366f1, #4f46e5); color: white;' : 'background: rgba(30,41,59,0.6); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;"
-                   th:text="${i + 1}"></a>
-            </div>
+            <!-- S10: the policy list's pagination: the first, the previous, the pages near the current one, the next and
+                 the last. A period of 90 days holds millions of records; a link to each of their pages made the page
+                 itself too big to open. Every filter of the list stays on every link (K108). -->
+            <nav th:if="${logPage.totalPages > 1}" id="security-monitor-pages" class="mt-6 flex justify-center"
+                 th:with="currentPage=${logPage.number}, totalPages=${logPage.totalPages},
+                          startPage=${T(java.lang.Math).max(0, currentPage - 2)},
+                          endPage=${T(java.lang.Math).min(totalPages - 1, currentPage + 2)}">
+                <ul class="modern-pagination flex-wrap justify-center">
+                    <li class="page-item" th:classappend="${logPage.first} ? 'disabled'">
+                        <a class="page-link" th:aria-label="#{common.page.first}" th:href="@{/contexa/admin/security-monitor(page=0, hours=${hours}, from=${from}, category=${category}, filter=${filter}, keyword=${keyword}, subject=${subject})}"><i class="fas fa-angle-double-left"></i></a>
+                    </li>
+                    <li class="page-item" th:classappend="${logPage.first} ? 'disabled'">
+                        <a class="page-link" th:aria-label="#{common.page.previous}" th:href="@{/contexa/admin/security-monitor(page=${T(java.lang.Math).max(0, currentPage - 1)}, hours=${hours}, from=${from}, category=${category}, filter=${filter}, keyword=${keyword}, subject=${subject})}"><i class="fas fa-chevron-left"></i></a>
+                    </li>
+                    <th:block th:if="${startPage > 0}">
+                        <li class="page-item">
+                            <a class="page-link" th:href="@{/contexa/admin/security-monitor(page=0, hours=${hours}, from=${from}, category=${category}, filter=${filter}, keyword=${keyword}, subject=${subject})}">1</a>
+                        </li>
+                        <li class="page-item disabled" th:if="${startPage > 1}">
+                            <span class="page-link">...</span>
+                        </li>
+                    </th:block>
+                    <li th:each="pageNumber : ${#numbers.sequence(startPage, endPage)}"
+                        class="page-item" th:classappend="${pageNumber == currentPage} ? 'active'">
+                        <a class="page-link" th:href="@{/contexa/admin/security-monitor(page=${pageNumber}, hours=${hours}, from=${from}, category=${category}, filter=${filter}, keyword=${keyword}, subject=${subject})}"
+                           th:attr="aria-current=${pageNumber == currentPage ? 'page' : null}" th:text="${pageNumber + 1}"></a>
+                    </li>
+                    <th:block th:if="${endPage < totalPages - 1}">
+                        <li class="page-item disabled" th:if="${endPage < totalPages - 2}">
+                            <span class="page-link">...</span>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" th:href="@{/contexa/admin/security-monitor(page=${totalPages - 1}, hours=${hours}, from=${from}, category=${category}, filter=${filter}, keyword=${keyword}, subject=${subject})}" th:text="${totalPages}"></a>
+                        </li>
+                    </th:block>
+                    <li class="page-item" th:classappend="${logPage.last} ? 'disabled'">
+                        <a class="page-link" th:aria-label="#{common.page.next}" th:href="@{/contexa/admin/security-monitor(page=${T(java.lang.Math).min(totalPages - 1, currentPage + 1)}, hours=${hours}, from=${from}, category=${category}, filter=${filter}, keyword=${keyword}, subject=${subject})}"><i class="fas fa-chevron-right"></i></a>
+                    </li>
+                    <li class="page-item" th:classappend="${logPage.last} ? 'disabled'">
+                        <a class="page-link" th:aria-label="#{common.page.last}" th:href="@{/contexa/admin/security-monitor(page=${totalPages - 1}, hours=${hours}, from=${from}, category=${category}, filter=${filter}, keyword=${keyword}, subject=${subject})}"><i class="fas fa-angle-double-right"></i></a>
+                    </li>
+                </ul>
+            </nav>
         </div>
     </main>
 </div>
