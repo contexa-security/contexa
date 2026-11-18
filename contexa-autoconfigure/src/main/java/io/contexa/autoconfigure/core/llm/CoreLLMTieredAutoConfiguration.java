@@ -569,12 +569,13 @@ public class CoreLLMTieredAutoConfiguration {
         }
 
         /**
-         * The builder of Contexa's model calls that wait for their answer: a copy of the application's, with the request factory
-         * Boot makes from the application's settings ({@code spring.http.client.*} and the customizers of the factory builder) on
-         * Contexa's event loop when that factory is Reactor Netty's. A factory of another client has no event loop, and the
-         * application's builder is used as it is.
+         * The builder of Contexa's model calls that wait for their answer: a copy of the application's (its interceptors, default
+         * headers and the rest kept), with a Reactor Netty request factory on Contexa's event loop made from the application's
+         * settings ({@code spring.http.client.*}: timeouts, redirects, SSL bundle), the application's own Reactor Netty factory
+         * builder with its customizers when it has one. K145: the application's other clients (Apache HttpClient, Jetty) are not
+         * used for model calls: a model call cut at its time limit must close its connection, which their blocking read ignores.
          */
-        private static RestClient.Builder modelCallRestClient(
+        static RestClient.Builder modelCallRestClient(
                 ObjectProvider<RestClient.Builder> restClientBuilderProvider,
                 ObjectProvider<ClientHttpRequestFactoryBuilder<?>> requestFactoryBuilderProvider,
                 ObjectProvider<ClientHttpRequestFactorySettings> requestFactorySettingsProvider) {
@@ -584,23 +585,19 @@ public class CoreLLMTieredAutoConfiguration {
             }
             ClientHttpRequestFactoryBuilder<?> requestFactories =
                     requestFactoryBuilderProvider.getIfAvailable(ClientHttpRequestFactoryBuilder::detect);
-            if (!(requestFactories instanceof ReactorClientHttpRequestFactoryBuilder)) {
-                return application;
-            }
-            return application.clone().requestFactory(ContexaReactorResources.onContexaLoops(requestFactories)
+            ClientHttpRequestFactoryBuilder<?> reactor = requestFactories instanceof ReactorClientHttpRequestFactoryBuilder
+                    ? requestFactories : ClientHttpRequestFactoryBuilder.reactor();
+            return application.clone().requestFactory(ContexaReactorResources.onContexaLoops(reactor)
                     .build(requestFactorySettingsProvider.getIfAvailable(ClientHttpRequestFactorySettings::defaults)));
         }
 
         /**
-         * RestClient.builder() as an application without Boot's builder has it: the request factory Spring picks from the class
-         * path, and when that is Reactor Netty's, Spring's own client with its defaults on the same connections, on Contexa's
-         * event loop.
+         * RestClient.builder() as an application without Boot's builder has it, with Spring's Reactor Netty client and its defaults
+         * on the same connections, on Contexa's event loop. K145: an Apache HttpClient or a Jetty client on the class path is not
+         * used for model calls (its blocking read does not end at the call's time limit).
          */
         private static RestClient.Builder defaultModelCallRestClient() {
-            ClassLoader classLoader = RestClient.class.getClassLoader();
-            if (ClassUtils.isPresent("org.apache.hc.client5.http.classic.HttpClient", classLoader)
-                    || ClassUtils.isPresent("org.eclipse.jetty.client.HttpClient", classLoader)
-                    || !ClassUtils.isPresent("reactor.netty.http.client.HttpClient", classLoader)) {
+            if (!ClassUtils.isPresent("reactor.netty.http.client.HttpClient", RestClient.class.getClassLoader())) {
                 return RestClient.builder();
             }
             ReactorResourceFactory resources = new ReactorResourceFactory();
