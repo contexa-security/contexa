@@ -193,6 +193,12 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             + "AND (a.outcome IS NULL OR a.outcome <> 'REFUSED') AND a.timestamp >= :from AND a.timestamp < :to")
     long countAdminOverridesBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
+    /** K105: the administrator overrides {@link #countAdminOverridesBetween} counts, the records themselves. */
+    @Query("SELECT a FROM AuditLog a WHERE a.eventCategory = 'ADMIN_OVERRIDE' "
+            + "AND (a.outcome IS NULL OR a.outcome <> 'REFUSED') AND a.timestamp >= :from AND a.timestamp < :to")
+    Page<AuditLog> findAdminOverridesBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
+                                             Pageable pageable);
+
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'SECURITY_DECISION' AND a.decision = :decision AND a.timestamp >= :since")
     long countZeroTrustDecisionSince(@Param("decision") String decision, @Param("since") LocalDateTime since);
 

@@ -176,9 +176,10 @@
         const format = !user && group[0].group !== 'judgment';
         const titles = group.map(part => part.position + ' ' + PV.partName(part)).join(' · ');
         const details = el('details', {class: 'pv-part', 'data-pv-mark': 'LOCKED'},
-            el('summary', {class: 'pv-part-head'}, el('span', {class: 'pv-part-title pv-cut', text: titles}),
+            el('summary', {class: 'pv-part-head'}, el('span', {class: 'pv-part-lead'},
+                el('span', {class: 'pv-part-title pv-cut', text: titles}),
                 el('span', {class: 'zt-muted pv-part-summary', text: t(user ? 'pv.version.lockedUser'
-                    : format ? 'pv.version.lockedEnd' : 'pv.version.lockedRun')}),
+                    : format ? 'pv.version.lockedEnd' : 'pv.version.lockedRun')})),
                 mark('LOCKED')));
         PV.fold(details, el('div', {class: 'pv-part-body'}, ...group.map(part => el('div', {class: 'zt-item'},
             el('strong', {text: part.position + ' ' + PV.partName(part)}), partText(part)))));
@@ -187,9 +188,10 @@
 
     function part(view, one) {
         const details = el('details', {class: 'pv-part', 'data-pv-mark': one.mark, 'data-pv-part': one.key},
-            el('summary', {class: 'pv-part-head'},
+            // K106: the title and the summary lead the head, so the marks of the parts share one column
+            el('summary', {class: 'pv-part-head'}, el('span', {class: 'pv-part-lead'},
                 el('span', {class: 'pv-part-title pv-cut', text: one.position + ' ' + PV.partName(one)}),
-                el('span', {class: 'zt-muted pv-part-summary pv-cut', text: summary(one)}),
+                el('span', {class: 'zt-muted pv-part-summary pv-cut', text: summary(one)})),
                 mark(one.mark, one.when)));
         const body = el('div', {class: 'pv-part-body'});
         if (one.mark === 'CHANGED' && one.baseText != null) {

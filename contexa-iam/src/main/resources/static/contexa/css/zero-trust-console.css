@@ -1473,7 +1473,16 @@ input[type="file"].modern-input::file-selector-button {
 
 .pv-part-head {
     display: grid;
-    grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: center;
+    min-width: 0;
+}
+
+/* K106: a part's title and its summary lead its head, the mark after them. */
+.pv-part-lead {
+    display: grid;
+    grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr);
     gap: 0.75rem;
     align-items: center;
     min-width: 0;
@@ -1612,6 +1621,10 @@ input[type="file"].modern-input::file-selector-button {
 
     .pv-part-head .pv-part-summary {
         display: none;
+    }
+
+    .pv-part-lead {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .pv-editor .pv-part-head .pv-actions {
@@ -1843,5 +1856,97 @@ input[type="file"].modern-input::file-selector-button {
 @media (max-width: 639px) {
     .zt-page .zt-queue-rows .zt-queue-act {
         flex-basis: 100%;
+    }
+}
+
+/*
+ * K106: every other list of rows that end in a badge (the console's "to check", the operations screen's path of a
+ * decision, a decision's reasons) shares its columns as the work queue does (K101): the words take the room left
+ * and wrap, every row's badge starts at one x.
+ */
+.zt-page .zt-indicators:not(.zt-queue-rows) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 1rem;
+}
+
+.zt-page .zt-indicators:not(.zt-queue-rows) > .zt-indicator {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+}
+
+.zt-page .zt-indicators:not(.zt-queue-rows) > .zt-indicator > :last-child {
+    justify-self: start;
+}
+
+/*
+ * K106: rows of a value whose values are badges (the dashboard's system, the checks before saving a version) share
+ * the badges' column: every badge starts at one x. A row whose value is words keeps its own row across, as before,
+ * so the column is as wide as the widest badge alone; the names keep at least two fifths of the row, a longer badge
+ * wrapping its words in the rest.
+ */
+.zt-page .zt-result-rows:has(> .zt-result-row > .status-badge:last-child) {
+    display: grid;
+    grid-template-columns: minmax(40%, 1fr) minmax(0, max-content);
+    column-gap: 0.75rem;
+}
+
+.zt-page .zt-result-rows:has(> .zt-result-row > .status-badge:last-child) > .zt-result-row {
+    grid-column: 1 / -1;
+}
+
+.zt-page .zt-result-rows > .zt-result-row:has(> .status-badge:last-child) {
+    display: grid;
+    grid-template-columns: subgrid;
+}
+
+.zt-page .zt-result-rows > .zt-result-row > .status-badge:last-child {
+    justify-self: start;
+}
+
+/*
+ * K106: the parts of a prompt (a version's parts, a new version's parts and editors) share their columns: a part's
+ * lead (its title and summary, or an editor's title), its mark, and an editor's actions; every mark starts at one x.
+ * A part folded open spans the row.
+ */
+.zt-page .pv-parts {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 0.75rem;
+}
+
+.zt-page .pv-parts:has(> li > .pv-editor) {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.zt-page .pv-parts > li,
+.zt-page .pv-parts > li > .pv-part,
+.zt-page .pv-parts > li > .pv-editor,
+.zt-page .pv-parts > li > * > .pv-part-head {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+}
+
+.zt-page .pv-parts > li > * > :not(.pv-part-head),
+.zt-page .pv-parts > li > .pv-part::details-content {
+    grid-column: 1 / -1;
+}
+
+.zt-page .pv-parts .pv-part-head > .pv-mark {
+    justify-self: start;
+}
+
+@media (min-width: 1025px) {
+    .zt-page .pv-parts .pv-part-head > .pv-actions {
+        justify-self: end;
+    }
+}
+
+@media (max-width: 1024px) {
+    /* A narrower screen puts an editor's actions on a line of their own, as before (the list keeps two columns). */
+    .zt-page .pv-parts:has(> li > .pv-editor) {
+        grid-template-columns: minmax(0, 1fr) auto;
     }
 }

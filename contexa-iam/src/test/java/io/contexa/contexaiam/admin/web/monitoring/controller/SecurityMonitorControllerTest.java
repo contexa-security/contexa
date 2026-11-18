@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
 import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
@@ -126,6 +127,24 @@ class SecurityMonitorControllerTest {
                     .toString(), now)).isNull();
             assertThat(SecurityMonitorController.start("yesterday", now)).isNull();
             assertThat(SecurityMonitorController.start(" ", now)).isNull();
+        }
+
+        @Test
+        @DisplayName("K105: the admin override card's filter lists the overrides the card counts, the CSV too")
+        void theOverrideCardsFilterListsTheOverridesItCounts() throws Exception {
+            Model model = new ConcurrentModel();
+            stubRepositoryCounts();
+            when(auditLogRepository.findAdminOverridesBetween(any(LocalDateTime.class), any(LocalDateTime.class),
+                    any(Pageable.class))).thenReturn(Page.empty());
+            doAnswer(invocation -> ((Supplier<?>) invocation.getArgument(3)).get()).when(csvExportService)
+                    .export(any(), any(), anyList(), any());
+
+            controller.monitor("ADMIN_OVERRIDE", "ADMIN_OVERRIDE_APPLIED", null, 24, 0, model);
+            controller.exportCsv("ADMIN_OVERRIDE", "ADMIN_OVERRIDE_APPLIED", 24, mock(HttpServletResponse.class));
+
+            verify(auditLogRepository, times(2)).findAdminOverridesBetween(any(LocalDateTime.class),
+                    any(LocalDateTime.class), any(Pageable.class));
+            verify(auditLogRepository, never()).findByTimestampAfterAndCategory(any(), any(), any());
         }
 
         @Test

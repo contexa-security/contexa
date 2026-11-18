@@ -371,6 +371,27 @@ class DashboardPostgresTest {
     }
 
     @Test
+    @DisplayName("K105: the admin override card opens the overrides it counts; the category lists the refused one too")
+    void theOverrideCardOpensTheOverridesItCounts() {
+        Instant from = now.minus(Duration.ofDays(7));
+        audit("ADMIN_OVERRIDE", "admin", "lee.minseo", "APPROVE", "APPROVED", now.minus(Duration.ofHours(4)));
+        audit("ADMIN_OVERRIDE", "admin", "park.jiwoo", "RELEASE", "APPROVED", now.minus(Duration.ofHours(6)));
+        audit("ADMIN_OVERRIDE", "admin", "lee.minseo", "RELEASE_CHALLENGE", "REFUSED", now.minus(Duration.ofHours(5)));
+        audit("ADMIN_OVERRIDE", "admin", "kim.sora", "APPROVE", "APPROVED", now.minus(Duration.ofDays(8)));
+        SecurityMonitorController monitor = new SecurityMonitorController(auditLog, null);
+        Model card = new ExtendedModelMap();
+        Model category = new ExtendedModelMap();
+
+        // the card's link: category ADMIN_OVERRIDE with the filter of the overrides it counts
+        monitor.monitor("ADMIN_OVERRIDE", "ADMIN_OVERRIDE_APPLIED", null, null, 168, from.toString(), 0, card);
+        monitor.monitor("ADMIN_OVERRIDE", null, null, null, 168, from.toString(), 0, category);
+
+        assertThat(card.getAttribute("adminOverride")).isEqualTo(2L);
+        assertThat(((Page<?>) card.getAttribute("logPage")).getTotalElements()).isEqualTo(2L);
+        assertThat(((Page<?>) category.getAttribute("logPage")).getTotalElements()).isEqualTo(3L);
+    }
+
+    @Test
     @DisplayName("N14, N15: the records of each of the last seven days, every day listed")
     void theRecordsOfEachDay() {
         LocalDate today = LocalDate.ofInstant(now, ZoneId.systemDefault());

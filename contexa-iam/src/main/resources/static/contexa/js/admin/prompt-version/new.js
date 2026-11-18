@@ -194,9 +194,10 @@
         const key = 'SYSTEM:' + part.key;
         const out = state.edits[key] && state.edits[key].action === 'DELETE';
         const details = el('details', {class: 'pv-part', 'data-pv-part': part.key, 'data-pv-mark': out ? 'DELETED' : 'INCLUDED'},
-            el('summary', {class: 'pv-part-head'},
+            // K106: the title and the summary lead the head, so the marks of the parts share one column
+            el('summary', {class: 'pv-part-head'}, el('span', {class: 'pv-part-lead'},
                 el('span', {class: 'pv-part-title pv-cut', text: position + ' ' + PV.partName(part)}),
-                el('span', {class: 'zt-muted pv-part-summary', text: t(out ? 'pv.new.takenOut' : 'pv.new.includedInBase')}),
+                el('span', {class: 'zt-muted pv-part-summary', text: t(out ? 'pv.new.takenOut' : 'pv.new.includedInBase')})),
                 el('span', {class: 'status-badge zt-chip pv-mark', 'data-pv-mark': out ? 'DELETED' : 'INCLUDED',
                     text: t(out ? 'pv.mark.DELETED' : 'pv.mark.INCLUDED')})));
         PV.fold(details, el('div', {class: 'pv-part-body'}, PV.textBox(part.text),
@@ -217,9 +218,10 @@
         const format = !user && run.every(item => item.part.group !== 'judgment');
         const titles = run.map(item => item.position + ' ' + PV.partName(item.part)).join(' · ');
         const details = el('details', {class: 'pv-part', 'data-pv-mark': 'LOCKED'},
-            el('summary', {class: 'pv-part-head'}, el('span', {class: 'pv-part-title pv-cut', text: titles}),
+            el('summary', {class: 'pv-part-head'}, el('span', {class: 'pv-part-lead'},
+                el('span', {class: 'pv-part-title pv-cut', text: titles}),
                 el('span', {class: 'zt-muted pv-part-summary', text: t(user ? 'pv.version.lockedUser'
-                    : format ? 'pv.version.lockedEnd' : 'pv.new.lockedRun')}),
+                    : format ? 'pv.version.lockedEnd' : 'pv.new.lockedRun')})),
                 el('span', {class: 'status-badge zt-chip pv-mark', 'data-pv-mark': 'LOCKED', text: t('pv.mark.LOCKED')})));
         PV.fold(details, el('div', {class: 'pv-part-body'}, ...run.map(item => el('div', {class: 'zt-item'},
             el('strong', {text: item.position + ' ' + PV.partName(item.part) + (item.part.when ? ' · '

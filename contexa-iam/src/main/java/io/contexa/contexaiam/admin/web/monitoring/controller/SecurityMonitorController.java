@@ -68,6 +68,11 @@ public class SecurityMonitorController {
 
     /** docs/agent A5-5: the subject chips the list filters by (A1-3 subject kinds). */
     static final List<String> SUBJECT_KINDS = List.of("HUMAN_USER", "DELEGATED_AGENT", "AUTONOMOUS_AGENT");
+    /**
+     * K105: the filter of the overrides the "admin override" card counts (countAdminOverridesBetween): a refused one
+     * none, the screen's period [since, now). The category chip lists every override, a refused one too.
+     */
+    static final String ADMIN_OVERRIDE_APPLIED = "ADMIN_OVERRIDE_APPLIED";
 
     private final AuditLogRepository auditLogRepository;
     private final CsvExportService csvExportService;
@@ -140,7 +145,7 @@ public class SecurityMonitorController {
         Page<AuditLog> logPage = subjectKind != null
                 ? auditLogRepository.findByTimestampAfterAndSubjectKind(since, subjectKind,
                 PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "timestamp")))
-                : loadLogPage(category, filter, keyword, page, since, model);
+                : loadLogPage(category, filter, keyword, page, since, now, model);
         model.addAttribute("integrity", integrityOf(logPage.getContent()));
 
         prepareMonitorModel(model, logPage, hours, category, filter, keyword, since, now);
@@ -150,7 +155,7 @@ public class SecurityMonitorController {
 
     private Page<AuditLog> loadLogPage(
             String category, String filter, String keyword, int page,
-            LocalDateTime since, Model model) {
+            LocalDateTime since, LocalDateTime until, Model model) {
         int pageSize = 20;
         Pageable pageable = PageRequest.of(page, pageSize, Sort.by(Sort.Direction.DESC, "timestamp"));
         boolean hasKeyword = keyword != null && !keyword.isBlank();
@@ -167,6 +172,7 @@ public class SecurityMonitorController {
                 case "ZT_BLOCK" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "BLOCK", since, pageable);
                 case "ZT_CHALLENGE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "CHALLENGE", since, pageable);
                 case "ZT_ESCALATE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ESCALATE", since, pageable);
+                case ADMIN_OVERRIDE_APPLIED -> auditLogRepository.findAdminOverridesBetween(since, until, pageable);
                 default -> auditLogRepository.findByTimestampAfterAndCategory(since, filter, pageable);
             };
             if ("DISTINCT_IP".equals(filter)) {
@@ -322,10 +328,10 @@ public class SecurityMonitorController {
                 new CsvColumn<>("Correlation ID", l -> l.getCorrelationId() != null ? l.getCorrelationId() : "")
         );
 
-        csvExportService.export(response, "audit-log", columns, () -> loadAllLogs(since, category, filter));
+        csvExportService.export(response, "audit-log", columns, () -> loadAllLogs(since, now, category, filter));
     }
 
-    private Stream<AuditLog> loadAllLogs(LocalDateTime since, String category, String filter) {
+    private Stream<AuditLog> loadAllLogs(LocalDateTime since, LocalDateTime until, String category, String filter) {
         int batchSize = 500;
         List<AuditLog> allLogs = new ArrayList<>();
         Pageable pageable = PageRequest.of(0, batchSize, Sort.by(Sort.Direction.DESC, "timestamp"));
@@ -342,6 +348,7 @@ public class SecurityMonitorController {
                     case "ZT_BLOCK" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "BLOCK", since, pageable);
                     case "ZT_CHALLENGE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "CHALLENGE", since, pageable);
                     case "ZT_ESCALATE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ESCALATE", since, pageable);
+                    case ADMIN_OVERRIDE_APPLIED -> auditLogRepository.findAdminOverridesBetween(since, until, pageable);
                     default -> auditLogRepository.findByTimestampAfterAndCategory(since, filter, pageable);
                 };
             } else if (category != null && !category.isBlank()) {
