@@ -408,7 +408,8 @@
                     el('td', {class: 'zt-num zt-wide', text: ZT.percent(row.stoppedRatio)}),
                     el('td', {class: 'zt-num', text: ZT.percent(row.modelLessRatio)}));
             });
-            body = el('div', {class: 'modern-table zt-table-wrap'}, el('table', {class: 'zt-table'},
+            // K121: the other columns are numbers and dates of a known width, so the version's head keeps its words whole
+            body = el('div', {class: 'modern-table zt-table-wrap'}, el('table', {class: 'zt-table zt-whole-heads'},
                 el('thead', {}, el('tr', {}, columns.map(([key, number, wide]) => el('th', {scope: 'col',
                     class: [number ? 'zt-num' : '', wide ? 'zt-wide' : ''].join(' ').trim() || null,
                     text: t(P + 'usage.' + key)})))),

@@ -1763,10 +1763,13 @@ input[type="file"].modern-input::file-selector-button {
  * words; a key card's name wraps rather than push its definition mark out.
  * K107: every column head wraps between its words, so its column keeps the room of its longest word (the fill column
  * gives it); a word breaks inside only where a column has less room than that word, rather than be cut or run out.
+ * K121: a Korean head too, its words kept whole as English ones are (a Korean word is not broken between its
+ * syllables to make a column narrower).
  */
 .zt-page .zt-table th {
     white-space: normal;
     overflow-wrap: break-word;
+    word-break: keep-all;
 }
 
 /*
@@ -1780,6 +1783,44 @@ input[type="file"].modern-input::file-selector-button {
 .zt-page .zt-table:has(> tbody > tr > td.zt-fill:nth-child(5)) > thead > tr > th:nth-child(5),
 .zt-page .zt-table:has(> tbody > tr > td.zt-fill:nth-child(6)) > thead > tr > th:nth-child(6) {
     overflow-wrap: anywhere;
+}
+
+/*
+ * K121: where the other columns' room is bounded, the head of that column keeps its words whole: the decision lists
+ * (their text cells cut at --zt-cell-max, below, so the slowest decisions' four text cells, its time and that head's
+ * longest word fit the card from 1280 and two text cells at 390) and a table whose other columns are numbers and
+ * dates (zt-whole-heads).
+ */
+.zt-page .zt-table:has(> tbody > tr[data-selectable] > td.zt-fill:nth-child(1)) > thead > tr > th:nth-child(1),
+.zt-page .zt-table:has(> tbody > tr[data-selectable] > td.zt-fill:nth-child(2)) > thead > tr > th:nth-child(2),
+.zt-page .zt-table:has(> tbody > tr[data-selectable] > td.zt-fill:nth-child(3)) > thead > tr > th:nth-child(3),
+.zt-page .zt-table:has(> tbody > tr[data-selectable] > td.zt-fill:nth-child(4)) > thead > tr > th:nth-child(4),
+.zt-page .zt-table.zt-whole-heads:has(> tbody > tr > td.zt-fill:nth-child(1)) > thead > tr > th:nth-child(1) {
+    overflow-wrap: break-word;
+}
+
+.zt-page .zt-table:has(> tbody > tr[data-selectable]) {
+    --zt-cell-max: 120px;
+}
+
+@media (min-width: 1440px) {
+    .zt-page .zt-table:has(> tbody > tr[data-selectable]) {
+        --zt-cell-max: 160px;
+    }
+}
+
+@media (max-width: 480px) {
+    .zt-page .zt-table:has(> tbody > tr[data-selectable]) {
+        --zt-cell-max: 88px;
+    }
+}
+
+/* K121: a heat map's row head takes its words' room above a phone; its day or hour columns share the rest. */
+@media (min-width: 481px) {
+    .zt-page .zt-heat .zt-table tbody th[scope="row"] {
+        width: 1%;
+        max-width: none;
+    }
 }
 
 .zt-page .zt-result-name {

@@ -101,11 +101,7 @@ final class ZeroTrustDeviationWords {
         }
         String written = text(deviation.get("usual"));
         if (usual == null && written != null) {
-            usual = switch (dimension) {
-                case "SIZE" -> exportSize(written);
-                case "RATE" -> usualRate(written);
-                default -> current(dimension, written);
-            };
+            usual = usualWritten(dimension, written);
         }
         Long seen = number(deviation.get("seen"));
         Long of = number(deviation.get("of"));
@@ -113,6 +109,18 @@ final class ZeroTrustDeviationWords {
             return usual == null ? message(V + "seenOnly", seen, of) : message(V + "seen", usual, seen, of);
         }
         return usual;
+    }
+
+    /** A usual value as the engine wrote it (a size, a rate and a login by their words); K127: a fact's too. */
+    String usualWritten(String dimension, String written) {
+        if (dimension == null || written == null) {
+            return written;
+        }
+        return switch (dimension) {
+            case "SIZE" -> exportSize(written);
+            case "RATE" -> usualRate(written);
+            default -> current(dimension, written);
+        };
     }
 
     private String usualValues(String dimension, List<?> values, Long more) {

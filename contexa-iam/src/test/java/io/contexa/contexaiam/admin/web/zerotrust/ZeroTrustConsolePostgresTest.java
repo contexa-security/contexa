@@ -252,6 +252,53 @@ class ZeroTrustConsolePostgresTest {
         assertThat(trust.changes()).hasSize(1);
     }
 
+    /**
+     * K68: the impact screen's most challenged users read their baseline by the trust screen's rule, the status of
+     * each user's latest hour (the row counted most often, ESTABLISHED on a tie), not the status of the whole period:
+     * the users it shows established are the users the trust screen counts established.
+     */
+    @Test
+    void theChallengedUsersBaselineIsTheTrustScreensLatestHour() {
+        String tenant = "tenant-k68";
+        Instant earlier = now.minus(Duration.ofHours(30));
+        Instant latest = now.minus(Duration.ofHours(2));
+        // k1: established all day before, provisional in its latest hour; k2 the other way round.
+        challenges("k1", "ESTABLISHED", 3, earlier, tenant);
+        challenges("k1", "PROVISIONAL", 1, latest, tenant);
+        challenges("k2", "PROVISIONAL", 3, earlier, tenant);
+        challenges("k2", "ESTABLISHED", 1, latest, tenant);
+        // k3: a tie in its latest hour goes to ESTABLISHED; k4: NONE counted most; k5: a tie without it, by order.
+        challenges("k3", "NONE", 1, latest, tenant);
+        challenges("k3", "ESTABLISHED", 1, latest, tenant);
+        challenges("k4", "NONE", 2, latest, tenant);
+        challenges("k4", "ESTABLISHED", 1, latest, tenant);
+        challenges("k5", "PROVISIONAL", 1, latest, tenant);
+        challenges("k5", "NONE", 1, latest, tenant);
+        new ZeroTrustHourlyStats(() -> jdbc, properties, null, clock).rebuildOnce();
+
+        Impact impact = service.impact("week", null, null, tenant, Locale.ENGLISH);
+        Trust trust = service.trust("week", null, null, tenant, Locale.ENGLISH);
+
+        assertThat(impact.cost().topChallengedUsers()).extracting(user -> user.user(), user -> user.baseline())
+                .containsExactlyInAnyOrder(tuple("k1", "PROVISIONAL"), tuple("k2", "ESTABLISHED"),
+                        tuple("k3", "ESTABLISHED"), tuple("k4", "NONE"), tuple("k5", "NONE"));
+        assertThat(trust.evidence().users()).as("every decided user is in the list").isEqualTo(5);
+        assertThat(impact.cost().topChallengedUsers()).filteredOn(user -> "ESTABLISHED".equals(user.baseline()))
+                .hasSize((int) trust.evidence().usersEstablished());
+        // The base week's u1: an established allow and a challenge without a status in one hour, the trust screen's
+        // established user, is established in the list too (the period's count picked the empty status before).
+        assertThat(service.impact("week", null, null, null, Locale.ENGLISH).cost().topChallengedUsers())
+                .filteredOn(user -> "u1".equals(user.user())).singleElement()
+                .satisfies(user -> assertThat(user.baseline()).isEqualTo("ESTABLISHED"));
+    }
+
+    private static void challenges(String user, String baseline, int count, Instant at, String tenant) {
+        for (int i = 0; i < count; i++) {
+            decision(Map.of("observation_id", user + "-" + baseline + "-" + at.getEpochSecond() + "-" + i,
+                    "user_id", user, "final_action", "CHALLENGE", "baseline_status", baseline, "tenant_id", tenant), at);
+        }
+    }
+
     @Test
     void theOperationsScreenReadsLatencyFailuresAndCost() {
         properties.getConsole().setPromptTokenPricePerMillion(1.0);
@@ -598,8 +645,8 @@ class ZeroTrustConsolePostgresTest {
     }
 
     /**
-     * K122: the role scope fact a reason cites reads in words of the request's language, its category code included;
-     * the value the engine gave the model stays as it was, and another fact reads as written.
+     * K122, K127: the role scope fact a reason cites reads in words of the request's language, its category code
+     * included, and the session's repeat with its action's word; the value the engine gave the model stays as it was.
      */
     @Test
     void theRoleScopeFactReadsInWords() {
@@ -624,9 +671,44 @@ class ZeroTrustConsolePostgresTest {
         assertThat(korean.reasons()).extracting(reason -> reason.factValue(), reason -> reason.factText()).containsExactly(
                 tuple(roleScope, "요청한 행동 내보내기, 범위 그룹의 행동 읽기 · 요청한 업무 범주 customer records, 범위 그룹의"
                         + " 업무 범주 customer records · 범위 그룹의 다른 사용자 25명 · 근거가 아직 잠정적임"),
-                tuple("5th EXPORT in this session", "5th EXPORT in this session"));
+                tuple("5th EXPORT in this session", "이 세션의 5번째 내보내기"));
         assertThat(english.reasons().get(0).factText()).startsWith("requested action Export, the scope group actions Read")
                 .doesNotContain("CUSTOMER_RECORDS");
+        assertThat(english.reasons().get(1).factText()).isEqualTo("5th Export in this session");
+    }
+
+    /**
+     * K127: the comparison of decision 9641e6a6 (7-2, CHALLENGE) as its summary kept it, cut at 300 characters, reads in
+     * words up to its last whole part; the engine's words are gone from the words and kept in the value.
+     */
+    @Test
+    void theComparisonFactTheSummaryCutReadsInWords() {
+        ZeroTrustDecisionRecords worded = new ZeroTrustDecisionRecords(() -> jdbc, outcomes,
+                I18nTestSupport.englishMessageSource(), new ObjectMapper(), clock);
+        Instant at = now.minus(Duration.ofMinutes(20));
+        String deviations = "4 of 7 compared -> network 203.0.113.0/24 seen 0 of 1 on 0 of 1 days, first time (baseline"
+                + " not established); device Firefox/118 on LINUX seen 0 of 1 on 0 of 1 days, first time (baseline not"
+                + " established); action EXPORT seen 0 of 1 on 0 of 1 days, first time (baseline not established); class"
+                + " SENSITIVE";
+        decision(Map.of("observation_id", "cut-comparison", "final_action", "CHALLENGE", "decision_summary_json",
+                "{\"reasons\":[{\"code\":\"DEVIATION_DEVICE\",\"fact\":\"F1\",\"factValue\":\"" + deviations + "\"}]}"),
+                at);
+        jdbc.update("INSERT INTO ctxa_zt_decision_reason (observation_id, reason_rank, reason_code, reason_group, fact_id,"
+                + " fact_name, created_at) VALUES ('cut-comparison', 1, 'DEVIATION_DEVICE', ?, 'F1',"
+                + " 'DeviationsFromBaseline', ?)", ZeroTrustConsoleService.groupOf("DEVIATION_DEVICE"), Timestamp.from(at));
+
+        DecisionDetail korean = worded.detail("cut-comparison", Locale.KOREAN);
+        DecisionDetail english = worded.detail("cut-comparison", Locale.ENGLISH);
+
+        assertThat(deviations).hasSize(ZeroTrustFactWords.KEPT_LENGTH);
+        assertThat(korean.reasons()).singleElement().satisfies(reason -> {
+            assertThat(reason.factValue()).isEqualTo(deviations);
+            assertThat(reason.factText()).startsWith("비교한 7개 중 4개 다름: 네트워크 203.0.113.0/24 (1번 중 0번,")
+                    .contains("기기 Firefox/118 · Linux").contains("작업 내보내기").endsWith("대상 등급 민감 …")
+                    .doesNotContainPattern("\\b(LINUX|EXPORT|SENSITIVE)\\b");
+        });
+        assertThat(english.reasons().get(0).factText()).contains("Device Firefox/118 · Linux", "Action Export")
+                .endsWith("Resource class Sensitive …").doesNotContainPattern("\\b(LINUX|EXPORT|SENSITIVE)\\b");
     }
 
     /** K17 (D11): a decision whose model answer still broke a rule shows it and waits in the review queue for it. */
