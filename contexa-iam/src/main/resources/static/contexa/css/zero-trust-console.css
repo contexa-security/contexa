@@ -519,7 +519,9 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    flex-shrink: 1;
+    /* K136: a long aside yields the head's room before the title does: it is cut first, its words in its tooltip
+       (K91), and the title is cut only once the aside has no room left. */
+    flex-shrink: 1000;
     min-width: 0;
 }
 
@@ -1651,9 +1653,13 @@ input[type="file"].modern-input::file-selector-button {
         white-space: normal;
     }
 
-    /* A notice keeps its badge above its words, so its buttons stay inside it. */
+    /*
+     * A notice keeps its badge above its words, so its buttons stay inside it. K135: every notice that holds buttons
+     * does (the newer product version of the list, a rollback awaiting approval).
+     */
     .pv-page-notices .zt-alert,
-    .pv-prepared .zt-alert {
+    .pv-prepared .zt-alert,
+    .zt-alert:has(> .zt-item > .pv-actions) {
         grid-template-columns: minmax(0, 1fr);
     }
 }

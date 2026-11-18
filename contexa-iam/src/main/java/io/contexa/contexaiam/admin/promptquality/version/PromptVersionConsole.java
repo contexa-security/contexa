@@ -531,9 +531,13 @@ public class PromptVersionConsole {
         List<Carried> carried = List.of();
         String carriedFrom = null;
         if (carry != null) {
+            // K134: every change the version's chain of organization versions made to its product version is carried.
             Optional<PromptVersionRecord> carrying = versions.find(scopeName, key, carry);
-            if (carrying.isPresent()) {
-                carried = carried(reader.read(carrying.get().document()), base.get());
+            Optional<AssembledPrompt> carryingVersion = carrying
+                    .flatMap(record -> versions.assembled(scopeName, key, record.number()));
+            AssembledPrompt carryingProduct = carrying.map(record -> productOf(scopeName, key, record)).orElse(null);
+            if (carryingVersion.isPresent() && carryingProduct != null) {
+                carried = carried(carryingVersion.get(), carryingProduct, base.get());
                 carriedFrom = carrying.get().name();
             }
         }
@@ -553,39 +557,66 @@ public class PromptVersionConsole {
                 part.action() == PromptVersionDocument.Action.INCLUDE);
     }
 
-    /** The changes of an organization's document, each with whether the base can take it. */
-    static List<Carried> carried(PromptVersionDocument changes, AssembledPrompt base) {
+    /**
+     * K134 (plan 3.3): the changes an organization's version makes to the product version it stands on, made by it or
+     * by any version of its chain of bases, each with whether the new base can take it, as the checks before a save
+     * judge it. In the version's order: a part it changed (its latest title and text), a part or block it added, changed
+     * since or not (K131), with its place, and a prepared part it put in; then the parts it took out, in the product's
+     * order.
+     */
+    static List<Carried> carried(AssembledPrompt version, AssembledPrompt product, AssembledPrompt base) {
         List<Carried> carried = new ArrayList<>();
-        Set<String> added = new LinkedHashSet<>();
-        for (PromptVersionDocument.Part part : changes.system()) {
-            carried.add(carriedPart("SYSTEM", part, base.systemPart(part.key()).orElse(null),
-                    part.addAfter() != null && (base.systemPart(part.addAfter()).isPresent()
-                            || added.contains(part.addAfter()))));
-            if (part.action() == PromptVersionDocument.Action.ADD) {
-                added.add(part.key());
-            }
-        }
-        added.clear();
-        for (PromptVersionDocument.Part part : changes.user()) {
-            carried.add(carriedPart("USER", part, base.userBlock(part.key()).orElse(null),
-                    part.addAfter() != null && (base.userBlock(part.addAfter()).isPresent()
-                            || added.contains(part.addAfter()))));
-            if (part.action() == PromptVersionDocument.Action.ADD) {
-                added.add(part.key());
-            }
-        }
+        carriedParts(carried, "SYSTEM", version.system(), product.system(), base.system());
+        carriedParts(carried, "USER", version.user(), product.user(), base.user());
         return carried;
     }
 
-    private static Carried carriedPart(String list, PromptVersionDocument.Part part, PromptVersionDocument.Part inBase,
-                                       boolean placeFound) {
-        boolean movable = switch (part.action()) {
-            case ADD -> inBase == null && placeFound;
-            case INCLUDE -> inBase != null && inBase.prepared();
-            case CHANGE, DELETE -> inBase != null && !inBase.isLocked() && !inBase.prepared();
-            case BASE -> false;
-        };
-        return new Carried(list, part.key(), part.action().name(), part.title(), part.text(), part.addAfter(), movable);
+    private static void carriedParts(List<Carried> carried, String list, List<PromptVersionDocument.Part> parts,
+                                     List<PromptVersionDocument.Part> product, List<PromptVersionDocument.Part> base) {
+        boolean system = "SYSTEM".equals(list);
+        Map<String, PromptVersionDocument.Part> before = new LinkedHashMap<>();
+        product.forEach(part -> before.put(part.key(), part));
+        Map<String, PromptVersionDocument.Part> target = new LinkedHashMap<>();
+        base.forEach(part -> target.put(part.key(), part));
+        Set<String> present = new LinkedHashSet<>();
+        Set<String> added = new LinkedHashSet<>();
+        for (PromptVersionDocument.Part part : parts) {
+            present.add(part.key());
+            PromptVersionDocument.Part earlier = before.get(part.key());
+            PromptVersionDocument.Part inBase = target.get(part.key());
+            if (earlier == null && part.action() == PromptVersionDocument.Action.ADD) {
+                PromptVersionDocument.Part place = part.addAfter() != null ? target.get(part.addAfter()) : null;
+                boolean placeable = place != null && (!system || AssembledPrompt.JUDGMENT.equals(
+                        place.group() != null ? place.group() : AssembledPrompt.JUDGMENT));
+                boolean movable = inBase == null && (placeable || added.contains(part.addAfter()));
+                carried.add(new Carried(list, part.key(), PromptVersionDocument.Action.ADD.name(), part.title(),
+                        part.text(), part.addAfter(), movable));
+                if (movable) {
+                    added.add(part.key());
+                }
+            }
+            else if (earlier != null && earlier.prepared() && !part.prepared()) {
+                carried.add(new Carried(list, part.key(), PromptVersionDocument.Action.INCLUDE.name(), part.title(),
+                        null, null, inBase != null && inBase.prepared()));
+            }
+            else if (earlier != null && !part.prepared() && (!Objects.equals(earlier.text(), part.text())
+                    || !Objects.equals(earlier.title(), part.title()))) {
+                carried.add(new Carried(list, part.key(), PromptVersionDocument.Action.CHANGE.name(),
+                        Objects.equals(earlier.title(), part.title()) ? null : part.title(), part.text(), null,
+                        changeable(inBase)));
+            }
+        }
+        for (PromptVersionDocument.Part part : product) {
+            if (!present.contains(part.key()) && !part.prepared()) {
+                carried.add(new Carried(list, part.key(), PromptVersionDocument.Action.DELETE.name(), part.title(),
+                        null, null, changeable(target.get(part.key()))));
+            }
+        }
+    }
+
+    /** Whether a part of the new base can be changed or taken out: it is there, not fixed and not only prepared. */
+    private static boolean changeable(PromptVersionDocument.Part inBase) {
+        return inBase != null && !inBase.isLocked() && !inBase.prepared();
     }
 
     /** The product version a version stands on, followed down its chain of bases. */

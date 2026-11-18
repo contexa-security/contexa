@@ -383,6 +383,58 @@ class PromptVersionConsolePostgresTest {
     }
 
     /**
+     * K134 (plan 3.3): carried onto a newer product version, a version on a chain of organization versions brings the
+     * changes of the whole chain: the block an earlier version added with the words a later one gave it (K131), the
+     * block added after it, and the change of a part the newer product fixed, shown as one that cannot be carried. The
+     * version saved from the draft draws the blocks as the version it came from did.
+     */
+    @Test
+    void carryingAVersionOnAChainCarriesTheChangesOfTheWholeChain() {
+        console.create(null, form(1, List.of(change("how-to-judge", "Weigh the duty roster first.")),
+                List.of(add("org-closing", "Finance closing", CLOSING, "REQUEST"))), "admin");
+        String twoDays = "Finance staff export the ledger on the last two business days of a quarter.";
+        console.create(null, form(2, List.of(), List.of(change("org-closing", twoDays),
+                add("org-desk", "Security desk", "The desk answers within an hour.", "org-closing"))), "admin");
+        console.use(null, PROMPT, 3, "admin", null);
+        // A newer product version that fixes the part the chain changed.
+        ProductPromptRelease current = SecurityDecisionPromptDocument.productReleases().get(0);
+        String fixed = current.document().replace("release: " + quoted(current.document()), "release: 2027.01.10")
+                .replaceFirst("(  - key: how-to-judge\\r?\\n    title: How to judge\\r?\\n    locked: )false", "$1true");
+        assertThat(fixed).containsPattern("  - key: how-to-judge\\r?\\n    title: How to judge\\r?\\n    locked: true");
+        PromptVersionService upgraded = service(List.of(current, new ProductPromptRelease(PROMPT, "2027.01.10", fixed)));
+        assertThat(upgraded.registerProducts(null)).extracting(PromptVersionService.Saved::name).containsExactly("v4.0");
+        PromptVersionConsole after = console(upgraded);
+        assertThat(after.list(null, PROMPT, false).newProduct()).satisfies(product -> {
+            assertThat(product.usedVersion()).isEqualTo("v3.0");
+            assertThat(product.usedBase()).isEqualTo("v1.0");
+            assertThat(product.carry()).isTrue();
+        });
+
+        Draft carried = after.draft(null, PROMPT, 4, 3).orElseThrow();
+        assertThat(carried.carriedFrom()).isEqualTo("v3.0");
+        assertThat(carried.carried()).extracting(change -> change.list() + " " + change.action() + " " + change.key()
+                + " " + change.movable()).containsExactly("SYSTEM CHANGE how-to-judge false",
+                "USER ADD org-closing true", "USER ADD org-desk true");
+        assertThat(carried.carried().get(1)).satisfies(change -> {
+            assertThat(change.title()).isEqualTo("Finance closing");
+            assertThat(change.text().strip()).isEqualTo(twoDays);
+            assertThat(change.addAfter()).isEqualTo("REQUEST");
+        });
+        assertThat(carried.carried().get(2).addAfter()).isEqualTo("org-closing");
+
+        // The draft saved as the screen saves what it carried: the blocks are drawn as the carried version drew them.
+        List<FormPart> user = carried.carried().stream().filter(PromptVersionConsoleDtos.Carried::movable)
+                .map(change -> add(change.key(), change.title(), change.text(), change.addAfter())).toList();
+        PromptVersionConsoleDtos.Created saved = after.create(null, form(4, List.of(), user), "admin");
+        assertThat(SecurityDecisionPromptDocument.organizationBlockTokens(
+                upgraded.assembled(null, PROMPT, saved.number()).orElseThrow()))
+                .isEqualTo(SecurityDecisionPromptDocument.organizationBlockTokens(
+                        upgraded.assembled(null, PROMPT, 3).orElseThrow()));
+        assertThat(after.draft(null, PROMPT, 4, 4).orElseThrow().carried()).as("a product version carries nothing")
+                .isEmpty();
+    }
+
+    /**
      * Plan 3.3: the label stays on an older Contexa version when a newer one is registered; the list says so, and the
      * newer one is used as it is (nothing to carry).
      */
