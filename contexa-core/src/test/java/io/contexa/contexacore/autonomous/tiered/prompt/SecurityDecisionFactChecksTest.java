@@ -149,6 +149,42 @@ class SecurityDecisionFactChecksTest {
                 "CHALLENGE")).isNull();
     }
 
+    /**
+     * K36 (decision D5): a signal the server itself confirmed, stated on the VerifiedSignal line, is decisive evidence a
+     * BLOCK may rest on and an anomaly that keeps the low-risk boundary off; it does not ask for a BLOCK. A signal of any
+     * other source draws no line, and a line the prompt does not state proves nothing.
+     */
+    @Test
+    void aSignalTheServerConfirmedPermitsABlockAndKeepsTheLowRiskBoundaryOff() {
+        String allow = "[F1] AuthorizationEffect: ALLOW\n";
+        String stated = allow + "[F2] VerifiedSignal: CONFIRMED_ACCOUNT_TAKEOVER (server-issued verification input "
+                + V1LineValues.TRUSTED_SIGNAL_SOURCE + ")\n";
+        CanonicalSecurityContext confirmed = context(0, 3, "NORMAL", facts(List.of()));
+        confirmed.setIntent(CanonicalSecurityContext.Intent.builder().anomalySignal("CONFIRMED_ACCOUNT_TAKEOVER")
+                .anomalySignalSource(V1LineValues.TRUSTED_SIGNAL_SOURCE).build());
+        DrawnPrompt drawn = DrawnPrompt.of(prompt(0, 3, "NORMAL", stated, null));
+
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(confirmed, confirmed.getDecisionFacts(), drawn, "BLOCK"))
+                .isNull();
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(confirmed, confirmed.getDecisionFacts(), drawn,
+                "CHALLENGE")).isNull();
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(confirmed, confirmed.getDecisionFacts(), drawn, "ALLOW"))
+                .isNull();
+
+        // The same signal with another source is a requester's claim: no line, so the boundaries read as without it.
+        CanonicalSecurityContext claimed = context(0, 3, "NORMAL", facts(List.of()));
+        claimed.setIntent(CanonicalSecurityContext.Intent.builder().anomalySignal("CONFIRMED_ACCOUNT_TAKEOVER")
+                .anomalySignalSource("REQUEST_HEADER").build());
+        DrawnPrompt withoutTheLine = DrawnPrompt.of(prompt(0, 3, "NORMAL", allow, null));
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(claimed, claimed.getDecisionFacts(), withoutTheLine,
+                "BLOCK")).isEqualTo(SecurityDecisionFactChecks.BLOCK_WITHOUT_EVIDENCE);
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(claimed, claimed.getDecisionFacts(), withoutTheLine,
+                "CHALLENGE")).isEqualTo(SecurityDecisionFactChecks.REQUIRED_LOW_RISK);
+        // A confirmed signal the prompt does not state is not read.
+        assertThat(SecurityDecisionFactChecks.boundaryViolation(confirmed, confirmed.getDecisionFacts(), withoutTheLine,
+                "BLOCK")).isEqualTo(SecurityDecisionFactChecks.BLOCK_WITHOUT_EVIDENCE);
+    }
+
     /** A role scope difference on provisional evidence is no anomaly; on trusted evidence it is. */
     @Test
     void aProvisionalRoleScopeDifferenceIsNoAnomaly() {
