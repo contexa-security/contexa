@@ -433,6 +433,37 @@ class DashboardPostgresTest {
                 .isEqualTo(kinds.get("POLICY"));
     }
 
+    @Test
+    @DisplayName("K114: a version made from a document is one change, read by its registration; one made on the screen"
+            + " by its creation")
+    void aVersionFromADocumentIsOneChange() {
+        Instant from = now.minus(Duration.ofDays(7));
+        // the document folder: the creation and the registration of v2 (PromptVersionService.create)
+        audit("PROMPT_VERSION_CHANGED", "folder:node-1", "security-decision@v2", "PROMPT_VERSION_CREATED", "RECORDED",
+                now.minus(Duration.ofMinutes(31)));
+        audit("PROMPT_VERSION_CHANGED", "folder:node-1", "security-decision@v2", "PROMPT_VERSION_FOLDER_REGISTERED",
+                "RECORDED", now.minus(Duration.ofMinutes(30)));
+        // an import on the screen: the creation and the import of v3 (PromptVersionService.importDocument)
+        audit("PROMPT_VERSION_CHANGED", "admin", "security-decision@v3", "PROMPT_VERSION_CREATED", "RECORDED",
+                now.minus(Duration.ofMinutes(21)));
+        audit("PROMPT_VERSION_CHANGED", "admin", "security-decision@v3", "PROMPT_VERSION_IMPORTED", "RECORDED",
+                now.minus(Duration.ofMinutes(20)));
+        // a version made on the screen and then used: two changes
+        audit("PROMPT_VERSION_CHANGED", "admin", "security-decision@v4", "PROMPT_VERSION_CREATED", "RECORDED",
+                now.minus(Duration.ofMinutes(11)));
+        audit("PROMPT_VERSION_CHANGED", "admin", "security-decision@v4", "PROMPT_VERSION_USED_FOR_DECISIONS", "RECORDED",
+                now.minus(Duration.ofMinutes(10)));
+
+        List<ChangeRecord> recent = queries.recentChanges(from, now, 8);
+
+        assertThat(recent).extracting(ChangeRecord::resource, ChangeRecord::action).containsExactly(
+                tuple("security-decision@v4", "PROMPT_VERSION_USED_FOR_DECISIONS"),
+                tuple("security-decision@v4", "PROMPT_VERSION_CREATED"),
+                tuple("security-decision@v3", "PROMPT_VERSION_IMPORTED"),
+                tuple("security-decision@v2", "PROMPT_VERSION_FOLDER_REGISTERED"));
+        assertThat(queries.changesByKind(from, now)).containsEntry("PROMPT", (long) recent.size());
+    }
+
     /**
      * What a server writes on its own: the product's prompt versions registered at start (8), a version record without
      * an actor, a role, a user and a policy written where no one is signed in, and a record under a blank name.

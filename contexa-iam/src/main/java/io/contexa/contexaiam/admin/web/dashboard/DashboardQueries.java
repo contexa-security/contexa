@@ -64,14 +64,27 @@ public class DashboardQueries {
     static final List<String> SYSTEM_ACTORS = List.of("system", PromptVersionAudit.PRODUCT_ACTOR);
 
     /**
-     * What makes a record of those categories an admin change (N19, K109): a refused administrator change, a failed
-     * policy synchronisation and a record the system wrote on its own, or under no name, are none.
+     * K114: what a version made from a document is recorded under beside its creation: registered from the folder,
+     * imported on the screen. The two records of one version are one change, read by the second.
+     */
+    static final List<String> VERSION_FROM_A_DOCUMENT = List.of(PromptVersionAudit.FOLDER_REGISTERED,
+            PromptVersionAudit.IMPORTED);
+
+    /**
+     * What makes a record of those categories an admin change (N19, K109, K114): a refused administrator change, a
+     * failed policy synchronisation, a record the system wrote on its own, or under no name, and the creation of a
+     * version that is recorded again as made from a document (by the same actor) are none.
      */
     private static final String ADMIN_CHANGE = """
                AND NOT (a.event_category = 'ADMIN_OVERRIDE' AND COALESCE(a.outcome, '') = 'REFUSED')
                AND COALESCE(a.action, '') <> '%s'
                AND LOWER(TRIM(COALESCE(a.principal_name, ''))) NOT IN ('', %s)
-            """.formatted(AUTO_POLICY_SYNC_BLOCKED, quoted(SYSTEM_ACTORS));
+               AND NOT (a.event_category = 'PROMPT_VERSION_CHANGED' AND a.action = '%s' AND EXISTS (
+                   SELECT 1 FROM ctxa_audit_log d
+                    WHERE d.event_category = a.event_category AND d.action IN (%s)
+                      AND d.resource_identifier = a.resource_identifier AND d.principal_name = a.principal_name))
+            """.formatted(AUTO_POLICY_SYNC_BLOCKED, quoted(SYSTEM_ACTORS), PromptVersionAudit.CREATED,
+            quoted(VERSION_FROM_A_DOCUMENT));
 
     private static final String ACCOUNTS_OF_PEOPLE = "u.enabled = TRUE AND u.bridge_managed = FALSE "
             + "AND (u.email IS NULL OR LOWER(u.email) NOT LIKE ?)";
