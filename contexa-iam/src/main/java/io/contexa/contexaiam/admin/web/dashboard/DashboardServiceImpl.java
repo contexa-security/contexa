@@ -249,7 +249,8 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDate firstDay = firstDay(now);
         return new SecurityPart(sources.queries().count(AUTHENTICATION_FAILURE, from, to),
                 sources.queries().byDay(List.of(AUTHENTICATION_FAILURE), firstDay, start(firstDay), now),
-                sources.auditLog().countAdminOverridesSince(local(from)), sources.queries().sealMismatches(from, to),
+                sources.auditLog().countAdminOverridesBetween(local(from), local(to)),
+                sources.queries().sealMismatches(from, to),
                 sources.ipRules().countDenyRules(), sources.queries().sessionsSince(now.minus(RECENT_SESSION)));
     }
 
@@ -386,7 +387,7 @@ public class DashboardServiceImpl implements DashboardService {
                 ATTENTION_READ);
         capped |= challenged.size() >= ATTENTION_READ;
         for (UserChallenges user : challenged) {
-            gathered(users, user.user()).signal("CHALLENGES", user.challenges(), parse(user.lastHour()));
+            gathered(users, user.user()).signal("CHALLENGES", user.challenges(), parse(user.lastAt()));
         }
         List<AttentionRow> rows = users.values().stream()
                 .sorted(Comparator.comparingLong(Gathered::problems).reversed()

@@ -185,8 +185,13 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = :category AND a.timestamp >= :since")
     long countByEventCategoryAndTimestampAfter(@Param("category") String category, @Param("since") LocalDateTime since);
 
-    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'ADMIN_OVERRIDE' AND a.timestamp >= :since")
-    long countAdminOverridesSince(@Param("since") LocalDateTime since);
+    /**
+     * K102: the administrator overrides of a period [from, to), as the dashboard's admin changes count them: an
+     * override the administrator was refused is none.
+     */
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'ADMIN_OVERRIDE' "
+            + "AND (a.outcome IS NULL OR a.outcome <> 'REFUSED') AND a.timestamp >= :from AND a.timestamp < :to")
+    long countAdminOverridesBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'SECURITY_DECISION' AND a.decision = :decision AND a.timestamp >= :since")
     long countZeroTrustDecisionSince(@Param("decision") String decision, @Param("since") LocalDateTime since);

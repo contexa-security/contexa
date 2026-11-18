@@ -504,17 +504,18 @@ final class ZeroTrustConsoleReader {
         return count == null ? 0 : count;
     }
 
-    /** The mode changes an operator made, latest first (console design 7.6). */
     /**
      * N17: the users challenged at least {@code atLeast} times in the period, in every tenant and mode, the most
-     * challenged first and a tie by name, at most {@code limit}; with the start of the latest hour of a challenge.
+     * challenged first and a tie by name, at most {@code limit}. K104: with the moment of each one's latest challenge,
+     * read from the decisions of those users alone (the index on user and time); the start of the latest hour of a
+     * challenge when the decisions no longer hold it.
      */
     List<UserChallenges> challengedAtLeast(ZeroTrustConsoleRange range, long atLeast, int limit) {
         JdbcOperations operations = jdbc.get();
         if (operations == null || limit <= 0) {
             return List.of();
         }
-        return operations.query("""
+        List<UserChallenges> users = operations.query("""
                 SELECT item, SUM(counted), MAX(bucket_start)
                   FROM ctxa_zt_item_hourly
                  WHERE dimension = 'USER' AND detail = 'CHALLENGE' AND bucket_start >= ? AND bucket_start < ?
@@ -524,8 +525,28 @@ final class ZeroTrustConsoleReader {
                  LIMIT ?
                 """, (rs, row) -> new UserChallenges(rs.getString(1), rs.getLong(2), String.valueOf(instant(rs, 3))),
                 range.fromHour(), range.toTimestamp(), Math.max(1, atLeast), limit);
+        if (users.isEmpty()) {
+            return users;
+        }
+        // the decisions the hourly table counted as a user's challenges (ZeroTrustHourlyStats, ITEM_USERS)
+        List<Object> args = new ArrayList<>(users.stream().map(UserChallenges::user).toList());
+        args.add(range.fromHour());
+        args.add(range.toTimestamp());
+        Map<String, Instant> latest = new HashMap<>();
+        operations.query("SELECT o.user_id, MAX(o.created_at) FROM ctxa_ai_security_decision_observation o"
+                + " WHERE o.user_id IN (" + String.join(", ", users.stream().map(user -> "?").toList()) + ")"
+                + " AND o.created_at >= ? AND o.created_at < ? AND o.attempt_kind = 'FIRST'"
+                + " AND o.final_action = 'CHALLENGE' AND o.test_run_id IS NULL GROUP BY o.user_id", (ResultSet rs) -> {
+                    Instant at = instant(rs, 2);
+                    if (at != null) {
+                        latest.put(rs.getString(1), at);
+                    }
+                }, args.toArray());
+        return users.stream().map(user -> latest.containsKey(user.user()) ? new UserChallenges(user.user(),
+                user.challenges(), String.valueOf(latest.get(user.user()))) : user).toList();
     }
 
+    /** The mode changes an operator made, latest first (console design 7.6). */
     List<String[]> modeChanges(int limit) {
         JdbcOperations operations = jdbc.get();
         if (operations == null) {

@@ -152,8 +152,8 @@ public final class ZeroTrustConsoleDtos {
     public record ChallengedUser(String user, long challenges, long passed, String mainReason, String baseline) {
     }
 
-    /** N17: a user's challenges of the period and the start of the latest hour one of them was decided in. */
-    public record UserChallenges(String user, long challenges, String lastHour) {
+    /** N17: a user's challenges of the period and the moment of the latest one (K104). */
+    public record UserChallenges(String user, long challenges, String lastAt) {
     }
 
     // ----- trust (6.3) -----

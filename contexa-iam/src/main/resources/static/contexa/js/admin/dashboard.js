@@ -100,10 +100,22 @@
         return ((shares || []).find(share => share.key === key) || {}).count || 0;
     }
 
-    /** The security event log over the dashboard's period, of a category when one is given. */
-    function events(category) {
+    /**
+     * The security event log over the dashboard's period, of a category when one is given; from (K103) names the
+     * moment it starts at when a count starts elsewhere than the last hours.
+     */
+    function events(category, from) {
         return A + '/security-monitor?' + (category ? 'category=' + encodeURIComponent(category) + '&' : '')
-            + 'hours=' + HOURS[periodKey];
+            + 'hours=' + HOURS[periodKey] + (from ? '&from=' + encodeURIComponent(from) : '');
+    }
+
+    /**
+     * K103: the start of the hour the period starts in, as the hourly counts read the period (DashboardQueries.hour:
+     * the instant cut to its hour); null when the period names no start.
+     */
+    function periodHour() {
+        const start = D.period && D.period.from ? Date.parse(D.period.from) : NaN;
+        return Number.isNaN(start) ? null : new Date(Math.floor(start / 3_600_000) * 3_600_000).toISOString();
     }
 
     /** The left menu's own icon of a group (its drawing, or its font icon), as its markup; null when the menu has none. */
@@ -202,8 +214,9 @@
                 d('todo.adminsWithoutMfa.rule'));
         }
         if (security.sealMismatch > 0) {
+            // K103: the log opens from the hour the seal count starts at, so it lists the records counted
             add('security', 'BAD', d('todo.sealBroken', ZT.count(security.sealMismatch)),
-                events('SECURITY_DECISION'), d('todo.sealBroken.rule'));
+                events('SECURITY_DECISION', periodHour()), d('todo.sealBroken.rule'));
         }
         if (policy.healthStatus === 'CRITICAL') {
             add('policy', 'BAD', d('todo.policyConflicts', ZT.count(policy.conflictCount), ZT.count(policy.duplicateCount)),
@@ -282,17 +295,28 @@
 
     // ----- the work queue: the head counts by severity, a row per piece of work with its area and its button -----
 
+    /**
+     * K101: a row's link in the button's place, as wide as the button: an unseen button of the same words keeps the
+     * room and the link lies over it, its words wrapping inside.
+     */
+    function guideLink(item) {
+        return el('span', {class: 'zt-action-slot'},
+            el('span', {class: 'modern-btn-secondary', 'aria-hidden': 'true', text: d('todo.process')}),
+            el('a', {class: 'zt-link', href: item.href, text: item.guide.link}));
+    }
+
     function queueCard(items) {
-        const card = ZT.card(d('todo.title'), null, items.length ? form('work-queue', el('div', {class: 'zt-indicators'},
+        // K101: the rows share their columns (zt-queue-rows): every severity badge at one x, every action in one place.
+        const card = ZT.card(d('todo.title'), null, items.length ? form('work-queue', el('div', {class: 'zt-indicators zt-queue-rows'},
             items.slice(0, TODO_SHOWN).map(item => el('div', {class: 'zt-indicator flex-wrap', 'data-severity': item.severity,
                 title: item.rule || null},
             el('div', {class: 'flex items-center gap-3 min-w-0'}, areaIcon(item.area, 20),
                 el('div', {class: 'zt-indicator-text'}, el('span', {class: 'zt-indicator-title', text: item.text}),
                     el('span', {class: 'zt-indicator-rule', text: d('area.' + item.area)}),
                     item.guide ? el('span', {class: 'zt-indicator-rule', text: item.guide.text}) : null)),
-            el('div', {class: 'flex items-center gap-3 flex-shrink-0'}, ZT.statusChip(item.severity),
-                item.guide ? el('a', {class: 'zt-link', href: item.href, text: item.guide.link})
-                    : el('a', {class: 'modern-btn-secondary', href: item.href, text: d('todo.process')}))))))
+            el('div', {class: 'zt-queue-act flex items-center gap-3 flex-shrink-0'}, ZT.statusChip(item.severity),
+                item.guide ? guideLink(item) : el('a', {class: 'modern-btn-secondary', href: item.href,
+                    text: d('todo.process')}))))))
             : ZT.emptyNote(d('todo.none')));
         card.id = 'dash-queue';
         const counts = ['BAD', 'WARN', 'INFO'].map(severity => [severity,
@@ -513,17 +537,15 @@
             return foot(areaCard('agents', d('area.agents'), d('agents.aside', periodName),
                 form('empty-state', ZT.emptyNote(d('agents.none')))), ...links);
         }
-        // K90: the counts stay the hero; a sponsor confirms from the mail, so in place of a button the tile says so and
-        // leads to the agents.
+        // K90: the counts stay the hero; a sponsor confirms from the mail, so in place of a button the tile says so. The
+        // card's foot leads to the agents in every state, the empty one too.
         const hero = form('hero-queue', el('div', {class: 'zt-tile flex flex-wrap items-end justify-between gap-3'},
             el('div', {class: 'zt-metric'}, el('span', {class: 'zt-metric-label', text: d('agents.queue')}),
                 el('span', {class: 'zt-metric-value', text: d('unitCount', short(a.confirmations)),
                     title: whole(a.confirmations)}),
                 el('span', {class: 'zt-metric-ratio', style: {color: a.confirmationsOverdue ? C.WARN : null},
                     text: d('agents.overdue', short(a.confirmationsOverdue))})),
-            el('div', {class: 'flex flex-col items-end gap-1 text-right min-w-0'},
-                el('span', {class: 'zt-muted', text: d('agents.confirmByMail')}),
-                el('a', {class: 'zt-link', href: A + '/agents', text: d('agents.link.list')}))));
+            el('span', {class: 'zt-muted text-right min-w-0', text: d('agents.confirmByMail')})));
         const total = a.byStatus.reduce((sum, share) => sum + share.count, 0);
         const colours = {ACTIVE: AREAS.agents.color, SUSPENDED: C.BLOCK, DEREGISTERED: C.MUTED};
         const meters = form('meter-list', el('div', {class: 'zt-reason-rows'},

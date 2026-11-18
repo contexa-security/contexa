@@ -43,8 +43,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -103,7 +106,13 @@ public class SecurityMonitorController {
 
     /** The list without a subject chip, as before A5-5. */
     public String monitor(String category, String filter, String keyword, int hours, int page, Model model) {
-        return monitor(category, filter, keyword, null, hours, page, model);
+        return monitor(category, filter, keyword, null, hours, null, page, model);
+    }
+
+    /** The list of the last hours, without a start a link names. */
+    public String monitor(String category, String filter, String keyword, String subject, int hours, int page,
+                          Model model) {
+        return monitor(category, filter, keyword, subject, hours, null, page, model);
     }
 
     @GetMapping
@@ -113,12 +122,17 @@ public class SecurityMonitorController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String subject,
             @RequestParam(required = false, defaultValue = "24") int hours,
+            @RequestParam(required = false) String from,
             @RequestParam(required = false, defaultValue = "0") int page,
             Model model) {
 
         model.addAttribute("activePage", "security-monitor");
 
-        LocalDateTime since = LocalDateTime.now().minusHours(hours);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start = start(from, now);
+        LocalDateTime since = start != null ? start : now.minusHours(hours);
+        // K103: the start a link named stays with the screen's own links (its pages, its categories, its CSV)
+        model.addAttribute("from", start != null ? from.trim() : null);
         // docs/agent A5-5: a subject chip lists the decisions of that subject kind.
         String subjectKind = subject != null && SUBJECT_KINDS.contains(subject) ? subject : null;
         model.addAttribute("subject", subjectKind);
@@ -129,7 +143,7 @@ public class SecurityMonitorController {
                 : loadLogPage(category, filter, keyword, page, since, model);
         model.addAttribute("integrity", integrityOf(logPage.getContent()));
 
-        prepareMonitorModel(model, logPage, hours, category, filter, keyword, since);
+        prepareMonitorModel(model, logPage, hours, category, filter, keyword, since, now);
 
         return "contexa/admin/security-monitor";
     }
@@ -179,9 +193,27 @@ public class SecurityMonitorController {
         return auditLogRepository.findByTimestampAfter(since, pageable);
     }
 
+    /**
+     * K103: the start a link names, an instant (the dashboard's seal count starts at the hour its period starts in);
+     * none when it is missing, unreadable or after now, and the screen reads its last hours.
+     */
+    @Nullable
+    static LocalDateTime start(@Nullable String from, LocalDateTime now) {
+        if (from == null || from.isBlank()) {
+            return null;
+        }
+        try {
+            LocalDateTime start = LocalDateTime.ofInstant(Instant.parse(from.trim()), ZoneId.systemDefault());
+            return start.isAfter(now) ? null : start;
+        } catch (DateTimeParseException unreadable) {
+            log.debug("[SecurityMonitor] The start {} is no instant; the last hours are read", from);
+            return null;
+        }
+    }
+
     private void prepareMonitorModel(
             Model model, Page<AuditLog> logPage, int hours,
-            String category, String filter, String keyword, LocalDateTime since) {
+            String category, String filter, String keyword, LocalDateTime since, LocalDateTime until) {
         model.addAttribute("logPage", logPage);
         model.addAttribute("hours", hours);
         model.addAttribute("category", category);
@@ -197,7 +229,8 @@ public class SecurityMonitorController {
                 "USER_BLOCKED", since));
         model.addAttribute("mfaVerified", auditLogRepository.countByEventCategoryAndTimestampAfter(
                 "MFA_VERIFICATION_SUCCESS", since));
-        model.addAttribute("adminOverride", auditLogRepository.countAdminOverridesSince(since));
+        // K102: the overrides of the screen's period as the dashboard counts them, a refused one none
+        model.addAttribute("adminOverride", auditLogRepository.countAdminOverridesBetween(since, until));
     }
 
     @GetMapping("/{id:\\d+}")
@@ -255,14 +288,22 @@ public class SecurityMonitorController {
         }
     }
 
+    /** The CSV of the last hours, without a start a link names. */
+    public void exportCsv(String category, String filter, int hours, HttpServletResponse response) throws IOException {
+        exportCsv(category, filter, hours, null, response);
+    }
+
     @GetMapping("/export")
     public void exportCsv(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String filter,
             @RequestParam(required = false, defaultValue = "24") int hours,
+            @RequestParam(required = false) String from,
             HttpServletResponse response) throws IOException {
 
-        LocalDateTime since = LocalDateTime.now().minusHours(hours);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start = start(from, now);
+        LocalDateTime since = start != null ? start : now.minusHours(hours);
         DateTimeFormatter ts = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
         List<CsvColumn<AuditLog>> columns = List.of(

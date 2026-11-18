@@ -35,6 +35,8 @@ import io.contexa.contexaiam.admin.web.dashboard.DashboardQueries.AccountSignal;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardQueries.Accounts;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardQueries.BlockRow;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardQueries.ChangeRecord;
+import io.contexa.contexaiam.admin.web.monitoring.controller.SecurityMonitorController;
+import io.contexa.contexaiam.admin.web.monitoring.dto.DecisionRecordIntegrity;
 import io.contexa.contexaiam.admin.web.monitoring.service.DecisionRecordSealCheck;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.UserChallenges;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleService;
@@ -52,12 +54,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.SharedEntityManagerCreator;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
+import org.springframework.ui.ExtendedModelMap;
+import org.springframework.ui.Model;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
@@ -142,7 +147,8 @@ class DashboardPostgresTest {
                 + "ctxa_app_group, ctxa_permission, ctxa_role_permissions, ctxa_audit_log, ctxa_blocked_user, "
                 + "ctxa_active_sessions, ctxa_ip_access_rules, ctxa_agent_registration, ctxa_agent_delegation_record, "
                 + "ctxa_agent_confirmation, ctxa_zt_item_hourly, ctxa_dashboard_denial_hourly, "
-                + "ctxa_dashboard_seal_hourly, ctxa_managed_resource restart identity cascade");
+                + "ctxa_dashboard_seal_hourly, ctxa_managed_resource, ctxa_ai_security_decision_observation "
+                + "restart identity cascade");
         hierarchy.setHierarchy("");
     }
 
@@ -347,6 +353,24 @@ class DashboardPostgresTest {
     }
 
     @Test
+    @DisplayName("K102: the overrides of the period [start, end), a refused one none, the same on the event log")
+    void theOverridesOfThePeriodAsTheAdminChangesCountThem() {
+        Instant from = now.minus(Duration.ofDays(7));
+        audit("ADMIN_OVERRIDE", "admin", "lee.minseo", "APPROVE", "APPROVED", now.minus(Duration.ofHours(4)));
+        audit("ADMIN_OVERRIDE", "admin", "lee.minseo", "RELEASE_CHALLENGE", "REFUSED", now.minus(Duration.ofHours(5)));
+        audit("ADMIN_OVERRIDE", "admin", "kim.sora", "APPROVE", "APPROVED", now.minus(Duration.ofDays(8)));
+        audit("ADMIN_OVERRIDE", "admin", "kim.sora", "APPROVE", "APPROVED", now.plus(Duration.ofDays(1)));
+
+        long dashboard = auditLog.countAdminOverridesBetween(local(from), local(now));
+        Model model = new ExtendedModelMap();
+        new SecurityMonitorController(auditLog, null).monitor(null, null, null, null, 168, from.toString(), 0, model);
+
+        assertThat(dashboard).isEqualTo(1);
+        assertThat(model.getAttribute("adminOverride")).isEqualTo(dashboard);
+        assertThat(queries.changesByKind(from, now)).containsEntry("OVERRIDE", dashboard);
+    }
+
+    @Test
     @DisplayName("N14, N15: the records of each of the last seven days, every day listed")
     void theRecordsOfEachDay() {
         LocalDate today = LocalDate.ofInstant(now, ZoneId.systemDefault());
@@ -440,6 +464,37 @@ class DashboardPostgresTest {
         assertThat(queries.sealMismatches(now.minus(Duration.ofDays(1)), now.plus(Duration.ofMinutes(2)))).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("K103: the broken seals the dashboard counts are the ones the event log lists from the link's start")
+    void theBrokenSealsCountedAreTheOnesTheLogLists() {
+        HmacEvidenceSigner signer = new HmacEvidenceSigner(Map.of("k1", "0123456789abcdef0123456789abcdef"
+                .getBytes(StandardCharsets.UTF_8)), "k1");
+        Instant from = now.minus(Duration.ofDays(7));
+        Instant hourOfFrom = from.truncatedTo(ChronoUnit.HOURS);
+        // one record between the start of the period's first hour and the period's start, one inside the period
+        String previous = sealed("on-the-boundary", hourOfFrom.plus(Duration.ofMinutes(10)), null, signer);
+        previous = sealed("inside", from.plus(Duration.ofHours(2)), previous, signer);
+        sealed("intact", from.plus(Duration.ofHours(3)), previous, signer);
+        jdbc.update("update ctxa_audit_log set reason = 'changed afterwards' where resource_identifier <> 'intact'");
+        new DashboardHourlyStats(() -> jdbc, auditLog, new DecisionRecordSealCheck(auditLog, () -> signer), null, clock)
+                .rebuildOnce();
+        SecurityMonitorController monitor = new SecurityMonitorController(auditLog, null);
+        monitor.setEvidenceSigner(signer);
+        Model model = new ExtendedModelMap();
+
+        long counted = queries.sealMismatches(from, now);
+        // the dashboard's link: the decision records from the hour the count starts at
+        monitor.monitor("SECURITY_DECISION", null, null, null, 168, hourOfFrom.toString(), 0, model);
+        Page<?> page = (Page<?>) model.getAttribute("logPage");
+        DecisionRecordIntegrity integrity = (DecisionRecordIntegrity) model.getAttribute("integrity");
+        long listed = page.getContent().stream().map(AuditLog.class::cast)
+                .filter(record -> "MISMATCH".equals(integrity.of(record.getId()))).count();
+
+        assertThat(counted).isEqualTo(2);
+        assertThat(listed).isEqualTo(counted);
+        assertThat(model.getAttribute("from")).isEqualTo(hourOfFrom.toString());
+    }
+
     // ----- N17: the step-ups of the period -----
 
     @Test
@@ -451,13 +506,19 @@ class DashboardPostgresTest {
         challenges("often", second, 2);
         challenges("twice", second, 2);
         challenges("long.ago", now.minus(Duration.ofDays(10)).truncatedTo(ChronoUnit.HOURS), 5);
+        // K104: the decisions behind the counts; the latest step-up, not its hour, is the user's last signal
+        decision("often-1", "often", "CHALLENGE", "FIRST", first.plus(Duration.ofMinutes(5)));
+        decision("often-2", "often", "CHALLENGE", "FIRST", second.plus(Duration.ofMinutes(17)));
+        decision("often-3", "often", "CHALLENGE", "FIRST", second.plus(Duration.ofMinutes(41)));
+        decision("often-retry", "often", "CHALLENGE", "RETRY", second.plus(Duration.ofMinutes(50)));
+        decision("often-allowed", "often", "ALLOW", "FIRST", second.plus(Duration.ofMinutes(55)));
         ZeroTrustConsoleService console = new ZeroTrustConsoleService(() -> jdbc, new SecurityZeroTrustProperties(),
                 null, new ObjectMapper(), () -> null, false, clock);
 
         List<UserChallenges> users = console.challengedAtLeast("week", 3, 10);
 
         assertThat(users).extracting(UserChallenges::user, UserChallenges::challenges).containsExactly(tuple("often", 4L));
-        assertThat(Instant.parse(users.get(0).lastHour())).isEqualTo(second);
+        assertThat(Instant.parse(users.get(0).lastAt())).isEqualTo(second.plus(Duration.ofMinutes(41)));
         assertThat(new ZeroTrustDecisionRecords(() -> jdbc, null, null, new ObjectMapper(), clock).reviewPending())
                 .isZero();
     }
@@ -562,6 +623,16 @@ class DashboardPostgresTest {
                 + "expires_at) values (?, 'DELEGATED_AGENT', 'person', 'agent', ?, 'person', ?, 'POST', '/api/x', "
                 + "'POLICY', ?, ?, ?)", id, "person::" + id, id, status, at(expiresAt.minus(Duration.ofHours(1))),
                 at(expiresAt));
+    }
+
+    /** A decision of a user as the decision service keeps it, with what the console reads of it. */
+    private static void decision(String id, String user, String action, String attempt, Instant moment) {
+        jdbc.update("insert into ctxa_ai_security_decision_observation (observation_id, user_id, final_action, "
+                + "attempt_kind, created_at) values (?, ?, ?, ?, ?)", id, user, action, attempt, at(moment));
+    }
+
+    private static LocalDateTime local(Instant moment) {
+        return LocalDateTime.ofInstant(moment, ZoneId.systemDefault());
     }
 
     private static void challenges(String user, Instant hour, long count) {
