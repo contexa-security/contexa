@@ -1890,7 +1890,8 @@ public class SecurityDecisionPromptSections {
                 Set.of());
         return "\n" + AssembledPrompt.draw(parts, version.holding(Set.of()), (part, holding) ->
                 SecurityDecisionPromptDocument.REASON_CODES_PART.equals(part.key())
-                        ? SecurityDecisionPromptDocument.reasonCodeLines(part, SecurityDecisionOutputContractV4.citedLines())
+                        ? SecurityDecisionPromptDocument.reasonCodeLines(part, SecurityDecisionOutputContractV4.citedLines(
+                                SecurityDecisionVersionFeatures.of(version).decisionRules()))
                         : null);
     }
 
