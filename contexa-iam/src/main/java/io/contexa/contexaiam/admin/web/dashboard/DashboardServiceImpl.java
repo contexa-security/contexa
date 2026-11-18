@@ -92,6 +92,8 @@ public class DashboardServiceImpl implements DashboardService {
     static final int CHALLENGES_AT_LEAST = 3;
     /** How many admin changes the timeline shows. */
     static final int CHANGES_SHOWN = 8;
+    /** K109: the words of the actor of a version registered from a node's document folder. */
+    static final String FOLDER_ACTOR_WORDS = "dashboard.ui.changes.folderActor";
     /** How many resources and users the refusals rank. */
     static final int DENIALS_RANKED = 5;
     /** The days of the daily bars and of the heat strip, today included. */
@@ -413,8 +415,8 @@ public class DashboardServiceImpl implements DashboardService {
         List<ChangeRow> recent = new ArrayList<>();
         for (ChangeRecord change : sources.queries().recentChanges(from, to, CHANGES_SHOWN)) {
             String kind = DashboardQueries.CHANGE_KINDS.get(change.category());
-            recent.add(new ChangeRow(change.at() != null ? change.at().toString() : null, change.actor(), kind,
-                    actionOf(kind, change), targetOf(kind, change, locale)));
+            recent.add(new ChangeRow(change.at() != null ? change.at().toString() : null, actorOf(change, locale),
+                    kind, actionOf(kind, change), targetOf(kind, change, locale)));
         }
         return new ChangesPart(byKind, recent);
     }
@@ -433,6 +435,13 @@ public class DashboardServiceImpl implements DashboardService {
             default -> action;
         };
         return key != null && NAMED_ACTIONS.contains(key) ? key : null;
+    }
+
+    /** K109: who made the change; a version registered from a node's document folder reads as the document folder. */
+    String actorOf(ChangeRecord change, Locale locale) {
+        String actor = change.actor();
+        return actor != null && actor.startsWith(PromptVersionAudit.FOLDER_ACTOR)
+                ? message(FOLDER_ACTOR_WORDS, "Document folder", locale) : actor;
     }
 
     /** What the change was made to, in words: a role by its description, a prompt by its name, a mode by its code. */

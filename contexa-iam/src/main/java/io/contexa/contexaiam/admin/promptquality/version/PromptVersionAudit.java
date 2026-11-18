@@ -38,7 +38,7 @@ public interface PromptVersionAudit {
 
     /** Who the product's versions are registered by at start (plan 3.3): the product, no person. */
     String PRODUCT_ACTOR = "contexa";
-    /** The start of who a version registered from a node's document folder is made by: the folder, no person. */
+    /** The start of who a version registered from a node's document folder is made by: the folder an operator filled. */
     String FOLDER_ACTOR = "folder:";
 
     void record(String action, String scope, String prompt, String version, String actor, String detail);

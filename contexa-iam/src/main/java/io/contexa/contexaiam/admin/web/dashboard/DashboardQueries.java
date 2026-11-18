@@ -58,7 +58,8 @@ public class DashboardQueries {
      * K109: the names, in lower case, the system's own records of those categories are written under: SYSTEM where no
      * one is signed in (the role, user and policy services at start and the policy synchronisation), system (a prompt
      * version record without an actor) and the product's prompt versions registered at start. A version registered from
-     * a node's document folder is written under {@link PromptVersionAudit#FOLDER_ACTOR} and the node.
+     * a node's document folder ({@link PromptVersionAudit#FOLDER_ACTOR} and the node) is an operator's: the operator put
+     * its document there.
      */
     static final List<String> SYSTEM_ACTORS = List.of("system", PromptVersionAudit.PRODUCT_ACTOR);
 
@@ -70,8 +71,7 @@ public class DashboardQueries {
                AND NOT (a.event_category = 'ADMIN_OVERRIDE' AND COALESCE(a.outcome, '') = 'REFUSED')
                AND COALESCE(a.action, '') <> '%s'
                AND LOWER(TRIM(COALESCE(a.principal_name, ''))) NOT IN ('', %s)
-               AND a.principal_name NOT LIKE '%s%%'
-            """.formatted(AUTO_POLICY_SYNC_BLOCKED, quoted(SYSTEM_ACTORS), PromptVersionAudit.FOLDER_ACTOR);
+            """.formatted(AUTO_POLICY_SYNC_BLOCKED, quoted(SYSTEM_ACTORS));
 
     private static final String ACCOUNTS_OF_PEOPLE = "u.enabled = TRUE AND u.bridge_managed = FALSE "
             + "AND (u.email IS NULL OR LOWER(u.email) NOT LIKE ?)";

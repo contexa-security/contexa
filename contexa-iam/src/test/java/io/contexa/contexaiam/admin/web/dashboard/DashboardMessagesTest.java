@@ -120,6 +120,7 @@ class DashboardMessagesTest {
                 "ADMIN_NO_MFA", "LOCKED", "LOGIN_FAILURES", "CHALLENGES", "REPEATED");
         family(keys, "changes.kind.", "POLICY", "USER", "ROLE", "PROMPT", "MODE", "OVERRIDE", "AGENT");
         family(keys, "changes.action.", DashboardServiceImpl.NAMED_ACTIONS.toArray(String[]::new));
+        keys.add(DashboardServiceImpl.FOLDER_ACTOR_WORDS);
         for (String period : List.of("day", "week", "month", "quarter")) {
             keys.add("zt.console.ui.period." + period);
         }

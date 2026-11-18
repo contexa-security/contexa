@@ -114,6 +114,8 @@ class DashboardServiceImplTest {
     void setUp() {
         StaticMessageSource messages = new StaticMessageSource();
         messages.addMessage("pv.prompt.cortex.security-decision", Locale.ENGLISH, "Security decision");
+        messages.addMessage(DashboardServiceImpl.FOLDER_ACTOR_WORDS, Locale.ENGLISH, "Document folder");
+        messages.addMessage(DashboardServiceImpl.FOLDER_ACTOR_WORDS, Locale.KOREAN, "문서 폴더");
         service = new DashboardServiceImpl(new DashboardSources(console, records, queries, accessCenter, administrators,
                 coverage, hierarchies, roles, passwordPolicy, resources, policies, validation, policyCenter, ipRules,
                 auditLog, settings, new PolicyCombiningProperties(), agents, null, null, null, messages),
@@ -246,6 +248,22 @@ class DashboardServiceImplTest {
                 tuple("OVERRIDE", null, "lee.minseo"),
                 tuple("AGENT", "KILL_SWITCH_OFF", "*"),
                 tuple("AGENT", null, "report-bot"));
+    }
+
+    @Test
+    void aVersionFromTheDocumentFolderReadsAsTheDocumentFolder() {
+        when(queries.changesByKind(any(), any())).thenReturn(Map.of("PROMPT", 2L));
+        when(queries.recentChanges(any(), any(), eq(DashboardServiceImpl.CHANGES_SHOWN))).thenReturn(List.of(
+                new ChangeRecord(now.minusSeconds(60), "folder:node-1", "PROMPT_VERSION_CHANGED",
+                        "PROMPT_VERSION_FOLDER_REGISTERED", "cortex.security-decision@v3", null),
+                change("PROMPT_VERSION_CHANGED", "PROMPT_VERSION_CREATED", "cortex.security-decision@v2", null)));
+
+        ChangesPart english = service.changes(now.minusSeconds(3600), now, Locale.ENGLISH);
+        ChangesPart korean = service.changes(now.minusSeconds(3600), now, Locale.KOREAN);
+
+        assertThat(english.recent()).extracting(ChangeRow::actor, ChangeRow::action).containsExactly(
+                tuple("Document folder", "PROMPT_VERSION_FOLDER_REGISTERED"), tuple("admin", "PROMPT_VERSION_CREATED"));
+        assertThat(korean.recent()).extracting(ChangeRow::actor).containsExactly("문서 폴더", "admin");
     }
 
     // ----- the whole answer -----

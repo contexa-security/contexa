@@ -405,10 +405,14 @@ class DashboardPostgresTest {
     }
 
     @Test
-    @DisplayName("K109: beside the system's own records the administrators' changes alone, counted by kind as listed")
+    @DisplayName("K109: beside the system's own records the administrators' changes and the document folder's versions,"
+            + " counted by kind as listed")
     void theAdministratorsChangesBesideTheSystemsOwn() {
         Instant from = now.minus(Duration.ofDays(7));
         systemsOwnRecords();
+        // an operator put a document in a node's folder: the version it made is an admin change
+        audit("PROMPT_VERSION_CHANGED", "folder:node-1", "security-decision@v2", "PROMPT_VERSION_FOLDER_REGISTERED",
+                "RECORDED", now.minus(Duration.ofMinutes(30)));
         audit("PROMPT_VERSION_CHANGED", "admin", "security-decision@v9", "PROMPT_VERSION_CREATED", "RECORDED",
                 now.minus(Duration.ofHours(1)));
         audit("POLICY_CREATED", "policy.owner", "Export rule", "POLICY_CREATED", "SUCCESS", now.minus(Duration.ofHours(2)));
@@ -418,8 +422,9 @@ class DashboardPostgresTest {
         Map<String, Long> kinds = queries.changesByKind(from, now);
         List<ChangeRecord> recent = queries.recentChanges(from, now, 8);
 
-        assertThat(recent).extracting(ChangeRecord::actor).containsExactly("admin", "policy.owner", "admin", "admin");
-        assertThat(kinds).containsEntry("PROMPT", 1L).containsEntry("POLICY", 1L).containsEntry("ROLE", 1L)
+        assertThat(recent).extracting(ChangeRecord::actor).containsExactly("folder:node-1", "admin", "policy.owner",
+                "admin", "admin");
+        assertThat(kinds).containsEntry("PROMPT", 2L).containsEntry("POLICY", 1L).containsEntry("ROLE", 1L)
                 .containsEntry("USER", 1L).containsEntry("MODE", 0L).containsEntry("OVERRIDE", 0L)
                 .containsEntry("AGENT", 0L);
         assertThat(kinds.values().stream().mapToLong(Long::longValue).sum()).isEqualTo(recent.size());
@@ -429,17 +434,14 @@ class DashboardPostgresTest {
     }
 
     /**
-     * What a server writes on its own: the product's prompt versions registered at start (8), a version from a node's
-     * document folder, a version record without an actor, a role, a user and a policy written where no one is signed
-     * in, and a record under a blank name.
+     * What a server writes on its own: the product's prompt versions registered at start (8), a version record without
+     * an actor, a role, a user and a policy written where no one is signed in, and a record under a blank name.
      */
     private void systemsOwnRecords() {
         for (int version = 1; version <= 8; version++) {
             audit("PROMPT_VERSION_CHANGED", "contexa", "prompt-" + version + "@v1", "PROMPT_VERSION_CREATED", "RECORDED",
                     now.minus(Duration.ofMinutes(10 + version)));
         }
-        audit("PROMPT_VERSION_CHANGED", "folder:node-1", "security-decision@v2", "PROMPT_VERSION_FOLDER_REGISTERED",
-                "RECORDED", now.minus(Duration.ofMinutes(5)));
         audit("PROMPT_VERSION_CHANGED", "system", "security-decision@v3", "PROMPT_VERSION_CREATED", "RECORDED",
                 now.minus(Duration.ofMinutes(6)));
         audit("ROLE_CREATED", "SYSTEM", "ROLE_USER", "ROLE_CREATED", "SUCCESS", now.minus(Duration.ofMinutes(7)));
