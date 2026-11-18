@@ -17,6 +17,9 @@ package io.contexa.autoconfigure.iam;
 
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexaiam.admin.web.auth.controller.SessionManagementController;
+import io.contexa.contexaiam.admin.web.auth.filter.ActiveSessionEndListener;
+import io.contexa.contexaiam.admin.web.auth.filter.SessionTrackingFilter;
+import io.contexa.contexaiam.admin.web.auth.service.ActiveSessionCleanupScheduler;
 import io.contexa.contexaiam.admin.web.auth.service.ActiveSessionReferences;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
@@ -24,6 +27,7 @@ import io.contexa.contexaiam.domain.entity.ActiveSession;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
 import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import jakarta.persistence.EntityManager;
+import jakarta.servlet.http.HttpSessionEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +40,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.SharedEntityManagerCreator;
@@ -47,6 +52,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -197,6 +203,47 @@ class RawSessionRowsPostgresTest {
         controller.list(0, null, new ConcurrentModel());
 
         assertThat(jdbc.queryForList("select * from ctxa_active_sessions order by session_id")).isEqualTo(once);
+    }
+
+    /**
+     * K73: the sessions the console counts active are the ones that are: a session whose HTTP session ended is marked
+     * expired at its end, one whose node stopped goes after the idle limit, and the ended ones go after their retention.
+     */
+    @Test
+    void theActiveSessionsAreTheOnesThatAre() {
+        LocalDateTime now = LocalDateTime.now();
+        row(ref("LIVE"), "alice", false, now.minusHours(1), now.minusMinutes(5));
+        row(ref("NODE-STOPPED"), "bob", false, now.minusHours(4), now.minusHours(3));
+        row(ref("NEVER-READ-AGAIN"), "carol", false, now.minusHours(3), null);
+        row(ref("LOGGED-OUT"), "dave", false, now.minusMinutes(20), now.minusMinutes(1));
+        row(ref("ENDED-YESTERDAY"), "erin", true, now.minusDays(1), now.minusDays(1));
+        row(ref("ENDED-LAST-WEEK"), "frank", true, now.minusDays(9), now.minusDays(8));
+        ConcurrentModel before = new ConcurrentModel();
+        controller.list(0, null, before);
+        assertThat(before.getAttribute("activeCount")).as("what the console counted before K73").isEqualTo(4L);
+
+        SessionManagementService service = console.getBean(SessionManagementService.class);
+        MockHttpSession loggedOut = new MockHttpSession(null, "LOGGED-OUT");
+        loggedOut.setAttribute(SessionTrackingFilter.TRACKED_AT, System.currentTimeMillis());
+        new ActiveSessionEndListener(service).sessionDestroyed(new HttpSessionEvent(loggedOut));
+        new ActiveSessionCleanupScheduler(service, Duration.ofMinutes(30)).cleanup();
+
+        ConcurrentModel after = new ConcurrentModel();
+        controller.list(0, null, after);
+        assertThat(after.getAttribute("activeCount")).isEqualTo(1L);
+        assertThat(jdbc.queryForList("select session_id from ctxa_active_sessions where not expired", String.class))
+                .containsExactly(ref("LIVE"));
+        assertThat(expired(ref("LOGGED-OUT"))).as("ended at its end, kept for its retention").isTrue();
+        assertThat(jdbc.queryForList("select session_id from ctxa_active_sessions", String.class))
+                .as("the sessions of the stopped node and the one ended last week went")
+                .containsExactlyInAnyOrder(ref("LIVE"), ref("LOGGED-OUT"), ref("ENDED-YESTERDAY"));
+    }
+
+    private void row(String sessionId, String user, boolean expired, LocalDateTime created, LocalDateTime accessed) {
+        jdbc.update("insert into ctxa_active_sessions (session_id, client_ip, created_at, expired, last_accessed_at, "
+                        + "user_agent, user_id, username) values (?, ?, ?, ?, ?, ?, ?, ?)", sessionId, "10.0.0.7",
+                Timestamp.valueOf(created), expired, accessed != null ? Timestamp.valueOf(accessed) : null, "browser",
+                user, user);
     }
 
     private void row(String sessionId, String user, boolean expired) {

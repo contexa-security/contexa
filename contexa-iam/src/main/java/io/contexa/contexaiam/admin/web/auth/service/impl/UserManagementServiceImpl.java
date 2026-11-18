@@ -250,6 +250,8 @@ public class UserManagementServiceImpl implements UserManagementService {
             }
             users.setPassword(passwordEncoder.encode(userDto.getPassword()));
             users.setPasswordChangedAt(LocalDateTime.now());
+            // K76: a password the administrator set is a new one, as the person's own change makes it
+            users.setCredentialsExpired(false);
         }
 
         Set<Long> desiredGroupIds = userDto.getSelectedGroupIds() != null

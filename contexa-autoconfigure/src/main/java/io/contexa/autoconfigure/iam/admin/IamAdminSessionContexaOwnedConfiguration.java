@@ -17,11 +17,16 @@ package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.contexaiam.admin.web.auth.filter.ActiveSessionEndListener;
 import io.contexa.contexaiam.admin.web.auth.filter.SessionTrackingFilter;
+import io.contexa.contexaiam.admin.web.auth.service.ActiveSessionCleanupScheduler;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.boot.web.servlet.ServletListenerRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -41,5 +46,27 @@ public class IamAdminSessionContexaOwnedConfiguration {
         registration.setName("contexaSessionTrackingFilter");
         registration.setOrder(200);
         return registration;
+    }
+
+    /** K73: a tracked session whose HTTP session ends, or whose id is replaced, is no longer active. */
+    @Bean(name = "contexaActiveSessionEndListener")
+    @ConditionalOnMissingBean(name = "contexaActiveSessionEndListener")
+    public ServletListenerRegistrationBean<ActiveSessionEndListener> activeSessionEndListener(
+            SessionManagementService contexaSessionManagementService) {
+        return new ServletListenerRegistrationBean<>(new ActiveSessionEndListener(contexaSessionManagementService));
+    }
+
+    /**
+     * K73: the tracked sessions that ended without a word (their node stopped) go after the HTTP session's idle limit,
+     * and the ended ones after their retention.
+     */
+    @Bean(name = "contexaActiveSessionCleanupScheduler")
+    @ConditionalOnMissingBean
+    public ActiveSessionCleanupScheduler activeSessionCleanupScheduler(
+            SessionManagementService contexaSessionManagementService,
+            ObjectProvider<ServerProperties> serverProperties) {
+        ServerProperties server = serverProperties.getIfAvailable();
+        return new ActiveSessionCleanupScheduler(contexaSessionManagementService,
+                server != null ? server.getServlet().getSession().getTimeout() : null);
     }
 }

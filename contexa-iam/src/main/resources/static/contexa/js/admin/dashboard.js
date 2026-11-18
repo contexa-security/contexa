@@ -704,7 +704,8 @@
     // ----- B: the recent admin changes: who changed what and when, down a timeline; the period's counts by kind -----
 
     const KIND_AREA = {POLICY: 'policy', USER: 'iam', ROLE: 'iam', PROMPT: 'prompt', MODE: 'system',
-        OVERRIDE: 'security', AGENT: 'agents'};
+        OVERRIDE: 'security', AGENT: 'agents', GROUP: 'iam', PERMISSION: 'iam', HIERARCHY: 'iam', ASSIGNMENT: 'iam',
+        PASSWORD: 'iam', MENU: 'system', SETTINGS: 'system'};
 
     function changesCard() {
         const c = D.changes;

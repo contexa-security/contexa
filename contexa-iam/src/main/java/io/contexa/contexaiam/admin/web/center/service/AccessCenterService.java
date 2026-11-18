@@ -18,6 +18,9 @@ package io.contexa.contexaiam.admin.web.center.service;
 import java.util.Objects;
 
 import io.contexa.contexacommon.entity.Group;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexaiam.admin.web.auth.service.AdminChangeAudit;
 import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.GroupRolePermission;
 import io.contexa.contexacommon.entity.Permission;
@@ -56,9 +59,13 @@ import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.AccessUserSum
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.UpdateRolePermissionsRequest;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.UpdateUserGroupsRequest;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -80,6 +87,30 @@ public class AccessCenterService {
     private final UserRolePermissionRepository userRolePermissionRepository;
     private final GroupRolePermissionRepository groupRolePermissionRepository;
     private final LastAdministratorGuard lastAdministratorGuard;
+    /** K75: a role assignment of the access center is audited; without the facade nothing is recorded. */
+    private AdminChangeAudit audit = AdminChangeAudit.NONE;
+
+    /** The actions of the access center's role assignments (K75). */
+    static final String USER_GROUPS_ASSIGNED = "USER_GROUPS_ASSIGNED";
+    static final String USER_ROLES_ASSIGNED = "USER_ROLES_ASSIGNED";
+    static final String GROUP_ROLES_ASSIGNED = "GROUP_ROLES_ASSIGNED";
+
+    /** K75: records the role assignments of the access center. */
+    public void setCentralAuditFacade(CentralAuditFacade centralAuditFacade) {
+        this.audit = AdminChangeAudit.of(centralAuditFacade);
+    }
+
+    private void auditAssignment(String action, String target, String idKey, Long id, String listKey,
+                                 List<String> names) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put(idKey, id);
+        details.put(listKey, names);
+        audit.record(AuditEventCategory.ROLE_ASSIGNMENT_CHANGED, action, target, details);
+    }
+
+    private static <T> List<String> names(Collection<T> items, Function<T, String> name) {
+        return items == null ? List.of() : items.stream().map(name).filter(Objects::nonNull).sorted().toList();
+    }
 
     public AccessCenterStats getStats() {
         return new AccessCenterStats(
@@ -211,6 +242,8 @@ public class AccessCenterService {
         });
         lastAdministratorGuard.refuseLosingTheLast(user, wasActiveAdministrator);
         userRepository.save(user);
+        auditAssignment(USER_GROUPS_ASSIGNED, user.getUsername(), "userId", userId, "groups",
+                names(user.getUserGroups(), userGroup -> userGroup.getGroup() != null ? userGroup.getGroup().getName() : null));
 
         return new AccessActionResponse(true, "Groups updated successfully.");
     }
@@ -286,6 +319,8 @@ public class AccessCenterService {
         lastAdministratorGuard.refuseLosingTheLast(user, wasActiveAdministrator);
 
         userRepository.save(user);
+        auditAssignment(USER_ROLES_ASSIGNED, user.getUsername(), "userId", userId, "roles",
+                names(user.getUserRoles(), userRole -> userRole.getRole() != null ? userRole.getRole().getRoleName() : null));
         return new AccessActionResponse(true, "Direct roles updated successfully.");
     }
 
@@ -392,6 +427,8 @@ public class AccessCenterService {
 
         groupRepository.save(group);
         lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
+        auditAssignment(GROUP_ROLES_ASSIGNED, group.getName(), "groupId", groupId, "roles",
+                names(group.getGroupRoles(), groupRole -> groupRole.getRole() != null ? groupRole.getRole().getRoleName() : null));
         return new AccessActionResponse(true, "Group roles updated successfully.");
     }
 

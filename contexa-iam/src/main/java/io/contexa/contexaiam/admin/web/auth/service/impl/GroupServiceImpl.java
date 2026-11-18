@@ -16,6 +16,9 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexaiam.admin.web.auth.service.AdminChangeAudit;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.common.ConsoleInput;
@@ -51,6 +54,8 @@ public class GroupServiceImpl extends AccountAuthoritiesService implements Group
     private final RoleHierarchyRepository roleHierarchyRepository;
     private final MessageSource messageSource;
     private final LastAdministratorGuard lastAdministratorGuard;
+    /** K75: a change of a group is audited; without the facade nothing is recorded. */
+    private AdminChangeAudit audit = AdminChangeAudit.NONE;
 
     /** The lengths of the columns of a group. */
     private static final int NAME_LENGTH = 100;
@@ -58,6 +63,23 @@ public class GroupServiceImpl extends AccountAuthoritiesService implements Group
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
+
+    /** K75: records the changes of the groups. */
+    public void setCentralAuditFacade(CentralAuditFacade centralAuditFacade) {
+        this.audit = AdminChangeAudit.of(centralAuditFacade);
+    }
+
+    private void auditGroupChange(AuditEventCategory category, Group group) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("groupId", group.getId());
+        details.put("groupName", group.getName());
+        if (group.getGroupRoles() != null) {
+            details.put("roles", group.getGroupRoles().stream()
+                    .map(groupRole -> groupRole.getRole() != null ? groupRole.getRole().getRoleName() : null)
+                    .filter(Objects::nonNull).sorted().toList());
+        }
+        audit.record(category, category.name(), group.getName(), details);
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -93,6 +115,7 @@ public class GroupServiceImpl extends AccountAuthoritiesService implements Group
             // is told with its reason.
             Group saved = groupRepository.save(group);
             groupRepository.flush();
+            auditGroupChange(AuditEventCategory.GROUP_CREATED, saved);
             return saved;
         } catch (DataIntegrityViolationException e) {
             throw new IllegalArgumentException(msg("msg.group.name.duplicate"), e);
@@ -133,11 +156,16 @@ public class GroupServiceImpl extends AccountAuthoritiesService implements Group
         if (!groupRepository.existsById(id)) {
             throw new IllegalArgumentException(msg("msg.group.not.found.id", String.valueOf(id)));
         }
+        String deletedName = groupRepository.findById(id).map(Group::getName).orElse(null);
         // The group's memberships and roles go with it by the database's cascade; the permissions given with its roles
         // reference it without one and go here, as the rows that reference an account go with the account.
         groupRepository.deleteRolePermissionsOf(id);
         groupRepository.deleteById(id);
         lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("groupId", id);
+        details.put("groupName", deletedName);
+        audit.record(AuditEventCategory.GROUP_DELETED, AuditEventCategory.GROUP_DELETED.name(), deletedName, details);
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -190,6 +218,7 @@ public class GroupServiceImpl extends AccountAuthoritiesService implements Group
 
         Group saved = groupRepository.save(existingGroup);
         lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
+        auditGroupChange(AuditEventCategory.GROUP_UPDATED, saved);
         return saved;
     }
 

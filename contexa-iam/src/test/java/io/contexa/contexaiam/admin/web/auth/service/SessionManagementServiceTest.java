@@ -31,6 +31,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -284,6 +285,33 @@ class SessionManagementServiceTest {
                     time.isBefore(LocalDateTime.now().minusDays(6).minusHours(23)) &&
                     time.isAfter(LocalDateTime.now().minusDays(7).minusMinutes(5))
             ));
+        }
+    }
+
+    @Nested
+    @DisplayName("endIdleSessions (K73)")
+    class EndIdleSessions {
+
+        @Test
+        @DisplayName("removes the active sessions no request reached for longer than the idle limit")
+        void removesTheIdleOnes() {
+            when(activeSessionRepository.deleteIdleBefore(any())).thenReturn(3);
+
+            assertThat(service.endIdleSessions(Duration.ofMinutes(32))).isEqualTo(3);
+
+            verify(activeSessionRepository).deleteIdleBefore(argThat(time ->
+                    time.isBefore(LocalDateTime.now().minusMinutes(31)) &&
+                    time.isAfter(LocalDateTime.now().minusMinutes(33))));
+        }
+
+        @Test
+        @DisplayName("ends none where sessions never time out")
+        void noLimitEndsNone() {
+            assertThat(service.endIdleSessions(Duration.ZERO)).isZero();
+            assertThat(service.endIdleSessions(Duration.ofMinutes(-1))).isZero();
+            assertThat(service.endIdleSessions(null)).isZero();
+
+            verify(activeSessionRepository, never()).deleteIdleBefore(any());
         }
     }
 

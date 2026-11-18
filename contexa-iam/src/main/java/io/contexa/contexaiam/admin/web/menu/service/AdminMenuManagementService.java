@@ -18,6 +18,9 @@ package io.contexa.contexaiam.admin.web.menu.service;
 import java.util.Objects;
 
 import io.contexa.contexacommon.entity.AdminMenu;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexaiam.admin.web.auth.service.AdminChangeAudit;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuActionResponse;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuOrderRequest;
@@ -41,6 +44,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
@@ -70,8 +74,34 @@ public class AdminMenuManagementService {
     private static final int NAME_LENGTH = 100;
     private static final int DATA_PAGE_LENGTH = 50;
 
+    /** K75: a change of the menus is audited; without the facade nothing is recorded. */
+    private AdminChangeAudit audit = AdminChangeAudit.NONE;
+
+    /** The actions of the menu changes (K75). */
+    static final String MENU_CREATED = "MENU_CREATED";
+    static final String MENU_UPDATED = "MENU_UPDATED";
+    static final String MENU_DELETED = "MENU_DELETED";
+    static final String MENU_SWITCHED = "MENU_SWITCHED";
+    static final String MENU_ROLES_CHANGED = "MENU_ROLES_CHANGED";
+    static final String MENU_REORDERED = "MENU_REORDERED";
+
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
+
+    /** K75: records the changes of the menus. */
+    public void setCentralAuditFacade(CentralAuditFacade centralAuditFacade) {
+        this.audit = AdminChangeAudit.of(centralAuditFacade);
+    }
+
+    private void auditMenuChange(String action, AdminMenu menu, Map<String, Object> more) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("menuId", menu.getId());
+        details.put("name", menu.getName());
+        details.put("url", menu.getUrl());
+        details.put("enabled", menu.isEnabled());
+        details.putAll(more);
+        audit.record(AuditEventCategory.MENU_CHANGED, action, menu.getName(), details);
     }
 
     /**
@@ -100,6 +130,7 @@ public class AdminMenuManagementService {
     @Transactional(transactionManager = "contexaTransactionManager")
     public AdminMenuActionResponse toggleMenu(Long id) {
         adminMenuService.toggleEnabled(id);
+        adminMenuService.getMenuById(id).ifPresent(menu -> auditMenuChange(MENU_SWITCHED, menu, Map.of()));
         return AdminMenuActionResponse.ok();
     }
 
@@ -107,6 +138,8 @@ public class AdminMenuManagementService {
     public AdminMenuActionResponse updateRoles(Long id, AdminMenuRolesRequest request) {
         Set<String> roles = request.rolesOrEmpty().stream().collect(Collectors.toSet());
         adminMenuService.updateMenuRoles(id, roles);
+        adminMenuService.getMenuById(id).ifPresent(menu -> auditMenuChange(MENU_ROLES_CHANGED, menu,
+                Map.of("roles", roles.stream().sorted().toList())));
         return AdminMenuActionResponse.ok();
     }
 
@@ -119,6 +152,11 @@ public class AdminMenuManagementService {
                 .toList();
         for (AdminMenuOrderUpdate item : updates) {
             adminMenuService.updateMenuOrder(item.menuId(), item.menuOrder());
+        }
+        if (!updates.isEmpty()) {
+            Map<String, Object> placed = new LinkedHashMap<>();
+            updates.forEach(item -> placed.put(String.valueOf(item.menuId()), item.menuOrder()));
+            audit.record(AuditEventCategory.MENU_CHANGED, MENU_REORDERED, null, Map.of("orders", placed));
         }
         return AdminMenuActionResponse.ok();
     }
@@ -150,6 +188,7 @@ public class AdminMenuManagementService {
             menu.setEnabled(Boolean.parseBoolean(request.getEnabled()));
         }
         adminMenuService.saveMenu(menu);
+        auditMenuChange(MENU_CREATED, menu, Map.of());
         return AdminMenuActionResponse.created(menu.getId());
     }
 
@@ -200,6 +239,7 @@ public class AdminMenuManagementService {
             menu.setParentId(parentId);
         }
         adminMenuService.saveMenu(menu);
+        auditMenuChange(MENU_UPDATED, menu, Map.of());
         return AdminMenuActionResponse.ok();
     }
 
@@ -286,7 +326,9 @@ public class AdminMenuManagementService {
                         builtIn.stream().map(name -> messageSource.getMessage(name, null, name,
                                 LocaleContextHolder.getLocale())).collect(Collectors.joining(", "))));
             }
+            int submenus = adminMenuService.getDescendants(id).size();
             adminMenuService.deleteMenu(id);
+            auditMenuChange(MENU_DELETED, menu, Map.of("submenus", submenus));
             return AdminMenuActionResponse.ok();
         });
     }

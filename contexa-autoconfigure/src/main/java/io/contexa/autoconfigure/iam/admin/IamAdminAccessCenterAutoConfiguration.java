@@ -16,10 +16,12 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexacommon.repository.*;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.center.AccessCenterController;
 import io.contexa.contexaiam.admin.web.center.service.AccessCenterService;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -41,11 +43,15 @@ public class IamAdminAccessCenterAutoConfiguration {
             RoleService contexaRoleService,
             UserRolePermissionRepository userRolePermissionRepository,
             GroupRolePermissionRepository groupRolePermissionRepository,
-            LastAdministratorGuard contexaLastAdministratorGuard) {
-        return new AccessCenterService(
+            LastAdministratorGuard contexaLastAdministratorGuard,
+            ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+        AccessCenterService service = new AccessCenterService(
                 userRepository, userRoleRepository, groupRepository,
                 roleRepository, permissionRepository, contexaRoleService,
                 userRolePermissionRepository, groupRolePermissionRepository, contexaLastAdministratorGuard);
+        // K75: a role assignment of the access center is audited
+        centralAuditFacade.ifAvailable(service::setCentralAuditFacade);
+        return service;
     }
 
     @Bean(name = "contexaAccessCenterController")

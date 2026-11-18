@@ -120,6 +120,18 @@ public class DashboardQueries {
         for (String category : List.of("ROLE_CREATED", "ROLE_UPDATED", "ROLE_DELETED")) {
             kinds.put(category, "ROLE");
         }
+        // K75: the changes of the console that had no audit record before
+        for (String category : List.of("GROUP_CREATED", "GROUP_UPDATED", "GROUP_DELETED")) {
+            kinds.put(category, "GROUP");
+        }
+        for (String category : List.of("PERMISSION_CREATED", "PERMISSION_UPDATED", "PERMISSION_DELETED")) {
+            kinds.put(category, "PERMISSION");
+        }
+        kinds.put("ROLE_HIERARCHY_CHANGED", "HIERARCHY");
+        kinds.put("ROLE_ASSIGNMENT_CHANGED", "ASSIGNMENT");
+        kinds.put("PASSWORD_POLICY_CHANGED", "PASSWORD");
+        kinds.put("MENU_CHANGED", "MENU");
+        kinds.put("SYSTEM_SETTINGS_CHANGED", "SETTINGS");
         kinds.put("PROMPT_VERSION_CHANGED", "PROMPT");
         kinds.put("ZERO_TRUST_MODE_CHANGED", "MODE");
         kinds.put("ADMIN_OVERRIDE", "OVERRIDE");

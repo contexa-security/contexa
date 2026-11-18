@@ -16,9 +16,12 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
 import io.contexa.contexacommon.entity.PasswordHistory;
+import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.entity.PasswordPolicy;
 import io.contexa.contexacommon.repository.PasswordHistoryRepository;
 import io.contexa.contexacommon.repository.PasswordPolicyRepository;
+import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -26,8 +29,13 @@ import org.springframework.lang.Nullable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.ToIntFunction;
 
@@ -46,6 +54,22 @@ public class PasswordPolicyService {
         this.messageSource = messageSource;
     }
 
+    /** K75: a change of the policy is audited; without the facade nothing is recorded. */
+    private AdminChangeAudit audit = AdminChangeAudit.NONE;
+    /** K76: the accounts whose expired password a change of the policy's days changes; null changes none. */
+    @Nullable
+    private UserRepository accounts;
+
+    /** K75: records the changes of the policy. */
+    public void setCentralAuditFacade(CentralAuditFacade centralAuditFacade) {
+        this.audit = AdminChangeAudit.of(centralAuditFacade);
+    }
+
+    /** K76: the accounts that say whether their password expired, set again when the policy is kept. */
+    public void setAccounts(@Nullable UserRepository accounts) {
+        this.accounts = accounts;
+    }
+
     /**
      * The values a policy may take, as the console's form offers them: outside them a policy is one no password can meet
      * (a maximum length below the minimum), or one that holds no one (no failed attempt allowed, a lock of no minutes).
@@ -61,6 +85,32 @@ public class PasswordPolicyService {
             new Bound("ipWindowMinutes", "admin.password.policy.ip.window", 1, 1440, PasswordPolicy::getIpWindowMinutes),
             new Bound("passwordExpiryDays", "admin.password.policy.expiry.days", 0, 365, PasswordPolicy::getPasswordExpiryDays),
             new Bound("historyCount", "admin.password.policy.history.count", 0, 24, PasswordPolicy::getHistoryCount));
+
+    /**
+     * K75: every value of the policy by its form field, and the label it is shown under; what a change of the policy is
+     * recorded by (the dashboard names the values changed by their labels).
+     */
+    public static final Map<String, String> FIELD_LABELS = fieldLabels();
+
+    private static Map<String, String> fieldLabels() {
+        Map<String, String> labels = new LinkedHashMap<>();
+        BOUNDS.forEach(bound -> labels.put(bound.field(), bound.labelKey()));
+        labels.put("requireUppercase", "admin.password.policy.require.uppercase");
+        labels.put("requireLowercase", "admin.password.policy.require.lowercase");
+        labels.put("requireDigit", "admin.password.policy.require.digit");
+        labels.put("requireSpecialChar", "admin.password.policy.require.special");
+        return Collections.unmodifiableMap(labels);
+    }
+
+    private static Map<String, Object> values(PasswordPolicy policy) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        BOUNDS.forEach(bound -> values.put(bound.field(), bound.value().applyAsInt(policy)));
+        values.put("requireUppercase", policy.isRequireUppercase());
+        values.put("requireLowercase", policy.isRequireLowercase());
+        values.put("requireDigit", policy.isRequireDigit());
+        values.put("requireSpecialChar", policy.isRequireSpecialChar());
+        return values;
+    }
 
     /** The value of a policy named by its form field, the label it is shown under, and the values it may take. */
     public record Bound(String field, String labelKey, int min, int max, ToIntFunction<PasswordPolicy> value) {
@@ -125,6 +175,7 @@ public class PasswordPolicyService {
             throw new PolicyRefusedException("common.validation.min.length.exceeds.max", null);
         }
         PasswordPolicy existing = getCurrentPolicy();
+        Map<String, Object> before = values(existing);
         existing.setMinLength(policy.getMinLength());
         existing.setMaxLength(policy.getMaxLength());
         existing.setRequireUppercase(policy.isRequireUppercase());
@@ -137,7 +188,48 @@ public class PasswordPolicyService {
         existing.setIpWindowMinutes(policy.getIpWindowMinutes());
         existing.setPasswordExpiryDays(policy.getPasswordExpiryDays());
         existing.setHistoryCount(policy.getHistoryCount());
-        return repository.save(existing);
+        PasswordPolicy saved = repository.save(existing);
+        markExpiredPasswords(existing.getPasswordExpiryDays());
+        auditChange(before, values(existing));
+        return saved;
+    }
+
+    /**
+     * K76: every account says whether its password is past the days the policy keeps now, as a sign-in reads it
+     * (LoginPolicyService.isCredentialsExpired), so a policy that lets passwords live longer frees them at once.
+     */
+    private void markExpiredPasswords(int expiryDays) {
+        if (accounts == null) {
+            return;
+        }
+        if (expiryDays <= 0) {
+            accounts.clearAllCredentialsExpired();
+            return;
+        }
+        LocalDateTime changedBefore = LocalDateTime.now().minusDays(expiryDays);
+        accounts.clearCredentialsExpiredChangedSince(changedBefore);
+        accounts.markCredentialsExpiredChangedBefore(changedBefore);
+    }
+
+    /** K75: the values the change changed, before and after; a save that changed none records nothing. */
+    private void auditChange(Map<String, Object> before, Map<String, Object> after) {
+        Map<String, Object> was = new LinkedHashMap<>();
+        Map<String, Object> now = new LinkedHashMap<>();
+        after.forEach((field, value) -> {
+            if (!Objects.equals(before.get(field), value)) {
+                was.put(field, before.get(field));
+                now.put(field, value);
+            }
+        });
+        if (now.isEmpty()) {
+            return;
+        }
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("changed", List.copyOf(now.keySet()));
+        details.put("before", was);
+        details.put("after", now);
+        audit.record(AuditEventCategory.PASSWORD_POLICY_CHANGED, AuditEventCategory.PASSWORD_POLICY_CHANGED.name(),
+                String.join(",", now.keySet()), details);
     }
 
     public List<String> validatePassword(String password) {

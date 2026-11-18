@@ -173,11 +173,17 @@ public class LoginPolicyService implements LoginPolicyHandler {
     @Transactional(transactionManager = "contexaTransactionManager")
     public boolean isCredentialsExpired(String username) {
         PasswordPolicy policy = passwordPolicyService.getCurrentPolicy();
+        // Passwords that live for ever: the policy's save cleared every account's column (PasswordPolicyService)
         if (policy.getPasswordExpiryDays() <= 0) return false;
         return userRepository.findByUsername(username).map(user -> {
             LocalDateTime changedAt = user.getPasswordChangedAt();
-            if (changedAt == null) return false;
-            return LocalDateTime.now().isAfter(changedAt.plusDays(policy.getPasswordExpiryDays()));
+            boolean expired = changedAt != null
+                    && LocalDateTime.now().isAfter(changedAt.plusDays(policy.getPasswordExpiryDays()));
+            // K76: the account's column says what the policy read, so a reader of the account sees the same
+            if (user.isCredentialsExpired() != expired) {
+                userRepository.markCredentialsExpired(username, expired);
+            }
+            return expired;
         }).orElse(false);
     }
 
