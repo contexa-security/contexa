@@ -60,11 +60,11 @@
             <div class="flex flex-wrap items-center gap-3 mb-6" style="background: rgba(30,41,59,0.4); border: 1px solid rgba(71,85,105,0.3); border-radius: 0.5rem; padding: 0.75rem 1rem;">
                 <span class="text-sm" style="color: #94a3b8;" th:text="#{admin.security.monitor.period}">Period:</span>
                 <!-- K93: up to the dashboard's longest period; K108: a period keeps every other filter of the list -->
-                <a th:each="period : ${periods}" th:data-period="${period.key}"
-                   th:href="@{/contexa/admin/security-monitor(hours=${period.key}, category=${category}, filter=${filter}, keyword=${keyword}, subject=${subject})}" class="text-xs px-3 py-1 rounded-full"
-                   th:style="${hours == period.key ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   th:attr="aria-current=${hours == period.key ? 'true' : null}"
-                   style="text-decoration: none;" th:text="#{${'admin.security.monitor.period.' + period.value}}">1 Hour</a>
+                <a th:each="period : ${periods}" th:data-period="${period.hours}"
+                   th:href="@{/contexa/admin/security-monitor(hours=${period.hours}, category=${category}, filter=${filter}, keyword=${keyword}, subject=${subject})}" class="text-xs px-3 py-1 rounded-full"
+                   th:style="${hours == period.hours ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
+                   th:attr="aria-current=${hours == period.hours ? 'true' : null}"
+                   style="text-decoration: none;" th:text="#{${'admin.security.monitor.period.' + period.label}}">1 Hour</a>
 
                 <span class="mx-2" style="color: #334155;">|</span>
                 <span class="text-sm" style="color: #94a3b8;" th:text="#{admin.security.monitor.filter}">Filter:</span>

@@ -50,12 +50,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Stream;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
@@ -78,7 +73,13 @@ public class SecurityMonitorController {
      * K93: the periods the screen offers, in hours, and the words of each: up to the dashboard's longest period, so a
      * dashboard link of any period opens with its period chosen.
      */
-    static final Map<Integer, String> PERIODS = periods();
+    static final List<PeriodChoice> PERIODS = List.of(new PeriodChoice(1, "1h"), new PeriodChoice(6, "6h"),
+            new PeriodChoice(24, "24h"), new PeriodChoice(72, "3d"), new PeriodChoice(168, "7d"),
+            new PeriodChoice(720, "30d"), new PeriodChoice(2160, "90d"));
+
+    /** A period chip: its hours, and the end of the key of its words (admin.security.monitor.period.*). */
+    public record PeriodChoice(int hours, String label) {
+    }
     /** The rows of a page of the list. */
     static final int PAGE_SIZE = 20;
     /** The rows the CSV reads at a time. */
@@ -185,18 +186,6 @@ public class SecurityMonitorController {
         return "contexa/admin/security-monitor";
     }
 
-    private static Map<Integer, String> periods() {
-        Map<Integer, String> periods = new LinkedHashMap<>();
-        periods.put(1, "1h");
-        periods.put(6, "6h");
-        periods.put(24, "24h");
-        periods.put(72, "3d");
-        periods.put(168, "7d");
-        periods.put(720, "30d");
-        periods.put(2160, "90d");
-        return Collections.unmodifiableMap(periods);
-    }
-
     /** docs/agent A5-5: the subject kind a chip names, none for any other word. */
     @Nullable
     static String subjectKind(@Nullable String subject) {
@@ -219,10 +208,8 @@ public class SecurityMonitorController {
         if (ids.isEmpty()) {
             return new PageImpl<>(List.of(), pageable, ids.getTotalElements());
         }
-        Map<Long, AuditLog> records = new HashMap<>();
-        auditLogRepository.findAllById(ids.getContent()).forEach(record -> records.put(record.getId(), record));
-        return new PageImpl<>(ids.getContent().stream().map(records::get).filter(Objects::nonNull).toList(), pageable,
-                ids.getTotalElements());
+        return new PageImpl<>(SecurityEventQueries.inOrder(ids.getContent(),
+                auditLogRepository.findAllById(ids.getContent())), pageable, ids.getTotalElements());
     }
 
     /**
