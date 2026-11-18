@@ -200,7 +200,8 @@
     function noDecisionCard(operations) {
         const shares = (operations.noDecisionReasons || []).filter(share => share.count > 0);
         const total = shares.reduce((sum, share) => sum + share.count, 0);
-        const title = ZT.title(P + 'noDecision.title', ZT.count(total));
+        // K110: a phone reads the short title with the count shortened in place (1.3), the whole count in its tooltip
+        const title = [t(P + 'noDecision.title', ZT.count(total)), t(P + 'noDecision.title.short', ZT.shortCount(total))];
         if (total === 0) {
             const tenant = operations.header && operations.header.tenant;
             return ZT.card(title, null, ZT.empty(tenant ? 'TENANT_FILTERED' : 'NO_DECISIONS'));
