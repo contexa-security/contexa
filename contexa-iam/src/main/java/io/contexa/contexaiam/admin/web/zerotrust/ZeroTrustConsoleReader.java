@@ -299,6 +299,36 @@ final class ZeroTrustConsoleReader {
         return count == null ? 0 : count;
     }
 
+    /**
+     * K68: each of the users' baseline status in the latest hour they were decided in, by the rule
+     * {@link #usersWithLatestBaseline} counts the established users with: the row of the user's latest hour counted
+     * most often, ESTABLISHED on a tie (then the status first in order), so a user the trust screen counts as
+     * established reads ESTABLISHED in the impact screen's list and every other user does not. A user without a
+     * decided hour in the period has no status.
+     */
+    Map<String, String> latestBaselines(ZeroTrustConsoleRange range, String tenant, List<String> users) {
+        JdbcOperations operations = jdbc.get();
+        if (operations == null || users == null || users.isEmpty()) {
+            return Map.of();
+        }
+        List<Object> args = new ArrayList<>(List.of(range.fromHour(), range.toTimestamp()));
+        String tenantClause = tenantClause(tenant, args);
+        args.addAll(users);
+        Map<String, String> latest = new LinkedHashMap<>();
+        operations.query("""
+                SELECT DISTINCT ON (item) item, detail
+                  FROM ctxa_zt_item_hourly
+                 WHERE dimension = 'USER_BASELINE' AND bucket_start >= ? AND bucket_start < ?""" + tenantClause
+                + " AND item IN (" + String.join(", ", users.stream().map(user -> "?").toList()) + ")" + """
+
+                 ORDER BY item, bucket_start DESC, LEAST(counted, 999999999999) DESC,
+                          CASE WHEN detail = 'ESTABLISHED' THEN 0 ELSE 1 END, detail
+                """, rs -> {
+            latest.put(rs.getString(1), rs.getString(2));
+        }, args.toArray());
+        return latest;
+    }
+
     List<LatencyRow> latency(ZeroTrustConsoleRange range, String tenant, String mode) {
         JdbcOperations operations = jdbc.get();
         if (operations == null) {

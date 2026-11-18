@@ -234,13 +234,27 @@
             ? t(P + 'baseline.learnedFrom', ZT.count(detail.baselineLearned), ZT.count(detail.baselineDays)) : null;
         let body;
         if (deviations.length) {
-            const head = el('tr', {}, ['dimension', 'usual', 'current', 'judgement'].map(key => el('th',
-                {scope: 'col', text: t(P + 'deviation.column.' + key)})));
+            // K121: a phone keeps the item, this time and the reading as columns, the usual as a line under this time,
+            // and names the first column by its short head (the whole head in its title).
+            const column = key => t(P + 'deviation.column.' + key);
+            const head = el('tr', {},
+                el('th', {scope: 'col', title: column('dimension')}, el('span', {class: 'zt-long', text: column('dimension')}),
+                    el('span', {class: 'zt-short', text: t(P + 'deviation.column.item')})),
+                el('th', {scope: 'col', class: 'zt-wide', text: column('usual')}),
+                el('th', {scope: 'col', text: column('current')}),
+                el('th', {scope: 'col', text: column('judgement')}));
             // K26, K27: the usual and the request's values in words, as the server reads the engine's notation.
             const rows = deviations.map(deviation => {
-                const values = [known(P + 'dimension.' + deviation.dimension, deviation.dimension || '—'),
-                    deviation.usualText || '—', deviation.currentText || deviation.current || '—', judgement(deviation)];
-                return el('tr', {}, values.map(value => el('td', {title: value, text: value})));
+                const dimension = known(P + 'dimension.' + deviation.dimension, deviation.dimension || '—');
+                const usual = deviation.usualText || '—';
+                const current = deviation.currentText || deviation.current || '—';
+                const reading = judgement(deviation);
+                const usualLine = t(P + 'deviation.usualLine', usual);
+                return el('tr', {}, el('td', {title: dimension, text: dimension}),
+                    el('td', {class: 'zt-wide', title: usual, text: usual}),
+                    el('td', {title: current + ' · ' + usualLine}, el('div', {text: current}),
+                        el('div', {class: 'zt-short zt-muted', text: usualLine})),
+                    el('td', {title: reading, text: reading}));
             });
             body = el('div', {class: 'modern-table zt-table-wrap'}, el('table', {class: 'zt-table'}, el('thead', {}, head),
                 el('tbody', {}, rows)));
