@@ -1778,6 +1778,16 @@ input[type="file"].modern-input::file-selector-button {
     overflow-wrap: anywhere;
 }
 
+/*
+ * K116: a value of words that runs long (a folder's path, the setting's name) takes the room its name leaves and keeps
+ * at least two fifths of the row (the share K106 keeps for the names of a row of badges); a short name is never
+ * squeezed below its own words by it, as a flex row's shrinking by width would do.
+ */
+.zt-page .zt-result-value.pv-wrap {
+    flex: 1 1 0;
+    min-width: 40%;
+}
+
 .zt-page .zt-result-row .zt-chip, .zt-page .zt-criteria .zt-chip {
     white-space: normal;
     text-align: center;
