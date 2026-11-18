@@ -1,6 +1,7 @@
 # The product prompt of the security decision of Contexa release 2026.11.18 (plan 3.5 and 3.6): the release
 # 2026.11.16 (v1.0) with the part organization-blocks, which says what a block an organization added to the user prompt
-# is (K66). A product version is never changed; the earlier release stays shipped beside this one.
+# is (K66), and the reason code VERIFIED_SIGNAL, the code of the VerifiedSignal line (N1). A product version is never
+# changed; the earlier release stays shipped beside this one.
 # Every sentence of the prompt is here; the code holds the values the engine fills in, the order of the user blocks,
 # the fact ids, the answer schema, the response check and the reason code identifiers.
 # A part marked locked: true is a rule of Contexa an organization's version cannot change or delete.
@@ -318,6 +319,9 @@ system:
         text: "a data conflict"
       - key: THREAT_MATCH
         text: "a match with threat knowledge"
+      # N1: the code of the signal the server itself confirmed (the VerifiedSignal line); no other code cites that line.
+      - key: VERIFIED_SIGNAL
+        text: "a signal the server itself confirmed for this request"
       - key: MATERIAL_CONTRADICTION
         text: "facts that weigh in the judgment contradict each other"
       - key: MATERIAL_MISSING_EVIDENCE
@@ -582,7 +586,7 @@ user:
         use: "CLIENT_SIGNAL_TAMPERING"
       - key: "VerifiedSignal"
         text: "An anomaly signal the server itself issued for this request, with its source: a verified input, unlike a signal a requester sends"
-        use: "a verified signal; under the decision rules a required BLOCK"
+        use: "VERIFIED_SIGNAL; under the verified signal boundary a BLOCK"
       - key: "BlockedUser"
         text: "Block history"
         use: "BREAK_GLASS context"

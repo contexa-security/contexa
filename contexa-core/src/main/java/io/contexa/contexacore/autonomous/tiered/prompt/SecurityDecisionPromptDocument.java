@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -151,12 +152,46 @@ public final class SecurityDecisionPromptDocument {
     }
 
     /**
-     * Plan 3.9: whether a version names the reason codes of this engine, in its order. The console counts the codes,
-     * the schema lists them and the response check reads them, so a version that names others draws a prompt the
-     * engine does not answer to (the rollback refuses it as VOCABULARY_INCOMPATIBLE).
+     * Plan 3.9: whether a version names the reason codes of this engine, in its order, or those of a product release
+     * this build ships (N1: release 2026.11.18 added VERIFIED_SIGNAL; a version on 2026.11.16 names the codes before
+     * it, which the engine still answers to). The console counts the codes, the schema lists them and the response
+     * check reads them, so a version that names others draws a prompt the engine does not answer to (the rollback
+     * refuses it as VOCABULARY_INCOMPATIBLE).
      */
     public static boolean reasonCodesOfEngine(AssembledPrompt version) {
-        return version != null && reasonCodes(version).equals(SecurityDecisionOutputContractV4.codes());
+        if (version == null) {
+            return false;
+        }
+        List<String> codes = reasonCodes(version);
+        return codes.equals(SecurityDecisionOutputContractV4.codes()) || ReleasedCodes.LISTS.contains(codes);
+    }
+
+    /**
+     * N1: fails when a product release this build ships names a reason code the engine does not have, or names them in
+     * another order (checked at the start, beside the product version's own check).
+     */
+    static void verifyReasonCodesOfReleases(List<String> engineCodes) {
+        for (List<String> codes : ReleasedCodes.LISTS) {
+            List<String> known = engineCodes.stream().filter(codes::contains).toList();
+            if (!known.equals(codes)) {
+                throw new IllegalStateException("A product release names reason codes the engine does not have, or in"
+                        + " another order: " + codes);
+            }
+        }
+    }
+
+    /** The reason codes of each product release this build ships, read once. */
+    private static final class ReleasedCodes {
+        private static final Set<List<String>> LISTS = released();
+
+        private static Set<List<String>> released() {
+            PromptAssembler assembler = new PromptAssembler();
+            Set<List<String>> lists = new LinkedHashSet<>();
+            for (String release : RELEASES) {
+                lists.add(reasonCodes(assembler.product(productDocument(release))));
+            }
+            return Set.copyOf(lists);
+        }
     }
 
     /** The parts and blocks that keep text written outside the engine evidence, never instructions (plan 3.9). */

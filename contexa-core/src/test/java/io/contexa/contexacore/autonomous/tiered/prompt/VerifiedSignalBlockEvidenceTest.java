@@ -18,6 +18,9 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -50,6 +53,39 @@ class VerifiedSignalBlockEvidenceTest {
             assertThat(violation(verified, "CHALLENGE")).as(variant.name()).isNull();
             assertThat(violation(verified, "ESCALATE")).as(variant.name()).isNull();
         }
+    }
+
+    /**
+     * N1: the code VERIFIED_SIGNAL cites the VerifiedSignal line and holds on it; no other code may cite that line, and
+     * the code holds on no other line. The product version's system text names it with the line it cites.
+     */
+    @Test
+    void theCodeOfAVerifiedSignalCitesItsLineAndNoOtherCodeDoes() {
+        InspectionGolden.Render verified = SecurityDecisionV1BundleTest.render(MeasuredVariant.RECORD_SIMILAR,
+                context -> signal(context, V1LineValues.TRUSTED_SIGNAL_SOURCE));
+        SecurityDecisionFactChecks.DrawnPrompt drawn = SecurityDecisionFactChecks.DrawnPrompt.of(verified.userPrompt());
+        String line = drawn.lineIds().entrySet().stream()
+                .filter(entry -> entry.getValue().equals("DECISION_FACTS.VerifiedSignal"))
+                .map(Map.Entry::getKey).findFirst().orElseThrow();
+        String other = drawn.lineIds().keySet().stream().filter(id -> !id.equals(line)).findFirst().orElseThrow();
+
+        assertThat(outcome(verified, drawn, "VERIFIED_SIGNAL", line)).isEqualTo(SecurityDecisionFactChecks.Outcome.MATCH);
+        assertThat(outcome(verified, drawn, "VERIFIED_SIGNAL", other))
+                .isEqualTo(SecurityDecisionFactChecks.Outcome.MISMATCH);
+        for (String code : List.of("THREAT_MATCH", "MATERIAL_CONTRADICTION", "AUTHORIZATION_CONFLICT",
+                "CLIENT_SIGNAL_TAMPERING")) {
+            assertThat(outcome(verified, drawn, code, line)).as(code).isEqualTo(SecurityDecisionFactChecks.Outcome.MISMATCH);
+        }
+        assertThat(SecurityDecisionOutputContractV4.citedLines()).containsEntry("VERIFIED_SIGNAL", List.of("VerifiedSignal"));
+        assertThat(verified.systemPrompt()).contains("- VERIFIED_SIGNAL: a signal the server itself confirmed for this"
+                + " request; VerifiedSignal\n");
+    }
+
+    private static SecurityDecisionFactChecks.Outcome outcome(InspectionGolden.Render render,
+                                                              SecurityDecisionFactChecks.DrawnPrompt drawn, String code,
+                                                              String fact) {
+        return SecurityDecisionAnswerChecks.reasonFindings(render.used(), drawn,
+                List.of(new SecurityDecisionOutputContract.Citation(code, fact))).get(0).outcome();
     }
 
     private static void signal(CanonicalSecurityContext context, String source) {
