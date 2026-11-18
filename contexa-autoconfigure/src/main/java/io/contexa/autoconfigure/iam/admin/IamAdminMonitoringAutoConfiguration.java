@@ -27,6 +27,7 @@ import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
 import io.contexa.contexaiam.admin.web.monitoring.controller.AiMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.controller.SecurityMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.service.DecisionRecordSealCheck;
+import io.contexa.contexaiam.admin.web.monitoring.service.SecurityEventQueries;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardController;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardHourlyStats;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardQueries;
@@ -96,15 +97,16 @@ public class IamAdminMonitoringAutoConfiguration {
                                                                ObjectProvider<DelegationRegistry> delegationRegistry,
                                                                ObjectProvider<EvidenceSigner> evidenceSigner,
                                                                MessageSource messageSource,
-                                                               ObjectProvider<DashboardQueries> dashboardQueries) {
+                                                               @Qualifier("contexaJdbcTemplate")
+                                                               ObjectProvider<JdbcOperations> jdbcOperationsProvider) {
         // docs/agent A5-5: the delegation an agent's decision ran under, when Contexa keeps delegations (OC-1).
         SecurityMonitorController controller = new SecurityMonitorController(auditLogRepository, contexaCsvExportService,
                 delegationRegistry.getIfAvailable());
         // docs/agent A5-6: the decision records' integrity.
         evidenceSigner.ifAvailable(controller::setEvidenceSigner);
         controller.setMessageSource(messageSource);
-        // K92: the decision records the dashboard's seal check found mismatched.
-        dashboardQueries.ifAvailable(controller::setDashboardQueries);
+        // K138: the list, every filter of the screen in one statement (K92: the broken seals among them).
+        controller.setEventQueries(new SecurityEventQueries(jdbcOperationsProvider::getIfAvailable));
         return controller;
     }
 

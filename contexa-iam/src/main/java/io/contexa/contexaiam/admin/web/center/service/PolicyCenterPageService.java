@@ -46,6 +46,9 @@ public class PolicyCenterPageService {
 
     /** K92: the policies of a conflict or a duplicate the policy check found, the ones the dashboard counts. */
     public static final String HEALTH_ISSUES = "ISSUES";
+    /** The rows of a page of the policy list, the newest policy first. */
+    static final int POLICY_PAGE_SIZE = 10;
+    static final Sort POLICY_ORDER = Sort.by(Sort.Direction.DESC, "id");
 
     private final ResourceRegistryService resourceRegistryService;
     private final PolicyService policyService;
@@ -97,20 +100,15 @@ public class PolicyCenterPageService {
 
         model.addAttribute("policy", PolicyCenterPolicyRequest.emptyForForm());
 
-        Pageable policyPageable = PageRequest.of(policyPage, 10, Sort.by(Sort.Direction.DESC, "id"));
+        // K139: a page before the first is the first; a page after the last is the last
+        Pageable policyPageable = PageRequest.of(Math.max(0, policyPage), POLICY_PAGE_SIZE, POLICY_ORDER);
         Policy.ApprovalStatus approvalStatusEnum = parseApprovalStatus(approvalStatus);
         boolean healthIssues = HEALTH_ISSUES.equalsIgnoreCase(health == null ? "" : health.trim());
-        Page<Policy> policyPageResult;
-        if (healthIssues) {
-            Set<Long> ids = issuePolicies(model);
-            policyPageResult = policyService.searchPolicies(policyKeyword, approvalStatusEnum, activeFilter, ids,
-                    policyPageable);
-        } else {
-            policyPageResult = policyService.searchPolicies(
-                    policyKeyword,
-                    approvalStatusEnum,
-                    activeFilter,
-                    policyPageable);
+        Set<Long> ids = healthIssues ? issuePolicies(model) : null;
+        Page<Policy> policyPageResult = policies(policyKeyword, approvalStatusEnum, activeFilter, ids, policyPageable);
+        if (policyPageResult.getTotalPages() > 0 && policyPageResult.getNumber() >= policyPageResult.getTotalPages()) {
+            policyPageResult = policies(policyKeyword, approvalStatusEnum, activeFilter, ids,
+                    PageRequest.of(policyPageResult.getTotalPages() - 1, POLICY_PAGE_SIZE, POLICY_ORDER));
         }
         model.addAttribute("policyPage", policyPageResult);
         model.addAttribute("policyKeyword", policyKeyword);
@@ -119,6 +117,12 @@ public class PolicyCenterPageService {
         model.addAttribute("approvalStatuses", Policy.ApprovalStatus.values());
         model.addAttribute("activeFilter", activeFilter);
         model.addAttribute("healthFilter", healthIssues ? HEALTH_ISSUES : null);
+    }
+
+    private Page<Policy> policies(String keyword, Policy.ApprovalStatus approvalStatus, Boolean activeFilter,
+                                  Set<Long> onlyIds, Pageable pageable) {
+        return onlyIds != null ? policyService.searchPolicies(keyword, approvalStatus, activeFilter, onlyIds, pageable)
+                : policyService.searchPolicies(keyword, approvalStatus, activeFilter, pageable);
     }
 
     /**

@@ -18,7 +18,8 @@ package io.contexa.contexaiam.admin.web.monitoring.controller;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
-import io.contexa.contexaiam.admin.web.dashboard.DashboardQueries;
+import io.contexa.contexaiam.admin.web.monitoring.service.SecurityEventQueries;
+import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,9 +50,8 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -67,7 +67,7 @@ class SecurityMonitorLinksScreenTest {
     private static final Pattern HREF = Pattern.compile("href=\"(/contexa/admin/security-monitor[^\"]*)\"");
 
     private final AuditLogRepository auditLogs = mock(AuditLogRepository.class);
-    private final DashboardQueries queries = mock(DashboardQueries.class);
+    private final SecurityEventQueries queries = mock(SecurityEventQueries.class);
     private MockMvc mvc;
 
     @BeforeEach
@@ -76,18 +76,15 @@ class SecurityMonitorLinksScreenTest {
         views.setTemplateEngine(engine());
         views.setCharacterEncoding("UTF-8");
         SecurityMonitorController controller = new SecurityMonitorController(auditLogs, mock(CsvExportService.class));
-        controller.setDashboardQueries(queries);
+        controller.setEventQueries(queries);
         mvc = MockMvcBuilders.standaloneSetup(controller).setViewResolvers(views).build();
         List<AuditLog> rows = IntStream.range(0, 20).mapToObj(i -> AuditLog.builder().id((long) i + 1)
                 .eventCategory("AUTHENTICATION_FAILURE").principalName("bob").timestamp(LocalDateTime.now()).build())
                 .toList();
-        PageImpl<AuditLog> threePages = new PageImpl<>(rows, PageRequest.of(0, 20), 60);
-        when(auditLogs.findByTimestampAfter(any(), any())).thenReturn(threePages);
-        when(auditLogs.findByTimestampAfterAndSubjectKind(any(), any(), any())).thenReturn(threePages);
-        when(auditLogs.findByTimestampAfterAndCategoryAndPrincipalNameLike(any(), any(), any(), any()))
-                .thenReturn(threePages);
-        when(auditLogs.findByTimestampAfterAndCategory(any(), any(), any())).thenReturn(threePages);
-        when(auditLogs.findByCategoryAndDecision(any(), any(), any(), any())).thenReturn(threePages);
+        // every list holds 60 records, three pages; the seal filter as many as a test says
+        when(queries.ids(any(), any())).thenAnswer(invocation -> new PageImpl<>(rows.stream().map(AuditLog::getId)
+                .toList(), invocation.getArgument(1, Pageable.class), 60));
+        when(auditLogs.findAllById(any())).thenReturn(rows);
     }
 
     @ParameterizedTest
@@ -106,7 +103,7 @@ class SecurityMonitorLinksScreenTest {
     @DisplayName("K93: the seal link that names its start keeps its period chosen, and every link keeps the start")
     void aLinkThatNamesItsStartKeepsItsPeriodChosen() throws Exception {
         String from = Instant.now().minus(169, ChronoUnit.HOURS).truncatedTo(ChronoUnit.HOURS).toString();
-        when(queries.sealMismatchRecordCount(any())).thenReturn(0L);
+        seals(0);
 
         String page = page("category=SECURITY_DECISION&filter=SEAL_MISMATCH&hours=168&from=" + from, Locale.KOREAN);
 
@@ -149,10 +146,7 @@ class SecurityMonitorLinksScreenTest {
     @Test
     @DisplayName("K92: the seal chip opens the seal filter, chosen, and the list says how many records it holds")
     void theSealChipOpensTheRecordsCounted() throws Exception {
-        when(queries.sealMismatchRecordCount(any())).thenReturn(1234L);
-        when(queries.sealMismatchRecordIds(any(), anyLong(), anyInt())).thenReturn(List.of(7L));
-        when(auditLogs.findAllById(eq(List.of(7L)))).thenReturn(List.of(AuditLog.builder().id(7L)
-                .eventCategory("SECURITY_DECISION").principalName("alice").timestamp(LocalDateTime.now()).build()));
+        seals(1234);
 
         String page = page("category=SECURITY_DECISION&filter=SEAL_MISMATCH&hours=168", Locale.KOREAN);
 
@@ -166,10 +160,7 @@ class SecurityMonitorLinksScreenTest {
     @DisplayName("S10: millions of records draw the pages near the current one, the first and the last, every filter kept")
     void millionsOfRecordsDrawTheNearPagesOnly() throws Exception {
         String from = Instant.now().minus(169, ChronoUnit.HOURS).truncatedTo(ChronoUnit.HOURS).toString();
-        when(queries.sealMismatchRecordCount(any())).thenReturn(9_999_999L);
-        when(queries.sealMismatchRecordIds(any(), anyLong(), anyInt())).thenReturn(List.of(7L));
-        when(auditLogs.findAllById(eq(List.of(7L)))).thenReturn(List.of(AuditLog.builder().id(7L)
-                .eventCategory("SECURITY_DECISION").principalName("alice").timestamp(LocalDateTime.now()).build()));
+        seals(9_999_999);
 
         String page = page("category=SECURITY_DECISION&filter=SEAL_MISMATCH&hours=2160&from=" + from + "&page=5000",
                 Locale.KOREAN);
@@ -182,6 +173,24 @@ class SecurityMonitorLinksScreenTest {
                 "0", "4998", "4999", "5000", "5001", "5002", "499999", "5001", "499999");
         assertThat(page).contains(">500000<").containsPattern("aria-current=\"page\"[^>]*>5001<");
         assertThat(page.length()).isLessThan(200_000);
+    }
+
+    @Test
+    @DisplayName("K138: a search keeps the subject chip, and its clearing keeps it too")
+    void aSearchKeepsTheSubject() throws Exception {
+        String page = page("subject=DELEGATED_AGENT&keyword=bob&hours=24", Locale.KOREAN);
+        String none = page("hours=24", Locale.KOREAN);
+
+        assertThat(page).contains("<input type=\"hidden\" name=\"subject\" value=\"DELEGATED_AGENT\" />");
+        assertThat(none).doesNotContain("name=\"subject\"");
+        assertThat(clear(page)).contains("subject=DELEGATED_AGENT").doesNotContain("keyword=bob");
+    }
+
+    /** The seal filter lists as many records as the count, a record of the first page shown. */
+    private void seals(long total) {
+        doAnswer(invocation -> new PageImpl<>(total == 0 ? List.of() : List.of(7L),
+                invocation.getArgument(1, Pageable.class), total))
+                .when(queries).ids(argThat(criteria -> criteria != null && "SEAL_MISMATCH".equals(criteria.filter())), any());
     }
 
     // ----- the drawn page -----

@@ -38,6 +38,7 @@ import io.contexa.contexaiam.admin.web.dashboard.DashboardQueries.ChangeRecord;
 import io.contexa.contexaiam.admin.web.monitoring.controller.SecurityMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.dto.DecisionRecordIntegrity;
 import io.contexa.contexaiam.admin.web.monitoring.service.DecisionRecordSealCheck;
+import io.contexa.contexaiam.admin.web.monitoring.service.SecurityEventQueries;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.UserChallenges;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleService;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustDecisionRecords;
@@ -379,6 +380,7 @@ class DashboardPostgresTest {
         audit("ADMIN_OVERRIDE", "admin", "lee.minseo", "RELEASE_CHALLENGE", "REFUSED", now.minus(Duration.ofHours(5)));
         audit("ADMIN_OVERRIDE", "admin", "kim.sora", "APPROVE", "APPROVED", now.minus(Duration.ofDays(8)));
         SecurityMonitorController monitor = new SecurityMonitorController(auditLog, null);
+        monitor.setEventQueries(new SecurityEventQueries(() -> jdbc));
         Model card = new ExtendedModelMap();
         Model category = new ExtendedModelMap();
 
@@ -592,6 +594,7 @@ class DashboardPostgresTest {
         new DashboardHourlyStats(() -> jdbc, auditLog, new DecisionRecordSealCheck(auditLog, () -> signer), null, clock)
                 .rebuildOnce();
         SecurityMonitorController monitor = new SecurityMonitorController(auditLog, null);
+        monitor.setEventQueries(new SecurityEventQueries(() -> jdbc));
         monitor.setEvidenceSigner(signer);
         Model model = new ExtendedModelMap();
 
