@@ -161,4 +161,23 @@ class PolicyCenterPageServiceTest {
         assertThat(model.getAttribute("healthFilter")).isEqualTo("ISSUES");
         assertThat(model.getAttribute("approvalStatusFilter")).isNull();
     }
+
+    @Test
+    @DisplayName("K139: a page before the first is the first; a page after the last is the last")
+    void aPageOutOfTheListIsItsEnd() {
+        when(policyCombiningProperties.getCombiningAlgorithm()).thenReturn(CombiningAlgorithm.DENY_OVERRIDES);
+        when(resourceRegistryService.findResources(any(), any())).thenReturn(Page.empty());
+        when(policyService.searchPolicies(any(), any(), any(), any(Pageable.class))).thenAnswer(invocation ->
+                new PageImpl<>(List.of(), invocation.getArgument(3, Pageable.class), 34));
+        Model before = new ConcurrentModel();
+        Model after = new ConcurrentModel();
+
+        service.populatePolicyCenterModel(before, "list", new PolicyResourceSearchRequest(), PageRequest.of(0, 10), null,
+                null, null, -1);
+        service.populatePolicyCenterModel(after, "list", new PolicyResourceSearchRequest(), PageRequest.of(0, 10), null,
+                null, null, 9);
+
+        assertThat(((Page<?>) before.getAttribute("policyPage")).getNumber()).isZero();
+        assertThat(((Page<?>) after.getAttribute("policyPage")).getNumber()).isEqualTo(3);
+    }
 }

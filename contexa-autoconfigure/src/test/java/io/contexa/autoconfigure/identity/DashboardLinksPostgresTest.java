@@ -33,6 +33,7 @@ import io.contexa.contexaiam.admin.web.dashboard.DashboardQueries.Accounts;
 import io.contexa.contexaiam.admin.web.monitoring.controller.SecurityMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.dto.DecisionRecordIntegrity;
 import io.contexa.contexaiam.admin.web.monitoring.service.DecisionRecordSealCheck;
+import io.contexa.contexaiam.admin.web.monitoring.service.SecurityEventQueries;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
@@ -46,6 +47,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -57,6 +59,7 @@ import org.springframework.ui.ExtendedModelMap;
 import org.springframework.ui.Model;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
@@ -65,6 +68,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -224,9 +228,10 @@ class DashboardLinksPostgresTest {
 
         assertThat(jdbc.queryForObject("select count(*) from ctxa_dashboard_seal_mismatch where bucket_start = ?",
                 Long.class, Timestamp.from(hour))).isEqualTo(1);
-        assertThat(queries.sealMismatchRecordCount(LocalDateTime.ofInstant(now.minus(Duration.ofDays(7)),
-                ZoneId.systemDefault()))).isEqualTo(queries.sealMismatches(now.minus(Duration.ofDays(7)), now))
-                .isEqualTo(1);
+        Model model = new ExtendedModelMap();
+        monitor().monitor(null, "SEAL_MISMATCH", null, null, 168, null, 0, model);
+        assertThat(((Page<?>) model.getAttribute("logPage")).getTotalElements())
+                .isEqualTo(queries.sealMismatches(now.minus(Duration.ofDays(7)), now)).isEqualTo(1);
     }
 
     @Test
@@ -235,13 +240,102 @@ class DashboardLinksPostgresTest {
         SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
         Instant old = now.minus(Duration.ofDays(properties.getConsole().getAggregateRetentionDays() + 2L))
                 .truncatedTo(ChronoUnit.HOURS);
-        jdbc.update("insert into ctxa_dashboard_seal_mismatch (audit_id, bucket_start, computed_at) values (1, ?, ?), "
-                + "(2, ?, ?)", Timestamp.from(old), Timestamp.from(now), Timestamp.from(now.minus(Duration.ofHours(2))),
-                Timestamp.from(now));
+        // two records the audit log keeps: the older one's row goes with its hour's counts, the recent one's stays
+        sealed("old", old.plus(Duration.ofMinutes(5)), null);
+        sealed("recent", now.minus(Duration.ofHours(2)), null);
+        long oldId = jdbc.queryForObject("select id from ctxa_audit_log where resource_identifier = 'old'", Long.class);
+        long recentId = jdbc.queryForObject("select id from ctxa_audit_log where resource_identifier = 'recent'", Long.class);
+        jdbc.update("insert into ctxa_dashboard_seal_mismatch (audit_id, bucket_start, computed_at) values (?, ?, ?), "
+                + "(?, ?, ?)", oldId, Timestamp.from(old), Timestamp.from(now), recentId,
+                Timestamp.from(now.minus(Duration.ofHours(2))), Timestamp.from(now));
 
         new DashboardHourlyStats(() -> jdbc, auditLog, null, properties, clock).purgeOnce();
 
-        assertThat(jdbc.queryForList("select audit_id from ctxa_dashboard_seal_mismatch", Long.class)).containsExactly(2L);
+        assertThat(jdbc.queryForList("select audit_id from ctxa_dashboard_seal_mismatch", Long.class))
+                .containsExactly(recentId);
+    }
+
+    @Test
+    @DisplayName("K141: a broken seal the audit retention deleted leaves the count and the list alike, and its row goes")
+    void aBrokenSealTheRetentionDeletedLeavesBoth() {
+        Instant hour = now.minus(Duration.ofHours(6)).truncatedTo(ChronoUnit.HOURS);
+        String previous = sealed("kept", hour.plus(Duration.ofMinutes(10)), null);
+        sealed("deleted", hour.plus(Duration.ofMinutes(20)), previous);
+        jdbc.update("update ctxa_audit_log set reason = 'changed afterwards'");
+        stats().rebuildOnce();
+        assertThat(queries.sealMismatches(now.minus(Duration.ofDays(1)), now)).isEqualTo(2);
+
+        // the audit retention deletes one of them
+        jdbc.update("delete from ctxa_audit_log where resource_identifier = 'deleted'");
+        Model model = new ExtendedModelMap();
+        monitor().monitor(null, "SEAL_MISMATCH", null, null, 24, null, 0, model);
+
+        assertThat(queries.sealMismatches(now.minus(Duration.ofDays(1)), now)).isEqualTo(1)
+                .isEqualTo(((Page<?>) model.getAttribute("logPage")).getTotalElements());
+        new DashboardHourlyStats(() -> jdbc, auditLog, null, new SecurityZeroTrustProperties(), clock).purgeOnce();
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_dashboard_seal_mismatch", Long.class)).isEqualTo(1);
+    }
+
+    // ----- K138: every filter of the security event log in one statement, the user name and the subject kind with it -----
+
+    @Test
+    @DisplayName("K138: each filter lists what the repository's reads listed, and the name and the subject narrow it")
+    void eachFilterListsWhatItListedAndTheNameNarrowsIt() {
+        LocalDateTime since = local(now.minus(Duration.ofDays(3)));
+        LocalDateTime until = local(now);
+        String[] categories = {"SECURITY_DECISION", "AUTHENTICATION_FAILURE", "ADMIN_OVERRIDE", "USER_BLOCKED"};
+        String[] decisions = {"ALLOW", "BLOCK", "CHALLENGE", "ESCALATE", "DENY"};
+        for (int i = 0; i < 60; i++) {
+            event(categories[i % 4], i % 3 == 0 ? "bob" : "alice", decisions[i % 5], i % 7 == 0 ? "REFUSED" : "DONE",
+                    i % 2 == 0 ? "10.0.0." + (i % 5) : null, i % 4 * 0.2, i % 6 == 0 ? "DELEGATED_AGENT" : "HUMAN_USER",
+                    now.minus(Duration.ofHours(i * 2L + 1)));
+        }
+        event("SECURITY_DECISION", "bob", "ALLOW", "DONE", null, 0.1, "HUMAN_USER", now.minus(Duration.ofDays(5)));
+        SecurityEventQueries events = new SecurityEventQueries(() -> jdbc);
+        PageRequest all = PageRequest.of(0, 500);
+        PageRequest sorted = PageRequest.of(0, 500, Sort.by(Sort.Direction.DESC, "timestamp"));
+        Map<String, List<Long>> before = new LinkedHashMap<>();
+        before.put("AFTER_HOURS", ids(auditLog.findAfterHoursAccess(since, all)));
+        before.put("DISTINCT_IP", ids(auditLog.findByTimestampAfterAndClientIpNotNull(since, sorted)));
+        before.put("HIGH_RISK", ids(auditLog.findByTimestampAfterAndRiskScoreGte(since, 0.4, sorted)));
+        before.put("DECISION_ALLOW", ids(auditLog.findByTimestampAfterAndDecision(since, "ALLOW", sorted)));
+        before.put("DECISION_DENY", ids(auditLog.findByTimestampAfterAndDecision(since, "DENY", sorted)));
+        for (String decision : List.of("ALLOW", "BLOCK", "CHALLENGE", "ESCALATE")) {
+            before.put("ZT_" + decision, ids(auditLog.findByCategoryAndDecision("SECURITY_DECISION", decision, since,
+                    sorted)));
+        }
+        before.put("ADMIN_OVERRIDE_APPLIED", ids(auditLog.findAdminOverridesBetween(since, until, sorted)));
+        before.put("USER_BLOCKED", ids(auditLog.findByTimestampAfterAndCategory(since, "USER_BLOCKED", sorted)));
+
+        for (Map.Entry<String, List<Long>> filter : before.entrySet()) {
+            List<Long> listed = events.ids(new SecurityEventQueries.Criteria(since, until, null, filter.getKey(), null,
+                    null), all).getContent();
+            assertThat(listed).as(filter.getKey()).containsExactlyInAnyOrderElementsOf(filter.getValue()).isNotEmpty();
+            // the user name and the subject kind narrow it: the records of both, and only those
+            List<Long> narrowed = events.ids(new SecurityEventQueries.Criteria(since, until, null, filter.getKey(), "BO",
+                    "HUMAN_USER"), all).getContent();
+            List<Long> expected = listed.stream().filter(DashboardLinksPostgresTest::bobAsAPerson).toList();
+            assertThat(narrowed).as(filter.getKey() + " narrowed").containsExactlyInAnyOrderElementsOf(expected);
+        }
+        // a category, a user name and a subject kind with no filter, as the repository's reads listed them
+        assertThat(events.ids(new SecurityEventQueries.Criteria(since, until, "AUTHENTICATION_FAILURE", null, "bob", null),
+                all).getContent()).containsExactlyElementsOf(ids(auditLog.findByTimestampAfterAndCategoryAndPrincipalNameLike(
+                since, "AUTHENTICATION_FAILURE", "%bob%", sorted)));
+        assertThat(events.ids(new SecurityEventQueries.Criteria(since, until, null, null, null, "DELEGATED_AGENT"), all)
+                .getContent()).containsExactlyInAnyOrderElementsOf(ids(auditLog.findByTimestampAfterAndSubjectKind(since,
+                "DELEGATED_AGENT", sorted)));
+        // the addresses of the records, the user name applied
+        Page<Object[]> addresses = events.addresses(new SecurityEventQueries.Criteria(since, until, null, "DISTINCT_IP",
+                "bob", null), PageRequest.of(0, 20));
+        Map<String, Long> bobs = new LinkedHashMap<>();
+        jdbc.query("select client_ip, count(*) from ctxa_audit_log where timestamp >= ? and client_ip is not null "
+                + "and principal_name = 'bob' group by client_ip", (ResultSet rs) -> {
+                    bobs.put(rs.getString(1), rs.getLong(2));
+                }, Timestamp.valueOf(since));
+        assertThat(addresses.getTotalElements()).isEqualTo(bobs.size());
+        assertThat(addresses.getContent()).allMatch(row -> bobs.get((String) row[0]).equals(row[1]));
+        assertThat(addresses.getContent().stream().mapToLong(row -> (Long) row[1]).sum())
+                .isLessThan(auditLog.findByTimestampAfterAndClientIpNotNull(since, all).getTotalElements());
     }
 
     // ----- K92: the users each number of the IAM card counts are the users the list of users filters -----
@@ -342,6 +436,27 @@ class DashboardLinksPostgresTest {
 
     // ----- helpers -----
 
+    /** Whether the record is of the name bob and of a person. */
+    private static boolean bobAsAPerson(Long id) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("select principal_name = 'bob' and subject_kind = 'HUMAN_USER' "
+                + "from ctxa_audit_log where id = ?", Boolean.class, id));
+    }
+
+    private static List<Long> ids(Page<AuditLog> page) {
+        return page.getContent().stream().map(AuditLog::getId).toList();
+    }
+
+    private static LocalDateTime local(Instant moment) {
+        return LocalDateTime.ofInstant(moment, ZoneId.systemDefault());
+    }
+
+    private static void event(String category, String principal, String decision, String outcome, String address,
+                              double risk, String subjectKind, Instant moment) {
+        jdbc.update("insert into ctxa_audit_log (timestamp, principal_name, resource_identifier, decision, outcome, "
+                + "event_category, client_ip, risk_score, subject_kind) values (?, ?, '/api/x', ?, ?, ?, ?, ?, ?)",
+                Timestamp.from(moment), principal, decision, outcome, category, address, risk, subjectKind);
+    }
+
     private DashboardHourlyStats stats() {
         return new DashboardHourlyStats(() -> jdbc, auditLog, new DecisionRecordSealCheck(auditLog, () -> SIGNER), null,
                 clock);
@@ -350,7 +465,7 @@ class DashboardLinksPostgresTest {
     private SecurityMonitorController monitor() {
         SecurityMonitorController monitor = new SecurityMonitorController(auditLog, new CsvExportService());
         monitor.setEvidenceSigner(SIGNER);
-        monitor.setDashboardQueries(queries);
+        monitor.setEventQueries(new SecurityEventQueries(() -> jdbc));
         return monitor;
     }
 

@@ -137,6 +137,22 @@ class PolicyListFiltersScreenTest {
                 .containsPattern("<option value=\"true\"\\s+selected=\"selected\">Active</option>");
     }
 
+    @Test
+    @DisplayName("K139, K140: no page link leaves the list, the first and the last pages too, and the links wrap")
+    void noPageLinkLeavesTheList() throws Exception {
+        when(policies.searchPolicies(any(), any(), any(), any(Pageable.class))).thenAnswer(invocation ->
+                new PageImpl<>(fivePages().getContent(), invocation.getArgument(3, Pageable.class), 47));
+
+        String first = page("tab=list&policyPage=0", Locale.KOREAN);
+        String last = page("tab=list&policyPage=4", Locale.KOREAN);
+
+        assertThat(pageLinks(first)).extracting(link -> Integer.parseInt(link.replaceAll(".*policyPage=(-?\\d+).*", "$1")))
+                .allMatch(number -> number >= 0 && number <= 4).contains(0, 1, 4);
+        assertThat(pageLinks(last)).extracting(link -> Integer.parseInt(link.replaceAll(".*policyPage=(-?\\d+).*", "$1")))
+                .allMatch(number -> number >= 0 && number <= 4).contains(3, 4);
+        assertThat(first).contains("class=\"modern-pagination flex-wrap justify-center\"");
+    }
+
     // ----- the drawn page -----
 
     private static Page<Policy> fivePages() {

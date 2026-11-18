@@ -26,7 +26,6 @@ import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -391,44 +390,18 @@ public class DashboardQueries {
 
     // ----- the dashboard's hourly tables (N7, N20) -----
 
-    /** N7: the decision records of the period whose seal check found a mismatch, as the hourly pass counted them. */
+    /**
+     * N7, K141: the decision records of the period whose seal check found a mismatch, from the hour the period starts
+     * in: the records the audit log still keeps, the ones the security event log lists by its seal filter.
+     */
     public long sealMismatches(Instant from, Instant to) {
         JdbcOperations operations = jdbc.get();
         if (operations == null) {
             return 0;
         }
-        Long count = operations.queryForObject("SELECT COALESCE(SUM(s.mismatched), 0) FROM ctxa_dashboard_seal_hourly s "
-                + "WHERE s.bucket_start >= ? AND s.bucket_start < ?", Long.class, hour(from), timestamp(to));
+        Long count = operations.queryForObject("SELECT COUNT(*) FROM ctxa_audit_log a WHERE a.timestamp >= ? "
+                + "AND a.timestamp < ? AND " + DashboardHourlyStats.SEAL_MISMATCHED, Long.class, hour(from), timestamp(to));
         return count == null ? 0 : count;
-    }
-
-    /** K92: the decision records the hourly seal check found mismatched, the ones still kept, written since the moment. */
-    private static final String SEAL_MISMATCH_RECORDS = " FROM ctxa_audit_log a "
-            + "JOIN ctxa_dashboard_seal_mismatch m ON m.audit_id = a.id WHERE a.timestamp >= ?";
-
-    /** K92: how many records {@link #sealMismatchRecordIds} lists. */
-    public long sealMismatchRecordCount(LocalDateTime since) {
-        JdbcOperations operations = jdbc.get();
-        if (operations == null) {
-            return 0;
-        }
-        Long count = operations.queryForObject("SELECT COUNT(*)" + SEAL_MISMATCH_RECORDS, Long.class,
-                Timestamp.valueOf(since));
-        return count == null ? 0 : count;
-    }
-
-    /**
-     * K92: a page of the decision records the hourly seal check found mismatched, written since the moment (a local
-     * time, as the audit log keeps it), the latest first: the records of {@link #sealMismatches} the audit log keeps.
-     */
-    public List<Long> sealMismatchRecordIds(LocalDateTime since, long offset, int limit) {
-        JdbcOperations operations = jdbc.get();
-        if (operations == null || limit <= 0) {
-            return List.of();
-        }
-        return operations.queryForList("SELECT a.id" + SEAL_MISMATCH_RECORDS
-                + " ORDER BY a.timestamp DESC, a.id DESC LIMIT ? OFFSET ?", Long.class, Timestamp.valueOf(since), limit,
-                offset);
     }
 
     /** N20: the refused requests of signed-in users in the period. */

@@ -90,22 +90,47 @@
                 </table>
             </div>
 
-            <nav th:if="${hierarchyPage != null and hierarchyPage.totalPages > 1}" class="flex flex-wrap justify-center mt-6 gap-2">
-                <a th:if="${!hierarchyPage.first}" th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=${hierarchyPage.number - 1})}"
-                   class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
-                    &laquo;
-                </a>
-                <th:block th:each="i : ${#numbers.sequence(0, hierarchyPage.totalPages - 1)}">
-                    <a th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=${i})}"
-                       th:text="${i + 1}"
-                       class="px-3 py-2 rounded text-sm"
-                       th:style="${i == hierarchyPage.number} ? 'background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;' : 'color:#94a3b8;border:1px solid rgba(71,85,105,0.3);'">
-                    </a>
-                </th:block>
-                <a th:if="${!hierarchyPage.last}" th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=${hierarchyPage.number + 1})}"
-                   class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
-                    &raquo;
-                </a>
+            <!-- K142: the policy list's pagination: the first, the previous, the pages near the current one, the next and
+                 the last, never a link to each of thousands of pages; the list's filters stay on every link -->
+            <nav th:if="${hierarchyPage != null and hierarchyPage.totalPages > 1}" id="role-hierarchies-pages" class="mt-6 flex justify-center"
+                 th:with="currentPage=${hierarchyPage.number}, totalPages=${hierarchyPage.totalPages},
+                          startPage=${T(java.lang.Math).max(0, currentPage - 2)},
+                          endPage=${T(java.lang.Math).min(totalPages - 1, currentPage + 2)}">
+                <ul class="modern-pagination flex-wrap justify-center">
+                    <li class="page-item" th:classappend="${hierarchyPage.first} ? 'disabled'">
+                        <a class="page-link" th:aria-label="#{common.page.first}" th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=0)}"><i class="fas fa-angle-double-left"></i></a>
+                    </li>
+                    <li class="page-item" th:classappend="${hierarchyPage.first} ? 'disabled'">
+                        <a class="page-link" th:aria-label="#{common.page.previous}" th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=${T(java.lang.Math).max(0, currentPage - 1)})}"><i class="fas fa-chevron-left"></i></a>
+                    </li>
+                    <th:block th:if="${startPage > 0}">
+                        <li class="page-item">
+                            <a class="page-link" th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=0)}">1</a>
+                        </li>
+                        <li class="page-item disabled" th:if="${startPage > 1}">
+                            <span class="page-link">...</span>
+                        </li>
+                    </th:block>
+                    <li th:each="pageNumber : ${#numbers.sequence(startPage, endPage)}"
+                        class="page-item" th:classappend="${pageNumber == currentPage} ? 'active'">
+                        <a class="page-link" th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=${pageNumber})}"
+                           th:attr="aria-current=${pageNumber == currentPage ? 'page' : null}" th:text="${pageNumber + 1}"></a>
+                    </li>
+                    <th:block th:if="${endPage < totalPages - 1}">
+                        <li class="page-item disabled" th:if="${endPage < totalPages - 2}">
+                            <span class="page-link">...</span>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=${totalPages - 1})}" th:text="${totalPages}"></a>
+                        </li>
+                    </th:block>
+                    <li class="page-item" th:classappend="${hierarchyPage.last} ? 'disabled'">
+                        <a class="page-link" th:aria-label="#{common.page.next}" th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=${T(java.lang.Math).min(totalPages - 1, currentPage + 1)})}"><i class="fas fa-chevron-right"></i></a>
+                    </li>
+                    <li class="page-item" th:classappend="${hierarchyPage.last} ? 'disabled'">
+                        <a class="page-link" th:aria-label="#{common.page.last}" th:href="@{/contexa/admin/role-hierarchies(keyword=${keyword},page=${totalPages - 1})}"><i class="fas fa-angle-double-right"></i></a>
+                    </li>
+                </ul>
             </nav>
         </div>
     </main>

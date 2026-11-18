@@ -82,6 +82,13 @@ public class DashboardHourlyStats {
     /** The name a request without a sign-in is recorded under. */
     static final String ANONYMOUS = "anonymousUser";
 
+    /**
+     * K92, K141: a decision record the seal check found not matching its seal, of the audit log read as {@code a}: what
+     * the dashboard's broken seals count and the security event log lists, the records the audit log still keeps.
+     */
+    public static final String SEAL_MISMATCHED = "a.event_category = 'SECURITY_DECISION' AND EXISTS "
+            + "(SELECT 1 FROM ctxa_dashboard_seal_mismatch m WHERE m.audit_id = a.id)";
+
     private static final String DENIED = """
             INSERT INTO ctxa_dashboard_denial_hourly (bucket_start, dimension, item, counted, computed_at)
             SELECT ?, '%s', %s, COUNT(*), ?
@@ -330,6 +337,20 @@ public class DashboardHourlyStats {
                     DELETE FROM ctxa_dashboard_seal_mismatch
                      WHERE ctid IN (SELECT ctid FROM ctxa_dashboard_seal_mismatch WHERE bucket_start < ? LIMIT ?)
                     """, aggregateCutoff);
+            // K141: a record the audit retention deleted is no broken seal any more; the next start checks its hour
+            // again and counts what is left there (queueBackfill)
+            for (int batch = 0; batch < PURGE_MAX_BATCHES; batch++) {
+                int count = jdbc.update("""
+                        DELETE FROM ctxa_dashboard_seal_mismatch
+                         WHERE ctid IN (SELECT m.ctid FROM ctxa_dashboard_seal_mismatch m
+                                         WHERE NOT EXISTS (SELECT 1 FROM ctxa_audit_log a WHERE a.id = m.audit_id)
+                                         LIMIT ?)
+                        """, PURGE_BATCH);
+                removed += count;
+                if (count < PURGE_BATCH) {
+                    break;
+                }
+            }
         } catch (DataAccessException exception) {
             log.error("[DashboardHourlyStats] Retention stopped after {} rows", removed, exception);
             return removed;
