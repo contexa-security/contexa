@@ -369,6 +369,7 @@ public class ZeroTrustDecisionRecords {
                 }
             }
         }
+        ZeroTrustFactWords factWords = new ZeroTrustFactWords(messages, locale);
         operations.query("""
                 SELECT reason_rank, reason_code, reason_group, fact_id, fact_name
                   FROM ctxa_zt_decision_reason
@@ -376,8 +377,9 @@ public class ZeroTrustDecisionRecords {
                  ORDER BY reason_rank
                 """, rs -> {
             Map<String, Object> reason = cited.getOrDefault(rs.getString(2), Map.of());
+            String factValue = reason.get("factValue") != null ? String.valueOf(reason.get("factValue")) : null;
             reasons.add(new ReasonView(rs.getInt(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                    rs.getString(5), reason.get("factValue") != null ? String.valueOf(reason.get("factValue")) : null));
+                    rs.getString(5), factValue, factWords.words(rs.getString(5), factValue)));
         }, observationId);
         List<OutcomeView> outcomeViews = operations.query("""
                 SELECT outcome_kind, occurred_at, actor, note, evaluation_reason

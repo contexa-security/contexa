@@ -557,7 +557,7 @@
             nodes.push(el('div', {class: 'zt-metric-label', text: t(P + 'preview.facts')}));
             cited.forEach(reason => nodes.push(el('div', {class: 'zt-fact', text: t(P + 'preview.fact', reason.fact,
                 reason.factName ? ZT.factName(reason.factName) : ZT.reasonName(reason.code),
-                reason.factValue || '—')})));
+                reason.factText || reason.factValue || '—')})));
         } else if (!detail.explained) {
             nodes.push(muted(t(P + 'preview.unexplained', detail.bundle || '—')));
         }

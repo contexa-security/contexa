@@ -167,7 +167,7 @@
             list.append(el('div', {class: 'zt-indicator zt-fact-row', id, 'data-severity': 'INFO'},
                 el('div', {class: 'zt-indicator-text'},
                     el('span', {class: 'zt-indicator-title', text: name, title: name}),
-                    el('span', {class: 'zt-fact-value', text: reason.factValue || t(P + 'reasons.noValue')}),
+                    el('span', {class: 'zt-fact-value', text: reason.factText || reason.factValue || t(P + 'reasons.noValue')}),
                     el('span', {class: 'zt-indicator-rule', text: t(P + 'reasons.code', group, ZT.reasonName(reason.code)),
                         title: reason.code || ''})),
                 el('span', {class: 'zt-fact-id', text: reason.fact || '—'})));

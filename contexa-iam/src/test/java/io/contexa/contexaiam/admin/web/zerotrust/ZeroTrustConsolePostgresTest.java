@@ -597,6 +597,38 @@ class ZeroTrustConsolePostgresTest {
         });
     }
 
+    /**
+     * K122: the role scope fact a reason cites reads in words of the request's language, its category code included;
+     * the value the engine gave the model stays as it was, and another fact reads as written.
+     */
+    @Test
+    void theRoleScopeFactReadsInWords() {
+        ZeroTrustDecisionRecords worded = new ZeroTrustDecisionRecords(() -> jdbc, outcomes,
+                I18nTestSupport.englishMessageSource(), new ObjectMapper(), clock);
+        Instant at = now.minus(Duration.ofMinutes(20));
+        String roleScope = "action EXPORT against the scope group's actions (READ); category CUSTOMER_RECORDS against"
+                + " the scope group's categories (CUSTOMER_RECORDS); scope group of 25 other users; evidence PROVISIONAL";
+        decision(Map.of("observation_id", "role-scope", "final_action", "CHALLENGE", "decision_summary_json",
+                "{\"reasons\":[{\"code\":\"DATA_NATURE_MISMATCH\",\"fact\":\"F3\",\"factValue\":\"" + roleScope + "\"},"
+                        + "{\"code\":\"REPEAT_IN_SESSION\",\"fact\":\"F2\",\"factValue\":\"5th EXPORT in this session\"}]}"),
+                at);
+        jdbc.update("INSERT INTO ctxa_zt_decision_reason (observation_id, reason_rank, reason_code, reason_group, fact_id,"
+                + " fact_name, created_at) VALUES ('role-scope', 1, 'DATA_NATURE_MISMATCH', ?, 'F3', 'RoleScope', ?),"
+                + " ('role-scope', 2, 'REPEAT_IN_SESSION', ?, 'F2', 'RepeatInSession', ?)",
+                ZeroTrustConsoleService.groupOf("DATA_NATURE_MISMATCH"), Timestamp.from(at),
+                ZeroTrustConsoleService.groupOf("REPEAT_IN_SESSION"), Timestamp.from(at));
+
+        DecisionDetail korean = worded.detail("role-scope", Locale.KOREAN);
+        DecisionDetail english = worded.detail("role-scope", Locale.ENGLISH);
+
+        assertThat(korean.reasons()).extracting(reason -> reason.factValue(), reason -> reason.factText()).containsExactly(
+                tuple(roleScope, "요청한 행동 내보내기, 범위 그룹의 행동 읽기 · 요청한 업무 범주 customer records, 범위 그룹의"
+                        + " 업무 범주 customer records · 범위 그룹의 다른 사용자 25명 · 근거가 아직 잠정적임"),
+                tuple("5th EXPORT in this session", "5th EXPORT in this session"));
+        assertThat(english.reasons().get(0).factText()).startsWith("requested action Export, the scope group actions Read")
+                .doesNotContain("CUSTOMER_RECORDS");
+    }
+
     /** K17 (D11): a decision whose model answer still broke a rule shows it and waits in the review queue for it. */
     @Test
     void aDecisionThatBrokeARuleShowsItAndWaitsForReview() {

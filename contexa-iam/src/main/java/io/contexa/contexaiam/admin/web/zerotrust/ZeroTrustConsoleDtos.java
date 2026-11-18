@@ -217,7 +217,12 @@ public final class ZeroTrustConsoleDtos {
                                  boolean learned, Integer bundleNumber) {
     }
 
-    public record ReasonView(int rank, String code, String group, String fact, String factName, String factValue) {
+    /**
+     * A reason with the fact it cites: the fact's value as the engine gave it to the model, and in words of the
+     * request's language (K122: the role scope's codes read by their words).
+     */
+    public record ReasonView(int rank, String code, String group, String fact, String factName, String factValue,
+                             String factText) {
     }
 
     public record OutcomeView(String kind, String at, String actor, String note, String reason) {
