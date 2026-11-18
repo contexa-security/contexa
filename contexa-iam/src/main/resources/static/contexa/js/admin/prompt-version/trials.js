@@ -276,6 +276,17 @@
     const SHADOW_DAYS = [1, 7, 30, 90];
     const OUTCOME_COLUMNS = ['version', 'stage', 'action', 'packages', 'failed', 'passed', 'notInspected'];
     const COUNT_COLUMNS = ['packages', 'failed', 'passed', 'notInspected'];
+    /**
+     * K115: a phone keeps the version and the counts to act on (failed, not inspected) inside the card: the stage and
+     * the action read under the version, the sealed and the passed counts stay in the wider layouts.
+     */
+    const WIDE_COLUMNS = ['stage', 'action', 'packages', 'passed'];
+
+    /** A count in a narrow column: shortened in place on a phone (1.3), the whole count in its tooltip. */
+    function countCell(value, column) {
+        return el('td', {class: 'zt-num' + (WIDE_COLUMNS.includes(column) ? ' zt-wide' : ''), title: ZT.count(value)},
+            el('div', {class: 'zt-long', text: ZT.count(value)}), el('div', {class: 'zt-short', text: ZT.shortCount(value)}));
+    }
 
     function resultRow(name, value) {
         return el('div', {class: 'zt-result-row'}, el('span', {class: 'zt-result-name', text: name}),
@@ -346,14 +357,22 @@
         }
         if (outcomes.length) {
             const body = el('tbody');
-            outcomes.forEach(outcome => body.append(el('tr', {},
-                el('td', {class: 'zt-fill'}, versionLink(outcome.version)),
-                el('td', {text: t('pv.shadow.stage.' + outcome.stage)}),
-                actionCell(outcome.action),
-                ...COUNT_COLUMNS.map(column => el('td', {class: 'zt-num', text: ZT.count(outcome[column])})))));
+            outcomes.forEach(outcome => {
+                const stage = t('pv.shadow.stage.' + outcome.stage);
+                const action = actionCell(outcome.action);
+                action.classList.add('zt-wide');
+                const line = stage + ' · ' + (outcome.action ? PV.actionName(outcome.action) : '—');
+                body.append(el('tr', {},
+                    el('td', {class: 'zt-fill'}, versionLink(outcome.version),
+                        el('div', {class: 'zt-short zt-muted', title: line, text: line})),
+                    el('td', {class: 'zt-wide', title: stage, text: stage}),
+                    action,
+                    ...COUNT_COLUMNS.map(column => countCell(outcome[column], column))));
+            });
             holder.append(el('div', {class: 'zt-subhead', text: t('pv.shadow.outcomes')}),
                 table(OUTCOME_COLUMNS.map(column => el('th', {scope: 'col',
-                    class: COUNT_COLUMNS.includes(column) ? 'zt-num' : null, text: t('pv.shadow.outcome.' + column)})), body));
+                    class: [COUNT_COLUMNS.includes(column) ? 'zt-num' : '', WIDE_COLUMNS.includes(column) ? 'zt-wide' : '']
+                        .join(' ').trim() || null, text: t('pv.shadow.outcome.' + column)})), body));
         }
         if ((shadow.cases || []).length) {
             const body = el('tbody');
