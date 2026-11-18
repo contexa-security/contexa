@@ -431,7 +431,8 @@ class SecurityMonitorControllerTest {
             assertThat(page.getTotalElements()).isEqualTo(41);
             assertThat(page.getContent()).map(AuditLog.class::cast).extracting(AuditLog::getId).containsExactly(9L, 4L);
             assertThat(model.getAttribute("periods")).isEqualTo(SecurityMonitorController.PERIODS);
-            assertThat(SecurityMonitorController.PERIODS).containsKeys(1, 6, 24, 72, 168, 720, 2160);
+            assertThat(SecurityMonitorController.PERIODS).extracting(SecurityMonitorController.PeriodChoice::hours)
+                    .containsExactly(1, 6, 24, 72, 168, 720, 2160);
         }
     }
 }

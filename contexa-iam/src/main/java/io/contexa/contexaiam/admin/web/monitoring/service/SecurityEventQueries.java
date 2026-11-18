@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.service;
 
+import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexaiam.admin.web.dashboard.DashboardHourlyStats;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -25,8 +26,11 @@ import org.springframework.lang.Nullable;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -109,6 +113,13 @@ public class SecurityEventQueries {
                         + where + " GROUP BY a.client_ip ORDER BY COUNT(*) DESC, a.client_ip LIMIT ? OFFSET ?",
                 (rs, row) -> new Object[]{rs.getString(1), rs.getLong(2), rs.getTimestamp(3)}, args.toArray());
         return new PageImpl<>(rows, pageable, total);
+    }
+
+    /** The records of a page of IDs in the order of the IDs; an ID whose record is gone is left out. */
+    public static List<AuditLog> inOrder(List<Long> ids, Iterable<AuditLog> records) {
+        Map<Long, AuditLog> byId = new HashMap<>();
+        records.forEach(record -> byId.put(record.getId(), record));
+        return ids.stream().map(byId::get).filter(Objects::nonNull).toList();
     }
 
     private static String where(Criteria criteria, List<Object> args) {
