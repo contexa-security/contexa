@@ -78,6 +78,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.client.RestClientCustomizer;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -130,6 +133,32 @@ public class CoreLLMTieredAutoConfiguration {
 
     @Autowired
     private ObjectProvider<ObservationRegistry> observationRegistryProvider;
+
+    /**
+     * K148: the application's RestClient builders, the ones Spring AI builds the application's model clients with (OpenAI,
+     * Anthropic), send Contexa's model calls over Reactor Netty on Contexa's event loop, with the application's settings
+     * ({@code spring.http.client.*}): a call cut at its time limit closes its connection, which a blocking client (Apache
+     * HttpClient, Jetty) does not. Every other request keeps the application's request factory as it is. It runs first, so a
+     * customizer of the application's that sets a factory of its own keeps that factory; an application whose factory is
+     * Reactor Netty's is left as it is.
+     */
+    @Bean(name = "contexaModelCallTransportCustomizer")
+    @Order(Ordered.HIGHEST_PRECEDENCE)
+    public RestClientCustomizer contexaModelCallTransportCustomizer(
+            ObjectProvider<ClientHttpRequestFactoryBuilder<?>> requestFactoryBuilderProvider,
+            ObjectProvider<ClientHttpRequestFactorySettings> requestFactorySettingsProvider) {
+        return builder -> {
+            ClientHttpRequestFactoryBuilder<?> application =
+                    requestFactoryBuilderProvider.getIfAvailable(ClientHttpRequestFactoryBuilder::detect);
+            if (application instanceof ReactorClientHttpRequestFactoryBuilder) {
+                return;
+            }
+            ClientHttpRequestFactorySettings settings =
+                    requestFactorySettingsProvider.getIfAvailable(ClientHttpRequestFactorySettings::defaults);
+            builder.requestFactory(new ModelCallRequestFactory(application.build(settings),
+                    ContexaReactorResources.onContexaLoops(ClientHttpRequestFactoryBuilder.reactor()).build(settings)));
+        };
+    }
 
     @Bean(name = "contexaLlmRuntimeCatalog")
     @ConditionalOnMissingBean
