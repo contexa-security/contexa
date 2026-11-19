@@ -70,6 +70,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.SyncTaskExecutor;
+import org.springframework.core.task.support.ExecutorServiceAdapter;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
@@ -163,6 +165,11 @@ class AnalysesWithoutAUserIdLogTest {
             AtomicLong now = new AtomicLong(1_000_000L);
             ReflectionTestUtils.setField(strategy, AbstractTieredStrategy.class, "missingUserIdRagSearchLog",
                     new ErrorLogThrottle(REPORT_INTERVAL, now::get), ErrorLogThrottle.class);
+            // K151: each search ends before the next analysis and before the clock moves. On the strategy's own pool an
+            // analysis that waits past its RAG time (a loaded JVM) goes on while its search still runs, two searches
+            // then take the throttle's first turn together, and the first line counts the other one.
+            ReflectionTestUtils.setField(strategy, Layer1ContextualStrategy.class, "ragRetrievalExecutor",
+                    new ExecutorServiceAdapter(new SyncTaskExecutor()), ExecutorService.class);
 
             List<String> notes = infoLinesDuring(() -> {
                 for (int index = 0; index < 20; index++) {
