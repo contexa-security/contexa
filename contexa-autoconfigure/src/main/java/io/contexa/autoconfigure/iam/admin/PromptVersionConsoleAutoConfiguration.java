@@ -40,6 +40,7 @@ import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSour
 import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityModelSetting;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityScheduledMeasurement;
+import io.contexa.contexaiam.admin.promptquality.status.PromptQualityStatus;
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionCatalog;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsole;
@@ -243,6 +244,26 @@ public class PromptVersionConsoleAutoConfiguration {
         return new QualityScheduledMeasurement(() -> jdbcTemplate, contexaQualityAutoMeasurement,
                 measurements::getIfAvailable, contexaPromptQualityCases, properties.getRemeasure().getCron(),
                 properties.getGate().getSignificance(), objectMapper, Clock.systemUTC());
+    }
+
+    /**
+     * Quality plan 3.6: the data of the state of quality: the latest measurement of the version in use, its operation
+     * metrics beside those of the version it replaced, and what there is to check.
+     */
+    @Bean(name = "contexaPromptQualityStatus")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean({PromptVersionService.class, PromptQualityCases.class})
+    public PromptQualityStatus promptQualityStatus(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                   PromptVersionService versions,
+                                                   PromptQualityCases contexaPromptQualityCases,
+                                                   ObjectProvider<PromptQualityMeasurements> measurements,
+                                                   ObjectProvider<QualityScheduledMeasurement> scheduled,
+                                                   ObjectProvider<PromptBundleSelector> selector,
+                                                   ObjectProvider<ZeroTrustConsoleService> console,
+                                                   ObjectProvider<ZeroTrustDecisionRecords> decisions) {
+        return new PromptQualityStatus(versions, new JdbcPromptVersionCatalog(versions, () -> jdbcTemplate,
+                selector::getIfUnique), contexaPromptQualityCases, measurements::getIfAvailable,
+                scheduled::getIfAvailable, console::getIfAvailable, decisions::getIfAvailable);
     }
 
     /**

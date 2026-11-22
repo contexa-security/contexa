@@ -32,6 +32,7 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasur
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityScheduledMeasurement;
+import io.contexa.contexaiam.admin.promptquality.status.PromptQualityStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -95,6 +96,7 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).hasSingleBean(QualityCasePromotions.class);
                     assertThat(context).hasSingleBean(QualityScheduledMeasurement.class);
                     assertThat(context.getBean(QualityScheduledMeasurement.class).nextScheduled()).isNotNull();
+                    assertThat(context).hasSingleBean(PromptQualityStatus.class);
                 });
         runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
                 .withPropertyValues("contexa.pqa.oss.quality.remeasure.cron=-")

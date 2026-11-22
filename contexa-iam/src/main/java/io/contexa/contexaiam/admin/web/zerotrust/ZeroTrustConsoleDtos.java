@@ -193,6 +193,30 @@ public final class ZeroTrustConsoleDtos {
                                  Double stoppedRatio, Double modelLessRatio) {
     }
 
+    /**
+     * Quality plan 3.6: the operation metrics of a prompt version beside those of the version it replaced, over two
+     * periods of the same length on either side of the change, from the hourly table.
+     *
+     * @param version         the version asked about
+     * @param previousVersion the version that decided before it, or null when no other decided in the 90 days
+     * @param firstSeen       the first hour the version decided in, within the 90 days, or null when it did not
+     * @param changedAt       the hour the version took over (the hour after the previous one last decided), or null
+     * @param beforeFrom      the start of the period before the change, or null without a change
+     * @param afterFrom       the start of the period of the version (from the change, else the period up to now)
+     * @param rates           the six metrics, each with its numerator and denominator on either side
+     */
+    public record VersionChange(String version, String previousVersion, String firstSeen, String changedAt,
+                                String beforeFrom, String beforeTo, String afterFrom, String afterTo,
+                                List<VersionRate> rates) {
+    }
+
+    /**
+     * One operation metric of a version change: its numerator and denominator before the change (the previous
+     * version's decisions) and after it (the version's).
+     */
+    public record VersionRate(String key, long beforeEvents, long beforeTrials, long afterEvents, long afterTrials) {
+    }
+
     // ----- decision records (6.4) -----
 
     public record DecisionPage(List<DecisionRow> rows, String nextCursor) {

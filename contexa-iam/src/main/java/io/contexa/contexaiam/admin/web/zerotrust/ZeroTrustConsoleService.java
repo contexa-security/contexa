@@ -62,7 +62,9 @@ import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.UserChalle
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Previous;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.UnknownFact;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.WouldHave;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.VersionChange;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.VersionDecisions;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.VersionRate;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleReader.DayRow;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleReader.ItemRow;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleReader.LatencyRow;
@@ -77,6 +79,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -682,6 +685,103 @@ public class ZeroTrustConsoleService {
         return new VersionDecisions(bundleVersion, range.from().toString(), decisions, median,
                 decisions == 0 ? null : (double) retried / decisions, decisions == 0 ? null : (double) malformed / decisions,
                 actions);
+    }
+
+    /** Quality plan 3.6: the operation metrics of the state of quality, by their keys. */
+    public static final List<String> VERSION_RATES = List.of("STOPPED", "CHALLENGE_PASS", "BLOCK_RELEASE",
+            "REVIEW_VALID", "RETRY", "MODEL_LESS");
+
+    /** How far back the change of a version is looked for. */
+    static final Duration VERSION_CHANGE_LOOKBACK = Duration.ofDays(90);
+
+    /**
+     * Quality plan 3.6: the operation metrics of the version beside the version it replaced, from the hourly table:
+     * the share of decisions that stopped the request, the share of challenges passed, of blocks released, of the
+     * reviewed decisions found valid, of decisions asked again, and of decisions set without the model, each with its
+     * numerator and denominator, as the trust screen counts them. The change is the hour after the last hour another
+     * version decided in, within the last 90 days; the version's period runs from it for the length of the period
+     * asked (a day, a week, 30 or 90 days) or up to now, and the period before it is as long. Without a change the
+     * version's period is the period up to now and there is none before.
+     */
+    public VersionChange versionChange(String version, String period, String tenant) {
+        Instant now = clock.instant();
+        ZeroTrustConsoleRange lookback = new ZeroTrustConsoleRange("custom", now.minus(VERSION_CHANGE_LOOKBACK), now);
+        Instant firstSeen = null;
+        String previous = null;
+        Instant previousLast = null;
+        for (StatsRow row : reader.stats(lookback, tenant)) {
+            if (!row.decision() || row.bundle() == null || row.bundle().isBlank()) {
+                continue;
+            }
+            if (row.bundle().equals(version)) {
+                if (row.first() != null && (firstSeen == null || row.first().isBefore(firstSeen))) {
+                    firstSeen = row.first();
+                }
+            }
+            else if (row.last() != null && (previousLast == null || row.last().isAfter(previousLast))) {
+                previousLast = row.last();
+                previous = row.bundle();
+            }
+        }
+        Duration length = periodLength(period);
+        Instant changedAt = firstSeen != null && previousLast != null ? previousLast.plus(Duration.ofHours(1)) : null;
+        if (changedAt != null && changedAt.isAfter(now)) {
+            changedAt = now.truncatedTo(ChronoUnit.HOURS);
+        }
+        Instant afterFrom = changedAt != null ? changedAt : now.minus(length);
+        Instant afterTo = changedAt != null && changedAt.plus(length).isBefore(now) ? changedAt.plus(length) : now;
+        Instant beforeFrom = changedAt != null ? changedAt.minus(Duration.between(afterFrom, afterTo)) : null;
+        long[] after = versionCounts(reader.stats(new ZeroTrustConsoleRange("custom", afterFrom, afterTo), tenant),
+                version);
+        long[] before = changedAt != null ? versionCounts(reader.stats(new ZeroTrustConsoleRange("custom", beforeFrom,
+                changedAt), tenant), previous) : new long[12];
+        List<VersionRate> rates = new ArrayList<>();
+        for (int index = 0; index < VERSION_RATES.size(); index++) {
+            rates.add(new VersionRate(VERSION_RATES.get(index), before[2 * index], before[2 * index + 1],
+                    after[2 * index], after[2 * index + 1]));
+        }
+        return new VersionChange(version, changedAt != null ? previous : null,
+                firstSeen != null ? firstSeen.toString() : null, changedAt != null ? changedAt.toString() : null,
+                beforeFrom != null ? beforeFrom.toString() : null, changedAt != null ? changedAt.toString() : null,
+                afterFrom.toString(), afterTo.toString(), rates);
+    }
+
+    /** The length of a period of the screens: a day, 30 or 90 days, else a week. */
+    static Duration periodLength(String period) {
+        String key = period == null ? "" : period.trim().toLowerCase(Locale.ROOT);
+        return switch (key) {
+            case "day" -> Duration.ofHours(24);
+            case "month" -> Duration.ofDays(30);
+            case "quarter" -> Duration.ofDays(90);
+            default -> Duration.ofDays(7);
+        };
+    }
+
+    /** The numerators and denominators of the six metrics of the version's decisions, in the order of the keys. */
+    private static long[] versionCounts(List<StatsRow> rows, String version) {
+        long[] counts = new long[12];
+        for (StatsRow row : rows) {
+            if (!row.decision() || version == null || !version.equals(row.bundle())) {
+                continue;
+            }
+            counts[0] += STOPPED.contains(row.action()) ? row.decisions() : 0;
+            counts[1] += row.decisions();
+            if ("CHALLENGE".equals(row.action())) {
+                counts[2] += row.passed();
+                counts[3] += row.decisions();
+            }
+            if ("BLOCK".equals(row.action())) {
+                counts[4] += row.released();
+                counts[5] += row.decisions();
+            }
+            counts[6] += row.valid();
+            counts[7] += row.valid() + row.invalid();
+            counts[8] += row.retried();
+            counts[9] += row.decisions();
+            counts[10] += "MODEL_LESS".equals(row.source()) ? row.decisions() : 0;
+            counts[11] += row.decisions();
+        }
+        return counts;
     }
 
     /** Console design 6.3: each prompt bundle and model, when it decided and how its decisions came out. */
