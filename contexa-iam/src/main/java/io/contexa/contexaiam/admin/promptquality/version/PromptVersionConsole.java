@@ -26,7 +26,7 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityCaseChanges;
 import io.contexa.contexacore.std.components.prompt.quality.QualityComparison;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateFinding;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateVerdict;
-import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurementState;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateReading;
 import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocument;
@@ -141,6 +141,10 @@ public class PromptVersionConsole {
     static final Set<String> OUTSIDE_GATE_SOURCES = Set.of("CONFIGURATION", "BUILD_DEFAULT");
     /** A request to override the quality gate without a reason. */
     static final String OVERRIDE_REASON_REQUIRED = "OVERRIDE_REASON_REQUIRED";
+    /** Plan 3.4: a measurement asked for a prompt other than the security decision, which has no labelled cases. */
+    static final String MEASURE_NOT_OFFERED = "MEASURE_NOT_OFFERED";
+    /** Plan 3.4: this application has no runner of measurements (the replay of decisions is not in it). */
+    static final String NO_MEASUREMENT_RUNNER = "NO_MEASUREMENT_RUNNER";
     private static final int SHADOW_CASE_LIMIT = 50;
 
     /** An operator's request the console refuses, with the code the screen names. */
@@ -237,6 +241,26 @@ public class PromptVersionConsole {
         default Optional<String> integrity(String packageId) {
             return Optional.empty();
         }
+    }
+
+    /** Plan 3.4: starts the measurement of a saved version of the security decision ("save and measure"). */
+    @FunctionalInterface
+    public interface MeasureStarter {
+
+        /**
+         * Starts measuring the version on the case set the measurements of the scope run on; returns the measurement's
+         * id.
+         *
+         * @throws RefusedException with the code the screen names when it cannot start
+         */
+        long start(String scope, String prompt, int number, String actor);
+    }
+
+    private Supplier<MeasureStarter> measureStarter = () -> null;
+
+    /** Plan 3.4: what starts the measurement of a saved version; a supplier of null without a measurement runner. */
+    public void setMeasureStarter(Supplier<MeasureStarter> measureStarter) {
+        this.measureStarter = orNone(measureStarter);
     }
 
     /** Plan 3.10 (2): what draws a sealed decision again for the finished prompt; a supplier of null without one. */
@@ -706,15 +730,42 @@ public class PromptVersionConsole {
         }
     }
 
-    /** Saves what the screen holds as the next version, and uses it for decisions when the screen asked to. */
+    /**
+     * Saves what the screen holds as the next version. Plan 3.4: a version of the security decision is measured at once
+     * when the screen asked to ("save and measure"; the earlier "save and use for decisions" asks the same), and is used
+     * for decisions only through the confirmation, which shows its quality gate. A version of another prompt, which has
+     * no means of measurement, is used at once when the screen asked to. A measurement that cannot start leaves the
+     * version saved and says why.
+     */
     public Created create(String scope, DraftForm form, String actor) {
         String scopeName = scopeOf(scope);
-        String key = promptOf(form.prompt());
+        String key = promptOf(form != null ? form.prompt() : null);
+        boolean decision = decisionPrompt(key);
+        if (form != null && Boolean.TRUE.equals(form.measureNow()) && !decision) {
+            throw new RefusedException(MEASURE_NOT_OFFERED);
+        }
         PromptVersionService.Saved saved = versions.create(scopeName, documentOf(scopeName, form),
                 PromptVersionRecord.SCREEN, null, actor, limit.get());
-        Receipt used = Boolean.TRUE.equals(form.useNow())
+        Receipt used = !decision && Boolean.TRUE.equals(form.useNow())
                 ? use(scopeName, key, saved.number(), actor, form.reason()) : null;
-        return new Created(saved.number(), saved.name(), saved.contentHash(), saved.made(), used);
+        Long measureId = null;
+        String measureRefusal = null;
+        if (decision && (Boolean.TRUE.equals(form.measureNow()) || Boolean.TRUE.equals(form.useNow()))) {
+            MeasureStarter starter = measureStarter.get();
+            if (starter == null) {
+                measureRefusal = NO_MEASUREMENT_RUNNER;
+            }
+            else {
+                try {
+                    measureId = starter.start(scopeName, key, saved.number(), actor);
+                }
+                catch (RefusedException refused) {
+                    measureRefusal = refused.code();
+                }
+            }
+        }
+        return new Created(saved.number(), saved.name(), saved.contentHash(), saved.made(), used, measureId,
+                measureRefusal);
     }
 
     /** The organization's document of the form: its base by number and content hash, and only what it changes. */
@@ -1457,18 +1508,20 @@ public class PromptVersionConsole {
             return null;
         }
         String measurement = null;
+        String detail = null;
         PromptGovernanceReleaseGateService releaseGate = gate.get();
         if (releaseGate != null) {
             try {
-                QualityMeasurementState state = releaseGate.qualityMeasurement(scope, prompt, used.version());
-                measurement = state != null ? state.name() : null;
+                QualityGateReading reading = releaseGate.qualityReading(scope, prompt, used.version());
+                measurement = reading != null ? reading.state().name() : null;
+                detail = reading != null ? reading.detail() : null;
             }
             catch (RuntimeException failure) {
                 log.error("[PromptVersionConsole] The measurement of {} {} could not be read", prompt, used.version(),
                         failure);
             }
         }
-        return new OutsideGate(used.version(), used.source(), measurement);
+        return new OutsideGate(used.version(), used.source(), measurement, detail);
     }
 
     /** Plan 3.4: the quality gate of a target as the confirmation shows it; null when it does not apply. */

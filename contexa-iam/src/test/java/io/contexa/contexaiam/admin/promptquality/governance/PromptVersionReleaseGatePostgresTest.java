@@ -303,10 +303,14 @@ class PromptVersionReleaseGatePostgresTest {
         assertThat(state("v1.0")).isEqualTo("ACTIVE");
         assertThat(state("v2.0")).isEqualTo("AVAILABLE");
 
+        // Plan 3.4: "save and use" measures a version of the security decision instead; it is used through the gate.
         Created created = console.create(null, new DraftForm(PROMPT, 1, "Payroll", null,
                 List.of(new FormPart("how-to-judge", "CHANGE", null, "1. Weigh the payroll calendar first.\n", null)),
                 List.of(), true, "at once"), "admin");
-        assertThat(created.used().applied()).isTrue();
+        assertThat(created.used()).isNull();
+        assertThat(created.measureRefusal()).isEqualTo("NO_MEASUREMENT_RUNNER");
+        assertThat(state(created.name())).isEqualTo("AVAILABLE");
+        assertThat(console.use(null, PROMPT, created.number(), "admin", "at once").applied()).isTrue();
         assertThat(state(created.name())).isEqualTo("ACTIVE");
         assertThat(state("v1.0")).isEqualTo("AVAILABLE");
 

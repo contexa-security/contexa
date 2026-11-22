@@ -176,8 +176,18 @@ public final class PromptVersionConsoleDtos {
     }
 
     /** What the screen sends to check or to save a new version. */
+    /**
+     * @param useNow     plan 3.4: for the security decision, the same as measureNow (the version is measured, not used
+     *                   for decisions); for another prompt, the version is used at once
+     * @param measureNow plan 3.4: the version of the security decision is measured at once ("save and measure")
+     */
     public record DraftForm(String prompt, Integer base, String title, String description, List<FormPart> system,
-                            List<FormPart> user, Boolean useNow, String reason) {
+                            List<FormPart> user, Boolean useNow, String reason, Boolean measureNow) {
+
+        public DraftForm(String prompt, Integer base, String title, String description, List<FormPart> system,
+                         List<FormPart> user, Boolean useNow, String reason) {
+            this(prompt, base, title, description, system, user, useNow, reason, null);
+        }
     }
 
     public record ProblemView(String code, String where, String detail) {
@@ -225,7 +235,18 @@ public final class PromptVersionConsoleDtos {
     }
 
     /** A saved version, and the receipt of using it for decisions when the screen asked to. */
-    public record Created(int number, String name, String contentHash, boolean made, Receipt used) {
+    /**
+     * @param used           the receipt of using the version at once (a prompt other than the security decision); null
+     *                       when it was not asked or the version was measured instead
+     * @param measureId      plan 3.4: the measurement of the version started at once; null when none started
+     * @param measureRefusal plan 3.4: why the measurement asked for could not start (the version is saved); null else
+     */
+    public record Created(int number, String name, String contentHash, boolean made, Receipt used, Long measureId,
+                          String measureRefusal) {
+
+        public Created(int number, String name, String contentHash, boolean made, Receipt used) {
+            this(number, name, contentHash, made, used, null, null);
+        }
     }
 
     // ----- labels -----
@@ -305,8 +326,10 @@ public final class PromptVersionConsoleDtos {
      * @param source      CONFIGURATION (the setting) or BUILD_DEFAULT (the newest Contexa version)
      * @param measurement the state of its measurement in this installation (MEASURED when it has one); null when the
      *                    gate cannot be read
+     * @param detail      why, as the store of measurements says: MEASURING while its automatic measurement waits or
+     *                    runs, NO_CASE_SET, SHIPPED_MEASUREMENT, or why nothing can be measured; null when nothing to add
      */
-    public record OutsideGate(String version, String source, String measurement) {
+    public record OutsideGate(String version, String source, String measurement, String detail) {
     }
 
     // ----- the trials (screen 4) -----
