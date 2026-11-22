@@ -43,7 +43,7 @@ class QualityGateEvaluatorTest {
     private static final int RUNS = 3;
 
     /** Ten roots on either side are enough here, so the shortage of cases does not colour every test. */
-    private static final QualityGateSettings SETTINGS = new QualityGateSettings(0.05, 0.05, 10, 10, 0.30);
+    private static final QualityGateSettings SETTINGS = new QualityGateSettings(0.05, 0.05, 10, 10, 0.20);
 
     private static final QualityNoise NOISE = noise(0.05);
 
@@ -374,7 +374,7 @@ class QualityGateEvaluatorTest {
         // 5 of the 14 normal cases in every run: 15 of 42 answers, 35.7 points over none.
         assertThat(finding.figures()).containsEntry("pairedCases", 14).containsEntry("currentRate", 0.0)
                 .containsEntry("candidateRate", 15.0 / 42).containsEntry("increase", 15.0 / 42)
-                .containsEntry("limit", 0.30).containsEntry("newlyStoppedCases", 5);
+                .containsEntry("limit", 0.20).containsEntry("newlyStoppedCases", 5);
         assertThat(finding.caseKeys()).containsExactlyElementsOf(challenged);
         assertThat(finding.comparisons()).extracting(QualityComparison::metric).containsExactly(QualityMetric.FRICTION);
         assertThat(result.comparisons().get(QualityMetric.FRICTION).verdict()).isEqualTo(QualityVerdict.UNDECIDABLE);
@@ -401,6 +401,31 @@ class QualityGateEvaluatorTest {
         assertThat(fewer.figures().get("increase").doubleValue()).isNegative();
         assertThat(status(gate(soundAnswers(), soundAnswers()), QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT))
                 .isEqualTo(QualityGateStatus.PASSED);
+    }
+
+    @Test
+    void besideRow5TheDefaultLimitBlocksARiseOf20PointsOrMoreAndPassesOneBelow() {
+        List<QualityCase> normal = new ArrayList<>();
+        for (int index = 1; index <= 10; index++) {
+            normal.add(QualityFixtures.normal("W" + index));
+        }
+        List<QualityAnswer> allowed = QualityAnswerFixtures.answers(normal, RUNS, item -> QualityAction.ALLOW);
+        Function<Integer, QualityGateFinding> challenging = count -> QualityGateEvaluator.evaluate(new QualityGateInput(
+                normal, QualityAnswerFixtures.measurement("v1", RUNS, allowed),
+                QualityAnswerFixtures.measurement("v2", RUNS, QualityAnswerFixtures.answers(normal, RUNS,
+                        item -> Integer.parseInt(item.key().substring(1)) <= count ? QualityAction.CHALLENGE
+                                : QualityAction.ALLOW)), NOISE, QualityGateSettings.defaults(), null))
+                .finding(QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT);
+
+        assertThat(QualityGateSettings.defaults().frictionIncreaseLimit()).isEqualTo(0.20);
+        // Two of ten normal cases challenged in every run is 20 points: the limit itself blocks.
+        QualityGateFinding atTheLimit = challenging.apply(2);
+        assertThat(atTheLimit.status()).isEqualTo(QualityGateStatus.BLOCKED);
+        assertThat(atTheLimit.figures()).containsEntry("increase", 0.2).containsEntry("limit", 0.20);
+        // One of ten is 10 points, under it.
+        QualityGateFinding under = challenging.apply(1);
+        assertThat(under.status()).isEqualTo(QualityGateStatus.PASSED);
+        assertThat(under.figures()).containsEntry("increase", 0.1);
     }
 
     @Test
@@ -469,7 +494,7 @@ class QualityGateEvaluatorTest {
         QualityGateResult five = gate(soundAnswers(), withoutModel(5));
         QualityGateResult four = gate(soundAnswers(), withoutModel(4));
         QualityGateResult fiveUnderALooserLimit = gate(soundAnswers(), withoutModel(5), NOISE,
-                new QualityGateSettings(0.10, 0.05, 10, 10, 0.30));
+                new QualityGateSettings(0.10, 0.05, 10, 10, 0.20));
         List<QualityAnswer> careless = soundAnswers().stream().map(answer -> new QualityAnswer(answer.caseKey(),
                 answer.run(), answer.firstAction(), null, false, false, 3, 1, 7000L, 120, false, null)).toList();
         QualityGateResult lessAccurate = gate(soundAnswers(), careless);

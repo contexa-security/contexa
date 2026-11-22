@@ -161,7 +161,8 @@ public class PqaOssQualityProperties {
 
         /**
          * Quality P8: how far the friction of the candidate may grow over that of the version in use, as a difference
-         * of the two rates (0.30 is 30 percentage points), before the gate blocks whatever the significance.
+         * of the two rates (0.20, the default, is 20 percentage points), before the gate blocks whatever the
+         * significance.
          */
         private double frictionIncreaseLimit = DEFAULTS.frictionIncreaseLimit();
 

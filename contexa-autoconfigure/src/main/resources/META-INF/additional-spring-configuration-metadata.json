@@ -51,8 +51,8 @@
     {
       "name": "contexa.pqa.oss.quality.gate.friction-increase-limit",
       "type": "java.lang.Double",
-      "defaultValue": 0.30,
-      "description": "How far the friction of the candidate (the share of its answers to cases that must be allowed that did not allow them) may grow over that of the version in use, as a difference of the two rates on the same cases: 0.30 is 30 percentage points. A rise by this much or more blocks the version whatever the significance, so a version that challenges every request is stopped also where the version in use already stops most normal work and too few root cases are left to tell the two apart. Above 0 and at most 1; a value outside stops the start. The mode (contexa.pqa.oss.quality.gate.mode) decides whether a blocked verdict blocks or warns."
+      "defaultValue": 0.20,
+      "description": "How far the friction of the candidate (the share of its answers to cases that must be allowed that did not allow them) may grow over that of the version in use, as a difference of the two rates on the same cases: 0.20 is 20 percentage points, three more of the fifteen such answers of the default case set run once. A rise by this much or more blocks the version whatever the significance, so a version that challenges every request is stopped also where the version in use already stops most normal work and too few root cases are left to tell the two apart. Above 0 and at most 1; a value outside stops the start. The mode (contexa.pqa.oss.quality.gate.mode) decides whether a blocked verdict blocks or warns."
     },
     {
       "name": "contexa.pqa.oss.sealed-evidence.capture-enabled",

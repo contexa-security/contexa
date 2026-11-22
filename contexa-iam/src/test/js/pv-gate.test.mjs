@@ -92,7 +92,7 @@ function passedRows() {
         row('STOPPING_NOT_INCREASED', 'PASSED', {worseRates: 0}, [rate('FALSE_STOP', 0, 0), rate('OVER_BLOCK', 0, 0),
             rate('FRICTION', 10 / 15, 9 / 15), rate('DEFERRAL', 0, 1 / 70)]),
         row('FRICTION_INCREASE_WITHIN_LIMIT', 'PASSED', {pairedCases: 15, currentRate: 10 / 15, candidateRate: 9 / 15,
-            increase: -1 / 15, limit: 0.3, newlyStoppedCases: 0}, [rate('FRICTION', 10 / 15, 9 / 15)]),
+            increase: -1 / 15, limit: 0.2, newlyStoppedCases: 0}, [rate('FRICTION', 10 / 15, 9 / 15)]),
         row('MODEL_USED_AND_CITATIONS_ACCURATE', 'PASSED', {modelLessAnswers: 0, answers: 70, modelLessRate: 0,
             modelLessLimit: 0.05}, [rate('CITATION_ACCURACY', 0.728, 0.811)]),
         row('NO_NEWLY_MISSED_OR_STOPPED_CASES', 'PASSED', {newlyMissedCases: 0, newlyStoppedCases: 0}),
@@ -173,7 +173,7 @@ test('all passed: one line "N passed" folds every row, nothing to tick, no reaso
     assert.equal(plan.folds[0].rows[ROWS.indexOf('MISS_NOT_INCREASED')].evidence,
         '놓침 25.5% → 18.2% · 같음 (흔들림 폭 ±4.4%)');
     assert.equal(plan.folds[0].rows[ROWS.indexOf('FRICTION_INCREASE_WITHIN_LIMIT')].evidence,
-        '마찰 66.7% → 60% · 늘지 않음(상한 30%p)');
+        '마찰 66.7% → 60% · 늘지 않음(상한 20%p)');
     allWordsFound(plan);
 });
 
@@ -414,7 +414,7 @@ test('quality P35: a control case the version in use answers outside its allowed
 
 test('quality P8: a friction that rises by the limit or more blocks whatever the significance, in both languages', () => {
     const over = {status: 'BLOCKED', figures: {pairedCases: 15, currentRate: 10 / 15, candidateRate: 1, increase: 5 / 15,
-        limit: 0.3, newlyStoppedCases: 4}, comparisons: [rate('FRICTION', 10 / 15, 1, 'UNDECIDABLE', 0)],
+        limit: 0.2, newlyStoppedCases: 4}, comparisons: [rate('FRICTION', 10 / 15, 1, 'UNDECIDABLE', 0)],
     cases: ['A1T', 'K2', 'S03', 'NOR-S01']};
     const blocked = quality({mode: 'BLOCK', verdict: 'BLOCKED', applied: 'BLOCKED', overridable: true,
         rows: replaced(passedRows(), {FRICTION_INCREASE_WITHIN_LIMIT: over})});
@@ -424,27 +424,27 @@ test('quality P8: a friction that rises by the limit or more blocks whatever the
     assert.deepEqual(conditions(plan.open), ['FRICTION_INCREASE_WITHIN_LIMIT']);
     const row = plan.open[0];
     assert.equal(row.title, '마찰이 지금 판보다 상한 이상 늘지 않았다(유의성과 관계없이)');
-    assert.equal(row.evidence, '마찰 66.7% → 100% · 33.3%p 늘어남(상한 30%p)'
+    assert.equal(row.evidence, '마찰 66.7% → 100% · 33.3%p 늘어남(상한 20%p)'
         + ' · 상한은 설정 contexa.pqa.oss.quality.gate.friction-increase-limit 입니다');
     assert.deepEqual(row.cases, {names: ['A1T', 'K2', 'S03', 'NOR-S01'], more: null});
     allWordsFound(plan);
 
     const english = load('en').gatePlan(check(blocked), 'canary');
     assert.equal(english.open[0].title, 'Friction did not rise by the limit or more, whatever the significance');
-    assert.equal(english.open[0].evidence, 'Friction 66.7% → 100% · up 33.3 pts (limit 30 pts)'
+    assert.equal(english.open[0].evidence, 'Friction 66.7% → 100% · up 33.3 pts (limit 20 pts)'
         + ' · The limit is the setting contexa.pqa.oss.quality.gate.friction-increase-limit');
     allWordsFound(english);
 
     // A rise short of the limit passes and folds with the passed rows; no case that must be allowed, no friction.
     const under = ko.gatePlan(check(quality({rows: replaced(passedRows(), {FRICTION_INCREASE_WITHIN_LIMIT: {
-        status: 'PASSED', figures: {pairedCases: 15, currentRate: 10 / 15, candidateRate: 14 / 15, increase: 4 / 15,
-            limit: 0.3, newlyStoppedCases: 4}}, MUST_CATCH_NOT_WEAKENED: {status: 'PASSED', figures: {gradedCases: 0}}})})),
+        status: 'PASSED', figures: {pairedCases: 15, currentRate: 10 / 15, candidateRate: 12 / 15, increase: 2 / 15,
+            limit: 0.2, newlyStoppedCases: 2}}, MUST_CATCH_NOT_WEAKENED: {status: 'PASSED', figures: {gradedCases: 0}}})})),
     'use');
     const folds = under.folds[0].rows;
-    assert.equal(folds[ROWS.indexOf('FRICTION_INCREASE_WITHIN_LIMIT')].evidence, '마찰 66.7% → 93.3% · 26.7%p 늘어남(상한 30%p)');
+    assert.equal(folds[ROWS.indexOf('FRICTION_INCREASE_WITHIN_LIMIT')].evidence, '마찰 66.7% → 80% · 13.3%p 늘어남(상한 20%p)');
     assert.equal(folds[ROWS.indexOf('MUST_CATCH_NOT_WEAKENED')].evidence, '이 등급의 사례가 없습니다');
     const none = ko.gatePlan(check(quality({rows: replaced(passedRows(), {FRICTION_INCREASE_WITHIN_LIMIT: {
-        status: 'PASSED', figures: {pairedCases: 0, currentRate: null, candidateRate: null, increase: null, limit: 0.3,
+        status: 'PASSED', figures: {pairedCases: 0, currentRate: null, candidateRate: null, increase: null, limit: 0.2,
             newlyStoppedCases: 0}}})})), 'use');
     assert.equal(none.folds[0].rows[ROWS.indexOf('FRICTION_INCREASE_WITHIN_LIMIT')].evidence,
         '허용해야 할 사례가 없어 견줄 마찰이 없습니다');

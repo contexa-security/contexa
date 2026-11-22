@@ -159,14 +159,14 @@ class PromptGovernanceAutoConfigurationTest {
                         "contexa.pqa.oss.quality.gate.significance=0.1",
                         "contexa.pqa.oss.quality.gate.minimum-stop-roots=50",
                         "contexa.pqa.oss.quality.gate.minimum-allow-roots=60",
-                        "contexa.pqa.oss.quality.gate.friction-increase-limit=0.2")
+                        "contexa.pqa.oss.quality.gate.friction-increase-limit=0.15")
                 .withBean(QualityGateSource.class, () -> (scope, prompt, candidate, current) ->
                         QualityGateReading.baselinePending(null))
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     QualityGatePolicy policy = context.getBean(PqaOssQualityProperties.class).getGate().policy(null);
                     assertThat(policy.mode()).isEqualTo(QualityGateMode.BLOCK);
-                    assertThat(policy.settings()).isEqualTo(new QualityGateSettings(0.02, 0.1, 50, 60, 0.2));
+                    assertThat(policy.settings()).isEqualTo(new QualityGateSettings(0.02, 0.1, 50, 60, 0.15));
                     assertThat(context.getBean(PromptGovernanceReleaseGateService.class)
                             .qualityMeasurement(null, "cortex.security-decision", "v1.0"))
                             .isEqualTo(QualityMeasurementState.BASELINE_PENDING);
@@ -193,7 +193,7 @@ class PromptGovernanceAutoConfigurationTest {
         assertThat(limit.get("type").asText()).isEqualTo("java.lang.Double");
         assertThat(limit.get("defaultValue").asDouble())
                 .isEqualTo(new PqaOssQualityProperties().getGate().getFrictionIncreaseLimit())
-                .isEqualTo(QualityGateSettings.defaults().frictionIncreaseLimit());
+                .isEqualTo(QualityGateSettings.defaults().frictionIncreaseLimit()).isEqualTo(0.20);
         assertThat(limit.get("description").asText()).contains("percentage points", "whatever the significance");
     }
 

@@ -24,7 +24,7 @@ package io.contexa.contexacore.std.components.prompt.quality;
  *                              apart
  * @param minimumAllowRoots     how many distinct roots of cases that must be allowed are needed
  * @param frictionIncreaseLimit how far the friction may grow over the version in use, as a difference of the two
- *                              rates (0.30 is 30 percentage points), before the gate blocks whatever the
+ *                              rates (0.20 is 20 percentage points), before the gate blocks whatever the
  *                              significance; above 0 and at most 1
  */
 public record QualityGateSettings(double modelLessLimit, double significance, int minimumStopRoots,
@@ -49,9 +49,11 @@ public record QualityGateSettings(double modelLessLimit, double significance, in
 
     /**
      * The defaults of the plan: 5% decided without the model, the 5% level, and 200 and 300 distinct roots (plan 3.2);
-     * and a friction that grows by 30 percentage points or more blocks (quality P8).
+     * and a friction that grows by 20 percentage points or more blocks (quality P8): on the default case set, three more
+     * of the fifteen answers to cases that must be allowed, which stops a version that challenges every request with
+     * one answer to spare.
      */
     public static QualityGateSettings defaults() {
-        return new QualityGateSettings(0.05, 0.05, 200, 300, 0.30);
+        return new QualityGateSettings(0.05, 0.05, 200, 300, 0.20);
     }
 }
