@@ -21,6 +21,7 @@ import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateSettings;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
 import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
@@ -39,6 +40,8 @@ import io.contexa.contexaiam.admin.promptquality.measure.QualityMeasureLock;
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityModelSetting;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseApiController;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseScreen;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityNavAdvice;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityNavCounts;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityPageController;
@@ -362,7 +365,37 @@ public class PromptVersionConsoleAutoConfiguration {
     @Bean(name = "contexaPromptQualityPageController")
     @ConditionalOnMissingBean
     @ConditionalOnBean(PromptVersionService.class)
-    public PromptQualityPageController promptQualityPageController() {
-        return new PromptQualityPageController();
+    public PromptQualityPageController promptQualityPageController(MessageSource messageSource,
+                                                                   @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+        return new PromptQualityPageController(messageSource, objectMapper);
+    }
+
+    /**
+     * Quality plan 3.2, P46: what the screen of the labelled cases shows, from the cases, the measurements, the resource
+     * classes and the version in use; the targets of roots and the level of the comparisons are the gate's settings.
+     */
+    @Bean(name = "contexaPromptQualityCaseScreen")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityCases.class)
+    public PromptQualityCaseScreen promptQualityCaseScreen(PromptQualityCases contexaPromptQualityCases,
+                                                           ObjectProvider<PromptQualityMeasurements> measurements,
+                                                           ObjectProvider<PromptQualityResourceClasses> classes,
+                                                           ObjectProvider<PromptVersionConsole> console,
+                                                           ObjectProvider<SealedEvidencePackageRepository> sealed,
+                                                           PqaOssQualityProperties properties) {
+        PqaOssQualityProperties.Gate gate = properties.getGate();
+        return new PromptQualityCaseScreen(contexaPromptQualityCases, measurements::getIfAvailable,
+                classes::getIfAvailable, console::getIfAvailable, sealed::getIfUnique,
+                new QualityGateSettings(gate.getModelLessLimit(), gate.getSignificance(), gate.getMinimumStopRoots(),
+                        gate.getMinimumAllowRoots()), Clock.systemUTC());
+    }
+
+    /** Quality plan 3.2: the JSON of the screen of the labelled cases. */
+    @Bean(name = "contexaPromptQualityCaseApiController")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityCaseScreen.class)
+    public PromptQualityCaseApiController promptQualityCaseApiController(
+            PromptQualityCaseScreen contexaPromptQualityCaseScreen) {
+        return new PromptQualityCaseApiController(contexaPromptQualityCaseScreen);
     }
 }
