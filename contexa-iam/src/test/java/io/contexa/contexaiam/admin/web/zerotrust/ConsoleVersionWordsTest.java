@@ -60,10 +60,6 @@ class ConsoleVersionWordsTest {
             }
         }
         assertThat(checked).isGreaterThan(1000);
-        assertThat(korean.getProperty("promptInspection.replay.title")).isEqualTo("버전으로 재생");
-        assertThat(korean.getProperty("promptInspection.replay.bundle")).isEqualTo("버전");
-        assertThat(korean.getProperty("promptInspection.detail.reason.earlierBundle")).startsWith("옛 버전,");
-        assertThat(english.getProperty("promptInspection.replay.title")).isEqualTo("Replay with a version");
         assertThat(korean.getProperty("zt.console.ui.operations.usage.title")).isEqualTo("버전·모델 사용");
         assertThat(english.getProperty("zt.console.ui.operations.usage.bundleModel")).isEqualTo("Version · model");
         assertThat(korean.getProperty("zt.console.ui.band.bundle")).isEqualTo("버전 {0}");

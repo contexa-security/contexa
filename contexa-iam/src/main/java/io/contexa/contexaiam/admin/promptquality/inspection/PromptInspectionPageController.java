@@ -12,9 +12,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Locale;
-import java.util.stream.Stream;
 
 /**
  * The addresses of the sealed prompt screens, which became the sealed evidence (quality plan 3.7, 3.8): the list and
@@ -27,32 +25,6 @@ import java.util.stream.Stream;
 @RequestMapping("/contexa/admin/prompt-inspection")
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptInspectionPageController {
-
-    /**
-     * The message keys the scripts of the sealed prompt screens drew. Their files stay until the table of what moved
-     * to the sealed evidence is approved; then they go with these keys.
-     */
-    static final List<String> SCRIPT_KEYS = Stream.of(
-            PromptInspectionScreen.VERDICTS.stream().map(verdict -> "promptInspection.verdict." + verdict),
-            Stream.concat(PromptInspectionScreen.CHECKS.stream(), PromptInspectionScreen.RETIRED_CHECKS.stream())
-                    .map(check -> "promptInspection.check." + check),
-            Stream.of("MISMATCH", "UNVERIFIABLE").map(outcome -> "promptInspection.outcome." + outcome),
-            Stream.of("AUTO", "OPERATOR").map(trigger -> "promptInspection.trigger." + trigger),
-            Stream.of("loading", "empty", "error", "notFound").map(word -> "promptInspection.common." + word),
-            Stream.of("total", "previous", "next").map(word -> "promptInspection.packages." + word),
-            Stream.of("started", "progress", "done", "failed").map(word -> "promptInspection.reinspect." + word),
-            Stream.of("selectLine", "matchedBy", "noFinding", "expected", "actual", "source", "reason",
-                            "reason.earlierBundle", "unplaced",
-                            "inspector", "stored.same", "stored.differs", "stored.other", "stored.none",
-                            "changes.compared", "changes.disappeared", "changes.appeared", "changes.none")
-                    .map(word -> "promptInspection.detail." + word),
-            // docs/agent OC-5: the replay section.
-            Stream.of("action", "reason", "codes", "model", "elapsed", "baselines", "baselines.GIVEN",
-                            "baselines.CURRENT", "integrity", "integrity.VERIFIED", "integrity.MISMATCH",
-                            "integrity.UNVERIFIABLE", "failure", "secondPass", "confirm", "running", "failed", "unavailable")
-                    .map(word -> "promptInspection.replay." + word))
-            .flatMap(keys -> keys)
-            .toList();
 
     /** The audit result of the sealed evidence that a verdict of the sealed prompt list filtered by, or null. */
     static String resultOfVerdict(String verdict) {
