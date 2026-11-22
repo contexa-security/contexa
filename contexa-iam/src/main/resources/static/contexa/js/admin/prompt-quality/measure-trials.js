@@ -1,54 +1,57 @@
 /*
- * Prompt versions, the trials (plan 3.10, screen 4): the latest sealed decisions decided again with two versions,
- * nothing applied; the share that kept its action, the format errors, the decision time and the answer length, the
- * actions of each version, and the decisions that changed. The results of a version running alongside the decisions
- * are read here as well.
+ * Measure and compare, a measurement on the latest sealed decisions (quality plan 3.8): the trial of the prompt versions
+ * (plan 3.10, screen 4) moved here. The latest sealed decisions decided again with two versions, nothing applied; with no
+ * right answer it shows the share that kept its action, the format errors, the decision time and the answer length,
+ * the actions of each version and the decisions that changed. Its start is the measurement start's other input, its
+ * runs stand in the list of the measurements, its result is a view of the screen (under "two versions"), and the results
+ * of a version running alongside the decisions stand under the list. It reads and starts trials through the JSON of the
+ * prompt versions (PV), as before.
  */
 (function (global) {
     'use strict';
 
     const ZT = global.ZT;
     const PV = global.PV;
-    const el = ZT.el;
-    const t = ZT.t;
+    const PQA = global.PQA;
+    const MEASURE = global.PQA_MEASURE;
     const root = document.getElementById('zt-console');
     const content = document.getElementById('zt-content');
+    if (!ZT || !PV || !PQA || !MEASURE || !root || !content) {
+        return;
+    }
+    const el = ZT.el;
+    const t = ZT.t;
+    const m = MEASURE.m;
     const trialId = root.dataset.trialId ? Number(root.dataset.trialId) : null;
     const POLL_MS = 3000;
     let poll = null;
 
-    async function draw() {
-        global.clearTimeout(poll);
+    // ----- the start: the other input of the measurement start -----
+
+    /**
+     * The start of a trial: the version to try (the one the version screens asked for, else the newest not in use),
+     * the version it is compared with (the one in use) and 20, 50 or 100 decisions, with the trial's own note.
+     */
+    function startBox(view, inputField, modelField) {
+        const holder = PQA.filterBox([inputField, modelField], PQA.muted(m('loading')));
+        fill(holder, inputField, modelField);
+        return holder;
+    }
+
+    async function fill(holder, inputField, modelField) {
         let start;
         let list;
         try {
             [start, list] = await Promise.all([PV.get('/trials'), PV.get('')]);
         } catch (error) {
-            content.replaceChildren(el('div', {class: 'pc-empty', role: 'alert'},
-                el('i', {class: 'fas fa-exclamation-triangle', 'aria-hidden': 'true'}),
-                el('p', {text: '— ' + t('pv.ui.loadFailed')})));
+            holder.replaceWith(PQA.failed());
             return;
         }
-        PV.band(list, {page: PV.PAGES + '/trials'});
-        PV.toolbar();
         if (!start.offered) {
-            content.replaceChildren(el('div', {class: 'pc-empty', role: 'note'},
-                el('i', {class: 'fas fa-info-circle', 'aria-hidden': 'true'}),
-                el('p', {text: '— ' + t('pv.trial.notOffered')})));
+            holder.replaceWith(PQA.filterBox([inputField], PQA.muted(t('pv.trial.notOffered'))));
             return;
         }
-        const nodes = [startCard(start, list)];
-        if (trialId) {
-            nodes.unshift(await resultBlock(list));
-        }
-        nodes.push(recentCard(start), await shadowCard());
-        content.replaceChildren(...nodes.filter(Boolean));
-    }
-
-    // ----- the start -----
-
-    function startCard(start, list) {
-        const asked = Number(PV.params().get('candidate')) || null;
+        const asked = Number(PQA.params().get('candidate')) || null;
         const shown = start.versions;
         const unused = shown.filter(row => row.state !== 'USED');
         const candidate = select('pv-trial-candidate', t('pv.trial.candidate'), shown,
@@ -57,20 +60,18 @@
         const reference = select('pv-trial-reference', t('pv.trial.reference'), shown,
             current ? current.number : shown.length > 1 ? shown[1].number : null, true);
         let count = start.counts[0];
-        const counts = el('div', {class: 'zt-period', role: 'group', 'aria-label': t('pv.trial.count')},
-            ...start.counts.map(value => {
-                const button = el('button', {type: 'button', 'aria-pressed': String(value === count),
-                    text: t('pv.trial.countValue', value)});
-                button.addEventListener('click', () => {
-                    count = value;
-                    counts.querySelectorAll('button').forEach(other => other.setAttribute('aria-pressed',
-                        String(other === button)));
-                });
-                return button;
-            }));
+        const calls = PQA.muted('');
+        const showCalls = () => {
+            calls.textContent = m('start.sealedCalls', ZT.count(count), ZT.count(count * 2));
+        };
+        const counts = PQA.pills(t('pv.trial.count'), start.counts.map(value => [value, t('pv.trial.countValue', value)]),
+            count, value => {
+                count = value;
+                showCalls();
+            });
+        showCalls();
         const go = PV.button(t('pv.trial.start'), 'fa-play', async () => {
-            const body = {candidate: Number(candidate.querySelector('select').value),
-                reference: Number(reference.querySelector('select').value), count};
+            const body = {candidate: Number(candidate.value), reference: Number(reference.value), count};
             if (body.candidate === body.reference) {
                 PV.notice('bad', t('pv.trial.startFailed'), [t('pv.refused.TRIAL_VERSION')]);
                 return;
@@ -79,44 +80,59 @@
             const result = await PV.send('/trials', body);
             go.disabled = false;
             if (result.ok) {
-                global.location.assign(PV.page('/trials/' + result.body.id));
+                global.location.assign(PQA.page(MEASURE.PAGES + '/trials/' + result.body.id));
             } else {
                 PV.notice('bad', t('pv.trial.startFailed'), PV.refusedLines(result));
             }
         }, {primary: true, name: 'start-trial', disabled: !list.writable});
-        return ZT.card(t('pv.trial.new'), t('pv.trial.newAside'),
-            el('div', {class: 'zt-filter-grid pv-form-grid'}, candidate, reference,
-                el('div', {class: 'zt-filter-field pv-span-all'}, el('span', {class: 'zt-filter-name',
-                    text: t('pv.trial.count')}), counts)),
-            el('p', {class: 'zt-muted', text: t('pv.trial.startNote')}),
-            el('div', {class: 'pv-actions'}, go));
+        const box = PQA.filterBox([inputField, {name: t('pv.trial.candidate'), node: candidate},
+            {name: t('pv.trial.reference'), node: reference}, modelField,
+            {name: t('pv.trial.count'), span: true, node: counts}], go, calls);
+        box.append(el('div', {class: 'zt-item'}, PQA.muted(m('start.sealedOnly')), PQA.muted(t('pv.trial.startNote'))));
+        holder.replaceWith(box);
     }
 
     function select(id, label, rows, selected, current) {
         const node = el('select', {class: 'modern-select', id, 'aria-label': label});
         rows.forEach(row => node.append(el('option', {value: String(row.number), selected: row.number === selected
             ? true : null, text: PV.versionLabel(row) + (current && row.state === 'USED' ? ' ' + t('pv.trial.now') : '')})));
-        return el('label', {class: 'zt-filter-field'}, el('span', {class: 'zt-filter-name', text: label}), node);
+        return node;
     }
 
-    // ----- the result -----
+    // ----- the result: a view of the screen, under "two versions" -----
 
-    async function resultBlock(list) {
+    async function drawTrial() {
+        global.clearTimeout(poll);
+        const [, start] = await Promise.all([MEASURE.band(), PV.get('/trials').catch(() => null)]);
+        const recent = start ? start.recent : [];
+        const label = trial => m('trial.label', trial.candidateName, trial.referenceName,
+            ZT.count(trial.actual != null ? trial.actual : trial.requested), ZT.shortTime(trial.createdAt));
+        const options = recent.map(trial => [trial.id, label(trial)]);
+        const pickNode = PQA.select(m('run.pick'), options, trialId);
+        pickNode.addEventListener('change', () => global.location.assign(PQA.page(MEASURE.PAGES + '/trials/'
+            + pickNode.value)));
+        const pick = PQA.filterBox([{name: m('run.pick'), node: pickNode}], PQA.muted(m('start.sealedOnly')));
+        const result = await resultBlock(options, pickNode, label);
+        content.replaceChildren(pick, result);
+    }
+
+    async function resultBlock(options, pickNode, label) {
         let view;
         try {
             view = await PV.get('/trials/' + trialId);
         } catch (error) {
-            return el('div', {class: 'pc-empty', role: 'alert'}, el('i', {class: 'fas fa-exclamation-triangle',
-                'aria-hidden': 'true'}), el('p', {text: '— ' + t(error.status === 404 ? 'pv.trial.missing'
-                : 'pv.ui.loadFailed')}));
+            return PQA.emptyState(t(error.status === 404 ? 'pv.trial.missing' : 'pv.ui.loadFailed'),
+                'fa-exclamation-triangle', 'alert');
         }
         const result = view.result;
         const trial = result.trial;
+        if (!options.some(([id]) => id === trial.id)) {
+            pickNode.prepend(el('option', {value: String(trial.id), selected: true, text: label(trial)}));
+        }
         const open = trial.status === 'QUEUED' || trial.status === 'RUNNING';
         if (open) {
-            poll = global.setTimeout(draw, POLL_MS);
+            poll = global.setTimeout(drawTrial, POLL_MS);
         }
-        const decision = list.decisionPrompt;
         const wrap = el('div', {class: 'zt-stack', id: 'pv-trial-result'});
         wrap.append(statusCard(view, open));
         if (result.pairs === 0) {
@@ -141,7 +157,7 @@
                     sub: t('pv.trial.vsSub', result.reference.name, PV.tokens(result.reference.averageAnswerTokens))})),
             distributionCard(result),
             changedCard(result),
-            open ? null : nextActions(view, decision));
+            open ? null : nextActions(view));
         return wrap;
     }
 
@@ -165,7 +181,7 @@
                 if (!result.ok) {
                     PV.notice('bad', t('pv.trial.cancelFailed'), PV.refusedLines(result));
                 }
-                draw();
+                drawTrial();
             }
         }, {name: 'cancel-trial'}) : null;
         return ZT.card(t('pv.trial.result'), PV.word('pv.trial.status.' + trial.status),
@@ -189,7 +205,7 @@
             ...PV.ACTIONS.map(action => el('th', {scope: 'col', class: 'zt-num',
                 text: PV.actionName(action).replace(/-/g, '‑')})),
             el('th', {scope: 'col', class: 'zt-num', text: t('pv.trial.noAnswer')}));
-        const row = (side, label) => el('tr', {}, el('td', {class: 'zt-fill', text: side.name + ' ' + label}),
+        const row = (side, tag) => el('tr', {}, el('td', {class: 'zt-fill', text: side.name + ' ' + tag}),
             ...PV.ACTIONS.map(action => el('td', {class: 'zt-num', text: ZT.count(side.actions[action] || 0)})),
             el('td', {class: 'zt-num', text: ZT.count(side.noAnswer)}));
         // A phone cannot hold the six columns: it shows the same numbers as one bar per version.
@@ -226,22 +242,18 @@
             el('td', {class: 'zt-cell-chips pv-wide'}, ZT.chip(change.candidateAction, PV.actionName(change.candidateAction))),
             el('td', {class: 'pv-wide'}, el('span', {class: 'pv-cut', title: change.candidateReason || '',
                 text: change.candidateReason || '—'}))));
-        return withFoot(foot, ZT.card(t('pv.trial.changed', ZT.count(result.changed.length)), t('pv.trial.changedAside'),
+        const card = ZT.card(t('pv.trial.changed', ZT.count(result.changed.length)), t('pv.trial.changedAside'),
             el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table modern-table'},
                 el('thead', {}, el('tr', {}, ...['when', 'target', 'reference', 'candidate', 'reason'].map(column =>
                     el('th', {scope: 'col', class: (column === 'reason' || column === 'reference' || column === 'candidate'
                         ? 'pv-wide ' : '') + 'pv-keep-case',
                         text: t('pv.trial.column.' + column, result.reference.name, result.candidate.name)})))),
-                body))));
+                body)));
+        return PQA.withFoot(card, foot);
     }
 
-    /** A card with the pager of its table below it. */
-    function withFoot(foot, card) {
-        card.append(foot);
-        return card;
-    }
-
-    function nextActions(view, decision) {
+    /** "Apply to some users first" opens the canary of the version screens; "use for decisions" their confirmation. */
+    function nextActions(view) {
         const trial = view.result.trial;
         if (trial.status !== 'DONE' || !view.writable) {
             return null;
@@ -250,37 +262,10 @@
             PV.button(t('pv.trial.canary'), 'fa-users', null, {href: PV.page('/advanced', {canary: trial.candidate}),
                 name: 'to-canary'}),
             PV.button(t('pv.trial.use', trial.candidateName), 'fa-check-circle',
-                () => PV.useVersion(trial.candidate, decision, draw), {primary: true, name: 'use'}));
+                () => PV.useVersion(trial.candidate, true, drawTrial), {primary: true, name: 'use'}));
     }
 
-    // ----- the recent trials and the results alongside -----
-
-    function recentCard(start) {
-        if (!start.recent.length) {
-            return null;
-        }
-        const body = el('tbody');
-        // K121: a phone keeps the start, the count and the state as columns, each head whole in its room; the versions
-        // and who started it read as a line under the start, their columns kept for the wider layouts.
-        const WIDE = ['versions', 'by'];
-        start.recent.forEach(trial => {
-            const versions = trial.candidateName + ' ↔ ' + trial.referenceName;
-            const line = versions + ' · ' + (trial.createdBy || '—');
-            body.append(el('tr', {},
-                el('td', {title: line}, el('a', {class: 'zt-link', href: PV.page('/trials/' + trial.id),
-                    text: ZT.time(trial.createdAt)}), el('div', {class: 'zt-short zt-muted', text: line})),
-                el('td', {class: 'zt-wide', text: versions}),
-                el('td', {class: 'zt-num', text: ZT.count(trial.actual != null ? trial.actual : trial.requested)}),
-                el('td', {class: 'zt-cell-chips'}, el('span', {class: 'status-badge zt-chip', 'data-pv-trial': trial.status,
-                    text: PV.word('pv.trial.status.' + trial.status)})),
-                el('td', {class: 'zt-wide', text: trial.createdBy || '—'})));
-        });
-        return ZT.card(t('pv.trial.recent'), null, el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table modern-table'},
-            el('thead', {}, el('tr', {}, ...['started', 'versions', 'count', 'status', 'by'].map(column =>
-                el('th', {scope: 'col', class: [column === 'count' ? 'zt-num' : '', WIDE.includes(column) ? 'zt-wide' : '']
-                    .join(' ').trim() || null, text: t('pv.trial.recentColumn.' + column)})))),
-            body)));
-    }
+    // ----- the results alongside, under the list of the measurements -----
 
     /** The sealed package of a run, opened on the prompt inspection screen where its inspection is. */
     const EVIDENCE = '/contexa/admin/prompt-inspection/packages/';
@@ -414,5 +399,6 @@
         return card;
     }
 
-    draw();
+    global.PQA_TRIALS = {startBox, shadowCard};
+    MEASURE.views.trial = drawTrial;
 })(window);
