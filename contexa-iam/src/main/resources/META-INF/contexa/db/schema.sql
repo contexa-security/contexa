@@ -2722,6 +2722,12 @@ create index if not exists ctxa_idx_prompt_version_case_subject
 create index if not exists ctxa_idx_prompt_version_case_package
     on ctxa_prompt_version_case (sealed_package_id);
 
+-- Quality plan 3.6: a case promoted from a decision the second analysis decided is marked and counted apart: its
+-- package holds the second analysis's input, so the first pass replayed from it may read another input than the
+-- decision's first pass did.
+alter table ctxa_prompt_version_case
+    add column if not exists second_analysis boolean not null default false;
+
 -- Each change of a case's right answer: what it was, what it became, who changed it and when.
 create table if not exists ctxa_prompt_version_case_change (
     id bigserial primary key,

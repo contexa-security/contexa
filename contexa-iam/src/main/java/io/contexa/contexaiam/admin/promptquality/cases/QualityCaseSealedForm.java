@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.contexa.contexacore.autonomous.baseline.DecisionBaselines;
+import io.contexa.contexacore.monitoring.ai.DecisionRiskSignals;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCase;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCaseInput;
@@ -77,6 +78,23 @@ public final class QualityCaseSealedForm {
                 object(json, sealed.getBaselineSnapshotJson(), "baseline snapshot"),
                 object(json, sealed.getRagResultsJson(), "retrieval results"),
                 denied.isArray() ? denied : null, user, organization);
+    }
+
+    /**
+     * Quality plan 3.6: whether the sealed decision was decided by the second analysis, as its seal keeps the analysis
+     * depth ({@link DecisionRiskSignals#secondAnalysis}, the sign the review sample reads from the decision row). Its
+     * package holds the second analysis's input, which the first pass of a replay reads. A seal without a readable
+     * decision says nothing of it.
+     */
+    public static boolean secondAnalysis(SealedEvidencePackage sealed, ObjectMapper json) {
+        JsonNode level;
+        try {
+            level = read(json, sealed.getDecisionJson(), "decision").path("aiAnalysisLevel");
+        }
+        catch (IllegalArgumentException unreadable) {
+            return false;
+        }
+        return (level.isNumber() || level.isTextual()) && DecisionRiskSignals.secondAnalysis(level.asText());
     }
 
     /**

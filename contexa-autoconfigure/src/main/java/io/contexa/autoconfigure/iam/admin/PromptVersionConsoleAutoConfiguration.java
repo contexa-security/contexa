@@ -24,7 +24,9 @@ import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
 import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
@@ -47,6 +49,7 @@ import io.contexa.contexaiam.admin.promptquality.version.PromptVersionService;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionTrials;
 import io.contexa.autoconfigure.core.infra.CoreSchedulerLockAutoConfiguration;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleService;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustDecisionRecords;
 import net.javacrumbs.shedlock.core.LockProvider;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -54,6 +57,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationListener;
@@ -81,7 +85,8 @@ import java.util.UUID;
  */
 @AutoConfiguration(after = {PromptVersionAutoConfiguration.class, PromptGovernanceAutoConfiguration.class,
         PromptInspectionAutoConfiguration.class, SealedDecisionReplayAutoConfiguration.class,
-        IamAdminMonitoringAutoConfiguration.class, CoreSchedulerLockAutoConfiguration.class})
+        IamAdminMonitoringAutoConfiguration.class, CoreSchedulerLockAutoConfiguration.class,
+        SealedEvidenceStoreAutoConfiguration.class})
 @ConditionalOnProperty(prefix = "contexa.prompt.governance", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(PqaOssQualityProperties.class)
 public class PromptVersionConsoleAutoConfiguration {
@@ -239,6 +244,28 @@ public class PromptVersionConsoleAutoConfiguration {
     @ConditionalOnBean(PromptQualityCases.class)
     public QualityCaseUserDeletionListener qualityCaseUserDeletionListener(PromptQualityCases contexaPromptQualityCases) {
         return new QualityCaseUserDeletionListener(contexaPromptQualityCases);
+    }
+
+    /**
+     * Quality plan 3.6: the decisions of the operation made cases, from the decision detail with their evaluation and
+     * from a trial whose two versions decided them differently, always from their seal; the evaluation and the case
+     * are kept in one transaction of Contexa's own.
+     */
+    @Bean(name = "contexaQualityCasePromotions")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityCases.class)
+    @ConditionalOnSingleCandidate(SealedEvidencePackageRepository.class)
+    public QualityCasePromotions qualityCasePromotions(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                       PromptQualityCases contexaPromptQualityCases,
+                                                       SealedEvidencePackageRepository sealedEvidencePackageRepository,
+                                                       ObjectProvider<ZeroTrustDecisionRecords> decisions,
+                                                       ObjectProvider<PromptVersionTrials> trials,
+                                                       @Qualifier("contexaTransactionManager")
+                                                       ObjectProvider<PlatformTransactionManager> transactionManager) {
+        PlatformTransactionManager manager = transactionManager.getIfAvailable();
+        return new QualityCasePromotions(() -> jdbcTemplate, contexaPromptQualityCases,
+                sealedEvidencePackageRepository, decisions.getIfAvailable(), trials::getIfAvailable,
+                manager != null ? new TransactionTemplate(manager) : null);
     }
 
     @Bean(name = "contexaPromptVersionConsole")
