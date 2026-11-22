@@ -2813,6 +2813,12 @@ create table if not exists ctxa_prompt_version_measure (
     finished_at timestamp(6)
 );
 
+-- Quality P32: a measurement taken anew uses no answer kept from another and asks the model for every one, so the
+-- difference of two of them of one version is the noise the quality gate reads. A database installed before gains it
+-- here.
+alter table ctxa_prompt_version_measure
+    add column if not exists measured_anew boolean not null default false;
+
 create index if not exists ctxa_idx_prompt_version_measure_version
     on ctxa_prompt_version_measure (registry_scope, prompt_key, version_number, created_at desc);
 

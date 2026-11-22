@@ -16,6 +16,8 @@
 package io.contexa.contexacore.verification.replay;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.domain.EventTimeZone;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
@@ -42,6 +44,7 @@ import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -117,10 +120,24 @@ public class SealedDecisionReplayService {
      * @param contextFormatVersion the version of the context format the sealed inputs are written in, compared with
      *                             {@link SealedDecisionReplayInputs#CONTEXT_FORMAT_VERSION}; null when the inputs do not
      *                             say, as a package this server sealed, which is read as it is
+     * @param scope                quality plan 3.2: the registry scope the version is read in (a labelled case's is its
+     *                             measurement's); null for the store's own, as a decision sealed here names its version
+     * @param timeZone             quality plan 3.2: the time zone the prompt's times are drawn in (a labelled case
+     *                             fixes its own, so that it is the same input on every server); null for the time zone
+     *                             of the events of this server
      */
     public record Request(SealedEvidencePackage sealed, BaselineVector personalBaseline,
                           BaselineVector organizationBaseline, String bundleVersion, Duration timeout,
-                          List<String> secondPassModels, boolean configuredSecondPass, String contextFormatVersion) {
+                          List<String> secondPassModels, boolean configuredSecondPass, String contextFormatVersion,
+                          String scope, ZoneId timeZone) {
+
+        /** A replay of the version of the store's own scope, drawn in the time zone of the events of this server. */
+        public Request(SealedEvidencePackage sealed, BaselineVector personalBaseline,
+                       BaselineVector organizationBaseline, String bundleVersion, Duration timeout,
+                       List<String> secondPassModels, boolean configuredSecondPass, String contextFormatVersion) {
+            this(sealed, personalBaseline, organizationBaseline, bundleVersion, timeout, secondPassModels,
+                    configuredSecondPass, contextFormatVersion, null, null);
+        }
     }
 
     /**
@@ -301,7 +318,7 @@ public class SealedDecisionReplayService {
     public Result replay(Request request) {
         SealedEvidencePackage sealed = request.sealed();
         String bundleVersion = request.bundleVersion();
-        if (!replayable(bundleVersion)) {
+        if (!replayable(request.scope(), bundleVersion)) {
             throw new IllegalArgumentException(PromptBundleCatalog.isVersionName(bundleVersion)
                     ? "Version " + bundleVersion + " is not a version this server can draw"
                     : "Bundle " + bundleVersion + " is not a bundle this build runs");
@@ -326,6 +343,7 @@ public class SealedDecisionReplayService {
         SealedDecisionReplayInputs inputs;
         try {
             inputs = SealedDecisionReplayInputs.of(sealed, replayId, objectMapper, serializer);
+            fixScopeAndClock(inputs, request);
         }
         catch (RuntimeException exception) {
             log.error("Replay of {} with bundle {} failed: its sealed inputs could not be read",
@@ -375,13 +393,39 @@ public class SealedDecisionReplayService {
      * version under its name, so it is refused.
      */
     public boolean replayable(String release) {
+        return replayable(null, release);
+    }
+
+    /**
+     * Quality plan 3.2: whether the replay can draw the release with the version of that name in the registry scope;
+     * the store's own scope when none is given.
+     */
+    public boolean replayable(String scope, String release) {
         if (release == null || release.isBlank()) {
             return false;
         }
         if (PromptBundleCatalog.isVersionName(release)) {
-            return promptTemplate.findPromptVersion(release.trim()).isPresent();
+            return promptTemplate.findPromptVersion(scope, release.trim()).isPresent();
         }
         return SecurityDecisionPromptBundles.find(release).isPresent();
+    }
+
+    /**
+     * Quality plan 3.2: the registry scope the version is read in and the time zone the times are drawn in, fixed on
+     * the replay's event as the request names them; nothing the sealed inputs carry under those names counts.
+     */
+    private static void fixScopeAndClock(SealedDecisionReplayInputs inputs, Request request) {
+        SecurityEvent event = inputs.event();
+        if (event.getMetadata() != null) {
+            event.getMetadata().remove(SecurityDecisionPromptSections.EVENT_BUNDLE_SCOPE);
+            event.getMetadata().remove(EventTimeZone.EVENT_METADATA_KEY);
+        }
+        if (request.scope() != null && !request.scope().isBlank()) {
+            event.addMetadata(SecurityDecisionPromptSections.EVENT_BUNDLE_SCOPE, request.scope().trim());
+        }
+        if (request.timeZone() != null) {
+            event.addMetadata(EventTimeZone.EVENT_METADATA_KEY, request.timeZone());
+        }
     }
 
     private SealedDecisionReplayStrategy strategy(String layer, BaselineVector personalBaseline,
@@ -435,6 +479,7 @@ public class SealedDecisionReplayService {
             try {
                 SealedDecisionReplayInputs inputs = SealedDecisionReplayInputs.of(request.sealed(),
                         replayId + "-second-" + (index + 1), objectMapper, serializer);
+                fixScopeAndClock(inputs, request);
                 SecurityDecisionResponse response = strategy(SealedDecisionReplayStrategy.SECOND_LAYER,
                         request.personalBaseline(), request.organizationBaseline())
                         .replaySecondPass(inputs, request.bundleVersion(), prompt, state, model, request.timeout());

@@ -42,6 +42,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -109,7 +110,7 @@ class PromptQualityScreenApiControllerTest {
                     .andExpect(status().isForbidden());
         }
         verify(cases, never()).publish(any(), any());
-        verify(measure, never()).start(any(), any(), any(), any(), any());
+        verify(measure, never()).start(any(), any(), any(), any(), anyBoolean(), any());
         assertThat(PromptQualityCaseApiController.class.getAnnotation(PreAuthorize.class).value())
                 .isEqualTo(PromptQualityMeasureApiController.class.getAnnotation(PreAuthorize.class).value())
                 .isEqualTo("hasAuthority('ROLE_ADMIN')");
@@ -161,12 +162,13 @@ class PromptQualityScreenApiControllerTest {
         mvc.perform(withToken(post(CASES + "/A1/answer")).principal(admin).contentType("application/json")
                 .content(ANSWER)).andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("READ_ONLY"));
-        when(measure.start(any(), eq(2), isNull(), eq(10), eq("admin"))).thenThrow(new PromptQualityMeasurements
-                .RefusedException(PromptQualityMeasurements.Refusal.CALL_LIMIT, "limit"));
+        when(measure.start(any(), eq(2), isNull(), eq(10), eq(false), eq("admin")))
+                .thenThrow(new PromptQualityMeasurements.RefusedException(PromptQualityMeasurements.Refusal.CALL_LIMIT,
+                        "limit"));
         mvc.perform(withToken(post(MEASURE)).principal(admin).contentType("application/json")
                         .content("{\"version\":2,\"repeats\":10}"))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("CALL_LIMIT"));
-        when(measure.start(any(), eq(3), any(), any(), any())).thenThrow(new PromptQualityMeasureScreen
+        when(measure.start(any(), eq(3), any(), any(), anyBoolean(), any())).thenThrow(new PromptQualityMeasureScreen
                 .RefusedException(PromptQualityMeasureScreen.NO_RUNNER, "none"));
         mvc.perform(withToken(post(MEASURE)).principal(admin).contentType("application/json")
                 .content("{\"version\":3}")).andExpect(status().isUnprocessableEntity())
@@ -178,14 +180,23 @@ class PromptQualityScreenApiControllerTest {
         when(cases.confirm("tenant-a", "operation-3", "admin")).thenReturn(new Saved("operation-3", "CONFIRMED"));
         mvc.perform(withToken(post(CASES + "/operation-3/confirm")).param("scope", "tenant-a").principal(admin))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"));
-        when(measure.start(null, 2, 5L, 3, "admin")).thenReturn(41L);
+        when(measure.start(null, 2, 5L, 3, false, "admin")).thenReturn(41L);
         mvc.perform(withToken(post(MEASURE)).principal(admin).contentType("application/json")
                 .content("{\"version\":2,\"caseSet\":5,\"repeats\":3}")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(41));
-        when(measure.estimate(null, 2, null, 4)).thenReturn(new EstimateView(70, 4, 280, 0, 280, 280, 3360, 3000,
-                true, 33, null));
+        // Quality P32: a measurement asked to be taken anew reaches the screen so.
+        when(measure.start(null, 2, null, 3, true, "admin")).thenReturn(42L);
+        mvc.perform(withToken(post(MEASURE)).principal(admin).contentType("application/json")
+                .content("{\"version\":2,\"repeats\":3,\"anew\":true}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(42));
+        when(measure.estimate(null, 2, null, 4, false)).thenReturn(new EstimateView(70, 4, 280, 0, 280, 280, 3360,
+                3000, true, 33, null));
         mvc.perform(get(MEASURE + "/estimate").param("version", "2").param("repeats", "4").principal(admin))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.minutes").value(33));
+        when(measure.estimate(null, 2, null, 4, true)).thenReturn(new EstimateView(70, 4, 280, 0, 280, 280, 3360,
+                3000, true, 34, null));
+        mvc.perform(get(MEASURE + "/estimate").param("version", "2").param("repeats", "4").param("anew", "true")
+                .principal(admin)).andExpect(status().isOk()).andExpect(jsonPath("$.minutes").value(34));
         when(measure.run(null, 9L)).thenReturn(Optional.empty());
         mvc.perform(get(MEASURE + "/9").principal(admin)).andExpect(status().isNotFound());
         when(cases.detail(any(), eq("A9"), eq("admin"), any(Locale.class))).thenReturn(Optional.empty());
@@ -204,6 +215,6 @@ class PromptQualityScreenApiControllerTest {
         mvc.perform(get(MEASURE + "/compare").param("candidateMeasure", "x").principal(admin))
                 .andExpect(status().isBadRequest());
         verify(measure, never()).cancel(anyLong(), eq("alice"));
-        verify(measure, never()).estimate(any(), anyInt(), any(), eq(0));
+        verify(measure, never()).estimate(any(), anyInt(), any(), eq(0), anyBoolean());
     }
 }

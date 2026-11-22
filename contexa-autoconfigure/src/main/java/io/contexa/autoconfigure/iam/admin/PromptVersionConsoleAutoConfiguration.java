@@ -57,6 +57,8 @@ import io.contexa.contexaiam.admin.promptquality.version.PromptVersionTrials;
 import io.contexa.autoconfigure.core.infra.CoreSchedulerLockAutoConfiguration;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleService;
 import net.javacrumbs.shedlock.core.LockProvider;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -164,6 +166,7 @@ public class PromptVersionConsoleAutoConfiguration {
             PromptQualityRunLine contexaPromptQualityRunLine, PqaOssQualityProperties properties,
             ObjectProvider<LockProvider> lockProviders, ObjectProvider<TieredStrategyProperties> tiered,
             ObjectProvider<TieredLLMProperties> models, ObjectProvider<SecurityZeroTrustProperties> zeroTrust,
+            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel,
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         LockProvider lockProvider = lockProviders.getIfUnique();
         QualityMeasureLock lock = lockProvider != null
@@ -171,17 +174,29 @@ public class PromptVersionConsoleAutoConfiguration {
                 : QualityMeasureLock.local();
         PromptQualityMeasurements measurements = new PromptQualityMeasurements(() -> jdbcTemplate, versions,
                 contexaPromptQualityCases,
-                (actor, given, contextFormat, version, userBaseline, organizationBaseline) -> replays.replayGiven(actor,
-                        given, contextFormat, new SealedDecisionReplays.ReplayRequest(version, null, userBaseline,
-                                organizationBaseline, true)).result(),
+                (actor, given, contextFormat, version, userBaseline, organizationBaseline, scope, timeZone) ->
+                        replays.replayGiven(actor, given, contextFormat, timeZone,
+                                new SealedDecisionReplays.ReplayRequest(version, null, userBaseline,
+                                        organizationBaseline, true, scope)).result(),
                 contexaPromptQualityRunLine, lock,
                 () -> QualityModelSetting.settings(tiered.getIfAvailable(), models.getIfAvailable(),
-                        zeroTrust.getIfAvailable()),
+                        zeroTrust.getIfAvailable(), defaultModel(primaryChatModel)),
                 () -> QualityModelSetting.closingRules(tiered.getIfAvailable()),
                 properties.getMeasurement().toSettings(), objectMapper, Clock.systemUTC(),
                 ManagementFactory.getRuntimeMXBean().getName() + "#" + UUID.randomUUID().toString().substring(0, 8));
         measurements.startLookingForWork();
         return measurements;
+    }
+
+    /**
+     * K196: the model of the primary chat model, which a layer with no model of its own asks, as its default options
+     * name it; null when there is no primary chat model or it names none.
+     */
+    private static String defaultModel(ObjectProvider<ChatModel> primaryChatModel) {
+        ChatModel model = primaryChatModel.getIfAvailable();
+        ChatOptions options = model != null ? model.getDefaultOptions() : null;
+        String name = options != null ? options.getModel() : null;
+        return name != null && !name.isBlank() ? name.trim() : null;
     }
 
     /**

@@ -26,7 +26,6 @@ import org.springframework.lang.Nullable;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.ZoneId;
 import java.util.Collection;
 import java.util.HexFormat;
 import java.util.Map;
@@ -37,11 +36,12 @@ import java.util.TreeSet;
 /**
  * The model setting of a measurement (quality plan 3.3): the server settings that change an answer, before the
  * measurement runs, and the models that answered, after it. Two measurements are compared only when the two are the
- * same. The settings are the models each layer is set to ask, the options of each layer's request (output limit,
- * reasoning effort, verbosity, thinking, budget profile), the determinism of the call, the structured output, the
- * prompt's truncation and argument excerpts, the minimum-action rules and their mode, what an ESCALATE left after the
- * second pass ends in, the time zone the prompt's times are drawn in and the context format the cases are read in.
- * Timeouts, caches and the gate change whether an answer comes, not which, so they are not in it.
+ * same. The settings are the models each layer asks (its own, else the primary chat model's), the options of each
+ * layer's request (output limit, reasoning effort, verbosity, thinking, budget profile), the determinism of the call,
+ * the structured output, the prompt's truncation and argument excerpts, the minimum-action rules and their mode, what
+ * an ESCALATE left after the second pass ends in and the context format the cases are read in. Timeouts, caches and the
+ * gate change whether an answer comes, not which, so they are not in it; nor is the time zone of the server, since a
+ * case is drawn in the time zone it fixes (quality plan 3.2) and that time zone is part of the case's content.
  */
 public final class QualityModelSetting {
 
@@ -53,16 +53,29 @@ public final class QualityModelSetting {
     private QualityModelSetting() {
     }
 
-    /** The settings of the server that change an answer, by a stable name. */
+    /** The settings of the server that change an answer, by a stable name, with no primary chat model known. */
     public static Map<String, String> settings(@Nullable TieredStrategyProperties tiered,
                                                @Nullable TieredLLMProperties models,
                                                @Nullable SecurityZeroTrustProperties zeroTrust) {
+        return settings(tiered, models, zeroTrust, null);
+    }
+
+    /**
+     * The settings of the server that change an answer, by a stable name.
+     *
+     * @param defaultModel the model of the primary chat model, which a layer with no model of its own asks (K196: the
+     *                     model that answers is named, not the absence of a layer's own); null when it names none
+     */
+    public static Map<String, String> settings(@Nullable TieredStrategyProperties tiered,
+                                               @Nullable TieredLLMProperties models,
+                                               @Nullable SecurityZeroTrustProperties zeroTrust,
+                                               @Nullable String defaultModel) {
         TieredStrategyProperties strategy = tiered != null ? tiered : new TieredStrategyProperties();
         Map<String, String> settings = new TreeMap<>();
+        putModel(settings, FIRST_MODEL, models != null ? models.getModelNameForTier(1) : null, defaultModel);
+        putModel(settings, SECOND_MODEL, models != null ? models.getModelNameForTier(2) : null, defaultModel);
         if (models != null) {
-            settings.put(FIRST_MODEL, String.valueOf(models.getModelNameForTier(1)));
             settings.put("layer1.backupModel", String.valueOf(models.getBackupModelNameForTier(1)));
-            settings.put(SECOND_MODEL, String.valueOf(models.getModelNameForTier(2)));
             settings.put("layer2.backupModel", String.valueOf(models.getBackupModelNameForTier(2)));
         }
         TieredStrategyProperties.Layer1 first = strategy.getLayer1();
@@ -99,9 +112,18 @@ public final class QualityModelSetting {
             settings.put("minimumAction.mode", String.valueOf(zeroTrust.getMinimumAction().getMode()));
             settings.put("minimumAction.rules", String.valueOf(zeroTrust.getMinimumAction().toRules()));
         }
-        settings.put("timeZone", ZoneId.systemDefault().getId());
         settings.put("contextFormat", SealedDecisionReplayInputs.CONTEXT_FORMAT_VERSION);
         return settings;
+    }
+
+    /** The model a layer asks: its own, else the primary chat model's; left out when neither is named. */
+    private static void putModel(Map<String, String> settings, String name, @Nullable String own,
+                                 @Nullable String defaultModel) {
+        String model = own != null && !own.isBlank() ? own.trim()
+                : defaultModel != null && !defaultModel.isBlank() ? defaultModel.trim() : null;
+        if (model != null) {
+            settings.put(name, model);
+        }
     }
 
     /** The closing rules the server's settings give: what an ESCALATE left after the second pass ends in. */

@@ -69,7 +69,10 @@
 
     // ----- the band, the tabs -----
 
-    /** The model setting decisions are measured under, with the note that a measurement waits behind decisions. */
+    /**
+     * The model setting decisions are measured under, with the note that a measurement waits behind decisions. The
+     * model is the one that answers: a layer's own, else the primary chat model's (K196).
+     */
     async function band() {
         let b = null;
         try {
@@ -77,7 +80,8 @@
         } catch (error) {
             b = null;
         }
-        PQA.band(b && b.model ? el('span', {text: m('band.model', b.model)}) : el('span', {text: m('band.noRunner')}),
+        PQA.band(b && b.settingsHash ? el('span', {text: m('band.model', b.model || m('modelUnknown'))})
+            : el('span', {text: m('band.noRunner')}),
             b && b.minimumAction ? el('span', {text: m('band.minimumAction', b.minimumAction)}) : null,
             b && b.settingsHash ? el('span', {title: b.settingsHash, text: m('band.setting', String(b.settingsHash)
                 .slice(0, 8))}) : null,
@@ -128,7 +132,8 @@
             sealed ? 'sealed' : 'cases', key => global.location.assign(PQA.page(PAGES, {input: key === 'sealed'
                 ? 'sealed' : null})))};
         const modelField = {name: m('start.model'), node: el('input', {class: 'modern-input', type: 'text', readonly: true,
-            value: view.band.model || '—', 'aria-label': m('start.model'), title: view.band.settingsHash || null})};
+            value: view.band.model || (view.band.settingsHash ? m('modelUnknown') : '—'),
+            'aria-label': m('start.model'), title: view.band.settingsHash || null})};
         if (sealed) {
             return global.PQA_TRIALS.startBox(view, inputField, modelField);
         }
@@ -142,13 +147,17 @@
         const bundle = PQA.select(m('start.bundle'), s.caseSets.map(set => [set.id, m('start.bundleOption',
             String(set.version).slice(0, 8), ZT.count(set.cases))]), s.caseSets.length ? s.caseSets[0].id : '');
         const repeats = PQA.select(m('start.repeats'), s.repeats.map(n => [n, m('start.times', n)]), s.defaultRepeats);
+        // Quality P32: measured anew, no kept answer is used again; two such measurements give the gate its noise.
+        const anew = el('input', {type: 'checkbox', 'data-pqa-field': 'anew'});
+        const anewField = {name: m('start.answers'), node: el('span', {class: 'pv-toggle'}, anew,
+            el('span', {text: m('start.anew')}))};
         const note = el('div', {class: 'zt-item'});
         const none = !view.measurable || !s.versions.length;
         const go = PQA.button(m('start.go'), 'fa-play', 'primary', {disabled: none ? true : null,
             'data-pqa-action': 'start'}, async () => {
             go.disabled = true;
             const result = await PQA.send('', {version: Number(version.value), caseSet: bundle.value
-                ? Number(bundle.value) : null, repeats: Number(repeats.value)});
+                ? Number(bundle.value) : null, repeats: Number(repeats.value), anew: anew.checked});
             go.disabled = false;
             if (result.ok) {
                 PV.notice('good', m('start.done'), []);
@@ -179,6 +188,9 @@
             if (estimate.reusable) {
                 note.append(PQA.muted(m('start.reused', ZT.count(estimate.reusable))));
             }
+            if (anew.checked) {
+                note.append(PQA.muted(m('start.anewNote')));
+            }
             if (!estimate.withinLimit) {
                 note.append(PQA.muted(m('refused.CALL_LIMIT')));
             }
@@ -190,15 +202,15 @@
             }
             try {
                 showEstimate(await PQA.get('/estimate', {version: version.value, caseSet: bundle.value || null,
-                    repeats: repeats.value}));
+                    repeats: repeats.value, anew: anew.checked ? true : null}));
             } catch (error) {
                 showEstimate(null);
             }
         };
-        [version, bundle, repeats].forEach(node => node.addEventListener('change', refresh));
+        [version, bundle, repeats, anew].forEach(node => node.addEventListener('change', refresh));
         showEstimate(s.estimate);
         return PQA.filterBox([inputField, {name: m('start.version'), node: version},
-            {name: m('start.bundle'), node: bundle}, {name: m('start.repeats'), node: repeats}, modelField],
+            {name: m('start.bundle'), node: bundle}, {name: m('start.repeats'), node: repeats}, modelField, anewField],
         go, note);
     }
 
@@ -290,8 +302,10 @@
         } else {
             actions.append(PQA.muted('—'));
         }
+        // Quality P32: a measurement taken anew is marked, as two of them of one version give the gate its noise.
         const input = sealed ? [m('input.sealedRow', ZT.count(run.requested)), m('input.against', run.reference)]
-            : [m('input.casesRow', String(run.caseSetVersion).slice(0, 8)), m('start.times', run.repeats)];
+            : [m('input.casesRow', String(run.caseSetVersion).slice(0, 8)), m('start.times', run.repeats)
+                + (run.anew ? ' · ' + m('input.anew') : '')];
         const model = modelOf(run.model);
         return el('tr', {'data-kind': run.kind},
             el('td', {class: 'zt-fill'}, el('div', {class: 'zt-item'},

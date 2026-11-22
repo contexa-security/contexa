@@ -80,7 +80,7 @@ class PromptQualityMeasurementsPostgresTest {
     private static final String PROMPT = SecurityDecisionPromptDocument.PROMPT;
     private static final String SCOPE = PromptVersionService.PLATFORM_SCOPE;
     private static final ObjectMapper JSON = new ObjectMapper().findAndRegisterModules();
-    private static final Map<String, String> SETTINGS = Map.of("layer1.model", "stand-in-model", "timeZone", "UTC");
+    private static final Map<String, String> SETTINGS = Map.of("layer1.model", "stand-in-model");
     private static PostgresTestDatabase database;
     private static JdbcTemplate jdbc;
     private static QualityCaseSet all;
@@ -88,6 +88,8 @@ class PromptQualityMeasurementsPostgresTest {
     private final List<PromptQualityMeasurements> opened = new CopyOnWriteArrayList<>();
     private final List<PromptQualityRunLine> lines = new CopyOnWriteArrayList<>();
     private final List<String> asked = new CopyOnWriteArrayList<>();
+    /** The scope each replay read its version in and the time zone it was drawn in. */
+    private final List<String> askedWith = new CopyOnWriteArrayList<>();
     private final List<Boolean> behind = new CopyOnWriteArrayList<>();
     private PromptVersionService versions;
 
@@ -216,10 +218,11 @@ class PromptQualityMeasurementsPostgresTest {
 
     /** The stand-in of the replay, asked with the answers the function gives each case. */
     private PromptQualityMeasurements.Replayer standIn(Function<SealedEvidencePackage, SealedDecisionReplayService.Result> answer) {
-        return (actor, given, format, version, user, organization) -> {
+        return (actor, given, format, version, user, organization, scope, timeZone) -> {
             ModelCallTimer timer = ModelCallTimer.current();
             behind.add(timer != null && timer.behindDecisions());
             asked.add(keyOf(given) + "|" + version + "|" + format);
+            askedWith.add(scope + "|" + timeZone);
             return answer.apply(given);
         };
     }
@@ -374,6 +377,50 @@ class PromptQualityMeasurementsPostgresTest {
         assertThat(otherSetting.estimate(SCOPE, PROMPT, 1, null, 3).reusable()).isZero();
     }
 
+    /**
+     * Quality P32: a measurement taken anew uses no kept answer, so the model is asked for every answer and the
+     * estimate counts every one as a replay; it is marked, and with the first measurement of the version, whose answers
+     * are its own too, it gives the quality gate its noise, which a measurement that used the kept answers again does
+     * not. Quality plan 3.2: each replay reads the version of the measurement's scope and is drawn in the time zone
+     * the case fixes.
+     */
+    @Test
+    void aMeasurementTakenAnewAsksForEveryAnswerAndGivesTheGateItsNoise() throws Exception {
+        List<QualityCase> three = all.cases().subList(0, 3);
+        PromptQualityCases cases = cases(three);
+        cases.publish(SCOPE, PROMPT, "admin");
+        PromptQualityMeasurements measurements = measurements(cases, standInOf(three), settings(1, 2, 0),
+                QualityMeasureLock.local(), "server-a", SETTINGS, line());
+        long first = measurements.start(SCOPE, PROMPT, 1, null, 2, "admin");
+        await(measurements, first, PromptQualityMeasurements.DONE);
+        long reused = measurements.start(SCOPE, PROMPT, 1, null, 2, "admin");
+        await(measurements, reused, PromptQualityMeasurements.DONE);
+        assertThat(asked).hasSize(6);
+        MeasuredQualityGateSource gate = new MeasuredQualityGateSource(() -> jdbc, versions, cases,
+                () -> measurements, null);
+        assertThat(gate.read(SCOPE, PROMPT, "v2.0", "v1.0").input().noise().widths()).isEmpty();
+
+        PromptQualityMeasurements.Estimate estimate = measurements.estimate(SCOPE, PROMPT, 1, null, 2, true);
+        assertThat(estimate.answers()).isEqualTo(6);
+        assertThat(estimate.reusable()).isZero();
+        assertThat(estimate.replays()).isEqualTo(6);
+        assertThat(estimate.minimumCalls()).isEqualTo(6);
+        assertThat(measurements.estimate(SCOPE, PROMPT, 1, null, 2).reusable()).isEqualTo(6);
+        long anew = measurements.start(SCOPE, PROMPT, 1, null, 2, true, "admin");
+        PromptQualityMeasurements.Measure measure = await(measurements, anew, PromptQualityMeasurements.DONE);
+
+        assertThat(measure.anew()).isTrue();
+        assertThat(measure.reusableAnswers()).isZero();
+        assertThat(measure.answered()).isEqualTo(6);
+        assertThat(asked).hasSize(12);
+        assertThat(count("select count(*) from ctxa_prompt_version_measure_answer where measure_id = ? and"
+                + " reused_from_answer_id is not null", anew)).isZero();
+        assertThat(measurements.find(first).orElseThrow().anew()).isFalse();
+        assertThat(measurements.find(reused).orElseThrow().anew()).isFalse();
+        assertThat(gate.read(SCOPE, PROMPT, "v2.0", "v1.0").input().noise().width(QualityMetric.MISS)).isPresent();
+        assertThat(askedWith).hasSize(12).containsOnly(SCOPE + "|UTC");
+    }
+
     /** Quality plan 3.3, 6: a measurement a stopped server left is resumed where it stopped, by another server. */
     @Test
     void aMeasurementAServerLeftIsResumedCaseByCaseAndRunByRun() throws Exception {
@@ -435,7 +482,8 @@ class PromptQualityMeasurementsPostgresTest {
             return answered(given, "BLOCK", SealedDecisionReplayService.Outcome.ANSWERED, List.of());
         });
         AtomicInteger askedOfB = new AtomicInteger();
-        PromptQualityMeasurements.Replayer counting = (actor, given, format, version, user, organization) -> {
+        PromptQualityMeasurements.Replayer counting = (actor, given, format, version, user, organization, scope,
+                                                       timeZone) -> {
             askedOfB.incrementAndGet();
             return answered(given, "BLOCK", SealedDecisionReplayService.Outcome.ANSWERED, List.of());
         };
