@@ -113,6 +113,12 @@
       "type": "java.lang.String",
       "defaultValue": "0 30 3 * * *",
       "description": "Cron expression of the cleanup that deletes sealed evidence packages whose expiresAt has passed."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.two-person-confirmation",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether a labelled case of the prompt quality measurement, and each change of its right answer, waits until an administrator other than the one who set the answer confirms it, before the case enters a published case set and so the measurements the quality gate reads. A case labelled wrongly on purpose (an attack marked as normal) would let a version that allows the attack pass, so the answer is set by two people. Turn it off for an installation with one administrator: cases are then confirmed as they are submitted, and every change of an answer is still kept with who made it."
     }
   ]
 }

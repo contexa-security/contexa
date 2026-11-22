@@ -28,8 +28,10 @@ import java.time.ZoneId;
 public record QualityCaseEnvironment(String timeZone, String contextFormatVersion) {
 
     /**
-     * The canonical context format of the first cases. The core declares no version of the format yet, so the cases
-     * start the count; a change of the format that an earlier case cannot be read under takes the next one.
+     * The canonical context format of the first cases, which is the one this build reads and writes: the one version
+     * of the format the core declares. The replay of a sealed decision compares the format a case names with it
+     * ({@code SealedDecisionReplayInputs.CONTEXT_FORMAT_VERSION} is this value). A change of the format that an earlier
+     * case cannot be read under takes the next number, and the replay then reads the new one.
      */
     public static final String FIRST_CONTEXT_FORMAT = "1";
 

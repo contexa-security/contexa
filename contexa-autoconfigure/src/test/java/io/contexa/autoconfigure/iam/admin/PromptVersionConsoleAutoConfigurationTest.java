@@ -16,6 +16,8 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsole;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleController;
@@ -33,6 +35,8 @@ import static org.mockito.Mockito.mock;
 /**
  * Plan 6-6: the prompt version screens stand on the versions of the database: with the version service, the console
  * and its controller are registered, and the trials when the sealed decision replay is there too; without the version service, or with prompt governance off, none of them is.
+ * The labelled cases of the quality measurement stand on the version service too, with the two-person confirmation
+ * on unless it is turned off.
  */
 class PromptVersionConsoleAutoConfigurationTest {
 
@@ -50,7 +54,18 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).hasSingleBean(PromptVersionConsole.class);
                     assertThat(context).hasSingleBean(PromptVersionConsoleController.class);
                     assertThat(context).hasSingleBean(PromptVersionTrials.class);
+                    assertThat(context).hasSingleBean(PromptQualityCases.class);
+                    assertThat(context).hasSingleBean(QualityCaseUserDeletionListener.class);
+                    assertThat(context.getBean(PromptQualityCases.class).twoPersonConfirmation()).isTrue();
                 });
+    }
+
+    @Test
+    void theTwoPersonConfirmationOfTheCasesCanBeTurnedOff() {
+        runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
+                .withPropertyValues("contexa.pqa.oss.quality.two-person-confirmation=false")
+                .run(context -> assertThat(context.getBean(PromptQualityCases.class).twoPersonConfirmation())
+                        .isFalse());
     }
 
     @Test
@@ -67,6 +82,7 @@ class PromptVersionConsoleAutoConfigurationTest {
         runner.run(context -> {
             assertThat(context).doesNotHaveBean(PromptVersionConsole.class);
             assertThat(context).doesNotHaveBean(PromptVersionConsoleController.class);
+            assertThat(context).doesNotHaveBean(PromptQualityCases.class);
         });
         runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
                 .withPropertyValues("contexa.prompt.governance.enabled=false")

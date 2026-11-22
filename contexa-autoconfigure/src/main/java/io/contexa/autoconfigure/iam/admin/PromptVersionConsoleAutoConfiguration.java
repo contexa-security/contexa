@@ -19,6 +19,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
+import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRuntimeCacheInvalidationService;
@@ -38,10 +40,13 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.util.Optional;
@@ -53,12 +58,14 @@ import java.util.concurrent.Executors;
  * screens and their API. They stand on the versions of the database: without the version service there are no screens.
  * The length limit of the checks is the version service's (PromptVersionAutoConfiguration). The trials stand on the
  * replay of sealed decisions (SealedDecisionReplayAutoConfiguration), which the prompt inspection's switch does not
- * turn off.
+ * turn off. The labelled cases of the prompt quality measurement and their published sets (quality plan 3.2) stand on the
+ * same schema as the versions.
  */
 @AutoConfiguration(after = {PromptVersionAutoConfiguration.class, PromptGovernanceAutoConfiguration.class,
         PromptInspectionAutoConfiguration.class, SealedDecisionReplayAutoConfiguration.class,
         IamAdminMonitoringAutoConfiguration.class})
 @ConditionalOnProperty(prefix = "contexa.prompt.governance", name = "enabled", havingValue = "true", matchIfMissing = true)
+@EnableConfigurationProperties(PqaOssQualityProperties.class)
 public class PromptVersionConsoleAutoConfiguration {
 
     /** Plan 6-5: the trials, one at a time on a thread of their own; a trial a stop left unfinished is marked failed. */
@@ -80,6 +87,33 @@ public class PromptVersionConsoleAutoConfiguration {
                 audit.getIfAvailable(PromptVersionAudit::none), Clock.systemUTC());
         trials.closeInterrupted();
         return trials;
+    }
+
+    /**
+     * Quality plan 3.2: the labelled cases and their published sets, by the scope of the versions; the default set is
+     * read from the product when first needed. A change of several rows runs in one transaction of Contexa's own.
+     */
+    @Bean(name = "contexaPromptQualityCases")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptVersionService.class)
+    public PromptQualityCases promptQualityCases(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                 @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
+                                                 PqaOssQualityProperties properties,
+                                                 ObjectProvider<PromptVersionAudit> audit,
+                                                 @Qualifier("contexaTransactionManager")
+                                                 ObjectProvider<PlatformTransactionManager> transactionManager) {
+        PlatformTransactionManager manager = transactionManager.getIfAvailable();
+        return new PromptQualityCases(() -> jdbcTemplate, objectMapper, properties.isTwoPersonConfirmation(),
+                audit.getIfAvailable(PromptVersionAudit::none), Clock.systemUTC(),
+                manager != null ? new TransactionTemplate(manager) : null, null);
+    }
+
+    /** Quality plan 3.2: the deletion of a person reaches the labelled cases whose decision is the person's. */
+    @Bean(name = "contexaQualityCaseUserDeletionListener")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityCases.class)
+    public QualityCaseUserDeletionListener qualityCaseUserDeletionListener(PromptQualityCases contexaPromptQualityCases) {
+        return new QualityCaseUserDeletionListener(contexaPromptQualityCases);
     }
 
     @Bean(name = "contexaPromptVersionConsole")

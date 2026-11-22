@@ -4593,6 +4593,226 @@ create table if not exists ctxa_prompt_version_folder_scan (
 create index if not exists ctxa_idx_prompt_version_folder_scan_at
     on ctxa_prompt_version_folder_scan (scanned_at desc);
 
+-- Quality plan 3.2, 3.9: the labelled cases of the prompt quality measurement, kept apart from the sealed decisions.
+-- A case is a decision input and its right answer. The default set Contexa ships is read from the product and never
+-- copied here; these are the cases an administrator promoted from a sealed decision (OPERATION) or made from another
+-- case (CUSTOMER). The input does not change once kept: a case with other values is a new case whose root is the
+-- original. A case enters the published sets once another administrator confirmed its answer.
+create table if not exists ctxa_prompt_version_case (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    case_key varchar(128) not null,
+    origin varchar(16) not null,
+    root_case_key varchar(128),
+    sealed_package_id varchar(128),
+    subject_user_id varchar(256),
+    grade varchar(16) not null,
+    classification varchar(16) not null,
+    case_kind varchar(16) not null,
+    content_hash varchar(64) not null,
+    case_input text not null,
+    expectation text not null,
+    time_zone varchar(64) not null,
+    context_format_version varchar(16) not null,
+    status varchar(32) not null,
+    submitted_by varchar(128) not null,
+    submitted_at timestamp(6) not null,
+    labelled_by varchar(128) not null,
+    labelled_at timestamp(6) not null,
+    confirmed_by varchar(128),
+    confirmed_at timestamp(6)
+);
+
+create unique index if not exists ctxa_idx_prompt_version_case_key
+    on ctxa_prompt_version_case (registry_scope, prompt_key, case_key);
+
+create index if not exists ctxa_idx_prompt_version_case_status
+    on ctxa_prompt_version_case (registry_scope, prompt_key, status);
+
+create index if not exists ctxa_idx_prompt_version_case_subject
+    on ctxa_prompt_version_case (subject_user_id);
+
+create index if not exists ctxa_idx_prompt_version_case_package
+    on ctxa_prompt_version_case (sealed_package_id);
+
+-- Each change of a case's right answer: what it was, what it became, who changed it and when.
+create table if not exists ctxa_prompt_version_case_change (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    case_id bigint not null references ctxa_prompt_version_case (id) on delete cascade,
+    case_key varchar(128) not null,
+    changed_by varchar(128) not null,
+    changed_at timestamp(6) not null,
+    previous_grade varchar(16) not null,
+    new_grade varchar(16) not null,
+    previous_expectation text not null,
+    new_expectation text not null,
+    previous_content_hash varchar(64) not null,
+    new_content_hash varchar(64) not null
+);
+
+create index if not exists ctxa_idx_prompt_version_case_change_case
+    on ctxa_prompt_version_case_change (case_id, changed_at);
+
+-- A published version of a case set: the cases it holds fixed by their content hashes. Its version is the hash of the
+-- keys and content hashes, so publishing the same cases again is the same version.
+create table if not exists ctxa_prompt_version_case_set (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    set_version varchar(64) not null,
+    name varchar(128) not null,
+    case_count integer not null,
+    default_set_version varchar(64),
+    default_case_count integer not null,
+    published_by varchar(128) not null,
+    published_at timestamp(6) not null
+);
+
+create unique index if not exists ctxa_idx_prompt_version_case_set_version
+    on ctxa_prompt_version_case_set (registry_scope, prompt_key, set_version);
+
+create index if not exists ctxa_idx_prompt_version_case_set_published
+    on ctxa_prompt_version_case_set (registry_scope, prompt_key, published_at desc);
+
+-- The cases of a published set. A case of the default set is named by its key and content hash and read from the
+-- product; a kept case also keeps the right answer it was published with, its input being the one kept with the case.
+create table if not exists ctxa_prompt_version_case_set_member (
+    set_id bigint not null references ctxa_prompt_version_case_set (id) on delete cascade,
+    registry_scope varchar(128) not null,
+    case_key varchar(128) not null,
+    content_hash varchar(64) not null,
+    origin varchar(16) not null,
+    case_id bigint references ctxa_prompt_version_case (id) on delete set null,
+    root_case_key varchar(128),
+    grade varchar(16),
+    expectation text,
+    added_at timestamp(6),
+    primary key (set_id, case_key)
+);
+
+create index if not exists ctxa_idx_prompt_version_case_set_member_case
+    on ctxa_prompt_version_case_set_member (case_id);
+
+-- Quality plan 3.3: a measurement is a prompt version under a model setting, on a published case set, repeated. The
+-- server that runs it keeps a heartbeat; any server may resume it, case by case and run by run.
+create table if not exists ctxa_prompt_version_measure (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    version_number integer not null,
+    version_content_hash varchar(64) not null,
+    case_set_id bigint not null references ctxa_prompt_version_case_set (id),
+    case_set_version varchar(64) not null,
+    repeats integer not null,
+    settings_hash varchar(64) not null,
+    settings text not null,
+    model_setting varchar(1024),
+    closing_rules varchar(256) not null,
+    status varchar(16) not null,
+    failure varchar(2000),
+    planned_answers integer not null,
+    reusable_answers integer not null,
+    expected_min_calls integer not null,
+    expected_max_calls integer not null,
+    call_limit integer not null,
+    model_calls integer not null default 0,
+    runner_id varchar(256),
+    heartbeat_at timestamp(6),
+    cancelled_by varchar(128),
+    created_by varchar(128) not null,
+    created_at timestamp(6) not null,
+    started_at timestamp(6),
+    finished_at timestamp(6)
+);
+
+create index if not exists ctxa_idx_prompt_version_measure_version
+    on ctxa_prompt_version_measure (registry_scope, prompt_key, version_number, created_at desc);
+
+create index if not exists ctxa_idx_prompt_version_measure_status
+    on ctxa_prompt_version_measure (status, created_at);
+
+-- Each answer of a measurement, found again by the case's content hash, the version, the model setting and the run.
+create table if not exists ctxa_prompt_version_measure_answer (
+    id bigserial primary key,
+    measure_id bigint not null references ctxa_prompt_version_measure (id) on delete cascade,
+    registry_scope varchar(128) not null,
+    case_key varchar(128) not null,
+    case_content_hash varchar(64) not null,
+    version_number integer not null,
+    version_content_hash varchar(64) not null,
+    settings_hash varchar(64) not null,
+    run_number integer not null,
+    outcome varchar(32),
+    first_action varchar(16),
+    model_action varchar(16),
+    final_action varchar(16),
+    second_pass_action varchar(16),
+    second_pass_outcome varchar(32),
+    second_pass_failure varchar(512),
+    reasked boolean not null default false,
+    decided_without_model boolean not null default false,
+    citation_state varchar(16),
+    cited_facts integer not null default 0,
+    present_facts integer,
+    flagged_facts integer,
+    accurate_cited_facts integer not null default 0,
+    citation_findings text,
+    model_calls text,
+    decision_ms bigint,
+    answer_tokens integer,
+    answered_model varchar(256),
+    second_pass_model varchar(256),
+    system_prompt_hash varchar(64),
+    user_prompt_hash varchar(64),
+    measurement_failed boolean not null default false,
+    failure_reason varchar(2000),
+    attempts integer not null default 1,
+    reused_from_answer_id bigint,
+    created_at timestamp(6) not null
+);
+
+create unique index if not exists ctxa_idx_prompt_version_measure_answer_run
+    on ctxa_prompt_version_measure_answer (measure_id, case_key, run_number);
+
+create index if not exists ctxa_idx_prompt_version_measure_answer_reuse
+    on ctxa_prompt_version_measure_answer (registry_scope, case_content_hash, version_number, version_content_hash,
+                                           settings_hash, run_number);
+
+-- The prompts the answers were drawn with, each kept once by its content hash.
+create table if not exists ctxa_prompt_version_measure_prompt (
+    registry_scope varchar(128) not null,
+    prompt_hash varchar(64) not null,
+    prompt_text text not null,
+    created_at timestamp(6) not null,
+    primary key (registry_scope, prompt_hash)
+);
+
+-- Quality plan 3.5: the cause a wrong answer of a measurement or a decision rated inadequate is put down to.
+create table if not exists ctxa_prompt_version_case_cause (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    measure_id bigint references ctxa_prompt_version_measure (id) on delete cascade,
+    case_key varchar(128),
+    run_number integer,
+    request_id varchar(128),
+    category varchar(32) not null,
+    rule_category varchar(32),
+    rule_basis text,
+    classified_by varchar(128) not null,
+    classified_at timestamp(6) not null,
+    corrected_by varchar(128),
+    corrected_at timestamp(6)
+);
+
+create index if not exists ctxa_idx_prompt_version_case_cause_measure
+    on ctxa_prompt_version_case_cause (registry_scope, measure_id);
+
+create index if not exists ctxa_idx_prompt_version_case_cause_request
+    on ctxa_prompt_version_case_cause (registry_scope, request_id);
+
 -- Plan 6-5 (3.10 4): a trial decides recent sealed decisions again with a candidate and a reference version.
 create table if not exists ctxa_prompt_version_trial (
     id bigserial primary key,

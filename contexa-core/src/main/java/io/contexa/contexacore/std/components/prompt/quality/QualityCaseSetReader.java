@@ -21,16 +21,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.time.Instant;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
 import java.util.zip.GZIPInputStream;
 
 /**
  * Reads a set of labelled cases from its document (plan 3.2), and the default set Contexa ships as a product resource.
- * The document is JSON: the name of the set and its cases, each a finished case with its whole input.
+ * The document is JSON: the name of the set and its cases, each a finished case with its whole input
+ * ({@link QualityCaseDocuments}).
  */
 public final class QualityCaseSetReader {
 
@@ -74,51 +72,8 @@ public final class QualityCaseSetReader {
         }
         List<QualityCase> cases = new ArrayList<>();
         for (JsonNode item : document.path("cases")) {
-            cases.add(readCase(item, origin));
+            cases.add(QualityCaseDocuments.read(item, origin, null));
         }
         return new QualityCaseSet(document.path("name").asText(null), cases);
-    }
-
-    private static QualityCase readCase(JsonNode item, QualityCaseOrigin origin) {
-        String key = item.path("key").asText(null);
-        try {
-            JsonNode input = item.path("input");
-            JsonNode expectation = item.path("expectation");
-            JsonNode environment = item.path("environment");
-            Set<QualityAction> allowed = EnumSet.noneOf(QualityAction.class);
-            for (JsonNode action : expectation.path("allowedActions")) {
-                allowed.add(QualityAction.valueOf(action.asText()));
-            }
-            List<String> decidingFacts = new ArrayList<>();
-            expectation.path("decidingFacts").forEach(fact -> decidingFacts.add(fact.asText()));
-            String preferred = text(expectation, "preferredAction");
-            String addedAt = text(item, "addedAt");
-            return new QualityCase(key,
-                    new QualityCaseInput(input.get("canonicalContext"), input.get("requestFacts"),
-                            input.get("authState"), input.get("baselineSnapshot"), input.get("ragResults"),
-                            input.get("pastDeniedDecisions"), input.get("personalBaseline"),
-                            input.get("organizationBaseline")),
-                    new QualityCaseExpectation(allowed, preferred != null ? QualityAction.valueOf(preferred) : null,
-                            QualityCaseClass.valueOf(expectation.path("classification").asText()),
-                            QualityCaseKind.valueOf(expectation.path("kind").asText()),
-                            new QualityCaseRationale(text(expectation.path("rationale"), "ko"),
-                                    text(expectation.path("rationale"), "en")),
-                            decidingFacts),
-                    QualityCaseGrade.valueOf(item.path("grade").asText()),
-                    text(item, "rootCaseKey"),
-                    new QualityCaseEnvironment(text(environment, "timeZone"),
-                            text(environment, "contextFormatVersion")),
-                    origin,
-                    addedAt != null ? Instant.parse(addedAt) : null);
-        }
-        catch (RuntimeException exception) {
-            throw new IllegalArgumentException("The case " + key + " of the document cannot be read: "
-                    + exception.getMessage(), exception);
-        }
-    }
-
-    private static String text(JsonNode node, String field) {
-        JsonNode value = node.path(field);
-        return value.isMissingNode() || value.isNull() ? null : value.asText();
     }
 }

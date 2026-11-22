@@ -92,13 +92,17 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
     /**
      * The retention's delete: the packages past their expiry, except the ones something still stands on. The package
      * a prompt version trial decided again, and the package of a decision an administrator evaluated (the evaluation
-     * names the decision's request), stay past their expiry for as long as that trial case or evaluation is kept.
+     * names the decision's request), stay past their expiry for as long as that trial case or evaluation is kept. So
+     * does the package a labelled case was promoted from (quality plan 3.7), for as long as the case is kept: the case
+     * names it to show the evidence of its input.
      */
     private static final String DELETE_EXPIRED_SQL = """
             delete from ctxa_sealed_evidence_package p
              where p.expires_at < ?
                and not exists (select 1 from ctxa_prompt_version_trial_case trial_case
                                 where trial_case.sealed_package_id = p.package_id)
+               and not exists (select 1 from ctxa_prompt_version_case labelled_case
+                                where labelled_case.sealed_package_id = p.package_id)
                and not exists (select 1 from ctxa_zt_decision_outcome outcome
                                 where outcome.request_id = p.correlation_id
                                   and outcome.outcome_kind in (%s))
