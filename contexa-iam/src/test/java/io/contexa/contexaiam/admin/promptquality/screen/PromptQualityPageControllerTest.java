@@ -112,6 +112,18 @@ class PromptQualityPageControllerTest {
                 .andExpect(model().attribute("reference", 1));
         mvc.perform(get(PromptQualityScreens.MEASURE + "/compare").principal(admin))
                 .andExpect(model().attribute("view", "compare")).andExpect(model().attributeDoesNotExist("candidate"));
+        // A view is chosen by its name (view=...) among the views of the screen; a name it does not know opens the
+        // page's own view.
+        mvc.perform(get(PromptQualityScreens.MEASURE + "/41").param("view", "causes").principal(admin))
+                .andExpect(model().attribute("view", "run")).andExpect(model().attribute("measureId", 41L));
+        mvc.perform(get(PromptQualityScreens.MEASURE).param("view", "compare").principal(admin))
+                .andExpect(model().attribute("view", "compare"));
+        mvc.perform(get(PromptQualityScreens.MEASURE + "/compare").param("candidateMeasure", "9")
+                        .param("referenceMeasure", "8").principal(admin))
+                .andExpect(model().attribute("candidateMeasure", 9L)).andExpect(model().attribute("referenceMeasure", 8L));
+        assertThat(PromptQualityPageController.chosen(" run ", "runs")).isEqualTo("run");
+        assertThat(PromptQualityPageController.chosen("trial", "runs")).isEqualTo("runs");
+        assertThat(PromptQualityPageController.chosen(null, "compare")).isEqualTo("compare");
         mvc.perform(get(PromptQualityScreens.MEASURE + "/trials/7").principal(admin))
                 .andExpect(view().name("contexa/admin/prompt-quality/measure"))
                 .andExpect(model().attribute("view", "trial")).andExpect(model().attribute("trialId", 7L));
