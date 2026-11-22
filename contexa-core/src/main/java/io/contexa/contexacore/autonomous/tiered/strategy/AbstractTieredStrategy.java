@@ -61,6 +61,7 @@ import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV5;
 import io.contexa.contexacore.std.llm.gate.ModelCallTimer;
@@ -2414,6 +2415,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 }
             }
             decision.setHypotheses(List.copyOf(hypotheses));
+        }
+        // Quality plan 3.6: what the response check found of the answer's reason codes stays with its decision too.
+        SecurityDecisionCitationCheck citationCheck = metadata != null
+                ? SecurityDecisionCitationCheck.of(metadata.get(SecurityDecisionCitationCheck.METADATA_KEY)) : null;
+        if (citationCheck != null) {
+            decision.setCitationCheck(citationCheck);
         }
     }
 

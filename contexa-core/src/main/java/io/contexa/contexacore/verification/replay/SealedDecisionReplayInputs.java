@@ -59,6 +59,15 @@ public record SealedDecisionReplayInputs(SecurityEvent event, SecurityDecisionSt
     public static final String REPLAY_ID_PREFIX = "replay-";
 
     /**
+     * Quality plan 9: the version of the format the sealed inputs are written in, as this build reads and writes them
+     * (the canonical context and the sections beside it: request facts, authentication state, baseline snapshot,
+     * retrieval results). A change an earlier input cannot be read under takes the next number. A replay that is told
+     * the format of its inputs compares it with this one and does not read inputs of another
+     * ({@code SealedDecisionReplayService.Outcome.CONTEXT_FORMAT_MISMATCH}); a package this server sealed names none.
+     */
+    public static final String CONTEXT_FORMAT_VERSION = "1";
+
+    /**
      * Summary keys of sealed retrieval documents that the assembler renamed, mapped back to the metadata key it read
      * first ({@code SealedEvidencePackageAssembler.ragDocumentSummary}).
      */

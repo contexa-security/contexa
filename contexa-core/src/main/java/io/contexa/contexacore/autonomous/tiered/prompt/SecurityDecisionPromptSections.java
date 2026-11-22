@@ -2763,7 +2763,16 @@ public class SecurityDecisionPromptSections {
         byte[] pinned = event != null && StringUtils.hasText(event.getEventId())
                 ? pinnedCanonicalContexts.getIfPresent(event.getEventId()) : null;
         if (pinned != null) {
-            return restoreCanonicalContext(pinned);
+            Optional<CanonicalSecurityContext> fixed = restoreCanonicalContext(pinned);
+            if (fixed.isEmpty() && replayed(event)) {
+                throw new SealedReplayContextMissingException(event.getEventId());
+            }
+            return fixed;
+        }
+        if (replayed(event)) {
+            // Quality plan 9 (K161): a replay is drawn with the context it fixed or not at all; the context the
+            // provider resolves now is another decision's. A decision's own path below is as it was.
+            throw new SealedReplayContextMissingException(event.getEventId());
         }
         if (event == null || canonicalSecurityContextProvider == null) {
             return Optional.empty();
@@ -2781,6 +2790,12 @@ public class SecurityDecisionPromptSections {
         resolved.ifPresent(context -> cacheCanonicalSecurityContext(event, context));
         return resolved.flatMap(context -> restoreCanonicalContext(snapshotCanonicalContext(context)))
                 .or(() -> resolved);
+    }
+
+    /** Whether the event is a sealed decision drawn again: the replay fixes that as the source of its version. */
+    private static boolean replayed(SecurityEvent event) {
+        return event != null && event.getMetadata() != null && PromptBundleSelectionSource.REPLAY.name().equals(
+                String.valueOf(event.getMetadata().get(EVENT_BUNDLE_SOURCE)));
     }
 
     /**

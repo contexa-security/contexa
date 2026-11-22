@@ -15,9 +15,11 @@
  */
 package io.contexa.contexacore.std.pipeline.step;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
+import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -138,5 +140,66 @@ class PostprocessingStepTest {
 
         assertThat(response.getMetadata(SecurityDecisionV1OutputInspector.V1_RULE_BREACH, String.class))
                 .isEqualTo("REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH");
+    }
+
+    /** Quality plan 3.6: what the response check found of the kept answer's reason codes reaches the response. */
+    @Test
+    void theCitationCheckOfTheKeptAnswerReachesTheResponse() {
+        PostprocessingStep step = new PostprocessingStep(Optional.empty());
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(null, null, null, List.of()));
+        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
+        SecurityDecisionResponse parsedResponse = new SecurityDecisionResponse();
+        parsedResponse.setAction("ALLOW");
+        context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, parsedResponse);
+        context.addMetadata("targetResponseType", SecurityDecisionResponse.class);
+        SecurityDecisionCitationCheck check = SecurityDecisionCitationCheck.skipped(List.of());
+        context.addMetadata(SecurityDecisionCitationCheck.METADATA_KEY, check);
+
+        SecurityDecisionResponse response = (SecurityDecisionResponse) step.execute(request, context).block();
+
+        assertThat(response.getMetadata(SecurityDecisionCitationCheck.METADATA_KEY, SecurityDecisionCitationCheck.class))
+                .isSameAs(check);
+    }
+
+    /**
+     * Quality plan 3.3: the model calls of the run reach the response, and the prompts drawn for the model call reach
+     * it only for a request that asks to keep them (a replay): a decision's response carries no prompt text.
+     */
+    @Test
+    void theModelCallsReachTheResponseAndTheDrawnPromptsOnlyWhenTheRequestAsks() {
+        List<Object> calls = PromptRuntimeTelemetrySupport.withModelCall(null, 7_000L, 120L, 90_000L, false);
+
+        SecurityDecisionResponse replayed = respond(calls, true);
+        SecurityDecisionResponse decided = respond(calls, false);
+
+        assertThat(calls).isEqualTo(List.of(Map.of("callMs", 7_000L, "gateWaitMs", 120L, "timeoutMs", 90_000L,
+                "failed", false)));
+        assertThat(replayed.getMetadata(PromptRuntimeTelemetrySupport.MODEL_CALLS, List.class)).isEqualTo(calls);
+        assertThat(replayed.getMetadata(PromptRuntimeTelemetrySupport.DRAWN_SYSTEM_PROMPT, String.class))
+                .isEqualTo("SYSTEM AS DRAWN");
+        assertThat(replayed.getMetadata(PromptRuntimeTelemetrySupport.DRAWN_USER_PROMPT, String.class))
+                .isEqualTo("USER AS DRAWN");
+        assertThat(decided.getMetadata(PromptRuntimeTelemetrySupport.MODEL_CALLS, List.class)).isEqualTo(calls);
+        assertThat(decided.getAllMetadata()).doesNotContainKeys(PromptRuntimeTelemetrySupport.DRAWN_SYSTEM_PROMPT,
+                PromptRuntimeTelemetrySupport.DRAWN_USER_PROMPT);
+    }
+
+    private static SecurityDecisionResponse respond(List<Object> calls, boolean keepDrawnPrompts) {
+        PostprocessingStep step = new PostprocessingStep(Optional.empty());
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(null, null, null, List.of()));
+        if (keepDrawnPrompts) {
+            request.withParameter(PromptRuntimeTelemetrySupport.KEEP_DRAWN_PROMPTS, Boolean.TRUE);
+        }
+        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
+        SecurityDecisionResponse parsedResponse = new SecurityDecisionResponse();
+        parsedResponse.setAction("ALLOW");
+        context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, parsedResponse);
+        context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION, new PromptGenerationResult(null,
+                "SYSTEM AS DRAWN", "USER AS DRAWN", Map.of(), null));
+        context.addMetadata("targetResponseType", SecurityDecisionResponse.class);
+        context.addMetadata(PromptRuntimeTelemetrySupport.MODEL_CALLS, calls);
+        return (SecurityDecisionResponse) step.execute(request, context).block();
     }
 }

@@ -25,6 +25,7 @@ import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
@@ -98,6 +99,43 @@ class FirstPassModelValuesHandOverTest {
         assertThat(result.getProposedAction()).isEqualTo(ZeroTrustAction.BLOCK.name());
         assertThat(result.resolveAuditRiskScore()).isEqualTo(0.91);
         assertThat(result.resolveAuditConfidence()).isEqualTo(0.88);
+    }
+
+    /**
+     * Quality plan 3.6: what the response check found of the reason codes of the answer that decided goes with the
+     * decision to the processing result its record is written from: the second pass's when the first handed the
+     * request over, the first pass's when it decided.
+     */
+    @Test
+    void theCitationCheckOfTheAnswerThatDecidedReachesTheProcessingResult() {
+        SecurityDecisionCitationCheck second = SecurityDecisionCitationCheck.skipped(List.of());
+        SecurityDecisionResponse answer = secondPassAnswer();
+        answer.withMetadata(SecurityDecisionCitationCheck.METADATA_KEY, second);
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(answer));
+        SecurityEvent handedOver = event("citation-second");
+        SecurityDecisionCitationCheck first = SecurityDecisionCitationCheck.skipped(REASON_CODES);
+        Layer1ContextualStrategy deciding = mock(Layer1ContextualStrategy.class);
+        when(deciding.evaluate(any(SecurityEvent.class))).thenReturn(ThreatAssessment.builder()
+                .strategyName("Layer1-Contextual")
+                .action(ZeroTrustAction.CHALLENGE.name())
+                .autonomousAction(ZeroTrustAction.CHALLENGE.name())
+                .shouldEscalate(false)
+                .llmDecisionPresent(true)
+                .technicalFallbackApplied(false)
+                .reasoning("The export differs from the usual work.")
+                .reasonCodes(REASON_CODES)
+                .citationCheck(first)
+                .build());
+
+        ProcessingResult bySecondPass = processor(handedOver).processEvent(handedOver, 0.5);
+        ProcessingResult byFirstPass = new ColdPathEventProcessor(deciding, mock(Layer2ExpertStrategy.class),
+                mock(LlmAnalysisEventListener.class)).processEvent(event("citation-first"), 0.5);
+
+        assertThat(bySecondPass.getProposedAction()).isEqualTo(ZeroTrustAction.BLOCK.name());
+        assertThat(bySecondPass.getCitationCheck()).as("the second pass's, not the first pass's").isSameAs(second);
+        assertThat(byFirstPass.getProposedAction()).isEqualTo(ZeroTrustAction.CHALLENGE.name());
+        assertThat(byFirstPass.getCitationCheck()).isSameAs(first);
     }
 
     private static SecurityDecisionResponse secondPassAnswer() {

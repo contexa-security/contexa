@@ -254,6 +254,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .llmReasoning(decision.getLlmReasoning())
                 .reasonCodes(decision.getReasonCodes())
                 .hypotheses(decision.getHypotheses())
+                .citationCheck(decision.getCitationCheck())
                 .autonomyConstraintApplied(decision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(decision.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(decision.getAutonomyConstraintSummary())

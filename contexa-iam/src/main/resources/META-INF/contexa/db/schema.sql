@@ -1908,6 +1908,18 @@ ALTER TABLE ctxa_ai_security_decision_observation
 -- Plan 6-3 (3.7): the content hash of the prompt version a decision ran, beside its number in prompt_bundle_version.
 ALTER TABLE ctxa_ai_security_decision_observation ADD COLUMN IF NOT EXISTS prompt_content_hash VARCHAR(64);
 
+-- Quality plan 3.6, 3.9: what the response check found of the reason codes of the answer a decision kept, so that the
+-- citation accuracy can be counted on every decision: (citation_present_count - citation_flagged_count) /
+-- citation_cited_count over the rows whose citation_check_state is CHECKED. SKIPPED is a decision whose citations
+-- could not be checked (no canonical context); NULL is a row without a model answer, or one written before these.
+ALTER TABLE ctxa_ai_security_decision_observation
+    ADD COLUMN IF NOT EXISTS citation_check_state VARCHAR(16),
+    ADD COLUMN IF NOT EXISTS citation_cited_count INTEGER,
+    ADD COLUMN IF NOT EXISTS citation_present_count INTEGER,
+    ADD COLUMN IF NOT EXISTS citation_flagged_count INTEGER,
+    ADD COLUMN IF NOT EXISTS citation_undecided_count INTEGER,
+    ADD COLUMN IF NOT EXISTS citation_unsupported BOOLEAN;
+
 CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_user_created
     ON ctxa_ai_security_decision_observation (user_id, created_at);
 
