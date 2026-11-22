@@ -587,6 +587,22 @@
                     ZT.count(figure(row, 'failedCases') || 0), ZT.count(figure(row, 'failedAnswers') || 0))
                     + (unmeasured ? ' · ' + t('pv.gate.ev.unmeasured', ZT.count(unmeasured)) : '');
             }
+            case 'MUST_CATCH_NOT_WEAKENED': {
+                // Quality P35: the cases newly answered outside their allowed actions block; those the version in use
+                // answers so too only warn.
+                const graded = figure(row, 'gradedCases') || 0;
+                if (!graded) {
+                    return t('pv.gate.ev.noGraded');
+                }
+                const weakened = figure(row, 'weakenedCases') || 0;
+                const before = figure(row, 'currentAlsoOutsideCases') || 0;
+                const unmeasured = figure(row, 'unmeasuredCases') || 0;
+                return [t('pv.gate.ev.weakened', ZT.count(graded), ZT.count(weakened),
+                    ZT.count(figure(row, 'weakenedAnswers') || 0)),
+                weakened && figure(row, 'comparedWithCurrent') === 0 ? t('pv.gate.ev.weakenedUncompared') : null,
+                before ? t('pv.gate.ev.weakenedBefore', ZT.count(before)) : null,
+                unmeasured ? t('pv.gate.ev.unmeasured', ZT.count(unmeasured)) : null].filter(Boolean).join(' · ');
+            }
             case 'MISS_NOT_INCREASED':
                 return comparisons.map(comparison => rateText(comparison) + ' · ' + verdictText(comparison))
                     .join(' · ');
@@ -662,7 +678,7 @@
             sentences.push(modelsChanged(details) ? sidesText('pv.gate.line.staleModels.', quality, check,
                 details.modelsBefore, details.modelsNow) : sidesText('pv.gate.line.stale.', quality, check));
         } else {
-            sentences.push(t('pv.gate.line.' + state));
+            sentences.push(t('pv.gate.line.' + state, ZT.count((quality.rows || []).length)));
         }
         // The sentence of the waiting baseline says already that it is being measured.
         if (quality.measurementDetail && !(state === 'pending' && quality.measurementDetail === 'MEASURING')) {

@@ -16,7 +16,9 @@
 package io.contexa.contexacore.std.components.prompt.quality;
 
 /**
- * The nine conditions of the quality gate (plan 3.4), in the order of its table.
+ * The conditions of the quality gate (plan 3.4), in the order of its table. The two the table of the plan does not
+ * list (quality P35 and P8) stand beside the row they complete: the weakening of a case that must be caught after the
+ * row of the allowed ones, the limit of the friction after the row of the stopping rates.
  */
 public enum QualityGateCondition {
 
@@ -25,6 +27,13 @@ public enum QualityGateCondition {
 
     /** No case that must be caught was allowed, not even once. */
     MUST_CATCH_NEVER_ALLOWED,
+
+    /**
+     * No case that must be caught was answered outside its allowed actions, such as challenged or deferred where only
+     * a block is right, where the version in use answered it inside them: not even once (quality P35). A case the
+     * version in use also answers outside them is not the candidate's doing and is warned of.
+     */
+    MUST_CATCH_NOT_WEAKENED,
 
     /** No case that must not be blocked was blocked, not even once. */
     MUST_NOT_BLOCK_NEVER_BLOCKED,

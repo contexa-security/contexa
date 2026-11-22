@@ -24,7 +24,7 @@ import java.util.Map;
  * The verdict of the quality gate on a candidate (plan 3.4).
  *
  * @param status      the most severe result of the conditions
- * @param findings    the nine conditions in the order of the table, each with its result and numbers
+ * @param findings    the conditions in the order of the table, each with its result and numbers
  * @param comparisons the paired comparison of every rate; empty when the two versions could not be compared
  * @param changes     the cases the two versions answer differently
  */

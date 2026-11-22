@@ -20,7 +20,7 @@ package io.contexa.contexacore.std.components.prompt.quality;
  */
 public enum QualityMeasurementState {
 
-    /** Both versions are measured comparably enough to be read: the gate computes its nine conditions. */
+    /** Both versions are measured comparably enough to be read: the gate computes its conditions. */
     MEASURED,
 
     /** A measurement the gate needs is not there; the sides say which. The first condition blocks then. */

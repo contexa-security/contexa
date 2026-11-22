@@ -21,7 +21,7 @@ import java.util.Set;
 
 /**
  * What the release gate found of the quality of a version it is to use for decisions or start a canary of (plan 3.4).
- * The verdict is the one the nine conditions give; what is applied is that verdict in the mode of the gate and the
+ * The verdict is the one the conditions give; what is applied is that verdict in the mode of the gate and the
  * state of the measurements: in the warning mode a blocked verdict is applied as a warning, a version that cannot be
  * measured is warned of instead of blocked, and the missing measurement of the version in use while its first one
  * waits warns instead of blocking.
@@ -30,10 +30,10 @@ import java.util.Set;
  * @param sides       the versions the state is about
  * @param detail      why, as the source said; null when it said nothing
  * @param mode        the mode of the gate
- * @param verdict     the verdict of the nine conditions as computed, a blocked one kept as blocked in the warning mode;
+ * @param verdict     the verdict of the conditions as computed, a blocked one kept as blocked in the warning mode;
  *                    NOT_EVALUATED when nothing could be measured, or for a rollback
  * @param applied     what the gate applies: PASSED, WARNING or BLOCKED
- * @param result      the nine conditions with their numbers and the cases the versions answer differently; null for a
+ * @param result      the conditions with their numbers and the cases the versions answer differently; null for a
  *                    rollback
  * @param rollback    whether the version goes back to one this scope used for decisions before, which takes no
  *                    quality condition (plan 3.4)

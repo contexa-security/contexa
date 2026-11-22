@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Plan 3.4, 5 step 5: the quality gate as the release gate applies it, for each of the five states a source of
- * measurements answers with, in the warning and the blocking mode. The verdict is the one of the nine conditions;
+ * measurements answers with, in the warning and the blocking mode. The verdict is the one of the conditions;
  * what is applied follows the mode and the state: the warning mode keeps a blocked verdict and applies a warning, a
  * version that cannot be measured is warned of, a stale measurement always warns, and the missing measurement of the
  * version in use while its first one waits warns while the candidate's own failures still block.
@@ -54,7 +54,7 @@ class QualityGatePolicyTest {
         assertThat(verdict.measurement()).isEqualTo(QualityMeasurementState.MEASURED);
         assertThat(verdict.verdict()).isEqualTo(QualityGateStatus.PASSED);
         assertThat(verdict.applied()).isEqualTo(QualityGateStatus.PASSED);
-        assertThat(verdict.result().findings()).hasSize(9)
+        assertThat(verdict.result().findings()).hasSize(QualityGateCondition.values().length)
                 .allSatisfy(finding -> assertThat(finding.status()).isEqualTo(QualityGateStatus.PASSED));
         assertThat(verdict.rollback()).isFalse();
     }
@@ -122,7 +122,7 @@ class QualityGatePolicyTest {
         assertThat(verdict.detail()).isEqualTo("NO_REPLAY");
         assertThat(verdict.verdict()).isEqualTo(QualityGateStatus.NOT_EVALUATED);
         assertThat(verdict.applied()).isEqualTo(QualityGateStatus.WARNING);
-        assertThat(verdict.result().findings()).hasSize(9)
+        assertThat(verdict.result().findings()).hasSize(QualityGateCondition.values().length)
                 .allSatisfy(finding -> assertThat(finding.status()).isEqualTo(QualityGateStatus.NOT_EVALUATED));
     }
 

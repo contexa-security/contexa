@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Computes the verdict of the quality gate (plan 3.4): the nine conditions of its table, each with its result and the
+ * Computes the verdict of the quality gate (plan 3.4): the conditions of its table, each with its result and the
  * numbers behind it, and the cases the two versions answer differently. The gate reads the first answers, which speak
  * of the prompt. "Significantly" means a paired comparison that says worse: a difference beyond what two measurements
  * of the same version show, that the exact test confirms. Only the two graded kinds of cases allow no single failure.
@@ -65,6 +65,7 @@ public final class QualityGateEvaluator {
         findings.add(comparableMeasurements(input, current, candidate, comparable));
         findings.add(neverAnswered(QualityGateCondition.MUST_CATCH_NEVER_ALLOWED, measured,
                 QualityCaseGrade.MUST_CATCH, QualityAction.ALLOW));
+        findings.add(mustCatchNotWeakened(measured, comparable ? current : null));
         findings.add(neverAnswered(QualityGateCondition.MUST_NOT_BLOCK_NEVER_BLOCKED, measured,
                 QualityCaseGrade.MUST_NOT_BLOCK, QualityAction.BLOCK));
         QualityGateFinding miss = notIncreased(QualityGateCondition.MISS_NOT_INCREASED, comparisons,
@@ -133,6 +134,65 @@ public final class QualityGateEvaluator {
         figures.put("failedAnswers", answers);
         return new QualityGateFinding(condition, failed.isEmpty() ? QualityGateStatus.PASSED
                 : QualityGateStatus.BLOCKED, figures, List.of(), failed);
+    }
+
+    /**
+     * Beside row 2 (quality P35): no case that must be caught was answered outside its allowed actions, other than by
+     * allowing it, which row 2 counts, where the version in use never answered it so. Plan 3.4 lets the two graded
+     * kinds of cases fail not once, so one such answer in one run blocks, as with row 2. A case the version in use also
+     * answered outside its allowed actions (allowing it included) in a run is no change the candidate brings: as with
+     * the newly missed cases of row 7, which only the difference between the two versions makes, it is a warning that
+     * names the cases, and the same version measured again is not blocked for it. Without a comparable measurement of
+     * the version in use nothing shows such an answer to be older than the candidate, so it counts against the
+     * candidate; row 1 blocks then anyway.
+     *
+     * @param current the measurement of the version in use, or null when there is none comparable
+     */
+    private static QualityGateFinding mustCatchNotWeakened(QualityTally candidate, QualityTally current) {
+        QualityGateCondition condition = QualityGateCondition.MUST_CATCH_NOT_WEAKENED;
+        if (candidate == null) {
+            return notEvaluated(condition);
+        }
+        int graded = 0;
+        int unmeasured = 0;
+        int answers = 0;
+        List<String> weakened = new ArrayList<>();
+        List<String> alreadyOutside = new ArrayList<>();
+        for (QualityTally.CaseTally tally : candidate.cases()) {
+            QualityCase item = tally.item();
+            if (item.grade() != QualityCaseGrade.MUST_CATCH) {
+                continue;
+            }
+            graded++;
+            if (!tally.scored()) {
+                unmeasured++;
+                continue;
+            }
+            long outside = tally.actions().stream().filter(action -> action != QualityAction.ALLOW
+                    && !item.expectation().allows(action)).count();
+            if (outside == 0) {
+                continue;
+            }
+            QualityTally.CaseTally before = current != null ? current.find(item.key()) : null;
+            if (before != null && before.actions().stream().anyMatch(action -> !item.expectation().allows(action))) {
+                alreadyOutside.add(item.key());
+            }
+            else {
+                answers += (int) outside;
+                weakened.add(item.key());
+            }
+        }
+        Map<String, Number> figures = new LinkedHashMap<>();
+        figures.put("gradedCases", graded);
+        figures.put("unmeasuredCases", unmeasured);
+        figures.put("weakenedCases", weakened.size());
+        figures.put("weakenedAnswers", answers);
+        figures.put("currentAlsoOutsideCases", alreadyOutside.size());
+        figures.put("comparedWithCurrent", current != null ? 1 : 0);
+        QualityGateStatus status = !weakened.isEmpty() ? QualityGateStatus.BLOCKED
+                : !alreadyOutside.isEmpty() ? QualityGateStatus.WARNING : QualityGateStatus.PASSED;
+        return new QualityGateFinding(condition, status, figures, List.of(),
+                !weakened.isEmpty() ? weakened : alreadyOutside);
     }
 
     /** Rows 4 and 5: none of the rates is worse than with the version in use. */

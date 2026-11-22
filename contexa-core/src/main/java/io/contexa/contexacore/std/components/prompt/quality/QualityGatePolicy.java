@@ -25,9 +25,9 @@ import java.util.Objects;
  * of {@link QualityGateEvaluator} with the thresholds of the installation, and the mode it is applied in.
  *
  * <ul>
- * <li>Measured, missing or stale: the nine conditions are computed from the measurements there are; a missing one
+ * <li>Measured, missing or stale: the conditions are computed from the measurements there are; a missing one
  * blocks on the first condition. A stale measurement is always warned of, so that it is taken again.</li>
- * <li>Cannot be measured: not "below the bar" but "cannot be measured"; the nine conditions are not evaluated and the
+ * <li>Cannot be measured: not "below the bar" but "cannot be measured"; the conditions are not evaluated and the
  * gate warns only.</li>
  * <li>The first measurement of the version in use waits: the first condition, which blocks for the missing
  * measurement of the version in use, warns instead; the conditions the candidate's own measurement decides keep their
@@ -129,7 +129,7 @@ public final class QualityGatePolicy {
                 input.candidateCreatedAt());
     }
 
-    /** The nine conditions, none of them looked at. */
+    /** The conditions, none of them looked at. */
     private static QualityGateResult notEvaluated() {
         List<QualityGateFinding> findings = new ArrayList<>();
         for (QualityGateCondition condition : QualityGateCondition.values()) {

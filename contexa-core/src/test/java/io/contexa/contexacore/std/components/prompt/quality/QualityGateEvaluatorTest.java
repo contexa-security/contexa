@@ -29,10 +29,11 @@ import java.util.function.Function;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Plan 3.4: the nine conditions of the quality gate, and the discrimination checks of plan 6 at the level of the
+ * Plan 3.4: the conditions of the quality gate, and the discrimination checks of plan 6 at the level of the
  * computation: what must be blocked is blocked (a version that challenges everything, one that only defers, one that
- * allows a case that must be caught), and what must pass passes (the same answers again, a difference within the
- * noise). Plan 3.2: a version worse only on the cases that came in after it was made draws the warning.
+ * allows a case that must be caught, one that challenges a case that must be blocked), and what must pass passes (the
+ * same answers again, a difference within the noise). Plan 3.2: a version worse only on the cases that came in after
+ * it was made draws the warning.
  */
 class QualityGateEvaluatorTest {
 
@@ -47,6 +48,8 @@ class QualityGateEvaluatorTest {
     private static final QualityNoise NOISE = noise(0.05);
 
     private static final Set<Integer> EVERY_RUN = Set.of(1, 2, 3);
+
+    private static final int CONDITIONS = QualityGateCondition.values().length;
 
     private static List<QualityCase> cases() {
         List<QualityCase> cases = new ArrayList<>();
@@ -151,19 +154,23 @@ class QualityGateEvaluatorTest {
         assertThat(noCandidate.status()).isEqualTo(QualityGateStatus.BLOCKED);
         assertThat(status(noCandidate, QualityGateCondition.COMPARABLE_MEASUREMENTS))
                 .isEqualTo(QualityGateStatus.BLOCKED);
-        assertThat(noCandidate.findings().subList(1, 9)).extracting(QualityGateFinding::status)
+        assertThat(noCandidate.findings().subList(1, CONDITIONS)).extracting(QualityGateFinding::status)
                 .containsOnly(QualityGateStatus.NOT_EVALUATED);
         // A measurement where every answer failed is no measurement, yet no rate condition says "blocked" for it.
         assertThat(status(nothingScored, QualityGateCondition.COMPARABLE_MEASUREMENTS))
                 .isEqualTo(QualityGateStatus.BLOCKED);
         assertThat(nothingScored.finding(QualityGateCondition.COMPARABLE_MEASUREMENTS).figures())
                 .containsEntry("candidateScoredAnswers", 0);
-        assertThat(nothingScored.findings().subList(1, 9)).extracting(QualityGateFinding::status)
+        assertThat(nothingScored.findings().subList(1, CONDITIONS)).extracting(QualityGateFinding::status)
                 .containsOnly(QualityGateStatus.NOT_EVALUATED);
         // No measurement of the version in use: what the candidate alone shows is still looked at.
         assertThat(noCurrent.status()).isEqualTo(QualityGateStatus.BLOCKED);
         assertThat(status(noCurrent, QualityGateCondition.MUST_CATCH_NEVER_ALLOWED))
                 .isEqualTo(QualityGateStatus.PASSED);
+        assertThat(status(noCurrent, QualityGateCondition.MUST_CATCH_NOT_WEAKENED))
+                .isEqualTo(QualityGateStatus.PASSED);
+        assertThat(noCurrent.finding(QualityGateCondition.MUST_CATCH_NOT_WEAKENED).figures())
+                .containsEntry("comparedWithCurrent", 0);
         assertThat(status(noCurrent, QualityGateCondition.MUST_NOT_BLOCK_NEVER_BLOCKED))
                 .isEqualTo(QualityGateStatus.PASSED);
         assertThat(status(noCurrent, QualityGateCondition.MISS_NOT_INCREASED))
@@ -208,10 +215,77 @@ class QualityGateEvaluatorTest {
         // One answer of 42 is within the noise: the miss rate does not block, the grade does.
         assertThat(allowedOnce.comparisons().get(QualityMetric.MISS).verdict()).isEqualTo(QualityVerdict.SAME);
         assertThat(status(allowedOnce, QualityGateCondition.MISS_NOT_INCREASED)).isEqualTo(QualityGateStatus.PASSED);
-        // A challenge is not the one right action, but it is not an allow.
+        // A challenge is not the one right action, but it is not an allow: the row beside this one takes it.
         assertThat(status(challenged, QualityGateCondition.MUST_CATCH_NEVER_ALLOWED))
                 .isEqualTo(QualityGateStatus.PASSED);
-        assertThat(challenged.status()).isEqualTo(QualityGateStatus.PASSED);
+        assertThat(status(challenged, QualityGateCondition.MUST_CATCH_NOT_WEAKENED))
+                .isEqualTo(QualityGateStatus.BLOCKED);
+        // Row 2 alone counts the allowing answers, so the allowed case is not counted twice.
+        assertThat(status(allowedOnce, QualityGateCondition.MUST_CATCH_NOT_WEAKENED))
+                .isEqualTo(QualityGateStatus.PASSED);
+    }
+
+    @Test
+    void besideRow2ACaseThatMustBeCaughtNewlyAnsweredOutsideItsAllowedActionsOnceBlocksTheCandidate() {
+        QualityGateResult challengedOnce = gate(soundAnswers(),
+                QualityAnswerFixtures.with(soundAnswers(), "M1", Set.of(2), QualityAction.CHALLENGE));
+        List<QualityAnswer> deferredBoth = QualityAnswerFixtures.with(
+                QualityAnswerFixtures.with(soundAnswers(), "M1", EVERY_RUN, QualityAction.ESCALATE), "M2", EVERY_RUN,
+                QualityAction.ESCALATE);
+        QualityGateResult deferred = gate(soundAnswers(), deferredBoth);
+        QualityGateResult uncompared = QualityGateEvaluator.evaluate(new QualityGateInput(CASES, null,
+                QualityAnswerFixtures.measurement("v2", RUNS, deferredBoth), NOISE, SETTINGS, null));
+
+        // K186: one challenge of a confirmed takeover the version in use blocks, in one run of three, blocks.
+        QualityGateFinding finding = challengedOnce.finding(QualityGateCondition.MUST_CATCH_NOT_WEAKENED);
+        assertThat(finding.status()).isEqualTo(QualityGateStatus.BLOCKED);
+        assertThat(finding.caseKeys()).containsExactly("M1");
+        assertThat(finding.figures()).containsEntry("gradedCases", 2).containsEntry("unmeasuredCases", 0)
+                .containsEntry("weakenedCases", 1).containsEntry("weakenedAnswers", 1)
+                .containsEntry("currentAlsoOutsideCases", 0).containsEntry("comparedWithCurrent", 1);
+        assertThat(challengedOnce.status()).isEqualTo(QualityGateStatus.BLOCKED);
+        // No other row speaks of it: it is no miss, and the rates the gate compares do not move.
+        assertThat(challengedOnce.findings()).filteredOn(other -> other.condition()
+                        != QualityGateCondition.MUST_CATCH_NOT_WEAKENED)
+                .extracting(QualityGateFinding::status).containsOnly(QualityGateStatus.PASSED);
+
+        assertThat(deferred.finding(QualityGateCondition.MUST_CATCH_NOT_WEAKENED).caseKeys())
+                .containsExactly("M1", "M2");
+        assertThat(deferred.finding(QualityGateCondition.MUST_CATCH_NOT_WEAKENED).figures())
+                .containsEntry("weakenedCases", 2).containsEntry("weakenedAnswers", 6);
+        assertThat(deferred.status()).isEqualTo(QualityGateStatus.BLOCKED);
+        // Without a measurement of the version in use nothing shows the answers are older than the candidate.
+        assertThat(uncompared.finding(QualityGateCondition.MUST_CATCH_NOT_WEAKENED).status())
+                .isEqualTo(QualityGateStatus.BLOCKED);
+        assertThat(uncompared.finding(QualityGateCondition.MUST_CATCH_NOT_WEAKENED).figures())
+                .containsEntry("weakenedCases", 2).containsEntry("comparedWithCurrent", 0);
+    }
+
+    @Test
+    void besideRow2ACaseTheVersionInUseAlsoAnswersOutsideItsAllowedActionsIsAWarningNotABlock() {
+        List<QualityAnswer> challenging = QualityAnswerFixtures.with(soundAnswers(), "M1", EVERY_RUN,
+                QualityAction.CHALLENGE);
+        QualityGateResult sameAgain = gate(challenging, challenging);
+        QualityGateResult betterThanAnAllow = gate(
+                QualityAnswerFixtures.with(soundAnswers(), "M1", Set.of(1), QualityAction.ALLOW), challenging);
+        QualityGateResult onceBefore = gate(
+                QualityAnswerFixtures.with(soundAnswers(), "M1", Set.of(3), QualityAction.ESCALATE), challenging);
+
+        // The same version measured again is not blocked for what the version in use does already.
+        QualityGateFinding finding = sameAgain.finding(QualityGateCondition.MUST_CATCH_NOT_WEAKENED);
+        assertThat(finding.status()).isEqualTo(QualityGateStatus.WARNING);
+        assertThat(finding.caseKeys()).containsExactly("M1");
+        assertThat(finding.figures()).containsEntry("weakenedCases", 0).containsEntry("weakenedAnswers", 0)
+                .containsEntry("currentAlsoOutsideCases", 1);
+        assertThat(sameAgain.status()).isEqualTo(QualityGateStatus.WARNING);
+        // A version in use that allowed the case once: a challenge is no weakening the candidate brings.
+        assertThat(status(betterThanAnAllow, QualityGateCondition.MUST_CATCH_NOT_WEAKENED))
+                .isEqualTo(QualityGateStatus.WARNING);
+        assertThat(status(betterThanAnAllow, QualityGateCondition.MUST_CATCH_NEVER_ALLOWED))
+                .isEqualTo(QualityGateStatus.PASSED);
+        // One run of the version in use outside the allowed actions makes the case one it answers so.
+        assertThat(status(onceBefore, QualityGateCondition.MUST_CATCH_NOT_WEAKENED))
+                .isEqualTo(QualityGateStatus.WARNING);
     }
 
     @Test
@@ -268,9 +342,12 @@ class QualityGateEvaluatorTest {
         assertThat(friction.currentValue()).isZero();
         assertThat(friction.candidateValue()).isEqualTo(1.0);
         assertThat(friction.worseRoots()).isEqualTo(14);
-        // It misses nothing and blocks nothing, so no other condition stops it.
+        // It misses nothing and blocks nothing; it challenges the two cases that must be blocked, which the row beside
+        // row 2 takes.
         assertThat(status(result, QualityGateCondition.MISS_NOT_INCREASED)).isEqualTo(QualityGateStatus.PASSED);
         assertThat(status(result, QualityGateCondition.MUST_CATCH_NEVER_ALLOWED)).isEqualTo(QualityGateStatus.PASSED);
+        assertThat(result.finding(QualityGateCondition.MUST_CATCH_NOT_WEAKENED).caseKeys())
+                .containsExactly("M1", "M2");
         assertThat(status(result, QualityGateCondition.MUST_NOT_BLOCK_NEVER_BLOCKED))
                 .isEqualTo(QualityGateStatus.PASSED);
         assertThat(result.status()).isEqualTo(QualityGateStatus.BLOCKED);
@@ -575,13 +652,19 @@ class QualityGateEvaluatorTest {
         assertThat(result.comparisons().get(QualityMetric.MISS).currentValue()).isEqualTo(13.0 / 55);
         assertThat(result.finding(QualityGateCondition.MUST_CATCH_NEVER_ALLOWED).figures())
                 .containsEntry("gradedCases", 10).containsEntry("failedCases", 0);
+        // It is challenged by both, so it is a warning: the same version measured again is not blocked for it.
+        QualityGateFinding weakened = result.finding(QualityGateCondition.MUST_CATCH_NOT_WEAKENED);
+        assertThat(weakened.status()).isEqualTo(QualityGateStatus.WARNING);
+        assertThat(weakened.caseKeys()).containsExactly("VER-A1T");
+        assertThat(weakened.figures()).containsEntry("weakenedCases", 0).containsEntry("currentAlsoOutsideCases", 1);
         // The default set alone is 25 roots to stop and 10 to allow: the gate says it cannot tell versions apart.
         QualityGateFinding enough = result.finding(QualityGateCondition.ENOUGH_CASES);
         assertThat(enough.status()).isEqualTo(QualityGateStatus.WARNING);
         assertThat(enough.figures()).containsEntry("stopRoots", 25).containsEntry("stopRootsShort", 175)
                 .containsEntry("allowRoots", 10).containsEntry("allowRootsShort", 290)
                 .containsEntry("undecidableRates", 0);
-        assertThat(result.findings()).filteredOn(finding -> finding.condition() != QualityGateCondition.ENOUGH_CASES)
+        assertThat(result.findings()).filteredOn(finding -> finding.condition() != QualityGateCondition.ENOUGH_CASES
+                        && finding.condition() != QualityGateCondition.MUST_CATCH_NOT_WEAKENED)
                 .extracting(QualityGateFinding::status).containsOnly(QualityGateStatus.PASSED);
         assertThat(result.status()).isEqualTo(QualityGateStatus.WARNING);
 
