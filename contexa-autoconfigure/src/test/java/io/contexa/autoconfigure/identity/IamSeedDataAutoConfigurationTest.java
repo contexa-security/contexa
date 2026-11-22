@@ -15,14 +15,8 @@
  */
 package io.contexa.autoconfigure.identity;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.verification.metric.OfficialVerificationDefinitionCatalog;
-import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricContractCatalog;
 import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
@@ -421,59 +415,6 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("IAM PQA official completeness check should run after seed SQL")
-    void pqaOfficialCompletenessCheckRunsAfterSeedSql() throws Exception {
-        String source = Files.readString(Path.of(
-                "src/main/java/io/contexa/autoconfigure/identity/IamSeedDataAutoConfiguration.java"));
-
-        assertThat(source.indexOf("for (String location : SEED_LOCATIONS)"))
-                .isLessThan(source.indexOf("completePqaOfficialSchemaIfNeeded(dataSource);"));
-    }
-
-    @Test
-    @DisplayName("IAM PQA official completeness check should require every prompt signal contract")
-    void pqaOfficialCompletenessRequiresEveryPromptSignalContract() throws Exception {
-        Field expectedField = IamSeedDataAutoConfiguration.class
-                .getDeclaredField("EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS");
-        expectedField.setAccessible(true);
-
-        assertThat(expectedField.getInt(null)).isEqualTo(688);
-    }
-
-    @Test
-    @DisplayName("IAM PQA official completeness check should require customer-facing metric contracts")
-    void pqaOfficialCompletenessRequiresCustomerFacingMetricContracts() throws Exception {
-        assertThat(privateStaticInt("EXPECTED_OFFICIAL_METRIC_PURPOSE_CONTRACTS")).isEqualTo(12);
-        assertThat(privateStaticInt("EXPECTED_OFFICIAL_METRIC_INPUT_CONTRACTS")).isEqualTo(396);
-        assertThat(privateStaticInt("EXPECTED_OFFICIAL_METRIC_CHECK_DISPLAY_EVIDENCE_CONTRACTS")).isEqualTo(66);
-        assertThat(privateStaticInt("EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_CONTRACTS")).isEqualTo(390);
-        assertThat(privateStaticInt("EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_BINDINGS")).isEqualTo(212);
-    }
-
-    @Test
-    @DisplayName("IAM derives the versioned 12 metric and 66 check definition view from the canonical contract")
-    void pqaOfficialDefinitionCatalogIsVersionedAndKeyBacked() {
-        FinalPromptMetricContractCatalog canonical = FinalPromptMetricContractCatalog.load(new ObjectMapper());
-        assertThat(OfficialVerificationDefinitionCatalog.metrics()).hasSize(12);
-        assertThat(OfficialVerificationDefinitionCatalog.checks()).hasSize(66);
-        assertThat(OfficialVerificationDefinitionCatalog.VERSION).isEqualTo(canonical.contractVersion());
-        assertThat(OfficialVerificationDefinitionCatalog.metrics())
-                .extracting(OfficialVerificationDefinitionCatalog.MetricSeed::code)
-                .containsExactlyElementsOf(canonical.metricCodesInOrder());
-        assertThat(OfficialVerificationDefinitionCatalog.checks())
-                .extracting(check -> check.metricCode() + "|" + check.checkCode())
-                .containsExactlyElementsOf(canonical.metrics().stream()
-                        .flatMap(metric -> metric.checks().stream())
-                        .map(check -> check.metricCode() + "|" + check.checkName())
-                        .toList());
-        assertThat(OfficialVerificationDefinitionCatalog.metrics())
-                .extracting(OfficialVerificationDefinitionCatalog.MetricSeed::code)
-                .contains("COR")
-                .doesNotContain("CoR");
-        assertThat(OfficialVerificationDefinitionCatalog.checksum()).matches("[a-f0-9]{64}");
-    }
-
-    @Test
     @DisplayName("IAM canonical schema inventory includes versioned OSS provenance")
     void iamSchemaInventoryIncludesProvenance() throws Exception {
         ContexaSchemaInventory.Snapshot inventory = ContexaSchemaInventory.fromResources(
@@ -601,12 +542,6 @@ class IamSeedDataAutoConfigurationTest {
                 true, true, IamSeedDataAutoConfiguration.SchemaInstallState.COMPLETE, unknown)).isFalse();
         assertThat(IamSeedDataAutoConfiguration.shouldRejectUnverifiedEnterpriseSchema(
                 false, false, IamSeedDataAutoConfiguration.SchemaInstallState.ABSENT, unknown)).isFalse();
-    }
-
-    private int privateStaticInt(String fieldName) throws Exception {
-        Field field = IamSeedDataAutoConfiguration.class.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        return field.getInt(null);
     }
 
     private static final String VECTOR_TABLE = """

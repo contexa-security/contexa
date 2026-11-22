@@ -15,9 +15,7 @@
  */
 package io.contexa.autoconfigure.identity;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
-import io.contexa.contexaiam.admin.promptquality.official.common.OfficialMetricPurposeContractCatalogWriter;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -73,13 +71,6 @@ public class IamSeedDataAutoConfiguration {
     private static final String CANONICAL_SCHEMA_LOCATION = "META-INF/contexa/db/schema.sql";
     static final String IAM_SEED_DATA_INITIALIZER_BEAN = "contexaIamSeedDataInitializer";
     static final String CONTEXA_ENTITY_MANAGER_FACTORY_BEAN = "contexaEntityManagerFactory";
-    private static final int EXPECTED_OFFICIAL_METRIC_EVALUATION_CONTRACTS = 66;
-    private static final int EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS = 688;
-    private static final int EXPECTED_OFFICIAL_METRIC_PURPOSE_CONTRACTS = 12;
-    private static final int EXPECTED_OFFICIAL_METRIC_INPUT_CONTRACTS = 396;
-    private static final int EXPECTED_OFFICIAL_METRIC_CHECK_DISPLAY_EVIDENCE_CONTRACTS = 66;
-    private static final int EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_CONTRACTS = 390;
-    private static final int EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_BINDINGS = 212;
 
     static final String[] SCHEMA_LOCATIONS = {
             CANONICAL_SCHEMA_LOCATION
@@ -89,16 +80,6 @@ public class IamSeedDataAutoConfiguration {
             "ctxa_users",
             "ctxa_admin_menu",
             "ctxa_sealed_evidence_package",
-            "ctxa_official_metric_evaluation_contract",
-            "ctxa_official_prompt_signal_contract",
-            "ctxa_verification_run_ledger",
-            "ctxa_official_verification_run_batch",
-            "ctxa_official_verification_metric_snapshot",
-            "ctxa_official_metric_purpose_contract",
-            "ctxa_official_metric_purpose_evidence_ledger",
-            "ctxa_official_actual_prompt_problem_ledger",
-            "ctxa_official_verification_prompt_comparison",
-            "ctxa_pqa_sealed_evidence_resource_status",
             "ctxa_ai_security_decision_observation"
     };
 
@@ -331,7 +312,6 @@ public class IamSeedDataAutoConfiguration {
                         + "/contexa/admin/login and change the password with \"Change password\" in the console header.");
             }
         }
-        completePqaOfficialSchemaIfNeeded(dataSource);
     }
 
     private static boolean hasUserAccounts(DataSource dataSource) {
@@ -511,88 +491,6 @@ public class IamSeedDataAutoConfiguration {
                 .replaceAll("\\s+", " ")
                 .trim()
                 .toLowerCase(Locale.ROOT);
-    }
-
-    private void completePqaOfficialSchemaIfNeeded(DataSource dataSource) throws SQLException, IOException {
-        PqaOfficialSeedState seedState = detectPqaOfficialSeedState(dataSource);
-        if (seedState == PqaOfficialSeedState.ABSENT) {
-            Resource schema = ContexaResources.sql(CANONICAL_SCHEMA_LOCATION);
-            if (!schema.exists()) {
-                log.warn("[IamSeedData] classpath:{} not found, cannot complete PQA official schema seed",
-                        CANONICAL_SCHEMA_LOCATION);
-                return;
-            }
-            log.warn("[IamSeedData] PQA official schema tables are absent; attempting idempotent schema completion");
-            executeSchemaSql(dataSource, CANONICAL_SCHEMA_LOCATION, pqaSeedCompletionSchemaSql(schema));
-            log.info("[IamSeedData] {} executed for PQA official schema completion", CANONICAL_SCHEMA_LOCATION);
-            seedState = detectPqaOfficialSeedState(dataSource);
-        }
-        if (seedState != PqaOfficialSeedState.COMPLETE) {
-            log.info("[IamSeedData] PQA official contract catalog seed is {}; attempting catalog completion",
-                    seedState);
-            completePqaOfficialContractCatalog(dataSource);
-            seedState = detectPqaOfficialSeedState(dataSource);
-        }
-        if (seedState != PqaOfficialSeedState.COMPLETE) {
-            throw new IllegalStateException(
-                    "PQA official schema seed is incomplete after canonical META-INF/contexa/db/schema.sql execution. "
-                            + "Rebuild the Contexa database or run the canonical "
-                            + "META-INF/contexa/db/schema.sql manually before starting the application.");
-        }
-    }
-
-    private void completePqaOfficialContractCatalog(DataSource dataSource) {
-        OfficialMetricPurposeContractCatalogWriter writer =
-                new OfficialMetricPurposeContractCatalogWriter(new JdbcTemplate(dataSource), new ObjectMapper());
-        writer.upsertFullMetricContractCatalog();
-        writer.assertFullMetricContractCatalogPersisted();
-        log.info("[IamSeedData] PQA official contract catalog completed from runtime catalog resources");
-    }
-
-    private String pqaSeedCompletionSchemaSql(Resource schema) throws IOException {
-        String sql = schema.getContentAsString(StandardCharsets.UTF_8);
-        return sanitizeSchemaSqlForInstalledDatabase(sql)
-                .replaceAll("(?is)\\balter\\s+table\\s+\\S+\\s+alter\\s+column\\s+\\S+\\s+set\\s+data\\s+type\\s+[^;]+;\\s*", "");
-    }
-
-    private PqaOfficialSeedState detectPqaOfficialSeedState(DataSource dataSource) throws SQLException {
-        try (Connection connection = dataSource.getConnection()) {
-            DatabaseMetaData metadata = connection.getMetaData();
-            if (!tableExists(connection, metadata, "ctxa_official_metric_purpose_contract")
-                    || !tableExists(connection, metadata, "ctxa_official_metric_evaluation_contract")
-                    || !tableExists(connection, metadata, "ctxa_official_metric_customer_display_contract")
-                    || !tableExists(connection, metadata, "ctxa_official_metric_customer_display_binding")
-                    || !tableExists(connection, metadata, "ctxa_official_metric_input_contract")
-                    || !tableExists(connection, metadata, "ctxa_official_metric_check_display_evidence_contract")
-                    || !tableExists(connection, metadata, "ctxa_official_prompt_signal_contract")
-                    || !tableExists(connection, metadata, "ctxa_official_verification_metric_definition")
-                    || !tableExists(connection, metadata, "ctxa_official_verification_metric_check_definition")) {
-                return PqaOfficialSeedState.ABSENT;
-            }
-            return countRows(connection, "ctxa_official_metric_evaluation_contract")
-                    >= EXPECTED_OFFICIAL_METRIC_EVALUATION_CONTRACTS
-                    && countRows(connection, "ctxa_official_prompt_signal_contract")
-                    >= EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS
-                    && countRows(connection, "ctxa_official_metric_purpose_contract")
-                    >= EXPECTED_OFFICIAL_METRIC_PURPOSE_CONTRACTS
-                    && countRows(connection, "ctxa_official_metric_input_contract")
-                    >= EXPECTED_OFFICIAL_METRIC_INPUT_CONTRACTS
-                    && countRows(connection, "ctxa_official_metric_check_display_evidence_contract")
-                    >= EXPECTED_OFFICIAL_METRIC_CHECK_DISPLAY_EVIDENCE_CONTRACTS
-                    && countRows(connection, "ctxa_official_metric_customer_display_contract")
-                    >= EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_CONTRACTS
-                    && countRows(connection, "ctxa_official_metric_customer_display_binding")
-                    >= EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_BINDINGS
-                    ? PqaOfficialSeedState.COMPLETE
-                    : PqaOfficialSeedState.PARTIAL;
-        }
-    }
-
-    private int countRows(Connection connection, String tableName) throws SQLException {
-        try (Statement statement = connection.createStatement();
-             ResultSet resultSet = statement.executeQuery("select count(*) from " + tableName)) {
-            return resultSet.next() ? resultSet.getInt(1) : 0;
-        }
     }
 
     static void executeSchemaSql(DataSource dataSource, String location, String sql) throws SQLException {
@@ -931,12 +829,6 @@ public class IamSeedDataAutoConfiguration {
     }
 
     enum SchemaInstallState {
-        ABSENT,
-        COMPLETE,
-        PARTIAL
-    }
-
-    enum PqaOfficialSeedState {
         ABSENT,
         COMPLETE,
         PARTIAL

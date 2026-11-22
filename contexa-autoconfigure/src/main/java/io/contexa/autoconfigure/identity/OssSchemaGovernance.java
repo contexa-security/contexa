@@ -1,8 +1,5 @@
 package io.contexa.autoconfigure.identity;
 
-import io.contexa.contexaiam.admin.promptquality.official.common.OfficialVerificationDefinitionCatalogWriter;
-import io.contexa.contexaiam.admin.promptquality.official.common.OfficialVerificationDefinitionCatalogWriter.CatalogSnapshot;
-
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.sql.Connection;
@@ -14,7 +11,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
-/** Coordinates OSS catalog, inventory, and provenance without running migrations. */
+/**
+ * Coordinates the OSS inventory and provenance without running migrations. The catalog_version and catalog_checksum
+ * columns of the provenance table belonged to the retired official verification catalog: they stay, nothing writes them.
+ */
 public final class OssSchemaGovernance {
 
     public static final String OSS_OWNER = "OSS";
@@ -24,11 +24,9 @@ public final class OssSchemaGovernance {
     private static final String OSS_SCHEMA = "META-INF/contexa/db/schema.sql";
 
     private final DataSource dataSource;
-    private final OfficialVerificationDefinitionCatalogWriter catalogWriter;
 
     public OssSchemaGovernance(DataSource dataSource) {
         this.dataSource = dataSource;
-        this.catalogWriter = new OfficialVerificationDefinitionCatalogWriter(dataSource);
     }
 
     public GovernanceReport initializeAndRecordOss() throws SQLException, IOException {
@@ -37,15 +35,14 @@ public final class OssSchemaGovernance {
 
     public GovernanceReport initializeAndRecordOss(
             ContexaSchemaInventory.DatabaseObjects preInstallationHostObjects) throws SQLException, IOException {
-        CatalogSnapshot catalog = catalogWriter.upsertAndVerify();
         ContexaSchemaInventory.Snapshot inventory = ossInventory();
         ContexaSchemaInventory.Diff diff = ContexaSchemaInventory.diff(
                 inventory, ContexaSchemaInventory.readDatabase(dataSource));
         requireComplete(inventory.owner(), diff);
-        recordInventory(OSS_OWNER, inventory, catalog, null);
+        recordInventory(OSS_OWNER, inventory, null);
         ensureHostInventory(preInstallationHostObjects);
         OwnershipClassification ownership = recordOwnershipClassification(inventory);
-        return new GovernanceReport(inventory, diff, catalog, null, ownership);
+        return new GovernanceReport(inventory, diff, null, ownership);
     }
 
     public void assertNoOssOwnershipCollisions(
@@ -59,25 +56,21 @@ public final class OssSchemaGovernance {
     }
 
     public GovernanceReport verifyOssHandoff() throws SQLException, IOException {
-        CatalogSnapshot catalog = catalogWriter.verify();
         ContexaSchemaInventory.Snapshot inventory = ossInventory();
         ContexaSchemaInventory.Diff diff = ContexaSchemaInventory.diff(
                 inventory, ContexaSchemaInventory.readDatabase(dataSource));
         requireComplete(inventory.owner(), diff);
         Provenance provenance = readProvenance(OSS_OWNER);
-        boolean catalogMatches = provenance != null
-                && catalog.version().equals(provenance.catalogVersion())
-                && catalog.checksum().equals(provenance.catalogChecksum());
         boolean canonicalVersionMatches = provenance != null
                 && inventory.version().equals(provenance.schemaVersion())
                 && inventory.checksum().equals(provenance.inventoryChecksum());
         boolean verifiedVersionUpgrade = provenance != null
                 && sameOwnedObjects(inventory, readInventory(OSS_OWNER));
-        if (!catalogMatches || (!canonicalVersionMatches && !verifiedVersionUpgrade)) {
-            throw new IllegalStateException("OSS schema provenance does not match the canonical inventory and catalog");
+        if (!canonicalVersionMatches && !verifiedVersionUpgrade) {
+            throw new IllegalStateException("OSS schema provenance does not match the canonical inventory");
         }
         OwnershipClassification ownership = currentOwnershipClassification(inventory);
-        return new GovernanceReport(inventory, diff, catalog, provenance.migrationVersion(), ownership);
+        return new GovernanceReport(inventory, diff, provenance.migrationVersion(), ownership);
     }
 
     public boolean hasProvenance(String owner) throws SQLException {
@@ -88,26 +81,24 @@ public final class OssSchemaGovernance {
     }
 
     public GovernanceReport refreshCatalogAfterEnterpriseMigration() throws SQLException, IOException {
-        CatalogSnapshot catalog = catalogWriter.upsertAndVerify();
         ContexaSchemaInventory.Snapshot inventory = ossInventory();
         ContexaSchemaInventory.Diff diff = ContexaSchemaInventory.diff(
                 inventory, ContexaSchemaInventory.readDatabase(dataSource));
         requireComplete(inventory.owner(), diff);
-        recordInventory(OSS_OWNER, inventory, catalog, null);
+        recordInventory(OSS_OWNER, inventory, null);
         OwnershipClassification ownership = recordOwnershipClassification(inventory);
-        return new GovernanceReport(inventory, diff, catalog, null, ownership);
+        return new GovernanceReport(inventory, diff, null, ownership);
     }
 
     public GovernanceReport recordEnterprise(
             ContexaSchemaInventory.Snapshot inventory,
             String migrationVersion) throws SQLException, IOException {
-        CatalogSnapshot catalog = catalogWriter.verify();
         ContexaSchemaInventory.Diff diff = ContexaSchemaInventory.diff(
                 inventory, ContexaSchemaInventory.readDatabase(dataSource));
         requireComplete(inventory.owner(), diff);
-        recordInventory(ENTERPRISE_OWNER, inventory, catalog, migrationVersion);
+        recordInventory(ENTERPRISE_OWNER, inventory, migrationVersion);
         OwnershipClassification ownership = recordOwnershipClassification(ossInventory());
-        return new GovernanceReport(inventory, diff, catalog, migrationVersion, ownership);
+        return new GovernanceReport(inventory, diff, migrationVersion, ownership);
     }
 
     public ContexaSchemaInventory.Snapshot ossInventory() throws IOException {
@@ -142,14 +133,13 @@ public final class OssSchemaGovernance {
         recordInventory(
                 HOST_OWNER,
                 ContexaSchemaInventory.fromDatabaseObjects(HOST_OWNER, hostObjects),
-                null,
                 null);
     }
 
     private OwnershipClassification recordOwnershipClassification(
             ContexaSchemaInventory.Snapshot ossInventory) throws SQLException {
         OwnershipClassification classification = currentOwnershipClassification(ossInventory);
-        recordInventory(LEGACY_UNOWNED_OWNER, classification.unowned(), null, null);
+        recordInventory(LEGACY_UNOWNED_OWNER, classification.unowned(), null);
         return classification;
     }
 
@@ -216,13 +206,12 @@ public final class OssSchemaGovernance {
     private void recordInventory(
             String owner,
             ContexaSchemaInventory.Snapshot inventory,
-            CatalogSnapshot catalog,
             String migrationVersion) throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
             boolean previousAutoCommit = connection.getAutoCommit();
             connection.setAutoCommit(false);
             try {
-                upsertProvenance(connection, owner, inventory, catalog, migrationVersion);
+                upsertProvenance(connection, owner, inventory, migrationVersion);
                 replaceInventoryObjects(connection, owner, inventory);
                 connection.commit();
             } catch (SQLException error) {
@@ -238,26 +227,24 @@ public final class OssSchemaGovernance {
             Connection connection,
             String owner,
             ContexaSchemaInventory.Snapshot inventory,
-            CatalogSnapshot catalog,
             String migrationVersion) throws SQLException {
         int updated;
         try (PreparedStatement statement = connection.prepareStatement("""
                 update ctxa_schema_provenance
-                   set schema_version = ?, inventory_checksum = ?, catalog_version = ?,
-                       catalog_checksum = ?, migration_version = ?, recorded_at = current_timestamp
+                   set schema_version = ?, inventory_checksum = ?, migration_version = ?,
+                       recorded_at = current_timestamp
                  where product_owner = ?
                 """)) {
-            bindProvenance(statement, inventory, catalog, migrationVersion, owner, false);
+            bindProvenance(statement, inventory, migrationVersion, owner, false);
             updated = statement.executeUpdate();
         }
         if (updated == 0) {
             try (PreparedStatement statement = connection.prepareStatement("""
                     insert into ctxa_schema_provenance
-                        (product_owner, schema_version, inventory_checksum, catalog_version,
-                         catalog_checksum, migration_version)
-                    values (?, ?, ?, ?, ?, ?)
+                        (product_owner, schema_version, inventory_checksum, migration_version)
+                    values (?, ?, ?, ?)
                     """)) {
-                bindProvenance(statement, inventory, catalog, migrationVersion, owner, true);
+                bindProvenance(statement, inventory, migrationVersion, owner, true);
                 statement.executeUpdate();
             }
         }
@@ -302,7 +289,6 @@ public final class OssSchemaGovernance {
     private void bindProvenance(
             PreparedStatement statement,
             ContexaSchemaInventory.Snapshot inventory,
-            CatalogSnapshot catalog,
             String migrationVersion,
             String owner,
             boolean insert) throws SQLException {
@@ -310,24 +296,19 @@ public final class OssSchemaGovernance {
             statement.setString(1, owner);
             statement.setString(2, inventory.version());
             statement.setString(3, inventory.checksum());
-            statement.setString(4, catalog == null ? null : catalog.version());
-            statement.setString(5, catalog == null ? null : catalog.checksum());
-            statement.setString(6, migrationVersion);
+            statement.setString(4, migrationVersion);
         } else {
             statement.setString(1, inventory.version());
             statement.setString(2, inventory.checksum());
-            statement.setString(3, catalog == null ? null : catalog.version());
-            statement.setString(4, catalog == null ? null : catalog.checksum());
-            statement.setString(5, migrationVersion);
-            statement.setString(6, owner);
+            statement.setString(3, migrationVersion);
+            statement.setString(4, owner);
         }
     }
 
     private Provenance readProvenance(String owner) throws SQLException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
-                     select schema_version, inventory_checksum, catalog_version,
-                            catalog_checksum, migration_version
+                     select schema_version, inventory_checksum, migration_version
                        from ctxa_schema_provenance
                       where product_owner = ?
                      """)) {
@@ -339,9 +320,7 @@ public final class OssSchemaGovernance {
                 return new Provenance(
                         resultSet.getString(1),
                         resultSet.getString(2),
-                        resultSet.getString(3),
-                        resultSet.getString(4),
-                        resultSet.getString(5));
+                        resultSet.getString(3));
             }
         }
     }
@@ -357,7 +336,6 @@ public final class OssSchemaGovernance {
     public record GovernanceReport(
             ContexaSchemaInventory.Snapshot inventory,
             ContexaSchemaInventory.Diff diff,
-            CatalogSnapshot catalog,
             String migrationVersion,
             OwnershipClassification ownership) {
     }
@@ -370,8 +348,6 @@ public final class OssSchemaGovernance {
     private record Provenance(
             String schemaVersion,
             String inventoryChecksum,
-            String catalogVersion,
-            String catalogChecksum,
             String migrationVersion) {
     }
 }
