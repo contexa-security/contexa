@@ -684,8 +684,19 @@ public class LLMExecutionStep implements PipelineStep {
             AtomicReference<ExecutionContext> lastCall) {
         return Mono.defer(() -> {
             lastCall.set(executionContext);
-            return executeRaw(executionContext, context);
+            return executeRaw(executionContext, context)
+                    .doOnSuccess(answer -> recordModelCall(context, executionContext, false))
+                    .doOnError(error -> recordModelCall(context, executionContext, true));
         });
+    }
+
+    /** Quality plan 3.3: one model call added to the run's calls in their order, with the times the call left. */
+    private static void recordModelCall(PipelineExecutionContext context, ExecutionContext call, boolean failed) {
+        Map<String, Object> times = call.getMetadata() != null ? call.getMetadata() : Map.of();
+        context.addMetadata(PromptRuntimeTelemetrySupport.MODEL_CALLS, PromptRuntimeTelemetrySupport.withModelCall(
+                context.getMetadata(PromptRuntimeTelemetrySupport.MODEL_CALLS, Object.class),
+                times.get("providerCallMs"), times.get(UnifiedLLMOrchestrator.MODEL_SERVER_WAIT_MS),
+                times.get("providerCallTimeoutMs"), failed));
     }
 
     /**

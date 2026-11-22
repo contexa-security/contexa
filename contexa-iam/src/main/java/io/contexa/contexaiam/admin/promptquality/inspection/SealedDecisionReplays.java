@@ -76,14 +76,25 @@ public class SealedDecisionReplays {
      * @param userBaseline         the person's baseline the decision was drawn against, as a JSON object or its text;
      *                             null for the one the package sealed, or the one kept now when it sealed none
      * @param organizationBaseline the organization's, likewise
+     * @param configuredSecondPass whether the second pass is also asked with the second layer's own model, the one the
+     *                             server is set to, before the named ones (quality plan 3.3); null or false for the
+     *                             named models only
      */
     public record ReplayRequest(String bundleVersion, @Nullable List<String> secondPassModels,
-                                @Nullable JsonNode userBaseline, @Nullable JsonNode organizationBaseline) {
+                                @Nullable JsonNode userBaseline, @Nullable JsonNode organizationBaseline,
+                                @Nullable Boolean configuredSecondPass) {
+
+        /** A replay whose second pass is asked with the named models only. */
+        public ReplayRequest(String bundleVersion, @Nullable List<String> secondPassModels,
+                             @Nullable JsonNode userBaseline, @Nullable JsonNode organizationBaseline) {
+            this(bundleVersion, secondPassModels, userBaseline, organizationBaseline, null);
+        }
     }
 
     /**
      * What the replay answered, with the baselines it was drawn with and the state of the sealed package it was drawn
-     * from: an answer drawn from a package changed after its seal is no fact about the decision (PR-77).
+     * from: an answer drawn from a package changed after its seal is no fact about the decision (PR-77). The state is
+     * null for a decision given in memory ({@link #replayGiven}): it was never sealed, so there is no seal to tell of.
      */
     public record Replayed(SealedDecisionReplayService.Result result, Baselines baselines,
                            SealedEvidencePackageIntegrity.Status integrity) {
@@ -175,6 +186,45 @@ public class SealedDecisionReplays {
     }
 
     private Optional<Replayed> replay(String actor, Optional<SealedEvidencePackage> found, ReplayRequest request) {
+        Asked asked = asked(request);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        SealedEvidencePackage sealed = found.get();
+        return Optional.of(run(actor, sealed, request, asked, null, integrity.evaluate(sealed)));
+    }
+
+    /**
+     * Quality plan 3.2, 5 stage 3: the replay of a decision that is in no store, given in the form of a sealed package
+     * (its canonical context, request facts, authentication state, baseline snapshot and retrieval results): a
+     * labelled case is kept apart from the sealed decisions and built in memory for its replay. Everything the prompt
+     * is drawn from comes with it: the baselines are those the request gives, else those its baseline snapshot keeps;
+     * without either the decision had none, and the baselines Contexa keeps now are not read, so the same case is the
+     * same input on every server and at every time. The context format its inputs are written in is compared with the
+     * one this build reads; inputs of another format are not read, and the answer says so. The replay calls the model,
+     * so it is audited like any other.
+     *
+     * @param given                the inputs in the sealed form; its package id and correlation id name the case
+     * @param contextFormatVersion the version of the context format the inputs are written in
+     * @throws IllegalArgumentException when the version is no version of the security decision prompt, or no context
+     *                                  format is named
+     * @throws UnavailableException     when the engine's decision pipeline is not in this application
+     */
+    public Replayed replayGiven(String actor, SealedEvidencePackage given, String contextFormatVersion,
+                                ReplayRequest request) {
+        Objects.requireNonNull(given, "given");
+        Asked asked = asked(request);
+        if (contextFormatVersion == null || contextFormatVersion.isBlank()) {
+            throw new IllegalArgumentException("The context format of a given decision's inputs is required");
+        }
+        return run(actor, given, request, asked, contextFormatVersion.trim(), null);
+    }
+
+    /** What a replay request asks for, checked: the version and the models of the second pass. */
+    private record Asked(String bundle, List<String> models, boolean configuredSecondPass) {
+    }
+
+    private Asked asked(ReplayRequest request) {
         if (request == null || request.bundleVersion() == null || request.bundleVersion().isBlank()) {
             throw new IllegalArgumentException("A bundle version is required");
         }
@@ -186,23 +236,31 @@ public class SealedDecisionReplays {
         }
         List<String> models = request.secondPassModels() == null ? List.of() : request.secondPassModels().stream()
                 .filter(Objects::nonNull).map(String::trim).filter(model -> !model.isEmpty()).distinct().toList();
-        if (models.size() > SECOND_PASS_LIMIT) {
+        // Quality plan 3.3: the second layer's own model is one more second pass, asked under no name.
+        boolean configured = Boolean.TRUE.equals(request.configuredSecondPass());
+        if (models.size() + (configured ? 1 : 0) > SECOND_PASS_LIMIT) {
             throw new IllegalArgumentException("At most " + SECOND_PASS_LIMIT + " second-pass models may be asked");
         }
-        if (found.isEmpty()) {
-            return Optional.empty();
-        }
+        return new Asked(bundle, models, configured);
+    }
+
+    /**
+     * The replay of the sealed inputs: of a package of the store with its state, or of a given decision with the
+     * context format its inputs are written in and no state.
+     */
+    private Replayed run(String actor, SealedEvidencePackage sealed, ReplayRequest request, Asked asked,
+                         @Nullable String givenContextFormat, @Nullable SealedEvidencePackageIntegrity.Status state) {
         SealedDecisionReplayService replays = service.get();
         if (replays == null) {
             throw new UnavailableException();
         }
-        SealedEvidencePackage sealed = found.get();
-        DrawnWith drawnWith = baselinesOf(sealed, request.userBaseline(), request.organizationBaseline());
-        SealedEvidencePackageIntegrity.Status state = integrity.evaluate(sealed);
-        SealedDecisionReplayService.Result result = replays.replay(sealed, drawnWith.user(), drawnWith.organization(),
-                bundle, TIMEOUT, models);
-        audit(actor, sealed, bundle, models, drawnWith.baselines(), state, result);
-        return Optional.of(new Replayed(result, drawnWith.baselines(), state));
+        boolean given = givenContextFormat != null;
+        DrawnWith drawnWith = baselinesOf(sealed, request.userBaseline(), request.organizationBaseline(), !given);
+        SealedDecisionReplayService.Result result = replays.replay(new SealedDecisionReplayService.Request(sealed,
+                drawnWith.user(), drawnWith.organization(), asked.bundle(), TIMEOUT, asked.models(),
+                asked.configuredSecondPass(), givenContextFormat));
+        audit(actor, sealed, asked, drawnWith.baselines(), state, given, result);
+        return new Replayed(result, drawnWith.baselines(), state);
     }
 
     /**
@@ -240,7 +298,7 @@ public class SealedDecisionReplays {
             throw new UnavailableException();
         }
         SealedEvidencePackage sealed = found.get();
-        DrawnWith drawnWith = baselinesOf(sealed, null, null);
+        DrawnWith drawnWith = baselinesOf(sealed, null, null, true);
         SealedDecisionReplayService.Drawing drawing = replays.draw(sealed, drawnWith.user(), drawnWith.organization(),
                 name);
         return Optional.of(new Drawn(drawing, drawnWith.baselines(), integrity.evaluate(sealed)));
@@ -261,10 +319,11 @@ public class SealedDecisionReplays {
     /**
      * The baselines a sealed decision is drawn again with: those given; else those the package sealed with its
      * decision, a baseline it sealed as none staying none; else, for a package that sealed no baselines, the person's
-     * and the organization's as Contexa keeps them now.
+     * and the organization's as Contexa keeps them now. A given decision is never drawn with those kept now: without a
+     * baseline given or kept in its snapshot it had none, and that is what the caller gave.
      */
     private DrawnWith baselinesOf(SealedEvidencePackage sealed, @Nullable JsonNode userBaseline,
-                                  @Nullable JsonNode organizationBaseline) {
+                                  @Nullable JsonNode organizationBaseline, boolean keptNowAllowed) {
         BaselineVector user = vector(userBaseline);
         BaselineVector organization = vector(organizationBaseline);
         Baselines drawnWith = user != null || organization != null ? Baselines.GIVEN : Baselines.CURRENT;
@@ -275,6 +334,9 @@ public class SealedDecisionReplays {
             drawnWith = Baselines.SEALED;
             user = kept.get().personal();
             organization = kept.get().organization();
+        }
+        if (drawnWith == Baselines.CURRENT && !keptNowAllowed) {
+            drawnWith = Baselines.GIVEN;
         }
         if (drawnWith == Baselines.CURRENT && baselines != null) {
             // Copies, so that naming the user below leaves the kept baselines as they are.
@@ -326,8 +388,8 @@ public class SealedDecisionReplays {
         }
     }
 
-    private void audit(String actor, SealedEvidencePackage sealed, String bundle, List<String> models,
-                       Baselines drawnWith, SealedEvidencePackageIntegrity.Status state,
+    private void audit(String actor, SealedEvidencePackage sealed, Asked asked, Baselines drawnWith,
+                       @Nullable SealedEvidencePackageIntegrity.Status state, boolean given,
                        SealedDecisionReplayService.Result result) {
         if (audit == null) {
             return;
@@ -335,10 +397,14 @@ public class SealedDecisionReplays {
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("requestId", String.valueOf(sealed.getCorrelationId()));
         details.put("packageId", String.valueOf(sealed.getPackageId()));
-        details.put("bundleVersion", bundle);
-        details.put("secondPassModels", models);
+        details.put("bundleVersion", asked.bundle());
+        details.put("secondPassModels", asked.models());
+        details.put("configuredSecondPass", asked.configuredSecondPass());
         details.put("baselines", drawnWith.name());
-        details.put("integrity", state.name());
+        // A given decision was never sealed: it has no state, and the record says it is no sealed package.
+        details.put("integrity", state != null ? state.name() : "NOT_SEALED");
+        details.put("given", given);
+        details.put("outcome", String.valueOf(result.outcome()));
         details.put("replayId", String.valueOf(result.replayId()));
         details.put("action", String.valueOf(result.action()));
         if (result.failure() != null) {

@@ -23,6 +23,7 @@ import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.LLMOperations;
+import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -34,6 +35,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +95,10 @@ class V21RetryRecordTest {
         assertThat(kept.present()).isZero();
         assertThat(kept.flagged()).isZero();
         assertThat(kept.unsupported()).isTrue();
+        // Quality plan 3.3: the model calls of the run in their order, each with the times its call left.
+        assertThat(context.getMetadata(PromptRuntimeTelemetrySupport.MODEL_CALLS, List.class)).isEqualTo(List.of(
+                Map.of("callMs", 40L, "gateWaitMs", 5L, "timeoutMs", 90_000L, "failed", false),
+                Map.of("callMs", 80L, "gateWaitMs", 5L, "timeoutMs", 90_000L, "failed", false)));
     }
 
     /**
@@ -231,6 +237,12 @@ class V21RetryRecordTest {
         assertThat(context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.class))
                 .isEqualTo(List.of(Map.of("reason", reason, "succeeded", true)));
         assertThat(context.getMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, List.class)).hasSize(4);
+        // Quality plan 3.3: three model calls in their order; the corrective retry cut before any text is a failed one.
+        List<Object> failed = new ArrayList<>();
+        for (Object call : context.getMetadata(PromptRuntimeTelemetrySupport.MODEL_CALLS, List.class)) {
+            failed.add(((Map<?, ?>) call).get("failed"));
+        }
+        assertThat(failed).containsExactly(false, true, false);
     }
 
     /**
@@ -299,6 +311,10 @@ class V21RetryRecordTest {
         @Override
         public Mono<String> execute(ExecutionContext context) {
             calls++;
+            // The times a provider call leaves on its execution context, as the orchestrator leaves them.
+            context.addMetadata("providerCallMs", 40L * calls);
+            context.addMetadata(UnifiedLLMOrchestrator.MODEL_SERVER_WAIT_MS, 5L);
+            context.addMetadata("providerCallTimeoutMs", 90_000L);
             return Mono.just(answer);
         }
 

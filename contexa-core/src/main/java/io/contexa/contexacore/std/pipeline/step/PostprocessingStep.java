@@ -20,6 +20,7 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
+import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -177,6 +178,24 @@ public class PostprocessingStep implements PipelineStep {
             Object retries = context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, Object.class);
             if (retries != null) {
                 aiResponse.withMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, retries);
+            }
+            // Quality plan 3.3: the run's model calls in their order, each with its times, apart from the record keys.
+            Object modelCalls = context.getMetadata(PromptRuntimeTelemetrySupport.MODEL_CALLS, Object.class);
+            if (modelCalls != null) {
+                aiResponse.withMetadata(PromptRuntimeTelemetrySupport.MODEL_CALLS, modelCalls);
+            }
+            // Quality plan 3.3: a replay asks for the prompts drawn for its model call; a decision does not ask, so
+            // its response carries no prompt text.
+            if (request != null && Boolean.TRUE.equals(
+                    request.getParameter(PromptRuntimeTelemetrySupport.KEEP_DRAWN_PROMPTS, Boolean.class))) {
+                PromptGenerationResult drawn = context.getStepResult(
+                        PipelineConfiguration.PipelineStep.PROMPT_GENERATION, PromptGenerationResult.class);
+                if (drawn != null && drawn.getSystemPrompt() != null) {
+                    aiResponse.withMetadata(PromptRuntimeTelemetrySupport.DRAWN_SYSTEM_PROMPT, drawn.getSystemPrompt());
+                }
+                if (drawn != null && drawn.getUserPrompt() != null) {
+                    aiResponse.withMetadata(PromptRuntimeTelemetrySupport.DRAWN_USER_PROMPT, drawn.getUserPrompt());
+                }
             }
             // V-3: the explanations a v21 answer weighed and what it still said wrongly after its retry; K17: the
             // decision rule a v1.0 answer still broke after its retry, kept for a person's review; quality plan 3.6:
