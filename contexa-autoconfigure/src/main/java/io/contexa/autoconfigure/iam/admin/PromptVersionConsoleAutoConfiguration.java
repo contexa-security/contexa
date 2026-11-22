@@ -24,6 +24,7 @@ import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
 import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
@@ -38,6 +39,9 @@ import io.contexa.contexaiam.admin.promptquality.measure.QualityMeasureLock;
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityModelSetting;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityNavAdvice;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityNavCounts;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityPageController;
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionCatalog;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsole;
@@ -78,7 +82,9 @@ import java.util.UUID;
  * replay of sealed decisions (SealedDecisionReplayAutoConfiguration), which the prompt inspection's switch does not
  * turn off. The labelled cases of the prompt quality measurement and their published sets (quality plan 3.2) stand on the
  * same schema as the versions, and the measurements (quality plan 3.3) on the cases and the replay: they wait in the
- * line of the trials, and one server at a time runs them under the lock of the scheduled work of Contexa.
+ * line of the trials, and one server at a time runs them under the lock of the scheduled work of Contexa. The menu bar
+ * of the screens of the prompt quality assurance group and its new screens (quality plan 3.8) stand on the version
+ * service too.
  */
 @AutoConfiguration(after = {PromptVersionAutoConfiguration.class, PromptGovernanceAutoConfiguration.class,
         PromptInspectionAutoConfiguration.class, SealedDecisionReplayAutoConfiguration.class,
@@ -326,5 +332,37 @@ public class PromptVersionConsoleAutoConfiguration {
                                                                          MessageSource messageSource,
                                                                          @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new PromptVersionConsoleController(console, messageSource, objectMapper);
+    }
+
+    /**
+     * Quality plan 3.8: the counts beside the menus of the bar on top of the screens of the prompt quality assurance
+     * group, read from the services of the screens when a page draws the bar; each service may be absent.
+     */
+    @Bean(name = "contexaPromptQualityNavCounts")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptVersionService.class)
+    public PromptQualityNavCounts promptQualityNavCounts(ObjectProvider<PromptQualityCases> cases,
+                                                         ObjectProvider<PromptQualityMeasurements> measurements,
+                                                         ObjectProvider<PromptVersionTrials> trials,
+                                                         ObjectProvider<PromptVersionService> versions,
+                                                         ObjectProvider<SealedEvidencePackageRepository> sealed) {
+        return new PromptQualityNavCounts(cases::getIfAvailable, measurements::getIfAvailable, trials::getIfAvailable,
+                versions::getIfAvailable, sealed::getIfUnique, Clock.systemUTC());
+    }
+
+    /** Quality plan 3.8: the menu bar for every page of the group, so a screen only calls the bar fragment. */
+    @Bean(name = "contexaPromptQualityNavAdvice")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityNavCounts.class)
+    public PromptQualityNavAdvice promptQualityNavAdvice(PromptQualityNavCounts contexaPromptQualityNavCounts) {
+        return new PromptQualityNavAdvice(contexaPromptQualityNavCounts);
+    }
+
+    /** Quality plan 3.2, 3.3: the screens of the labelled cases and of measure and compare. */
+    @Bean(name = "contexaPromptQualityPageController")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptVersionService.class)
+    public PromptQualityPageController promptQualityPageController() {
+        return new PromptQualityPageController();
     }
 }
