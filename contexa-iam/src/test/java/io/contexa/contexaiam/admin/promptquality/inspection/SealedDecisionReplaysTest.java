@@ -35,6 +35,7 @@ import io.contexa.contexacore.verification.replay.SealedDecisionReplayService;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays.Baselines;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays.ReplayRequest;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays.Replayed;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
@@ -72,6 +73,19 @@ class SealedDecisionReplaysTest {
             JSON, integrity);
     private final Authentication operator = new UsernamePasswordAuthenticationToken("admin-1", null, List.of());
     private final SealedEvidencePackage sealed = sealed();
+
+    /**
+     * The replays hand the service one request (quality plan 3.3). The stand-in reads it as the six values the stubs
+     * and the verifications of the tests below name; what the request carries besides is read from the request itself.
+     */
+    @BeforeEach
+    void theServiceReadsARequestByItsParts() {
+        when(service.replay(any(SealedDecisionReplayService.Request.class))).thenAnswer(invocation -> {
+            SealedDecisionReplayService.Request asked = invocation.getArgument(0);
+            return service.replay(asked.sealed(), asked.personalBaseline(), asked.organizationBaseline(),
+                    asked.bundleVersion(), asked.timeout(), asked.secondPassModels());
+        });
+    }
 
     /** Plan 6-2: without the version tables, v1.0, the one bundle the build runs, is the replay target. */
     @Test
@@ -358,6 +372,128 @@ class SealedDecisionReplaysTest {
         verify(audit).recordAsync(audited.capture());
         assertThat(audited.getValue().getOutcome()).isEqualTo("FAILED");
         assertThat(audited.getValue().getDetails()).containsEntry("integrity", "MISMATCH");
+    }
+
+    /**
+     * Quality plan 3.2, 5 stage 3: a decision that is in no store (a labelled case built in memory in the sealed form)
+     * is replayed from the inputs and the baselines given with it: no package is looked up, the baselines kept now are
+     * not read, the context format of its inputs goes to the replay, and there is no seal whose state could be told.
+     */
+    @Test
+    void aDecisionThatIsInNoStoreIsReplayedFromItsGivenInputsAndBaselines() {
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result("CHALLENGE", null));
+        SealedEvidencePackage given = sealed();
+        given.setPackageId("case-17");
+        given.setCorrelationId("case-17");
+        BaselineVector person = BaselineVector.builder().userId("template-user")
+                .normalIpRanges(new String[]{"10.9.0.0/16"}).build();
+        BaselineVector organization = BaselineVector.builder().userId("org:org-a")
+                .normalOperatingSystems(new String[]{"LINUX"}).build();
+
+        Replayed replayed = replays.replayGiven("admin-1", given, " 1 ", new ReplayRequest(BUNDLE, List.of("m2"),
+                JSON.valueToTree(person), JSON.valueToTree(organization), null));
+
+        assertThat(replayed.result().action()).isEqualTo("CHALLENGE");
+        assertThat(replayed.baselines()).isEqualTo(Baselines.GIVEN);
+        assertThat(replayed.integrity()).as("it was never sealed").isNull();
+        ArgumentCaptor<SealedDecisionReplayService.Request> asked =
+                ArgumentCaptor.forClass(SealedDecisionReplayService.Request.class);
+        verify(service).replay(asked.capture());
+        assertThat(asked.getValue().sealed()).isSameAs(given);
+        assertThat(asked.getValue().personalBaseline().getNormalIpRanges()).containsExactly("10.9.0.0/16");
+        assertThat(asked.getValue().personalBaseline().getUserId()).as("read under the decision's user")
+                .isEqualTo("alice");
+        assertThat(asked.getValue().organizationBaseline().getNormalOperatingSystems()).containsExactly("LINUX");
+        assertThat(asked.getValue().bundleVersion()).isEqualTo(BUNDLE);
+        assertThat(asked.getValue().timeout()).isEqualTo(SealedDecisionReplays.TIMEOUT);
+        assertThat(asked.getValue().secondPassModels()).containsExactly("m2");
+        assertThat(asked.getValue().configuredSecondPass()).isFalse();
+        assertThat(asked.getValue().contextFormatVersion()).isEqualTo("1");
+        verifyNoInteractions(packages, baselines);
+        ArgumentCaptor<AuditRecord> audited = ArgumentCaptor.forClass(AuditRecord.class);
+        verify(audit).recordAsync(audited.capture());
+        assertThat(audited.getValue().getEventCategory()).isEqualTo(AuditEventCategory.SEALED_DECISION_REPLAYED);
+        assertThat(audited.getValue().getDetails()).containsEntry("packageId", "case-17").containsEntry("given", true)
+                .containsEntry("integrity", "NOT_SEALED").containsEntry("baselines", "GIVEN");
+    }
+
+    /**
+     * A given decision brings every input with it: without a baseline given with it or kept in its baseline snapshot it
+     * had none, and the baselines Contexa keeps now are not read in their place, so the same case is the same input
+     * whatever the server has learned since. A baseline its snapshot keeps is the one it is drawn with.
+     */
+    @Test
+    void aGivenDecisionIsNeverDrawnWithTheBaselinesKeptNow() {
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result("ALLOW", null));
+        SealedEvidencePackage withoutBaselines = sealed();
+        SealedEvidencePackage keeping = sealed();
+        ObjectNode snapshot = JSON.createObjectNode().put("baselineEstablished", true);
+        snapshot.set(SealedDecisionBaselines.KEY, SealedDecisionBaselines.write(new DecisionBaselines(
+                BaselineVector.builder().userId("tenant-a::alice").updateCount(42L).build(), null), JSON));
+        keeping.setBaselineSnapshotJson(snapshot.toString());
+
+        Replayed none = replays.replayGiven("admin-1", withoutBaselines, "1", new ReplayRequest(BUNDLE, null, null, null));
+        Replayed kept = replays.replayGiven("admin-1", keeping, "1", new ReplayRequest(BUNDLE, null, null, null));
+
+        assertThat(none.baselines()).as("none, as given").isEqualTo(Baselines.GIVEN);
+        assertThat(kept.baselines()).isEqualTo(Baselines.SEALED);
+        verify(service).replay(eq(withoutBaselines), isNull(), isNull(), eq(BUNDLE), any(), eq(List.of()));
+        ArgumentCaptor<BaselineVector> user = ArgumentCaptor.forClass(BaselineVector.class);
+        verify(service).replay(eq(keeping), user.capture(), isNull(), eq(BUNDLE), any(), eq(List.of()));
+        assertThat(user.getValue().getUpdateCount()).isEqualTo(42L);
+        verifyNoInteractions(packages, baselines);
+    }
+
+    /** A given decision names the context format of its inputs, and needs the engine's pipeline like any replay. */
+    @Test
+    void aGivenDecisionNamesTheContextFormatOfItsInputs() {
+        ReplayRequest request = new ReplayRequest(BUNDLE, null, null, null);
+
+        assertThatThrownBy(() -> replays.replayGiven("admin-1", sealed(), null, request))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("context format");
+        assertThatThrownBy(() -> replays.replayGiven("admin-1", sealed(), "  ", request))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> replays.replayGiven("admin-1", sealed(), "1",
+                new ReplayRequest("v0-unknown", null, null, null))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new SealedDecisionReplays(packages, () -> null, baselines, audit, JSON, integrity)
+                .replayGiven("admin-1", sealed(), "1", request))
+                .isInstanceOf(SealedDecisionReplays.UnavailableException.class);
+        verifyNoInteractions(audit);
+    }
+
+    /**
+     * Quality plan 3.3: the second pass is asked with the second layer's own model, the one the server is set to, when
+     * the request says so; it counts as one of the models a replay may ask, and a request body that does not name it
+     * asks the named models only, as before.
+     */
+    @Test
+    void theSecondPassIsAskedWithTheServersOwnModelWhenTheRequestSaysSo() throws Exception {
+        when(packages.findByPackageId("pkg-1")).thenReturn(Optional.of(sealed));
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result("ESCALATE", null));
+
+        replays.replayPackage("admin-1", "pkg-1", new ReplayRequest(BUNDLE, List.of("m2"), null, null, true))
+                .orElseThrow();
+
+        ArgumentCaptor<SealedDecisionReplayService.Request> asked =
+                ArgumentCaptor.forClass(SealedDecisionReplayService.Request.class);
+        verify(service).replay(asked.capture());
+        assertThat(asked.getValue().configuredSecondPass()).isTrue();
+        assertThat(asked.getValue().secondPassModels()).containsExactly("m2");
+        assertThat(asked.getValue().contextFormatVersion()).as("a package of the store names no format").isNull();
+        ArgumentCaptor<AuditRecord> audited = ArgumentCaptor.forClass(AuditRecord.class);
+        verify(audit).recordAsync(audited.capture());
+        assertThat(audited.getValue().getDetails()).containsEntry("configuredSecondPass", true)
+                .containsEntry("given", false);
+        assertThatThrownBy(() -> replays.replayPackage("admin-1", "pkg-1",
+                new ReplayRequest(BUNDLE, List.of("a", "b", "c"), null, null, true)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("second-pass");
+        ReplayRequest named = JSON.readValue("{\"bundleVersion\":\"" + BUNDLE + "\",\"secondPassModels\":[\"m2\"]}",
+                ReplayRequest.class);
+        ReplayRequest own = JSON.readValue("{\"bundleVersion\":\"" + BUNDLE + "\",\"configuredSecondPass\":true}",
+                ReplayRequest.class);
+        assertThat(named.configuredSecondPass()).isNull();
+        assertThat(named.secondPassModels()).containsExactly("m2");
+        assertThat(own.configuredSecondPass()).isTrue();
     }
 
     private void seal() {

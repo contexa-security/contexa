@@ -304,6 +304,15 @@ public class PromptVersionTrials implements AutoCloseable {
         if (failure != null || action == null || action.isBlank()) {
             return true;
         }
+        return askedAgainForTheContract(telemetry);
+    }
+
+    /**
+     * Quality plan 3.3: whether the model was asked again because its answer broke the output contract (its
+     * explanations, its reason codes, a cut answer, an answer that could not be read); a retry for a rule of the
+     * decision (a boundary, a floor, a past record claim, a cited line) is none.
+     */
+    public static boolean askedAgainForTheContract(Map<String, Object> telemetry) {
         Object retries = telemetry != null ? telemetry.get(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES) : null;
         if (!(retries instanceof List<?> list)) {
             return false;

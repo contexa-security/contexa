@@ -17,6 +17,7 @@ package io.contexa.contexacore.std.pipeline.processor;
 
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector.Inspection;
@@ -66,14 +67,22 @@ public final class SecurityDecisionV1OutputInspector {
 
     /**
      * The inspection of an answer with the explanations it gave as the record keeps them, whether the only thing wrong
-     * is reason codes the lines do not support (RL-4), and the v1.0 rule (boundary or floor) it breaks, if any.
+     * is reason codes the lines do not support (RL-4), the v1.0 rule (boundary or floor) it breaks, if any, and what
+     * the check found of each reason code (quality plan 3.6).
      */
     public record V1Inspection(Inspection inspection, List<Map<String, Object>> hypotheses,
-                               boolean unsupportedCodesOnly, String ruleViolation) {
+                               boolean unsupportedCodesOnly, String ruleViolation,
+                               SecurityDecisionCitationCheck citationCheck) {
+
+        public V1Inspection(Inspection inspection, List<Map<String, Object>> hypotheses,
+                            boolean unsupportedCodesOnly, String ruleViolation) {
+            this(inspection, hypotheses, unsupportedCodesOnly, ruleViolation, null);
+        }
 
         /** The v21 inspection of an answer that has no v1.0 rules to meet. */
         public static V1Inspection of(SecurityDecisionV21OutputInspector.V21Inspection v21) {
-            return new V1Inspection(v21.inspection(), v21.hypotheses(), v21.unsupportedCodesOnly(), null);
+            return new V1Inspection(v21.inspection(), v21.hypotheses(), v21.unsupportedCodesOnly(), null,
+                    v21.citationCheck());
         }
     }
 
@@ -115,7 +124,7 @@ public final class SecurityDecisionV1OutputInspector {
         String violation = found != null ? found + "; " + String.join("; ", parts) : String.join("; ", parts);
         Inspection joined = new Inspection(response, false, inspection.parseFailureCategory(),
                 inspection.rawOutputHash(), inspection.rawOutputLength(), violation, violation);
-        return new V1Inspection(joined, v21.hypotheses(), false, rule);
+        return new V1Inspection(joined, v21.hypotheses(), false, rule, v21.citationCheck());
     }
 
     /**

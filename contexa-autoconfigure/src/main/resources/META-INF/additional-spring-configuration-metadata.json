@@ -89,6 +89,48 @@
       "type": "java.lang.String",
       "defaultValue": "0 30 3 * * *",
       "description": "Cron expression of the cleanup that deletes sealed evidence packages whose expiresAt has passed."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.two-person-confirmation",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether a labelled case of the prompt quality measurement, and each change of its right answer, waits until an administrator other than the one who set the answer confirms it, before the case enters a published case set and so the measurements the quality gate reads. A case labelled wrongly on purpose (an attack marked as normal) would let a version that allows the attack pass, so the answer is set by two people. Turn it off for an installation with one administrator: cases are then confirmed as they are submitted, and every change of an answer is still kept with who made it."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.measurement.repeats",
+      "type": "java.lang.Integer",
+      "defaultValue": 3,
+      "description": "How many times a prompt quality measurement runs each labelled case when the start asks for no number, from 1 to 10. The same prompt answers a case differently from one run to the next, so one run cannot show the consistency and a difference of one run says little. Only measurements with the same number of runs are compared."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.measurement.concurrency",
+      "type": "java.lang.Integer",
+      "defaultValue": 1,
+      "description": "How many replays of one measurement run at once. Every model call of a measurement waits behind the decisions at the gate of its model server, but a call that is in is never cut: with as many replays as the gate has slots (contexa.llm.gate.self-hosted-max-concurrent, 2 by default), a decision that arrives waits for one of them to end. 1 leaves a slot of a self-hosted server to the decisions; a remote provider (16 slots by default) can take more, and 2 halves the time of a measurement."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.measurement.retries",
+      "type": "java.lang.Integer",
+      "defaultValue": 2,
+      "description": "How many more times a replay of a measurement is asked when the model server gave no answer (busy, unreachable, a time limit), also when only the second pass after an ESCALATE gave none. An answer that still did not come is kept as a failure of the measurement: it enters no metric and the measurement shows it as incomplete, so a busy model server does not count against the prompt. A replay that could not read its case (no context, another context format, an unreadable input, an error of the engine) is not asked again."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.measurement.retry-delay",
+      "type": "java.time.Duration",
+      "defaultValue": "15s",
+      "description": "The wait before the first retry of a replay the model server gave no answer to; the second retry waits twice as long. The gate keeps an overloaded server closed for 2 s, then 4 s, 8 s and at most 12 s, so the first retry comes after that."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.measurement.call-limit",
+      "type": "java.lang.Integer",
+      "defaultValue": 3000,
+      "description": "The most model calls one measurement makes, for installations that pay for each call; 0 sets no limit. A measurement that makes at least more calls than the limit does not start, and one that reaches it stops and ends failed with the answers it took. Each answer that is not kept already makes at least one call and at most four (the first pass and its corrective retry, the second pass and its retry) for each attempt. The default set of 70 cases run 3 times makes at least 210 and at most 2,520 calls with the default retries."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.measurement.heartbeat",
+      "type": "java.time.Duration",
+      "defaultValue": "30s",
+      "description": "How often the server running a measurement renews its lock and the measurement's heartbeat and reads whether it was cancelled, and how often the other servers look for a measurement to run. The lock is held for four heartbeats, so a server that stops leaves the measurement to another server within about two and a half minutes, which resumes it from the answers taken."
     }
   ]
 }

@@ -25,10 +25,12 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.verification.replay.SealedDecisionReplayInputs;
+import org.springframework.ai.document.Document;
 
 import java.time.Duration;
 import java.util.List;
@@ -112,6 +114,22 @@ public class SealedDecisionReplayStrategy extends AbstractTieredStrategy {
     public SecurityDecisionRequest request(SealedDecisionReplayInputs inputs, String bundleVersion) {
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = prepare(inputs, bundleVersion);
         return buildSecurityDecisionRequest(inputs.event(), inputs.session(), analysis, inputs.documents());
+    }
+
+    /**
+     * Quality plan 3.3: the request of a replay asks the pipeline to return the prompts it drew for the model call, so
+     * the replay's answer carries them; a decision's request does not.
+     */
+    @Override
+    protected SecurityDecisionRequest buildSecurityDecisionRequest(
+            SecurityEvent event,
+            SecurityDecisionStandardPromptTemplate.SessionContext sessionContext,
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+            List<Document> relatedDocuments) {
+        SecurityDecisionRequest request = super.buildSecurityDecisionRequest(event, sessionContext, behaviorAnalysis,
+                relatedDocuments);
+        request.withParameter(PromptRuntimeTelemetrySupport.KEEP_DRAWN_PROMPTS, Boolean.TRUE);
+        return request;
     }
 
     /** Restores the sealed inputs on the event with the bundle fixed and returns the behaviour analysis drawn. */

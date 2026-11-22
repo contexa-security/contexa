@@ -449,6 +449,51 @@ public final class PromptRuntimeTelemetrySupport {
     }
 
     /**
+     * Quality plan 3.3: the key of a run's model calls in the order they were made (the first answer, its corrective
+     * retry), each with how long the provider call took ({@code callMs}), how long it waited at the model server's
+     * gate ({@code gateWaitMs}), its time limit ({@code timeoutMs}) and whether it ended without an answer
+     * ({@code failed}). The single timing fields hold the last call only. The list travels on a path of its own to the
+     * pipeline response, where a replay reads it; it is no key of the decision record.
+     */
+    public static final String MODEL_CALLS = "securityDecisionModelCalls";
+
+    /**
+     * Quality plan 3.3: the request parameter a replay sets so that the prompts drawn for its model call come back on
+     * the pipeline response. A decision does not set it, so its response carries no prompt text.
+     */
+    public static final String KEEP_DRAWN_PROMPTS = "securityDecisionKeepDrawnPrompts";
+
+    /** The response metadata key of the system prompt drawn, for a request that asked to keep the drawn prompts. */
+    public static final String DRAWN_SYSTEM_PROMPT = "securityDecisionDrawnSystemPrompt";
+
+    /** The response metadata key of the user prompt drawn, likewise. */
+    public static final String DRAWN_USER_PROMPT = "securityDecisionDrawnUserPrompt";
+
+    /**
+     * Quality plan 3.3: the run's model calls with one more at the end; a time that was not measured is left out.
+     */
+    public static List<Object> withModelCall(Object runCalls, Object callMs, Object gateWaitMs, Object timeoutMs,
+                                             boolean failed) {
+        List<Object> calls = new ArrayList<>();
+        if (runCalls instanceof List<?> earlier) {
+            calls.addAll(earlier);
+        }
+        Map<String, Object> call = new LinkedHashMap<>();
+        if (callMs instanceof Number number) {
+            call.put("callMs", number.longValue());
+        }
+        if (gateWaitMs instanceof Number number) {
+            call.put("gateWaitMs", number.longValue());
+        }
+        if (timeoutMs instanceof Number number) {
+            call.put("timeoutMs", number.longValue());
+        }
+        call.put("failed", failed);
+        calls.add(call);
+        return List.copyOf(calls);
+    }
+
+    /**
      * N-OUT-3: the run's retries with one more at the end: why it was asked, whether its answer kept the contract and,
      * when that answer did not, what it broke (a retry whose call failed names nothing).
      */

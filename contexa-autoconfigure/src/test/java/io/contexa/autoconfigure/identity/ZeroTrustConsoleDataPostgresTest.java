@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustConsoleRetention;
@@ -69,7 +70,10 @@ class ZeroTrustConsoleDataPostgresTest {
             "actor_kind", "resource_class", "prompt_bundle_version", "prompt_content_hash", "most_likely_hypothesis",
             "context_coverage_level",
             "baseline_status", "unknown_fact_count", "prompt_tokens", "cached_prompt_tokens", "output_tokens",
-            "model_call_count", "user_wait_ms", "decision_summary_json");
+            "model_call_count", "user_wait_ms", "decision_summary_json",
+            // Quality plan 3.9: what the response check found of the citations of the answer a decision kept.
+            "citation_check_state", "citation_cited_count", "citation_present_count", "citation_flagged_count",
+            "citation_undecided_count", "citation_unsupported");
     private static final List<String> CONSOLE_TABLES = List.of("ctxa_zt_decision_reason", "ctxa_zt_decision_outcome",
             "ctxa_zt_stats_hourly", "ctxa_zt_coverage_hourly", "ctxa_zt_review_queue", "ctxa_zt_item_hourly",
             "ctxa_zt_latency_hourly");
@@ -204,6 +208,66 @@ class ZeroTrustConsoleDataPostgresTest {
         assertThat(reasons).extracting(each -> each.get("reason_code"))
                 .containsExactly("DEVIATION_DEVICE", "DEVIATION_NETWORK");
         assertThat(reasons).extracting(each -> each.get("fact_id")).containsExactly("F3", "F4");
+    }
+
+    /**
+     * Quality plan 3.6, 3.9: what the response check found of the citations of the answer a decision kept is in the
+     * row's columns, so that the citation accuracy is counted over every decision. A decision whose citations could
+     * not be checked, and one no model answer stands behind, are told apart from one without a wrong citation.
+     */
+    @Test
+    void theWriterKeepsWhatTheResponseCheckFoundOfTheCitations() {
+        AiSecurityDecisionObservationWriter writer = new AiSecurityDecisionObservationWriter(
+                () -> jdbc, new ObjectMapper(), "ollama", "qwen");
+
+        String named = writer.recordDecision(citing("named"), decided(new SecurityDecisionCitationCheck(
+                SecurityDecisionCitationCheck.State.CHECKED, 4, 3, 2, 1, true, List.of())), ZeroTrustAction.CHALLENGE);
+        String sound = writer.recordDecision(citing("sound"), decided(new SecurityDecisionCitationCheck(
+                SecurityDecisionCitationCheck.State.CHECKED, 2, 2, 0, 0, false, List.of())), ZeroTrustAction.CHALLENGE);
+        String unchecked = writer.recordDecision(citing("unchecked"), decided(SecurityDecisionCitationCheck.skipped(
+                List.of(new SecurityDecisionOutputContract.Citation("DEVIATION_DEVICE", "F3")))),
+                ZeroTrustAction.CHALLENGE);
+        String modelLess = writer.recordDecision(citing("model-less"), decided(null), ZeroTrustAction.CHALLENGE);
+
+        assertThat(citationColumns(named)).containsEntry("citation_check_state", "CHECKED")
+                .containsEntry("citation_cited_count", 4).containsEntry("citation_present_count", 3)
+                .containsEntry("citation_flagged_count", 2).containsEntry("citation_undecided_count", 1)
+                .containsEntry("citation_unsupported", true);
+        assertThat(citationColumns(sound)).containsEntry("citation_check_state", "CHECKED")
+                .containsEntry("citation_cited_count", 2).containsEntry("citation_present_count", 2)
+                .containsEntry("citation_flagged_count", 0).containsEntry("citation_undecided_count", 0)
+                .containsEntry("citation_unsupported", false);
+        assertThat(citationColumns(unchecked)).as("left out, not zero").containsEntry("citation_check_state", "SKIPPED")
+                .containsEntry("citation_cited_count", 1).containsEntry("citation_present_count", null)
+                .containsEntry("citation_flagged_count", null).containsEntry("citation_undecided_count", null)
+                .containsEntry("citation_unsupported", null);
+        assertThat(citationColumns(modelLess)).containsEntry("citation_check_state", null)
+                .containsEntry("citation_cited_count", null).containsEntry("citation_unsupported", null);
+        // The citation accuracy over every checked decision: (3 - 2) + (2 - 0) supported of 4 + 2 cited facts.
+        Map<String, Object> counted = jdbc.queryForMap("SELECT SUM(citation_present_count - citation_flagged_count) "
+                + "AS supported, SUM(citation_cited_count) AS cited, COUNT(*) FILTER (WHERE citation_unsupported) AS named, "
+                + "COUNT(*) AS decisions FROM ctxa_ai_security_decision_observation "
+                + "WHERE citation_check_state = 'CHECKED'");
+        assertThat(((Number) counted.get("supported")).intValue()).isEqualTo(3);
+        assertThat(((Number) counted.get("cited")).intValue()).isEqualTo(6);
+        assertThat(((Number) counted.get("named")).intValue()).isEqualTo(1);
+        assertThat(((Number) counted.get("decisions")).intValue()).isEqualTo(2);
+    }
+
+    private static SecurityEvent citing(String name) {
+        return SecurityEvent.builder().eventId("event-" + name).userId("alice")
+                .metadata(Map.of("requestId", "request-" + name)).build();
+    }
+
+    private static ProcessingResult decided(SecurityDecisionCitationCheck citationCheck) {
+        return ProcessingResult.builder().success(true).action(ZeroTrustAction.CHALLENGE.name())
+                .llmDecisionPresent(citationCheck != null).citationCheck(citationCheck).build();
+    }
+
+    private static Map<String, Object> citationColumns(String observationId) {
+        return jdbc.queryForMap("SELECT citation_check_state, citation_cited_count, citation_present_count, "
+                + "citation_flagged_count, citation_undecided_count, citation_unsupported "
+                + "FROM ctxa_ai_security_decision_observation WHERE observation_id = ?", observationId);
     }
 
     /**

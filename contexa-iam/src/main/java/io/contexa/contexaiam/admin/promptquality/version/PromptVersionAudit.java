@@ -35,6 +35,15 @@ public interface PromptVersionAudit {
     String ROLLBACK_APPROVED = "PROMPT_VERSION_ROLLBACK_APPROVED";
     String TRIAL_STARTED = "PROMPT_VERSION_TRIAL_STARTED";
     String TRIAL_CANCELLED = "PROMPT_VERSION_TRIAL_CANCELLED";
+    /*
+     * Quality plan 3.9: what is done to the labelled cases and their published sets. They name a case or a set, not a
+     * version, so their names do not start like the version actions the history of a version reads: the version is
+     * the case's key or the set's version.
+     */
+    String CASE_SUBMITTED = "PROMPT_QUALITY_CASE_SUBMITTED";
+    String CASE_ANSWER_CHANGED = "PROMPT_QUALITY_CASE_ANSWER_CHANGED";
+    String CASE_CONFIRMED = "PROMPT_QUALITY_CASE_CONFIRMED";
+    String CASE_SET_PUBLISHED = "PROMPT_QUALITY_CASE_SET_PUBLISHED";
 
     /** Who the product's versions are registered by at start (plan 3.3): the product, no person. */
     String PRODUCT_ACTOR = "contexa";

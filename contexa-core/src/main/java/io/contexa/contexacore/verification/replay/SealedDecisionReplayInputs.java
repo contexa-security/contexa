@@ -25,6 +25,7 @@ import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
+import io.contexa.contexacore.std.components.prompt.quality.QualityCaseEnvironment;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
 import io.contexa.contexacore.verification.evidence.SealedDecisionBaselines;
@@ -57,6 +58,17 @@ public record SealedDecisionReplayInputs(SecurityEvent event, SecurityDecisionSt
 
     /** The prefix of every replay's request id. */
     public static final String REPLAY_ID_PREFIX = "replay-";
+
+    /**
+     * Quality plan 9: the version of the format the sealed inputs are written in, as this build reads and writes them
+     * (the canonical context and the sections beside it: request facts, authentication state, baseline snapshot,
+     * retrieval results). A change an earlier input cannot be read under takes the next number. A replay that is told
+     * the format of its inputs compares it with this one and does not read inputs of another
+     * ({@code SealedDecisionReplayService.Outcome.CONTEXT_FORMAT_MISMATCH}); a package this server sealed names none.
+     * It is defined once, with the labelled cases whose environment names it: the quality package depends on nothing
+     * of the engine, so the replay reads the value from there.
+     */
+    public static final String CONTEXT_FORMAT_VERSION = QualityCaseEnvironment.FIRST_CONTEXT_FORMAT;
 
     /**
      * Summary keys of sealed retrieval documents that the assembler renamed, mapped back to the metadata key it read

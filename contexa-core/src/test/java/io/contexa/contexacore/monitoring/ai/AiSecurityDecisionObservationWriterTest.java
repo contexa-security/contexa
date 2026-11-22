@@ -257,9 +257,9 @@ class AiSecurityDecisionObservationWriterTest {
         verify(jdbcOperations, times(4)).update(sql.capture(), args.capture());
         assertThat(sql.getAllValues().get(0)).startsWith("WITH decided AS (INSERT INTO ctxa_ai_security_decision_observation")
                 .contains("INSERT INTO ctxa_zt_review_queue");
-        assertThat(args.getAllValues().get(0)).hasSize(75);
-        assertThat(args.getAllValues().get(0)[72]).as("the day of the queue").isInstanceOf(Date.class);
-        assertThat(args.getAllValues().get(0)[74]).isEqualTo(AiSecurityDecisionObservationWriter.REVIEW_RULE_BREACH);
+        assertThat(args.getAllValues().get(0)).hasSize(81);
+        assertThat(args.getAllValues().get(0)[78]).as("the day of the queue").isInstanceOf(Date.class);
+        assertThat(args.getAllValues().get(0)[80]).isEqualTo(AiSecurityDecisionObservationWriter.REVIEW_RULE_BREACH);
         assertThat(sql.getAllValues().get(2)).as("a test run is no decision to review")
                 .doesNotContain("ctxa_zt_review_queue");
         assertThat(AiSecurityDecisionObservationWriter.observationInsert(2, true))
@@ -286,7 +286,7 @@ class AiSecurityDecisionObservationWriterTest {
         ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
         verify(jdbcOperations, times(4)).update(sql.capture(), args.capture());
         assertThat(sql.getAllValues().get(0)).contains("INSERT INTO ctxa_zt_review_queue");
-        assertThat(args.getAllValues().get(0)[74]).isEqualTo(AiSecurityDecisionObservationWriter.REVIEW_SHADOW_BLOCK);
+        assertThat(args.getAllValues().get(0)[80]).isEqualTo(AiSecurityDecisionObservationWriter.REVIEW_SHADOW_BLOCK);
         assertThat(sql.getAllValues().get(2)).as("an enforced block blocks the account; its review is the block list's")
                 .doesNotContain("ctxa_zt_review_queue");
     }
