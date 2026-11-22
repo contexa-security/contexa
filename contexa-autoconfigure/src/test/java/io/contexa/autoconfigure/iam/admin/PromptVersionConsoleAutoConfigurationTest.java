@@ -16,7 +16,9 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
@@ -29,6 +31,7 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurementSt
 import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
+import io.contexa.contexaiam.admin.promptquality.measure.QualityScheduledMeasurement;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -76,6 +79,28 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).hasSingleBean(QualityAutoMeasurement.class);
                     assertThat(context).hasBean("contexaQualityAutoMeasurementStart");
                     assertThat(context).hasSingleBean(QualityShippedMeasurements.class);
+                });
+    }
+
+    /**
+     * Quality plan 3.6: the decisions are made cases with the store of sealed packages, and the version in use is
+     * measured again on schedule, which an installation turns off with "-".
+     */
+    @Test
+    void theOperationsOfTheQualityStandOnTheCasesTheSealsAndTheMeasurer() {
+        runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
+                .withBean(SealedDecisionReplays.class, () -> mock(SealedDecisionReplays.class))
+                .withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
+                .run(context -> {
+                    assertThat(context).hasSingleBean(QualityCasePromotions.class);
+                    assertThat(context).hasSingleBean(QualityScheduledMeasurement.class);
+                    assertThat(context.getBean(QualityScheduledMeasurement.class).nextScheduled()).isNotNull();
+                });
+        runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
+                .withPropertyValues("contexa.pqa.oss.quality.remeasure.cron=-")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(QualityCasePromotions.class);
+                    assertThat(context.getBean(QualityScheduledMeasurement.class).nextScheduled()).isNull();
                 });
     }
 

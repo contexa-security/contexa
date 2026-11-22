@@ -179,6 +179,12 @@
       "type": "java.time.Duration",
       "defaultValue": "30s",
       "description": "How often the server running a measurement renews its lock and the measurement's heartbeat and reads whether it was cancelled, and how often the other servers look for a measurement to run. The lock is held for four heartbeats, so a server that stops leaves the measurement to another server within about two and a half minutes, which resumes it from the answers taken."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.remeasure.cron",
+      "type": "java.lang.String",
+      "defaultValue": "0 0 2 * * SUN",
+      "description": "When the version of the security decision in use in every scope is measured again on the case set its measurements run on (the latest published, else the default set of the product), a Spring cron expression in UTC; \"-\" turns the schedule off. One server runs it. The same version, case set and settings measured before give no new answer and so start no measurement and make no model call: a measurement starts only for a case set published with new cases (the cases measured before are used again, each new case run 3 times makes 3 to 12 model calls) or for settings that change an answer (the default set of 70 cases run 3 times makes 210 to 840 calls, at most 2,520 with the retries of a busy model server), and a measurement the schedule could not finish is tried again. Apart from the schedule, a version in use measured under other settings only is measured again once, looked for every 10 minutes. A measurement taken again is compared with the version's measurement before; one that came out worse or changed is logged as a warning and shown on the state of quality."
     }
   ]
 }

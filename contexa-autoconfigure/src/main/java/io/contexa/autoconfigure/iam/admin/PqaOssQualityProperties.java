@@ -20,6 +20,7 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityGatePolicy;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateSettings;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
+import io.contexa.contexaiam.admin.promptquality.measure.QualityScheduledMeasurement;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
@@ -43,8 +44,14 @@ public class PqaOssQualityProperties {
 
     private final Gate gate = new Gate();
 
+    private final Remeasure remeasure = new Remeasure();
+
     public Measurement getMeasurement() {
         return measurement;
+    }
+
+    public Remeasure getRemeasure() {
+        return remeasure;
     }
 
     public Gate getGate() {
@@ -57,6 +64,28 @@ public class PqaOssQualityProperties {
 
     public void setTwoPersonConfirmation(boolean twoPersonConfirmation) {
         this.twoPersonConfirmation = twoPersonConfirmation;
+    }
+
+    /**
+     * Quality plan 3.6: the version in use measured again on schedule and when the model setting changed, and told
+     * when it came out worse than its measurement before.
+     */
+    public static class Remeasure {
+
+        /**
+         * When the version in use is measured again, a Spring cron expression in UTC; "-" turns the schedule off. A
+         * measurement starts only for what is new since the last one: a case set published with new cases, or
+         * settings that change an answer.
+         */
+        private String cron = QualityScheduledMeasurement.DEFAULT_CRON;
+
+        public String getCron() {
+            return cron;
+        }
+
+        public void setCron(String cron) {
+            this.cron = cron;
+        }
     }
 
     /** How the measurements run (quality plan 3.3). */

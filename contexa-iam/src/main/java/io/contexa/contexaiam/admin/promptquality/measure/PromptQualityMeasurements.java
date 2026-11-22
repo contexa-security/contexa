@@ -205,14 +205,17 @@ public class PromptQualityMeasurements implements AutoCloseable {
         }
     }
 
-    /** A measurement as its row keeps it, with how many answers it has. */
+    /**
+     * A measurement as its row keeps it, with how many answers it has and why Contexa started it by itself (null for
+     * one an administrator started).
+     */
     public record Measure(long id, String scope, String prompt, int versionNumber, String versionContentHash,
                           long caseSetId, String caseSetVersion, int repeats, String settingsHash,
                           @Nullable String modelSetting, String closingRules, String status, @Nullable String failure,
                           int plannedAnswers, int reusableAnswers, int expectedMinCalls, int expectedMaxCalls,
                           int callLimit, int modelCalls, @Nullable String runnerId, @Nullable Instant heartbeatAt,
                           String createdBy, Instant createdAt, @Nullable Instant startedAt,
-                          @Nullable Instant finishedAt, int answered) {
+                          @Nullable Instant finishedAt, int answered, @Nullable String startReason) {
 
         public String versionName() {
             return PromptVersionNames.name(versionNumber);
@@ -304,6 +307,32 @@ public class PromptQualityMeasurements implements AutoCloseable {
         return QualityModelSetting.hash(Map.copyOf(modelSettings.get()));
     }
 
+    /** Quality plan 3.6: the server settings that change an answer, as this server runs now. */
+    public Map<String, String> settingsNow() {
+        return Map.copyOf(modelSettings.get());
+    }
+
+    /**
+     * Quality plan 3.6: the server settings a measurement started with, as it keeps them; empty when it keeps none
+     * that can be read.
+     */
+    public Map<String, String> settingsOf(long id) {
+        String text = jdbc.get().query("select settings from ctxa_prompt_version_measure where id = ?",
+                (rs, row) -> rs.getString(1), id).stream().findFirst().orElse(null);
+        if (text == null || text.isBlank()) {
+            return Map.of();
+        }
+        try {
+            Map<String, String> settings = new LinkedHashMap<>();
+            json.readTree(text).fields().forEachRemaining(field -> settings.put(field.getKey(),
+                    field.getValue().isNull() ? null : field.getValue().asText()));
+            return settings;
+        }
+        catch (JsonProcessingException unreadable) {
+            return Map.of();
+        }
+    }
+
     /**
      * Looks for measurements to run, or to resume after a server stopped, at every heartbeat from now on: a
      * measurement queued on a server that is busy, or that stopped, is run by whichever server takes the lock.
@@ -382,6 +411,18 @@ public class PromptQualityMeasurements implements AutoCloseable {
      */
     public long start(String scope, String prompt, int version, @Nullable Long caseSetId, @Nullable Integer repeats,
                       String actor) {
+        return start(scope, prompt, version, caseSetId, repeats, actor, null);
+    }
+
+    /**
+     * Starts measuring the version as {@link #start(String, String, int, Long, Integer, String)} does, keeping why
+     * Contexa started it by itself (quality plan 3.4, 3.6: outside the gate, the baseline, the schedule, a changed
+     * model setting).
+     *
+     * @param startReason why Contexa starts it, or null for an administrator's measurement
+     */
+    public long start(String scope, String prompt, int version, @Nullable Long caseSetId, @Nullable Integer repeats,
+                      String actor, @Nullable String startReason) {
         Planned planned = plan(scope, prompt, version, caseSetId, repeats);
         Estimate estimate = planned.estimate();
         if (!estimate.withinLimit()) {
@@ -399,12 +440,12 @@ public class PromptQualityMeasurements implements AutoCloseable {
         Long id = jdbc.get().queryForObject("insert into ctxa_prompt_version_measure (registry_scope, prompt_key,"
                 + " version_number, version_content_hash, case_set_id, case_set_version, repeats, settings_hash,"
                 + " settings, closing_rules, status, planned_answers, reusable_answers, expected_min_calls,"
-                + " expected_max_calls, call_limit, created_by, created_at) values"
-                + " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id", Long.class, planned.scope(),
+                + " expected_max_calls, call_limit, created_by, created_at, start_reason) values"
+                + " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id", Long.class, planned.scope(),
                 prompt, version, planned.version().contentHash(), planned.set().id(), planned.set().version(),
                 planned.repeats(), planned.settingsHash(), write(planned.settings()), describe(rules), QUEUED,
                 estimate.answers(), estimate.reusable(), estimate.minimumCalls(), estimate.maximumCalls(),
-                estimate.callLimit(), actorOf(actor), Timestamp.from(clock.instant()));
+                estimate.callLimit(), actorOf(actor), Timestamp.from(clock.instant()), truncate(startReason, 32));
         log.info("[PromptQualityMeasure] Measurement {} of {} {} on case set {} queued: {} answers, {} kept already",
                 id, prompt, PromptVersionNames.name(version), planned.set().version(), estimate.answers(),
                 estimate.reusable());
@@ -991,7 +1032,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
             + " m.closing_rules, m.status, m.failure, m.planned_answers, m.reusable_answers, m.expected_min_calls,"
             + " m.expected_max_calls, m.call_limit, m.model_calls, m.runner_id, m.heartbeat_at, m.created_by,"
             + " m.created_at, m.started_at, m.finished_at, (select count(*) from ctxa_prompt_version_measure_answer a"
-            + " where a.measure_id = m.id) as answered from ctxa_prompt_version_measure m";
+            + " where a.measure_id = m.id) as answered, m.start_reason from ctxa_prompt_version_measure m";
 
     private static final RowMapper<Measure> MEASURE_ROW = PromptQualityMeasurements::measure;
 
@@ -1004,7 +1045,8 @@ public class PromptQualityMeasurements implements AutoCloseable {
                 rs.getInt("expected_min_calls"), rs.getInt("expected_max_calls"), rs.getInt("call_limit"),
                 rs.getInt("model_calls"), rs.getString("runner_id"), instant(rs.getTimestamp("heartbeat_at")),
                 rs.getString("created_by"), instant(rs.getTimestamp("created_at")),
-                instant(rs.getTimestamp("started_at")), instant(rs.getTimestamp("finished_at")), rs.getInt("answered"));
+                instant(rs.getTimestamp("started_at")), instant(rs.getTimestamp("finished_at")), rs.getInt("answered"),
+                rs.getString("start_reason"));
     }
 
     @Nullable

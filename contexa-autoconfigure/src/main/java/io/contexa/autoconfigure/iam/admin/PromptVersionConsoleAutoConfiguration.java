@@ -39,6 +39,7 @@ import io.contexa.contexaiam.admin.promptquality.measure.QualityMeasureLock;
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityModelSetting;
+import io.contexa.contexaiam.admin.promptquality.measure.QualityScheduledMeasurement;
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionCatalog;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsole;
@@ -225,6 +226,23 @@ public class PromptVersionConsoleAutoConfiguration {
                 selector::getIfUnique), contexaQualityShippedMeasurements,
                 lockProvider != null ? QualityMeasureLock.shedLock(lockProvider, QualityAutoMeasurement.LOCK_NAME,
                         Clock.systemUTC()) : QualityMeasureLock.local());
+    }
+
+    /**
+     * Quality plan 3.6: the version in use measured again on schedule and when the model setting changed, compared
+     * with its measurement before once done; one server runs each under the lock store of the scheduled work.
+     */
+    @Bean(name = "contexaQualityScheduledMeasurement")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(QualityAutoMeasurement.class)
+    public QualityScheduledMeasurement qualityScheduledMeasurement(
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+            QualityAutoMeasurement contexaQualityAutoMeasurement, ObjectProvider<PromptQualityMeasurements> measurements,
+            PromptQualityCases contexaPromptQualityCases, PqaOssQualityProperties properties,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+        return new QualityScheduledMeasurement(() -> jdbcTemplate, contexaQualityAutoMeasurement,
+                measurements::getIfAvailable, contexaPromptQualityCases, properties.getRemeasure().getCron(),
+                properties.getGate().getSignificance(), objectMapper, Clock.systemUTC());
     }
 
     /**

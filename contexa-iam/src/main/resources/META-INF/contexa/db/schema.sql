@@ -2825,6 +2825,17 @@ create index if not exists ctxa_idx_prompt_version_measure_version
 create index if not exists ctxa_idx_prompt_version_measure_status
     on ctxa_prompt_version_measure (status, created_at);
 
+-- Quality plan 3.6: why Contexa started a measurement by itself (outside the gate, the baseline, the schedule, a
+-- changed model setting; none for an administrator's), and for one measured again on schedule or after the model
+-- setting changed, its comparison with the version's measurement before: the measurement compared with, the verdict
+-- (WORSE, CHANGED, SAME, NOT_COMPARED), its figures and when it was made. A database installed before gains them here.
+alter table ctxa_prompt_version_measure
+    add column if not exists start_reason varchar(32),
+    add column if not exists compared_measure_id bigint,
+    add column if not exists comparison varchar(16),
+    add column if not exists comparison_detail text,
+    add column if not exists compared_at timestamp(6);
+
 -- Each answer of a measurement, found again by the case's content hash, the version, the model setting and the run.
 create table if not exists ctxa_prompt_version_measure_answer (
     id bigserial primary key,
