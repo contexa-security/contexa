@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.iam.admin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseDecisionController;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotionController;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
@@ -114,6 +115,8 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).hasSingleBean(PromptQualityCauseApiController.class);
                     // Quality plan 3.6: the decisions of a trial made cases, refused when there are no seals.
                     assertThat(context).hasSingleBean(QualityCasePromotionController.class);
+                    // Quality plan 3.6: a decision of the Zero Trust console evaluated and made a case in one step.
+                    assertThat(context).hasSingleBean(QualityCaseDecisionController.class);
                     assertThat(context.getBean(PromptQualityMeasureScreen.class).band().model()).isNull();
                     assertThat(context.getBean(PromptQualityNavCounts.class)
                             .count(PromptQualityScreens.Count.SEALED, null)).isNull();
@@ -209,6 +212,7 @@ class PromptVersionConsoleAutoConfigurationTest {
             assertThat(context).doesNotHaveBean(PromptQualityMeasureApiController.class);
             assertThat(context).doesNotHaveBean(PromptQualityCauseScreen.class);
             assertThat(context).doesNotHaveBean(QualityCasePromotionController.class);
+            assertThat(context).doesNotHaveBean(QualityCaseDecisionController.class);
         });
         runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
                 .withPropertyValues("contexa.prompt.governance.enabled=false")

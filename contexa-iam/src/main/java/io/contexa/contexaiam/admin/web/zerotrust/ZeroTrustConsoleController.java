@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.zerotrust;
 
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Adoption;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.BreachConfirmed;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionDetail;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionPage;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionRow;
@@ -65,6 +66,8 @@ public class ZeroTrustConsoleController {
 
     static final String BASE = "/contexa/admin/zero-trust";
     static final String API = "/contexa/admin/api/zero-trust";
+    /** The words of the input window of the answer of a case, which the decision's detail shows (quality plan 3.6). */
+    static final String DECISION_CASE_WORDS = "pqa.answer.";
 
     private final ZeroTrustConsoleService service;
     private final ZeroTrustDecisionRecords records;
@@ -271,6 +274,35 @@ public class ZeroTrustConsoleController {
         }
     }
 
+    /** Quality plan 3.6: what an administrator writes when the request a decision allowed was found a breach. */
+    public record Breach(String note) {
+    }
+
+    /**
+     * Quality plan 3.6: the request the decision allowed was found a breach, kept as the outcome of the request's
+     * decision (a miss seen in operation); a decision that has it already keeps the one it has. A decision that did not
+     * allow is refused.
+     */
+    @ResponseBody
+    @PostMapping(API + "/decisions/{observationId}/breach")
+    public ResponseEntity<?> confirmBreach(@PathVariable String observationId, @RequestBody(required = false) Breach breach,
+                                           Locale locale, Authentication authentication) {
+        requireAdmin(authentication);
+        DecisionDetail detail = records.detail(observationId, locale);
+        if (detail == null || detail.requestId() == null) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            BreachConfirmed confirmed = records.confirmBreach(detail.requestId(), breach != null ? breach.note() : null,
+                    authentication.getName());
+            return confirmed == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(confirmed);
+        } catch (IllegalArgumentException refused) {
+            ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, refused.getMessage());
+            problem.setProperty("code", "BREACH_NOT_ALLOWED");
+            return ResponseEntity.badRequest().body(problem);
+        }
+    }
+
     /** The decision list of the period and filters, as CSV (at most {@link ZeroTrustDecisionRecords#CSV_LIMIT} rows). */
     @GetMapping(value = API + "/decisions.csv", produces = "text/csv")
     public ResponseEntity<byte[]> decisionsCsv(@RequestParam(required = false) String period,
@@ -322,7 +354,10 @@ public class ZeroTrustConsoleController {
         // the menu of the screen (data-menu.sql); a decision's detail belongs to the decision records
         model.addAttribute("activePage", "zero-trust-" + ("decision".equals(screen) ? "decisions" : screen));
         model.addAttribute("apiBase", API);
-        model.addAttribute("scriptMessagesJson", ZeroTrustConsoleMessages.json(messages, locale, objectMapper));
+        // Quality plan 3.6: a decision's detail makes it a labelled case with the words of the answer's input window.
+        model.addAttribute("scriptMessagesJson", "decision".equals(screen)
+                ? ZeroTrustConsoleMessages.json(messages, locale, objectMapper, ZeroTrustConsoleMessages.PREFIX,
+                DECISION_CASE_WORDS) : ZeroTrustConsoleMessages.json(messages, locale, objectMapper));
         return "contexa/admin/zero-trust/" + screen;
     }
 

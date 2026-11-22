@@ -28,6 +28,7 @@ import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceR
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
 import io.contexa.contexaiam.admin.promptquality.causes.PromptQualityCauses;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseDecisionController;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotionController;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
@@ -592,6 +593,18 @@ public class PromptVersionConsoleAutoConfiguration {
     public QualityCasePromotionController qualityCasePromotionController(
             ObjectProvider<QualityCasePromotions> promotions) {
         return new QualityCasePromotionController(promotions::getIfAvailable);
+    }
+
+    /**
+     * Quality plan 3.6: a decision evaluated and made a case in one step in the decision detail of the Zero Trust
+     * console; refused as unavailable when the cases are not here.
+     */
+    @Bean(name = "contexaQualityCaseDecisionController")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityCases.class)
+    public QualityCaseDecisionController qualityCaseDecisionController(
+            ObjectProvider<QualityCasePromotions> promotions) {
+        return new QualityCaseDecisionController(promotions::getIfAvailable);
     }
 
     /** Quality plan 3.6, 3.8: the screen of the state of quality and the data it draws. */
