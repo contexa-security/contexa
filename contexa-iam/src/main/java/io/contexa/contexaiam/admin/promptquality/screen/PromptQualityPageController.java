@@ -19,6 +19,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureViews.Tab;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureViews.View;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleMessages;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
@@ -35,6 +37,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.nio.charset.StandardCharsets;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -49,6 +52,19 @@ import java.util.Objects;
 @Controller
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptQualityPageController {
+
+    private static final Logger log = LoggerFactory.getLogger(PromptQualityPageController.class);
+
+    /**
+     * Quality plan 3.5: the count beside the tab of a view that the menu bar does not count (the wrong answers of the
+     * view of the causes), for the scope and the measurement of the page; null for none.
+     */
+    @FunctionalInterface
+    public interface ViewCounts {
+
+        @Nullable
+        Long count(String view, @Nullable String scope, @Nullable Long measureId);
+    }
 
     /** The JSON of the labelled cases. */
     static final String CASES_API = "/contexa/admin/api/prompt-quality/cases";
@@ -67,12 +83,22 @@ public class PromptQualityPageController {
 
     private final MessageSource messages;
     private final ObjectMapper objectMapper;
+    @Nullable
+    private final ViewCounts viewCounts;
 
     /** @param objectMapper Contexa's own JSON writer, for the words of the screens */
     public PromptQualityPageController(MessageSource messages,
                                        @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+        this(messages, objectMapper, null);
+    }
+
+    /** @param viewCounts the counts beside the tabs of the views the menu bar does not count, or null for none */
+    public PromptQualityPageController(MessageSource messages,
+                                       @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
+                                       @Nullable ViewCounts viewCounts) {
         this.messages = messages;
         this.objectMapper = objectMapper;
+        this.viewCounts = viewCounts;
     }
 
     // ----- the labelled cases -----
@@ -191,6 +217,9 @@ public class PromptQualityPageController {
                 count = bar.tabs().stream().filter(tab -> tab.key().equals(menu) && tab.shortCount() != null)
                         .map(PromptQualityNav.Tab::shortCount).findFirst().orElse(null);
             }
+            else if (one.count() == null && viewCounts != null) {
+                count = viewCount(one.key(), scope, measureId, locale);
+            }
             String text = count != null ? messages.getMessage("pqa.cases.tabCount", new Object[] {name, count},
                     name + " " + count, locale) : name;
             String path = measureId != null && (one.path().equals(RUN) || one.path().startsWith(RUN + "?"))
@@ -198,6 +227,20 @@ public class PromptQualityPageController {
             tabs.add(new Tab(one.key(), href(path, scope), text, one.lit(view)));
         }
         return List.copyOf(tabs);
+    }
+
+    /** A view's own count beside its tab; a count that cannot be read leaves the tab without one. */
+    @Nullable
+    private String viewCount(String view, @Nullable String scope, @Nullable Long measureId, Locale locale) {
+        try {
+            Long count = viewCounts.count(view, scope, measureId);
+            return count != null ? NumberFormat.getIntegerInstance(locale).format(count) : null;
+        }
+        catch (RuntimeException unreadable) {
+            log.error("[PromptQualityScreen] The count beside the tab of the view {} could not be read", view,
+                    unreadable);
+            return null;
+        }
     }
 
     /** The address of a view with the scope of the page; a view's path may carry its query (/run?view=causes). */

@@ -128,7 +128,10 @@ public class PromptQualityMeasureScreen {
     public static final List<View> VIEWS = List.of(
             new View("runs", "", "pqa.measure.tab.runs", PromptQualityScreens.Count.MEASUREMENTS, List.of(), null),
             new View("run", "/run", "pqa.measure.tab.run", null, List.of(), null),
-            new View("compare", "/compare", "pqa.measure.tab.compare", null, List.of("trial"), null));
+            new View("compare", "/compare", "pqa.measure.tab.compare", null, List.of("trial"), null),
+            // Quality plan 3.5: the wrong cases and their causes, a view of one measurement.
+            new View("causes", "/run?view=causes", "pqa.causes.tab", null, List.of(),
+                    "/contexa/js/admin/prompt-quality/measure-causes.js?v=20261122-s3b"));
 
     /** The rows of a page of the list. */
     static final int PAGE_SIZE = 20;

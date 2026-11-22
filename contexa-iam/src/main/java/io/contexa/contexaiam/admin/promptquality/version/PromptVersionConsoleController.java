@@ -87,8 +87,12 @@ public class PromptVersionConsoleController {
     static final String RELEASES = "/contexa/admin/prompt-quality/releases";
     /** The menu entry of the screens (data-menu.sql). */
     static final String ACTIVE_PAGE = "prompt-quality-versions";
-    /** The messages the screens read: their own and the names of the decision actions. */
-    static final String[] MESSAGE_PREFIXES = {"pv.", "zt.console.ui.action.", "zt.console.ui.unit."};
+    /**
+     * The messages the screens read: their own, the names of the decision actions, and the causes of the wrong cases
+     * the new version is written beside (quality plan 3.5) with the words of their reasons.
+     */
+    static final String[] MESSAGE_PREFIXES = {"pv.", "zt.console.ui.action.", "zt.console.ui.unit.", "pqa.causes.",
+            "zt.console.reasonCode."};
     private static final int SHADOW_DAYS_MAX = 90;
 
     private final PromptVersionConsole console;

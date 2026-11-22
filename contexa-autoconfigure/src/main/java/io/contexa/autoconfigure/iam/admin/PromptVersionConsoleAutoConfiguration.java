@@ -47,6 +47,8 @@ import io.contexa.contexaiam.admin.promptquality.report.PromptQualityReportContr
 import io.contexa.contexaiam.admin.promptquality.report.PromptQualityReports;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseApiController;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseScreen;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCauseApiController;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCauseScreen;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureApiController;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureScreen;
 import io.contexa.contexaiam.admin.promptquality.status.PromptQualityStatus;
@@ -487,8 +489,13 @@ public class PromptVersionConsoleAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBean(PromptVersionService.class)
     public PromptQualityPageController promptQualityPageController(MessageSource messageSource,
-                                                                   @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
-        return new PromptQualityPageController(messageSource, objectMapper);
+                                                                   @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
+                                                                   ObjectProvider<PromptQualityCauseScreen> causes) {
+        // Quality plan 3.5: the tab of the causes counts the wrong answers of the measurement of the page.
+        return new PromptQualityPageController(messageSource, objectMapper, (view, scope, measureId) -> {
+            PromptQualityCauseScreen screen = "causes".equals(view) ? causes.getIfAvailable() : null;
+            return screen != null ? screen.count(scope, measureId) : null;
+        });
     }
 
     /**
@@ -547,6 +554,31 @@ public class PromptVersionConsoleAutoConfiguration {
     public PromptQualityMeasureApiController promptQualityMeasureApiController(
             PromptQualityMeasureScreen contexaPromptQualityMeasureScreen) {
         return new PromptQualityMeasureApiController(contexaPromptQualityMeasureScreen);
+    }
+
+    /**
+     * Quality plan 3.5: the view of the wrong cases and their causes under measure and compare, from the measurements,
+     * the causes of the wrong answers and the cases they ran on.
+     */
+    @Bean(name = "contexaPromptQualityCauseScreen")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityCases.class)
+    public PromptQualityCauseScreen promptQualityCauseScreen(PromptQualityCases contexaPromptQualityCases,
+                                                             ObjectProvider<PromptQualityMeasurements> measurements,
+                                                             ObjectProvider<PromptQualityCauses> causes,
+                                                             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+        return new PromptQualityCauseScreen(measurements::getIfAvailable, causes::getIfAvailable,
+                contexaPromptQualityCases, () -> jdbcTemplate, objectMapper, Clock.systemUTC());
+    }
+
+    /** Quality plan 3.5: the JSON of the view of the causes and the change of a cause. */
+    @Bean(name = "contexaPromptQualityCauseApiController")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityCauseScreen.class)
+    public PromptQualityCauseApiController promptQualityCauseApiController(
+            PromptQualityCauseScreen contexaPromptQualityCauseScreen) {
+        return new PromptQualityCauseApiController(contexaPromptQualityCauseScreen);
     }
 
     /** Quality plan 3.6, 3.8: the screen of the state of quality and the data it draws. */
