@@ -16,6 +16,8 @@
 package io.contexa.contexaiam.admin.promptquality.screen;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureViews.Tab;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureViews.View;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleMessages;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
@@ -28,8 +30,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * The screens of the labelled cases (quality plan 3.2) and of measure and compare (quality plan 3.3, 3.8): the frame of
@@ -78,9 +85,18 @@ public class PromptQualityPageController {
 
     // ----- measure and compare -----
 
+    /** The list and the start; the start opens with the version asked (the "measure" button of the version screens). */
     @GetMapping({PromptQualityScreens.MEASURE, PromptQualityScreens.MEASURE + "/"})
-    public String measurePage(Model model, Locale locale, Authentication authentication) {
+    public String measurePage(@RequestParam(required = false) Integer candidate, Model model, Locale locale,
+                              Authentication authentication) {
+        model.addAttribute("candidate", candidate);
         return page("measure", "runs", model, locale, authentication);
+    }
+
+    /** One measurement: the latest finished one of the scope. */
+    @GetMapping(PromptQualityScreens.MEASURE + "/run")
+    public String latestRunPage(Model model, Locale locale, Authentication authentication) {
+        return page("measure", "run", model, locale, authentication);
     }
 
     @GetMapping(PromptQualityScreens.MEASURE + "/{id:\\d+}")
@@ -89,13 +105,16 @@ public class PromptQualityPageController {
         return page("measure", "run", model, locale, authentication);
     }
 
-    /** Two versions: the candidate and the version it is compared with, else the latest candidate and the one in use. */
+    /**
+     * Two versions: the candidate and the version it is compared with (the reference, as the confirmation of "use for
+     * decisions" links here), else the latest candidate measured and the version in use.
+     */
     @GetMapping(PromptQualityScreens.MEASURE + "/compare")
     public String comparePage(@RequestParam(required = false) Integer candidate,
-                              @RequestParam(required = false) Integer current, Model model, Locale locale,
+                              @RequestParam(required = false) Integer reference, Model model, Locale locale,
                               Authentication authentication) {
         model.addAttribute("candidate", candidate);
-        model.addAttribute("current", current);
+        model.addAttribute("reference", reference);
         return page("measure", "compare", model, locale, authentication);
     }
 
@@ -115,9 +134,44 @@ public class PromptQualityPageController {
         model.addAttribute("apiBase", "cases".equals(screen) ? CASES_API : MEASURE_API);
         model.addAttribute("versionsApi", VERSIONS_API);
         model.addAttribute("versionsPages", PromptQualityScreens.VERSIONS);
+        model.addAttribute("measureBase", PromptQualityScreens.MEASURE);
         model.addAttribute("scriptMessagesJson", ZeroTrustConsoleMessages.json(messages, locale, objectMapper,
                 MESSAGE_PREFIXES));
+        if ("measure".equals(screen)) {
+            Object nav = model.getAttribute(PromptQualityNavAdvice.ATTRIBUTE);
+            model.addAttribute("measureTabs", tabs(view, nav instanceof PromptQualityNav bar ? bar : null, locale));
+            model.addAttribute("viewScripts", PromptQualityMeasureScreen.VIEWS.stream().map(View::script)
+                    .filter(Objects::nonNull).distinct().toList());
+        }
         return PromptQualityScreens.TEMPLATES + screen;
+    }
+
+    /**
+     * The tab bar of the views of measure and compare (PromptQualityMeasureScreen.VIEWS), the page's own lit; a count
+     * beside a name is the menu bar's count of the same thing, so the two never differ.
+     */
+    List<Tab> tabs(String view, PromptQualityNav bar, Locale locale) {
+        String scope = bar != null ? bar.scope() : null;
+        List<Tab> tabs = new ArrayList<>();
+        for (View one : PromptQualityMeasureScreen.VIEWS) {
+            String name = messages.getMessage(one.label(), null, one.label(), locale);
+            String count = null;
+            if (one.count() != null && bar != null) {
+                String menu = PromptQualityScreens.MENUS.stream().filter(entry -> entry.count() == one.count())
+                        .map(PromptQualityScreens.Menu::key).findFirst().orElse(null);
+                count = bar.tabs().stream().filter(tab -> tab.key().equals(menu) && tab.shortCount() != null)
+                        .map(PromptQualityNav.Tab::shortCount).findFirst().orElse(null);
+            }
+            String text = count != null ? messages.getMessage("pqa.cases.tabCount", new Object[] {name, count},
+                    name + " " + count, locale) : name;
+            UriComponentsBuilder href = UriComponentsBuilder.fromPath(PromptQualityScreens.MEASURE + one.path());
+            if (scope != null) {
+                href.queryParam("scope", scope);
+            }
+            tabs.add(new Tab(one.key(), href.encode(StandardCharsets.UTF_8).build().toUriString(), text,
+                    one.lit(view)));
+        }
+        return List.copyOf(tabs);
     }
 
     private static void requireAdmin(Authentication authentication) {

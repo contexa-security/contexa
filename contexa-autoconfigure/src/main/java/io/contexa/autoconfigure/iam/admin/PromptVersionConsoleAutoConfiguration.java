@@ -42,6 +42,8 @@ import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityModelSetting;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseApiController;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseScreen;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureApiController;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureScreen;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityNavAdvice;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityNavCounts;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityPageController;
@@ -397,5 +399,33 @@ public class PromptVersionConsoleAutoConfiguration {
     public PromptQualityCaseApiController promptQualityCaseApiController(
             PromptQualityCaseScreen contexaPromptQualityCaseScreen) {
         return new PromptQualityCaseApiController(contexaPromptQualityCaseScreen);
+    }
+
+    /**
+     * Quality plan 3.3, P46: what the screen of measure and compare shows, from the measurements, the cases, the
+     * resource classes, what the quality gate reads and the versions.
+     */
+    @Bean(name = "contexaPromptQualityMeasureScreen")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityCases.class)
+    public PromptQualityMeasureScreen promptQualityMeasureScreen(PromptQualityCases contexaPromptQualityCases,
+                                                                 ObjectProvider<PromptQualityMeasurements> measurements,
+                                                                 ObjectProvider<PromptQualityResourceClasses> classes,
+                                                                 ObjectProvider<QualityGateSource> gateSources,
+                                                                 ObjectProvider<PromptVersionConsole> console,
+                                                                 ObjectProvider<PromptVersionService> versions,
+                                                                 @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+        return new PromptQualityMeasureScreen(measurements::getIfAvailable, contexaPromptQualityCases,
+                classes::getIfAvailable, gateSources::getIfUnique, console::getIfAvailable, versions::getIfAvailable,
+                objectMapper, Clock.systemUTC());
+    }
+
+    /** Quality plan 3.3: the JSON of the screen of measure and compare. */
+    @Bean(name = "contexaPromptQualityMeasureApiController")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityMeasureScreen.class)
+    public PromptQualityMeasureApiController promptQualityMeasureApiController(
+            PromptQualityMeasureScreen contexaPromptQualityMeasureScreen) {
+        return new PromptQualityMeasureApiController(contexaPromptQualityMeasureScreen);
     }
 }

@@ -96,14 +96,20 @@ class PromptQualityPageControllerTest {
                 .andExpect(model().attribute("view", "detail")).andExpect(model().attribute("caseKey", "VER-A1T"));
         mvc.perform(get(PromptQualityScreens.CASES + "/operation-12").principal(admin))
                 .andExpect(model().attribute("caseKey", "operation-12"));
+        mvc.perform(get(PromptQualityScreens.MEASURE).param("candidate", "4").param("prompt", "cortex.security-decision")
+                        .principal(admin))
+                .andExpect(model().attribute("view", "runs")).andExpect(model().attribute("candidate", 4))
+                .andExpect(model().attribute("measureBase", PromptQualityScreens.MEASURE));
+        mvc.perform(get(PromptQualityScreens.MEASURE + "/run").principal(admin))
+                .andExpect(model().attribute("view", "run")).andExpect(model().attributeDoesNotExist("measureId"));
         mvc.perform(get(PromptQualityScreens.MEASURE + "/41").principal(admin))
                 .andExpect(view().name("contexa/admin/prompt-quality/measure"))
                 .andExpect(model().attribute("apiBase", "/contexa/admin/api/prompt-quality/measure"))
                 .andExpect(model().attribute("view", "run")).andExpect(model().attribute("measureId", 41L));
-        mvc.perform(get(PromptQualityScreens.MEASURE + "/compare").param("candidate", "3").param("current", "1")
+        mvc.perform(get(PromptQualityScreens.MEASURE + "/compare").param("candidate", "3").param("reference", "1")
                         .principal(admin))
                 .andExpect(model().attribute("view", "compare")).andExpect(model().attribute("candidate", 3))
-                .andExpect(model().attribute("current", 1));
+                .andExpect(model().attribute("reference", 1));
         mvc.perform(get(PromptQualityScreens.MEASURE + "/compare").principal(admin))
                 .andExpect(model().attribute("view", "compare")).andExpect(model().attributeDoesNotExist("candidate"));
         mvc.perform(get(PromptQualityScreens.MEASURE + "/trials/7").principal(admin))

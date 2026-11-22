@@ -16,7 +16,7 @@
         -->
         <div class="zt-page modern-card" id="zt-console" th:data-screen="${screen}" th:data-view="${view}"
              th:data-pqa-api="${apiBase}" th:data-api-base="${versionsApi}" th:data-pages-base="${versionsPages}"
-             th:data-case-key="${caseKey}"
+             th:data-case-key="${caseKey}" th:data-measure-base="${measureBase}"
              th:data-csrf-token="${_csrf != null ? _csrf.token : ''}"
              th:data-csrf-header="${_csrf != null ? _csrf.headerName : 'X-CSRF-TOKEN'}">
             <script type="application/json" id="zt-messages" th:utext="${scriptMessagesJson}"></script>
@@ -40,7 +40,7 @@
 </div>
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
 <script th:src="@{/contexa/js/admin/zero-trust/console-common.js?v=20261118-k119}"></script>
-<script th:src="@{/contexa/js/admin/prompt-version/pv-common.js?v=20261117-k96}"></script>
+<script th:src="@{/contexa/js/admin/prompt-version/pv-common.js?v=20261122-s2}"></script>
 <script th:src="@{/contexa/js/admin/prompt-quality/pqa-common.js?v=20261122-s1}"></script>
 <script th:src="@{/contexa/js/admin/prompt-quality/cases.js?v=20261122-s1}"></script>
 </body>
