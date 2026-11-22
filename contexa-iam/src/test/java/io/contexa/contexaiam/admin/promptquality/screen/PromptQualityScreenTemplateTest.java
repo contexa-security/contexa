@@ -151,8 +151,9 @@ class PromptQualityScreenTemplateTest {
     /** The scripts and styles of the two screens carry a version mark, so a browser never runs an older copy. */
     @Test
     void theScriptsAndStylesCarryAVersionMark() throws IOException {
-        // K197: the script of the cases changed its words of a case's input and raised its mark.
-        Map<String, String> marks = Map.of("cases", "20261123-fc", "measure", "20261123-fb");
+        // K197: the script of the cases changed its words of a case's input and raised its mark; K200: it draws the
+        // answer fields with the shared script, which raised its mark too.
+        Map<String, String> marks = Map.of("cases", "20261123-b2f", "measure", "20261123-fb");
         for (String screen : List.of("cases", "measure")) {
             String template = read("templates/contexa/admin/prompt-quality/" + screen + ".html");
             Matcher assets = Pattern.compile("@\\{(/contexa/[^}]*\\.(?:js|css)[^}]*)}").matcher(template);
@@ -167,8 +168,11 @@ class PromptQualityScreenTemplateTest {
         }
         assertThat(read("templates/contexa/admin/prompt-quality/measure.html"))
                 .contains("/contexa/js/admin/prompt-quality/measure-trials.js?v=20261122-s3b")
-                .contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261122-s3b")
+                .contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f")
                 .contains("th:each=\"extra : ${viewScripts}\"");
+        String cases = read("templates/contexa/admin/prompt-quality/cases.html");
+        assertThat(cases).contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f");
+        assertThat(cases.indexOf("case-answer.js")).isLessThan(cases.indexOf("prompt-quality/cases.js"));
         assertThat(read("templates/contexa/fragments/admin-menu.html")).contains("admin-menu.js?v=20261122-s1");
     }
 

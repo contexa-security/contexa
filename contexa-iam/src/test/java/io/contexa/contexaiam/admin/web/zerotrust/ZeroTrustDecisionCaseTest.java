@@ -150,7 +150,7 @@ class ZeroTrustDecisionCaseTest {
                 .getContentAsString(StandardCharsets.UTF_8);
         assertThat(template).contains("id=\"pqa-confirm-overlay\"")
                 .contains("/contexa/js/admin/prompt-quality/pqa-parts.js?v=20261122-s3")
-                .contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261122-s3b")
+                .contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f")
                 .contains("/contexa/js/admin/zero-trust/decision.js?v=20261122-s3b");
         assertThat(template.indexOf("case-answer.js")).isLessThan(template.indexOf("decision.js"));
     }

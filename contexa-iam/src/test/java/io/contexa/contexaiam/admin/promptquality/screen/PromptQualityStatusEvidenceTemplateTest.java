@@ -88,7 +88,7 @@ class PromptQualityStatusEvidenceTemplateTest {
         assertThat(tabs(list)).containsExactly("status", "cases", "measure", "versions", "evidence*");
         assertThat(scripts(list)).containsExactly("/contexa/js/admin/zero-trust/console-common.js?v=20261118-k119",
                 "/contexa/js/admin/prompt-quality/pqa-parts.js?v=20261122-s3",
-                "/contexa/js/admin/prompt-quality/case-answer.js?v=20261122-s3b",
+                "/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f",
                 "/contexa/js/admin/prompt-quality/evidence.js?v=20261122-s3b");
 
         String decision = render("evidence", Locale.ENGLISH, true, "3f2b-91c0");

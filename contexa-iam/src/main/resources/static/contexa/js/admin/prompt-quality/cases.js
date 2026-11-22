@@ -19,7 +19,6 @@
     const C = ZT.COLORS;
     const m = (key, ...args) => ZT.t('pqa.cases.' + key, ...args);
     const PAGES = '/contexa/admin/prompt-quality/cases';
-    const ACTIONS = ['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK'];
     const CLASSES = ['THREAT', 'NORMAL', 'UNCERTAIN'];
     const KINDS = ['OUTSIDER', 'INSIDER', 'NORMAL_WORK', 'AUTOMATION'];
     const GRADES = ['ORDINARY', 'MUST_CATCH', 'MUST_NOT_BLOCK'];
@@ -430,43 +429,9 @@
 
     // ----- the changes -----
 
-    /** The fields of an answer, filled from a case's answer when one is given. */
+    /** K200: the fields of an answer, filled from a case's answer when one is given, as every screen draws them. */
     function answerFields(given) {
-        const answer = given || {};
-        const allowed = new Set(answer.allowed || []);
-        const checks = el('div', {class: 'pv-actions'}, ACTIONS.map(action => el('label', {class: 'pv-toggle'},
-            el('input', {type: 'checkbox', value: action, checked: allowed.has(action) ? true : null,
-                'data-answer': 'allowed'}),
-            el('span', {text: ZT.t('zt.console.ui.action.' + action)}))));
-        const none = ['', m('form.none')];
-        const preferred = PQA.select(m('detail.best'), [none, ...ACTIONS.map(action => [action,
-            ZT.t('zt.console.ui.action.' + action)])], answer.preferred || '');
-        const classification = PQA.select(m('column.class'), CLASSES.map(value => [value, m('class.' + value)]),
-            answer.classification || 'THREAT');
-        const kind = PQA.select(m('column.kind'), KINDS.map(value => [value, m('kind.' + value)]),
-            answer.kind || 'OUTSIDER');
-        const grade = PQA.select(m('column.caseGrade'), GRADES.map(value => [value, m('grade.' + value)]),
-            answer.grade || 'ORDINARY');
-        const ko = el('textarea', {class: 'modern-input zt-textarea', rows: '2', maxlength: '2000',
-            'aria-label': m('form.whyKo'), text: answer.rationaleKo || ''});
-        const en = el('textarea', {class: 'modern-input zt-textarea', rows: '2', maxlength: '2000',
-            'aria-label': m('form.whyEn'), text: answer.rationaleEn || ''});
-        const facts = el('textarea', {class: 'modern-input zt-textarea', rows: '2', maxlength: '4000',
-            'aria-label': m('detail.deciding'), placeholder: m('form.factsHint'),
-            text: (answer.decidingFacts || []).join('\n')});
-        const field = (name, node, wide) => el(wide ? 'div' : 'label', {class: 'zt-filter-field' + (wide ? ' pv-span-all'
-            : '')}, el('span', {class: 'zt-filter-name', text: name}), node);
-        const node = el('div', {class: 'zt-filter-grid pv-form-grid'},
-            field(m('detail.answerAside'), checks, true), field(m('detail.best'), preferred),
-            field(m('column.class'), classification), field(m('column.kind'), kind),
-            field(m('column.caseGrade'), grade), field(m('form.whyKo'), ko, true), field(m('form.whyEn'), en, true),
-            field(m('detail.deciding'), facts, true));
-        const read = () => ({
-            allowedActions: [...checks.querySelectorAll('input:checked')].map(box => box.value),
-            preferred: preferred.value || null, classification: classification.value, kind: kind.value,
-            rationaleKo: ko.value.trim() || null, rationaleEn: en.value.trim() || null,
-            decidingFacts: facts.value.split('\n').map(line => line.trim()).filter(Boolean), grade: grade.value});
-        return {node, read};
+        return global.PQA_CASE_ANSWER.fields({cases: true, answer: given});
     }
 
     function answerOf(row, d) {
