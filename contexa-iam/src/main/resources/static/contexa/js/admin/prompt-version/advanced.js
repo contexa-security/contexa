@@ -24,6 +24,11 @@
             return;
         }
         PV.band(list, {page: PV.PAGES + '/advanced'});
+        // Quality plan 3.8: the way back to the list above the title keeps the prompt and the scope.
+        const back = document.querySelector('#pv-crumbs a[data-pv-crumb="list"]');
+        if (back) {
+            back.setAttribute('href', PV.page(''));
+        }
         PV.toolbar();
         const decision = view.decisionPrompt;
         PV.fill(content,
@@ -170,17 +175,27 @@
         const now = running.canary ? t('pv.canary.now', running.canary, running.canaryPercent == null ? '—'
             : running.canaryPercent, running.canaryTenants || t('pv.canary.all'), running.canaryPaths || t('pv.canary.all'))
             : t('pv.canary.none');
+        // Quality plan 3.4: a canary passes the quality gate as using a version does, in the same confirmation, and a
+        // gate that blocks on quality alone is overridden with the reason given.
         const start = PV.button(t('pv.canary.start'), 'fa-play', async () => {
-            const answer = await PV.confirm({title: t('pv.canary.confirm'), rows: [
+            const number = Number(version.value);
+            let check;
+            try {
+                check = await PV.get('/' + number + '/use-check', {target: 'CANARY'});
+            } catch (error) {
+                PV.notice('bad', t('pv.canary.failed'), [t('pv.ui.loadFailed')]);
+                return;
+            }
+            const body = await PV.gateConfirm(check, {kind: 'canary', title: t('pv.canary.confirm'), rows: [
                 [t('pv.canary.version'), version.options[version.selectedIndex] ? version.options[version.selectedIndex].text
                     : '—'],
                 [t('pv.canary.share'), t('pv.unit.percent', percent.value())],
                 [t('pv.canary.tenants'), tenants.value || t('pv.canary.all')],
-                [t('pv.canary.paths'), paths.value || t('pv.canary.all')]], reason: true,
+                [t('pv.canary.paths'), paths.value || t('pv.canary.all')]],
             confirmLabel: t('pv.canary.start'), icon: 'fa-play'});
-            if (answer) {
-                await act('/canary/start', {number: Number(version.value), percent: percent.value(), tenants: tenants.value,
-                    paths: paths.value, reason: answer.reason}, t('pv.canary.started'), t('pv.canary.failed'));
+            if (body) {
+                await act('/canary/start', Object.assign({number, percent: percent.value(), tenants: tenants.value,
+                    paths: paths.value}, body), t('pv.canary.started'), t('pv.canary.failed'));
             }
         }, {primary: true, name: 'canary-start', disabled: !view.writable || !version.options.length});
         const stop = PV.button(t('pv.canary.stop'), 'fa-stop', async () => {
@@ -237,7 +252,9 @@
                 field(t('pv.shadow.daily'), daily)),
             el('p', {class: 'zt-muted', text: t('pv.shadow.cost')}),
             el('div', {class: 'zt-card-foot'}, start,
-                PV.button(t('pv.shadow.compare'), 'fa-balance-scale', null, {href: PV.page('/trials'), name: 'shadow-results'}),
+                // Quality plan 3.8: the results of running alongside moved to measure and compare with the trials.
+                PV.button(t('pv.shadow.compare'), 'fa-balance-scale', null, {href: PV.measurePage(''),
+                    name: 'shadow-results'}),
                 stop));
     }
 

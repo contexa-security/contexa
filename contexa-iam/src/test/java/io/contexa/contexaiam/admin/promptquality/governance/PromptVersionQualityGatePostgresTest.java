@@ -44,6 +44,8 @@ import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionCatalo
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsole;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.ListView;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityCaseName;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityDetails;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityRow;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Receipt;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.UseCheck;
@@ -74,6 +76,7 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -195,9 +198,22 @@ class PromptVersionQualityGatePostgresTest {
     @Test
     void aVersionNeverUsedIsBlockedOnItsQualityAndAReasonOverridesItWithAnAuditRecord() {
         PromptVersionConsole console = console(QualityGateMode.BLOCK);
+        // Plan 3.4: the confirmation names the case set, the models and the cases beside the verdict, read where the
+        // gate reads its measurements, for the two versions the gate compares and the cases its rows name.
+        List<String> asked = new ArrayList<>();
+        QualityDetails named = new QualityDetails("set-1", "model-a", null, "model-a", null,
+                List.of(new QualityCaseName(QualityGateFixtures.MUST_CATCH, "GET /api/x (" + QualityGateFixtures.MUST_CATCH
+                        + ")")));
+        console.setQualityDetails(() -> (scope, prompt, candidate, current, keys) -> {
+            asked.add(scope + " " + prompt + " " + candidate + " " + current + " " + keys);
+            return named;
+        });
 
         UseCheck check = console.useCheck(null, PROMPT, 2);
 
+        assertThat(check.quality().details()).isEqualTo(named);
+        assertThat(asked).singleElement().asString().startsWith(SCOPE + " " + PROMPT + " v2.0 v1.0 [")
+                .contains(QualityGateFixtures.MUST_CATCH);
         assertThat(check.ready()).isFalse();
         assertThat(check.blockers()).singleElement().asString()
                 .startsWith(PromptGovernanceReleaseGateService.QUALITY_GATE_BLOCKED);
@@ -278,8 +294,15 @@ class PromptVersionQualityGatePostgresTest {
         assertThat(console.use(null, PROMPT, 2, "admin", null, "urgent fix").applied()).isTrue();
 
         // v1.0 decided before v2.0 by its label: the screen uses it again without the quality gate.
+        List<String> asked = new ArrayList<>();
+        console.setQualityDetails(() -> (scope, prompt, candidate, current, keys) -> {
+            asked.add(candidate);
+            return null;
+        });
         UseCheck back = console.useCheck(null, PROMPT, 1);
         assertThat(back.quality().rollback()).isTrue();
+        assertThat(back.quality().details()).isNull();
+        assertThat(asked).as("a rollback names no details").isEmpty();
         assertThat(back.ready()).isTrue();
         int reads = source.reads().size();
         Receipt receipt = console.use(null, PROMPT, 1, "admin", "back");
@@ -308,6 +331,20 @@ class PromptVersionQualityGatePostgresTest {
     void aCanaryOfAVersionWithoutAMeasurementIsRefusedInTheBlockingModeAndAReasonOverridesIt() {
         source.answer(QualityGateReading.missing(Set.of(QualityGateSide.CANDIDATE), null));
         PromptVersionConsole console = console(QualityGateMode.BLOCK);
+
+        // The confirmation of the canary reads the quality gate of the canary, as the move then applies it.
+        UseCheck check = console.useCheck(null, PROMPT, 3, PromptBundleState.CANARY);
+        assertThat(check.ready()).isFalse();
+        assertThat(check.blockers()).singleElement().asString()
+                .startsWith(PromptGovernanceReleaseGateService.QUALITY_GATE_BLOCKED);
+        assertThat(check.quality().measurement()).isEqualTo("MISSING");
+        assertThat(check.quality().measurementSides()).containsExactly("CANDIDATE");
+        assertThat(check.quality().applied()).isEqualTo("BLOCKED");
+        assertThat(check.quality().rollback()).isFalse();
+        assertThat(check.quality().overridable()).isTrue();
+        assertThat(row(check, QualityGateCondition.COMPARABLE_MEASUREMENTS).status()).isEqualTo("BLOCKED");
+        assertThatThrownBy(() -> console.useCheck(null, PROMPT, 3, PromptBundleState.SHADOW))
+                .isInstanceOf(IllegalArgumentException.class);
 
         Receipt refused = console.startCanary(null, PROMPT, 3, 25, "tenant-a", "/api/", "admin", null);
 

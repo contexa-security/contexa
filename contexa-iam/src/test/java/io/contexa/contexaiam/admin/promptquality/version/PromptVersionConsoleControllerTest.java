@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.promptquality.version;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentException;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionProblem;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
@@ -74,6 +75,8 @@ class PromptVersionConsoleControllerTest {
 
     private static final String PAGES = "/contexa/admin/prompt-quality/versions";
     private static final String API = "/contexa/admin/api/prompt-quality/versions";
+    /** Measure and compare, where the trials moved (quality plan 3.8). */
+    private static final String MEASURE = "/contexa/admin/prompt-quality/measure";
 
     private final PromptVersionConsole console = mock(PromptVersionConsole.class);
     private final Authentication admin = new UsernamePasswordAuthenticationToken("admin", "n/a",
@@ -109,18 +112,33 @@ class PromptVersionConsoleControllerTest {
     }
 
     @Test
-    void theFiveScreensAreTheirTemplatesAndLightTheVersionsMenu() throws Exception {
-        for (String[] screen : new String[][] {{"", "list"}, {"/2", "version"}, {"/new", "new"}, {"/trials", "trials"},
-                {"/trials/7", "trials"}, {"/advanced", "advanced"}}) {
+    void theFourScreensAreTheirTemplatesAndLightTheVersionsMenu() throws Exception {
+        for (String[] screen : new String[][] {{"", "list"}, {"/2", "version"}, {"/new", "new"},
+                {"/advanced", "advanced"}}) {
             mvc.perform(get(PAGES + screen[0]).principal(admin))
                     .andExpect(status().isOk())
                     .andExpect(view().name("contexa/admin/prompt-version/" + screen[1]))
                     .andExpect(model().attribute("activePage", "prompt-quality-versions"))
                     .andExpect(model().attribute("apiBase", API))
+                    .andExpect(model().attribute("measureBase", MEASURE))
                     .andExpect(model().attributeExists("scriptMessagesJson"));
         }
         mvc.perform(get(PAGES + "/2").principal(admin)).andExpect(model().attribute("versionNumber", 2));
-        mvc.perform(get(PAGES + "/trials/7").principal(admin)).andExpect(model().attribute("trialId", 7L));
+    }
+
+    /**
+     * Quality plan 3.8: the trials moved to measure and compare. Their start opens there with the version asked and the
+     * scope and prompt kept; a trial's result opens there by its id.
+     */
+    @Test
+    void theAddressesOfTheTrialsOpenMeasureAndCompare() throws Exception {
+        mvc.perform(get(PAGES + "/trials").principal(admin)).andExpect(redirectedUrl(MEASURE));
+        mvc.perform(get(PAGES + "/trials").param("scope", "tenant-a").param("prompt", "cortex.security-decision")
+                .param("candidate", "2").principal(admin))
+                .andExpect(redirectedUrl(MEASURE + "?scope=tenant-a&prompt=cortex.security-decision&candidate=2"));
+        mvc.perform(get(PAGES + "/trials/7").principal(admin)).andExpect(redirectedUrl(MEASURE + "/trials/7"));
+        mvc.perform(get(PAGES + "/trials/7").param("scope", "tenant-a").principal(admin))
+                .andExpect(redirectedUrl(MEASURE + "/trials/7?scope=tenant-a"));
     }
 
     @Test
@@ -136,16 +154,17 @@ class PromptVersionConsoleControllerTest {
         mvc.perform(get("/contexa/admin/prompt-quality/releases/detail").param("promptVersion", "2026.10.24-v19.21")
                 .principal(admin)).andExpect(redirectedUrl(PAGES));
         mvc.perform(get("/contexa/admin/prompt-quality/releases/compare").param("promptKey", "cortex.security-decision")
-                .principal(admin)).andExpect(redirectedUrl(PAGES + "/trials?prompt=cortex.security-decision"));
+                .principal(admin)).andExpect(redirectedUrl(MEASURE + "?prompt=cortex.security-decision"));
     }
 
     @Test
     void someoneWhoIsNoAdministratorReadsAndChangesNothing() throws Exception {
-        for (String page : List.of(PAGES, PAGES + "/2", PAGES + "/new", PAGES + "/trials", PAGES + "/advanced",
-                "/contexa/admin/prompt-quality/releases")) {
+        for (String page : List.of(PAGES, PAGES + "/2", PAGES + "/new", PAGES + "/trials", PAGES + "/trials/7",
+                PAGES + "/advanced", "/contexa/admin/prompt-quality/releases")) {
             mvc.perform(get(page).principal(user)).andExpect(status().isForbidden());
         }
-        for (String read : List.of(API, API + "/2", API + "/draft?base=1", API + "/2/use-check", API + "/trials",
+        for (String read : List.of(API, API + "/2", API + "/draft?base=1", API + "/2/use-check",
+                API + "/2/use-check?target=CANARY", API + "/trials",
                 API + "/advanced", API + "/folder", API + "/history", API + "/shadow/results", API + "/2/export")) {
             mvc.perform(get(read).principal(user)).andExpect(status().isForbidden());
         }
@@ -185,6 +204,28 @@ class PromptVersionConsoleControllerTest {
                         containsString("cortex.security-decision-v1.0.yaml")));
         mvc.perform(get(API + "/1/export").param("form", "zip").principal(admin)).andExpect(status().isBadRequest());
         mvc.perform(get(API + "/shadow/results").param("days", "91").principal(admin)).andExpect(status().isBadRequest());
+    }
+
+    /**
+     * Plan 3.4: the confirmation of a canary reads the use check of the canary, which the quality gate looks at as it
+     * looks at using the version; the use check is of using the version or of a canary, nothing else.
+     */
+    @Test
+    void theUseCheckOfACanaryIsTheCanarysAndNoOtherMoveIsChecked() throws Exception {
+        when(console.useCheck(any(), any(), eq(2), eq(PromptBundleState.CANARY))).thenReturn(
+                new PromptVersionConsoleDtos.UseCheck("v2.0", "v1.0", false, List.of("QUALITY_GATE_BLOCKED"), null,
+                        List.of(), null, null));
+        mvc.perform(get(API + "/2/use-check").param("target", "CANARY").principal(admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value("v2.0"))
+                .andExpect(jsonPath("$.blockers[0]").value("QUALITY_GATE_BLOCKED"));
+        verify(console).useCheck(any(), any(), eq(2), eq(PromptBundleState.CANARY));
+
+        mvc.perform(get(API + "/2/use-check").param("target", "SHADOW").principal(admin))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get(API + "/2/use-check").principal(admin)).andExpect(status().isOk());
+        verify(console).useCheck(any(), any(), eq(2));
+        verify(console, never()).useCheck(any(), any(), eq(2), eq(PromptBundleState.SHADOW));
     }
 
     /** Plan 3.4: the reason that overrides the quality gate reaches the console; a blank one answers its refusal. */

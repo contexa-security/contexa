@@ -41,14 +41,41 @@
             ZT.kpiRow(changesCard(view), sizeCard(view), timeCard(view), formatCard(view)),
             partsCard(view),
             decisionsCard(view, decision));
+        savedNotice(row);
+    }
+
+    /**
+     * Quality plan 3.4: the version just saved with "save and measure" is being measured, or why its measurement could
+     * not start (the version is saved either way). Said once: the address forgets it, so a later draw does not repeat it.
+     */
+    function savedNotice(row) {
+        const params = PV.params();
+        const measure = params.get('measure');
+        const refused = params.get('measureRefused');
+        if (!measure && !refused) {
+            return;
+        }
+        if (measure) {
+            PV.notice('good', t('pv.new.measureStarted', row.name), []);
+            const item = document.querySelector('#pv-notice .zt-item');
+            if (item) {
+                item.append(el('a', {class: 'zt-link', href: PV.measurePage('/' + encodeURIComponent(measure)),
+                    'data-pv-action': 'open-measure', text: t('pv.new.openMeasure')}));
+            }
+        } else {
+            PV.notice('bad', t('pv.new.measureRefused', row.name), PV.refusedLines({body: {code: refused}}));
+        }
+        ['saved', 'measure', 'measureRefused'].forEach(name => params.delete(name));
+        global.history.replaceState(null, '', global.location.pathname + (params.toString() ? '?' + params : ''));
     }
 
     function tools(view, decision) {
         const row = view.version;
         const nodes = [];
+        // Quality plan 3.8: a version is measured in measure and compare, where the trials moved.
         if (decision && view.trialsOffered && row.state !== 'USED' && !row.hidden) {
-            nodes.push(PV.button(t('pv.action.trial'), 'fa-vial', null, {href: PV.page('/trials', {candidate: row.number}),
-                name: 'trial'}));
+            nodes.push(PV.button(t('pv.action.measure'), 'fa-vial', null,
+                {href: PV.measurePage('', {candidate: row.number}), name: 'measure'}));
         }
         nodes.push(downloadMenu(row));
         if (view.canBase) {

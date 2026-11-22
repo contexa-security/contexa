@@ -26,13 +26,20 @@
         PV.band(view, {note: t('pv.list.bandNote')});
         const used = view.used || {};
         const usedNumber = used.version ? Number(String(used.version).replace(/^v/, '').split('.')[0]) : null;
-        PV.toolbar(view.versions.length && usedNumber ? PV.button(t('pv.action.new'), 'fa-plus', null,
+        // Quality plan 3.8: the advanced screen is no tab any more; the button the page draws opens it, the prompt and
+        // the scope kept.
+        const advanced = document.getElementById('pv-advanced');
+        if (advanced) {
+            advanced.setAttribute('href', PV.page('/advanced'));
+        }
+        PV.toolbar(advanced, view.versions.length && usedNumber ? PV.button(t('pv.action.new'), 'fa-plus', null,
             {primary: true, href: PV.page('/new', {base: usedNumber}), name: 'new'}) : null);
         const cards = ZT.kpiRow(usedCard(view, used), countCard(view), runningCard(view));
         cards.classList.add('pv-kpi-3');
         PV.fill(content,
             cards,
             view.newProduct ? newProductNotice(view.newProduct) : null,
+            view.outsideGate ? outsideGateNotice(view.outsideGate) : null,
             versionsCard(view, decision),
             el('p', {class: 'zt-muted pv-foot', text: t(decision ? 'pv.list.foot' : 'pv.list.foot.other')}));
     }
@@ -74,28 +81,27 @@
         return ZT.kpi({tone: 'purple', icon: 'fa-vial', label: t('pv.list.running'),
             value: parts.length ? ZT.count(parts.length) : t('pv.list.runningNone'),
             sub: parts.length ? parts.join(' · ') : t(view.decisionPrompt ? 'pv.list.runningOff' : 'pv.list.runningOff.other'),
-            href: running.trial ? PV.page('/trials/' + running.trial.id)
+            href: running.trial ? PV.measurePage('/trials/' + running.trial.id)
                 : view.decisionPrompt ? PV.page('/advanced') : null});
     }
 
-    /** Plan 3.3: a newer product version; the version in use keeps running until its changes are carried over. */
-    function newProductNotice(product) {
-        const base = product.number;
-        const used = Number(String(product.usedVersion).replace(/^v/, '').split('.')[0]);
-        // An older Contexa version in use has no changes to carry: the newer one is used as it is.
-        const next = product.carry
-            ? PV.button(t('pv.list.newProductCarry'), 'fa-share', null, {primary: true,
-                href: PV.page('/new', {base, carry: used}), name: 'product-carry'})
-            : PV.button(PV.useLabel(true), 'fa-check', () => PV.useVersion(base, true, () => global.location.reload()),
-                {primary: true, name: 'product-use'});
-        return el('div', {class: 'zt-alert', role: 'note', 'data-pv-notice': 'product'},
-            el('span', {class: 'status-badge zt-chip', 'data-status': 'WARN', text: t('pv.list.newProduct')}),
-            el('div', {class: 'zt-item'},
-                el('span', {text: t(product.carry ? 'pv.list.newProductLine' : 'pv.list.newProductLineContexa',
-                    product.version, product.usedVersion)}),
-                el('div', {class: 'pv-actions'},
-                    PV.button(t('pv.list.newProductView'), 'fa-eye', null, {href: PV.page('/' + base),
-                        name: 'product-view'}), next)));
+    /**
+     * Quality plan 3.4: the version in use decides without passing the release gate (the setting names it, or it is
+     * the newest Contexa version) and this installation measures it on its own; the notice says how far that is.
+     */
+    function outsideGateNotice(outside) {
+        const state = outside.detail === 'MEASURING' ? 'MEASURING' : outside.measurement || 'UNKNOWN';
+        const words = [
+            t(outside.source === 'CONFIGURATION' ? 'pv.list.outside.CONFIGURATION' : 'pv.list.outside.BUILD_DEFAULT',
+                outside.version),
+            PV.word('pv.list.outside.measurement.' + state, t('pv.list.outside.measurement.UNKNOWN')),
+            outside.detail && state !== 'MEASURING' ? PV.word('pv.gate.detail.' + outside.detail, '') : ''
+        ].filter(Boolean).join(' ');
+        return el('div', {class: 'zt-alert', role: 'note', 'data-pv-notice': 'outside-gate',
+            'data-pv-measurement': state},
+            el('span', {class: 'status-badge zt-chip', 'data-status': state === 'MEASURED' ? 'GOOD' : 'WARN',
+                text: PV.word('pv.list.outside.state.' + state, t('pv.list.outside.state.UNKNOWN'))}),
+            el('span', {text: words}));
     }
 
     function versionsCard(view, decision) {
@@ -164,8 +170,10 @@
     function versionRow(view, row, decision) {
         const actions = el('div', {class: 'pv-row-actions'}, action(t('pv.action.view'), PV.page('/' + row.number), null,
             'view'));
+        // Quality plan 3.8: a version is measured in measure and compare, where the trials moved.
         if (decision && view.trialsOffered && row.state !== 'USED' && !row.hidden) {
-            actions.append(action(t('pv.action.trial'), PV.page('/trials', {candidate: row.number}), null, 'trial'));
+            actions.append(action(t('pv.action.measure'), PV.measurePage('', {candidate: row.number}), null,
+                'measure'));
         }
         if (row.state !== 'USED' && !row.hidden && view.writable) {
             actions.append(action(PV.useLabel(decision), null, () => PV.useVersion(row.number, decision, draw), 'use'));
