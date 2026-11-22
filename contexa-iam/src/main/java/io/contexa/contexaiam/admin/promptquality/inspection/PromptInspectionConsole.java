@@ -88,7 +88,11 @@ public class PromptInspectionConsole {
         return packages.findByPackageId(packageId).map(this::detail);
     }
 
-    private Detail detail(SealedEvidencePackage evidencePackage) {
+    /**
+     * The detail of a package already read, inspected again as it is now (the sealed evidence detail reads the package
+     * once for its own sections and this).
+     */
+    public Detail detail(SealedEvidencePackage evidencePackage) {
         PromptInspectionResult current = inspector.inspect(evidencePackage);
         Map<Integer, List<String>> matchedBy = new LinkedHashMap<>();
         Map<Integer, List<PromptInspectionFinding>> findingsByLine = new LinkedHashMap<>();

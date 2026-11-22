@@ -142,7 +142,7 @@ class AdminMenuSeedPostgresTest {
             "2 menu.pqa.cases /contexa/admin/prompt-quality/cases prompt-quality-cases CORE",
             "3 menu.pqa.measure /contexa/admin/prompt-quality/measure prompt-quality-measure CORE",
             "4 menu.pqa.versions /contexa/admin/prompt-quality/versions prompt-quality-versions CORE",
-            "5 menu.pqa.inspection.packages /contexa/admin/prompt-inspection/packages prompt-inspection-packages CORE"};
+            "5 menu.pqa.inspection.packages /contexa/admin/prompt-quality/evidence prompt-inspection-packages CORE"};
 
     private static List<String> promptQualityMenus() {
         return jdbc.queryForList("""

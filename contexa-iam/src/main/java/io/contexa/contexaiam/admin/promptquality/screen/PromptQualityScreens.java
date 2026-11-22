@@ -37,8 +37,11 @@ public final class PromptQualityScreens {
     public static final String MEASURE = "/contexa/admin/prompt-quality/measure";
     /** The prompt versions (plan 3.10). */
     public static final String VERSIONS = "/contexa/admin/prompt-quality/versions";
-    /** The sealed prompts, which become the sealed evidence (quality plan 3.7). */
-    public static final String EVIDENCE = "/contexa/admin/prompt-inspection/packages";
+    /**
+     * The sealed evidence (quality plan 3.7, 3.8): the two sealed prompt screens joined. Their addresses under
+     * {@code /contexa/admin/prompt-inspection} open it.
+     */
+    public static final String EVIDENCE = "/contexa/admin/prompt-quality/evidence";
 
     /** The templates of the screens of the group, and the bar they call. */
     public static final String TEMPLATES = "contexa/admin/prompt-quality/";

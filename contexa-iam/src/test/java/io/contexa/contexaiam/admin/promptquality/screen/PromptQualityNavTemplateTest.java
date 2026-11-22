@@ -83,7 +83,7 @@ class PromptQualityNavTemplateTest {
                 "fas fa-code-branch", "fas fa-stamp");
         assertThat(tabs).extracting(Drawn::href).containsExactly("/contexa/admin/prompt-quality/cases",
                 "/contexa/admin/prompt-quality/measure", "/contexa/admin/prompt-quality/versions",
-                "/contexa/admin/prompt-inspection/packages");
+                "/contexa/admin/prompt-quality/evidence");
         assertThat(tabs).extracting(Drawn::classes).containsExactly("pc-tab-btn active", "pc-tab-btn", "pc-tab-btn",
                 "pc-tab-btn");
         assertThat(tabs).extracting(Drawn::current).containsExactly("page", null, null, null);

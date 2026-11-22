@@ -290,6 +290,35 @@ class QualityCasePromotionsPostgresTest {
     }
 
     /**
+     * Quality plan 3.6, 3.7: from the sealed evidence, a sealed decision is made a case of the scope asked for, its
+     * sealed input naming its package; a package whose seal did not hold, or none, is refused as not sealed.
+     */
+    @Test
+    void aSealedDecisionOfTheSealedEvidenceIsMadeACase() {
+        decision("evidence", "ALLOW", "request-e");
+        seal("evidence", "package-e", 1, "SEALED");
+        decision("broken", "ALLOW", "request-b");
+        seal("broken", "package-b", 1, "FAILED");
+
+        QualityCasePromotions.Promoted promoted = promotions.fromSealed("tenant-a", "package-e", threatAnswer(),
+                QualityCaseGrade.MUST_CATCH, "admin-a");
+
+        assertThat(promoted.kept().scope()).isEqualTo("tenant-a");
+        assertThat(promoted.kept().sealedPackageId()).isEqualTo("package-e");
+        assertThat(promoted.kept().secondAnalysis()).isFalse();
+        assertThat(promoted.sealedPackageId()).isEqualTo("package-e");
+        assertThat(promoted.observationId()).isNull();
+        assertThat(promoted.evaluation()).isNull();
+        for (String packageId : List.of("package-b", "package-gone")) {
+            assertThatThrownBy(() -> promotions.fromSealed(null, packageId, threatAnswer(), QualityCaseGrade.ORDINARY,
+                    "admin-a")).isInstanceOfSatisfying(PromptQualityCases.RefusedException.class,
+                    refused -> assertThat(refused.refusal()).isEqualTo(PromptQualityCases.Refusal.NOT_SEALED));
+        }
+        assertThat(cases.list("tenant-a", PROMPT)).hasSize(1);
+        assertThat(cases.list(SCOPE, PROMPT)).isEmpty();
+    }
+
+    /**
      * Quality plan 3.6: an allowed decision is confirmed a breach by its request, once; a decision that did not allow
      * is refused, and a request without a decision has none.
      */
