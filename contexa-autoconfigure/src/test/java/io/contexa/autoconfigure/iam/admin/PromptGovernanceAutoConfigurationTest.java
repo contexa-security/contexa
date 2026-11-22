@@ -143,7 +143,7 @@ class PromptGovernanceAutoConfigurationTest {
     void theQualityGateIsAWarningByDefaultAndItsSettingsAndStoreAreRead() {
         runner.run(context -> {
             assertThat(context).hasNotFailed();
-            QualityGatePolicy defaults = context.getBean(PqaOssQualityGateProperties.class).policy(null);
+            QualityGatePolicy defaults = context.getBean(PqaOssQualityProperties.class).getGate().policy(null);
             assertThat(defaults.mode()).isEqualTo(QualityGateMode.WARN);
             assertThat(defaults.settings()).isEqualTo(QualityGateSettings.defaults());
             assertThat(context.getBean(PromptGovernanceReleaseGateService.class)
@@ -159,7 +159,7 @@ class PromptGovernanceAutoConfigurationTest {
                         QualityGateReading.baselinePending(null))
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    QualityGatePolicy policy = context.getBean(PqaOssQualityGateProperties.class).policy(null);
+                    QualityGatePolicy policy = context.getBean(PqaOssQualityProperties.class).getGate().policy(null);
                     assertThat(policy.mode()).isEqualTo(QualityGateMode.BLOCK);
                     assertThat(policy.settings()).isEqualTo(new QualityGateSettings(0.02, 0.1, 50, 60));
                     assertThat(context.getBean(PromptGovernanceReleaseGateService.class)

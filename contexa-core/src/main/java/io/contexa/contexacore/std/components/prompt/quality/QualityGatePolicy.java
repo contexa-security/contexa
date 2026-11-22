@@ -108,8 +108,16 @@ public final class QualityGatePolicy {
      * the setting, or the newest Contexa version): there is none to compare it with.
      */
     public QualityMeasurementState measurement(String scope, String prompt, String version) {
+        return reading(scope, prompt, version).state();
+    }
+
+    /**
+     * What the source found of one version alone, with why (such as a measurement of it that waits or runs); a source
+     * that read nothing reads as one that cannot measure.
+     */
+    public QualityGateReading reading(String scope, String prompt, String version) {
         QualityGateReading reading = source.read(scope, prompt, version, null);
-        return reading != null ? reading.state() : QualityMeasurementState.UNMEASURABLE;
+        return reading != null ? reading : QualityGateReading.unmeasurable(QualityGateSource.NO_SOURCE);
     }
 
     /** The input of the source with the thresholds of this installation; nothing measured when there is none. */

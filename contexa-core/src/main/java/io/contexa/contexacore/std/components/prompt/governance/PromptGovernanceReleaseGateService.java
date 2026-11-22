@@ -25,6 +25,7 @@ import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateCondition;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateFinding;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGatePolicy;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateReading;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateStatus;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateVerdict;
 import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurementState;
@@ -766,6 +767,19 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             return null;
         }
         return quality.measurement(normalizeRegistryScope(registryScope), promptKey.trim(), promptVersion.trim());
+    }
+
+    /**
+     * Plan 3.4: what the store of measurements found of one version of the security decision alone, with why (such as
+     * a measurement of it that waits or runs); null for another prompt.
+     */
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public QualityGateReading qualityReading(String registryScope, String promptKey, String promptVersion) {
+        if (promptKey == null || !SecurityDecisionPromptDocument.PROMPT.equals(promptKey.trim())
+                || !StringUtils.hasText(promptVersion)) {
+            return null;
+        }
+        return quality.reading(normalizeRegistryScope(registryScope), promptKey.trim(), promptVersion.trim());
     }
 
     /**

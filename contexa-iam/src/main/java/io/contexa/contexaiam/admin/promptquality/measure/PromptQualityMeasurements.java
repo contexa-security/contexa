@@ -297,6 +297,14 @@ public class PromptQualityMeasurements implements AutoCloseable {
     }
 
     /**
+     * Quality plan 3.4: the hash of the server settings that change an answer, as this server runs now; a measurement
+     * taken under another hash is stale here.
+     */
+    public String settingsHash() {
+        return QualityModelSetting.hash(Map.copyOf(modelSettings.get()));
+    }
+
+    /**
      * Looks for measurements to run, or to resume after a server stopped, at every heartbeat from now on: a
      * measurement queued on a server that is busy, or that stopped, is run by whichever server takes the lock.
      */

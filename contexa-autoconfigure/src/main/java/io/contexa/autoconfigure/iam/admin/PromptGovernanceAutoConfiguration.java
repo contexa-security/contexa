@@ -56,7 +56,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 @AutoConfiguration(after = CoreDataAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "contexa.prompt.governance", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties(PqaOssQualityGateProperties.class)
+@EnableConfigurationProperties(PqaOssQualityProperties.class)
 public class PromptGovernanceAutoConfiguration {
 
     @Bean(name = "contexaPromptGovernanceRuntimeCacheInvalidationService")
@@ -199,7 +199,7 @@ public class PromptGovernanceAutoConfiguration {
             ObjectProvider<PromptVersionCatalog> promptVersionCatalog,
             ObjectProvider<VersionedPrompts> versionedPrompts,
             ObjectProvider<QualityGateSource> qualityGateSource,
-            PqaOssQualityGateProperties qualityGateProperties) {
+            PqaOssQualityProperties qualityProperties) {
         // Plan 3.9: a release named as a version (v2.0) is read from the version table and its product policy, which
         // the product of each prompt declares: the security decision and the other prompts (plan 3.11). Plan 3.4: the
         // quality gate of the security decision reads the store of measurements; without one no version can be
@@ -216,7 +216,9 @@ public class PromptGovernanceAutoConfiguration {
                 promptGovernanceBudgetProfileRepository,
                 promptVersionCatalog.getIfAvailable(PromptVersionCatalog::none),
                 versionedPrompts.getIfAvailable(),
-                qualityGateProperties.policy(qualityGateSource.getIfAvailable(QualityGateSource::none)));
+                // The store of measurements is read when the gate reads it: it stands on beans made after the gate.
+                qualityProperties.getGate().policy((scope, prompt, candidate, current) -> qualityGateSource
+                        .getIfAvailable(QualityGateSource::none).read(scope, prompt, candidate, current)));
     }
 
     @Bean(name = "contexaPromptGovernanceEmpiricalEvalService")
