@@ -31,5 +31,13 @@ public interface SealedEvidencePackageRepository {
 
     long countByTenantIdAndCapturedAtAfter(String tenantId, Instant after);
 
+    /**
+     * The retention's delete: removes the packages whose expiry is before {@code now}. A package something still
+     * stands on (a prompt version trial that decided it again, an administrator's evaluation of its decision) is left
+     * past its expiry for as long as that is kept; a package without an expiry is never removed. One rule for every
+     * package: what a prompt inspection found in it plays no part.
+     *
+     * @return how many packages were removed
+     */
     long deleteByExpiresAtBefore(Instant now);
 }

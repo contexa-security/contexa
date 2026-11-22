@@ -54,27 +54,6 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
     /** The share of packages the automatic round samples: a stable hash of the package id, so a package left out stays out. */
     private static final String SAMPLE = "mod(abs(hashtext(p.package_id)::bigint), 100) < ?";
 
-    /**
-     * R4-S5: the packages captured before a time whose latest result found nothing wrong and that no official
-     * verification run names, oldest capture first. The latest result is the one a package's console shows first.
-     */
-    private static final String CLEAN_PACKAGES = """
-            select p.package_id
-              from ctxa_sealed_evidence_package p
-             where p.captured_at < ?
-               and (select latest.verdict
-                      from ctxa_prompt_inspection_result latest
-                     where latest.package_id = p.package_id
-                     order by latest.inspected_at desc, latest.id desc
-                     limit 1) in ('PASS', 'NOT_APPLICABLE')
-               and not exists (select 1 from ctxa_official_verification_run_batch batch
-                                where batch.package_id = p.package_id)
-               and not exists (select 1 from ctxa_verification_run_ledger ledger
-                                where ledger.package_id = p.package_id)
-             order by p.captured_at, p.id
-             limit ?
-            """;
-
     private final JdbcOperations jdbc;
     private final TransactionOperations transactions;
     private final ObjectMapper objectMapper;
@@ -118,27 +97,6 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
                 ? new Object[]{inspectorVersion, Timestamp.from(from), Timestamp.from(to), samplePercent}
                 : new Object[]{inspectorVersion, Timestamp.from(from), Timestamp.from(to)};
         Integer removed = transactions.execute(status -> remove(jdbc.query(sql, this::listedKinds, arguments)));
-        return removed == null ? 0 : removed;
-    }
-
-    @Override
-    public int removeCleanPackagesCapturedBefore(Instant before, int limit) {
-        if (limit < 1) {
-            throw new IllegalArgumentException("limit must be at least 1");
-        }
-        Integer removed = transactions.execute(status -> {
-            List<String> packageIds = jdbc.queryForList(CLEAN_PACKAGES, String.class, Timestamp.from(before), limit);
-            if (packageIds.isEmpty()) {
-                return 0;
-            }
-            String placeholders = String.join(", ", Collections.nCopies(packageIds.size(), "?"));
-            Object[] arguments = packageIds.toArray();
-            // The results go first so that their finding kinds lose them, as a period's removal does.
-            remove(jdbc.query("select id, finding_kinds_json from ctxa_prompt_inspection_result where package_id in ("
-                    + placeholders + ")", this::listedKinds, arguments));
-            return jdbc.update("delete from ctxa_sealed_evidence_package where package_id in (" + placeholders + ")",
-                    arguments);
-        });
         return removed == null ? 0 : removed;
     }
 

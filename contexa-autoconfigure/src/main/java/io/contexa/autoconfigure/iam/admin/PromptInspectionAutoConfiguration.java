@@ -9,7 +9,6 @@ import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceR
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.inspection.PromptFactSourceVerifier;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCheck;
-import io.contexa.contexacore.verification.inspection.PromptInspectionCleanPackageRetentionScheduler;
 import io.contexa.contexacore.verification.inspection.PromptInspectionReinspection;
 import io.contexa.contexacore.verification.inspection.PromptInspectionResultStore;
 import io.contexa.contexacore.verification.inspection.PromptInspectionScheduler;
@@ -45,9 +44,9 @@ import io.contexa.contexacore.verification.inspection.SealIntegrityCheck;
 
 /**
  * OSS prompt inspection: the inspector, the result store in the OSS schema, the automatic round that inspects every
- * sealed package once on the scheduler's thread, the operator's re-inspection on its own executor, the short retention
- * of the packages it found nothing wrong in (R4-S5), and the inspection
- * console (its read model, API and three screens). Nothing here
+ * sealed package once on the scheduler's thread, the operator's re-inspection on its own executor, and the inspection
+ * console (its read model, API and three screens). What an inspection found plays no part in how long a sealed package
+ * is kept: the one retention of sealed packages is PqaSealedEvidenceAutoConfiguration's. Nothing here
  * runs on a decision thread. Enterprise keeps sealed packages in its own schema, so none of these beans are created
  * while Enterprise is enabled. The replay of sealed decisions is not wired here: switching the inspection off leaves it
  * and the prompt version trials on (SealedDecisionReplayAutoConfiguration).
@@ -57,7 +56,7 @@ import io.contexa.contexacore.verification.inspection.SealIntegrityCheck;
 @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "false", matchIfMissing = true)
 @ConditionalOnProperty(prefix = "contexa.prompt-inspection", name = "enabled", havingValue = "true",
         matchIfMissing = true)
-@EnableConfigurationProperties({PromptInspectionProperties.class, PqaOssSealedEvidenceCaptureProperties.class})
+@EnableConfigurationProperties(PromptInspectionProperties.class)
 public class PromptInspectionAutoConfiguration {
 
     /**
@@ -142,22 +141,6 @@ public class PromptInspectionAutoConfiguration {
             PromptInspectionProperties properties) {
         return new PromptInspectionReinspection(contexaPromptInspectionService, contexaPromptInspectionResultStore,
                 properties.getSamplePercent());
-    }
-
-    /**
-     * R4-S5: the short retention of the packages whose latest inspection found nothing wrong, on the sealed package
-     * retention's schedule and switch.
-     */
-    @Bean(name = "contexaPromptInspectionCleanPackageRetentionScheduler")
-    @ConditionalOnMissingBean
-    @ConditionalOnBean({SealedEvidencePackageRepository.class, PromptInspectionResultStore.class})
-    @ConditionalOnProperty(prefix = "contexa.pqa.oss.sealed-evidence.retention", name = "enabled",
-            havingValue = "true", matchIfMissing = true)
-    public PromptInspectionCleanPackageRetentionScheduler promptInspectionCleanPackageRetentionScheduler(
-            PromptInspectionResultStore contexaPromptInspectionResultStore,
-            PqaOssSealedEvidenceCaptureProperties sealedEvidenceProperties) {
-        return new PromptInspectionCleanPackageRetentionScheduler(contexaPromptInspectionResultStore,
-                sealedEvidenceProperties.getRetention().getCleanPeriod());
     }
 
     @Bean(name = "contexaPromptInspectionQueries")

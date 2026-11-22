@@ -88,13 +88,13 @@
       "name": "contexa.pqa.oss.sealed-evidence.retention.period",
       "type": "java.time.Duration",
       "defaultValue": "90d",
-      "description": "How long a sealed evidence package is kept; the package's expiry is its capture time plus this period. Ignored when contexa.enterprise.enabled is true."
+      "description": "How long a sealed evidence package is kept, whatever a prompt inspection found in it; the package's expiry is its capture time plus this period. A package that a prompt version trial decided again, or whose decision an administrator evaluated, is kept past its expiry for as long as that trial or evaluation is kept. Ignored when contexa.enterprise.enabled is true."
     },
     {
       "name": "contexa.pqa.oss.sealed-evidence.retention.clean-period",
       "type": "java.time.Duration",
       "defaultValue": "30d",
-      "description": "How long a sealed evidence package whose latest prompt inspection found nothing wrong (PASS or NOT_APPLICABLE) is kept, unless an official verification run names it; other packages keep retention.period. Runs on retention.cleanup-cron while prompt inspection and retention are enabled. Ignored when contexa.enterprise.enabled is true."
+      "description": "No package is removed by this period any more: every sealed evidence package is kept for retention.period. Earlier versions removed a package whose latest prompt inspection found nothing wrong once it was older than this period; the integrity check of sealed packages still reads a package missing before one older than the shorter of this period and retention.period as such a removal. Ignored when contexa.enterprise.enabled is true."
     },
     {
       "name": "contexa.pqa.oss.sealed-evidence.retention.cleanup-cron",

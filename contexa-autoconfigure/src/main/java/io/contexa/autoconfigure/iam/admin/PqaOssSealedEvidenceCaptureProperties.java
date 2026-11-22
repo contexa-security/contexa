@@ -3,7 +3,6 @@ package io.contexa.autoconfigure.iam.admin;
 import io.contexa.contexacore.verification.capture.VerificationCaptureStoreOptions;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
 import io.contexa.contexacore.verification.evidence.VersionChangeCaptureSampling;
-import io.contexa.contexacore.verification.inspection.PromptInspectionCleanPackageRetentionScheduler;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
@@ -92,14 +91,20 @@ public class PqaOssSealedEvidenceCaptureProperties {
     }
 
     /**
-     * How long a sealed package is kept before the retention job deletes it (R4-S4, D-C), and how long one whose
-     * latest inspection found nothing wrong is kept (R4-S5).
+     * How long a sealed package is kept before the retention job deletes it (R4-S4, D-C): one period for every
+     * package, whatever a prompt inspection found in it.
      */
     public static class Retention {
 
         private Duration period = SealedEvidencePackageAssembler.DEFAULT_RETENTION;
 
-        private Duration cleanPeriod = PromptInspectionCleanPackageRetentionScheduler.DEFAULT_CLEAN_PERIOD;
+        /**
+         * No package is removed by this period any more. Earlier versions removed a package whose latest inspection
+         * found nothing wrong once it was older than this (R4-S5), from inside the chain of sealed packages; the
+         * integrity check still reads a package missing before one older than the shorter of this and {@link #period}
+         * as that removal (SealedEvidenceStoreAutoConfiguration).
+         */
+        private Duration cleanPeriod = Duration.ofDays(30);
 
         public Duration getPeriod() {
             return period;
