@@ -80,20 +80,6 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("IAM canonical schema should include PQA run ledger before child ledger tables")
-    void iamCanonicalSchemaCreatesPqaRunLedgerBeforeChildLedgers() throws Exception {
-        String schema = new ClassPathResource("META-INF/contexa/db/schema.sql")
-                .getContentAsString(StandardCharsets.UTF_8);
-
-        assertThat(schema)
-                .contains("V20260414_01__verification_benchmark_publication_ledger.sql")
-                .contains("V20260501_02__official_verification_jsonb_evidence_shadows.sql")
-                .contains("V20260504_02__verification_ledger_jsonb_shadows.sql");
-        assertThat(schema.indexOf("CREATE TABLE IF NOT EXISTS ctxa_verification_run_ledger"))
-                .isLessThan(schema.indexOf("CREATE TABLE IF NOT EXISTS ctxa_verification_run_round_ledger"));
-    }
-
-    @Test
     @DisplayName("IAM seed data should be exposed as an InitializingBean")
     void iamSeedDataIsExposedAsInitializingBean() throws NoSuchMethodException {
         Method initializer = IamSeedDataAutoConfiguration.class.getDeclaredMethod(
@@ -364,7 +350,7 @@ class IamSeedDataAutoConfigurationTest {
 
                 alter table ctxa_sealed_evidence_package alter column package_id set data type varchar(256);
 
-                alter table ctxa_official_prompt_field_definition alter column field_key type varchar(512);
+                alter table ctxa_admin_menu alter column name type varchar(512);
 
                 alter table ctxa_system_settings alter column security_zerotrust_mode set default 'SHADOW';
 
@@ -387,7 +373,7 @@ class IamSeedDataAutoConfigurationTest {
                 "alter table ctxa_system_settings alter column security_zerotrust_mode drop not null",
                 "alter table ctxa_system_settings alter column security_zerotrust_mode drop default",
                 "alter table ctxa_sealed_evidence_package alter column package_id set data type varchar(256)",
-                "alter table ctxa_official_prompt_field_definition alter column field_key type varchar(512)");
+                "alter table ctxa_admin_menu alter column name type varchar(512)");
     }
 
     @Test

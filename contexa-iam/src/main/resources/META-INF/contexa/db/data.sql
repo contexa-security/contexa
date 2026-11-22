@@ -252,19 +252,6 @@ WHERE to_regclass('ctxa_condition_template_id_seq') IS NOT NULL;
 SELECT setval('ctxa_security_spel_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_security_spel), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_security_spel), 0) > 0)
 WHERE to_regclass('ctxa_security_spel_id_seq') IS NOT NULL;
 
-SELECT setval('ctxa_official_metric_evaluation_contract_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_official_metric_evaluation_contract), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_official_metric_evaluation_contract), 0) > 0)
-WHERE to_regclass('ctxa_official_metric_evaluation_contract_id_seq') IS NOT NULL;
-
-SELECT setval('ctxa_official_prompt_signal_contract_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_official_prompt_signal_contract), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_official_prompt_signal_contract), 0) > 0)
-WHERE to_regclass('ctxa_official_prompt_signal_contract_id_seq') IS NOT NULL;
-
--- ----------------------------------------------------------------
--- OSS PQA Official Inspection Contract Seed Data
--- ----------------------------------------------------------------
--- Source of truth: classpath:pqa/final-prompt-metric-contracts.json.
--- OfficialMetricPurposeContractCatalogWriter persists the complete official_metric_*
--- contract catalog at startup/runtime. Do not duplicate contract rows here.
-
 -- ----------------------------------------------------------------
 -- Self-service paths under the admin area.
 -- A blocked user (whose only authority is ROLE_BLOCKED) asks for the release of the block, and a user whose request

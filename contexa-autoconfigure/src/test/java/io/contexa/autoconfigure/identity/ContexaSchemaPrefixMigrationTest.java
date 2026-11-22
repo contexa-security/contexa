@@ -29,14 +29,18 @@ import java.sql.Connection;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -119,8 +123,12 @@ class ContexaSchemaPrefixMigrationTest {
 
         DataSource fresh = inSchema(FRESH);
         install(fresh, "META-INF/contexa/db/schema.sql");
-        Map<String, List<String>> migrated = shape(legacy, LEGACY);
-        Map<String, List<String>> installed = shape(fresh, FRESH);
+        // The official verification tables stay in an installed database on purpose (plan 3.9): the schema no longer
+        // creates them, and only the separate drop script removes them, so they and what hangs on them are left out.
+        Set<String> retired = retiredTables();
+        assertThat(retired).hasSize(58);
+        Map<String, List<String>> migrated = shape(legacy, LEGACY, retired);
+        Map<String, List<String>> installed = shape(fresh, FRESH, retired);
         for (String kind : installed.keySet()) {
             List<String> missing = new ArrayList<>(installed.get(kind));
             missing.removeAll(migrated.get(kind));
@@ -131,19 +139,49 @@ class ContexaSchemaPrefixMigrationTest {
         }
     }
 
-    /** Tables, columns, sequences, indexes and constraints by name, for the comparison of two installations. */
-    private static Map<String, List<String>> shape(DataSource dataSource, String schema) {
+    /** The tables the drop script of the retired official verification removes from an installed database. */
+    private static Set<String> retiredTables() throws Exception {
+        String script = new ClassPathResource("META-INF/contexa/db/drop-retired-official-verification.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+        Matcher drop = Pattern.compile("(?m)^DROP TABLE IF EXISTS (\\w+);").matcher(script);
+        Set<String> tables = new LinkedHashSet<>();
+        while (drop.find()) {
+            tables.add(drop.group(1));
+        }
+        return tables;
+    }
+
+    /**
+     * Tables, columns, sequences, indexes and constraints by name, for the comparison of two installations, without the
+     * given tables and the columns, sequences, indexes and constraints that belong to them.
+     */
+    private static Map<String, List<String>> shape(DataSource dataSource, String schema, Set<String> leftOut) {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         Map<String, List<String>> shape = new LinkedHashMap<>();
-        shape.put("tables", jdbc.queryForList("select tablename from pg_tables where schemaname = ? order by 1", String.class, schema));
-        shape.put("columns", jdbc.queryForList("select table_name || '.' || column_name || ':' || data_type "
-                + "from information_schema.columns where table_schema = ? order by 1", String.class, schema));
-        shape.put("sequences", jdbc.queryForList("select sequencename from pg_sequences where schemaname = ? order by 1", String.class, schema));
-        shape.put("indexes", cutNamesAlike(jdbc.queryForList("select indexname from pg_indexes where schemaname = ? order by 1",
-                String.class, schema)));
-        shape.put("constraints", cutNamesAlike(jdbc.queryForList("select c.conname from pg_constraint c "
-                + "join pg_namespace n on n.oid = c.connamespace where n.nspname = ? order by 1", String.class, schema)));
+        shape.put("tables", kept(jdbc.query("select tablename, tablename from pg_tables where schemaname = ? order by 1",
+                (row, number) -> new String[]{row.getString(1), row.getString(2)}, schema), leftOut));
+        shape.put("columns", kept(jdbc.query("select table_name || '.' || column_name || ':' || data_type, table_name "
+                + "from information_schema.columns where table_schema = ? order by 1",
+                (row, number) -> new String[]{row.getString(1), row.getString(2)}, schema), leftOut));
+        shape.put("sequences", kept(jdbc.query("select s.relname, t.relname from pg_class s "
+                + "join pg_namespace n on n.oid = s.relnamespace "
+                + "left join pg_depend d on d.objid = s.oid and d.classid = 'pg_class'::regclass "
+                + "and d.refclassid = 'pg_class'::regclass and d.deptype in ('a', 'i') "
+                + "left join pg_class t on t.oid = d.refobjid "
+                + "where s.relkind = 'S' and n.nspname = ? order by 1",
+                (row, number) -> new String[]{row.getString(1), row.getString(2)}, schema), leftOut));
+        shape.put("indexes", cutNamesAlike(kept(jdbc.query("select indexname, tablename from pg_indexes where schemaname = ? order by 1",
+                (row, number) -> new String[]{row.getString(1), row.getString(2)}, schema), leftOut)));
+        shape.put("constraints", cutNamesAlike(kept(jdbc.query("select c.conname, t.relname from pg_constraint c "
+                + "join pg_namespace n on n.oid = c.connamespace left join pg_class t on t.oid = c.conrelid "
+                + "where n.nspname = ? order by 1",
+                (row, number) -> new String[]{row.getString(1), row.getString(2)}, schema), leftOut)));
         return shape;
+    }
+
+    /** The names of the rows (name, owning table) whose table is not left out. */
+    private static List<String> kept(List<String[]> rows, Set<String> leftOut) {
+        return rows.stream().filter(row -> row[1] == null || !leftOut.contains(row[1])).map(row -> row[0]).toList();
     }
 
     /**
