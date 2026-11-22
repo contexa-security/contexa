@@ -285,7 +285,8 @@ public class PromptQualityMeasureScreen {
             }
         }
         return new RunRow("SEALED", one.id(), one.candidateName(), null, one.status(), one.createdAt(), one.createdBy(),
-                null, null, progress, 0, null, null, one.referenceName(), one.requested(), pairs, same, formatErrors);
+                null, null, progress, 0, null, null, one.referenceName(), one.requested(), pairs, same, formatErrors,
+                false);
     }
 
     /** The model setting decisions are measured under now; empty values when nothing can be measured. */
@@ -342,7 +343,7 @@ public class PromptQualityMeasureScreen {
         }
         return new RunRow("CASES", measure.id(), measure.versionName(), measure.modelSettingOrSettings(),
                 measure.status(), measure.createdAt(), measure.createdBy(), measure.caseSetVersion(),
-                measure.repeats(), progress, incomplete, miss, falseStop, null, null, null, null, null);
+                measure.repeats(), progress, incomplete, miss, falseStop, null, null, null, null, null, measure.anew());
     }
 
     private List<QualityCase> caseSet(long setId) {
@@ -373,10 +374,19 @@ public class PromptQualityMeasureScreen {
      */
     public EstimateView estimate(@Nullable String scope, int version, @Nullable Long caseSetId,
                                  @Nullable Integer repeats) {
+        return estimate(scope, version, caseSetId, repeats, false);
+    }
+
+    /**
+     * What measuring the version on the bundle would take, with the answers kept already used again or, taken anew
+     * (quality P32), none of them; a measurement that cannot start says why.
+     */
+    public EstimateView estimate(@Nullable String scope, int version, @Nullable Long caseSetId,
+                                 @Nullable Integer repeats, boolean anew) {
         PromptQualityMeasurements runner = runner();
         try {
             PromptQualityMeasurements.Estimate estimate = runner.estimate(PromptQualityCaseScreen.scopeOf(scope), PROMPT,
-                    version, caseSetId, repeats);
+                    version, caseSetId, repeats, anew);
             int minutes = (int) Math.ceil(estimate.replays() * ANSWER_SECONDS
                     / Math.max(1, runner.settings().concurrency()) / 60);
             return new EstimateView(estimate.cases(), estimate.repeats(), estimate.answers(), estimate.reusable(),
@@ -390,13 +400,16 @@ public class PromptQualityMeasureScreen {
         }
     }
 
-    /** Starts measuring the version on the bundle; returns the measurement's id. */
+    /**
+     * Starts measuring the version on the bundle; returns the measurement's id. Taken anew (quality P32), no kept
+     * answer is used again: the model is asked for every answer.
+     */
     public long start(@Nullable String scope, @Nullable Integer version, @Nullable Long caseSetId,
-                      @Nullable Integer repeats, String actor) {
+                      @Nullable Integer repeats, boolean anew, String actor) {
         if (version == null) {
             throw new RefusedException(PromptQualityMeasurements.Refusal.VERSION.name(), "The version is required");
         }
-        return runner().start(PromptQualityCaseScreen.scopeOf(scope), PROMPT, version, caseSetId, repeats,
+        return runner().start(PromptQualityCaseScreen.scopeOf(scope), PROMPT, version, caseSetId, repeats, anew,
                 PromptQualityCaseScreen.actorOf(actor));
     }
 

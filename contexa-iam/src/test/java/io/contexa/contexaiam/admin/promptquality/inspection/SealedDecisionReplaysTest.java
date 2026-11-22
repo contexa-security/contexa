@@ -44,6 +44,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RequestMapping;
 
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -54,6 +55,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -121,6 +123,45 @@ class SealedDecisionReplaysTest {
     private static PromptVersionCatalog.Entry entry(int number, boolean hidden) {
         return new PromptVersionCatalog.Entry("PLATFORM_GLOBAL", SecurityDecisionPromptDocument.PROMPT, number,
                 "hash-" + number, number == 1 ? null : 1, number == 1 ? "CONTEXA" : "ORGANIZATION", hidden);
+    }
+
+    /**
+     * Quality plan 3.2 (P24, P28): a given decision is drawn in the time zone it fixes, with the version of the scope
+     * its request names; a version only another scope has is refused, and so is a time zone that is none. A package of
+     * the store is replayed as before: a version of the platform scope, in the time zone of the server.
+     */
+    @Test
+    void aGivenDecisionIsDrawnInItsTimeZoneWithTheVersionOfTheScopeAsked() {
+        PromptVersionCatalog catalog = mock(PromptVersionCatalog.class);
+        when(catalog.versions(eq("TENANT_A"), any())).thenReturn(List.of(new PromptVersionCatalog.Entry("TENANT_A",
+                SecurityDecisionPromptDocument.PROMPT, 4, "hash-4", 1, "ORGANIZATION", false)));
+        when(catalog.versions(eq(PromptVersionCatalog.PLATFORM_SCOPE), any())).thenReturn(List.of(entry(1, false)));
+        when(catalog.find(any(), any(), any())).thenCallRealMethod();
+        SealedDecisionReplays scoped = new SealedDecisionReplays(packages, () -> service, baselines, audit, JSON,
+                integrity, () -> catalog);
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result("ALLOW", null));
+
+        scoped.replayGiven("admin-1", sealed(), "1", " Asia/Seoul ", new ReplayRequest("v4.0", null, null, null, true,
+                "TENANT_A"));
+
+        ArgumentCaptor<SealedDecisionReplayService.Request> asked =
+                ArgumentCaptor.forClass(SealedDecisionReplayService.Request.class);
+        verify(service).replay(asked.capture());
+        assertThat(asked.getValue().bundleVersion()).isEqualTo("v4.0");
+        assertThat(asked.getValue().scope()).isEqualTo("TENANT_A");
+        assertThat(asked.getValue().timeZone()).isEqualTo(ZoneId.of("Asia/Seoul"));
+        assertThatThrownBy(() -> scoped.replayGiven("admin-1", sealed(), "1", "UTC",
+                new ReplayRequest("v4.0", null, null, null, true))).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("v4.0");
+        assertThatThrownBy(() -> scoped.replayGiven("admin-1", sealed(), "1", "Mars/Olympus",
+                new ReplayRequest("v4.0", null, null, null, true, "TENANT_A")))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("Mars/Olympus");
+
+        when(packages.findByPackageId("pkg-1")).thenReturn(Optional.of(sealed));
+        assertThat(scoped.replayPackage("admin-1", "pkg-1", new ReplayRequest("v1.0", null, null, null))).isPresent();
+        verify(service, times(2)).replay(asked.capture());
+        assertThat(asked.getValue().scope()).isEqualTo(PromptVersionCatalog.PLATFORM_SCOPE);
+        assertThat(asked.getValue().timeZone()).isNull();
     }
 
     @Test

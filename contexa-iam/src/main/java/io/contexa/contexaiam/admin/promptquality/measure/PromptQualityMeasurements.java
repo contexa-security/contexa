@@ -84,11 +84,13 @@ import java.util.stream.Stream;
  * and any server resumes the measurement where it stopped, case by case and run by run. A cancellation is written to
  * the database, so the server running the measurement stops at its next answer.</p>
  *
- * <p>An answer kept for the same case content, version, model setting and run is used again, not measured again. A
- * model server too busy to answer is asked again; an answer that still did not come, or a replay that could not read
- * its case, is kept as a failure of the measurement, which the scoring leaves out as incomplete. The model calls a
- * measurement makes are counted, and it stops at the limit set. Nothing a measurement does is a decision: no decision
- * record, seal, outcome or learning is written.</p>
+ * <p>An answer kept for the same case content, version, model setting and run is used again, not measured again,
+ * unless the measurement is taken anew (quality P32): then every answer is asked of the model, so that two such
+ * measurements of one version give the noise the quality gate reads, and the schedule finds a version that came out
+ * worse under the same settings. A model server too busy to answer is asked again; an answer that still did not come,
+ * or a replay that could not read its case, is kept as a failure of the measurement, which the scoring leaves out as
+ * incomplete. The model calls a measurement makes are counted, and it stops at the limit set. Nothing a measurement
+ * does is a decision: no decision record, seal, outcome or learning is written.</p>
  */
 public class PromptQualityMeasurements implements AutoCloseable {
 
@@ -183,14 +185,16 @@ public class PromptQualityMeasurements implements AutoCloseable {
     /**
      * Replays a case built in the sealed form with a version: the sealed decision replay of a decision given in
      * memory, with the baselines given and the second pass asked with the server's second-layer model after an
-     * ESCALATE.
+     * ESCALATE. Quality plan 3.2: the version is the one of the measurement's scope, and the prompt is drawn in the
+     * time zone the case fixes, so the same case is the same input on every server.
      */
     @FunctionalInterface
     public interface Replayer {
 
         SealedDecisionReplayService.Result replay(String actor, SealedEvidencePackage given, String contextFormatVersion,
                                                   String version, @Nullable JsonNode userBaseline,
-                                                  @Nullable JsonNode organizationBaseline);
+                                                  @Nullable JsonNode organizationBaseline, String scope,
+                                                  String timeZone);
     }
 
     /**
@@ -210,9 +214,11 @@ public class PromptQualityMeasurements implements AutoCloseable {
     /**
      * A measurement as its row keeps it, with how many answers it has and why Contexa started it by itself (null for
      * one an administrator started).
+     *
+     * @param anew whether it was taken anew, with no kept answer used again (quality P32): its answers are its own
      */
     public record Measure(long id, String scope, String prompt, int versionNumber, String versionContentHash,
-                          long caseSetId, String caseSetVersion, int repeats, String settingsHash,
+                          long caseSetId, String caseSetVersion, int repeats, boolean anew, String settingsHash,
                           @Nullable String modelSetting, String closingRules, String status, @Nullable String failure,
                           int plannedAnswers, int reusableAnswers, int expectedMinCalls, int expectedMaxCalls,
                           int callLimit, int modelCalls, @Nullable String runnerId, @Nullable Instant heartbeatAt,
@@ -379,7 +385,16 @@ public class PromptQualityMeasurements implements AutoCloseable {
      */
     public Estimate estimate(String scope, String prompt, int version, @Nullable Long caseSetId,
                              @Nullable Integer repeats) {
-        Planned planned = plan(scope, prompt, version, caseSetId, repeats);
+        return estimate(scope, prompt, version, caseSetId, repeats, false);
+    }
+
+    /**
+     * What measuring the version would take, as {@link #estimate(String, String, int, Long, Integer)} tells it; taken
+     * anew (quality P32), no kept answer is used again, so every answer is a replay.
+     */
+    public Estimate estimate(String scope, String prompt, int version, @Nullable Long caseSetId,
+                             @Nullable Integer repeats, boolean anew) {
+        Planned planned = plan(scope, prompt, version, caseSetId, repeats, anew);
         return planned.estimate();
     }
 
@@ -389,7 +404,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
     }
 
     private Planned plan(String scope, String prompt, int version, @Nullable Long caseSetId,
-                         @Nullable Integer repeats) {
+                         @Nullable Integer repeats, boolean anew) {
         if (!PromptQualityCases.offeredFor(prompt)) {
             throw new RefusedException(Refusal.PROMPT, "Only the security decision has labelled cases");
         }
@@ -410,7 +425,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
         String hash = QualityModelSetting.hash(now);
         int answers = items.size() * runs;
         int reusable = 0;
-        for (QualityCase item : items) {
+        for (QualityCase item : anew ? List.<QualityCase>of() : items) {
             Integer kept = jdbc.get().queryForObject("select count(distinct run_number) from"
                     + " ctxa_prompt_version_measure_answer where registry_scope = ? and case_content_hash = ? and"
                     + " version_number = ? and version_content_hash = ? and settings_hash = ? and run_number <= ?"
@@ -434,7 +449,19 @@ public class PromptQualityMeasurements implements AutoCloseable {
      */
     public long start(String scope, String prompt, int version, @Nullable Long caseSetId, @Nullable Integer repeats,
                       String actor) {
-        return start(scope, prompt, version, caseSetId, repeats, actor, null);
+        return start(scope, prompt, version, caseSetId, repeats, false, actor, null);
+    }
+
+    /**
+     * Starts measuring the version as {@link #start(String, String, int, Long, Integer, String)} does; taken anew
+     * (quality P32), it uses no kept answer and asks the model for every one, and is marked so: the quality gate takes
+     * the noise from two measurements of one version whose answers are their own.
+     *
+     * @param anew whether to measure anew, with no kept answer used again
+     */
+    public long start(String scope, String prompt, int version, @Nullable Long caseSetId, @Nullable Integer repeats,
+                      boolean anew, String actor) {
+        return start(scope, prompt, version, caseSetId, repeats, anew, actor, null);
     }
 
     /**
@@ -446,7 +473,19 @@ public class PromptQualityMeasurements implements AutoCloseable {
      */
     public long start(String scope, String prompt, int version, @Nullable Long caseSetId, @Nullable Integer repeats,
                       String actor, @Nullable String startReason) {
-        Planned planned = plan(scope, prompt, version, caseSetId, repeats);
+        return start(scope, prompt, version, caseSetId, repeats, false, actor, startReason);
+    }
+
+    /**
+     * Starts measuring the version, anew or not (quality P32), keeping why Contexa started it by itself; the one body
+     * the other ways to start go through.
+     *
+     * @param anew        whether to measure anew, with no kept answer used again
+     * @param startReason why Contexa starts it, or null for an administrator's measurement
+     */
+    public long start(String scope, String prompt, int version, @Nullable Long caseSetId, @Nullable Integer repeats,
+                      boolean anew, String actor, @Nullable String startReason) {
+        Planned planned = plan(scope, prompt, version, caseSetId, repeats, anew);
         Estimate estimate = planned.estimate();
         if (!estimate.withinLimit()) {
             throw new RefusedException(Refusal.CALL_LIMIT, "The measurement makes at least "
@@ -461,17 +500,18 @@ public class PromptQualityMeasurements implements AutoCloseable {
         }
         QualityClosingRules rules = closingRules.get();
         Long id = jdbc.get().queryForObject("insert into ctxa_prompt_version_measure (registry_scope, prompt_key,"
-                + " version_number, version_content_hash, case_set_id, case_set_version, repeats, settings_hash,"
-                + " settings, closing_rules, status, planned_answers, reusable_answers, expected_min_calls,"
-                + " expected_max_calls, call_limit, created_by, created_at, start_reason) values"
-                + " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id", Long.class, planned.scope(),
-                prompt, version, planned.version().contentHash(), planned.set().id(), planned.set().version(),
-                planned.repeats(), planned.settingsHash(), write(planned.settings()), describe(rules), QUEUED,
+                + " version_number, version_content_hash, case_set_id, case_set_version, repeats, measured_anew,"
+                + " settings_hash, settings, closing_rules, status, planned_answers, reusable_answers,"
+                + " expected_min_calls, expected_max_calls, call_limit, created_by, created_at, start_reason) values"
+                + " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id", Long.class,
+                planned.scope(), prompt, version, planned.version().contentHash(), planned.set().id(),
+                planned.set().version(), planned.repeats(), anew, planned.settingsHash(), write(planned.settings()),
+                describe(rules), QUEUED,
                 estimate.answers(), estimate.reusable(), estimate.minimumCalls(), estimate.maximumCalls(),
                 estimate.callLimit(), actorOf(actor), Timestamp.from(clock.instant()), truncate(startReason, 32));
-        log.info("[PromptQualityMeasure] Measurement {} of {} {} on case set {} queued: {} answers, {} kept already",
-                id, prompt, PromptVersionNames.name(version), planned.set().version(), estimate.answers(),
-                estimate.reusable());
+        log.info("[PromptQualityMeasure] Measurement {} of {} {} on case set {} queued{}: {} answers, {} kept already",
+                id, prompt, PromptVersionNames.name(version), planned.set().version(), anew ? " anew" : "",
+                estimate.answers(), estimate.reusable());
         submitDrain();
         return Objects.requireNonNull(id, "id");
     }
@@ -735,7 +775,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
                 if (stop.any() || closed.get()) {
                     break;
                 }
-                if (reuse(measure, next)) {
+                if (!measure.anew() && reuse(measure, next)) {
                     continue;
                 }
                 if (settings.callLimit() > 0 && calls.get() >= settings.callLimit()) {
@@ -870,7 +910,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
         try {
             return callTimer.bind(() -> replayer.replay(measure.createdBy(), given,
                     item.environment().contextFormatVersion(), measure.versionName(), item.input().personalBaseline(),
-                    item.input().organizationBaseline())).call();
+                    item.input().organizationBaseline(), measure.scope(), item.environment().timeZone())).call();
         }
         catch (RuntimeException failure) {
             throw failure;
@@ -1122,7 +1162,8 @@ public class PromptQualityMeasurements implements AutoCloseable {
     }
 
     private static final String MEASURE_SQL = "select m.id, m.registry_scope, m.prompt_key, m.version_number,"
-            + " m.version_content_hash, m.case_set_id, m.case_set_version, m.repeats, m.settings_hash, m.model_setting,"
+            + " m.version_content_hash, m.case_set_id, m.case_set_version, m.repeats, m.measured_anew,"
+            + " m.settings_hash, m.model_setting,"
             + " m.closing_rules, m.status, m.failure, m.planned_answers, m.reusable_answers, m.expected_min_calls,"
             + " m.expected_max_calls, m.call_limit, m.model_calls, m.runner_id, m.heartbeat_at, m.created_by,"
             + " m.created_at, m.started_at, m.finished_at, (select count(*) from ctxa_prompt_version_measure_answer a"
@@ -1138,8 +1179,9 @@ public class PromptQualityMeasurements implements AutoCloseable {
     private static Measure measure(ResultSet rs, int row) throws SQLException {
         return new Measure(rs.getLong("id"), rs.getString("registry_scope"), rs.getString("prompt_key"),
                 rs.getInt("version_number"), rs.getString("version_content_hash"), rs.getLong("case_set_id"),
-                rs.getString("case_set_version"), rs.getInt("repeats"), rs.getString("settings_hash"),
-                rs.getString("model_setting"), rs.getString("closing_rules"), rs.getString("status"),
+                rs.getString("case_set_version"), rs.getInt("repeats"), rs.getBoolean("measured_anew"),
+                rs.getString("settings_hash"), rs.getString("model_setting"), rs.getString("closing_rules"),
+                rs.getString("status"),
                 rs.getString("failure"), rs.getInt("planned_answers"), rs.getInt("reusable_answers"),
                 rs.getInt("expected_min_calls"), rs.getInt("expected_max_calls"), rs.getInt("call_limit"),
                 rs.getInt("model_calls"), rs.getString("runner_id"), instant(rs.getTimestamp("heartbeat_at")),

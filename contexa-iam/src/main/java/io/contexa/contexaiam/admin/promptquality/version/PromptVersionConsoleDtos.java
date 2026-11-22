@@ -286,12 +286,12 @@ public final class PromptVersionConsoleDtos {
      * @param measurement        MEASURED, MISSING, STALE, UNMEASURABLE or BASELINE_PENDING; null for a rollback
      * @param measurementSides   the versions the state is about (CANDIDATE, CURRENT)
      * @param measurementDetail  why, as the store of measurements said; null when it said nothing
-     * @param verdict            the verdict of the nine conditions as computed (a blocked one kept in the warning mode)
+     * @param verdict            the verdict of the conditions as computed (a blocked one kept in the warning mode)
      * @param applied            what the gate applies: PASSED, WARNING or BLOCKED
      * @param rollback           whether the version goes back to one the scope used for decisions, which takes no
      *                           quality condition
      * @param overridable        whether a reason would override the gate: it blocks on quality and on nothing else
-     * @param rows               the nine conditions in the order of the plan; empty for a rollback
+     * @param rows               the conditions in the order of the plan; empty for a rollback
      * @param changes            the cases the two versions answer differently; null for a rollback
      * @param details            what the confirmation names beside the verdict, read where the gate reads its
      *                           measurements; null for a rollback or when they cannot be read

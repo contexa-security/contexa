@@ -37,7 +37,9 @@ import io.contexa.contexacore.verification.replay.SealedDecisionReplayService;
 import org.springframework.lang.Nullable;
 
 import java.io.IOException;
+import java.time.DateTimeException;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,15 +81,29 @@ public class SealedDecisionReplays {
      * @param configuredSecondPass whether the second pass is also asked with the second layer's own model, the one the
      *                             server is set to, before the named ones (quality plan 3.3); null or false for the
      *                             named models only
+     * @param scope                quality plan 3.2: the registry scope the version is a version of (a measurement's
+     *                             scope); null for the platform scope
      */
     public record ReplayRequest(String bundleVersion, @Nullable List<String> secondPassModels,
                                 @Nullable JsonNode userBaseline, @Nullable JsonNode organizationBaseline,
-                                @Nullable Boolean configuredSecondPass) {
+                                @Nullable Boolean configuredSecondPass, @Nullable String scope) {
 
-        /** A replay whose second pass is asked with the named models only. */
+        /** A replay of a version of the platform scope. */
+        public ReplayRequest(String bundleVersion, @Nullable List<String> secondPassModels,
+                             @Nullable JsonNode userBaseline, @Nullable JsonNode organizationBaseline,
+                             @Nullable Boolean configuredSecondPass) {
+            this(bundleVersion, secondPassModels, userBaseline, organizationBaseline, configuredSecondPass, null);
+        }
+
+        /** A replay of a version of the platform scope whose second pass is asked with the named models only. */
         public ReplayRequest(String bundleVersion, @Nullable List<String> secondPassModels,
                              @Nullable JsonNode userBaseline, @Nullable JsonNode organizationBaseline) {
-            this(bundleVersion, secondPassModels, userBaseline, organizationBaseline, null);
+            this(bundleVersion, secondPassModels, userBaseline, organizationBaseline, null, null);
+        }
+
+        /** The registry scope the version is read in: the one asked for, else the platform scope. */
+        String scopeName() {
+            return scope != null && !scope.isBlank() ? scope.trim() : PromptVersionCatalog.PLATFORM_SCOPE;
         }
     }
 
@@ -166,13 +182,13 @@ public class SealedDecisionReplays {
     }
 
     /**
-     * Whether a replay may name the release: a version of the database, hidden or not (a sealed decision and its
-     * replay name the version it ran, plan 3.3), or a bundle this build runs.
+     * Whether a replay may name the release: a version of the database in the scope, hidden or not (a sealed decision
+     * and its replay name the version it ran, plan 3.3; a measurement names a version of its own scope, quality plan
+     * 3.2), or a bundle this build runs.
      */
-    private boolean replayable(String release) {
+    private boolean replayable(String scope, String release) {
         if (PromptBundleCatalog.isVersionName(release)) {
-            return catalog().find(PromptVersionCatalog.PLATFORM_SCOPE, SecurityDecisionPromptDocument.PROMPT, release)
-                    .isPresent();
+            return catalog().find(scope, SecurityDecisionPromptDocument.PROMPT, release).isPresent();
         }
         return SecurityDecisionPromptBundles.find(release).isPresent();
     }
@@ -191,7 +207,7 @@ public class SealedDecisionReplays {
             return Optional.empty();
         }
         SealedEvidencePackage sealed = found.get();
-        return Optional.of(run(actor, sealed, request, asked, null, integrity.evaluate(sealed)));
+        return Optional.of(run(actor, sealed, request, asked, null, null, integrity.evaluate(sealed)));
     }
 
     /**
@@ -212,12 +228,39 @@ public class SealedDecisionReplays {
      */
     public Replayed replayGiven(String actor, SealedEvidencePackage given, String contextFormatVersion,
                                 ReplayRequest request) {
+        return replayGiven(actor, given, contextFormatVersion, null, request);
+    }
+
+    /**
+     * The replay of a given decision as {@link #replayGiven(String, SealedEvidencePackage, String, ReplayRequest)},
+     * drawn in the time zone the decision fixes (quality plan 3.2: a labelled case is the same input whatever the time
+     * zone of the server is).
+     *
+     * @param timeZone the id of the time zone the prompt's times are drawn in; null for the time zone of the events of
+     *                 this server
+     * @throws IllegalArgumentException also when there is no such time zone
+     */
+    public Replayed replayGiven(String actor, SealedEvidencePackage given, String contextFormatVersion,
+                                @Nullable String timeZone, ReplayRequest request) {
         Objects.requireNonNull(given, "given");
         Asked asked = asked(request);
         if (contextFormatVersion == null || contextFormatVersion.isBlank()) {
             throw new IllegalArgumentException("The context format of a given decision's inputs is required");
         }
-        return run(actor, given, request, asked, contextFormatVersion.trim(), null);
+        return run(actor, given, request, asked, contextFormatVersion.trim(), zone(timeZone), null);
+    }
+
+    @Nullable
+    private static ZoneId zone(@Nullable String timeZone) {
+        if (timeZone == null || timeZone.isBlank()) {
+            return null;
+        }
+        try {
+            return ZoneId.of(timeZone.trim());
+        }
+        catch (DateTimeException unknown) {
+            throw new IllegalArgumentException("There is no time zone " + timeZone, unknown);
+        }
     }
 
     /** What a replay request asks for, checked: the version and the models of the second pass. */
@@ -229,7 +272,7 @@ public class SealedDecisionReplays {
             throw new IllegalArgumentException("A bundle version is required");
         }
         String bundle = request.bundleVersion().trim();
-        if (!replayable(bundle)) {
+        if (!replayable(request.scopeName(), bundle)) {
             throw new IllegalArgumentException(PromptBundleCatalog.isVersionName(bundle)
                     ? "Version " + bundle + " is not a version of the security decision prompt"
                     : "Bundle " + bundle + " is not a bundle this build runs");
@@ -246,10 +289,12 @@ public class SealedDecisionReplays {
 
     /**
      * The replay of the sealed inputs: of a package of the store with its state, or of a given decision with the
-     * context format its inputs are written in and no state.
+     * context format its inputs are written in, the time zone it fixes and no state. The version is read in the scope
+     * the request names.
      */
     private Replayed run(String actor, SealedEvidencePackage sealed, ReplayRequest request, Asked asked,
-                         @Nullable String givenContextFormat, @Nullable SealedEvidencePackageIntegrity.Status state) {
+                         @Nullable String givenContextFormat, @Nullable ZoneId givenTimeZone,
+                         @Nullable SealedEvidencePackageIntegrity.Status state) {
         SealedDecisionReplayService replays = service.get();
         if (replays == null) {
             throw new UnavailableException();
@@ -258,7 +303,7 @@ public class SealedDecisionReplays {
         DrawnWith drawnWith = baselinesOf(sealed, request.userBaseline(), request.organizationBaseline(), !given);
         SealedDecisionReplayService.Result result = replays.replay(new SealedDecisionReplayService.Request(sealed,
                 drawnWith.user(), drawnWith.organization(), asked.bundle(), TIMEOUT, asked.models(),
-                asked.configuredSecondPass(), givenContextFormat));
+                asked.configuredSecondPass(), givenContextFormat, request.scopeName(), givenTimeZone));
         audit(actor, sealed, asked, drawnWith.baselines(), state, given, result);
         return new Replayed(result, drawnWith.baselines(), state);
     }
@@ -284,7 +329,7 @@ public class SealedDecisionReplays {
             throw new IllegalArgumentException("A version is required");
         }
         String name = version.trim();
-        if (!replayable(name)) {
+        if (!replayable(PromptVersionCatalog.PLATFORM_SCOPE, name)) {
             throw new IllegalArgumentException(PromptBundleCatalog.isVersionName(name)
                     ? "Version " + name + " is not a version of the security decision prompt"
                     : "Bundle " + name + " is not a bundle this build runs");

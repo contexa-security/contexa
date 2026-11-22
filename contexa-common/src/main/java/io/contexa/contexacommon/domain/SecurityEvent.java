@@ -68,9 +68,12 @@ public class SecurityEvent {
 
     private boolean blocked;
 
-    /** The event time as a wall-clock time in the company time zone, for its hour, minute and day. */
+    /**
+     * The event time as a wall-clock time in the company time zone, or in the time zone fixed on this event
+     * ({@link EventTimeZone#of}), for its hour, minute and day.
+     */
     public LocalDateTime getLocalTimestamp() {
-        return EventTimeZone.toLocal(timestamp);
+        return timestamp != null ? LocalDateTime.ofInstant(timestamp, EventTimeZone.of(this)) : null;
     }
 
     public enum EventSource {

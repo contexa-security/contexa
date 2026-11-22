@@ -21,7 +21,6 @@ import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
-import io.contexa.contexacore.std.components.prompt.quality.QualityGateSettings;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
 import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
@@ -70,6 +69,8 @@ import io.contexa.autoconfigure.core.infra.CoreSchedulerLockAutoConfiguration;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleService;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustDecisionRecords;
 import net.javacrumbs.shedlock.core.LockProvider;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -179,6 +180,7 @@ public class PromptVersionConsoleAutoConfiguration {
             PromptQualityRunLine contexaPromptQualityRunLine, PqaOssQualityProperties properties,
             ObjectProvider<LockProvider> lockProviders, ObjectProvider<TieredStrategyProperties> tiered,
             ObjectProvider<TieredLLMProperties> models, ObjectProvider<SecurityZeroTrustProperties> zeroTrust,
+            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel,
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         LockProvider lockProvider = lockProviders.getIfUnique();
         QualityMeasureLock lock = lockProvider != null
@@ -186,12 +188,13 @@ public class PromptVersionConsoleAutoConfiguration {
                 : QualityMeasureLock.local();
         PromptQualityMeasurements measurements = new PromptQualityMeasurements(() -> jdbcTemplate, versions,
                 contexaPromptQualityCases,
-                (actor, given, contextFormat, version, userBaseline, organizationBaseline) -> replays.replayGiven(actor,
-                        given, contextFormat, new SealedDecisionReplays.ReplayRequest(version, null, userBaseline,
-                                organizationBaseline, true)).result(),
+                (actor, given, contextFormat, version, userBaseline, organizationBaseline, scope, timeZone) ->
+                        replays.replayGiven(actor, given, contextFormat, timeZone,
+                                new SealedDecisionReplays.ReplayRequest(version, null, userBaseline,
+                                        organizationBaseline, true, scope)).result(),
                 contexaPromptQualityRunLine, lock,
                 () -> QualityModelSetting.settings(tiered.getIfAvailable(), models.getIfAvailable(),
-                        zeroTrust.getIfAvailable()),
+                        zeroTrust.getIfAvailable(), defaultModel(primaryChatModel)),
                 () -> QualityModelSetting.closingRules(tiered.getIfAvailable()),
                 properties.getMeasurement().toSettings(), objectMapper, Clock.systemUTC(),
                 ManagementFactory.getRuntimeMXBean().getName() + "#" + UUID.randomUUID().toString().substring(0, 8));
@@ -217,6 +220,17 @@ public class PromptVersionConsoleAutoConfiguration {
                 Clock.systemUTC());
         measurements.ifAvailable(found -> found.whenDone(causes::classifyMeasurement));
         return causes;
+    }
+
+    /**
+     * K196: the model of the primary chat model, which a layer with no model of its own asks, as its default options
+     * name it; null when there is no primary chat model or it names none.
+     */
+    private static String defaultModel(ObjectProvider<ChatModel> primaryChatModel) {
+        ChatModel model = primaryChatModel.getIfAvailable();
+        ChatOptions options = model != null ? model.getDefaultOptions() : null;
+        String name = options != null ? options.getModel() : null;
+        return name != null && !name.isBlank() ? name.trim() : null;
     }
 
     /**
@@ -513,11 +527,9 @@ public class PromptVersionConsoleAutoConfiguration {
                                                            ObjectProvider<PromptVersionConsole> console,
                                                            ObjectProvider<SealedEvidencePackageRepository> sealed,
                                                            PqaOssQualityProperties properties) {
-        PqaOssQualityProperties.Gate gate = properties.getGate();
         return new PromptQualityCaseScreen(contexaPromptQualityCases, measurements::getIfAvailable,
                 classes::getIfAvailable, console::getIfAvailable, sealed::getIfUnique,
-                new QualityGateSettings(gate.getModelLessLimit(), gate.getSignificance(), gate.getMinimumStopRoots(),
-                        gate.getMinimumAllowRoots()), Clock.systemUTC());
+                properties.getGate().settings(), Clock.systemUTC());
     }
 
     /** Quality plan 3.2: the JSON of the screen of the labelled cases. */

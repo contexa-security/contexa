@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.components.prompt.quality;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.autonomous.tiered.prompt.V1LineValues;
 import org.junit.jupiter.api.BeforeAll;
@@ -43,7 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ContexaDefaultCaseSetTest {
 
     /** The version of the shipped set. A change of any case changes it, and the change is made here on purpose. */
-    private static final String SHIPPED_VERSION = "3ccbfed809c0ce228b7b175377a4f901f1815908da9656f6933093bb8c958dd9";
+    private static final String SHIPPED_VERSION = "97d66c58e468f8774b5f5c76233f20a4e400a47abcc502b39172e1308dd37ebb";
 
     private static final Pattern HANGUL = Pattern.compile("[\\uAC00-\\uD7A3]");
 
@@ -196,6 +197,28 @@ class ContexaDefaultCaseSetTest {
         }
         assertThat(document).doesNotContain("rawSystemPrompt", "rawUserPrompt", "You are the Zero Trust",
                 "=== USER BASELINE");
+    }
+
+    /**
+     * K189: every variant states the decision facts the engine draws from its changed input when a replay draws its
+     * prompt, so no fact of its root stays beside the change: an insider without the record that covered the work is
+     * known to be off duty, and no removed record covers the request any more. A sealed decision keeps the facts it was
+     * sealed with, as an engine before this one wrote them; a replay draws them again in any case.
+     */
+    @Test
+    void everyVariantStatesTheDecisionFactsTheEngineDrawsFromItsInput() {
+        List<QualityCase> variants = shipped.cases().stream().filter(item -> item.rootCaseKey() != null).toList();
+        List<String> differing = variants.stream().filter(item -> !ContexaDefaultCaseSetGenerator
+                .drawnDecisionFacts(item.key(), item.input())
+                .equals(item.input().canonicalContext().path("decisionFacts"))).map(QualityCase::key).toList();
+
+        assertThat(variants).hasSize(45);
+        assertThat(differing).as("variants whose decision facts are not the ones drawn from their input").isEmpty();
+        for (String key : List.of("INS-S02", "INS-S03", "INS-A6T")) {
+            JsonNode facts = shipped.find(key).orElseThrow().input().canonicalContext().path("decisionFacts");
+            assertThat(facts.path("unknown").toString()).as("unknown facts of %s", key).doesNotContain("OnCall");
+            assertThat(facts.toString()).as("records of %s", key).doesNotContain("APR-", "TCK-", "ONC-");
+        }
     }
 
     @Test

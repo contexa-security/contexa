@@ -836,7 +836,7 @@ public class PromptVersionConsole {
 
     /**
      * What the confirmation of "use for decisions" shows (plan 3.4, 3.9): the gate's answer and the latest trial; plan
-     * 3.4: the quality gate (its nine conditions with their numbers, the cases that changed, the state of the
+     * 3.4: the quality gate (its conditions with their numbers, the cases that changed, the state of the
      * measurements, the mode, whether a reason would override it), and the version in use when it decides outside the
      * gate; plan 2.1: the conditions of the product policy apart from the blockers the customers act on.
      */

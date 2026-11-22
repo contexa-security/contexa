@@ -67,6 +67,12 @@
       "description": "The distinct root cases that must be allowed from which the quality gate can tell two versions apart; with fewer it warns that it cannot decide and how many are short. Variants of one case count once."
     },
     {
+      "name": "contexa.pqa.oss.quality.gate.friction-increase-limit",
+      "type": "java.lang.Double",
+      "defaultValue": 0.20,
+      "description": "How far the friction of the candidate (the share of its answers to cases that must be allowed that did not allow them) may grow over that of the version in use, as a difference of the two rates on the same cases: 0.20 is 20 percentage points, three more of the fifteen such answers of the default case set run once. A rise by this much or more blocks the version whatever the significance, so a version that challenges every request is stopped also where the version in use already stops most normal work and too few root cases are left to tell the two apart. Above 0 and at most 1; a value outside stops the start. The mode (contexa.pqa.oss.quality.gate.mode) decides whether a blocked verdict blocks or warns."
+    },
+    {
       "name": "contexa.pqa.oss.sealed-evidence.capture-enabled",
       "type": "java.lang.Boolean",
       "defaultValue": true,
@@ -185,6 +191,40 @@
       "type": "java.lang.String",
       "defaultValue": "0 0 2 * * SUN",
       "description": "When the version of the security decision in use in every scope is measured again on the case set its measurements run on (the latest published, else the default set of the product), a Spring cron expression in UTC; \"-\" turns the schedule off. One server runs it. The same version, case set and settings measured before give no new answer and so start no measurement and make no model call: a measurement starts only for a case set published with new cases (the cases measured before are used again, each new case run 3 times makes 3 to 12 model calls) or for settings that change an answer (the default set of 70 cases run 3 times makes 210 to 840 calls, at most 2,520 with the retries of a busy model server), and a measurement the schedule could not finish is tried again. Apart from the schedule, a version in use measured under other settings only is measured again once, looked for every 10 minutes. A measurement taken again is compared with the version's measurement before; one that came out worse or changed is logged as a warning and shown on the state of quality."
+    }
+  ],
+  "hints": [
+    {
+      "name": "contexa.capability.required.keys",
+      "values": [
+        {
+          "value": "llm-runtime"
+        },
+        {
+          "value": "embedding-runtime"
+        },
+        {
+          "value": "rag-vector"
+        },
+        {
+          "value": "security-learning"
+        },
+        {
+          "value": "autonomous-decision"
+        },
+        {
+          "value": "bridge"
+        },
+        {
+          "value": "enterprise-soar"
+        },
+        {
+          "value": "enterprise-mcp"
+        },
+        {
+          "value": "enterprise-dashboard"
+        }
+      ]
     }
   ]
 }

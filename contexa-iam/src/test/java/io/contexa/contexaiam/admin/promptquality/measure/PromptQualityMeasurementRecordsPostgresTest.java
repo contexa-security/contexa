@@ -49,6 +49,7 @@ import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplay
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionCatalog;
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionStore;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionRecord;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionService;
 import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import org.junit.jupiter.api.AfterAll;
@@ -87,6 +88,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class PromptQualityMeasurementRecordsPostgresTest {
 
     private static final String PROMPT = SecurityDecisionPromptDocument.PROMPT;
+    private static final String TENANT_SCOPE = "TENANT_A";
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).findAndRegisterModules();
     private static PostgresTestDatabase database;
@@ -163,8 +165,9 @@ class PromptQualityMeasurementRecordsPostgresTest {
                 () -> new JdbcPromptVersionCatalog(versions, () -> jdbc, () -> null));
         PromptQualityRunLine line = new PromptQualityRunLine();
         PromptQualityMeasurements measurements = new PromptQualityMeasurements(() -> jdbc, versions, cases,
-                (actor, given, format, version, user, organization) -> replays.replayGiven(actor, given, format,
-                        new SealedDecisionReplays.ReplayRequest(version, null, user, organization, true)).result(),
+                (actor, given, format, version, user, organization, scope, timeZone) -> replays.replayGiven(actor,
+                        given, format, timeZone, new SealedDecisionReplays.ReplayRequest(version, null, user,
+                                organization, true, scope)).result(),
                 line, QualityMeasureLock.local(),
                 () -> QualityModelSetting.settings(properties, null, new SecurityZeroTrustProperties()),
                 () -> QualityModelSetting.closingRules(properties),
@@ -203,6 +206,36 @@ class PromptQualityMeasurementRecordsPostgresTest {
             assertThat(records.getAllValues()).hasSize(2);
             assertThat(records.getAllValues()).allSatisfy(record ->
                     assertThat(record.getDetails()).containsEntry("given", true));
+
+            // Quality plan 3.2 (P28): a measurement of another scope replays the version of that scope, which the
+            // platform scope does not have; the engine draws its organization's block.
+            versions.registerProducts(TENANT_SCOPE);
+            versions.create(TENANT_SCOPE, """
+                    prompt: cortex.security-decision
+                    basedOn: v1.0
+                    title: Tenant closing
+                    user:
+                      - key: tenant-closing
+                        add-after: REQUEST
+                        title: Tenant closing
+                        text: |
+                          The tenant's finance staff export the ledger on the last business day of a month.
+                    """, PromptVersionRecord.SCREEN, null, "admin", null);
+            assertThat(versions.find(PromptVersionService.PLATFORM_SCOPE, PROMPT, 2)).isEmpty();
+            cases.publish(TENANT_SCOPE, PROMPT, "admin");
+            long tenant = measurements.start(TENANT_SCOPE, PROMPT, 2, null, 1, "admin");
+            long tenantUntil = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+            while (!PromptQualityMeasurements.DONE.equals(measurements.find(tenant).orElseThrow().status())
+                    && System.nanoTime() < tenantUntil) {
+                Thread.sleep(50);
+            }
+            assertThat(measurements.find(tenant).orElseThrow().status()).isEqualTo(PromptQualityMeasurements.DONE);
+            assertThat(jdbc.queryForList("select outcome from ctxa_prompt_version_measure_answer where measure_id = ?",
+                    String.class, tenant)).containsOnly(SealedDecisionReplayService.Outcome.ANSWERED.name());
+            assertThat(drawn).hasSize(4);
+            assertThat(drawn.subList(0, 2)).noneMatch(prompt -> prompt.contains("Tenant closing"));
+            assertThat(drawn.subList(2, 4)).allMatch(prompt -> prompt.contains("=== Tenant closing (reference"
+                    + " written by your organization) ===") && prompt.contains("export the ledger on the last"));
         }
         finally {
             measurements.close();

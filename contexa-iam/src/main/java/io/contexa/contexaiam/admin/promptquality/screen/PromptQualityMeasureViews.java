@@ -133,12 +133,14 @@ public final class PromptQualityMeasureViews {
      * @param reference  the version a trial compared with
      * @param pairs      the decisions both versions of a trial answered
      * @param same       how many of them kept their action
+     * @param anew       whether a measurement on cases was taken anew, with no kept answer used again (quality P32):
+     *                   two such measurements of one version give the quality gate its noise
      */
     public record RunRow(String kind, long id, String version, @Nullable String model, String status,
                          Instant startedAt, String by, @Nullable String caseSetVersion, @Nullable Integer repeats,
                          @Nullable Double progress, int incomplete, @Nullable Rate miss, @Nullable Rate falseStop,
                          @Nullable String reference, @Nullable Integer requested, @Nullable Integer pairs,
-                         @Nullable Integer same, @Nullable Long formatErrors) {
+                         @Nullable Integer same, @Nullable Long formatErrors, boolean anew) {
     }
 
     /**

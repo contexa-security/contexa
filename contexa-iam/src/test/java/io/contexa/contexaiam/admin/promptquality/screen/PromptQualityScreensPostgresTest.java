@@ -147,7 +147,7 @@ class PromptQualityScreensPostgresTest {
                 PromptVersionRecord.SCREEN, null, "admin", null);
         cases = new PromptQualityCases(() -> jdbc, JSON, true, PromptVersionAudit.none(), CLOCK, null, null);
         runner = new PromptQualityMeasurements(() -> jdbc, versions, cases,
-                (actor, given, format, version, user, organization) -> {
+                (actor, given, format, version, user, organization, scope, timeZone) -> {
                     throw new IllegalStateException("Nothing is replayed in this test");
                 }, new PromptQualityRunLine(), atMostFor -> Optional.empty(), () -> SETTINGS,
                 () -> QualityClosingRules.DEFAULTS,

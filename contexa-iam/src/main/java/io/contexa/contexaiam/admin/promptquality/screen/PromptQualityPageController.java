@@ -72,14 +72,17 @@ public class PromptQualityPageController {
     static final String MEASURE_API = "/contexa/admin/api/prompt-quality/measure";
     /** The JSON of the prompt versions, which the trials, the confirmation of "use for decisions" and the canary read. */
     static final String VERSIONS_API = "/contexa/admin/api/prompt-quality/versions";
+    /** The path of the views of one measurement: the latest finished one, or the one of the page. */
+    static final String RUN = "/run";
     /**
      * The words the scripts of the screens read: their own, the version screens' (the trials, the confirmation and
      * the notices they share), the decision actions, the units, the filter box's and the reason codes an answer cites.
+     * K197: the words the decision detail of the console reads the codes of a decision input by (a login, an action,
+     * an operating system, a network zone, a record state) and the names of the facts, for the input of a case.
      */
-    /** The path of the views of one measurement: the latest finished one, or the one of the page. */
-    static final String RUN = "/run";
     static final String[] MESSAGE_PREFIXES = {"pqa.", "pv.", "zt.console.ui.action.", "zt.console.ui.unit.",
-            "zt.console.ui.decisions.filter", "zt.console.reasonCode."};
+            "zt.console.ui.decisions.filter", "zt.console.reasonCode.", "zt.console.ui.decision.value.",
+            "zt.console.fact."};
 
     private final MessageSource messages;
     private final ObjectMapper objectMapper;

@@ -66,6 +66,18 @@ class PromptQualityScreenMessagesTest {
     private static final Pattern WHOLE_KEY = Pattern.compile("'((?:pqa|pv|zt)\\.[A-Za-z0-9_.-]*[A-Za-z0-9_-])'");
     /** A value made of placeholders and signs alone reads the same in both languages. */
     private static final Pattern NOT_A_WORD = Pattern.compile("[{}0-9\\s%\\u00b7/\\u2190\\u2192~\\u00b1():]*");
+    /** K197: the dictionaries the script of the cases reads the codes of an input by, in its order (CODE_WORDS). */
+    private static final List<String> CODE_WORDS = List.of("pqa.cases.value.", "pqa.cases.resGrade.",
+            "zt.console.ui.decision.value.action.", "zt.console.ui.decision.value.os.",
+            "zt.console.ui.decision.value.zone.", "zt.console.ui.decision.value.recordStatus.",
+            "zt.console.ui.decision.value.login.");
+    /** The lines of an input the script reads codes in (CODED_LINES) and yes or no in (YES_NO_LINES). */
+    private static final List<String> CODED_LINES = List.of("resourceClass", "sensitivity", "action", "authorization",
+            "authentication", "network", "device", "approvalStatus");
+    private static final List<String> YES_NO_LINES = List.of("mfa", "newSession", "newDevice");
+    /** A code as the engine writes it, as the script finds it (ENGINE_CODE). */
+    private static final Pattern ENGINE_CODE = Pattern.compile(
+            "(?<![\\w./@#:+-])[A-Z][A-Z0-9_]*(?:\\+[A-Z][A-Z0-9_]*)*(?![\\w./@#:+-])");
 
     @Test
     void everyWordOfTheTwoScreensIsInBothLanguagesAndTranslated() throws IOException {
@@ -120,6 +132,9 @@ class PromptQualityScreenMessagesTest {
             summary.deviation().forEach(line -> keys.add("pqa.cases.dimension." + line.name()));
         }
         keys.add("pqa.cases.dimension.OTHER");
+        // K197: the screen's own words of the values of an input (yes, no, an authorization effect, a level, a state).
+        Stream.of("true", "false", "ALLOW", "DENY", "LOW", "MEDIUM", "HIGH", "NO_COVERING_APPROVAL")
+                .forEach(value -> keys.add("pqa.cases.value." + value));
 
         PromptQualityMeasureScreen.METRICS.forEach(metric -> {
             keys.add("pqa.measure.metric." + metric.name());
@@ -178,6 +193,56 @@ class PromptQualityScreenMessagesTest {
         Set<String> korean = words(properties("contexa/i18n/messages_ko.properties"));
 
         assertThat(english).hasSizeGreaterThan(400).isEqualTo(korean);
+    }
+
+    /**
+     * K197: the input of a case shows no code of the engine as it is. Every code the inputs of the cases Contexa ships
+     * hold in a line of codes (a login, an action, a resource class, a level, an authorization effect, a network zone,
+     * an operating system, an approval state, the deviations) has a word in a dictionary the script of the cases reads,
+     * in both languages; yes and no and the names of the facts not known have their words; the page carries every
+     * dictionary the script reads.
+     */
+    @Test
+    void everyCodeOfTheShippedInputsHasAWord() throws IOException {
+        Properties english = properties("contexa/i18n/messages.properties");
+        Properties korean = properties("contexa/i18n/messages_ko.properties");
+        String script = read(SCRIPTS + "cases.js");
+        Set<String> missing = new LinkedHashSet<>();
+        int codes = 0;
+        for (QualityCase item : QualityCaseSetReader.contexaDefault().cases()) {
+            InputSummary summary = QualityCaseInputSummary.of(item.input());
+            List<InputLine> coded = Stream.of(summary.request(), summary.session(), summary.records())
+                    .flatMap(List::stream).filter(line -> line.name() != null && CODED_LINES.contains(line.name()))
+                    .toList();
+            for (InputLine line : Stream.concat(coded.stream(), summary.deviation().stream()).toList()) {
+                Matcher code = ENGINE_CODE.matcher(line.value());
+                while (code.find()) {
+                    for (String one : code.group().split("\\+")) {
+                        codes++;
+                        if (CODE_WORDS.stream().noneMatch(prefix -> english.containsKey(prefix + one)
+                                && korean.containsKey(prefix + one))) {
+                            missing.add(line.name() + ": " + one);
+                        }
+                    }
+                }
+            }
+            summary.session().stream().filter(line -> line.name() != null && YES_NO_LINES.contains(line.name()))
+                    .map(line -> "pqa.cases.value." + line.value())
+                    .filter(key -> !english.containsKey(key) || !korean.containsKey(key)).forEach(missing::add);
+            summary.unknown().stream().filter(line -> "unknownFact".equals(line.name()))
+                    .map(line -> "zt.console.fact." + line.value())
+                    .filter(key -> !english.containsKey(key) || !korean.containsKey(key)).forEach(missing::add);
+        }
+
+        assertThat(codes).as("codes read").isGreaterThan(50);
+        assertThat(missing).as("codes without a word").isEmpty();
+        Stream.concat(CODE_WORDS.stream(), Stream.of("zt.console.fact.")).forEach(prefix -> {
+            assertThat(script).as("the script reads " + prefix).contains("'" + prefix + "'");
+            assertThat(Stream.of(PromptQualityPageController.MESSAGE_PREFIXES).anyMatch(prefix::startsWith))
+                    .as("the page carries " + prefix).isTrue();
+        });
+        assertThat(script.replaceAll("\\s+", " ")).contains("'" + String.join("', '", CODED_LINES) + "'",
+                "'" + String.join("', '", YES_NO_LINES) + "'");
     }
 
     /** The trial moved to measure and compare still shows every word of its result and of the results alongside. */

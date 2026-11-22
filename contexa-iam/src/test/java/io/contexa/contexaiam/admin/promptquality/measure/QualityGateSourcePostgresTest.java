@@ -96,7 +96,7 @@ class QualityGateSourcePostgresTest {
     private static final Map<String, String> SETTINGS = Map.of("layer1.model", "model-a");
     private static final String NOW = QualityModelSetting.hash(SETTINGS);
     private static final String BEFORE = QualityModelSetting.hash(Map.of("layer1.model", "model-before"));
-    private static final QualityGateSettings FEW_ROOTS = new QualityGateSettings(0.05, 0.05, 1, 1);
+    private static final QualityGateSettings FEW_ROOTS = new QualityGateSettings(0.05, 0.05, 1, 1, 0.30);
     private static QualityCaseSet all;
     private static PostgresTestDatabase database;
     private static JdbcTemplate jdbc;
@@ -553,7 +553,7 @@ class QualityGateSourcePostgresTest {
         PromptQualityRunLine line = new PromptQualityRunLine();
         lines.add(line);
         PromptQualityMeasurements runner = new PromptQualityMeasurements(() -> jdbc, versions, cases,
-                (actor, given, format, version, user, organization) -> {
+                (actor, given, format, version, user, organization, scope, timeZone) -> {
                     throw new IllegalStateException("Nothing is replayed in this test");
                 }, line, atMostFor -> Optional.empty(), () -> SETTINGS, () -> QualityClosingRules.DEFAULTS,
                 new PromptQualityMeasurements.Settings(3, 1, 0, Duration.ZERO, callLimit, Duration.ofSeconds(60)),

@@ -316,8 +316,8 @@ class PromptQualityCausesPostgresTest {
         PromptQualityCauses causes = causes(PromptQualityCauses.decisionCallLimitMillis(new TieredStrategyProperties()));
         PromptQualityRunLine line = new PromptQualityRunLine();
         // The stand-in of the replay allows every case: the threats are wrong, the normal work is right.
-        PromptQualityMeasurements.Replayer allowEverything = (actor, given, format, version, user, organization) ->
-                allowed(given);
+        PromptQualityMeasurements.Replayer allowEverything =
+                (actor, given, format, version, user, organization, scope, timeZone) -> allowed(given);
         try (PromptQualityMeasurements measurements = new PromptQualityMeasurements(() -> jdbc, versions, cases,
                 allowEverything, line, QualityMeasureLock.local(), () -> Map.of("layer1.model", "stand-in-model"),
                 () -> QualityClosingRules.DEFAULTS, new PromptQualityMeasurements.Settings(1, 1, 0, Duration.ZERO, 0,

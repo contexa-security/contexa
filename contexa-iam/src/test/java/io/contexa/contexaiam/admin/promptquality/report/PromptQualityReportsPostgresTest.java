@@ -682,7 +682,7 @@ class PromptQualityReportsPostgresTest {
         PromptQualityRunLine line = new PromptQualityRunLine();
         lines.add(line);
         PromptQualityMeasurements runner = new PromptQualityMeasurements(() -> jdbc, versions, cases,
-                (actor, given, format, version, user, organization) -> {
+                (actor, given, format, version, user, organization, scope, timeZone) -> {
                     throw new IllegalStateException("Nothing is replayed in this test");
                 }, line, atMostFor -> Optional.empty(), () -> SETTINGS, () -> QualityClosingRules.DEFAULTS,
                 new PromptQualityMeasurements.Settings(3, 1, 0, Duration.ZERO, 0, Duration.ofSeconds(60)), JSON,

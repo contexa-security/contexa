@@ -52,6 +52,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -221,6 +222,36 @@ class SealedDecisionReplayTest {
         assertThat(product.contentHash()).isEqualTo(SecurityDecisionPromptDocument.product().contentHash());
         assertThatThrownBy(() -> draw(goldenCase, "v9.0", store))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("v9.0");
+    }
+
+    /**
+     * Quality plan 3.2 (P24): a replay that fixes a time zone draws the prompt's times in it, whatever the time zone of
+     * the server; one that fixes none draws them in the server's, as a decision sealed here was drawn.
+     */
+    @Test
+    void aReplayDrawsInTheTimeZoneItFixesWhateverTheServers() {
+        JsonNode goldenCase = goldenCase("A3");
+        String golden = SecurityDecisionGoldenRender.load()
+                .render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, new TieredStrategyProperties())
+                .userText();
+        String bundle = SecurityDecisionPromptBundles.V1.version();
+        BaselineVector personal = vector(goldenCase.path("learningEvidence").path("personalBaseline"));
+        BaselineVector organization = vector(goldenCase.path("learningEvidence").path("organizationBaseline"));
+
+        // The server runs fourteen hours ahead of the time zone the golden prompt was drawn in.
+        Drawing fixed = replay(goldenCase, "ALLOW", bundle, null, sealed -> {
+            TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Kiritimati"));
+            return new SealedDecisionReplayService.Request(sealed, personal, organization, bundle,
+                    Duration.ofSeconds(30), List.of(), false, null, null, ZoneId.of("UTC"));
+        }, null);
+        Drawing onTheServersClock = replay(goldenCase, "ALLOW", bundle, null, sealed -> {
+            TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Kiritimati"));
+            return new SealedDecisionReplayService.Request(sealed, personal, organization, bundle,
+                    Duration.ofSeconds(30), List.of(), false, null);
+        }, null);
+
+        assertThat(fixed.userPrompts).singleElement().isEqualTo(golden);
+        assertThat(onTheServersClock.userPrompts).singleElement().isNotEqualTo(golden);
     }
 
     /** The drawing through the replay service, with a pipeline that fails the test when it is asked. */

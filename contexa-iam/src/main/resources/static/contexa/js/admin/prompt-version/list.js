@@ -86,6 +86,29 @@
     }
 
     /**
+     * Plan 3.3: a newer product version; the version in use keeps running until its changes are carried over. K195:
+     * the list redraws after the newer version is used, as a row's "use" does, so the notice of the move stays.
+     */
+    function newProductNotice(product) {
+        const base = product.number;
+        const used = Number(String(product.usedVersion).replace(/^v/, '').split('.')[0]);
+        // An older Contexa version in use has no changes to carry: the newer one is used as it is.
+        const next = product.carry
+            ? PV.button(t('pv.list.newProductCarry'), 'fa-share', null, {primary: true,
+                href: PV.page('/new', {base, carry: used}), name: 'product-carry'})
+            : PV.button(PV.useLabel(true), 'fa-check', () => PV.useVersion(base, true, draw),
+                {primary: true, name: 'product-use'});
+        return el('div', {class: 'zt-alert', role: 'note', 'data-pv-notice': 'product'},
+            el('span', {class: 'status-badge zt-chip', 'data-status': 'WARN', text: t('pv.list.newProduct')}),
+            el('div', {class: 'zt-item'},
+                el('span', {text: t(product.carry ? 'pv.list.newProductLine' : 'pv.list.newProductLineContexa',
+                    product.version, product.usedVersion)}),
+                el('div', {class: 'pv-actions'},
+                    PV.button(t('pv.list.newProductView'), 'fa-eye', null, {href: PV.page('/' + base),
+                        name: 'product-view'}), next)));
+    }
+
+    /**
      * Quality plan 3.4: the version in use decides without passing the release gate (the setting names it, or it is
      * the newest Contexa version) and this installation measures it on its own; the notice says how far that is.
      */
