@@ -120,10 +120,12 @@ class PromptQualityScreenTemplateTest {
         assertThat(render("measure", Locale.KOREAN, compare)).contains("data-candidate=\"3\"")
                 .contains("data-reference=\"1\"").contains("data-candidate-measure=\"9\"")
                 .contains("data-reference-measure=\"8\"");
-        HashMap<String, Object> run = variables("measure", "run", Locale.KOREAN, null);
-        run.put("measureId", 41L);
-        assertThat(tabs(render("measure", Locale.KOREAN, run))).extracting(Drawn::selected)
-                .containsExactly("false", "true", "false");
+        // On the page of one measurement the views of a measurement open on it.
+        HashMap<String, Object> run = variables("measure", "run", Locale.KOREAN, null, 41L);
+        List<Drawn> onRun = tabs(render("measure", Locale.KOREAN, run));
+        assertThat(onRun).extracting(Drawn::selected).containsExactly("false", "true", "false");
+        assertThat(onRun).extracting(Drawn::href).containsExactly("/contexa/admin/prompt-quality/measure",
+                "/contexa/admin/prompt-quality/measure/41", "/contexa/admin/prompt-quality/measure/compare");
     }
 
     /** With no bar (no count read) and no data the frame is still drawn, the tabs without counts. */
@@ -132,7 +134,7 @@ class PromptQualityScreenTemplateTest {
         HashMap<String, Object> variables = new HashMap<>();
         variables.put("screen", "measure");
         variables.put("view", "runs");
-        variables.put("measureTabs", controller.tabs("runs", null, Locale.ENGLISH));
+        variables.put("measureTabs", controller.tabs("runs", null, Locale.ENGLISH, null));
         String page = render("measure", Locale.ENGLISH, variables);
 
         assertThat(page).doesNotContain("pc-tab-nav").contains("id=\"zt-content\"");
@@ -171,7 +173,12 @@ class PromptQualityScreenTemplateTest {
     }
 
     private HashMap<String, Object> variables(String screen, String view, Locale locale, String scope) {
+        return variables(screen, view, locale, scope, null);
+    }
+
+    private HashMap<String, Object> variables(String screen, String view, Locale locale, String scope, Long measureId) {
         HashMap<String, Object> variables = new HashMap<>();
+        variables.put("measureId", measureId);
         variables.put("screen", screen);
         variables.put("view", view);
         variables.put("apiBase", "/contexa/admin/api/prompt-quality/" + screen);
@@ -183,7 +190,7 @@ class PromptQualityScreenTemplateTest {
                 scope, locale);
         variables.put(PromptQualityNavAdvice.ATTRIBUTE, nav);
         if ("measure".equals(screen)) {
-            List<Tab> tabs = controller.tabs(view, nav, locale);
+            List<Tab> tabs = controller.tabs(view, nav, locale, (Long) variables.get("measureId"));
             variables.put("measureTabs", tabs);
             variables.put("viewScripts", List.of());
         }

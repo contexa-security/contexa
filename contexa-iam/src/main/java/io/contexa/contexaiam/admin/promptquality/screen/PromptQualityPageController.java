@@ -60,6 +60,8 @@ public class PromptQualityPageController {
      * The words the scripts of the screens read: their own, the version screens' (the trials, the confirmation and
      * the notices they share), the decision actions, the units, the filter box's and the reason codes an answer cites.
      */
+    /** The path of the views of one measurement: the latest finished one, or the one of the page. */
+    static final String RUN = "/run";
     static final String[] MESSAGE_PREFIXES = {"pqa.", "pv.", "zt.console.ui.action.", "zt.console.ui.unit.",
             "zt.console.ui.decisions.filter", "zt.console.reasonCode."};
 
@@ -161,7 +163,9 @@ public class PromptQualityPageController {
                 MESSAGE_PREFIXES));
         if ("measure".equals(screen)) {
             Object nav = model.getAttribute(PromptQualityNavAdvice.ATTRIBUTE);
-            model.addAttribute("measureTabs", tabs(view, nav instanceof PromptQualityNav bar ? bar : null, locale));
+            Object measureId = model.getAttribute("measureId");
+            model.addAttribute("measureTabs", tabs(view, nav instanceof PromptQualityNav bar ? bar : null, locale,
+                    measureId instanceof Long id ? id : null));
             model.addAttribute("viewScripts", PromptQualityMeasureScreen.VIEWS.stream().map(View::script)
                     .filter(Objects::nonNull).distinct().toList());
         }
@@ -170,9 +174,12 @@ public class PromptQualityPageController {
 
     /**
      * The tab bar of the views of measure and compare (PromptQualityMeasureScreen.VIEWS), the page's own lit; a count
-     * beside a name is the menu bar's count of the same thing, so the two never differ.
+     * beside a name is the menu bar's count of the same thing, so the two never differ. On the page of one measurement
+     * the views of a measurement (their path under {@code /run}) open on that measurement.
+     *
+     * @param measureId the measurement of the page, or null
      */
-    List<Tab> tabs(String view, PromptQualityNav bar, Locale locale) {
+    List<Tab> tabs(String view, @Nullable PromptQualityNav bar, Locale locale, @Nullable Long measureId) {
         String scope = bar != null ? bar.scope() : null;
         List<Tab> tabs = new ArrayList<>();
         for (View one : PromptQualityMeasureScreen.VIEWS) {
@@ -186,7 +193,9 @@ public class PromptQualityPageController {
             }
             String text = count != null ? messages.getMessage("pqa.cases.tabCount", new Object[] {name, count},
                     name + " " + count, locale) : name;
-            tabs.add(new Tab(one.key(), href(one.path(), scope), text, one.lit(view)));
+            String path = measureId != null && (one.path().equals(RUN) || one.path().startsWith(RUN + "?"))
+                    ? "/" + measureId + one.path().substring(RUN.length()) : one.path();
+            tabs.add(new Tab(one.key(), href(path, scope), text, one.lit(view)));
         }
         return List.copyOf(tabs);
     }
