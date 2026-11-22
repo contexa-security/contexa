@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.pipeline.step;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
@@ -138,5 +139,25 @@ class PostprocessingStepTest {
 
         assertThat(response.getMetadata(SecurityDecisionV1OutputInspector.V1_RULE_BREACH, String.class))
                 .isEqualTo("REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH");
+    }
+
+    /** Quality plan 3.6: what the response check found of the kept answer's reason codes reaches the response. */
+    @Test
+    void theCitationCheckOfTheKeptAnswerReachesTheResponse() {
+        PostprocessingStep step = new PostprocessingStep(Optional.empty());
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(null, null, null, List.of()));
+        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
+        SecurityDecisionResponse parsedResponse = new SecurityDecisionResponse();
+        parsedResponse.setAction("ALLOW");
+        context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, parsedResponse);
+        context.addMetadata("targetResponseType", SecurityDecisionResponse.class);
+        SecurityDecisionCitationCheck check = SecurityDecisionCitationCheck.skipped(List.of());
+        context.addMetadata(SecurityDecisionCitationCheck.METADATA_KEY, check);
+
+        SecurityDecisionResponse response = (SecurityDecisionResponse) step.execute(request, context).block();
+
+        assertThat(response.getMetadata(SecurityDecisionCitationCheck.METADATA_KEY, SecurityDecisionCitationCheck.class))
+                .isSameAs(check);
     }
 }

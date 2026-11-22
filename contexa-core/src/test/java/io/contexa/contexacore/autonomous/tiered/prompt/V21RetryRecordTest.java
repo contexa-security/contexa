@@ -84,6 +84,15 @@ class V21RetryRecordTest {
                 .isEqualTo(failure);
         assertThat(context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.class)).singleElement()
                 .satisfies(retry -> assertThat(((Map<?, ?>) retry).get("failureReason")).isEqualTo(failure));
+        // Quality plan 3.6: the citation check of the answer kept after its retry goes with it: the one fact it cites
+        // is no line of the prompt.
+        SecurityDecisionCitationCheck kept = context.getMetadata(SecurityDecisionCitationCheck.METADATA_KEY,
+                SecurityDecisionCitationCheck.class);
+        assertThat(kept.state()).isEqualTo(SecurityDecisionCitationCheck.State.CHECKED);
+        assertThat(kept.cited()).isEqualTo(1);
+        assertThat(kept.present()).isZero();
+        assertThat(kept.flagged()).isZero();
+        assertThat(kept.unsupported()).isTrue();
     }
 
     /**
@@ -121,6 +130,15 @@ class V21RetryRecordTest {
         assertThat(context.getMetadata(SecurityDecisionV21OutputInspector.UNRESOLVED_FINDINGS, String.class))
                 .contains("REASON_CODE_MISMATCH").contains("DEVIATION_NETWORK F1");
         assertThat(context.getMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, List.class)).hasSize(2);
+        // K157 (quality plan 3.6): the codes the answer is kept with are in its citation check, which goes on to the
+        // decision record, although the model was not asked again.
+        SecurityDecisionCitationCheck kept = context.getMetadata(SecurityDecisionCitationCheck.METADATA_KEY,
+                SecurityDecisionCitationCheck.class);
+        assertThat(kept.state()).isEqualTo(SecurityDecisionCitationCheck.State.CHECKED);
+        assertThat(kept.cited()).isEqualTo(1);
+        assertThat(kept.present()).isEqualTo(1);
+        assertThat(kept.flagged()).isEqualTo(1);
+        assertThat(kept.unsupported()).isTrue();
 
         AnsweringClient blockClient = new AnsweringClient(UNSUPPORTED_CODE.replace("\"ESCALATE\"", "\"BLOCK\""));
         PipelineExecutionContext blockContext = contextOf(rendered, "exec-unsupported-codes-block");
@@ -166,6 +184,13 @@ class V21RetryRecordTest {
 
         assertThat(firstResponse).isEqualTo(CITED_ESCALATE);
         assertThat(firstClient.calls).isEqualTo(1);
+        // Quality plan 3.6: an answer accepted as it came keeps its citation check too: three facts, all on lines.
+        SecurityDecisionCitationCheck accepted = firstContext.getMetadata(SecurityDecisionCitationCheck.METADATA_KEY,
+                SecurityDecisionCitationCheck.class);
+        assertThat(accepted.cited()).isEqualTo(3);
+        assertThat(accepted.present()).isEqualTo(3);
+        assertThat(accepted.flagged()).isZero();
+        assertThat(accepted.unsupported()).isFalse();
         assertThat(secondClient.calls).isEqualTo(2);
         assertThat(secondContext.getMetadata("securityDecisionOutputRetryFailureReason", String.class))
                 .contains("SECOND_PASS_ESCALATE");
@@ -206,6 +231,42 @@ class V21RetryRecordTest {
         assertThat(context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.class))
                 .isEqualTo(List.of(Map.of("reason", reason, "succeeded", true)));
         assertThat(context.getMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, List.class)).hasSize(4);
+    }
+
+    /**
+     * Quality plan 3.6: a decision whose event carries no canonical context is not checked for its citations, which
+     * its record tells apart from an answer without a wrong one; an answer the engine replaces keeps no check.
+     */
+    @Test
+    void anUncheckedAnswerIsToldApartAndAReplacedAnswerKeepsNoCitationCheck() {
+        SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
+        JsonNode a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
+                .orElseThrow();
+        SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(a3,
+                PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, new TieredStrategyProperties());
+
+        AnsweringClient uncheckedClient = new AnsweringClient(CITED_ESCALATE);
+        PipelineExecutionContext unchecked = contextOf(rendered, "exec-citation-unchecked");
+        SecurityEvent withoutContext = SecurityEvent.builder().eventId("event-no-context")
+                .metadata(new LinkedHashMap<>()).build();
+        new LLMExecutionStep(uncheckedClient).execute(new SecurityDecisionRequest(new SecurityDecisionContext(
+                withoutContext, new SecurityDecisionStandardPromptTemplate.SessionContext(), null, List.of())),
+                unchecked).block();
+        AnsweringClient unreadableClient = new AnsweringClient("the request looks risky");
+        PipelineExecutionContext replaced = contextOf(rendered, "exec-citation-replaced");
+        new LLMExecutionStep(unreadableClient).execute(requestOf(rendered), replaced).block();
+
+        assertThat(uncheckedClient.calls).isEqualTo(1);
+        SecurityDecisionCitationCheck skipped = unchecked.getMetadata(SecurityDecisionCitationCheck.METADATA_KEY,
+                SecurityDecisionCitationCheck.class);
+        assertThat(skipped.state()).isEqualTo(SecurityDecisionCitationCheck.State.SKIPPED);
+        assertThat(skipped.cited()).isEqualTo(3);
+        assertThat(skipped.present()).isNull();
+        assertThat(skipped.unsupported()).isNull();
+        assertThat(unreadableClient.calls).as("asked again once, then replaced").isEqualTo(2);
+        assertThat(replaced.getMetadata("rawExecutionSucceeded", Boolean.class)).isFalse();
+        assertThat(replaced.getMetadata(SecurityDecisionCitationCheck.METADATA_KEY, SecurityDecisionCitationCheck.class))
+                .isNull();
     }
 
     private static PipelineExecutionContext contextOf(SecurityDecisionGoldenRender.RenderedCase rendered, String id) {

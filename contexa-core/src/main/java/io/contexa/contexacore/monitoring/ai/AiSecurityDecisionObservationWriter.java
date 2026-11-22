@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -215,6 +216,7 @@ public class AiSecurityDecisionObservationWriter {
         String processingGeneration = firstText(metadata, "eventProcessingOwnerToken");
         // Console design 7.1: the columns the Zero Trust console reads, from what the engine already kept.
         DecisionConsoleColumns.Values console = DecisionConsoleColumns.of(metadata, result, finalAction, Instant.now());
+        SecurityDecisionCitationCheck citation = console.citationCheck();
 
         long persistStart = System.currentTimeMillis();
         try {
@@ -301,7 +303,14 @@ public class AiSecurityDecisionObservationWriter {
                     console.providerThrottleWaitMs(),
                     console.providerThrottleAcquired(),
                     console.providerThrottleReason(),
-                    console.providerEstimatedTokens()
+                    console.providerEstimatedTokens(),
+                    // Quality plan 3.6, 3.9: what the response check found of the citations of the answer that was kept.
+                    citation != null ? citation.state().name() : null,
+                    citation != null ? Integer.valueOf(citation.cited()) : null,
+                    citation != null ? citation.present() : null,
+                    citation != null ? citation.flagged() : null,
+                    citation != null ? citation.undecided() : null,
+                    citation != null ? citation.unsupported() : null
             };
             // K17 (D11): a decision whose model answer still broke a decision rule waits for a person's review.
             String review = reviewReason(console, testRunId, metadata, finalAction);
@@ -368,10 +377,12 @@ public class AiSecurityDecisionObservationWriter {
             enforcement_timing, actor_kind, resource_class, prompt_bundle_version, prompt_content_hash,
             most_likely_hypothesis, context_coverage_level, baseline_status, unknown_fact_count, prompt_tokens,
             cached_prompt_tokens, output_tokens, model_call_count, user_wait_ms, decision_summary_json,
-            provider_throttle_wait_ms, provider_throttle_acquired, provider_throttle_reason, provider_estimated_tokens""";
+            provider_throttle_wait_ms, provider_throttle_acquired, provider_throttle_reason, provider_estimated_tokens,
+            citation_check_state, citation_cited_count, citation_present_count, citation_flagged_count,
+            citation_undecided_count, citation_unsupported""";
 
     /** How many values a decision row has. */
-    private static final int OBSERVATION_VALUES = 72;
+    private static final int OBSERVATION_VALUES = 78;
 
     /**
      * The insert of a decision row; with reason codes, one statement inserts the row and its reason rows (console
