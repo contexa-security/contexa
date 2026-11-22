@@ -75,16 +75,22 @@ public class PromptQualityMeasureApiController {
         return screen.band();
     }
 
+    /** What a measurement would take; {@code anew} counts every answer as a model call (quality P32). */
     @GetMapping(API + "/estimate")
     public EstimateView estimate(@RequestParam(required = false) String scope, @RequestParam int version,
                                  @RequestParam(required = false) Long caseSet,
-                                 @RequestParam(required = false) Integer repeats, Authentication authentication) {
+                                 @RequestParam(required = false) Integer repeats,
+                                 @RequestParam(required = false, defaultValue = "false") boolean anew,
+                                 Authentication authentication) {
         PromptQualityCaseApiController.requireAdmin(authentication);
-        return screen.estimate(scope, version, caseSet, repeats);
+        return screen.estimate(scope, version, caseSet, repeats, anew);
     }
 
-    /** A measurement to start: the version, the published bundle (none for the latest) and the runs (none for the set). */
-    public record StartBody(Integer version, Long caseSet, Integer repeats) {
+    /**
+     * A measurement to start: the version, the published bundle (none for the latest), the runs (none for the set) and
+     * whether to measure anew with no kept answer used again (quality P32; none for using them again).
+     */
+    public record StartBody(Integer version, Long caseSet, Integer repeats, Boolean anew) {
     }
 
     @PostMapping(API)
@@ -95,7 +101,7 @@ public class PromptQualityMeasureApiController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "version is required");
         }
         return new Started(screen.start(scope, body.version(), body.caseSet(), body.repeats(),
-                authentication.getName()));
+                Boolean.TRUE.equals(body.anew()), authentication.getName()));
     }
 
     @PostMapping(API + "/{id:\\d+}/cancel")

@@ -18,13 +18,21 @@ package io.contexa.contexacommon.domain;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Map;
 
 /**
  * The time zone in which security events are read as wall-clock times: their hour, minute and day of week. It is the
  * company's time zone, set once from configuration; without it the system time zone is used. Event times themselves
- * are instants and do not depend on it.
+ * are instants and do not depend on it. One event may fix a time zone of its own ({@link #EVENT_METADATA_KEY}).
  */
 public final class EventTimeZone {
+
+    /**
+     * The metadata under which an event keeps a time zone fixed for it alone, as a {@link ZoneId}: the replay of a
+     * labelled case reads its times in the case's own time zone (quality plan 3.2), whatever the server's is. Only a
+     * {@link ZoneId} object counts, which no text of a request or of sealed inputs can be.
+     */
+    public static final String EVENT_METADATA_KEY = "eventTimeZone.fixed";
 
     private static volatile ZoneId zone;
 
@@ -39,6 +47,13 @@ public final class EventTimeZone {
     public static ZoneId get() {
         ZoneId configured = zone;
         return configured != null ? configured : ZoneId.systemDefault();
+    }
+
+    /** The time zone the event's times are read in: the one fixed on the event, else this time zone. */
+    public static ZoneId of(SecurityEvent event) {
+        Map<String, Object> metadata = event != null ? event.getMetadata() : null;
+        Object fixed = metadata != null ? metadata.get(EVENT_METADATA_KEY) : null;
+        return fixed instanceof ZoneId fixedZone ? fixedZone : get();
     }
 
     /** The instant as a wall-clock time in this time zone; null when the instant is null. */

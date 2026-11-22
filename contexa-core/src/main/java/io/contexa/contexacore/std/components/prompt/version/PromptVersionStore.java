@@ -25,4 +25,12 @@ public interface PromptVersionStore {
 
     /** The version of the prompt with the name; empty when the store has none. */
     Optional<AssembledPrompt> find(String prompt, String version);
+
+    /**
+     * Quality plan 3.2: the version of the prompt with the name in the registry scope. A store that keeps no scopes
+     * keeps its versions for every scope, so by default the scope does not change what is found.
+     */
+    default Optional<AssembledPrompt> find(String scope, String prompt, String version) {
+        return find(prompt, version);
+    }
 }

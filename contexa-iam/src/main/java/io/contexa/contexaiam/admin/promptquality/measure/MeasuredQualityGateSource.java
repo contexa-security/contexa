@@ -56,10 +56,10 @@ import java.util.function.Supplier;
  * <li>A measurement is fresh when it ran under the server settings that change an answer as this server runs them
  * now, and stale otherwise (the model setting changed). The two compared are a fresh one of each, taken the same way
  * (the same case set version, model setting and runs) when there are such.</li>
- * <li>The width inside which two versions count as the same is the difference of two measurements of one version
- * taken the same way, of the version in use first, else of the candidate, when their answers are their own: a
- * measurement that used the other's answers again shows no noise and is not read for it. Without such a pair the
- * width is not known.</li>
+ * <li>The width inside which two versions count as the same is the difference of the newest two measurements of one
+ * version taken the same way whose answers are their own, of the version in use first, else of the candidate: one
+ * taken anew (quality P32), or one that found no kept answer to use again. A measurement that used answers kept from
+ * another shows no noise and is not read for it. Without such a pair the width is not known.</li>
  * <li>A Contexa version measured before the release, as the product ships it, is measured here when its content, the
  * case set version and the settings are the same as here.</li>
  * <li>Missing: the candidate has no measurement, or the version in use has none and none waits. Stale: one of the two
@@ -374,35 +374,34 @@ public class MeasuredQualityGateSource implements QualityGateSource {
     }
 
     /**
-     * The noise: the difference of two fresh measurements of one version taken as the compared ones were, whose
-     * answers are their own; of the version in use first, else of the candidate. Unknown without such a pair.
+     * The noise (quality P32): the difference of the newest two fresh measurements of one version taken as the compared
+     * ones were, whose answers are their own; of the version in use first, else of the candidate. Two such measurements
+     * share no answer. Unknown without such a pair.
      */
     private QualityNoise noise(PromptQualityMeasurements runner, List<QualityCase> items, Side current,
                                Side candidate, Taken[] pair) {
         Taken reference = pair[0] != null ? pair[0] : pair[1];
         for (Side side : current != null ? List.of(current, candidate) : List.of(candidate)) {
-            List<Taken> rows = side.fresh().stream().filter(taken -> taken.row != null).toList();
-            for (int first = 0; first < rows.size(); first++) {
-                for (int second = first + 1; second < rows.size(); second++) {
-                    Taken one = rows.get(first);
-                    Taken other = rows.get(second);
-                    if (one.comparableWith(other) && one.comparableWith(reference)
-                            && independent(one.row.id(), other.row.id())) {
-                        return QualityNoise.between(items, one.measurement(runner), other.measurement(runner),
-                                QualityActionBasis.FIRST_ANSWER);
-                    }
-                }
+            List<Taken> own = side.fresh().stream().filter(taken -> taken.row != null
+                    && taken.comparableWith(reference) && ownAnswers(taken.row)).limit(2).toList();
+            if (own.size() == 2) {
+                return QualityNoise.between(items, own.get(0).measurement(runner), own.get(1).measurement(runner),
+                        QualityActionBasis.FIRST_ANSWER);
             }
         }
         return null;
     }
 
-    /** Whether no answer of the one measurement is an answer of the other used again. */
-    private boolean independent(long one, long other) {
-        Integer shared = jdbc.get().queryForObject("select count(*) from ctxa_prompt_version_measure_answer a where"
-                + " a.measure_id = ? and coalesce(a.reused_from_answer_id, a.id) in (select coalesce("
-                + "b.reused_from_answer_id, b.id) from ctxa_prompt_version_measure_answer b where b.measure_id = ?)",
-                Integer.class, one, other);
-        return shared == null || shared == 0;
+    /**
+     * Whether every answer of the measurement is its own: it was taken anew, or it used no answer kept from another
+     * measurement again.
+     */
+    private boolean ownAnswers(PromptQualityMeasurements.Measure measure) {
+        if (measure.anew()) {
+            return true;
+        }
+        Integer reused = jdbc.get().queryForObject("select count(*) from ctxa_prompt_version_measure_answer where"
+                + " measure_id = ? and reused_from_answer_id is not null", Integer.class, measure.id());
+        return reused == null || reused == 0;
     }
 }

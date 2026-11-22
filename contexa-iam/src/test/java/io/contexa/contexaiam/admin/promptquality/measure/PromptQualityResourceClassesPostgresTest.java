@@ -288,7 +288,8 @@ class PromptQualityResourceClassesPostgresTest {
         cases.publish(null, PROMPT, "admin");
         Map<String, QualityCase> byKey = new HashMap<>();
         all.cases().forEach(item -> byKey.put(item.key(), item));
-        PromptQualityMeasurements.Replayer replayer = (actor, given, format, version, user, organization) -> {
+        PromptQualityMeasurements.Replayer replayer = (actor, given, format, version, user, organization, scope,
+                                                       timeZone) -> {
             QualityCase item = byKey.get(keyOf(given));
             boolean critical = "CRITICAL".equals(QualityCaseResources.of(item).resourceClass());
             String action = !item.shouldStop() || critical ? "ALLOW" : "BLOCK";

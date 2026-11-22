@@ -155,7 +155,8 @@ class PromptQualityScreenTemplateTest {
             assertThat(found).hasSizeGreaterThanOrEqualTo(5).allSatisfy(asset -> assertThat(asset).contains("?v="));
             assertThat(found).contains("/contexa/js/admin/prompt-version/pv-common.js?v=20261122-s2b",
                     "/contexa/js/admin/prompt-quality/pqa-common.js?v=20261122-s1",
-                    "/contexa/js/admin/prompt-quality/" + screen + ".js?v=20261122-s1");
+                    "/contexa/js/admin/prompt-quality/" + screen + ".js?v="
+                            + ("measure".equals(screen) ? "20261123-fb" : "20261122-s1"));
         }
         assertThat(read("templates/contexa/admin/prompt-quality/measure.html"))
                 .contains("/contexa/js/admin/prompt-quality/measure-trials.js?v=20261122-s1")

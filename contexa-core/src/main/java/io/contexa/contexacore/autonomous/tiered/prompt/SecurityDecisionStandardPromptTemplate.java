@@ -239,6 +239,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         return promptSections.findPromptVersion(name);
     }
 
+    /** Quality plan 3.2: the version the name stands for in the registry scope; the store's own without one. */
+    public Optional<AssembledPrompt> findPromptVersion(String scope, String name) {
+        return promptSections.findPromptVersion(scope, name);
+    }
+
     /** Plan 6-2: the store the version an event names is read from; the product versions when null. */
     public void setPromptVersionStore(PromptVersionStore store) {
         promptSections.setPromptVersionStore(store);
