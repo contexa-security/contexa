@@ -73,9 +73,9 @@ public class PqaOssQualityProperties {
     public static class Remeasure {
 
         /**
-         * When the version in use is measured again, a Spring cron expression in UTC; "-" turns the schedule off. A
-         * measurement starts only for what is new since the last one: a case set published with new cases, or
-         * settings that change an answer.
+         * When the version in use is measured again, a Spring cron expression in UTC; "-" turns the schedule off.
+         * Each run measures it anew (quality P32), with no kept answer used again: about 210 model calls on the
+         * default case set.
          */
         private String cron = QualityScheduledMeasurement.DEFAULT_CRON;
 

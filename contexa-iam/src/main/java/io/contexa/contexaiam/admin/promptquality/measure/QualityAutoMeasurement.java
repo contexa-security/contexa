@@ -55,10 +55,11 @@ import java.util.function.Supplier;
  * start under one lock, so one of them starts it. With nothing published in the scope, the default set of the product
  * is published first and measured on.
  *
- * <p>Plan 3.6: the version in use is measured again on schedule and when the model setting changed. The same version,
- * case set and settings measured before give no new answer (every answer is used again), so the schedule measures only
- * what is new: a case set published with new cases, or settings that change an answer; it tries a measurement it
- * could not finish again. A changed model setting is measured once.</p>
+ * <p>Plan 3.6: the version in use is measured again on schedule and when the model setting changed. Quality P32: the
+ * schedule measures it anew every time, with no kept answer used again, so a version that came out worse under the
+ * same settings (the model behind them answering otherwise) is found; on the default case set that is about 210 model
+ * calls a week (70 cases, 3 runs). It starts nothing while a measurement of the version waits or runs, and tries a
+ * measurement it could not finish again. A changed model setting is measured once.</p>
  */
 public class QualityAutoMeasurement implements PromptVersionResolver.OutsideGateListener, AutoCloseable {
 
@@ -148,7 +149,10 @@ public class QualityAutoMeasurement implements PromptVersionResolver.OutsideGate
         });
     }
 
-    /** Measures the version once, as plan 3.4 says, unless it is measured, waits, was tried or was shipped. */
+    /**
+     * Measures the version once, as plan 3.4 says, unless it is measured, waits, was tried or was shipped; on schedule
+     * (quality P32) it is measured anew, unless a measurement of it waits or runs.
+     */
     public Result request(String scope, String prompt, String version, Reason reason) {
         PromptQualityMeasurements runner = measurements.get();
         if (runner == null) {
@@ -176,14 +180,17 @@ public class QualityAutoMeasurement implements PromptVersionResolver.OutsideGate
                     .filter(row -> row.caseSetId() == set.id() && row.versionContentHash().equals(record.contentHash())
                             && row.settingsHash().equals(now))
                     .toList();
+            // Quality P32: the schedule measures the version in use anew every time, with no kept answer used again,
+            // so a version that came out worse under the same settings is found.
+            boolean anew = reason == Reason.SCHEDULED;
             Optional<Result> already = already(taken, reason);
             if (already.isPresent()) {
                 return already.get();
             }
-            if (shipped.find(prompt, record.contentHash(), set.version(), now).isPresent()) {
+            if (!anew && shipped.find(prompt, record.contentHash(), set.version(), now).isPresent()) {
                 return new Result(Outcome.SHIPPED, null, MeasuredQualityGateSource.SHIPPED);
             }
-            long id = runner.start(scopeName, prompt, record.number(), set.id(), null, ACTOR, reason.name());
+            long id = runner.start(scopeName, prompt, record.number(), set.id(), null, anew, ACTOR, reason.name());
             log.info("[PromptQualityAutoMeasure] {} {} in {} is measured automatically ({}) on case set {}:"
                     + " measurement {}", prompt, record.name(), scopeName, reason, set.version(), id);
             return new Result(Outcome.QUEUED, id, reason.name());
@@ -199,12 +206,13 @@ public class QualityAutoMeasurement implements PromptVersionResolver.OutsideGate
     }
 
     /**
-     * A measurement that says the version needs none now: one done, one waiting, or one Contexa tried already; the
-     * schedule tries again a measurement it could not finish.
+     * A measurement that says the version needs none now: one done, one waiting, or one Contexa tried already. The
+     * schedule measures anew whatever is done (quality P32) and tries again a measurement it could not finish; only one
+     * waiting or running stops it.
      */
     private static Optional<Result> already(List<PromptQualityMeasurements.Measure> taken, Reason reason) {
         for (PromptQualityMeasurements.Measure row : taken) {
-            if (PromptQualityMeasurements.DONE.equals(row.status())) {
+            if (reason != Reason.SCHEDULED && PromptQualityMeasurements.DONE.equals(row.status())) {
                 return Optional.of(new Result(Outcome.MEASURED_ALREADY, row.id(), null));
             }
         }

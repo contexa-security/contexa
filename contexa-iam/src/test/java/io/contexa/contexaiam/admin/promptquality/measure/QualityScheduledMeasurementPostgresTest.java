@@ -141,35 +141,41 @@ class QualityScheduledMeasurementPostgresTest {
     }
 
     /**
-     * The schedule starts no measurement when the version, the case set and the settings were measured already; a
-     * set published with a new case is measured once, its old answers used again; a measurement it could not finish
-     * is tried again.
+     * Quality P32: the schedule measures the version in use anew each time, with no kept answer used again, though the
+     * version, the case set and the settings were measured already; it starts nothing while a measurement of the
+     * version waits, measures on the set published latest, and tries again a measurement it could not finish.
      */
     @Test
-    void theScheduleMeasuresOnlyWhatIsNewAndTriesAgainWhatItCouldNotFinish() {
+    void theScheduleMeasuresAnewAndStartsNothingWhileOneWaits() {
         PromptQualityMeasurements runner = measurements();
         PromptQualityCases.PublishedSet first = cases.publishDefault(SCOPE, PROMPT, "admin");
         measured(first, NOW(), "admin", null, QualityScheduledMeasurementPostgresTest::sound);
         QualityScheduledMeasurement scheduled = scheduled(runner, shared());
 
         scheduled.remeasureOnSchedule();
-        assertThat(rows()).as("nothing new: no measurement, no model call").hasSize(1);
+        scheduled.remeasureOnSchedule();
+        List<Map<String, Object>> rows = rows();
+        assertThat(rows).as("measured anew once; asked again while it waits, nothing more").hasSize(2);
+        assertThat(rows.get(1)).containsEntry("start_reason", "SCHEDULED").containsEntry("status", "QUEUED")
+                .containsEntry("measured_anew", true).containsEntry("case_set_id", first.id())
+                .containsEntry("planned_answers", 24).containsEntry("reusable_answers", 0)
+                .containsEntry("created_by", QualityAutoMeasurement.ACTOR);
 
+        jdbc.update("update ctxa_prompt_version_measure set status = 'DONE' where id = ?", rows.get(1).get("id"));
         QualityCase source = cases.defaultSet().cases().get(0);
         cases.copy(SCOPE, PROMPT, source.key(), null, source.expectation(), source.grade(), "admin");
         PromptQualityCases.PublishedSet second = cases.publish(SCOPE, PROMPT, "admin");
         scheduled.remeasureOnSchedule();
-        scheduled.remeasureOnSchedule();
-        List<Map<String, Object>> rows = rows();
-        assertThat(rows).hasSize(2);
-        assertThat(rows.get(1)).containsEntry("start_reason", "SCHEDULED").containsEntry("status", "QUEUED")
+        rows = rows();
+        assertThat(rows).as("a measurement done does not stop the schedule").hasSize(3);
+        assertThat(rows.get(2)).containsEntry("start_reason", "SCHEDULED").containsEntry("measured_anew", true)
                 .containsEntry("case_set_id", second.id()).containsEntry("planned_answers", 27)
-                .containsEntry("reusable_answers", 24).containsEntry("created_by", QualityAutoMeasurement.ACTOR);
+                .containsEntry("reusable_answers", 0);
 
-        jdbc.update("update ctxa_prompt_version_measure set status = 'FAILED' where id = ?", rows.get(1).get("id"));
+        jdbc.update("update ctxa_prompt_version_measure set status = 'FAILED' where id = ?", rows.get(2).get("id"));
         scheduled.remeasureOnSchedule();
-        assertThat(rows()).hasSize(3).last().satisfies(row -> assertThat(row).containsEntry("status", "QUEUED")
-                .containsEntry("start_reason", "SCHEDULED"));
+        assertThat(rows()).hasSize(4).last().satisfies(row -> assertThat(row).containsEntry("status", "QUEUED")
+                .containsEntry("start_reason", "SCHEDULED").containsEntry("measured_anew", true));
     }
 
     /**
@@ -324,7 +330,8 @@ class QualityScheduledMeasurementPostgresTest {
 
     private static List<Map<String, Object>> rows() {
         return jdbc.queryForList("select id, status, start_reason, case_set_id, planned_answers, reusable_answers,"
-                + " created_by, settings_hash from ctxa_prompt_version_measure where version_number = 2 order by id");
+                + " measured_anew, created_by, settings_hash from ctxa_prompt_version_measure where version_number = 2"
+                + " order by id");
     }
 
     /** A finished measurement of v2.0 as its runner writes it: every case of the set in three runs. */

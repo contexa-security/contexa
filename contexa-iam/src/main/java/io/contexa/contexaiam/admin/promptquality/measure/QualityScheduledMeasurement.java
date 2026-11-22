@@ -49,9 +49,10 @@ import java.util.function.Supplier;
  * the case set the measurements of its scope run on, and told when it came out worse than its measurement before.
  *
  * <ul>
- * <li>The schedule asks {@link QualityAutoMeasurement} for the version each scope decides with. The same version, case
- * set and settings measured before give no new answer, so a new measurement starts only for what is new: a case set
- * published with new cases (the cases measured before are used again) or settings that change an answer.</li>
+ * <li>The schedule asks {@link QualityAutoMeasurement} for the version each scope decides with, measured anew (quality
+ * P32): no kept answer is used again, so a version that came out worse under the same version, case set and settings
+ * (the model behind them answering otherwise) is found. On the default case set that is about 210 model calls a week
+ * (70 cases, 3 runs); nothing starts while a measurement of the version waits or runs.</li>
  * <li>Every watch looks for a version in use measured under other settings only and measures it once, and compares each
  * measurement Contexa took again, once it is done, with the version's measurement before
  * ({@link QualityRemeasureComparison}). The comparison is kept on the measurement, so the state of quality shows what
