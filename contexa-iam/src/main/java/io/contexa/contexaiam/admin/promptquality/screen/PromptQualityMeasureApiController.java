@@ -118,22 +118,29 @@ public class PromptQualityMeasureApiController {
         return screen.run(scope, id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
-    /** The candidate and the version it is compared with (the reference), else the latest candidate and the one in use. */
+    /**
+     * Two measurements (candidateMeasure, referenceMeasure) when both are given, else the candidate version and the
+     * version it is compared with (the reference), else the latest candidate and the version in use.
+     */
     @GetMapping(API + "/compare")
     public CompareView compare(@RequestParam(required = false) String scope,
                                @RequestParam(required = false) Integer candidate,
-                               @RequestParam(required = false) Integer reference, Authentication authentication) {
+                               @RequestParam(required = false) Integer reference,
+                               @RequestParam(required = false) Long candidateMeasure,
+                               @RequestParam(required = false) Long referenceMeasure, Authentication authentication) {
         PromptQualityCaseApiController.requireAdmin(authentication);
-        return screen.compare(scope, candidate, reference);
+        return screen.compare(scope, candidate, reference, candidateMeasure, referenceMeasure);
     }
 
     @GetMapping(API + "/compare/answers")
     public CaseAnswers answers(@RequestParam(required = false) String scope,
                                @RequestParam(required = false) Integer candidate,
-                               @RequestParam(required = false) Integer reference, @RequestParam("case") String key,
+                               @RequestParam(required = false) Integer reference,
+                               @RequestParam(required = false) Long candidateMeasure,
+                               @RequestParam(required = false) Long referenceMeasure, @RequestParam("case") String key,
                                Authentication authentication) {
         PromptQualityCaseApiController.requireAdmin(authentication);
-        return screen.caseAnswers(scope, candidate, reference, key)
+        return screen.caseAnswers(scope, candidate, reference, candidateMeasure, referenceMeasure, key)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 

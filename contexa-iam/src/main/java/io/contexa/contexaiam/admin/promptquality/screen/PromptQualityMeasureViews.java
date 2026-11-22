@@ -212,16 +212,23 @@ public final class PromptQualityMeasureViews {
      * Two versions compared as the quality gate compares them: the candidate and the version in use, measured the same
      * way on the latest published bundle.
      *
-     * @param versions   the versions to choose from
-     * @param state      the state of the measurements, as the gate reads them (MEASURED, MISSING, STALE, ...)
-     * @param sides      the versions the state is about
-     * @param detail     why, in a code; null when there is nothing to add
-     * @param comparable whether the two were measured the same way, so they are compared
-     * @param noise      the width within which a rate counts as the same, by metric; empty when it is not known
+     * @param versions         the versions to choose from
+     * @param picks            the finished measurements to choose from, for two measurements
+     * @param candidateMeasure the measurement compared, when two measurements were asked for
+     * @param referenceMeasure the measurement it is compared with, when two measurements were asked for
+     * @param state            the state of the measurements, as the gate reads them (MEASURED, MISSING, STALE, ...),
+     *                         NONE with no candidate, NOT_FOUND or INCOMPARABLE for two measurements asked for
+     * @param sides            the sides the state is about
+     * @param detail           why, in a code; null when there is nothing to add
+     * @param differences      why two measurements cannot be compared: CASE_SET, MODEL_SETTING, REPEATS
+     * @param comparable       whether the two were measured the same way, so they are compared
+     * @param noise            the width within which a rate counts as the same, by metric; empty when it is not known
      */
-    public record CompareView(String scope, List<VersionOption> versions,
-                              @Nullable Integer candidate, @Nullable Integer current, String state, List<String> sides,
-                              @Nullable String detail, @Nullable Side currentSide, @Nullable Side candidateSide,
+    public record CompareView(String scope, List<VersionOption> versions, List<Pick> picks,
+                              @Nullable Integer candidate, @Nullable Integer current, @Nullable Long candidateMeasure,
+                              @Nullable Long referenceMeasure, String state, List<String> sides,
+                              @Nullable String detail, List<String> differences, @Nullable Side currentSide,
+                              @Nullable Side candidateSide,
                               @Nullable Same same, boolean comparable, List<MetricCompare> metrics,
                               @Nullable TimeCompare time, Splits splits, List<GradeCompare> grades,
                               List<SplitRow> rows, List<Noise> noise) {

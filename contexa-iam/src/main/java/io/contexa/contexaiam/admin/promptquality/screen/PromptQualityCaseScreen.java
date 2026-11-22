@@ -365,7 +365,7 @@ public class PromptQualityCaseScreen {
         String who = actorOf(actor);
         QualityCaseExpectation expectation = item.expectation();
         return Optional.of(new Detail(scopeName, cases.twoPersonConfirmation(), row,
-                kept.map(one -> one.subjectUserId() != null || one.sealedPackageId() != null).orElse(false),
+                kept.map(PromptQualityCaseScreen::personal).orElse(false),
                 kept.map(PromptQualityCases.Kept::sealedPackageId).orElse(null),
                 kept.map(PromptQualityCases.Kept::submittedBy).orElse(null),
                 kept.map(PromptQualityCases.Kept::submittedAt).orElse(null),
@@ -378,6 +378,14 @@ public class PromptQualityCaseScreen {
                 QualityCaseInputSummary.of(item.input()), List.copyOf(results),
                 changes(kept.orElse(null), answerChanges, locale),
                 improved(item, answerChanges, history)));
+    }
+
+    /**
+     * Quality plan 3.2: whether a kept case holds a real person's decision: one promoted from the operation, or copied
+     * from one (it names the sealed package it came from). A copy of a case of the default set holds the showcase's.
+     */
+    static boolean personal(PromptQualityCases.Kept kept) {
+        return kept.item().origin() == QualityCaseOrigin.OPERATION || kept.sealedPackageId() != null;
     }
 
     /** The events of the answer: its submission, every change and its confirmation, the oldest first. */
@@ -535,7 +543,7 @@ public class PromptQualityCaseScreen {
         return new Published(bundle(set), before.isPresent() && before.get().id() == set.id());
     }
 
-    private record Answer(QualityCaseExpectation expectation, QualityCaseGrade grade) {
+    record Answer(QualityCaseExpectation expectation, QualityCaseGrade grade) {
     }
 
     /** The answer of the form; a value it cannot be is refused as {@link #INVALID}. */

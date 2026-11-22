@@ -29,9 +29,13 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityComparison;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateEvaluator;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateInput;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateReading;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateSettings;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateSide;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
 import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurement;
+import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurementState;
 import io.contexa.contexacore.std.components.prompt.quality.QualityMetric;
+import io.contexa.contexacore.std.components.prompt.quality.QualityNoise;
 import io.contexa.contexacore.std.components.prompt.quality.QualityRate;
 import io.contexa.contexacore.std.components.prompt.quality.QualityResourceClassComparison;
 import io.contexa.contexacore.std.components.prompt.quality.QualityResourceClassScore;
@@ -41,6 +45,7 @@ import io.contexa.contexacore.std.components.prompt.quality.QualitySpread;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseResources;
+import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityResourceClasses;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureViews.AnswerSide;
@@ -107,7 +112,8 @@ import java.util.function.Supplier;
  * <li>One measurement: the metrics on the first answer and on the final action, over every case and over the cases of
  * each resource class, the default bundle and our cases apart, and the cases added after the version was made.</li>
  * <li>Two versions: the paired comparison the gate makes, metric by metric, the cases the two answer differently, the
- * misses grade by grade, and one case's answers side by side.</li>
+ * misses grade by grade, and one case's answers side by side; or two measurements asked for by their ids (a version
+ * measured twice), compared the same way when they were taken the same way, else why not.</li>
  * </ul>
  */
 public class PromptQualityMeasureScreen {
@@ -528,33 +534,140 @@ public class PromptQualityMeasureScreen {
         return Double.isNaN(value) || Double.isInfinite(value) ? null : value;
     }
 
-    // ----- two versions -----
+    // ----- two versions, or two measurements -----
 
-    /** What the comparison of two versions reads: the gate's reading and the versions it is about. */
-    private record Reading(String scope, List<VersionOption> options, @Nullable Integer candidate,
-                           @Nullable Integer current, @Nullable QualityGateReading reading) {
+    public static final String INCOMPARABLE = "INCOMPARABLE";
+    public static final String CASE_SET = "CASE_SET";
+    public static final String MODEL_SETTING = "MODEL_SETTING";
+    public static final String REPEATS = "REPEATS";
+
+    /**
+     * What two versions or two measurements are compared on.
+     *
+     * @param input       the cases and the two measurements, or null when they are not compared
+     * @param differences why two measurements asked for cannot be compared: CASE_SET, MODEL_SETTING, REPEATS
+     */
+    private record Pair(String scope, List<VersionOption> options, @Nullable Integer candidate,
+                        @Nullable Integer current, @Nullable Long candidateMeasure, @Nullable Long referenceMeasure,
+                        String state, List<String> sides, @Nullable String detail, @Nullable QualityGateInput input,
+                        @Nullable Side currentSide, @Nullable Side candidateSide, List<String> differences) {
+
+        boolean byMeasure() {
+            return candidateMeasure != null && referenceMeasure != null;
+        }
     }
 
-    private Reading reading(@Nullable String scope, @Nullable Integer candidate, @Nullable Integer current) {
+    /**
+     * Two measurements when both are asked for (a version measured twice, as the scheduled measurement compares them),
+     * else two versions, as the gate pairs their measurements.
+     */
+    private Pair pair(@Nullable String scope, @Nullable Integer candidate, @Nullable Integer reference,
+                      @Nullable Long candidateMeasure, @Nullable Long referenceMeasure) {
         String scopeName = PromptQualityCaseScreen.scopeOf(scope);
         Choices choices = choices(scopeName);
-        Integer currentNumber = current != null ? current
+        return candidateMeasure != null && referenceMeasure != null
+                ? measures(scopeName, choices, candidateMeasure, referenceMeasure)
+                : versions(scopeName, choices, candidate, reference);
+    }
+
+    /** Two versions: the latest measurements of each the gate compares, on the latest published bundle. */
+    private Pair versions(String scope, Choices choices, @Nullable Integer candidate, @Nullable Integer reference) {
+        Integer currentNumber = reference != null ? reference
                 : choices.used() != null ? PromptVersionNames.number(choices.used()).stream().boxed().findFirst()
                 .orElse(null) : null;
         Integer candidateNumber = candidate;
         PromptQualityMeasurements runner = measurements.get();
         if (candidateNumber == null && runner != null) {
-            candidateNumber = runner.list(scopeName, PROMPT, 0, RECENT).stream()
+            candidateNumber = runner.list(scope, PROMPT, 0, RECENT).stream()
                     .filter(measure -> PromptQualityMeasurements.DONE.equals(measure.status()))
                     .map(PromptQualityMeasurements.Measure::versionNumber)
                     .filter(number -> !number.equals(currentNumber)).findFirst().orElse(null);
         }
-        QualityGateSource source = gate.get();
-        QualityGateReading reading = candidateNumber == null ? null
-                : (source != null ? source : QualityGateSource.none()).read(scopeName, PROMPT,
-                PromptVersionNames.name(candidateNumber),
+        if (candidateNumber == null) {
+            return new Pair(scope, choices.options(), null, currentNumber, null, null, NONE, List.of(), null, null,
+                    null, null, List.of());
+        }
+        QualityGateReading reading = gateRead(scope, PromptVersionNames.name(candidateNumber),
                 currentNumber != null ? PromptVersionNames.name(currentNumber) : null);
-        return new Reading(scopeName, choices.options(), candidateNumber, currentNumber, reading);
+        QualityGateInput input = reading.input();
+        Side currentSide = input != null && input.current() != null && currentNumber != null
+                ? new Side(input.current().promptVersion(), measureOf(scope, currentNumber, input.current())) : null;
+        Side candidateSide = input != null && input.candidate() != null
+                ? new Side(input.candidate().promptVersion(), measureOf(scope, candidateNumber, input.candidate()))
+                : null;
+        return new Pair(scope, choices.options(), candidateNumber, currentNumber, null, null, reading.state().name(),
+                reading.sides().stream().map(Enum::name).toList(), reading.detail(), comparable(input) ? input : null,
+                currentSide, candidateSide, List.of());
+    }
+
+    /**
+     * Two measurements, the reference and the candidate, taken the same way (the same bundle version, model setting
+     * and runs), on the cases of the bundle they ran on; the width within which a rate counts as the same is the one
+     * the gate reads for their versions.
+     */
+    private Pair measures(String scope, Choices choices, long candidateMeasure, long referenceMeasure) {
+        PromptQualityMeasurements runner = measurements.get();
+        if (runner == null) {
+            return new Pair(scope, choices.options(), null, null, candidateMeasure, referenceMeasure,
+                    QualityMeasurementState.UNMEASURABLE.name(), List.of(), MeasuredQualityGateSource.NO_MEASUREMENT_RUNNER,
+                    null, null, null, List.of());
+        }
+        Optional<PromptQualityMeasurements.Measure> next = runner.find(candidateMeasure)
+                .filter(measure -> PromptQualityMeasurements.DONE.equals(measure.status()));
+        Optional<PromptQualityMeasurements.Measure> now = runner.find(referenceMeasure)
+                .filter(measure -> PromptQualityMeasurements.DONE.equals(measure.status()));
+        if (next.isEmpty() || now.isEmpty()) {
+            List<String> sides = new ArrayList<>();
+            if (next.isEmpty()) {
+                sides.add(QualityGateSide.CANDIDATE.name());
+            }
+            if (now.isEmpty()) {
+                sides.add(QualityGateSide.CURRENT.name());
+            }
+            return new Pair(scope, choices.options(), next.map(PromptQualityMeasurements.Measure::versionNumber)
+                    .orElse(null), now.map(PromptQualityMeasurements.Measure::versionNumber).orElse(null),
+                    candidateMeasure, referenceMeasure, NOT_FOUND, List.copyOf(sides), null, null, null, null,
+                    List.of());
+        }
+        PromptQualityMeasurements.Measure candidate = next.get();
+        PromptQualityMeasurements.Measure reference = now.get();
+        List<String> differences = new ArrayList<>();
+        if (!candidate.caseSetVersion().equals(reference.caseSetVersion())) {
+            differences.add(CASE_SET);
+        }
+        if (!candidate.modelSettingOrSettings().equals(reference.modelSettingOrSettings())) {
+            differences.add(MODEL_SETTING);
+        }
+        if (candidate.repeats() != reference.repeats()) {
+            differences.add(REPEATS);
+        }
+        Side currentSide = new Side(reference.versionName(), reference.id());
+        Side candidateSide = new Side(candidate.versionName(), candidate.id());
+        if (!differences.isEmpty()) {
+            return new Pair(scope, choices.options(), candidate.versionNumber(), reference.versionNumber(),
+                    candidateMeasure, referenceMeasure, INCOMPARABLE, List.of(), null, null, currentSide,
+                    candidateSide, List.copyOf(differences));
+        }
+        List<QualityCase> items = caseSet(candidate.caseSetId());
+        QualityMeasurement current = new QualityMeasurement(reference.versionName(),
+                reference.modelSettingOrSettings(), reference.caseSetVersion(), reference.repeats(),
+                runner.answers(reference.id()));
+        QualityMeasurement compared = new QualityMeasurement(candidate.versionName(),
+                candidate.modelSettingOrSettings(), candidate.caseSetVersion(), candidate.repeats(),
+                runner.answers(candidate.id()));
+        QualityGateReading reading = gateRead(scope, candidate.versionName(),
+                candidate.versionNumber() == reference.versionNumber() ? null : reference.versionName());
+        QualityNoise noise = reading.input() != null ? reading.input().noise() : QualityNoise.unknown();
+        QualityGateInput input = new QualityGateInput(items, current, compared, noise, QualityGateSettings.defaults(),
+                versionCreatedAt(candidate));
+        return new Pair(scope, choices.options(), candidate.versionNumber(), reference.versionNumber(),
+                candidateMeasure, referenceMeasure, QualityMeasurementState.MEASURED.name(), List.of(), null, input,
+                currentSide, candidateSide, List.of());
+    }
+
+    private QualityGateReading gateRead(String scope, String candidate, @Nullable String current) {
+        QualityGateSource source = gate.get();
+        return (source != null ? source : QualityGateSource.none()).read(scope, PROMPT, candidate, current);
     }
 
     private static boolean comparable(@Nullable QualityGateInput input) {
@@ -562,23 +675,23 @@ public class PromptQualityMeasureScreen {
                 && input.current().comparableWith(input.candidate());
     }
 
-    public CompareView compare(@Nullable String scope, @Nullable Integer candidate, @Nullable Integer current) {
-        Reading found = reading(scope, candidate, current);
-        QualityGateReading reading = found.reading();
-        if (reading == null) {
-            return new CompareView(found.scope(), found.options(), null, found.current(), NONE, List.of(), null, null,
-                    null, null, false, List.of(), null, new Splits(0, 0, 0, 0), List.of(), List.of(), List.of());
-        }
-        QualityGateInput input = reading.input();
-        List<String> sides = reading.sides().stream().map(Enum::name).toList();
-        String state = reading.state().name();
-        if (!comparable(input)) {
-            Side currentSide = input != null && input.current() != null
-                    ? side(found, found.current(), input.current()) : null;
-            Side candidateSide = input != null && input.candidate() != null
-                    ? side(found, found.candidate(), input.candidate()) : null;
-            return new CompareView(found.scope(), found.options(), found.candidate(), found.current(), state, sides,
-                    reading.detail(), currentSide, candidateSide, null, false, List.of(), null,
+    /**
+     * Two versions or two measurements compared as the quality gate compares them.
+     *
+     * @param candidate        the candidate version, else the latest one measured other than the one in use
+     * @param reference        the version it is compared with, else the one in use
+     * @param candidateMeasure a measurement to compare, with the reference measurement; both win over the versions
+     * @param referenceMeasure the measurement it is compared with
+     */
+    public CompareView compare(@Nullable String scope, @Nullable Integer candidate, @Nullable Integer reference,
+                               @Nullable Long candidateMeasure, @Nullable Long referenceMeasure) {
+        Pair pair = pair(scope, candidate, reference, candidateMeasure, referenceMeasure);
+        List<Pick> picks = picks(pair.scope());
+        QualityGateInput input = pair.input();
+        if (input == null) {
+            return new CompareView(pair.scope(), pair.options(), picks, pair.candidate(), pair.current(),
+                    pair.candidateMeasure(), pair.referenceMeasure(), pair.state(), pair.sides(), pair.detail(),
+                    pair.differences(), pair.currentSide(), pair.candidateSide(), null, false, List.of(), null,
                     new Splits(0, 0, 0, 0), List.of(), List.of(), List.of());
         }
         List<QualityCase> items = List.copyOf(input.cases());
@@ -611,12 +724,21 @@ public class PromptQualityMeasureScreen {
         addRows(rows, "NEW_PASS", changes.newlyReleased(), byKey, nowActions, nextActions);
         List<Noise> noise = new ArrayList<>();
         input.noise().widths().forEach((metric, width) -> noise.add(new Noise(metric.name(), width)));
-        return new CompareView(found.scope(), found.options(), found.candidate(), found.current(), state, sides,
-                reading.detail(), side(found, found.current(), now), side(found, found.candidate(), next),
+        return new CompareView(pair.scope(), pair.options(), picks, pair.candidate(), pair.current(),
+                pair.candidateMeasure(), pair.referenceMeasure(), pair.state(), pair.sides(), pair.detail(),
+                List.of(), pair.currentSide(), pair.candidateSide(),
                 new Same(now.caseSetVersion(), now.modelSetting(), now.repeats()), true, List.copyOf(metrics), time,
                 new Splits(changes.newlyMissed().size(), changes.newlyCaught().size(), changes.newlyStopped().size(),
-                        changes.newlyReleased().size()), grades(found, items, now, next), List.copyOf(rows),
-                List.copyOf(noise));
+                        changes.newlyReleased().size()), grades(pair, input), List.copyOf(rows), List.copyOf(noise));
+    }
+
+    /** The finished measurements of the scope a comparison of two measurements chooses among, newest first. */
+    private List<Pick> picks(String scope) {
+        PromptQualityMeasurements runner = measurements.get();
+        return runner == null ? List.of() : runner.list(scope, PROMPT, 0, RECENT).stream()
+                .filter(measure -> PromptQualityMeasurements.DONE.equals(measure.status()))
+                .map(measure -> new Pick(measure.id(), measure.versionName(), measure.caseSetVersion(),
+                        measure.repeats(), measure.createdAt())).toList();
     }
 
     private static void addRows(List<SplitRow> rows, String split, List<String> keys, Map<String, QualityCase> byKey,
@@ -644,13 +766,26 @@ public class PromptQualityMeasureScreen {
         return actions;
     }
 
-    /** The misses grade by grade: the counts of each version and the paired comparison of the grade. */
-    private List<GradeCompare> grades(Reading found, List<QualityCase> items, QualityMeasurement now,
-                                      QualityMeasurement next) {
+    /**
+     * The misses grade by grade: the counts of each side and the paired comparison of the grade, as the resource
+     * classes compare two versions (quality P46), or two measurements by the same comparison.
+     */
+    private List<GradeCompare> grades(Pair pair, QualityGateInput input) {
+        List<QualityCase> items = List.copyOf(input.cases());
+        QualityMeasurement now = input.current();
+        QualityMeasurement next = input.candidate();
         PromptQualityResourceClasses resourceClasses = classes.get();
-        List<QualityResourceClassComparison> compared = resourceClasses != null && found.candidate() != null
-                ? resourceClasses.comparison(found.scope(), PROMPT, PromptVersionNames.name(found.candidate()),
-                found.current() != null ? PromptVersionNames.name(found.current()) : null).classes() : List.of();
+        List<QualityResourceClassComparison> compared;
+        if (pair.byMeasure()) {
+            compared = QualityComparator.compareByResourceClass(items, now, next, QualityActionBasis.FIRST_ANSWER,
+                    input.noise(), input.settings().significance(), QualityCaseResources::of,
+                    QualityCaseResources.CLASSES);
+        }
+        else {
+            compared = resourceClasses != null && pair.candidate() != null
+                    ? resourceClasses.comparison(pair.scope(), PROMPT, PromptVersionNames.name(pair.candidate()),
+                    pair.current() != null ? PromptVersionNames.name(pair.current()) : null).classes() : List.of();
+        }
         Map<String, QualityResourceClassScore> before = byClass(QualityScorer.scoreByResourceClass(items,
                 now.answers(), QualityActionBasis.FIRST_ANSWER, QualityCaseResources::of, QualityCaseResources.CLASSES));
         Map<String, QualityResourceClassScore> after = byClass(QualityScorer.scoreByResourceClass(items,
@@ -679,12 +814,7 @@ public class PromptQualityMeasureScreen {
         return score != null && score.scored() ? rate(score.score().rate(QualityMetric.MISS)) : null;
     }
 
-    /** The side of a version: the finished measurement of the store the gate read for it, else a shipped one. */
-    private Side side(Reading found, @Nullable Integer number, QualityMeasurement measurement) {
-        return new Side(measurement.promptVersion(), number != null ? measureOf(found.scope(), number, measurement)
-                : null);
-    }
-
+    /** The finished measurement of the store the gate read for a version; null for one the product shipped. */
     @Nullable
     private Long measureOf(String scope, int number, QualityMeasurement measurement) {
         PromptQualityMeasurements runner = measurements.get();
@@ -700,16 +830,17 @@ public class PromptQualityMeasureScreen {
     }
 
     /**
-     * One case's answers of the two versions compared, side by side: the actions of every run and the reason codes the
+     * One case's answers of the two sides compared, side by side: the actions of every run and the reason codes the
      * first run cited.
      *
      * @return empty when the two are not compared or the case is not theirs
      */
     public Optional<CaseAnswers> caseAnswers(@Nullable String scope, @Nullable Integer candidate,
-                                             @Nullable Integer current, String key) {
-        Reading found = reading(scope, candidate, current);
-        QualityGateInput input = found.reading() != null ? found.reading().input() : null;
-        if (!comparable(input) || key == null) {
+                                             @Nullable Integer reference, @Nullable Long candidateMeasure,
+                                             @Nullable Long referenceMeasure, String key) {
+        Pair pair = pair(scope, candidate, reference, candidateMeasure, referenceMeasure);
+        QualityGateInput input = pair.input();
+        if (input == null || key == null) {
             return Optional.empty();
         }
         Optional<QualityCase> item = input.cases().stream().filter(one -> one.key().equals(key.trim())).findFirst();
@@ -717,13 +848,12 @@ public class PromptQualityMeasureScreen {
             return Optional.empty();
         }
         return Optional.of(new CaseAnswers(item.get().key(), PromptQualityCaseScreen.name(item.get()),
-                answerSide(found, found.current(), input.current(), item.get().key()),
-                answerSide(found, found.candidate(), input.candidate(), item.get().key())));
+                answerSide(pair.currentSide(), input.current(), item.get().key()),
+                answerSide(pair.candidateSide(), input.candidate(), item.get().key())));
     }
 
-    private AnswerSide answerSide(Reading found, @Nullable Integer number, QualityMeasurement measurement,
-                                  String key) {
-        Long measureId = number != null ? measureOf(found.scope(), number, measurement) : null;
+    private AnswerSide answerSide(@Nullable Side side, QualityMeasurement measurement, String key) {
+        Long measureId = side != null ? side.measureId() : null;
         PromptQualityMeasurements runner = measurements.get();
         if (measureId != null && runner != null) {
             List<PromptQualityMeasurements.CaseAnswer> answers = runner.caseAnswers(measureId, key);

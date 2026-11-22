@@ -19,8 +19,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureViews.Tab;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureViews.View;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleMessages;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
+import org.springframework.lang.Nullable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -65,7 +67,8 @@ public class PromptQualityPageController {
     private final ObjectMapper objectMapper;
 
     /** @param objectMapper Contexa's own JSON writer, for the words of the screens */
-    public PromptQualityPageController(MessageSource messages, ObjectMapper objectMapper) {
+    public PromptQualityPageController(MessageSource messages,
+                                       @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         this.messages = messages;
         this.objectMapper = objectMapper;
     }
@@ -87,35 +90,44 @@ public class PromptQualityPageController {
 
     /** The list and the start; the start opens with the version asked (the "measure" button of the version screens). */
     @GetMapping({PromptQualityScreens.MEASURE, PromptQualityScreens.MEASURE + "/"})
-    public String measurePage(@RequestParam(required = false) Integer candidate, Model model, Locale locale,
+    public String measurePage(@RequestParam(required = false) Integer candidate,
+                              @RequestParam(required = false) String view, Model model, Locale locale,
                               Authentication authentication) {
         model.addAttribute("candidate", candidate);
-        return page("measure", "runs", model, locale, authentication);
+        return page("measure", chosen(view, "runs"), model, locale, authentication);
     }
 
     /** One measurement: the latest finished one of the scope. */
     @GetMapping(PromptQualityScreens.MEASURE + "/run")
-    public String latestRunPage(Model model, Locale locale, Authentication authentication) {
-        return page("measure", "run", model, locale, authentication);
+    public String latestRunPage(@RequestParam(required = false) String view, Model model, Locale locale,
+                                Authentication authentication) {
+        return page("measure", chosen(view, "run"), model, locale, authentication);
     }
 
     @GetMapping(PromptQualityScreens.MEASURE + "/{id:\\d+}")
-    public String runPage(@PathVariable long id, Model model, Locale locale, Authentication authentication) {
+    public String runPage(@PathVariable long id, @RequestParam(required = false) String view, Model model,
+                          Locale locale, Authentication authentication) {
         model.addAttribute("measureId", id);
-        return page("measure", "run", model, locale, authentication);
+        return page("measure", chosen(view, "run"), model, locale, authentication);
     }
 
     /**
      * Two versions: the candidate and the version it is compared with (the reference, as the confirmation of "use for
-     * decisions" links here), else the latest candidate measured and the version in use.
+     * decisions" links here), else the latest candidate measured and the version in use; or two measurements by their
+     * ids (candidateMeasure, referenceMeasure: a version measured twice), which win when both are given.
      */
     @GetMapping(PromptQualityScreens.MEASURE + "/compare")
     public String comparePage(@RequestParam(required = false) Integer candidate,
-                              @RequestParam(required = false) Integer reference, Model model, Locale locale,
+                              @RequestParam(required = false) Integer reference,
+                              @RequestParam(required = false) Long candidateMeasure,
+                              @RequestParam(required = false) Long referenceMeasure,
+                              @RequestParam(required = false) String view, Model model, Locale locale,
                               Authentication authentication) {
         model.addAttribute("candidate", candidate);
         model.addAttribute("reference", reference);
-        return page("measure", "compare", model, locale, authentication);
+        model.addAttribute("candidateMeasure", candidateMeasure);
+        model.addAttribute("referenceMeasure", referenceMeasure);
+        return page("measure", chosen(view, "compare"), model, locale, authentication);
     }
 
     /** The result of a measurement on the latest sealed decisions: a trial of the prompt versions (plan 3.10). */
@@ -123,6 +135,16 @@ public class PromptQualityPageController {
     public String trialPage(@PathVariable long id, Model model, Locale locale, Authentication authentication) {
         model.addAttribute("trialId", id);
         return page("measure", "trial", model, locale, authentication);
+    }
+
+    /**
+     * The view the query names (view=...), when it is one of the views of measure and compare
+     * (PromptQualityMeasureScreen.VIEWS), else the page's own: a view another bundle adds is opened by its name, and a
+     * name this installation does not know opens the page's own view.
+     */
+    static String chosen(@Nullable String asked, String own) {
+        return asked != null && PromptQualityMeasureScreen.VIEWS.stream().anyMatch(one -> one.key().equals(asked.trim()))
+                ? asked.trim() : own;
     }
 
     /** The screen's template; its menu entry (data-menu.sql) is "prompt-quality-" and the screen's name. */

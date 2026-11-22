@@ -28,6 +28,8 @@
     const NOW_STATUS = {HIT: 'GOOD', MISS: 'BAD', OFF: 'WARN', PENDING: 'WARN', NONE: null};
     const COVER_STATUS = {COVERED: 'GOOD', FEW_CASES: 'WARN', NO_CASES: 'BAD', UNUSED: null};
     const ORIGIN_TABS = {contexa: 'CONTEXA', operation: 'OPERATION', customer: 'CUSTOMER'};
+    /** The views of the list by the names an address opens them with (view=...); every case has none. */
+    const VIEWS = ['contexa', 'operation', 'customer', 'pending'];
     const resourceGrade = key => PQA.word('pqa.cases.resGrade.' + key, key);
 
     // ----- the list -----
@@ -64,7 +66,9 @@
             PQA.kpi({tone: 'indigo', icon: 'fa-user-check', label: m('kpi.pending'), value: ZT.shortCount(view.counts.pending),
                 sub: m(view.twoPerson ? 'kpi.pendingSub' : 'kpi.pendingOff'), title: m('kpi.pendingDef')}));
         const holder = el('div', {class: 'zt-stack'});
-        const state = {tab: PQA.params().get('view') === 'pending' ? 'pending' : '', filters: {}};
+        // The view the address names (view=pending opens the cases waiting for confirmation), else every case.
+        const asked = PQA.params().get('view');
+        const state = {tab: VIEWS.includes(asked) ? asked : '', filters: {}};
         const redraw = () => holder.replaceChildren(...listParts(view, state, redraw));
         redraw();
         content.replaceChildren(cards, coverRow(view), holder, el('p', {class: 'zt-muted pv-foot', text: m('foot')}));

@@ -435,7 +435,10 @@
     // ----- two versions -----
 
     async function drawCompare() {
-        const asked = {candidate: root.dataset.candidate || null, reference: root.dataset.reference || null};
+        // Two measurements when both are named (a version measured twice), else two versions.
+        const asked = {candidate: root.dataset.candidate || null, reference: root.dataset.reference || null,
+            candidateMeasure: root.dataset.candidateMeasure || null,
+            referenceMeasure: root.dataset.referenceMeasure || null};
         const [, c] = await Promise.all([band(), PQA.get('/compare', asked).catch(() => null)]);
         if (!c) {
             content.replaceChildren(PQA.failed());
@@ -448,8 +451,23 @@
                 Object.assign({candidate: c.candidate, reference: c.current}, {[param]: node.value || null}))));
             return {name, node};
         };
-        const pick = PQA.filterBox([choose(m('compare.current'), c.current, 'reference'),
-            choose(m('compare.candidate'), c.candidate, 'candidate')],
+        const byMeasure = c.candidateMeasure != null && c.referenceMeasure != null;
+        const chooseMeasure = (name, value, param) => {
+            const options = c.picks.map(pick => [pick.id, m('run.pickOption', pick.version,
+                String(pick.caseSetVersion).slice(0, 8), pick.repeats, ZT.shortTime(pick.createdAt))]);
+            if (!options.some(([id]) => String(id) === String(value))) {
+                options.unshift([value, m('compare.measureId', value)]);
+            }
+            const node = PQA.select(name, options, value);
+            node.addEventListener('change', () => global.location.assign(PQA.page(PAGES + '/compare',
+                Object.assign({candidateMeasure: c.candidateMeasure, referenceMeasure: c.referenceMeasure},
+                    {[param]: node.value}))));
+            return {name, node};
+        };
+        const pick = PQA.filterBox(byMeasure ? [chooseMeasure(m('compare.referenceMeasure'), c.referenceMeasure,
+            'referenceMeasure'), chooseMeasure(m('compare.candidateMeasure'), c.candidateMeasure, 'candidateMeasure')]
+            : [choose(m('compare.current'), c.current, 'reference'), choose(m('compare.candidate'), c.candidate,
+                'candidate')],
         c.same ? PQA.muted(m('compare.same', String(c.same.caseSetVersion).slice(0, 8), modelOf(c.same.model),
             c.same.repeats)) : null);
         if (!c.comparable) {
@@ -569,6 +587,9 @@
         if (c.sides.length) {
             lines.push(m('compare.sides', c.sides.map(side => m('compare.side.' + side)).join(', ')));
         }
+        if (c.differences.length) {
+            lines.push(m('compare.differences', c.differences.map(code => m('compare.difference.' + code)).join(', ')));
+        }
         if (c.detail) {
             lines.push(PQA.word('pqa.measure.compare.detail.' + c.detail, c.detail));
         }
@@ -620,8 +641,9 @@
         card.querySelector('.zt-card-head').append(aside);
         let answers;
         try {
-            answers = await PQA.get('/compare/answers', {candidate: c.candidate, reference: c.current,
-                'case': row.key});
+            answers = await PQA.get('/compare/answers', c.candidateMeasure != null && c.referenceMeasure != null
+                ? {candidateMeasure: c.candidateMeasure, referenceMeasure: c.referenceMeasure, 'case': row.key}
+                : {candidate: c.candidate, reference: c.current, 'case': row.key});
         } catch (error) {
             body.replaceChildren(PQA.failed());
             return;
@@ -653,13 +675,10 @@
 
     function draw() {
         tabs();
+        // The server opens a view the list of views names; a view whose script is not here opens the page's own.
         const view = root.dataset.view || 'runs';
-        const drawView = views[view];
-        if (drawView) {
-            drawView();
-        } else {
-            content.replaceChildren(PQA.failed());
-        }
+        const drawView = views[view] || (root.dataset.measureId ? views.run : views.runs);
+        drawView();
     }
 
     global.addEventListener('resize', PQA.fitChips);
