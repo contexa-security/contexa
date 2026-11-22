@@ -38,8 +38,10 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasur
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityScheduledMeasurement;
+import io.contexa.contexaiam.admin.promptquality.report.PromptQualityReportController;
 import io.contexa.contexaiam.admin.promptquality.report.PromptQualityReports;
 import io.contexa.contexaiam.admin.promptquality.status.PromptQualityStatus;
+import io.contexa.contexaiam.admin.promptquality.status.PromptQualityStatusController;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -116,6 +118,9 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).hasSingleBean(PromptQualityStatus.class);
                     // Quality plan 3.7: the quality report, on the state of quality and the quality gate's source.
                     assertThat(context).hasSingleBean(PromptQualityReports.class);
+                    // Quality plan 3.6 to 3.8: the screen of the state of quality and the report it exports.
+                    assertThat(context).hasSingleBean(PromptQualityStatusController.class);
+                    assertThat(context).hasSingleBean(PromptQualityReportController.class);
                 });
         runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
                 .withPropertyValues("contexa.pqa.oss.quality.remeasure.cron=-")
@@ -180,6 +185,8 @@ class PromptVersionConsoleAutoConfigurationTest {
             assertThat(context).doesNotHaveBean(PromptQualityResourceClasses.class);
             assertThat(context).doesNotHaveBean(PromptQualityNavAdvice.class);
             assertThat(context).doesNotHaveBean(PromptQualityPageController.class);
+            assertThat(context).doesNotHaveBean(PromptQualityStatusController.class);
+            assertThat(context).doesNotHaveBean(PromptQualityReportController.class);
         });
         runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
                 .withPropertyValues("contexa.prompt.governance.enabled=false")

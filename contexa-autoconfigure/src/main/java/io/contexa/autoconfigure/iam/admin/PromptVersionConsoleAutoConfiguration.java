@@ -42,8 +42,10 @@ import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSour
 import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityModelSetting;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityScheduledMeasurement;
+import io.contexa.contexaiam.admin.promptquality.report.PromptQualityReportController;
 import io.contexa.contexaiam.admin.promptquality.report.PromptQualityReports;
 import io.contexa.contexaiam.admin.promptquality.status.PromptQualityStatus;
+import io.contexa.contexaiam.admin.promptquality.status.PromptQualityStatusController;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityNavAdvice;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityNavCounts;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityPageController;
@@ -476,5 +478,24 @@ public class PromptVersionConsoleAutoConfiguration {
     @ConditionalOnBean(PromptVersionService.class)
     public PromptQualityPageController promptQualityPageController() {
         return new PromptQualityPageController();
+    }
+
+    /** Quality plan 3.6, 3.8: the screen of the state of quality and the data it draws. */
+    @Bean(name = "contexaPromptQualityStatusController")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityStatus.class)
+    public PromptQualityStatusController promptQualityStatusController(
+            PromptQualityStatus contexaPromptQualityStatus, MessageSource messageSource,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+        return new PromptQualityStatusController(contexaPromptQualityStatus, messageSource, objectMapper);
+    }
+
+    /** Quality plan 3.7, 5 step 8: the quality report downloaded from the head of the state of quality. */
+    @Bean(name = "contexaPromptQualityReportController")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityReports.class)
+    public PromptQualityReportController promptQualityReportController(
+            PromptQualityReports contexaPromptQualityReports) {
+        return new PromptQualityReportController(contexaPromptQualityReports);
     }
 }

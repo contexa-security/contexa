@@ -126,6 +126,21 @@ public class QualityCasePromotions {
                 (EvaluationSaved) result[0]);
     }
 
+    /**
+     * Quality plan 3.6, 3.7: makes a sealed decision a case of the scope with the right answer the administrator sets,
+     * from the sealed evidence, where the decision is opened by its seal.
+     *
+     * @param scope the scope of the prompt versions the case is kept in, or null for the platform
+     * @throws PromptQualityCases.RefusedException when the package is missing or its seal did not hold
+     *                                             ({@code NOT_SEALED}), or the answer or the input cannot make a case
+     */
+    public Promoted fromSealed(@Nullable String scope, String sealedPackageId, QualityCaseExpectation expectation,
+                               QualityCaseGrade grade, String actor) {
+        SealedEvidencePackage sealed = sealed(sealedPackageId, "The decision of package " + sealedPackageId);
+        PromptQualityCases.Kept kept = cases.promote(scope, PROMPT, sealed, null, null, expectation, grade, actor);
+        return new Promoted(kept, sealed.getPackageId(), null, null);
+    }
+
     /** Quality plan 3.6: the sealed decisions the two versions of the trial decided with different actions. */
     public List<Divergent> divergent(long trialId) {
         Map<String, String[]> actions = new LinkedHashMap<>();

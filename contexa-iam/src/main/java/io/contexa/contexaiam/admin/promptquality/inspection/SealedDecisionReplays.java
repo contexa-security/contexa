@@ -407,6 +407,8 @@ public class SealedDecisionReplays {
         details.put("outcome", String.valueOf(result.outcome()));
         details.put("replayId", String.valueOf(result.replayId()));
         details.put("action", String.valueOf(result.action()));
+        // Quality plan 3.7: the sealed evidence lists the replays of a decision with the time each took.
+        details.put("elapsedMs", result.elapsedMs());
         if (result.failure() != null) {
             details.put("failure", result.failure());
         }

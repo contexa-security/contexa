@@ -145,7 +145,9 @@ class SealedDecisionReplaysTest {
         assertThat(audited.getValue().getEventCategory()).isEqualTo(AuditEventCategory.SEALED_DECISION_REPLAYED);
         assertThat(audited.getValue().getPrincipalName()).isEqualTo("admin-1");
         assertThat(audited.getValue().getDetails()).containsEntry("bundleVersion", BUNDLE)
-                .containsEntry("baselines", "GIVEN").containsEntry("packageId", "pkg-1");
+                .containsEntry("baselines", "GIVEN").containsEntry("packageId", "pkg-1")
+                // Quality plan 3.7: the sealed evidence lists the replays with the time each took.
+                .containsEntry("elapsedMs", 12L);
     }
 
     @Test

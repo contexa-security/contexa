@@ -44,19 +44,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PromptQualityNavTest {
 
     @Test
-    void theBarOfTheFirstBundleHasFourMenusInThePlansOrder() {
+    void theBarHasTheFiveMenusInThePlansOrder() {
         assertThat(PromptQualityScreens.MENUS).extracting(Menu::key)
-                .containsExactly("cases", "measure", "versions", "evidence");
-        assertThat(PromptQualityScreens.MENUS).extracting(Menu::path).containsExactly(PromptQualityScreens.CASES,
-                PromptQualityScreens.MEASURE, PromptQualityScreens.VERSIONS, PromptQualityScreens.EVIDENCE);
-        assertThat(PromptQualityScreens.MENUS).extracting(Menu::icon)
-                .containsExactly("fa-clipboard-check", "fa-balance-scale", "fa-code-branch", "fa-stamp");
+                .containsExactly("status", "cases", "measure", "versions", "evidence");
+        assertThat(PromptQualityScreens.MENUS).extracting(Menu::path).containsExactly(PromptQualityScreens.STATUS,
+                PromptQualityScreens.CASES, PromptQualityScreens.MEASURE, PromptQualityScreens.VERSIONS,
+                PromptQualityScreens.EVIDENCE);
+        assertThat(PromptQualityScreens.MENUS).extracting(Menu::icon).containsExactly("fa-heartbeat",
+                "fa-clipboard-check", "fa-balance-scale", "fa-code-branch", "fa-stamp");
         assertThat(PromptQualityScreens.MENUS).extracting(Menu::count)
-                .containsExactly(Count.CASES, Count.MEASUREMENTS, Count.VERSIONS, Count.SEALED);
-        // The quality status comes with the second bundle: no menu leads to a screen that is not there.
-        assertThat(PromptQualityScreens.MENUS).extracting(Menu::key).doesNotContain("status");
+                .containsExactly(null, Count.CASES, Count.MEASUREMENTS, Count.VERSIONS, Count.SEALED);
+        assertThat(PromptQualityScreens.STATUS).isEqualTo("/contexa/admin/prompt-quality/status");
         assertThat(PromptQualityScreens.CASES).isEqualTo("/contexa/admin/prompt-quality/cases");
         assertThat(PromptQualityScreens.MEASURE).isEqualTo("/contexa/admin/prompt-quality/measure");
+        // Quality plan 3.7: the two sealed prompt screens became the sealed evidence, under the group's addresses.
+        assertThat(PromptQualityScreens.EVIDENCE).isEqualTo("/contexa/admin/prompt-quality/evidence");
     }
 
     @Test
@@ -72,15 +74,15 @@ class PromptQualityNavTest {
         List<Tab> english = new PromptQualityNav(PromptQualityScreens.MENUS, (count, scope) -> counts.get(count), null,
                 Locale.ENGLISH).tabs();
 
-        assertThat(korean).extracting(Tab::key).containsExactly("cases", "measure", "versions", "evidence");
-        assertThat(korean).extracting(Tab::count).containsExactly(76L, 12_345L, 0L, 1_248_000L);
-        assertThat(korean).extracting(Tab::shortCount).containsExactly("76", "1.2만", "0", "124.8만");
-        assertThat(english).extracting(Tab::shortCount).containsExactly("76", "12.3K", "0", "1.2M");
-        assertThat(english).extracting(Tab::fullCount).containsExactly("76", "12,345", "0", "1,248,000");
-        assertThat(english).extracting(Tab::countLabel).containsExactly("pqa.nav.count.CASES",
+        assertThat(korean).extracting(Tab::key).containsExactly("status", "cases", "measure", "versions", "evidence");
+        assertThat(korean).extracting(Tab::count).containsExactly(null, 76L, 12_345L, 0L, 1_248_000L);
+        assertThat(korean).extracting(Tab::shortCount).containsExactly(null, "76", "1.2만", "0", "124.8만");
+        assertThat(english).extracting(Tab::shortCount).containsExactly(null, "76", "12.3K", "0", "1.2M");
+        assertThat(english).extracting(Tab::fullCount).containsExactly(null, "76", "12,345", "0", "1,248,000");
+        assertThat(english).extracting(Tab::countLabel).containsExactly(null, "pqa.nav.count.CASES",
                 "pqa.nav.count.MEASUREMENTS", "pqa.nav.count.VERSIONS", "pqa.nav.count.SEALED");
-        assertThat(english).extracting(Tab::label).containsExactly("pqa.nav.cases", "pqa.nav.measure",
-                "pqa.nav.versions", "pqa.nav.sealedPrompts");
+        assertThat(english).extracting(Tab::label).containsExactly("pqa.nav.status", "pqa.nav.cases",
+                "pqa.nav.measure", "pqa.nav.versions", "pqa.nav.evidence");
     }
 
     @Test
@@ -98,15 +100,14 @@ class PromptQualityNavTest {
         nav.tabs();
         nav.tabs();
 
-        assertThat(reads).hasValue(PromptQualityScreens.MENUS.size());
+        assertThat(reads).as("the menus with a count").hasValue(PromptQualityScreens.MENUS.size() - 1);
         assertThat(scopes).containsOnly("tenant-a");
         assertThat(new PromptQualityNav(PromptQualityScreens.MENUS, (count, scope) -> 1L, " ", null).scope()).isNull();
     }
 
     @Test
     void aMenuWithoutACountOrACountNotReadHasNoBadge() {
-        List<Menu> menus = List.of(new Menu("status", "/contexa/admin/prompt-quality/status", "fa-heartbeat",
-                "pqa.nav.status", null), PromptQualityScreens.MENUS.get(0));
+        List<Menu> menus = List.of(PromptQualityScreens.MENUS.get(0), PromptQualityScreens.MENUS.get(1));
         AtomicInteger reads = new AtomicInteger();
 
         List<Tab> tabs = new PromptQualityNav(menus, (count, scope) -> {
@@ -129,10 +130,8 @@ class PromptQualityNavTest {
         Set<String> keys = new LinkedHashSet<>();
         PromptQualityScreens.MENUS.forEach(menu -> keys.add(menu.label()));
         Stream.of(Count.values()).forEach(count -> keys.add(count.label()));
-        // The words the second bundle names when it puts the quality status first and names the sealed evidence.
-        keys.addAll(List.of("pqa.nav.group", "pqa.nav.status", "pqa.nav.evidence", "pqa.nav.question.cases",
-                "pqa.nav.question.measure", "menu.nav.pqa", "menu.pqa.cases", "menu.pqa.measure", "menu.pqa.versions",
-                "menu.pqa.inspection.packages"));
+        keys.addAll(List.of("pqa.nav.group", "pqa.nav.question.cases", "pqa.nav.question.measure", "menu.nav.pqa",
+                "menu.pqa.status", "menu.pqa.cases", "menu.pqa.measure", "menu.pqa.versions", "menu.pqa.evidence"));
 
         Properties english = properties("contexa/i18n/messages.properties");
         Properties korean = properties("contexa/i18n/messages_ko.properties");
@@ -151,8 +150,9 @@ class PromptQualityNavTest {
         assertThat(korean.getProperty("pqa.nav.cases")).isEqualTo(korean.getProperty("menu.pqa.cases"));
         assertThat(korean.getProperty("pqa.nav.measure")).isEqualTo(korean.getProperty("menu.pqa.measure"));
         assertThat(korean.getProperty("pqa.nav.versions")).isEqualTo(korean.getProperty("menu.pqa.versions"));
-        assertThat(korean.getProperty("pqa.nav.sealedPrompts"))
-                .isEqualTo(korean.getProperty("menu.pqa.inspection.packages"));
+        assertThat(korean.getProperty("pqa.nav.status")).isEqualTo(korean.getProperty("menu.pqa.status"));
+        assertThat(korean.getProperty("pqa.nav.evidence")).isEqualTo(korean.getProperty("menu.pqa.evidence"));
+        assertThat(english.getProperty("pqa.nav.evidence")).isEqualTo(english.getProperty("menu.pqa.evidence"));
     }
 
     private static Properties properties(String resource) throws IOException {
