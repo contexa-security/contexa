@@ -226,10 +226,26 @@
 
     // ===== a sealed decision =====
 
+    // Plan 3.12 D7: the engine says a package of a version this build no longer ships cannot be inspected again; the
+    // reader sees it in their words, as the sealed prompt detail showed it.
+    const EARLIER_VERSION = '(decision D7)';
+
+    /** The engine's reason of a finding, in the reader's words where the screens have them. */
+    function reasonText(reason) {
+        return typeof reason === 'string' && reason.includes(EARLIER_VERSION) ? m('finding.earlierVersion') : reason;
+    }
+
+    /** Whether a finding is a mismatch or could not be checked, in the reader's words; none for an unknown outcome. */
+    function outcomeWord(outcome) {
+        const key = 'pqa.evidence.finding.outcome.' + outcome;
+        return outcome && ZT.t(key) !== key ? m('finding.outcome.' + outcome) : null;
+    }
+
     function findingText(finding) {
         const place = [finding.block, finding.entry].filter(Boolean).join('.') + (finding.factId
             ? ' [' + finding.factId + ']' : '');
-        const parts = [checkName(finding.checkCode) + (place ? ' · ' + place : '')];
+        const parts = [outcomeWord(finding.outcome), checkName(finding.checkCode) + (place ? ' · ' + place : '')]
+            .filter(Boolean);
         if (finding.actual != null && finding.actual !== '') {
             parts.push(m('finding.actual', finding.actual));
         }
@@ -240,7 +256,7 @@
             parts.push(m('finding.source', finding.sourceRef));
         }
         if (finding.reason) {
-            parts.push(m('finding.reason', finding.reason));
+            parts.push(m('finding.reason', reasonText(finding.reason)));
         }
         return parts.join(' · ');
     }

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.promptquality.screen;
 
+import io.contexa.contexacore.verification.inspection.PromptInspectionOutcome;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -89,7 +90,7 @@ class PromptQualityStatusEvidenceTemplateTest {
         assertThat(scripts(list)).containsExactly("/contexa/js/admin/zero-trust/console-common.js?v=20261118-k119",
                 "/contexa/js/admin/prompt-quality/pqa-parts.js?v=20261122-s3",
                 "/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f",
-                "/contexa/js/admin/prompt-quality/evidence.js?v=20261122-s3b");
+                "/contexa/js/admin/prompt-quality/evidence.js?v=20261123-b2f");
 
         String decision = render("evidence", Locale.ENGLISH, true, "3f2b-91c0");
         assertThat(decision).contains("id=\"pv-title\">Sealed evidence</h1>")
@@ -133,6 +134,35 @@ class PromptQualityStatusEvidenceTemplateTest {
                 .contains("허용 판정");
         assertThat(english.getProperty("zt.console.glossary.review.help"))
                 .doesNotContain("a random sample of stopped decisions each day").contains("allowed decisions");
+    }
+
+    /**
+     * Plan 3.12 D7, as the sealed prompt detail had it: the engine's reason that a package of a version this build no
+     * longer ships cannot be inspected again (PromptInspectorTest holds the engine to "(decision D7)") is shown in the
+     * reader's words, and each finding says whether it is a mismatch or could not be checked, in both languages.
+     */
+    @Test
+    void theFindingsOfTheEvidenceSayTheEngineReasonAndTheOutcomeInTheReadersWords() throws IOException {
+        String script;
+        try (InputStream input = PromptQualityStatusEvidenceTemplateTest.class.getClassLoader()
+                .getResourceAsStream("static/contexa/js/admin/prompt-quality/evidence.js")) {
+            assertThat(input).isNotNull();
+            script = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertThat(script).contains("const EARLIER_VERSION = '(decision D7)';")
+                .contains("m('finding.earlierVersion')").contains("m('finding.reason', reasonText(finding.reason))")
+                .contains("m('finding.outcome.' + outcome)").contains("[outcomeWord(finding.outcome), checkName(");
+        Properties english = properties("contexa/i18n/messages.properties");
+        Properties korean = properties("contexa/i18n/messages_ko.properties");
+        List<String> words = new ArrayList<>(List.of("pqa.evidence.finding.earlierVersion"));
+        for (PromptInspectionOutcome outcome : PromptInspectionOutcome.values()) {
+            words.add("pqa.evidence.finding.outcome." + outcome.name());
+        }
+        for (String key : words) {
+            assertThat(english.getProperty(key)).as(key).isNotBlank().isNotEqualTo(korean.getProperty(key));
+            assertThat(korean.getProperty(key)).as(key).isNotBlank();
+        }
+        assertThat(korean.getProperty("pqa.evidence.finding.earlierVersion")).isEqualTo("옛 버전, 다시 점검할 수 없음");
     }
 
     private static Set<String> keys(Properties bundle) {
