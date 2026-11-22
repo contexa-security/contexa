@@ -81,6 +81,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -476,13 +477,18 @@ class PromptQualityReportsPostgresTest {
         assertThat(files.get("report-ko.md")).contains("없음: 기간 안에 내린 판정이 없다");
     }
 
-    /** Every text the readable files name is in the English and the Korean bundle, and nowhere twice. */
+    /**
+     * Every text the readable files name is in the English and the Korean bundle, and nowhere twice; every condition of
+     * the gate is named, as the paired comparisons list them all.
+     */
     @Test
     void theTextsOfTheReportAreInBothBundles() throws IOException {
         Set<String> english = reportKeys("contexa/i18n/messages.properties");
         Set<String> korean = reportKeys("contexa/i18n/messages_ko.properties");
 
         assertThat(english).hasSizeGreaterThan(200).isEqualTo(korean);
+        assertThat(english).containsAll(Arrays.stream(QualityGateCondition.values())
+                .map(condition -> "pqa.report.condition." + condition.name()).toList());
     }
 
     // ----- fixtures -----

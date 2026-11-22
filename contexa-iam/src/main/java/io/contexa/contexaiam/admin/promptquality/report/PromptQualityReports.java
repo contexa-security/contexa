@@ -107,6 +107,12 @@ public class PromptQualityReports {
     static final int TRANSITION_LIMIT = 1000;
     static final int ROLLBACK_LIMIT = 500;
     private static final DateTimeFormatter FILE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss");
+    /**
+     * The conditions of the gate one measurement decides by itself: its own answers settle them, with no version to
+     * compare. The weakening of a case that must be caught (quality P35) is not one: it tells the candidate's answers
+     * from those of the version in use, so the version in use measured alone would be blocked for answers that are its
+     * own; nor are the rates and the limit of the friction (P8), which compare two versions.
+     */
     private static final List<QualityGateCondition> ALONE = List.of(QualityGateCondition.MUST_CATCH_NEVER_ALLOWED,
             QualityGateCondition.MUST_NOT_BLOCK_NEVER_BLOCKED, QualityGateCondition.NOT_WORSE_ON_LATER_CASES_ONLY);
     private static final String RELEASED = ZeroTrustDecisionOutcomes.Kind.ADMIN_RELEASED.name();
