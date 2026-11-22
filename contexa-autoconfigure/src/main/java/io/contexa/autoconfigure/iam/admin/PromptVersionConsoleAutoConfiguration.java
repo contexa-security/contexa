@@ -32,6 +32,7 @@ import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRunt
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
+import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityResourceClasses;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityRunLine;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityMeasureLock;
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
@@ -197,6 +198,20 @@ public class PromptVersionConsoleAutoConfiguration {
                                                        QualityShippedMeasurements contexaQualityShippedMeasurements) {
         return new MeasuredQualityGateSource(() -> jdbcTemplate, versions, contexaPromptQualityCases,
                 measurements::getIfAvailable, contexaQualityShippedMeasurements);
+    }
+
+    /**
+     * Quality P46: the cases and the metrics by resource class, beside the decisions of the operation of each class;
+     * the comparison of two versions class by class reads the measurements the quality gate reads.
+     */
+    @Bean(name = "contexaPromptQualityResourceClasses")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityCases.class)
+    public PromptQualityResourceClasses promptQualityResourceClasses(
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate, PromptQualityCases contexaPromptQualityCases,
+            ObjectProvider<PromptQualityMeasurements> measurements, ObjectProvider<QualityGateSource> gateSources) {
+        return new PromptQualityResourceClasses(() -> jdbcTemplate, contexaPromptQualityCases,
+                measurements::getIfAvailable, gateSources::getIfUnique, Clock.systemUTC());
     }
 
     /**

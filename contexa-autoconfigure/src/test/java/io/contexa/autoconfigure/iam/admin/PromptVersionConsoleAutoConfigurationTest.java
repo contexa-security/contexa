@@ -20,6 +20,7 @@ import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
+import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityResourceClasses;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityRunLine;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsole;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleController;
@@ -76,6 +77,8 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).hasSingleBean(QualityAutoMeasurement.class);
                     assertThat(context).hasBean("contexaQualityAutoMeasurementStart");
                     assertThat(context).hasSingleBean(QualityShippedMeasurements.class);
+                    // Quality P46: the cases and the metrics by resource class.
+                    assertThat(context).hasSingleBean(PromptQualityResourceClasses.class);
                 });
     }
 
@@ -110,6 +113,7 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).doesNotHaveBean(PromptVersionTrials.class);
                     assertThat(context).doesNotHaveBean(PromptQualityMeasurements.class);
                     assertThat(context).hasSingleBean(PromptQualityCases.class);
+                    assertThat(context).hasSingleBean(PromptQualityResourceClasses.class);
                     // Quality plan 3.4: without the replay nothing can be measured, which the gate warns of only.
                     assertThat(context.getBean(MeasuredQualityGateSource.class)
                             .read("PLATFORM_GLOBAL", "cortex.security-decision", "v2.0", "v1.0"))
@@ -127,6 +131,7 @@ class PromptVersionConsoleAutoConfigurationTest {
             assertThat(context).doesNotHaveBean(PromptVersionConsole.class);
             assertThat(context).doesNotHaveBean(PromptVersionConsoleController.class);
             assertThat(context).doesNotHaveBean(PromptQualityCases.class);
+            assertThat(context).doesNotHaveBean(PromptQualityResourceClasses.class);
         });
         runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
                 .withPropertyValues("contexa.prompt.governance.enabled=false")
