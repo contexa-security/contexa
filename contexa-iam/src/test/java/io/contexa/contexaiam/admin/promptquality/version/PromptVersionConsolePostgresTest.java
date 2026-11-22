@@ -499,6 +499,29 @@ class PromptVersionConsolePostgresTest {
         assertThat(check.latestTrial()).isNull();
     }
 
+    /**
+     * Plan 2.1: the conditions a version inherits from the policy of its product are named apart from the blockers the
+     * customers act on; plan 3.4: a target without a quality gate (the gate leaves it out) has none to show.
+     */
+    @Test
+    void theConfirmationNamesTheConditionsOfTheProductPolicyApart() {
+        console.create(null, form(1, List.of(change("how-to-judge", "Weigh the duty roster first.")), List.of()), "admin");
+        when(gate.assessPromptRelease("PLATFORM_GLOBAL", PROMPT, "v2.0")).thenReturn(
+                new PromptGovernanceReleaseGateService.ReleaseGateAssessment("PLATFORM_GLOBAL", PROMPT, "v2.0", "AVAILABLE",
+                        List.of(new PromptGovernanceReleaseGateService.ReleaseGateTarget("ACTIVE", false, "BLOCKED",
+                                List.of("MODEL_COMPATIBILITY_MISSING the product declares none.",
+                                        "PROMPT_INJECTION_GATE_FAILED the guard is gone.",
+                                        "CACHE_POLICY_MISSING the product declares none."))), null));
+
+        PromptVersionConsoleDtos.UseCheck check = console.useCheck(null, PROMPT, 2);
+
+        assertThat(check.ready()).isFalse();
+        assertThat(check.blockers()).containsExactly("PROMPT_INJECTION_GATE_FAILED the guard is gone.");
+        assertThat(check.productPolicyGaps()).containsExactly("MODEL_COMPATIBILITY_MISSING the product declares none.",
+                "CACHE_POLICY_MISSING the product declares none.");
+        assertThat(check.quality()).isNull();
+    }
+
     /** The emergency rollback goes back from the version in use, tells the caches, and another operator approves it. */
     @Test
     void anEmergencyRollbackGoesBackFromTheVersionInUseAndIsApprovedByAnother() {

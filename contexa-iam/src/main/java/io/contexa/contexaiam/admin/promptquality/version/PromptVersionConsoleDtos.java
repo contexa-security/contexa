@@ -73,9 +73,20 @@ public final class PromptVersionConsoleDtos {
                              String state, boolean fromDocument, int changes) {
     }
 
+    /**
+     * @param outsideGate plan 3.4: the version decisions run without passing the release gate (the setting, or the
+     *                    newest Contexa version) and the state of its measurement; null when the label decides
+     */
     public record ListView(String scope, List<String> scopes, String prompt, List<PromptChoice> prompts,
                            boolean decisionPrompt, boolean trialsOffered, boolean writable, Used used, Counts counts,
-                           Running running, NewProduct newProduct, List<VersionRow> versions) {
+                           Running running, NewProduct newProduct, List<VersionRow> versions, OutsideGate outsideGate) {
+
+        public ListView(String scope, List<String> scopes, String prompt, List<PromptChoice> prompts,
+                        boolean decisionPrompt, boolean trialsOffered, boolean writable, Used used, Counts counts,
+                        Running running, NewProduct newProduct, List<VersionRow> versions) {
+            this(scope, scopes, prompt, prompts, decisionPrompt, trialsOffered, writable, used, counts, running,
+                    newProduct, versions, null);
+        }
     }
 
     // ----- a version (screen 2) -----
@@ -219,13 +230,83 @@ public final class PromptVersionConsoleDtos {
 
     // ----- labels -----
 
-    /** What a label move did: applied or not, with the gate's blockers when not. */
-    public record Receipt(boolean applied, String version, String previous, String gateState, List<String> blockers) {
+    /**
+     * What a label move did: applied or not, with the gate's blockers when not; plan 3.4: the verdict of the quality
+     * gate as computed and as applied (null when it does not apply), and whether an operator's reason overrode it.
+     */
+    public record Receipt(boolean applied, String version, String previous, String gateState, List<String> blockers,
+                          String qualityVerdict, String qualityApplied, boolean qualityOverridden) {
+
+        public Receipt(boolean applied, String version, String previous, String gateState, List<String> blockers) {
+            this(applied, version, previous, gateState, blockers, null, null, false);
+        }
     }
 
-    /** What the confirmation of "use for decisions" shows: the version in use now, the gate's answer, the trials. */
+    /**
+     * What the confirmation of "use for decisions" shows: the version in use now, the gate's answer, the trials.
+     *
+     * @param blockers          what blocks using the version, the conditions of the product policy left out
+     * @param productPolicyGaps plan 2.1: the conditions a version inherits from the policy of its product (model
+     *                          compatibility, budget, token counting, cache and compaction) that block it; a version of
+     *                          a shipped prompt always has them, so the screens of the customers do not show them
+     * @param quality           plan 3.4: the quality gate of the security decision; null for the other prompts and
+     *                          without a gate
+     * @param outsideGate       plan 3.4: the version in use, when it decides without passing the gate; else null
+     */
     public record UseCheck(String version, String current, boolean ready, List<String> blockers,
-                           PromptVersionTrials.Trial latestTrial) {
+                           PromptVersionTrials.Trial latestTrial, List<String> productPolicyGaps, QualityCheck quality,
+                           OutsideGate outsideGate) {
+    }
+
+    /**
+     * Plan 3.4: what the quality gate found of the version.
+     *
+     * @param mode               WARN or BLOCK
+     * @param measurement        MEASURED, MISSING, STALE, UNMEASURABLE or BASELINE_PENDING; null for a rollback
+     * @param measurementSides   the versions the state is about (CANDIDATE, CURRENT)
+     * @param measurementDetail  why, as the store of measurements said; null when it said nothing
+     * @param verdict            the verdict of the nine conditions as computed (a blocked one kept in the warning mode)
+     * @param applied            what the gate applies: PASSED, WARNING or BLOCKED
+     * @param rollback           whether the version goes back to one the scope used for decisions, which takes no
+     *                           quality condition
+     * @param overridable        whether a reason would override the gate: it blocks on quality and on nothing else
+     * @param rows               the nine conditions in the order of the plan; empty for a rollback
+     * @param changes            the cases the two versions answer differently; null for a rollback
+     */
+    public record QualityCheck(String mode, String measurement, List<String> measurementSides,
+                               String measurementDetail, String verdict, String applied, boolean rollback,
+                               boolean overridable, List<QualityRow> rows, QualityChanges changes) {
+    }
+
+    /**
+     * One condition of the quality gate: its result, the numbers behind it (a number that is not defined is null), the
+     * paired comparisons it read and the cases it names.
+     */
+    public record QualityRow(String condition, String status, Map<String, Number> figures,
+                             List<QualityRateComparison> comparisons, List<String> cases) {
+    }
+
+    /** A paired comparison of one rate; a value that is not defined is null. */
+    public record QualityRateComparison(String metric, String verdict, Double currentValue, Double candidateValue,
+                                        Double difference, Double noiseWidth, int pairedCases, int pairedRoots,
+                                        int worseRoots, int betterRoots, Double worseProbability,
+                                        Double betterProbability) {
+    }
+
+    /** The cases the version in use and the candidate answer differently. */
+    public record QualityChanges(List<String> newlyMissed, List<String> newlyCaught, List<String> newlyStopped,
+                                 List<String> newlyReleased) {
+    }
+
+    /**
+     * Plan 3.4: a version that decides without passing the release gate.
+     *
+     * @param version     the version
+     * @param source      CONFIGURATION (the setting) or BUILD_DEFAULT (the newest Contexa version)
+     * @param measurement the state of its measurement in this installation (MEASURED when it has one); null when the
+     *                    gate cannot be read
+     */
+    public record OutsideGate(String version, String source, String measurement) {
     }
 
     // ----- the trials (screen 4) -----

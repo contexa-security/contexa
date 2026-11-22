@@ -35,6 +35,7 @@ public interface PromptVersionAudit {
     String ROLLBACK_APPROVED = "PROMPT_VERSION_ROLLBACK_APPROVED";
     String TRIAL_STARTED = "PROMPT_VERSION_TRIAL_STARTED";
     String TRIAL_CANCELLED = "PROMPT_VERSION_TRIAL_CANCELLED";
+    String QUALITY_GATE_OVERRIDDEN = "PROMPT_VERSION_QUALITY_GATE_OVERRIDDEN";
 
     /** Who the product's versions are registered by at start (plan 3.3): the product, no person. */
     String PRODUCT_ACTOR = "contexa";
