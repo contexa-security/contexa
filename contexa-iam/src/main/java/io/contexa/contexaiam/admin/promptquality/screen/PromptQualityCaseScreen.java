@@ -487,7 +487,8 @@ public class PromptQualityCaseScreen {
     /**
      * Quality plan 3.2: a sealed decision as a case of the operation, with the answer the administrator gives.
      *
-     * @throws RefusedException with {@link #NOT_SEALED} when no decision of the id is sealed
+     * @throws RefusedException with {@link #NOT_SEALED} when no decision of the id is sealed, or its package was kept
+     *                          without its seal (the sealing failed): K199, a decision that is not sealed is no case
      */
     public Saved promote(@Nullable String scope, String packageId, AnswerForm answer, String actor) {
         if (packageId == null || packageId.isBlank()) {
@@ -498,6 +499,10 @@ public class PromptQualityCaseScreen {
                 ? repository.findByPackageId(packageId.trim()) : Optional.empty();
         if (found.isEmpty()) {
             throw new RefusedException(NOT_SEALED, "No decision of the id " + packageId.trim() + " is sealed");
+        }
+        if (!found.get().hasSealedState()) {
+            throw new RefusedException(NOT_SEALED, "The decision of the id " + packageId.trim()
+                    + " was kept without its seal (" + found.get().getSealState() + ")");
         }
         Answer parsed = parse(answer);
         PromptQualityCases.Kept kept = cases.promote(scopeOf(scope), PROMPT, found.get(), null, null,

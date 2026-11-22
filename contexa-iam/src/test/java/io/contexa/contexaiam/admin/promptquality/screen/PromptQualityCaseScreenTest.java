@@ -30,6 +30,7 @@ import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseScreen.
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseViews.Improved;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseViews.InputLine;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseViews.InputSummary;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import org.junit.jupiter.api.Test;
 
@@ -190,5 +191,30 @@ class PromptQualityCaseScreenTest {
                 .isInstanceOfSatisfying(PromptQualityCaseScreen.RefusedException.class,
                         refused -> assertThat(refused.code()).isEqualTo(PromptQualityCaseScreen.INVALID));
         verify(cases, never()).promote(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    /** K199: a package kept without its seal (the sealing failed) is refused as NOT_SEALED; a sealed one is kept. */
+    @Test
+    void aDecisionWhoseSealingFailedIsRefused() {
+        PromptQualityCases cases = mock(PromptQualityCases.class);
+        SealedEvidencePackageRepository sealed = mock(SealedEvidencePackageRepository.class);
+        SealedEvidencePackage failed = SealedEvidencePackage.builder().packageId("p-failed").sealState("FAILED").build();
+        SealedEvidencePackage kept = SealedEvidencePackage.builder().packageId("p-sealed").build();
+        when(sealed.findByPackageId("p-failed")).thenReturn(Optional.of(failed));
+        when(sealed.findByPackageId("p-sealed")).thenReturn(Optional.of(kept));
+        QualityCase item = DEFAULTS.find("S11").orElseThrow();
+        when(cases.promote(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(new PromptQualityCases
+                .Kept(7L, "tenant-a", "security-decision", item, "PENDING", "p-sealed", null, "admin",
+                Instant.parse("2026-11-23T00:00:00Z"), "admin", Instant.parse("2026-11-23T00:00:00Z"), null, null));
+        PromptQualityCaseScreen screen = new PromptQualityCaseScreen(cases, null, null, null, () -> sealed, null, null);
+        AnswerForm answer = new AnswerForm(List.of("BLOCK"), null, "THREAT", "INSIDER", "차단", null, null, "ORDINARY");
+
+        assertThatThrownBy(() -> screen.promote(null, "p-failed", answer, "admin"))
+                .isInstanceOfSatisfying(PromptQualityCaseScreen.RefusedException.class,
+                        refused -> assertThat(refused.code()).isEqualTo(PromptQualityCaseScreen.NOT_SEALED));
+        verify(cases, never()).promote(any(), any(), any(), any(), any(), any(), any(), any());
+
+        assertThat(screen.promote(null, "p-sealed", answer, "admin").key()).isEqualTo(item.key());
+        verify(cases).promote(any(), any(), any(), any(), any(), any(), any(), any());
     }
 }
