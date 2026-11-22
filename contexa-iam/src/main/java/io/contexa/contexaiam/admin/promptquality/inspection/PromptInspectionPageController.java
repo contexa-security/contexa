@@ -18,8 +18,9 @@ import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
- * The inspection screens, one purpose each: the overview of a period, the sealed prompt list, and one prompt's
- * detail. The pages draw their data from the inspection API; the words their scripts draw come with the page.
+ * The inspection screens, one purpose each: the sealed prompt list and one prompt's detail. The root address, which
+ * was the overview of a period, opens the list. The pages draw their data from the inspection API; the words their
+ * scripts draw come with the page.
  */
 @Controller
 @RequestMapping("/contexa/admin/prompt-inspection")
@@ -57,8 +58,8 @@ public class PromptInspectionPageController {
     }
 
     @GetMapping({"", "/"})
-    public String overview(Model model, Locale locale) {
-        return page(model, locale, "overview", "overview");
+    public String root() {
+        return "redirect:/contexa/admin/prompt-inspection/packages";
     }
 
     @GetMapping("/packages")

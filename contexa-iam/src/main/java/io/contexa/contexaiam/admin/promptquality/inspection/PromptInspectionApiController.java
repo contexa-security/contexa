@@ -20,8 +20,8 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * The inspection console API: the overview and the sealed packages of a capture period (the last seven days unless
- * given), a package's inspection detail, and the operator's re-inspection of a package or a period.
+ * The inspection console API: the sealed packages of a capture period (the last seven days unless given), a package's
+ * inspection detail, and the operator's re-inspection of a package or a period.
  */
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-inspection")
@@ -39,14 +39,6 @@ public class PromptInspectionApiController {
         this.console = Objects.requireNonNull(console, "console");
         this.reinspection = Objects.requireNonNull(reinspection, "reinspection");
         this.clock = Objects.requireNonNull(clock, "clock");
-    }
-
-    @GetMapping("/overview")
-    public JdbcPromptInspectionQueries.Overview overview(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
-        Instant end = to != null ? to : clock.instant();
-        return queries.overview(from != null ? from : end.minus(PromptInspectionScreen.DEFAULT_PERIOD), end);
     }
 
     @GetMapping("/packages")

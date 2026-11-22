@@ -13,7 +13,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,8 +28,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The inspection console API: the overview and the package list of a period (the last seven days by default), a
- * package's detail, and the operator's re-inspection of a package or a period with its progress.
+ * The inspection console API: the package list of a period (the last seven days by default), a package's detail, and
+ * the operator's re-inspection of a package or a period with its progress.
  */
 class PromptInspectionApiControllerTest {
 
@@ -42,20 +41,6 @@ class PromptInspectionApiControllerTest {
     private final PromptInspectionReinspection reinspection = mock(PromptInspectionReinspection.class);
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new PromptInspectionApiController(queries, console,
             reinspection, Clock.fixed(NOW, ZoneOffset.UTC))).build();
-
-    @Test
-    void theOverviewIsOfTheLastSevenDaysUnlessAPeriodIsGiven() throws Exception {
-        Instant weekAgo = NOW.minusSeconds(7 * 24 * 3600L);
-        when(queries.overview(weekAgo, NOW)).thenReturn(new JdbcPromptInspectionQueries.Overview(weekAgo, NOW,
-                Map.of("FAIL", 2L), List.of(), List.of(), List.of(), List.of(), List.of()));
-
-        mvc.perform(get(ROOT + "/overview")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.verdicts.FAIL").value(2));
-
-        mvc.perform(get(ROOT + "/overview").param("from", "2026-10-01T00:00:00Z").param("to", "2026-10-02T00:00:00Z"))
-                .andExpect(status().isOk());
-        verify(queries).overview(Instant.parse("2026-10-01T00:00:00Z"), Instant.parse("2026-10-02T00:00:00Z"));
-    }
 
     @Test
     void aPackageListWithoutAPageSizeTakesTheScreensPageSize() throws Exception {

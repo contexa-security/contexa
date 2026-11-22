@@ -85,8 +85,7 @@ class PromptInspectionScreenTest {
         }
         assertThat(packages).contains("th:each=\"verdict : ${verdicts}\"").contains("th:each=\"check : ${checks}\"");
 
-        String scripts = resource(ROOT + "prompt-inspection-common.js") + resource(ROOT + "overview-page.js")
-                + resource(ROOT + "packages-page.js");
+        String scripts = resource(ROOT + "prompt-inspection-common.js") + resource(ROOT + "packages-page.js");
         assertThat(scripts).doesNotContain("'NOT_INSPECTED'").doesNotContain("PAGE_SIZE = 20")
                 .doesNotContain("6 * 24 * 3600");
 

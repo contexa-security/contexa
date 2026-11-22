@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PromptInspectionMessagesTest {
 
     private static final Pattern TEMPLATE_KEY = Pattern.compile("#\\{([A-Za-z0-9_.]+)}");
-    private static final List<String> TEMPLATES = List.of("fragments", "overview", "packages", "detail");
+    private static final List<String> TEMPLATES = List.of("fragments", "packages", "detail");
 
     @Test
     void everyKeyOfTheScreensIsInBothLanguages() throws IOException {
@@ -33,7 +33,6 @@ class PromptInspectionMessagesTest {
                 keys.add(matcher.group(1));
             }
         }
-        keys.add("menu.pqa.inspection.overview");
         keys.add("menu.pqa.inspection.packages");
 
         Properties english = properties("contexa/i18n/messages.properties");

@@ -13,6 +13,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
@@ -31,11 +32,13 @@ class PromptInspectionPageControllerTest {
         mvc = MockMvcBuilders.standaloneSetup(new PromptInspectionPageController(messages, new ObjectMapper())).build();
     }
 
+    /** The overview went; its address, the screens' root, opens the list. */
     @Test
-    void theOverviewTheListAndTheDetailAreTheirOwnScreens() throws Exception {
-        mvc.perform(get("/contexa/admin/prompt-inspection")).andExpect(status().isOk())
-                .andExpect(view().name("contexa/admin/prompt-inspection/overview"))
-                .andExpect(model().attribute("activeTab", "overview"));
+    void theListAndTheDetailAreTheirOwnScreensAndTheRootOpensTheList() throws Exception {
+        mvc.perform(get("/contexa/admin/prompt-inspection")).andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/contexa/admin/prompt-inspection/packages"));
+        mvc.perform(get("/contexa/admin/prompt-inspection/")).andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/contexa/admin/prompt-inspection/packages"));
         mvc.perform(get("/contexa/admin/prompt-inspection/packages")).andExpect(status().isOk())
                 .andExpect(view().name("contexa/admin/prompt-inspection/packages"))
                 .andExpect(model().attribute("activeTab", "packages"));
@@ -79,7 +82,7 @@ class PromptInspectionPageControllerTest {
 
     @SuppressWarnings("unchecked")
     private Map<String, String> scriptMessages(Locale locale) throws Exception {
-        MvcResult result = mvc.perform(get("/contexa/admin/prompt-inspection").locale(locale)).andReturn();
+        MvcResult result = mvc.perform(get("/contexa/admin/prompt-inspection/packages").locale(locale)).andReturn();
         String json = (String) result.getModelAndView().getModel().get("scriptMessagesJson");
         assertThat(json).doesNotContain("</");
         return new ObjectMapper().readValue(json, Map.class);

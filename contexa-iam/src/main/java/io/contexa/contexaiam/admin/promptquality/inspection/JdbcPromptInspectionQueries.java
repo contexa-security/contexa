@@ -9,25 +9,20 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
- * The inspection read model the console shows: the sealed packages of a capture period with their latest result,
- * and the overview counts of those latest results. A package without a result reads as
- * {@link #NOT_INSPECTED}.
+ * The inspection read model the console shows: the sealed packages of a capture period with their latest result. A
+ * package without a result reads as {@link #NOT_INSPECTED}.
  */
 public class JdbcPromptInspectionQueries {
 
     /** The result word of a sealed package that has no stored result yet. */
     public static final String NOT_INSPECTED = "NOT_INSPECTED";
 
-    private static final int RANKING_LIMIT = 10;
     /**
      * The latest result of each package captured in the period (the two arguments every query on it starts with; the
      * screens look at a period, so the results of other packages are not computed again for each query, W3-20-A6), and
@@ -80,32 +75,6 @@ public class JdbcPromptInspectionQueries {
     public record PackagePage(long total, int page, int size, List<PackageRow> rows) {
     }
 
-    public record CheckCount(String checkCode, long mismatch, long unverifiable) {
-    }
-
-    public record DayCount(LocalDate day, String checkCode, long mismatch, long unverifiable) {
-    }
-
-    public record EntryCount(String block, String entry, long mismatch, long unverifiable) {
-    }
-
-    public record ResourceCount(String resourceId, long packages, long mismatch) {
-    }
-
-    public record VersionCount(String bundleVersion, String dictionaryVersion, String inspectorVersion, long packages,
-                               long failed, long incomplete, long passed, long notApplicable, long errors) {
-    }
-
-    /**
-     * The latest results of the packages captured in a period: packages by verdict, findings by check, by capture day
-     * (UTC) and by entry, packages and mismatches by protected resource, and results by bundle, dictionary and
-     * inspector version.
-     */
-    public record Overview(Instant from, Instant to, Map<String, Long> verdicts, List<CheckCount> checks,
-                           List<DayCount> trend, List<EntryCount> entries, List<ResourceCount> resources,
-                           List<VersionCount> versions) {
-    }
-
     public PackagePage packages(PackageFilter filter, int page, int size) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 200);
@@ -132,77 +101,6 @@ public class JdbcPromptInspectionQueries {
                  limit ? offset ?
                 """, (rs, rowNum) -> packageRow(rs), withPeriod(filter.from(), filter.to(), pageArguments));
         return new PackagePage(total == null ? 0L : total, safePage, safeSize, rows);
-    }
-
-    public Overview overview(Instant from, Instant to) {
-        Object[] period = withPeriod(from, to, List.of(Timestamp.from(from), Timestamp.from(to)));
-        Map<String, Long> verdicts = new LinkedHashMap<>();
-        jdbc.query(LATEST + """
-                select coalesce(l.verdict, ?) as verdict, count(*) as packages
-                  from ctxa_sealed_evidence_package p
-                  left join latest l on l.package_id = p.package_id
-                 where p.captured_at between ? and ?
-                 group by 1
-                 order by 1
-                """, rs -> {
-            verdicts.put(rs.getString("verdict"), rs.getLong("packages"));
-        }, withPeriod(from, to, List.of(NOT_INSPECTED, Timestamp.from(from), Timestamp.from(to))));
-        String findings = """
-                  from ctxa_sealed_evidence_package p
-                  join latest l on l.package_id = p.package_id
-                  join finding_lines f on f.result_id = l.id
-                 where p.captured_at between ? and ?
-                """;
-        String counts = "sum(case when f.outcome = 'MISMATCH' then f.lines else 0 end) as mismatch, "
-                + "sum(case when f.outcome = 'UNVERIFIABLE' then f.lines else 0 end) as unverifiable";
-        List<CheckCount> checks = jdbc.query(LATEST + "select f.check_code, " + counts + findings
-                        + " group by f.check_code order by f.check_code",
-                (rs, rowNum) -> new CheckCount(rs.getString("check_code"), rs.getLong("mismatch"),
-                        rs.getLong("unverifiable")), period);
-        List<DayCount> trend = jdbc.query(LATEST + "select (p.captured_at at time zone 'UTC')::date as day, "
-                        + "f.check_code, " + counts + findings + " group by 1, 2 order by 1, 2",
-                (rs, rowNum) -> new DayCount(rs.getObject("day", LocalDate.class), rs.getString("check_code"),
-                        rs.getLong("mismatch"), rs.getLong("unverifiable")), period);
-        List<EntryCount> entries = jdbc.query(LATEST + "select f.block_name, f.entry_name, " + counts + findings
-                        + " and f.entry_name is not null group by 1, 2 order by mismatch desc, unverifiable desc, "
-                        + "f.block_name, f.entry_name limit " + RANKING_LIMIT,
-                (rs, rowNum) -> new EntryCount(rs.getString("block_name"), rs.getString("entry_name"),
-                        rs.getLong("mismatch"), rs.getLong("unverifiable")), period);
-        List<ResourceCount> resources = jdbc.query(LATEST + """
-                select contexa_safe_jsonb(p.request_facts_json) ->> 'resourceId' as resource_id,
-                       count(distinct p.package_id) as packages,
-                       coalesce(sum(f.lines) filter (where f.outcome = 'MISMATCH'), 0) as mismatch
-                  from ctxa_sealed_evidence_package p
-                  left join latest l on l.package_id = p.package_id
-                  left join finding_lines f on f.result_id = l.id
-                 where p.captured_at between ? and ?
-                   and contexa_safe_jsonb(p.request_facts_json) ->> 'resourceId' is not null
-                 group by 1
-                 order by mismatch desc, packages desc, 1
-                 limit\s""" + RANKING_LIMIT,
-                (rs, rowNum) -> new ResourceCount(rs.getString("resource_id"), rs.getLong("packages"),
-                        rs.getLong("mismatch")), period);
-        List<VersionCount> versions = jdbc.query(LATEST + """
-                select coalesce(contexa_safe_jsonb(p.prompt_execution_metadata_json) ->> 'promptVersionName',
-                                contexa_safe_jsonb(p.prompt_execution_metadata_json)
-                                    #>> '{%s,promptBundleVersion}') as bundle_version,
-                       l.dictionary_version, l.inspector_version,
-                       count(*) as packages,
-                       count(*) filter (where l.verdict = 'FAIL') as failed,
-                       count(*) filter (where l.verdict = 'INCOMPLETE') as incomplete,
-                       count(*) filter (where l.verdict = 'PASS') as passed,
-                       count(*) filter (where l.verdict = 'NOT_APPLICABLE') as not_applicable,
-                       count(*) filter (where l.verdict = 'ERROR') as errors
-                  from ctxa_sealed_evidence_package p
-                  join latest l on l.package_id = p.package_id
-                 where p.captured_at between ? and ?
-                 group by 1, 2, 3
-                 order by 1 desc nulls last, 2, 3
-                """.formatted(PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR), (rs, rowNum) -> new VersionCount(rs.getString("bundle_version"),
-                rs.getString("dictionary_version"), rs.getString("inspector_version"), rs.getLong("packages"),
-                rs.getLong("failed"), rs.getLong("incomplete"), rs.getLong("passed"), rs.getLong("not_applicable"),
-                rs.getLong("errors")), period);
-        return new Overview(from, to, verdicts, checks, trend, entries, resources, versions);
     }
 
     /** W7-14: the stage of an applied decision's seal and of a shadow run's seal (decisionAppliedStage, W6-9). */

@@ -11,10 +11,6 @@
         <p class="pi-subtitle" th:text="${subtitle}"></p>
     </div>
     <nav class="pi-tabs" th:attr="aria-label=#{menu.nav.pqa}">
-        <a class="pi-tab" th:href="@{/contexa/admin/prompt-inspection}"
-           th:classappend="${activeTab == 'overview'} ? 'is-active'"
-           th:attr="aria-current=${activeTab == 'overview'} ? 'page' : null"
-           th:text="#{promptInspection.tab.overview}">Overview</a>
         <a class="pi-tab" th:href="@{/contexa/admin/prompt-inspection/packages}"
            th:classappend="${activeTab == 'packages'} ? 'is-active'"
            th:attr="aria-current=${activeTab == 'packages'} ? 'page' : null"
