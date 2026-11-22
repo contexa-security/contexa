@@ -4,7 +4,9 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -221,6 +223,32 @@ class SealedEvidencePromptTraceStoreTest {
         assertThat(store.find("req-completed-100")).isNotNull();
         store.complete(waiting);
         assertThat(store.consume("req-waiting")).isNotNull();
+    }
+
+    /**
+     * A replay is no decision: no layer completes it and nothing seals it. Kept, the replays of a measurement stayed
+     * until they expired and pushed out the snapshot of a decision still waiting for its layer.
+     */
+    @Test
+    void aReplayIsNotKeptAndPushesNoDecisionOut() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-07-15T00:00:00Z"));
+        store = new SealedEvidencePromptTraceStore(new VerificationCaptureStoreOptions(Duration.ofHours(1), 2, 2), clock);
+        SecurityEvent decision = buildEvent("req-decision", "evt-decision");
+        store.capture(decisionContext(decision), mockPromptResult());
+        long decisionBytes = store.heldBytes();
+        clock.advance(Duration.ofSeconds(1));
+
+        for (int index = 1; index <= 3; index++) {
+            SecurityEvent replay = buildEvent("replay-" + index, "replay-" + index);
+            replay.addMetadata(SecurityDecisionPromptSections.EVENT_BUNDLE_SOURCE, PromptBundleSelectionSource.REPLAY.name());
+            store.capture(decisionContext(replay), mockPromptResult());
+            clock.advance(Duration.ofSeconds(1));
+        }
+
+        assertThat(store.heldBytes()).as("only the decision is kept").isEqualTo(decisionBytes);
+        store.complete(decision);
+        assertThat(store.consume("req-decision")).isNotNull();
+        assertThat(store.heldBytes()).isZero();
     }
 
     @Test

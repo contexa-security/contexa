@@ -2782,6 +2782,17 @@ public class SecurityDecisionPromptSections {
         }
     }
 
+    /**
+     * Lets go of the canonical context a replay fixed for its event, once the replay has drawn its prompts: the event id
+     * is the replay's own, so nothing draws with it again, and the context would otherwise stay until it expires.
+     */
+    public void releaseCanonicalContext(SecurityEvent event) {
+        if (event == null || !StringUtils.hasText(event.getEventId())) {
+            return;
+        }
+        pinnedCanonicalContexts.invalidate(event.getEventId());
+    }
+
     Optional<CanonicalSecurityContext> resolveCanonicalSecurityContext(SecurityEvent event) {
         byte[] pinned = event != null && StringUtils.hasText(event.getEventId())
                 ? pinnedCanonicalContexts.getIfPresent(event.getEventId()) : null;
@@ -2816,7 +2827,7 @@ public class SecurityDecisionPromptSections {
     }
 
     /** Whether the event is a sealed decision drawn again: the replay fixes that as the source of its version. */
-    private static boolean replayed(SecurityEvent event) {
+    public static boolean replayed(SecurityEvent event) {
         return event != null && event.getMetadata() != null && PromptBundleSelectionSource.REPLAY.name().equals(
                 String.valueOf(event.getMetadata().get(EVENT_BUNDLE_SOURCE)));
     }
@@ -2841,7 +2852,9 @@ public class SecurityDecisionPromptSections {
     }
 
     private void cacheCanonicalSecurityContext(SecurityEvent event, CanonicalSecurityContext context) {
-        if (event == null || context == null) {
+        // A replay draws with the context it fixed, under its own replay id, and never reads this cache: its entry
+        // would only take the place of a decision's until it expires.
+        if (event == null || context == null || replayed(event)) {
             return;
         }
         byte[] snapshot = snapshotCanonicalContext(context);
