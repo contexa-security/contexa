@@ -451,6 +451,13 @@ public class PromptVersionService {
                 prompt);
     }
 
+    /** Quality plan 3.8: how many versions the prompt has in the scope, the hidden ones left out. */
+    public long count(String scope, String prompt) {
+        Long count = jdbc.get().queryForObject("select count(*) from ctxa_prompt_version where registry_scope = ?"
+                + " and prompt_key = ? and hidden = false", Long.class, scopeOf(scope), prompt);
+        return count != null ? count : 0L;
+    }
+
     /** The newest version Contexa provided for the prompt (the version a decision runs when nothing else is chosen). */
     public Optional<PromptVersionRecord> latestProduct(String scope, String prompt) {
         return jdbc.get().query("select * from ctxa_prompt_version where registry_scope = ? and prompt_key = ? and"

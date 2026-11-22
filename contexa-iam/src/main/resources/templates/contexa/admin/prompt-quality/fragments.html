@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  The menu bar of the prompt quality assurance group (quality plan 3.8), the tab bar of the policy center as the Zero
+  Trust console draws its own: the menus of PromptQualityScreens in their order, each with its icon, its name and its
+  count, the screen's own menu lit up. A screen of the group calls it with the name of its menu:
+      <nav th:replace="~{contexa/admin/prompt-quality/fragments :: nav('cases')}"></nav>
+  The bar comes with every page of the group (PromptQualityNavAdvice) and keeps the scope of the page on its links.
+-->
+<nav th:fragment="nav(active)" th:if="${pqaNav != null}" class="pc-tab-nav zt-tab-nav mb-6"
+     th:attr="aria-label=#{pqa.nav.group}">
+    <a th:each="tab : ${pqaNav.tabs()}" class="pc-tab-btn"
+       th:href="${pqaNav.scope() == null} ? @{${tab.path()}} : @{${tab.path()}(scope=${pqaNav.scope()})}"
+       th:classappend="${tab.key() == active} ? 'active' : ''"
+       th:data-pqa-tab="${tab.key()}"
+       th:attr="aria-current=${tab.key() == active} ? 'page' : null">
+        <i th:class="'fas ' + ${tab.icon()}" aria-hidden="true"></i><span th:text="#{${tab.label()}}">Menu</span><span
+            th:if="${tab.count() != null}" class="tab-count" th:text="${tab.shortCount()}"
+            th:title="#{${tab.countLabel()}(${tab.fullCount()})}">0</span>
+    </a>
+</nav>
+</body>
+</html>
