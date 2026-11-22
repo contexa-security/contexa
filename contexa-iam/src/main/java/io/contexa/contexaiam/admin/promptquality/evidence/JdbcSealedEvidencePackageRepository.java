@@ -200,6 +200,15 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
     }
 
     @Override
+    public long countCapturedSince(Instant since) {
+        Long count = jdbcOperations.queryForObject(
+                "select count(*) from ctxa_sealed_evidence_package where captured_at >= ?",
+                Long.class,
+                timestamp(since));
+        return count == null ? 0L : count;
+    }
+
+    @Override
     public long deleteByExpiresAtBefore(Instant now) {
         return jdbcOperations.update(DELETE_EXPIRED_SQL, timestamp(now));
     }

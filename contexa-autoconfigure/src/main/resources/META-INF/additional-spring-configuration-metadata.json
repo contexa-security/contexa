@@ -76,7 +76,19 @@
       "name": "contexa.pqa.oss.sealed-evidence.sample-percent",
       "type": "java.lang.Integer",
       "defaultValue": 1,
-      "description": "Share of requests (1 to 100) whose decision is sealed, chosen by a stable hash of the request id, outside the full-capture window. Ignored when contexa.enterprise.enabled is true."
+      "description": "Share of requests (1 to 100) whose decision is sealed, chosen by a stable hash of the request id, outside the full-capture window. It applies to the allowed decisions without a sign of risk, and to every decision once daily-limit is reached. Ignored when contexa.enterprise.enabled is true."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.daily-limit",
+      "type": "java.lang.Integer",
+      "defaultValue": 2000,
+      "description": "Sealed evidence packages of one UTC day up to which every decision that stopped the request (CHALLENGE, ESCALATE, BLOCK) and every allowed decision with a sign of risk is sealed: the most likely explanation is not legitimate work, the second analysis decided, the model was asked again, at least unknown-fact-threshold decision facts were unknown, or the personal baseline is not established. Every package of the day counts, as the store holds them, so the servers that share a database stay near one limit (each reads the count every 30 seconds and may pass the limit by what is sealed in between). Past the limit the day seals by full-capture-after-change and sample-percent alone, which the limit never holds back; the decisions left out are counted in the log. 0 seals by the window and the share alone. A sealed package takes about 60 KB of storage (measured on the sample decisions of the product), so the default adds at most about 120 MB a day. Ignored when contexa.enterprise.enabled is true."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.unknown-fact-threshold",
+      "type": "java.lang.Integer",
+      "defaultValue": 3,
+      "description": "Unknown decision facts (facts the prompt lists as not integrated or not available) from which an allowed decision is sealed within daily-limit; at least 1. Ignored when contexa.enterprise.enabled is true."
     },
     {
       "name": "contexa.pqa.oss.sealed-evidence.full-capture-after-change",

@@ -25,6 +25,8 @@ import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
+import io.contexa.contexacore.verification.evidence.SealedCaptureDecision;
+import io.contexa.contexacore.verification.evidence.SealedEvidenceCaptureSampling;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
@@ -203,6 +205,48 @@ class SealedEvidenceCaptureHandlerTest {
         assertThat(traceStore.find("req-sampled-out")).isNull();
     }
 
+    /**
+     * Plan 3.6: the sampling is asked with what the handler knows of the decision right after its enforcement, the
+     * action it ended in and the signs of a risky allow, and its answer decides what is stored.
+     */
+    @Test
+    void theSamplingIsAskedWithTheDecisionsActionAndItsSigns() {
+        List<SealedCaptureDecision> asked = new ArrayList<>();
+        SealedEvidenceCaptureSampling stopsOnly = new SealedEvidenceCaptureSampling() {
+            @Override
+            public boolean shouldSeal(SealedEvidencePackage evidencePackage) {
+                return false;
+            }
+
+            @Override
+            public boolean shouldSeal(SealedEvidencePackage evidencePackage, SealedCaptureDecision decision) {
+                asked.add(decision);
+                return decision != null && decision.stopped();
+            }
+        };
+        SealedEvidenceCaptureHandler weighing = new SealedEvidenceCaptureHandler(assembler, repository,
+                captureExecutor, null, stopsOnly);
+        SecurityEvent blocked = event("req-blocked", "/api/orders");
+        capture(blocked);
+        traceStore.complete(blocked);
+        SecurityEvent allowed = event("req-allowed", "/api/orders");
+        allowed.getMetadata().put("learningPersonalBaselineEstablished", false);
+        capture(allowed);
+        traceStore.complete(allowed);
+
+        assertThat(weighing.handle(decisionContext(blocked, "BLOCK"))).isTrue();
+        assertThat(weighing.handle(decisionContext(allowed, "ALLOW"))).isTrue();
+        captureExecutor.runAll();
+
+        assertThat(asked).extracting(SealedCaptureDecision::action).containsExactly("BLOCK", "ALLOW");
+        assertThat(asked.get(0).stopped()).isTrue();
+        assertThat(asked.get(1).baselineStatus()).as("the allowed decision's baseline was not established")
+                .isEqualTo("NONE");
+        ArgumentCaptor<SealedEvidencePackage> stored = ArgumentCaptor.forClass(SealedEvidencePackage.class);
+        verify(repository, times(1)).save(stored.capture());
+        assertThat(stored.getValue().getCorrelationId()).isEqualTo("req-blocked");
+    }
+
     @Test
     void duplicateInsertRaceIsAbsorbed() {
         SecurityEvent event = event("req-104", "/api/orders");
@@ -255,10 +299,12 @@ class SealedEvidenceCaptureHandlerTest {
         assertThat(saturable.handle(context)).isTrue();
         verifyNoInteractions(repository);
         assertThat(context.getProcessingStatus()).isNotEqualTo(SecurityEventContext.ProcessingStatus.FAILED);
+        assertThat(saturable.rejectedCaptures()).as("a decision the full queue left unsealed is counted").isEqualTo(1);
 
         saturated.set(false);
         assertThat(saturable.handle(context)).isTrue();
         verify(repository).save(any());
+        assertThat(saturable.rejectedCaptures()).isEqualTo(1);
     }
 
     @Test

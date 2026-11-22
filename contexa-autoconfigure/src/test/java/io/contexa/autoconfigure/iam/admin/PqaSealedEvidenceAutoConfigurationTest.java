@@ -1,5 +1,6 @@
 package io.contexa.autoconfigure.iam.admin;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.domain.context.DomainContext;
@@ -22,15 +23,18 @@ import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembl
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRetentionScheduler;
+import io.contexa.contexacore.verification.evidence.DecisionPriorityCaptureSampling;
 import io.contexa.contexacore.verification.evidence.VersionChangeCaptureSampling;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.aop.AopAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -172,31 +176,74 @@ class PqaSealedEvidenceAutoConfigurationTest {
                 .run(context -> assertThat(context).hasFailed());
     }
 
-    /** R4-S6: the handler seals a stable share (1% by default) and every decision of the window after a change. */
+    /**
+     * R4-S6: the handler seals a stable share (1% by default) and every decision of the window after a change. Plan
+     * 3.6: beside them the stopped and the risky allowed decisions, up to the daily limit (2000 packages by default).
+     */
     @Test
     void theCaptureSampleTheHostSetsReachesTheHandler() {
         runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
                 .run(context -> {
                     assertThat(context).hasSingleBean(SealedEvidenceCaptureSampling.class);
                     SealedEvidenceCaptureSampling sampling = context.getBean(SealedEvidenceCaptureSampling.class);
-                    assertThat(sampling).isInstanceOf(VersionChangeCaptureSampling.class);
-                    assertThat(ReflectionTestUtils.getField(sampling, "samplePercent")).isEqualTo(1);
-                    assertThat(ReflectionTestUtils.getField(sampling, "fullCaptureAfterChange")).isEqualTo(1000);
+                    assertThat(sampling).isInstanceOf(DecisionPriorityCaptureSampling.class);
+                    assertThat(ReflectionTestUtils.getField(sampling, "dailyLimit")).isEqualTo(2000)
+                            .isEqualTo(DecisionPriorityCaptureSampling.DEFAULT_DAILY_LIMIT);
+                    assertThat(ReflectionTestUtils.getField(sampling, "unknownFactThreshold")).isEqualTo(3)
+                            .isEqualTo(DecisionPriorityCaptureSampling.DEFAULT_UNKNOWN_FACT_THRESHOLD);
+                    Object windowAndShare = ReflectionTestUtils.getField(sampling, "base");
+                    assertThat(windowAndShare).isInstanceOf(VersionChangeCaptureSampling.class);
+                    assertThat(ReflectionTestUtils.getField(windowAndShare, "samplePercent")).isEqualTo(1);
+                    assertThat(ReflectionTestUtils.getField(windowAndShare, "fullCaptureAfterChange")).isEqualTo(1000);
                     assertThat(ReflectionTestUtils.getField(context.getBean(SealedEvidenceCaptureHandler.class),
                             "sampling")).isSameAs(sampling);
                 });
         runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
                 .withPropertyValues("contexa.pqa.oss.sealed-evidence.sample-percent=100",
-                        "contexa.pqa.oss.sealed-evidence.full-capture-after-change=0")
+                        "contexa.pqa.oss.sealed-evidence.full-capture-after-change=0",
+                        "contexa.pqa.oss.sealed-evidence.daily-limit=500",
+                        "contexa.pqa.oss.sealed-evidence.unknown-fact-threshold=5")
                 .run(context -> {
                     assertThat(context).hasSingleBean(SealedEvidenceCaptureSampling.class);
                     SealedEvidenceCaptureSampling sampling = context.getBean(SealedEvidenceCaptureSampling.class);
-                    assertThat(ReflectionTestUtils.getField(sampling, "samplePercent")).isEqualTo(100);
-                    assertThat(ReflectionTestUtils.getField(sampling, "fullCaptureAfterChange")).isEqualTo(0);
+                    assertThat(ReflectionTestUtils.getField(sampling, "dailyLimit")).isEqualTo(500);
+                    assertThat(ReflectionTestUtils.getField(sampling, "unknownFactThreshold")).isEqualTo(5);
+                    Object windowAndShare = ReflectionTestUtils.getField(sampling, "base");
+                    assertThat(ReflectionTestUtils.getField(windowAndShare, "samplePercent")).isEqualTo(100);
+                    assertThat(ReflectionTestUtils.getField(windowAndShare, "fullCaptureAfterChange")).isEqualTo(0);
                 });
         runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
                 .withPropertyValues("contexa.pqa.oss.sealed-evidence.sample-percent=0")
                 .run(context -> assertThat(context).hasFailed());
+        // 0 is a setting: the window and the share alone. A negative limit and a threshold under 1 are refused.
+        runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
+                .withPropertyValues("contexa.pqa.oss.sealed-evidence.daily-limit=0")
+                .run(context -> assertThat(context).hasNotFailed());
+        runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
+                .withPropertyValues("contexa.pqa.oss.sealed-evidence.daily-limit=-1")
+                .run(context -> assertThat(context).hasFailed());
+        runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
+                .withPropertyValues("contexa.pqa.oss.sealed-evidence.unknown-fact-threshold=0")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    /** The two settings of plan 3.6 are described for the host with the defaults the properties start from. */
+    @Test
+    void theDailyLimitAndTheUnknownFactThresholdAreDescribedWithTheirDefaults() throws IOException {
+        JsonNode described = new ObjectMapper().readTree(new ClassPathResource(
+                "META-INF/additional-spring-configuration-metadata.json").getInputStream()).path("properties");
+        Map<String, JsonNode> byName = new HashMap<>();
+        described.forEach(property -> byName.put(property.path("name").asText(), property));
+        PqaOssSealedEvidenceCaptureProperties defaults = new PqaOssSealedEvidenceCaptureProperties();
+
+        JsonNode dailyLimit = byName.get("contexa.pqa.oss.sealed-evidence.daily-limit");
+        JsonNode unknownFacts = byName.get("contexa.pqa.oss.sealed-evidence.unknown-fact-threshold");
+        assertThat(dailyLimit).isNotNull();
+        assertThat(dailyLimit.path("defaultValue").asInt()).isEqualTo(defaults.getDailyLimit());
+        assertThat(dailyLimit.path("description").asText()).contains("CHALLENGE", "UTC day", "sample-percent");
+        assertThat(unknownFacts).isNotNull();
+        assertThat(unknownFacts.path("defaultValue").asInt()).isEqualTo(defaults.getUnknownFactThreshold());
+        assertThat(unknownFacts.path("description").asText()).isNotBlank();
     }
 
     @Test

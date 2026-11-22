@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexacore.verification.capture.VerificationCaptureStoreOptions;
+import io.contexa.contexacore.verification.evidence.DecisionPriorityCaptureSampling;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
 import io.contexa.contexacore.verification.evidence.VersionChangeCaptureSampling;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -31,6 +32,16 @@ public class PqaOssSealedEvidenceCaptureProperties {
      * version a canary or a shadow runs beside it has a window of its own.
      */
     private int fullCaptureAfterChange = VersionChangeCaptureSampling.DEFAULT_FULL_CAPTURE_AFTER_CHANGE;
+
+    /**
+     * Plan 3.6: the packages sealed in one UTC day up to which every decision that stopped the request (CHALLENGE,
+     * ESCALATE, BLOCK) and every allowed decision with a sign of risk is sealed, counted over the servers that share
+     * the store; past it the day seals by the window and the share alone. 0 seals by the window and the share alone.
+     */
+    private int dailyLimit = DecisionPriorityCaptureSampling.DEFAULT_DAILY_LIMIT;
+
+    /** Plan 3.6: the unknown decision facts from which an allowed decision counts as one with a sign of risk. */
+    private int unknownFactThreshold = DecisionPriorityCaptureSampling.DEFAULT_UNKNOWN_FACT_THRESHOLD;
 
     public boolean isCaptureEnabled() {
         return captureEnabled;
@@ -78,6 +89,22 @@ public class PqaOssSealedEvidenceCaptureProperties {
 
     public void setFullCaptureAfterChange(int fullCaptureAfterChange) {
         this.fullCaptureAfterChange = fullCaptureAfterChange;
+    }
+
+    public int getDailyLimit() {
+        return dailyLimit;
+    }
+
+    public void setDailyLimit(int dailyLimit) {
+        this.dailyLimit = dailyLimit;
+    }
+
+    public int getUnknownFactThreshold() {
+        return unknownFactThreshold;
+    }
+
+    public void setUnknownFactThreshold(int unknownFactThreshold) {
+        this.unknownFactThreshold = unknownFactThreshold;
     }
 
     public VerificationCaptureStoreOptions storeOptions() {

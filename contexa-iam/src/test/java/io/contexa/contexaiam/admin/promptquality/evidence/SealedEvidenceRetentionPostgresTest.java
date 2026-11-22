@@ -38,7 +38,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * The retention of sealed packages on PostgreSQL, with the schema of a new installation: one period for every package,
  * whatever a prompt inspection found in it, and the expired packages a prompt version trial or an administrator's
- * evaluation still stands on are left until nothing names them.
+ * evaluation still stands on are left until nothing names them. And the count of a day's packages the capture's daily
+ * limit reads.
  */
 @EnabledIfEnvironmentVariable(named = "CONTEXA_TEST_DB_URL", matches = ".+")
 class SealedEvidenceRetentionPostgresTest {
@@ -158,6 +159,18 @@ class SealedEvidenceRetentionPostgresTest {
         assertThat(packages()).containsExactlyInAnyOrder("failed-long-ago", "passed-long-ago");
         assertThat(jdbc.queryForList("select package_id from ctxa_prompt_inspection_result order by package_id",
                 String.class)).containsExactlyInAnyOrder("failed-long-ago", "passed-long-ago");
+    }
+
+    /** Plan 3.6: the capture's daily limit counts every package captured at or after a time, whoever's it is. */
+    @Test
+    void thePackagesCapturedSinceATimeAreCounted() {
+        seal("before", "request-1", NOW.minusSeconds(1), null);
+        seal("at", "request-2", NOW, null);
+        seal("after", "request-3", NOW.plusSeconds(60), NOW.plus(Duration.ofDays(90)));
+
+        assertThat(repository.countCapturedSince(NOW)).isEqualTo(2);
+        assertThat(repository.countCapturedSince(NOW.minus(Duration.ofDays(1)))).isEqualTo(3);
+        assertThat(repository.countCapturedSince(NOW.plusSeconds(61))).isZero();
     }
 
     private List<String> packages() {

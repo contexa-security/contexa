@@ -14,6 +14,7 @@ import io.contexa.contexacore.verification.capture.SealedEvidenceLayer2Completio
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptCaptureAspect;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
+import io.contexa.contexacore.verification.evidence.DecisionPriorityCaptureSampling;
 import io.contexa.contexacore.verification.evidence.SealedEvidenceCaptureSampling;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
@@ -43,8 +44,9 @@ import java.util.concurrent.ThreadPoolExecutor;
  *
  * Runtime capture is the OSS wiring of the real decision pipeline: the prompt capture aspects record
  * the final LLM prompt, and SealedEvidenceCaptureHandler seals it together with the enforced decision
- * on the capture executor, for the share of decisions the capture sample keeps (R4-S6). Retention cleanup deletes
- * packages whose expiresAt has passed.
+ * on the capture executor, for the decisions the capture sample keeps (R4-S6, plan 3.6: the window after a change, a
+ * share of the requests, and within a daily limit the stopped and the risky allowed decisions). Retention cleanup
+ * deletes packages whose expiresAt has passed.
  *
  * When Enterprise is enabled, Enterprise owns capture and retention (its schema keeps sealed packages
  * immutable), so none of these beans are created.
@@ -170,14 +172,22 @@ public class PqaSealedEvidenceAutoConfiguration {
                     shadow.getDailyCallCap(), Clock.systemUTC());
         }
 
-        /** R4-S6, decision D-B: a stable share of the requests, and every decision of the window after a change. */
+        /**
+         * R4-S6, decision D-B: a stable share of the requests, and every decision of the window after a change. Plan
+         * 3.6: beside them, every decision that stopped the request and every allowed decision with a sign of risk,
+         * up to the daily limit of sealed packages the store counts.
+         */
         @Bean(name = "contexaPqaOssSealedEvidenceCaptureSampling")
         @ConditionalOnMissingBean(SealedEvidenceCaptureSampling.class)
         public SealedEvidenceCaptureSampling pqaOssSealedEvidenceCaptureSampling(
                 @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
-                PqaOssSealedEvidenceCaptureProperties properties) {
-            return new VersionChangeCaptureSampling(properties.getSamplePercent(),
-                    properties.getFullCaptureAfterChange(), objectMapper);
+                PqaOssSealedEvidenceCaptureProperties properties,
+                SealedEvidencePackageRepository sealedEvidencePackageRepository) {
+            return new DecisionPriorityCaptureSampling(
+                    new VersionChangeCaptureSampling(properties.getSamplePercent(),
+                            properties.getFullCaptureAfterChange(), objectMapper),
+                    properties.getDailyLimit(), properties.getUnknownFactThreshold(),
+                    sealedEvidencePackageRepository::countCapturedSince, Clock.systemUTC());
         }
 
         @Bean(name = "contexaPqaOssSealedEvidenceCaptureHandler")
