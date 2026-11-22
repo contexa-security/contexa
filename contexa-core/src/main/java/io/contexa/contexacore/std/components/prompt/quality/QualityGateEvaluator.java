@@ -300,7 +300,7 @@ public final class QualityGateEvaluator {
         return marked;
     }
 
-    private static QualityCaseChanges changes(QualityTally current, QualityTally candidate) {
+    static QualityCaseChanges changes(QualityTally current, QualityTally candidate) {
         List<String> newlyMissed = new ArrayList<>();
         List<String> newlyCaught = new ArrayList<>();
         List<String> newlyStopped = new ArrayList<>();

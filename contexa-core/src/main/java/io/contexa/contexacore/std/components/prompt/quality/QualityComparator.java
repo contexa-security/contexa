@@ -15,11 +15,14 @@
  */
 package io.contexa.contexacore.std.components.prompt.quality;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
+import java.util.function.Function;
 
 /**
  * Compares two measurements rate by rate (plan 3.3): the same cases against each other, by root. For a rate, each
@@ -62,6 +65,41 @@ public final class QualityComparator {
         }
         return compare(QualityTally.of(cases, current.answers(), basis),
                 QualityTally.of(cases, candidate.answers(), basis), noise, significance);
+    }
+
+    /**
+     * The comparison of every rate over the cases of each resource class (quality P46): the same comparison, root by
+     * root, on the cases of the class alone, with the cases of the class the two versions answer differently. Every
+     * class of {@code shown} is there in its order, also when no case has it and so nothing is compared, then the
+     * other classes the cases have, by name, and the unclassified last. The noise is the one given.
+     *
+     * @param resourceOf the resource and class of a case, as the decision rows of the operation take them
+     * @param shown      the classes shown even when no case has them
+     */
+    public static List<QualityResourceClassComparison> compareByResourceClass(
+            Collection<QualityCase> cases, QualityMeasurement current, QualityMeasurement candidate,
+            QualityActionBasis basis, QualityNoise noise, double significance,
+            Function<QualityCase, QualityCaseResource> resourceOf, List<String> shown) {
+        if (!current.comparableWith(candidate)) {
+            throw new IllegalArgumentException("Two measurements are compared only when they share the case set"
+                    + " version, the model setting and the number of runs");
+        }
+        Map<String, List<QualityCase>> groups = QualityScorer.byResourceClass(cases, resourceOf);
+        List<QualityResourceClassComparison> comparisons = new ArrayList<>();
+        for (String group : QualityCaseResource.order(shown, groups.keySet())) {
+            List<QualityCase> members = groups.getOrDefault(group, List.of());
+            int[] roots = QualityResourceClassScore.roots(members);
+            if (members.isEmpty()) {
+                comparisons.add(new QualityResourceClassComparison(group, 0, 0, 0, Map.of(),
+                        QualityCaseChanges.none()));
+                continue;
+            }
+            QualityTally before = QualityTally.of(members, current.answers(), basis);
+            QualityTally after = QualityTally.of(members, candidate.answers(), basis);
+            comparisons.add(new QualityResourceClassComparison(group, members.size(), roots[0], roots[1],
+                    compare(before, after, noise, significance), QualityGateEvaluator.changes(before, after)));
+        }
+        return comparisons;
     }
 
     static Map<QualityMetric, QualityComparison> compare(QualityTally current, QualityTally candidate,
