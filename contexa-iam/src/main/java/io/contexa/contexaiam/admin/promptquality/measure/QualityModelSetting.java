@@ -45,6 +45,11 @@ import java.util.TreeSet;
  */
 public final class QualityModelSetting {
 
+    /** The setting of the model the first layer asks. */
+    public static final String FIRST_MODEL = "layer1.model";
+    /** The setting of the model the second layer asks. */
+    public static final String SECOND_MODEL = "layer2.model";
+
     private QualityModelSetting() {
     }
 
@@ -55,9 +60,9 @@ public final class QualityModelSetting {
         TieredStrategyProperties strategy = tiered != null ? tiered : new TieredStrategyProperties();
         Map<String, String> settings = new TreeMap<>();
         if (models != null) {
-            settings.put("layer1.model", String.valueOf(models.getModelNameForTier(1)));
+            settings.put(FIRST_MODEL, String.valueOf(models.getModelNameForTier(1)));
             settings.put("layer1.backupModel", String.valueOf(models.getBackupModelNameForTier(1)));
-            settings.put("layer2.model", String.valueOf(models.getModelNameForTier(2)));
+            settings.put(SECOND_MODEL, String.valueOf(models.getModelNameForTier(2)));
             settings.put("layer2.backupModel", String.valueOf(models.getBackupModelNameForTier(2)));
         }
         TieredStrategyProperties.Layer1 first = strategy.getLayer1();

@@ -15,10 +15,20 @@
  */
 package io.contexa.contexaiam.admin.promptquality.version;
 
+import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateCondition;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateMode;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateStatus;
+import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurementState;
+import io.contexa.contexacore.std.components.prompt.quality.QualityMetric;
+import io.contexa.contexacore.std.components.prompt.quality.QualityVerdict;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionProblem;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
+import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
+import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -57,6 +67,14 @@ class PromptVersionMessagesTest {
             "PROMPT_NOT_FOUND", "ROLLBACK_MISSING", "SHADOW_DAILY_LIMIT", "SHADOW_PERCENT", "SHADOW_RUNNING",
             "TRIALS_MISSING", "VERSION_HIDDEN", "VERSION_NOT_FOUND", "PROBLEMS");
 
+    /** Quality plan 3.4: the pictures of the quality gate the confirmation draws (pv-common.js gateState). */
+    private static final List<String> GATE_STATES = List.of("pass", "rollback", "warn", "block", "missing",
+            "unmeasurable", "pending", "stale");
+
+    /** The rates the rows of the quality gate name (the comparisons of rows 4 to 6 and the later cases of row 9). */
+    private static final List<QualityMetric> GATE_METRICS = List.of(QualityMetric.MISS, QualityMetric.FALSE_STOP,
+            QualityMetric.OVER_BLOCK, QualityMetric.FRICTION, QualityMetric.DEFERRAL, QualityMetric.CITATION_ACCURACY);
+
     /** The marks of a part on the version and new version screens. */
     private static final List<String> MARKS = List.of("LOCKED", "DEFAULT", "SAME", "CHANGED", "DELETED", "ADDED",
             "INCLUDED");
@@ -86,6 +104,7 @@ class PromptVersionMessagesTest {
                 .forEach(status -> keys.add("pv.rollback.status." + status));
         Stream.of(JdbcPromptInspectionQueries.DECISION_STAGE, JdbcPromptInspectionQueries.SHADOW_STAGE)
                 .forEach(stage -> keys.add("pv.shadow.stage." + stage));
+        addGateWords(keys);
         keys.add("menu.pqa.versions");
 
         Properties english = properties("contexa/i18n/messages.properties");
@@ -117,6 +136,47 @@ class PromptVersionMessagesTest {
                 "\\('menu\\.pqa\\.versions',\\s*'/contexa/admin/prompt-quality/versions',\\s*'',\\s*'prompt-quality',"
                         + "\\s*\\d+,\\s*TRUE,\\s*'CORE',\\s*'prompt-quality-versions'\\)");
         assertThat(seed).doesNotContain("'menu.pqa.releases'");
+    }
+
+    /**
+     * Quality plan 3.4: the words of the confirmation of the quality gate by the codes the use check answers with, the
+     * notice of the version deciding outside the gate, and the refusals of a save that measures and of an override.
+     */
+    private static void addGateWords(Set<String> keys) {
+        Stream.of(QualityGateCondition.values()).forEach(condition -> keys.add("pv.gate.row." + condition.name()));
+        Stream.of(QualityGateStatus.values()).forEach(status -> keys.add("pv.gate.result." + status.name()));
+        Stream.of(QualityGateStatus.WARNING, QualityGateStatus.NOT_EVALUATED, QualityGateStatus.PASSED)
+                .forEach(status -> keys.add("pv.gate.fold." + status.name()));
+        Stream.of(QualityGateMode.values()).forEach(mode -> {
+            keys.add("pv.gate.mode." + mode.name());
+            keys.add("pv.gate.modeTip." + mode.name());
+        });
+        Stream.of(QualityVerdict.values()).forEach(verdict -> keys.add("pv.gate.ev.verdict." + verdict.name()));
+        GATE_METRICS.forEach(metric -> keys.add("pv.gate.metric." + metric.name()));
+        GATE_STATES.forEach(state -> keys.add("pv.gate.state." + state));
+        Stream.of("pass", "rollback", "unmeasurable").forEach(state -> keys.add("pv.gate.line." + state));
+        Stream.of("CANDIDATE", "CURRENT", "BOTH").forEach(side -> Stream.of("pv.gate.line.missing.",
+                "pv.gate.line.stale.", "pv.gate.ev.stale.", "pv.gate.line.staleModels.", "pv.gate.ev.staleModel.")
+                .forEach(prefix -> keys.add(prefix + side)));
+        Stream.of("missing", "unmeasurable", "pending", "stale").forEach(state -> keys.add("pv.gate.ev.wait." + state));
+        Stream.of(QualityGateCondition.MUST_CATCH_NEVER_ALLOWED, QualityGateCondition.MUST_NOT_BLOCK_NEVER_BLOCKED)
+                .forEach(condition -> keys.add("pv.gate.ev.graded." + condition.name()));
+        Stream.of(MeasuredQualityGateSource.MEASURING, MeasuredQualityGateSource.NO_CASE_SET,
+                MeasuredQualityGateSource.SHIPPED, MeasuredQualityGateSource.NO_MEASUREMENT_RUNNER,
+                QualityGateSource.NO_SOURCE).forEach(detail -> keys.add("pv.gate.detail." + detail));
+        Stream.of("use", "canary").forEach(kind -> keys.add("pv.gate.confirm." + kind));
+        PromptVersionConsole.OUTSIDE_GATE_SOURCES.forEach(source -> keys.add("pv.list.outside." + source));
+        Stream.concat(Stream.of(QualityMeasurementState.values()).map(Enum::name),
+                Stream.of(MeasuredQualityGateSource.MEASURING, "UNKNOWN")).forEach(state -> {
+            keys.add("pv.list.outside.measurement." + state);
+            keys.add("pv.list.outside.state." + state);
+        });
+        Stream.of(PromptVersionConsole.OVERRIDE_REASON_REQUIRED, PromptVersionConsole.MEASURE_NOT_OFFERED,
+                PromptVersionConsole.NO_MEASUREMENT_RUNNER).forEach(code -> keys.add("pv.refused." + code));
+        // The configuration names a measurement that cannot start MEASURE_ and the refusal of the measurements.
+        Stream.of(PromptQualityMeasurements.Refusal.values())
+                .forEach(refusal -> keys.add("pv.refused.MEASURE_" + refusal.name()));
+        keys.add("pv.blocker." + PromptGovernanceReleaseGateService.QUALITY_GATE_BLOCKED);
     }
 
     private static void collect(Pattern pattern, String text, Set<String> keys) {

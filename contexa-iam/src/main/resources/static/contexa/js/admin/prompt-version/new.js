@@ -1,7 +1,8 @@
 /*
  * Prompt versions, a new version (plan 3.10, screen 3): the base's parts, the fixed ones folded and the others open to
  * change or delete; parts and reference blocks to add; prepared parts to put in; the checks before saving as the text
- * changes; and the save, with "use it for decisions at once" or a trial after it.
+ * changes; and the save, with the measurement of a security decision version at once or measure and compare after
+ * it (quality plan 3.4), and another prompt's version used at once.
  */
 (function (global) {
     'use strict';
@@ -511,48 +512,62 @@
                     ZT.count(view.problems.length))}),
                 el('div', {class: 'zt-item'}, ...view.problems.map(problem => el('span', {text: PV.problemText(problem)}))))
                 : null,
-            state.draft.decisionPrompt ? el('p', {class: 'zt-muted', text: t('pv.check.trialAdvice')}) : null);
+            state.draft.decisionPrompt ? el('p', {class: 'zt-muted', text: t('pv.check.measureAdvice')}) : null);
         paintSave();
     }
 
     // ----- the save -----
 
+    /**
+     * Quality plan 3.4: a version of the security decision is not used at once any more; it is saved and measured at
+     * once, or saved and taken to measure and compare. A measurement takes no reason. A version of another prompt, which
+     * has no means of measurement, is still used at once with the reason given.
+     */
     function saveCard(draft) {
-        const useNow = el('input', {type: 'checkbox', id: 'pv-use-now'});
-        const reason = el('input', {type: 'text', class: 'modern-input', id: 'pv-use-reason', maxlength: '1000',
-            placeholder: t('pv.confirm.reasonOptional'), disabled: true});
-        useNow.addEventListener('change', () => {
-            reason.disabled = !useNow.checked;
-        });
+        const decision = draft.decisionPrompt;
+        const now = el('input', {type: 'checkbox', id: 'pv-use-now'});
+        const reason = decision ? null : el('input', {type: 'text', class: 'modern-input', id: 'pv-use-reason',
+            maxlength: '1000', placeholder: t('pv.confirm.reasonOptional'), disabled: true});
+        if (reason) {
+            now.addEventListener('change', () => {
+                reason.disabled = !now.checked;
+            });
+        }
         const save = PV.button(t('pv.new.save'), 'fa-save', () => submit('view'), {primary: true, name: 'save'});
-        const saveTrial = draft.decisionPrompt ? PV.button(t('pv.new.saveTrial'), 'fa-vial', () => submit('trial'),
-            {name: 'save-trial'}) : null;
+        const saveMeasure = decision ? PV.button(t('pv.new.saveMeasure'), 'fa-vial', () => submit('measure'),
+            {name: 'save-measure'}) : null;
         const cancel = PV.button(t('pv.new.cancel'), null, null, {href: PV.page(''), name: 'cancel'});
         return ZT.card(t('pv.new.saveTitle'), null,
-            el('label', {class: 'pv-toggle'}, useNow, el('span', {text: t(draft.decisionPrompt ? 'pv.new.useNow'
+            el('label', {class: 'pv-toggle'}, now, el('span', {text: t(decision ? 'pv.new.measureNow'
                 : 'pv.new.useNow.other')})),
-            el('label', {class: 'zt-filter-field'}, el('span', {class: 'zt-filter-name', text: t('pv.confirm.reasonLabel')}),
-                reason),
-            el('div', {class: 'pv-actions', id: 'pv-save-actions'}, save, saveTrial, cancel));
+            reason ? el('label', {class: 'zt-filter-field'}, el('span', {class: 'zt-filter-name',
+                text: t('pv.confirm.reasonLabel')}), reason) : null,
+            el('div', {class: 'pv-actions', id: 'pv-save-actions'}, save, saveMeasure, cancel));
     }
 
     function paintSave() {
         const ready = state.lastCheck && state.lastCheck.passed && changed() && !state.saving;
-        document.querySelectorAll('#pv-save-actions [data-pv-action="save"], #pv-save-actions [data-pv-action="save-trial"]')
-            .forEach(node => {
+        document.querySelectorAll('#pv-save-actions [data-pv-action="save"],'
+            + ' #pv-save-actions [data-pv-action="save-measure"]').forEach(node => {
                 node.disabled = !ready;
                 node.title = ready ? '' : changed() ? t('pv.new.saveBlocked') : t('pv.new.nothingChanged');
             });
     }
 
+    /**
+     * Saves the version. "Save and measure" starts its measurement (the version shows that it runs, or why it could
+     * not start); "save and open measure and compare" goes to the measurement, or to the start of one.
+     */
     async function submit(next) {
         if (state.saving) {
             return;
         }
         state.saving = true;
         paintSave();
-        const useNow = document.getElementById('pv-use-now').checked;
-        const result = await PV.send('', form({useNow, reason: document.getElementById('pv-use-reason').value}));
+        const now = document.getElementById('pv-use-now').checked;
+        const reason = document.getElementById('pv-use-reason');
+        const result = await PV.send('', form(state.draft.decisionPrompt ? {measureNow: now}
+            : {useNow: now, reason: reason ? reason.value : null}));
         state.saving = false;
         if (!result.ok) {
             PV.notice('bad', t('pv.new.saveFailed'), PV.refusedLines(result));
@@ -564,8 +579,13 @@
             PV.notice('bad', t('pv.new.savedNotUsed', saved.name), (saved.used.blockers || []).map(PV.blockerText));
             return;
         }
-        global.location.assign(next === 'trial' ? PV.page('/trials', {candidate: saved.number})
-            : PV.page('/' + saved.number, {saved: '1'}));
+        if (next === 'measure' && !saved.measureRefusal) {
+            global.location.assign(saved.measureId != null ? PV.measurePage('/' + saved.measureId)
+                : PV.measurePage('', {candidate: saved.number}));
+            return;
+        }
+        global.location.assign(PV.page('/' + saved.number, {saved: '1', measure: saved.measureId,
+            measureRefused: saved.measureRefusal}));
     }
 
     draw();

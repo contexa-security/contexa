@@ -293,10 +293,26 @@ public final class PromptVersionConsoleDtos {
      * @param overridable        whether a reason would override the gate: it blocks on quality and on nothing else
      * @param rows               the nine conditions in the order of the plan; empty for a rollback
      * @param changes            the cases the two versions answer differently; null for a rollback
+     * @param details            what the confirmation names beside the verdict, read where the gate reads its
+     *                           measurements; null for a rollback or when they cannot be read
      */
     public record QualityCheck(String mode, String measurement, List<String> measurementSides,
                                String measurementDetail, String verdict, String applied, boolean rollback,
-                               boolean overridable, List<QualityRow> rows, QualityChanges changes) {
+                               boolean overridable, List<QualityRow> rows, QualityChanges changes,
+                               QualityDetails details) {
+
+        public QualityCheck(String mode, String measurement, List<String> measurementSides,
+                            String measurementDetail, String verdict, String applied, boolean rollback,
+                            boolean overridable, List<QualityRow> rows, QualityChanges changes) {
+            this(mode, measurement, measurementSides, measurementDetail, verdict, applied, rollback, overridable,
+                    rows, changes, null);
+        }
+
+        /** The same check with the details beside the verdict. */
+        public QualityCheck withDetails(QualityDetails given) {
+            return new QualityCheck(mode, measurement, measurementSides, measurementDetail, verdict, applied,
+                    rollback, overridable, rows, changes, given);
+        }
     }
 
     /**
@@ -317,6 +333,36 @@ public final class PromptVersionConsoleDtos {
     /** The cases the version in use and the candidate answer differently. */
     public record QualityChanges(List<String> newlyMissed, List<String> newlyCaught, List<String> newlyStopped,
                                  List<String> newlyReleased) {
+    }
+
+    /**
+     * Plan 3.4 and the approved confirmation: what it names beside the verdict of the quality gate, as the store of
+     * measurements has it for the two versions the gate compares.
+     *
+     * @param caseSetVersion the version of the published case set the measurements are taken on, the default set's
+     *                       when none is published; null when nothing can be measured
+     * @param models         the models the compared measurements were answered by, else the models the server asks
+     *                       now; null when not known
+     * @param modelsBefore   the models a stale measurement was answered by; null when none is stale
+     * @param modelsNow      the models the server is set to ask now; null when not known
+     * @param measuring      the measurement of a version that waits or runs: of the version in use first; null when
+     *                       none does
+     * @param caseNames      the names of the cases asked for, in their order
+     */
+    public record QualityDetails(String caseSetVersion, String models, String modelsBefore, String modelsNow,
+                                 QualityProgress measuring, List<QualityCaseName> caseNames) {
+
+        public QualityDetails {
+            caseNames = caseNames == null ? List.of() : List.copyOf(caseNames);
+        }
+    }
+
+    /** A measurement that waits or runs: the version, the answers it has and the answers it takes. */
+    public record QualityProgress(String version, int answered, int planned) {
+    }
+
+    /** A case by its key and the name the screens give it: what the request asked, and the key. */
+    public record QualityCaseName(String key, String name) {
     }
 
     /**

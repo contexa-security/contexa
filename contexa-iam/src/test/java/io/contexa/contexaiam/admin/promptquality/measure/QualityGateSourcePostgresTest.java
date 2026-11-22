@@ -36,6 +36,9 @@ import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernanceDescriptorResolver;
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionCatalog;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityCaseName;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityDetails;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityProgress;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionRecord;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionResolver;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionService;
@@ -257,6 +260,66 @@ class QualityGateSourcePostgresTest {
         // The two are not taken the same way: the gate blocks on its first condition, warned of as stale.
         assertThat(new QualityGatePolicy(source(cases, runner), QualityGateMode.BLOCK, FEW_ROOTS)
                 .assess(SCOPE, PROMPT, "v2.0", "v1.0").applied()).isEqualTo(QualityGateStatus.BLOCKED);
+    }
+
+    /**
+     * Plan 3.4 and the approved confirmation: beside the verdict it names the version of the case set the
+     * measurements are taken on, the models of the measurements compared and of the server now, the measurement of
+     * the version in use that waits with its answers so far, and the cases by what their request asked.
+     */
+    @Test
+    void theDetailsNameTheCaseSetTheModelsTheWaitingBaselineWithItsProgressAndTheCases() {
+        PromptQualityCases cases = cases(8);
+        PromptQualityMeasurements runner = measurements(cases, 0);
+        PromptQualityCases.PublishedSet set = cases.publishDefault(SCOPE, PROMPT, "admin");
+        measured(set, 2, NOW, "model-a", "admin", QualityGateSourcePostgresTest::sound);
+        long waiting = measure(set, 1, NOW, null, PromptQualityMeasurements.QUEUED, QualityAutoMeasurement.ACTOR);
+        QualityCase first = cases.read(set).cases().cases().get(0);
+        String content = versions.find(SCOPE, PROMPT, 1).orElseThrow().contentHash();
+        for (int run = 1; run <= 2; run++) {
+            jdbc.update("insert into ctxa_prompt_version_measure_answer (measure_id, registry_scope, case_key,"
+                    + " case_content_hash, version_number, version_content_hash, settings_hash, run_number,"
+                    + " first_action, final_action, cited_facts, accurate_cited_facts, answered_model, created_at)"
+                    + " values (?, ?, ?, ?, 1, ?, ?, ?, 'BLOCK', 'BLOCK', 3, 3, 'model-a', ?)", waiting, SCOPE,
+                    first.key(), first.contentHash(), content, NOW, run, Timestamp.from(CLOCK.instant()));
+        }
+
+        QualityDetails details = source(cases, runner).details(SCOPE, PROMPT, "v2.0", "v1.0",
+                List.of(first.key(), "no-such-case"));
+
+        assertThat(details.caseSetVersion()).isEqualTo(set.version());
+        assertThat(details.models()).isEqualTo("model-a");
+        assertThat(details.modelsBefore()).isNull();
+        assertThat(details.modelsNow()).isEqualTo("model-a");
+        assertThat(details.measuring()).isEqualTo(new QualityProgress("v1.0", 2, 24));
+        assertThat(details.caseNames()).extracting(QualityCaseName::key).containsExactly(first.key(), "no-such-case");
+        assertThat(details.caseNames().get(0).name()).matches("[A-Z]+ /\\S+ \\(" + first.key() + "\\)");
+        assertThat(details.caseNames().get(1).name()).isEqualTo("no-such-case");
+        // The verdict is the gate's: the reading of the same versions is the baseline waiting, as before.
+        assertThat(source(cases, runner).read(SCOPE, PROMPT, "v2.0", "v1.0").state())
+                .isEqualTo(QualityMeasurementState.BASELINE_PENDING);
+    }
+
+    /** A measurement stale under the settings of now names the models it was answered by and the models of now. */
+    @Test
+    void theDetailsOfAStaleMeasurementNameTheModelsBeforeAndNow() {
+        PromptQualityCases cases = cases(8);
+        PromptQualityMeasurements runner = measurements(cases, 0);
+        PromptQualityCases.PublishedSet set = cases.publishDefault(SCOPE, PROMPT, "admin");
+        measured(set, 1, BEFORE, "model-before", "admin", QualityGateSourcePostgresTest::sound);
+        measured(set, 2, NOW, "model-a", "admin", QualityGateSourcePostgresTest::sound);
+
+        QualityDetails details = source(cases, runner).details(SCOPE, PROMPT, "v2.0", "v1.0", List.of());
+
+        assertThat(details.modelsBefore()).isEqualTo("model-before");
+        assertThat(details.modelsNow()).isEqualTo("model-a");
+        assertThat(details.measuring()).isNull();
+        assertThat(details.caseNames()).isEmpty();
+        assertThat(MeasuredQualityGateSource.models("settings=abc;models=m1,m2")).isEqualTo("m1, m2");
+        assertThat(MeasuredQualityGateSource.models("settings=abc;models=unknown")).isNull();
+        // Without a runner of measurements there is nothing to name.
+        assertThat(new MeasuredQualityGateSource(() -> jdbc, versions, cases, () -> null, null)
+                .details(SCOPE, PROMPT, "v2.0", "v1.0", List.of())).isNull();
     }
 
     @Test
