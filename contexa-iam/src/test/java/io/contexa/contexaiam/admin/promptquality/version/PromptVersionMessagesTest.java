@@ -44,8 +44,8 @@ class PromptVersionMessagesTest {
 
     private static final Pattern TEMPLATE_KEY = Pattern.compile("#\\{([A-Za-z0-9_.-]+)");
     private static final Pattern SCRIPT_KEY = Pattern.compile("'(pv\\.[A-Za-z0-9_.-]*[A-Za-z0-9_-])'");
-    private static final List<String> TEMPLATES = List.of("fragments", "list", "version", "new", "trials", "advanced");
-    private static final List<String> SCRIPTS = List.of("pv-common", "list", "version", "new", "trials", "advanced");
+    private static final List<String> TEMPLATES = List.of("fragments", "list", "version", "new", "advanced");
+    private static final List<String> SCRIPTS = List.of("pv-common", "list", "version", "new", "advanced");
 
     /** A value made of placeholders and signs alone, or a style code, reads the same in both languages. */
     private static final Pattern NOT_A_WORD = Pattern.compile("[{}0-9\\s%\\u2190]*");

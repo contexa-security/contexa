@@ -77,6 +77,7 @@ import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsole;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.TrialStart;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionRecord;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionService;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionTrials;
 import org.springframework.lang.Nullable;
 
 import java.io.IOException;
@@ -84,6 +85,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -99,7 +101,9 @@ import java.util.function.Supplier;
  *
  * <ul>
  * <li>The list: the model setting decisions are measured under, what a measurement can start with and what it would
- * take, the measurements that wait or run, and every measurement, newest first, with its misses and false stops.</li>
+ * take, the measurements that wait or run, and every measurement, newest first, with its misses and false stops; the
+ * trials of the version screens (measurements on the latest sealed decisions) stand in the same list, with whether
+ * the two versions kept their actions and the format errors, as they have no right answer.</li>
  * <li>One measurement: the metrics on the first answer and on the final action, over every case and over the cases of
  * each resource class, the default bundle and our cases apart, and the cases added after the version was made.</li>
  * <li>Two versions: the paired comparison the gate makes, metric by metric, the cases the two answer differently, the
@@ -162,6 +166,7 @@ public class PromptQualityMeasureScreen {
     private final Supplier<QualityGateSource> gate;
     private final Supplier<PromptVersionConsole> console;
     private final Supplier<PromptVersionService> versions;
+    private final Supplier<PromptVersionTrials> trials;
     private final ObjectMapper json;
     private final Clock clock;
 
@@ -169,13 +174,15 @@ public class PromptQualityMeasureScreen {
      * @param measurements a supplier of null when this application cannot replay decisions
      * @param gate         what the quality gate reads; a supplier of null when there is none
      * @param console      what tells the versions and the one decisions run now
+     * @param trials       the trials on the latest sealed decisions; a supplier of null when there are none
      */
     public PromptQualityMeasureScreen(@Nullable Supplier<PromptQualityMeasurements> measurements,
                                       PromptQualityCases cases,
                                       @Nullable Supplier<PromptQualityResourceClasses> classes,
                                       @Nullable Supplier<QualityGateSource> gate,
                                       @Nullable Supplier<PromptVersionConsole> console,
-                                      @Nullable Supplier<PromptVersionService> versions, ObjectMapper json,
+                                      @Nullable Supplier<PromptVersionService> versions,
+                                      @Nullable Supplier<PromptVersionTrials> trials, ObjectMapper json,
                                       @Nullable Clock clock) {
         this.measurements = measurements != null ? measurements : () -> null;
         this.cases = Objects.requireNonNull(cases, "cases");
@@ -183,6 +190,7 @@ public class PromptQualityMeasureScreen {
         this.gate = gate != null ? gate : () -> null;
         this.console = console != null ? console : () -> null;
         this.versions = versions != null ? versions : () -> null;
+        this.trials = trials != null ? trials : () -> null;
         this.json = Objects.requireNonNull(json, "json");
         this.clock = clock != null ? clock : Clock.systemUTC();
     }
@@ -198,9 +206,10 @@ public class PromptQualityMeasureScreen {
                 .map(set -> new SetOption(set.id(), set.version(), set.name(), set.caseCount(), set.publishedAt()))
                 .toList();
         if (runner == null) {
+            Page page0 = page(null, scopeName, shown);
             return new RunsView(scopeName, false, new Band(null, null, null, null, 0, 0),
-                    new Start(choices.options(), choices.used(), sets, List.of(), 0, List.of(), null), List.of(),
-                    List.of(), shown, PAGE_SIZE, 0);
+                    new Start(choices.options(), choices.used(), sets, List.of(), 0, PromptVersionTrials.COUNTS, null),
+                    List.of(), page0.rows(), shown, PAGE_SIZE, page0.total());
         }
         PromptQualityMeasurements.Settings settings = runner.settings();
         Band band = band();
@@ -211,17 +220,63 @@ public class PromptQualityMeasureScreen {
             repeats.add(runs);
         }
         Start start = new Start(choices.options(), choices.used(), sets, List.copyOf(repeats), settings.repeats(),
-                List.of(), estimate);
-        Map<Long, List<QualityCase>> read = new HashMap<>();
-        List<RunRow> rows = new ArrayList<>();
-        for (PromptQualityMeasurements.Measure measure : runner.list(scopeName, PROMPT, shown * PAGE_SIZE,
-                PAGE_SIZE)) {
-            rows.add(row(runner, measure, read));
-        }
+                PromptVersionTrials.COUNTS, estimate);
         List<Running> running = runner.list(scopeName, PROMPT, 0, RECENT).stream()
                 .filter(PromptQualityMeasureScreen::open).map(measure -> running(measure, settings)).toList();
-        return new RunsView(scopeName, true, band, start, running, List.copyOf(rows), shown, PAGE_SIZE,
-                runner.count(scopeName, PROMPT));
+        Page rows = page(runner, scopeName, shown);
+        return new RunsView(scopeName, true, band, start, running, rows.rows(), shown, PAGE_SIZE, rows.total());
+    }
+
+    /** A page of the list and how many measurements there are in all. */
+    private record Page(List<RunRow> rows, long total) {
+    }
+
+    /**
+     * A page of the measurements on the labelled cases and of the trials, one list newest first: the newest of both up
+     * to the end of the page, merged by when they were started.
+     */
+    private Page page(@Nullable PromptQualityMeasurements runner, String scope, int shown) {
+        int end = (shown + 1) * PAGE_SIZE;
+        PromptVersionTrials trial = trials.get();
+        // A measurement or a trial, by when it was started.
+        record Entry(Instant at, @Nullable PromptQualityMeasurements.Measure measure,
+                     @Nullable PromptVersionTrials.Trial trial) {
+        }
+        List<Entry> entries = new ArrayList<>();
+        if (runner != null) {
+            runner.list(scope, PROMPT, 0, end).forEach(measure -> entries.add(new Entry(measure.createdAt(), measure,
+                    null)));
+        }
+        if (trial != null) {
+            trial.recent(scope, PROMPT, end).forEach(one -> entries.add(new Entry(one.createdAt(), null, one)));
+        }
+        entries.sort(Comparator.comparing(Entry::at, Comparator.nullsLast(Comparator.reverseOrder())));
+        Map<Long, List<QualityCase>> read = new HashMap<>();
+        List<RunRow> rows = new ArrayList<>();
+        for (Entry entry : entries.subList(Math.min(entries.size(), shown * PAGE_SIZE), Math.min(entries.size(), end))) {
+            rows.add(entry.measure() != null ? row(runner, entry.measure(), read) : trialRow(trial, entry.trial()));
+        }
+        long total = (runner != null ? runner.count(scope, PROMPT) : 0) + (trial != null ? trial.count(scope, PROMPT) : 0);
+        return new Page(List.copyOf(rows), total);
+    }
+
+    /** A trial in the list: with no right answer, whether the two versions kept their actions and the format errors. */
+    private static RunRow trialRow(PromptVersionTrials trial, PromptVersionTrials.Trial one) {
+        boolean open = PromptVersionTrials.QUEUED.equals(one.status()) || PromptVersionTrials.RUNNING.equals(one.status());
+        Double progress = open && one.replays() > 0 ? Math.min(1.0, (double) one.replayed() / one.replays()) : null;
+        Integer pairs = null;
+        Integer same = null;
+        Long formatErrors = null;
+        if (PromptVersionTrials.DONE.equals(one.status())) {
+            Optional<PromptVersionTrials.Result> result = trial.result(one.id());
+            if (result.isPresent()) {
+                pairs = result.get().pairs();
+                same = result.get().sameAction();
+                formatErrors = result.get().candidate().formatErrors();
+            }
+        }
+        return new RunRow("SEALED", one.id(), one.candidateName(), null, one.status(), one.createdAt(), one.createdBy(),
+                null, null, progress, 0, null, null, one.referenceName(), one.requested(), pairs, same, formatErrors);
     }
 
     /** The model setting decisions are measured under now; empty values when nothing can be measured. */

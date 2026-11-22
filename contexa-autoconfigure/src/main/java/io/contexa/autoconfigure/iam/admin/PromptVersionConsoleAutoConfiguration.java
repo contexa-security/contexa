@@ -403,7 +403,7 @@ public class PromptVersionConsoleAutoConfiguration {
 
     /**
      * Quality plan 3.3, P46: what the screen of measure and compare shows, from the measurements, the cases, the
-     * resource classes, what the quality gate reads and the versions.
+     * resource classes, what the quality gate reads, the versions and the trials on the latest sealed decisions.
      */
     @Bean(name = "contexaPromptQualityMeasureScreen")
     @ConditionalOnMissingBean
@@ -414,10 +414,11 @@ public class PromptVersionConsoleAutoConfiguration {
                                                                  ObjectProvider<QualityGateSource> gateSources,
                                                                  ObjectProvider<PromptVersionConsole> console,
                                                                  ObjectProvider<PromptVersionService> versions,
+                                                                 ObjectProvider<PromptVersionTrials> trials,
                                                                  @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new PromptQualityMeasureScreen(measurements::getIfAvailable, contexaPromptQualityCases,
                 classes::getIfAvailable, gateSources::getIfUnique, console::getIfAvailable, versions::getIfAvailable,
-                objectMapper, Clock.systemUTC());
+                trials::getIfAvailable, objectMapper, Clock.systemUTC());
     }
 
     /** Quality plan 3.3: the JSON of the screen of measure and compare. */
