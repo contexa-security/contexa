@@ -165,8 +165,9 @@
                 return P.scoped(paths.measure);
             case 'REMEASURE_WORSE':
             case 'REMEASURE_CHANGED':
-                return P.scoped(paths.measure + '/compare', {base: figures.comparedMeasureId,
-                    candidate: figures.measureId});
+                // Two measurements of the same version by their ids: the scheduled one against the one before it.
+                return P.scoped(paths.measure + '/compare', {candidateMeasure: figures.measureId,
+                    referenceMeasure: figures.comparedMeasureId});
             case 'CASES_PENDING':
                 return P.scoped(paths.cases, {view: 'pending'});
             case 'REVIEW_PENDING':

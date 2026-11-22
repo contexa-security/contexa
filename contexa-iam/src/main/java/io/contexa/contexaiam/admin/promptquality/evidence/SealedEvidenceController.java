@@ -16,13 +16,11 @@
 package io.contexa.contexaiam.admin.promptquality.evidence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.std.components.prompt.quality.QualityAction;
-import io.contexa.contexacore.std.components.prompt.quality.QualityCaseClass;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCaseExpectation;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCaseGrade;
-import io.contexa.contexacore.std.components.prompt.quality.QualityCaseKind;
-import io.contexa.contexacore.std.components.prompt.quality.QualityCaseRationale;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseAnswerForm;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotionViews;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionScreen;
@@ -48,11 +46,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.EnumSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -73,10 +68,12 @@ public class SealedEvidenceController {
     static final String INSPECTION_API = "/contexa/admin/api/prompt-inspection";
     static final String REPLAY_API = "/contexa/admin/api/sealed-decisions";
     /**
-     * The messages the screen reads: its own, the period buttons', the console's status words, units, actions and
-     * explanations, and the names of the checks a stored result of an earlier inspector names.
+     * The messages the screen reads: its own, the input window of the answer of a case, the period buttons', the
+     * console's status words, units, actions and explanations, and the names of the checks a stored result of an
+     * earlier inspector names.
      */
-    static final String[] MESSAGE_PREFIXES = {"pqa.evidence.", "zt.console.ui.period.", "zt.console.ui.status.",
+    static final String[] MESSAGE_PREFIXES = {"pqa.evidence.", "pqa.answer.", "zt.console.ui.period.",
+            "zt.console.ui.status.",
             "zt.console.ui.unit.", "zt.console.ui.action.", "zt.console.ui.decisions.hypothesis.",
             "promptInspection.check.", "promptInspection.verdict.", "promptInspection.trigger."};
 
@@ -174,85 +171,35 @@ public class SealedEvidenceController {
 
     // ----- the case of a sealed decision (quality plan 3.6) -----
 
-    /**
-     * The right answer an administrator sets for a sealed decision: the actions that are right, the one preferred
-     * among them, what the decision is (a threat, normal or uncertain) and who acts, why, and the case's grade.
-     */
-    public record CaseRequest(List<String> allowedActions, String preferredAction, String classification, String kind,
-                              String rationale, String grade) {
-    }
-
-    /** The case a sealed decision became: its key and whether it waits for another administrator's confirmation. */
-    public record Promotion(String caseKey, String status, String sealedPackageId) {
-    }
-
-    /** Why a sealed decision could not be made a case: the refusal of the cases and its message. */
-    public record Refused(String refusal, String message) {
-    }
-
     /** Makes the sealed decision a case of the scope; a decision that is not sealed is refused as such. */
     @ResponseBody
     @PostMapping(API + "/{packageId}/case")
-    public ResponseEntity<?> promote(@PathVariable String packageId,
-                                                       @RequestParam(required = false) String scope,
-                                                       @RequestBody CaseRequest request, Locale locale,
-                                                       Authentication authentication) {
+    public ResponseEntity<?> promote(@PathVariable String packageId, @RequestParam(required = false) String scope,
+                                     @RequestBody QualityCaseAnswerForm answer, Locale locale,
+                                     Authentication authentication) {
         requireAdmin(authentication);
         QualityCasePromotions promoting = promotions.get();
         if (promoting == null) {
-            return refused(HttpStatus.SERVICE_UNAVAILABLE, "UNAVAILABLE", "The labelled cases are not here");
+            return QualityCasePromotionViews.refused(HttpStatus.SERVICE_UNAVAILABLE, "UNAVAILABLE",
+                    "The labelled cases are not here");
         }
         QualityCaseExpectation expectation;
         QualityCaseGrade grade;
         try {
-            expectation = expectation(request, locale);
-            grade = QualityCaseGrade.valueOf(text(request.grade(), QualityCaseGrade.ORDINARY.name()));
+            expectation = answer.expectation(locale);
+            grade = answer.caseGrade();
         }
         catch (IllegalArgumentException | NullPointerException unreadable) {
-            return refused(HttpStatus.BAD_REQUEST, PromptQualityCases.Refusal.INVALID.name(),
+            return QualityCasePromotionViews.refused(HttpStatus.BAD_REQUEST, PromptQualityCases.Refusal.INVALID.name(),
                     unreadable.getMessage());
         }
         try {
-            QualityCasePromotions.Promoted promoted = promoting.fromSealed(scope, packageId, expectation, grade,
-                    authentication.getName());
-            return ResponseEntity.ok(new Promotion(promoted.kept().key(), promoted.kept().status(),
-                    promoted.sealedPackageId()));
+            return ResponseEntity.ok(QualityCasePromotionViews.Promotion.of(promoting.fromSealed(scope, packageId,
+                    expectation, grade, authentication.getName())));
         }
         catch (PromptQualityCases.RefusedException refusal) {
-            HttpStatus status = switch (refusal.refusal()) {
-                case NOT_FOUND -> HttpStatus.NOT_FOUND;
-                case INVALID, PROMPT -> HttpStatus.BAD_REQUEST;
-                default -> HttpStatus.CONFLICT;
-            };
-            return refused(status, refusal.refusal().name(), refusal.getMessage());
+            return QualityCasePromotionViews.refused(refusal);
         }
-    }
-
-    private static QualityCaseExpectation expectation(CaseRequest request, Locale locale) {
-        Set<QualityAction> allowed = EnumSet.noneOf(QualityAction.class);
-        for (String name : request.allowedActions() != null ? request.allowedActions() : List.<String>of()) {
-            QualityAction action = QualityAction.parse(name);
-            if (action == null) {
-                throw new IllegalArgumentException("Unknown action " + name);
-            }
-            allowed.add(action);
-        }
-        QualityAction preferred = request.preferredAction() == null || request.preferredAction().isBlank() ? null
-                : Objects.requireNonNull(QualityAction.parse(request.preferredAction()), "Unknown preferred action");
-        String reason = request.rationale();
-        boolean korean = locale != null && Locale.KOREAN.getLanguage().equals(locale.getLanguage());
-        return new QualityCaseExpectation(allowed, preferred,
-                QualityCaseClass.valueOf(text(request.classification(), "")),
-                QualityCaseKind.valueOf(text(request.kind(), "")),
-                new QualityCaseRationale(korean ? reason : null, korean ? null : reason), List.of());
-    }
-
-    private static String text(String value, String otherwise) {
-        return value == null || value.isBlank() ? otherwise : value.trim().toUpperCase(Locale.ROOT);
-    }
-
-    private static ResponseEntity<Refused> refused(HttpStatus status, String refusal, String message) {
-        return ResponseEntity.status(status).body(new Refused(refusal, message));
     }
 
     private static void requireAdmin(Authentication authentication) {

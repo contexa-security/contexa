@@ -115,6 +115,8 @@ class PromptQualityPageControllerTest {
         // A view is chosen by its name (view=...) among the views of the screen; a name it does not know opens the
         // page's own view.
         mvc.perform(get(PromptQualityScreens.MEASURE + "/41").param("view", "causes").principal(admin))
+                .andExpect(model().attribute("view", "causes")).andExpect(model().attribute("measureId", 41L));
+        mvc.perform(get(PromptQualityScreens.MEASURE + "/41").param("view", "reasons").principal(admin))
                 .andExpect(model().attribute("view", "run")).andExpect(model().attribute("measureId", 41L));
         mvc.perform(get(PromptQualityScreens.MEASURE).param("view", "compare").principal(admin))
                 .andExpect(model().attribute("view", "compare"));

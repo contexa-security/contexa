@@ -91,8 +91,11 @@
         const fields = [choice('action', ACTIONS, action => ZT.t('zt.console.ui.action.' + action)),
             choice('version', page.versions || []), choice('result', RESULTS, result => m('filter.result.' + result)),
             choice('user', [])];
-        // A block or an entry comes from a link of the sealed prompt list; "All" clears it.
-        ['block', 'entry'].filter(name => params.get(name)).forEach(name => fields.push(choice(name, [])));
+        // The sealed prompt list filtered by a finding in a block, with an entry, or both: typed, as it was.
+        const typed = ['block', 'entry'].map(name => el('input', {type: 'text', class: 'modern-input', name,
+            maxlength: '128', placeholder: m('filter.' + name + 'Hint'), 'aria-label': m('filter.' + name),
+            value: params.get(name) || ''}));
+        typed.forEach(input => fields.push(P.field(m('filter.' + input.name), input)));
         const search = el('input', {type: 'search', class: 'modern-input', name: 'q', placeholder: m('filter.q'),
             'aria-label': m('filter.q'), value: params.get('q') || ''});
         const submit = P.button(m('filter.search'), 'fa-search', 'primary', {type: 'submit'});
@@ -106,7 +109,7 @@
         });
         formNode.addEventListener('submit', event => {
             event.preventDefault();
-            go({q: search.value.trim(), page: null});
+            go({q: search.value.trim(), block: typed[0].value.trim(), entry: typed[1].value.trim(), page: null});
         });
         clear.addEventListener('click', () => {
             const cleared = {q: null, page: null};
@@ -327,10 +330,32 @@
         return P.foot(card, again);
     }
 
+    /**
+     * The lines of the user prompt the audit compared, each with the checks that matched it and the findings on it, as
+     * the sealed prompt detail showed them line by line.
+     */
+    function matchedLines(inspection) {
+        const lines = (inspection && inspection.lines ? inspection.lines : []).filter(line =>
+            (line.matchedBy || []).length || (line.findings || []).length);
+        if (!lines.length) {
+            return P.muted(m('detail.noMatchedLines'));
+        }
+        return el('details', {class: 'zt-item', 'data-form': 'matched-lines'},
+            el('summary', {class: 'zt-link', text: m('detail.matchedLines', ZT.count(lines.length))}),
+            el('ul', {class: 'zt-rows'}, lines.map(line => el('li', {class: 'zt-fact flex items-start gap-3',
+                'data-line': line.number},
+            el('span', {class: 'zt-fact-id', text: String(line.number)}),
+            el('span', {class: 'zt-item min-w-0'}, el('span', {class: 'zt-fact-value pv-wrap', text: line.text}),
+                (line.matchedBy || []).length ? P.muted(m('detail.matchedBy', line.matchedBy.map(checkName).join(', ')))
+                    : null,
+                ...(line.findings || []).map(finding => el('span', {class: 'zt-muted', text: findingText(finding)})))))));
+    }
+
     function insideCard(detail) {
         const prompt = el('div', {class: 'zt-item', style: {gap: '0.75rem'}},
             P.muted(m('detail.system')), el('pre', {class: 'pv-text', tabindex: '0', text: detail.systemPrompt || '—'}),
-            P.muted(m('detail.user')), el('pre', {class: 'pv-text', tabindex: '0', text: detail.userPrompt || '—'}));
+            P.muted(m('detail.user')), el('pre', {class: 'pv-text', tabindex: '0', text: detail.userPrompt || '—'}),
+            matchedLines(detail.inspection));
         const facts = detail.facts.length ? el('ul', {class: 'zt-rows'}, detail.facts.map(fact => el('li',
             {class: 'zt-fact flex items-start gap-3', 'data-fact': fact.id},
             el('span', {class: 'zt-fact-id', text: fact.id}),
@@ -446,55 +471,22 @@
 
     /** The right answer of the decision as a labelled case (plan 3.6); a decision that is not sealed is refused. */
     async function promoteDecision(detail) {
-        const select = (name, values, label) => el('select', {class: 'modern-select', name},
-            values.map(value => el('option', {value, text: label(value)})));
-        const classification = select('classification', ['THREAT', 'NORMAL', 'UNCERTAIN'],
-            value => m('case.class.' + value));
-        const kind = select('kind', ['OUTSIDER', 'INSIDER', 'NORMAL_WORK', 'AUTOMATION'], value => m('case.kind.' + value));
-        const grade = select('grade', ['ORDINARY', 'MUST_CATCH', 'MUST_NOT_BLOCK'], value => m('case.grade.' + value));
-        const preferred = el('select', {class: 'modern-select', name: 'preferredAction'},
-            el('option', {value: '', text: m('case.noPreferred')}),
-            ACTIONS.map(action => el('option', {value: action, text: ZT.t('zt.console.ui.action.' + action)})));
-        const boxes = ACTIONS.map(action => el('input', {type: 'checkbox', value: action,
-            name: 'allowedActions', checked: action === detail.action ? true : null}));
-        const allowed = el('div', {class: 'flex flex-wrap items-center gap-3', role: 'group',
-            'aria-label': m('case.allowed')}, boxes.map((box, index) => el('label',
-            {class: 'flex items-center gap-1'}, box, el('span', {text: ZT.t('zt.console.ui.action.' + ACTIONS[index])}))));
-        const rationale = el('textarea', {class: 'modern-input zt-textarea', name: 'rationale', rows: '2',
-            maxlength: '1000', placeholder: m('case.rationaleHint')});
-        const chosen = () => boxes.filter(box => box.checked).map(box => box.value);
+        const answer = global.PQA_CASE_ANSWER.fields({action: detail.action});
         const asked = await P.dialog({title: m('promote.title'),
             rows: [[m('column.who'), ZT.time(detail.capturedAt) + ' · ' + (detail.userId || '—')],
                 [m('replay.original'), detail.action ? ZT.t('zt.console.ui.action.' + detail.action) : '—']],
-            content: [el('div', {class: 'zt-filter-grid'}, P.field(m('case.classification'), classification),
-                P.field(m('case.kind'), kind), P.field(m('case.grade'), grade),
-                P.field(m('case.preferred'), preferred)),
-            P.field(m('case.allowed'), allowed), P.field(m('case.rationale'), rationale), P.muted(m('promote.note'))],
+            content: [answer.node, P.muted(m('promote.note'))],
             confirmLabel: m('promote.run'), cancelLabel: m('dialog.cancel'), icon: 'fa-upload',
-            check: () => {
-                const actions = chosen();
-                const fine = actions.length > 0 && rationale.value.trim() !== ''
-                    && (!preferred.value || actions.includes(preferred.value));
-                allowed.setAttribute('aria-invalid', String(!actions.length));
-                rationale.setAttribute('aria-invalid', String(!rationale.value.trim()));
-                preferred.setAttribute('aria-invalid', String(Boolean(preferred.value) && !actions.includes(preferred.value)));
-                return fine;
-            }});
+            check: answer.check});
         if (!asked) {
             return;
         }
         try {
             const done = await P.call(api + '/' + encodeURIComponent(detail.packageId) + '/case'
-                + P.query({scope: ZT.query().get('scope')}), {method: 'POST', body: {allowedActions: chosen(),
-                preferredAction: preferred.value || null, classification: classification.value, kind: kind.value,
-                rationale: rationale.value.trim(), grade: grade.value}});
-            P.notice('good', m(done.status === 'CONFIRMED' ? 'promote.confirmed' : 'promote.pending'),
-                [m('promote.key', done.caseKey)]);
+                + P.query({scope: ZT.query().get('scope')}), {method: 'POST', body: answer.read()});
+            P.notice('good', m('promote.done'), global.PQA_CASE_ANSWER.doneLines(done));
         } catch (error) {
-            const refusal = error.body && error.body.refusal ? error.body.refusal : null;
-            const key = 'pqa.evidence.promote.refusal.' + refusal;
-            P.notice('bad', m('promote.failed'), [refusal && ZT.t(key) !== key ? ZT.t(key)
-                : error.body && error.body.message ? error.body.message : null]);
+            P.notice('bad', m('promote.failed'), [global.PQA_CASE_ANSWER.refusal(error.body)]);
         }
     }
 

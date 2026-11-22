@@ -18,6 +18,8 @@ package io.contexa.autoconfigure.iam.admin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseDecisionController;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotionController;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
@@ -27,6 +29,8 @@ import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityResourceCl
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityRunLine;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseApiController;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseScreen;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCauseApiController;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCauseScreen;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureApiController;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureScreen;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityNavAdvice;
@@ -106,6 +110,13 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).hasSingleBean(PromptQualityCaseApiController.class);
                     assertThat(context).hasSingleBean(PromptQualityMeasureScreen.class);
                     assertThat(context).hasSingleBean(PromptQualityMeasureApiController.class);
+                    // Quality plan 3.5: the view of the wrong cases and their causes, and its JSON.
+                    assertThat(context).hasSingleBean(PromptQualityCauseScreen.class);
+                    assertThat(context).hasSingleBean(PromptQualityCauseApiController.class);
+                    // Quality plan 3.6: the decisions of a trial made cases, refused when there are no seals.
+                    assertThat(context).hasSingleBean(QualityCasePromotionController.class);
+                    // Quality plan 3.6: a decision of the Zero Trust console evaluated and made a case in one step.
+                    assertThat(context).hasSingleBean(QualityCaseDecisionController.class);
                     assertThat(context.getBean(PromptQualityMeasureScreen.class).band().model()).isNull();
                     assertThat(context.getBean(PromptQualityNavCounts.class)
                             .count(PromptQualityScreens.Count.SEALED, null)).isNull();
@@ -199,6 +210,9 @@ class PromptVersionConsoleAutoConfigurationTest {
             assertThat(context).doesNotHaveBean(PromptQualityReportController.class);
             assertThat(context).doesNotHaveBean(PromptQualityCaseScreen.class);
             assertThat(context).doesNotHaveBean(PromptQualityMeasureApiController.class);
+            assertThat(context).doesNotHaveBean(PromptQualityCauseScreen.class);
+            assertThat(context).doesNotHaveBean(QualityCasePromotionController.class);
+            assertThat(context).doesNotHaveBean(QualityCaseDecisionController.class);
         });
         runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
                 .withPropertyValues("contexa.prompt.governance.enabled=false")

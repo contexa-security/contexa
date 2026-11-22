@@ -93,11 +93,13 @@ class PromptQualityScreenTemplateTest {
     void theViewsOfMeasureAndCompareAreOneTabBarWithTheBarsCountInBothLanguages() {
         HashMap<String, Object> runs = variables("measure", "runs", Locale.KOREAN, null);
         List<Drawn> korean = tabs(render("measure", Locale.KOREAN, runs));
-        assertThat(korean).extracting(Drawn::view).containsExactly("runs", "run", "compare");
-        assertThat(korean).extracting(Drawn::text).containsExactly("측정 목록 6", "한 판의 결과", "두 판의 비교");
-        assertThat(korean).extracting(Drawn::selected).containsExactly("true", "false", "false");
+        assertThat(korean).extracting(Drawn::view).containsExactly("runs", "run", "compare", "causes");
+        assertThat(korean).extracting(Drawn::text).containsExactly("측정 목록 6", "한 판의 결과", "두 판의 비교",
+                "틀린 사례와 원인");
+        assertThat(korean).extracting(Drawn::selected).containsExactly("true", "false", "false", "false");
         assertThat(korean).extracting(Drawn::href).containsExactly("/contexa/admin/prompt-quality/measure",
-                "/contexa/admin/prompt-quality/measure/run", "/contexa/admin/prompt-quality/measure/compare");
+                "/contexa/admin/prompt-quality/measure/run", "/contexa/admin/prompt-quality/measure/compare",
+                "/contexa/admin/prompt-quality/measure/run?view=causes");
 
         HashMap<String, Object> trial = variables("measure", "trial", Locale.ENGLISH, "tenant-a");
         trial.put("trialId", 7L);
@@ -107,10 +109,11 @@ class PromptQualityScreenTemplateTest {
                 .contains("data-view=\"trial\"").contains("class=\"pc-tab-btn active\"")
                 .contains("data-api-base=\"/contexa/admin/api/prompt-quality/versions\"")
                 .contains("aria-label=\"Views of measure and compare\"");
-        assertThat(english).extracting(Drawn::text).containsExactly("Measurements 6", "One version", "Two versions");
+        assertThat(english).extracting(Drawn::text).containsExactly("Measurements 6", "One version", "Two versions",
+                "Wrong cases and causes");
         // The result of a trial stands under "two versions".
-        assertThat(english).extracting(Drawn::selected).containsExactly("false", "false", "true");
-        assertThat(english).extracting(Drawn::href).allSatisfy(href -> assertThat(href).endsWith("?scope=tenant-a"));
+        assertThat(english).extracting(Drawn::selected).containsExactly("false", "false", "true", "false");
+        assertThat(english).extracting(Drawn::href).allSatisfy(href -> assertThat(href).endsWith("scope=tenant-a"));
 
         HashMap<String, Object> compare = variables("measure", "compare", Locale.KOREAN, null);
         compare.put("candidate", 3);
@@ -123,9 +126,10 @@ class PromptQualityScreenTemplateTest {
         // On the page of one measurement the views of a measurement open on it.
         HashMap<String, Object> run = variables("measure", "run", Locale.KOREAN, null, 41L);
         List<Drawn> onRun = tabs(render("measure", Locale.KOREAN, run));
-        assertThat(onRun).extracting(Drawn::selected).containsExactly("false", "true", "false");
+        assertThat(onRun).extracting(Drawn::selected).containsExactly("false", "true", "false", "false");
         assertThat(onRun).extracting(Drawn::href).containsExactly("/contexa/admin/prompt-quality/measure",
-                "/contexa/admin/prompt-quality/measure/41", "/contexa/admin/prompt-quality/measure/compare");
+                "/contexa/admin/prompt-quality/measure/41", "/contexa/admin/prompt-quality/measure/compare",
+                "/contexa/admin/prompt-quality/measure/41?view=causes");
     }
 
     /** With no bar (no count read) and no data the frame is still drawn, the tabs without counts. */
@@ -138,7 +142,8 @@ class PromptQualityScreenTemplateTest {
         String page = render("measure", Locale.ENGLISH, variables);
 
         assertThat(page).doesNotContain("pc-tab-nav").contains("id=\"zt-content\"");
-        assertThat(tabs(page)).extracting(Drawn::text).containsExactly("Measurements", "One version", "Two versions");
+        assertThat(tabs(page)).extracting(Drawn::text).containsExactly("Measurements", "One version", "Two versions",
+                "Wrong cases and causes");
         assertThat(render("cases", Locale.ENGLISH, new HashMap<>())).contains("id=\"pv-title\">Labelled cases</h1>");
     }
 
@@ -158,7 +163,8 @@ class PromptQualityScreenTemplateTest {
                     "/contexa/js/admin/prompt-quality/" + screen + ".js?v=20261122-s1");
         }
         assertThat(read("templates/contexa/admin/prompt-quality/measure.html"))
-                .contains("/contexa/js/admin/prompt-quality/measure-trials.js?v=20261122-s1")
+                .contains("/contexa/js/admin/prompt-quality/measure-trials.js?v=20261122-s3b")
+                .contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261122-s3b")
                 .contains("th:each=\"extra : ${viewScripts}\"");
         assertThat(read("templates/contexa/fragments/admin-menu.html")).contains("admin-menu.js?v=20261122-s1");
     }

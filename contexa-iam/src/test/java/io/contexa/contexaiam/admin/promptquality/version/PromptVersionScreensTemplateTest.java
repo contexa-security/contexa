@@ -61,7 +61,8 @@ class PromptVersionScreensTemplateTest {
             for (String screen : SCREENS) {
                 String page = render(screen, locale);
 
-                assertThat(tabs(page)).as(screen).containsExactly("cases", "measure", "versions", "evidence");
+                assertThat(tabs(page)).as(screen).containsExactly("status", "cases", "measure", "versions",
+                        "evidence");
                 assertThat(page).as(screen)
                         .containsPattern("<a\\s[^>]*class=\"pc-tab-btn active\"[^>]*data-pqa-tab=\"versions\""
                                 + "[^>]*aria-current=\"page\"")

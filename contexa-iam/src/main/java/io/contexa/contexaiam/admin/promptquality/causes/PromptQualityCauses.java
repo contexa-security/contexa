@@ -203,6 +203,14 @@ public class PromptQualityCauses {
                 ? strategy.getLayer1().getTimeout().getLlmMs() : 0L;
     }
 
+    /**
+     * The time limit a first-layer model call of the decisions has, which tells a timeout apart (plan 3.5: the screen
+     * states the conditions a cause is computed under); 0 or less when it is not known.
+     */
+    public long timeLimitMillis() {
+        return timeLimitMillis.getAsLong();
+    }
+
     // ----- measurements -----
 
     /**
@@ -251,6 +259,16 @@ public class PromptQualityCauses {
                     measureId, wrong.size(), written);
         }
         return wrong.size();
+    }
+
+    /**
+     * How many wrong answers of the measurement are put down to a cause, as they are kept: the count beside the view of
+     * the causes, read without classifying again (a measurement is classified when it is done).
+     */
+    public int countOfMeasurement(long measureId) {
+        Integer count = jdbc.get().queryForObject("select count(*) from ctxa_prompt_version_case_cause where"
+                + " measure_id = ?", Integer.class, measureId);
+        return count != null ? count : 0;
     }
 
     /** The causes of the wrong answers of the measurement, classified first; empty when there is no such measurement. */
