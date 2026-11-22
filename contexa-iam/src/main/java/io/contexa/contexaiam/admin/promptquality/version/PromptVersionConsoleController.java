@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentException;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityScreens;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.AdvancedView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Cancelled;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.CheckView;
@@ -70,9 +71,10 @@ import java.util.Objects;
 import java.util.OptionalInt;
 
 /**
- * The prompt version screens (plan 3.10): the list, a version, a new version, the trials and the advanced screen, and
- * the JSON they read and send. Every screen and call is an administrator's; every change is a POST, which the console's
- * CSRF protection covers.
+ * The prompt version screens (plan 3.10): the list, a version, a new version and the advanced screen, and the JSON they
+ * read and send. The trials moved to measure and compare (quality plan 3.8): their addresses lead there, their JSON
+ * stays here. Every screen and call is an administrator's; every change is a POST, which the console's CSRF protection
+ * covers.
  */
 @Controller
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
@@ -121,15 +123,20 @@ public class PromptVersionConsoleController {
         return page("new", model, locale, authentication);
     }
 
+    /** Quality plan 3.8: the trials moved to measure and compare; their start opens there, for the version asked. */
     @GetMapping(BASE + "/trials")
-    public String trialsPage(Model model, Locale locale, Authentication authentication) {
-        return page("trials", model, locale, authentication);
+    public String trialsPage(@RequestParam(required = false) String scope, @RequestParam(required = false) String prompt,
+                             @RequestParam(required = false) Integer candidate, Authentication authentication) {
+        requireAdmin(authentication);
+        return "redirect:" + PromptQualityScreens.MEASURE + query(scope, prompt, candidate);
     }
 
+    /** Quality plan 3.8: a trial's result opens in measure and compare. */
     @GetMapping(BASE + "/trials/{id:\\d+}")
-    public String trialPage(@PathVariable long id, Model model, Locale locale, Authentication authentication) {
-        model.addAttribute("trialId", id);
-        return page("trials", model, locale, authentication);
+    public String trialPage(@PathVariable long id, @RequestParam(required = false) String scope,
+                            @RequestParam(required = false) String prompt, Authentication authentication) {
+        requireAdmin(authentication);
+        return "redirect:" + PromptQualityScreens.MEASURE + "/trials/" + id + query(scope, prompt, null);
     }
 
     @GetMapping(BASE + "/advanced")
@@ -156,21 +163,28 @@ public class PromptVersionConsoleController {
         return "redirect:" + (number.isPresent() ? BASE + "/" + number.getAsInt() : BASE) + query(registryScope, promptKey);
     }
 
-    /** The comparison of the release screens: the trials, where two versions are compared and the shadow results read. */
+    /** The comparison of the release screens: measure and compare, where the trials moved and the shadow results are. */
     @GetMapping(RELEASES + "/compare")
     public String releaseCompare(@RequestParam(required = false) String registryScope,
                                  @RequestParam(required = false) String promptKey, Authentication authentication) {
         requireAdmin(authentication);
-        return "redirect:" + BASE + "/trials" + query(registryScope, promptKey);
+        return "redirect:" + PromptQualityScreens.MEASURE + query(registryScope, promptKey);
     }
 
     private static String query(String scope, String prompt) {
+        return query(scope, prompt, null);
+    }
+
+    private static String query(String scope, String prompt, Integer candidate) {
         UriComponentsBuilder query = UriComponentsBuilder.newInstance();
         if (scope != null && !scope.isBlank()) {
             query.queryParam("scope", scope.trim());
         }
         if (prompt != null && !prompt.isBlank()) {
             query.queryParam("prompt", prompt.trim());
+        }
+        if (candidate != null) {
+            query.queryParam("candidate", candidate);
         }
         return query.encode(StandardCharsets.UTF_8).build().toUriString();
     }
@@ -181,6 +195,7 @@ public class PromptVersionConsoleController {
         model.addAttribute("activePage", ACTIVE_PAGE);
         model.addAttribute("apiBase", API);
         model.addAttribute("pagesBase", BASE);
+        model.addAttribute("measureBase", PromptQualityScreens.MEASURE);
         model.addAttribute("scriptMessagesJson", ZeroTrustConsoleMessages.json(messages, locale, objectMapper,
                 MESSAGE_PREFIXES));
         return "contexa/admin/prompt-version/" + screen;

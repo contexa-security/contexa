@@ -12,6 +12,9 @@
     const root = document.getElementById('zt-console');
     const API = root ? root.dataset.apiBase : '/contexa/admin/api/prompt-quality/versions';
     const PAGES = root ? root.dataset.pagesBase : '/contexa/admin/prompt-quality/versions';
+    /** Measure and compare (quality plan 3.8), where the trials moved: a version is measured and compared there. */
+    const MEASURE = root && root.dataset.measureBase ? root.dataset.measureBase
+        : '/contexa/admin/prompt-quality/measure';
     const KEPT = ['prompt', 'scope'];
     const ACTIONS = ['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK'];
 
@@ -41,6 +44,17 @@
 
     function page(path, extra) {
         return PAGES + (path || '') + kept(extra);
+    }
+
+    /** A page of measure and compare, with the prompt and the scope kept as the version screens keep them. */
+    function measurePage(path, extra) {
+        return MEASURE + (path || '') + kept(extra);
+    }
+
+    /** The number of a version by its name (v3.0 is 3); null for a name that is no version's. */
+    function numberOf(name) {
+        const match = /^v(\d+)(?:\.|$)/.exec(String(name == null ? '' : name));
+        return match ? Number(match[1]) : null;
     }
 
     function api(path, extra) {
@@ -231,25 +245,15 @@
     }
 
     /**
-     * The tab bar keeps the prompt and the scope; the trials are the security decision's (plan 3.11), the advanced
-     * screen holds the folder, the documents and the history of every prompt.
+     * Quality plan 3.8: the menu bar of the prompt quality assurance group stands where the version screens' tabs
+     * stood. The server keeps the scope on its links; the menu of the versions keeps the prompt too, so it opens the
+     * versions of the prompt the screen shows. The bar's counts are the server's, the same on every screen of the group.
      */
-    function tabs(view) {
-        document.querySelectorAll('a[data-pv-tab]').forEach(link => {
-            const target = new URL(link.getAttribute('href'), global.location.origin);
-            link.setAttribute('href', target.pathname + kept());
-            const only = link.dataset.pvTab === 'trials';
-            link.hidden = only && view && view.decisionPrompt === false;
-            // The version list tab counts the versions shown, as the policy center's tabs count theirs.
-            if (link.dataset.pvTab === 'list' && view && view.counts) {
-                let count = link.querySelector('.tab-count');
-                if (!count) {
-                    count = el('span', {class: 'tab-count'});
-                    link.append(count);
-                }
-                count.textContent = ZT.count(view.counts.total);
-            }
-        });
+    function tabs() {
+        const own = document.querySelector('a[data-pqa-tab="versions"]');
+        if (own) {
+            own.setAttribute('href', PAGES + kept());
+        }
     }
 
     /**
@@ -480,8 +484,9 @@
     }
 
     global.PV = {
-        API, PAGES, ACTIONS, params, page, api, get, send, word, promptName, stateText, stateChip, useLabel, actionName,
-        origin, maker, partName, versionLabel, problemText, blockerText, refusalText, refusedLines, band, tabs, toolbar, button,
-        notice, clearNotice, confirm, useVersion, fill, fold, actionBar, textBox, tokens, signed, paged
+        API, PAGES, MEASURE, ACTIONS, params, page, measurePage, numberOf, api, get, send, word, promptName, stateText,
+        stateChip, useLabel, actionName, origin, maker, partName, versionLabel, problemText, blockerText, refusalText,
+        refusedLines, band, tabs, toolbar, button, notice, clearNotice, confirm, useVersion, fill, fold, actionBar,
+        textBox, tokens, signed, paged
     };
 })(window);

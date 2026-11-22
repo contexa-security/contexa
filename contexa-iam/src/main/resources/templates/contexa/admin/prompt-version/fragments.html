@@ -3,42 +3,34 @@
 <body>
 <!--
   The frame of every prompt version screen (plan 3.10), in the admin console's own components as the policy center and
-  the Zero Trust console draw them: the page card, the gradient title and its sentence, the tab bar of the screens,
-  the choice of the prompt and the scope in a filter box, the notices, the place the screen draws in, the policy
-  center's confirmation, and the screens' messages for their script.
+  the Zero Trust console draw them: the page card, the way back above the title of a screen opened from the list, the
+  gradient title and its sentence, the menu bar of the prompt quality assurance group (quality plan 3.8, in place of the
+  tabs the version screens had), the choice of the prompt and the scope in a filter box, the notices, the place the
+  screen draws in, the policy center's confirmation, and the screens' messages for their script. The advanced screen
+  opens from a button in the title row of the list.
 -->
 <div th:fragment="console(title, question, tab)" class="zt-page modern-card" id="zt-console"
-     th:data-api-base="${apiBase}" th:data-pages-base="${pagesBase}" th:data-screen="${screen}"
-     th:data-version-number="${versionNumber}" th:data-trial-id="${trialId}"
+     th:data-api-base="${apiBase}" th:data-pages-base="${pagesBase}" th:data-measure-base="${measureBase}"
+     th:data-screen="${screen}" th:data-version-number="${versionNumber}" th:data-trial-id="${trialId}"
      th:data-csrf-token="${_csrf != null ? _csrf.token : ''}"
      th:data-csrf-header="${_csrf != null ? _csrf.headerName : 'X-CSRF-TOKEN'}">
     <script type="application/json" id="zt-messages" th:utext="${scriptMessagesJson}"></script>
     <div class="zt-title-row pv-title-row mb-6">
         <div class="min-w-0">
-            <nav class="pv-crumbs" id="pv-crumbs" th:attr="aria-label=#{pv.ui.crumbs}"></nav>
+            <nav class="pv-crumbs" id="pv-crumbs" th:attr="aria-label=#{pv.ui.crumbs}"><th:block
+                    th:if="${tab == 'advanced'}"><a class="zt-link" th:href="@{/contexa/admin/prompt-quality/versions}"
+                    data-pv-crumb="list" th:text="#{pv.ui.title.list}">Prompt versions</a><span class="zt-muted"
+                    th:text="' › ' + #{pv.ui.title.advanced}"> › Advanced</span></th:block></nav>
             <h1 class="text-3xl font-bold pc-header-gradient" id="pv-title" th:text="${title}">Prompt versions</h1>
             <p class="text-dark-muted mt-1" id="pv-question" th:text="${question}">Question</p>
         </div>
-        <div class="zt-toolbar" id="pv-toolbar"></div>
+        <div class="zt-toolbar" id="pv-toolbar"><a th:if="${tab == 'list'}" class="modern-btn-secondary"
+                id="pv-advanced" data-pv-action="advanced" th:href="@{/contexa/admin/prompt-quality/versions/advanced}"
+                th:title="#{pv.ui.advancedTip}"><i class="fas fa-sliders-h" aria-hidden="true"></i><span
+                th:text="#{pv.ui.title.advanced}">Advanced</span></a></div>
     </div>
 
-    <nav class="pc-tab-nav zt-tab-nav mb-6" th:attr="aria-label=#{pv.ui.tabs}">
-        <a th:href="@{/contexa/admin/prompt-quality/versions}" class="pc-tab-btn" data-pv-tab="list"
-           th:classappend="${tab == 'list'} ? ' active' : ''"
-           th:attr="aria-current=${tab == 'list'} ? 'page' : null">
-            <i class="fas fa-code-branch" aria-hidden="true"></i><span th:text="#{pv.ui.tab.list}">Versions</span>
-        </a>
-        <a th:href="@{/contexa/admin/prompt-quality/versions/trials}" class="pc-tab-btn" data-pv-tab="trials"
-           th:classappend="${tab == 'trials'} ? ' active' : ''"
-           th:attr="aria-current=${tab == 'trials'} ? 'page' : null">
-            <i class="fas fa-vial" aria-hidden="true"></i><span th:text="#{pv.ui.tab.trials}">Trial decisions</span>
-        </a>
-        <a th:href="@{/contexa/admin/prompt-quality/versions/advanced}" class="pc-tab-btn" data-pv-tab="advanced"
-           th:classappend="${tab == 'advanced'} ? ' active' : ''"
-           th:attr="aria-current=${tab == 'advanced'} ? 'page' : null">
-            <i class="fas fa-sliders-h" aria-hidden="true"></i><span th:text="#{pv.ui.tab.advanced}">Advanced</span>
-        </a>
-    </nav>
+    <nav th:replace="~{contexa/admin/prompt-quality/fragments :: nav(${tab == 'trials' ? 'measure' : 'versions'})}"></nav>
 
     <div class="filter-container zt-band-box mb-6" id="pv-band" aria-live="polite"></div>
     <div class="pv-notice" id="pv-notice" aria-live="polite"></div>

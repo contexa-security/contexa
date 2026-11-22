@@ -24,6 +24,11 @@
             return;
         }
         PV.band(list, {page: PV.PAGES + '/advanced'});
+        // Quality plan 3.8: the way back to the list above the title keeps the prompt and the scope.
+        const back = document.querySelector('#pv-crumbs a[data-pv-crumb="list"]');
+        if (back) {
+            back.setAttribute('href', PV.page(''));
+        }
         PV.toolbar();
         const decision = view.decisionPrompt;
         PV.fill(content,
@@ -237,7 +242,9 @@
                 field(t('pv.shadow.daily'), daily)),
             el('p', {class: 'zt-muted', text: t('pv.shadow.cost')}),
             el('div', {class: 'zt-card-foot'}, start,
-                PV.button(t('pv.shadow.compare'), 'fa-balance-scale', null, {href: PV.page('/trials'), name: 'shadow-results'}),
+                // Quality plan 3.8: the results of running alongside moved to measure and compare with the trials.
+                PV.button(t('pv.shadow.compare'), 'fa-balance-scale', null, {href: PV.measurePage(''),
+                    name: 'shadow-results'}),
                 stop));
     }
 
