@@ -17,6 +17,12 @@ import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceL
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceModelCompatibilityRegistryService;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceRegistryService;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateMode;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGatePolicy;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateReading;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateSettings;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
+import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurementState;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRuntimeCacheInvalidationService;
@@ -126,6 +132,42 @@ class PromptGovernanceAutoConfigurationTest {
                     assertThat(context).hasSingleBean(PromptBundleSelector.class);
                     assertThat(context).hasSingleBean(PromptGovernanceDescriptorResolver.class);
                 });
+    }
+
+    /**
+     * Plan 3.4, 5 step 5: the quality gate goes in as a warning with the thresholds of the plan; an installation sets
+     * the mode and the thresholds, the release gate reads the measurements of the store when there is one, and a
+     * threshold outside its range stops the start.
+     */
+    @Test
+    void theQualityGateIsAWarningByDefaultAndItsSettingsAndStoreAreRead() {
+        runner.run(context -> {
+            assertThat(context).hasNotFailed();
+            QualityGatePolicy defaults = context.getBean(PqaOssQualityGateProperties.class).policy(null);
+            assertThat(defaults.mode()).isEqualTo(QualityGateMode.WARN);
+            assertThat(defaults.settings()).isEqualTo(QualityGateSettings.defaults());
+            assertThat(context.getBean(PromptGovernanceReleaseGateService.class)
+                    .qualityMeasurement(null, "cortex.security-decision", "v1.0"))
+                    .isEqualTo(QualityMeasurementState.UNMEASURABLE);
+        });
+        runner.withPropertyValues("contexa.pqa.oss.quality.gate.mode=block",
+                        "contexa.pqa.oss.quality.gate.model-less-limit=0.02",
+                        "contexa.pqa.oss.quality.gate.significance=0.1",
+                        "contexa.pqa.oss.quality.gate.minimum-stop-roots=50",
+                        "contexa.pqa.oss.quality.gate.minimum-allow-roots=60")
+                .withBean(QualityGateSource.class, () -> (scope, prompt, candidate, current) ->
+                        QualityGateReading.baselinePending(null))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    QualityGatePolicy policy = context.getBean(PqaOssQualityGateProperties.class).policy(null);
+                    assertThat(policy.mode()).isEqualTo(QualityGateMode.BLOCK);
+                    assertThat(policy.settings()).isEqualTo(new QualityGateSettings(0.02, 0.1, 50, 60));
+                    assertThat(context.getBean(PromptGovernanceReleaseGateService.class)
+                            .qualityMeasurement(null, "cortex.security-decision", "v1.0"))
+                            .isEqualTo(QualityMeasurementState.BASELINE_PENDING);
+                });
+        runner.withPropertyValues("contexa.pqa.oss.quality.gate.significance=1.5")
+                .run(context -> assertThat(context).hasFailed());
     }
 
     @Test

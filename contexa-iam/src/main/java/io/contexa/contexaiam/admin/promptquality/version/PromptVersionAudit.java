@@ -35,6 +35,8 @@ public interface PromptVersionAudit {
     String ROLLBACK_APPROVED = "PROMPT_VERSION_ROLLBACK_APPROVED";
     String TRIAL_STARTED = "PROMPT_VERSION_TRIAL_STARTED";
     String TRIAL_CANCELLED = "PROMPT_VERSION_TRIAL_CANCELLED";
+    String QUALITY_GATE_OVERRIDDEN = "PROMPT_VERSION_QUALITY_GATE_OVERRIDDEN";
+
     /*
      * Quality plan 3.9: what is done to the labelled cases and their published sets. They name a case or a set, not a
      * version, so their names do not start like the version actions the history of a version reads: the version is

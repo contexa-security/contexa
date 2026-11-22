@@ -97,6 +97,14 @@ public interface PromptVersionCatalog {
      */
     boolean trialFinished(String scope, String prompt, String name);
 
+    /**
+     * Whether the version was used for decisions in the scope (plan 3.4): going back to such a version takes no
+     * quality condition, and the emergency rollback goes to such a version alone. Without a record of it, none was.
+     */
+    default boolean usedForDecisions(String scope, String prompt, String name) {
+        return false;
+    }
+
     /** No database: no version. */
     static PromptVersionCatalog none() {
         return None.INSTANCE;

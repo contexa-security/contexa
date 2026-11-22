@@ -22,6 +22,11 @@ import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
+import io.contexa.contexacore.std.components.prompt.quality.QualityCaseChanges;
+import io.contexa.contexacore.std.components.prompt.quality.QualityComparison;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateFinding;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateVerdict;
+import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurementState;
 import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocument;
@@ -52,10 +57,15 @@ import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDto
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.ItemView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.ListView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.NewProduct;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.OutsideGate;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.PartView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Preview;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.ProblemView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.PromptChoice;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityChanges;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityCheck;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityRateComparison;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityRow;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Receipt;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.RollbackRow;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Running;
@@ -121,6 +131,16 @@ public class PromptVersionConsole {
     static final String NOT_DRAWN_UNAVAILABLE = "UNAVAILABLE";
     static final String NOT_DRAWN_FAILED = "FAILED";
     private static final int HISTORY_LIMIT = 50;
+    /**
+     * Plan 2.1: the conditions a version inherits from the policy of its product, which every shipped prompt declares;
+     * the confirmation names them apart from what the customers act on.
+     */
+    static final Set<String> PRODUCT_POLICY_CONDITIONS = Set.of("CHANGE_LEDGER_MISSING", "MODEL_COMPATIBILITY_MISSING",
+            "BUDGET_PROFILE_MISSING", "TOKEN_COUNTING_POLICY_MISSING", "CACHE_POLICY_MISSING", "COMPACTION_POLICY_MISSING");
+    /** Plan 3.4: where a version decides without passing the release gate: the setting, or the newest Contexa version. */
+    static final Set<String> OUTSIDE_GATE_SOURCES = Set.of("CONFIGURATION", "BUILD_DEFAULT");
+    /** A request to override the quality gate without a reason. */
+    static final String OVERRIDE_REASON_REQUIRED = "OVERRIDE_REASON_REQUIRED";
     private static final int SHADOW_CASE_LIMIT = 50;
 
     /** An operator's request the console refuses, with the code the screen names. */
@@ -251,7 +271,8 @@ public class PromptVersionConsole {
         int hidden = (int) records.stream().filter(PromptVersionRecord::hidden).count();
         return new ListView(scopeName, scopes(), key, prompts(), decisionPrompt(key), PromptVersionTrials.offeredFor(key),
                 writable(), used, new Counts(records.size() - hidden, contexa, records.size() - hidden - contexa, hidden),
-                running(scopeName, key), newProduct(scopeName, key, used, records), rows);
+                running(scopeName, key), newProduct(scopeName, key, used, records), rows,
+                outsideGate(scopeName, key, used));
     }
 
     /** The prompts the build ships, the security decision first. */
@@ -739,7 +760,12 @@ public class PromptVersionConsole {
 
     // ----- labels -----
 
-    /** What the confirmation of "use for decisions" shows (plan 3.4, 3.9): the gate's answer and the latest trial. */
+    /**
+     * What the confirmation of "use for decisions" shows (plan 3.4, 3.9): the gate's answer and the latest trial; plan
+     * 3.4: the quality gate (its nine conditions with their numbers, the cases that changed, the state of the
+     * measurements, the mode, whether a reason would override it), and the version in use when it decides outside the
+     * gate; plan 2.1: the conditions of the product policy apart from the blockers the customers act on.
+     */
     public UseCheck useCheck(String scope, String prompt, int number) {
         String scopeName = scopeOf(scope);
         String key = promptOf(prompt);
@@ -747,6 +773,7 @@ public class PromptVersionConsole {
         Used used = used(scopeName, key, versions.list(scopeName, key, true));
         boolean ready = false;
         List<String> blockers = List.of();
+        QualityCheck quality = null;
         PromptGovernanceReleaseGateService releaseGate = gate.get();
         if (releaseGate != null) {
             try {
@@ -756,6 +783,7 @@ public class PromptVersionConsole {
                         .findFirst();
                 ready = active.map(PromptGovernanceReleaseGateService.ReleaseGateTarget::ready).orElse(false);
                 blockers = active.map(PromptGovernanceReleaseGateService.ReleaseGateTarget::blockers).orElse(List.of());
+                quality = active.map(PromptVersionConsole::qualityCheck).orElse(null);
             }
             catch (RuntimeException failure) {
                 log.error("[PromptVersionConsole] The release gate could not assess {} {}", key, name, failure);
@@ -766,21 +794,38 @@ public class PromptVersionConsole {
             blockers = List.of("GATE_MISSING");
         }
         PromptVersionTrials trial = trials.get();
-        return new UseCheck(name, used != null ? used.version() : null, ready, blockers,
-                trial != null ? trial.latestDone(scopeName, key, number).orElse(null) : null);
+        List<String> gaps = blockers.stream().filter(PromptVersionConsole::productPolicy).toList();
+        return new UseCheck(name, used != null ? used.version() : null, ready,
+                blockers.stream().filter(blocker -> !productPolicy(blocker)).toList(),
+                trial != null ? trial.latestDone(scopeName, key, number).orElse(null) : null, gaps, quality,
+                outsideGate(scopeName, key, used));
     }
 
     /** Uses the version for decisions (plan 3.4): the label moves through the release gate; a rollback is the same. */
     public Receipt use(String scope, String prompt, int number, String actor, String reason) {
+        return use(scope, prompt, number, actor, reason, null);
+    }
+
+    /**
+     * Plan 3.4: uses the version for decisions, overriding a blocking quality gate with the operator's reason; the
+     * override is audited with who gave it and why. Going back to a version the scope used for decisions takes no
+     * quality condition; an urgent new version that fixes a failure takes this way too.
+     *
+     * @param overrideReason why the quality gate is overridden; null asks for no override, a blank reason is refused
+     */
+    public Receipt use(String scope, String prompt, int number, String actor, String reason, String overrideReason) {
+        requireOverrideReason(overrideReason);
         String scopeName = scopeOf(scope);
         String key = promptOf(prompt);
         PromptVersionRecord record = shown(scopeName, key, number);
         String previous = Optional.ofNullable(used(scopeName, key, versions.list(scopeName, key, true)))
                 .map(Used::version).orElse(null);
-        Receipt receipt = move(scopeName, key, record.name(), PromptBundleState.ACTIVE, actor, reason, previous);
+        Receipt receipt = move(scopeName, key, record.name(), PromptBundleState.ACTIVE, actor, reason, previous,
+                overrideReason);
         if (receipt.applied()) {
             audit.record(PromptVersionAudit.USED_FOR_DECISIONS, scopeName, key, record.name(), actor,
                     previous != null ? previous + " -> " + record.name() + blankOrReason(reason) : blankAsNull(reason));
+            auditOverride(receipt, scopeName, key, record.name(), actor, overrideReason);
         }
         return receipt;
     }
@@ -803,6 +848,18 @@ public class PromptVersionConsole {
     /** Starts a canary of the version (plan 3.4): a share of users, and the tenants and addresses it covers. */
     public Receipt startCanary(String scope, String prompt, int number, int percent, String tenants, String paths,
                                String actor, String reason) {
+        return startCanary(scope, prompt, number, percent, tenants, paths, actor, reason, null);
+    }
+
+    /**
+     * Plan 3.4: starts a canary of the version, overriding a blocking quality gate with the operator's reason, which is
+     * audited.
+     *
+     * @param overrideReason why the quality gate is overridden; null asks for no override, a blank reason is refused
+     */
+    public Receipt startCanary(String scope, String prompt, int number, int percent, String tenants, String paths,
+                               String actor, String reason, String overrideReason) {
+        requireOverrideReason(overrideReason);
         if (!CANARY_PERCENTS.contains(percent)) {
             throw new RefusedException("CANARY_PERCENT");
         }
@@ -818,10 +875,12 @@ public class PromptVersionConsole {
                 + " canary_resource_families = ?, updated_at = ? where registry_scope = ? and prompt_key = ? and"
                 + " prompt_version = ?", percent, list(tenants), list(paths), Timestamp.from(clock.instant()), scopeName,
                 key, record.name());
-        Receipt receipt = move(scopeName, key, record.name(), PromptBundleState.CANARY, actor, reason, null);
+        Receipt receipt = move(scopeName, key, record.name(), PromptBundleState.CANARY, actor, reason, null,
+                overrideReason);
         if (receipt.applied()) {
             audit.record(PromptVersionAudit.CANARY_STARTED, scopeName, key, record.name(), actor,
                     percent + "%" + blankOrReason(reason));
+            auditOverride(receipt, scopeName, key, record.name(), actor, overrideReason);
         }
         else {
             // A canary the gate refused leaves the share and targets the row had.
@@ -917,7 +976,10 @@ public class PromptVersionConsole {
         return receipt;
     }
 
-    /** Rolls back at once to an earlier version (plan 3.4): applied now, finished when another operator approves. */
+    /**
+     * Rolls back at once to an earlier version (plan 3.4): applied now, finished when another operator approves; the
+     * target is a version the scope used for decisions before, any other is refused.
+     */
     public PromptBundleRollbackService.Result emergencyRollback(String scope, String prompt, int number, String reason,
                                                                 String actor) {
         PromptBundleRollbackService service = rollbacks.get();
@@ -955,17 +1017,45 @@ public class PromptVersionConsole {
 
     private Receipt move(String scope, String prompt, String version, PromptBundleState target, String actor,
                          String reason, String previous) {
+        return move(scope, prompt, version, target, actor, reason, previous, null);
+    }
+
+    private Receipt move(String scope, String prompt, String version, PromptBundleState target, String actor,
+                         String reason, String previous, String overrideReason) {
         PromptGovernanceReleaseGateService releaseGate = gate.get();
         if (releaseGate == null) {
             return new Receipt(false, version, previous, null, List.of("GATE_MISSING"));
         }
-        PromptGovernanceReleaseGateService.ReleaseTransitionReceipt receipt = releaseGate.transitionPromptRelease(scope,
-                prompt, version, target, actor, blankAsNull(reason) != null ? reason.trim() : target.name(), SOURCE);
+        String rationale = blankAsNull(reason) != null ? reason.trim() : target.name();
+        // A move without an override is the transition it always was.
+        PromptGovernanceReleaseGateService.ReleaseTransitionReceipt receipt = overrideReason == null
+                ? releaseGate.transitionPromptRelease(scope, prompt, version, target, actor, rationale, SOURCE)
+                : releaseGate.transitionPromptRelease(scope, prompt, version, target, actor, rationale, SOURCE,
+                overrideReason.trim());
         if (receipt.applied()) {
             tell(scope, prompt, version, "prompt version " + target.name(), actor);
         }
+        QualityGateVerdict quality = receipt.quality();
         return new Receipt(receipt.applied(), version, previous,
-                receipt.gateState(), receipt.blockers() != null ? receipt.blockers() : List.of());
+                receipt.gateState(), receipt.blockers() != null ? receipt.blockers() : List.of(),
+                quality != null ? quality.verdict().name() : null, quality != null ? quality.applied().name() : null,
+                receipt.qualityOverridden());
+    }
+
+    /** Plan 3.4: an override needs a reason; a request without one is refused before anything moves. */
+    private static void requireOverrideReason(String overrideReason) {
+        if (overrideReason != null && overrideReason.isBlank()) {
+            throw new RefusedException(OVERRIDE_REASON_REQUIRED);
+        }
+    }
+
+    /** Plan 3.4, 3.9: who overrode the quality gate and why, with the verdict it passed over. */
+    private void auditOverride(Receipt receipt, String scope, String prompt, String version, String actor,
+                               String overrideReason) {
+        if (receipt.qualityOverridden()) {
+            audit.record(PromptVersionAudit.QUALITY_GATE_OVERRIDDEN, scope, prompt, version, actor,
+                    "verdict " + receipt.qualityVerdict() + blankOrReason(overrideReason));
+        }
     }
 
     private void tell(String scope, String prompt, String version, String why, String actor) {
@@ -1345,6 +1435,81 @@ public class PromptVersionConsole {
 
     private boolean writable() {
         return gate.get() != null;
+    }
+
+    private static boolean productPolicy(String blocker) {
+        return blocker != null && PRODUCT_POLICY_CONDITIONS.contains(codeOf(blocker));
+    }
+
+    /** The code a blocker starts with. */
+    private static String codeOf(String blocker) {
+        int space = blocker.indexOf(' ');
+        return space > 0 ? blocker.substring(0, space) : blocker;
+    }
+
+    /**
+     * Plan 3.4: the version in use when it decides without passing the release gate (the setting, or the newest
+     * Contexa version) and the state of its measurement here; null when the label decides or for another prompt.
+     */
+    private OutsideGate outsideGate(String scope, String prompt, Used used) {
+        if (used == null || used.version() == null || !decisionPrompt(prompt)
+                || !OUTSIDE_GATE_SOURCES.contains(used.source())) {
+            return null;
+        }
+        String measurement = null;
+        PromptGovernanceReleaseGateService releaseGate = gate.get();
+        if (releaseGate != null) {
+            try {
+                QualityMeasurementState state = releaseGate.qualityMeasurement(scope, prompt, used.version());
+                measurement = state != null ? state.name() : null;
+            }
+            catch (RuntimeException failure) {
+                log.error("[PromptVersionConsole] The measurement of {} {} could not be read", prompt, used.version(),
+                        failure);
+            }
+        }
+        return new OutsideGate(used.version(), used.source(), measurement);
+    }
+
+    /** Plan 3.4: the quality gate of a target as the confirmation shows it; null when it does not apply. */
+    private static QualityCheck qualityCheck(PromptGovernanceReleaseGateService.ReleaseGateTarget target) {
+        QualityGateVerdict verdict = target.quality();
+        if (verdict == null) {
+            return null;
+        }
+        List<QualityRow> rows = verdict.result() == null ? List.of()
+                : verdict.result().findings().stream().map(PromptVersionConsole::qualityRow).toList();
+        QualityCaseChanges changes = verdict.result() != null ? verdict.result().changes() : null;
+        return new QualityCheck(verdict.mode().name(),
+                verdict.measurement() != null ? verdict.measurement().name() : null,
+                verdict.sides().stream().map(Enum::name).toList(), verdict.detail(), verdict.verdict().name(),
+                verdict.applied().name(), verdict.rollback(), target.overridable(), rows,
+                changes != null ? new QualityChanges(changes.newlyMissed(), changes.newlyCaught(),
+                        changes.newlyStopped(), changes.newlyReleased()) : null);
+    }
+
+    private static QualityRow qualityRow(QualityGateFinding finding) {
+        Map<String, Number> figures = new LinkedHashMap<>();
+        finding.figures().forEach((name, value) -> figures.put(name, defined(value)));
+        return new QualityRow(finding.condition().name(), finding.status().name(), figures,
+                finding.comparisons().stream().map(PromptVersionConsole::comparison).toList(), finding.caseKeys());
+    }
+
+    private static QualityRateComparison comparison(QualityComparison comparison) {
+        return new QualityRateComparison(comparison.metric().name(), comparison.verdict().name(),
+                defined(comparison.currentValue()), defined(comparison.candidateValue()),
+                defined(comparison.difference()), defined(comparison.noiseWidth()), comparison.pairedCases(),
+                comparison.pairedRoots(), comparison.worseRoots(), comparison.betterRoots(),
+                defined(comparison.worseProbability()), defined(comparison.betterProbability()));
+    }
+
+    /** A number that is not defined (NaN or infinite) is null: not known, never zero. */
+    private static Number defined(Number value) {
+        return value instanceof Double number ? defined(number.doubleValue()) : value;
+    }
+
+    private static Double defined(double value) {
+        return Double.isNaN(value) || Double.isInfinite(value) ? null : value;
     }
 
     static boolean decisionPrompt(String prompt) {

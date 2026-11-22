@@ -2,6 +2,7 @@ package io.contexa.autoconfigure.iam.admin;
 
 import java.time.Clock;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
 import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptPolicySetLookup;
@@ -36,6 +37,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -54,6 +56,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 @AutoConfiguration(after = CoreDataAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "contexa.prompt.governance", name = "enabled", havingValue = "true", matchIfMissing = true)
+@EnableConfigurationProperties(PqaOssQualityGateProperties.class)
 public class PromptGovernanceAutoConfiguration {
 
     @Bean(name = "contexaPromptGovernanceRuntimeCacheInvalidationService")
@@ -194,9 +197,13 @@ public class PromptGovernanceAutoConfiguration {
             PromptGovernanceModelCompatibilityRepository promptGovernanceModelCompatibilityRepository,
             PromptGovernanceBudgetProfileRepository promptGovernanceBudgetProfileRepository,
             ObjectProvider<PromptVersionCatalog> promptVersionCatalog,
-            ObjectProvider<VersionedPrompts> versionedPrompts) {
+            ObjectProvider<VersionedPrompts> versionedPrompts,
+            ObjectProvider<QualityGateSource> qualityGateSource,
+            PqaOssQualityGateProperties qualityGateProperties) {
         // Plan 3.9: a release named as a version (v2.0) is read from the version table and its product policy, which
-        // the product of each prompt declares: the security decision and the other prompts (plan 3.11).
+        // the product of each prompt declares: the security decision and the other prompts (plan 3.11). Plan 3.4: the
+        // quality gate of the security decision reads the store of measurements; without one no version can be
+        // measured, which is a warning only.
         return new PromptGovernanceReleaseGateService(
                 contexaPromptGovernanceLifecycleLedgerService,
                 promptGovernanceRegistryRepository,
@@ -208,7 +215,8 @@ public class PromptGovernanceAutoConfiguration {
                 promptGovernanceModelCompatibilityRepository,
                 promptGovernanceBudgetProfileRepository,
                 promptVersionCatalog.getIfAvailable(PromptVersionCatalog::none),
-                versionedPrompts.getIfAvailable());
+                versionedPrompts.getIfAvailable(),
+                qualityGateProperties.policy(qualityGateSource.getIfAvailable(QualityGateSource::none)));
     }
 
     @Bean(name = "contexaPromptGovernanceEmpiricalEvalService")

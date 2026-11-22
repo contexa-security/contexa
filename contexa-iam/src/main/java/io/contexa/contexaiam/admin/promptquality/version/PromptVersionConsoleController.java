@@ -323,12 +323,23 @@ public class PromptVersionConsoleController {
     public record Reason(String reason) {
     }
 
+    /**
+     * Using a version for decisions: why, and plan 3.4: why an operator overrides the quality gate that blocks it (left
+     * out for no override; a blank one is refused).
+     */
+    public record UseBody(String reason, String overrideReason) {
+    }
+
     @PostMapping(API + "/{number:\\d+}/use")
     public ResponseEntity<Receipt> use(@PathVariable int number, @RequestParam(required = false) String scope,
                                        @RequestParam(required = false) String prompt,
-                                       @RequestBody(required = false) Reason body, Authentication authentication) {
+                                       @RequestBody(required = false) UseBody body, Authentication authentication) {
         requireAdmin(authentication);
-        return receipt(console.use(scope, prompt, number, authentication.getName(), reasonOf(body)));
+        String reason = body != null ? body.reason() : null;
+        String overrideReason = body != null ? body.overrideReason() : null;
+        return receipt(overrideReason == null
+                ? console.use(scope, prompt, number, authentication.getName(), reason)
+                : console.use(scope, prompt, number, authentication.getName(), reason, overrideReason));
     }
 
     @ResponseBody
@@ -360,8 +371,16 @@ public class PromptVersionConsoleController {
         return console.rescan();
     }
 
-    /** A canary: the version, the share of users, the tenants and the address starts or resource IDs it covers. */
-    public record CanaryBody(Integer number, Integer percent, String tenants, String paths, String reason) {
+    /**
+     * A canary: the version, the share of users, the tenants and the address starts or resource IDs it covers; plan
+     * 3.4: why an operator overrides the quality gate that blocks it (left out for no override).
+     */
+    public record CanaryBody(Integer number, Integer percent, String tenants, String paths, String reason,
+                             String overrideReason) {
+
+        public CanaryBody(Integer number, Integer percent, String tenants, String paths, String reason) {
+            this(number, percent, tenants, paths, reason, null);
+        }
     }
 
     @PostMapping(API + "/canary/start")
@@ -372,8 +391,11 @@ public class PromptVersionConsoleController {
         if (body == null || body.number() == null || body.percent() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "number and percent are required");
         }
-        return receipt(console.startCanary(scope, prompt, body.number(), body.percent(), body.tenants(), body.paths(),
-                authentication.getName(), body.reason()));
+        return receipt(body.overrideReason() == null
+                ? console.startCanary(scope, prompt, body.number(), body.percent(), body.tenants(), body.paths(),
+                authentication.getName(), body.reason())
+                : console.startCanary(scope, prompt, body.number(), body.percent(), body.tenants(), body.paths(),
+                authentication.getName(), body.reason(), body.overrideReason()));
     }
 
     @PostMapping(API + "/canary/stop")

@@ -187,6 +187,33 @@ class PromptVersionConsoleControllerTest {
         mvc.perform(get(API + "/shadow/results").param("days", "91").principal(admin)).andExpect(status().isBadRequest());
     }
 
+    /** Plan 3.4: the reason that overrides the quality gate reaches the console; a blank one answers its refusal. */
+    @Test
+    void theReasonThatOverridesTheQualityGateReachesTheConsole() throws Exception {
+        when(console.use(any(), any(), eq(2), eq("admin"), eq("ready"), eq("urgent fix"))).thenReturn(new Receipt(true,
+                "v2.0", "v1.0", "QUALITY_GATE_OVERRIDDEN", List.of(), "BLOCKED", "BLOCKED", true));
+        mvc.perform(withToken(post(API + "/2/use")).principal(admin).contentType("application/json")
+                        .content("{\"reason\":\"ready\",\"overrideReason\":\"urgent fix\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.qualityOverridden").value(true))
+                .andExpect(jsonPath("$.qualityVerdict").value("BLOCKED"));
+
+        when(console.use(any(), any(), eq(3), eq("admin"), isNull(), eq(" ")))
+                .thenThrow(new PromptVersionConsole.RefusedException("OVERRIDE_REASON_REQUIRED"));
+        mvc.perform(withToken(post(API + "/3/use")).principal(admin).contentType("application/json")
+                        .content("{\"overrideReason\":\" \"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("OVERRIDE_REASON_REQUIRED"));
+
+        when(console.startCanary(any(), any(), eq(2), eq(25), any(), any(), eq("admin"), any(), eq("urgent fix")))
+                .thenReturn(new Receipt(true, "v2.0", null, "QUALITY_GATE_OVERRIDDEN", List.of(), "BLOCKED",
+                        "BLOCKED", true));
+        mvc.perform(withToken(post(API + "/canary/start")).principal(admin).contentType("application/json")
+                        .content("{\"number\":2,\"percent\":25,\"overrideReason\":\"urgent fix\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.qualityOverridden").value(true));
+    }
+
     @Test
     void aChangeWithTheTokenIsDoneAndARefusalAnswersItsCode() throws Exception {
         when(console.use(any(), any(), eq(2), eq("admin"), eq("ready"))).thenReturn(new Receipt(true, "v2.0", "v1.0",

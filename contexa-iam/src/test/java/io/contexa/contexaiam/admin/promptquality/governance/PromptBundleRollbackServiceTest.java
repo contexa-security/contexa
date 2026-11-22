@@ -91,12 +91,19 @@ class PromptBundleRollbackServiceTest {
         }
     }
 
-    /** v1.0 is the product version, v2.0 an organization's version on it; both are registered and not used. */
+    /**
+     * v1.0 is the product version, v2.0 an organization's version on it; both are registered and not used. Plan 3.4:
+     * the scope used v1.0, v2.0 and v3.0 for decisions before, as the release gate recorded, so each may be gone back to.
+     */
     @BeforeEach
     void twoVersions() {
         jdbc.execute("TRUNCATE ctxa_prompt_version_part, ctxa_prompt_version_trial_case, ctxa_prompt_version_trial,"
                 + " ctxa_prompt_version, ctxa_prompt_governance_registry, ctxa_prompt_governance_rollback_execution,"
-                + " ctxa_prompt_governance_rollback_ledger, ctxa_prompt_governance_runtime_cache_invalidation CASCADE");
+                + " ctxa_prompt_governance_rollback_ledger, ctxa_prompt_governance_runtime_cache_invalidation,"
+                + " ctxa_prompt_governance_release_workflow CASCADE");
+        for (String version : List.of("v1.0", "v2.0", "v3.0")) {
+            usedBefore(version);
+        }
         versions = versions(SecurityDecisionPromptDocument.productReleases());
         versions.registerProducts(null);
         versions.create(null, "prompt: " + PROMPT + "\nbasedOn: v1.0\ntitle: Finance closing\n" + JUDGE,
@@ -221,6 +228,31 @@ class PromptBundleRollbackServiceTest {
                 "operator-a");
         assertThat(executed.status()).isEqualTo(PromptBundleRollbackService.EXECUTED);
         assertThat(executed.conditions().policySet()).isEqualTo("PRESENT");
+    }
+
+    /**
+     * Plan 3.4: a rollback, the emergency one included, goes back only to a version the scope used for decisions; a
+     * version that exists and is shown but never decided is refused, and nothing changes.
+     */
+    @Test
+    void aTargetTheScopeNeverUsedForDecisionsIsRefusedAndNothingChanges() {
+        status(PROMPT, "v2.0", "ACTIVE");
+        jdbc.update("delete from ctxa_prompt_governance_release_workflow where prompt_version = 'v1.0'");
+
+        for (boolean emergency : List.of(false, true)) {
+            PromptBundleRollbackService.Result result = rollback("v2.0", "v1.0", emergency);
+
+            assertThat(result.status()).isEqualTo(PromptBundleRollbackService.REFUSED);
+            assertThat(result.refusals()).containsExactly(PromptBundleRollbackService.TARGET_NOT_USED_FOR_DECISIONS);
+            assertThat(result.conditions().targetUsedForDecisions()).isFalse();
+            assertThat(result.conditions().targetInBuild()).isTrue();
+            assertThat(execution(result.executionKey()).get(0)).isEqualTo("REFUSED");
+        }
+        assertThat(status(PROMPT, "v2.0")).isEqualTo("ACTIVE");
+        assertThat(status(PROMPT, "v1.0")).isEqualTo("AVAILABLE");
+        verify(invalidation, never()).publish(anyString(), anyString(), anyString(), anyString(), anyString());
+        assertThat(conditionsJson(rollback("v2.0", "v1.0", true).executionKey()))
+                .contains("\"targetUsedForDecisions\":false");
     }
 
     @Test
@@ -385,6 +417,14 @@ class PromptBundleRollbackServiceTest {
                     template_class_name, registration_source)
                 values (?, ?, ?, ?, 'CORTEX_PROMPT_CONTRACT_V3', 'hash', ?, 'pqa',
                     'SecurityDecisionStandardPromptTemplate', 'test')""", scope, KEY, template, version, status);
+    }
+
+    /** Plan 3.4: the release gate applied the version as the one used for decisions in the scope. */
+    private void usedBefore(String version) {
+        jdbc.update("insert into ctxa_prompt_governance_release_workflow (registry_scope, prompt_key, prompt_version,"
+                + " current_release_status, target_release_status, workflow_state, gate_state, approval_channel,"
+                + " actor_name, rationale) values (?, ?, ?, 'AVAILABLE', 'ACTIVE', 'APPROVED_AND_APPLIED',"
+                + " 'READY_FOR_PRODUCTION', 'PROMPT_VERSION_CONSOLE', 'admin', 'used before')", SCOPE, PROMPT, version);
     }
 
     private void ledger(String key, String version, String target, String readiness) {

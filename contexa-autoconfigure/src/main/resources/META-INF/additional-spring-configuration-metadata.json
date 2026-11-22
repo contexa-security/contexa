@@ -19,6 +19,36 @@
       "description": "The sliding window the decisions of a new context are counted in. A time that is not positive reads as one minute."
     },
     {
+      "name": "contexa.pqa.oss.quality.gate.mode",
+      "type": "io.contexa.contexacore.std.components.prompt.quality.QualityGateMode",
+      "defaultValue": "warn",
+      "description": "How the quality gate acts when a version of the security decision is used for decisions or started as a canary. WARN applies a blocked verdict as a warning and keeps the verdict as it was; BLOCK blocks it, and an administrator may still use the version by giving a reason, which is audited. A version that goes back to one the scope used for decisions takes no quality condition, a version this installation cannot measure is warned of only, and so is the missing measurement of the version in use while its first measurement waits. The gate goes in as WARN; set BLOCK once the reproducibility and discrimination checks have passed on this installation."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.gate.model-less-limit",
+      "type": "java.lang.Double",
+      "defaultValue": 0.05,
+      "description": "The largest share (0 to 1) of the candidate's answers that the engine decided without the model's answer; above it the quality gate blocks."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.gate.significance",
+      "type": "java.lang.Double",
+      "defaultValue": 0.05,
+      "description": "The level (between 0 and 1) of the exact one-sided tests that say a rate of the candidate grew beyond what two measurements of one version differ by, root case by root case, and that the candidate is worse on the cases added after it was made. A larger level blocks smaller differences."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.gate.minimum-stop-roots",
+      "type": "java.lang.Integer",
+      "defaultValue": 200,
+      "description": "The distinct root cases that must be stopped from which the quality gate can tell two versions apart; with fewer it warns that it cannot decide and how many are short. Variants of one case count once."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.gate.minimum-allow-roots",
+      "type": "java.lang.Integer",
+      "defaultValue": 300,
+      "description": "The distinct root cases that must be allowed from which the quality gate can tell two versions apart; with fewer it warns that it cannot decide and how many are short. Variants of one case count once."
+    },
+    {
       "name": "contexa.pqa.oss.sealed-evidence.capture-enabled",
       "type": "java.lang.Boolean",
       "defaultValue": true,
