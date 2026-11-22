@@ -27,6 +27,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
+import io.contexa.contexacore.verification.evidence.SealedDecisionBaselines;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import org.springframework.ai.document.Document;
 
@@ -90,7 +91,13 @@ public record SealedDecisionReplayInputs(SecurityEvent event, SecurityDecisionSt
                 .build();
         putAll(event, facts, mapper);
         putAll(event, authState, mapper);
-        putAll(event, read(mapper, sealed.getBaselineSnapshotJson()), mapper);
+        // The baselines the decision read are sealed in this section too; they are no metadata of the request. A
+        // replay is given them as its baselines (SealedDecisionBaselines).
+        read(mapper, sealed.getBaselineSnapshotJson()).fields().forEachRemaining(entry -> {
+            if (!SealedDecisionBaselines.KEY.equals(entry.getKey())) {
+                event.addMetadata(entry.getKey(), mapper.convertValue(entry.getValue(), Object.class));
+            }
+        });
         JsonNode retrieval = read(mapper, sealed.getRagResultsJson());
         retrieval.fields().forEachRemaining(entry -> {
             if (!"relatedDocuments".equals(entry.getKey()) && !SIMILAR_CASES.equals(entry.getKey())) {

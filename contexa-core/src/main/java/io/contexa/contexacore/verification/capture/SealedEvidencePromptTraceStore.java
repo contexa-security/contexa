@@ -3,6 +3,7 @@ package io.contexa.contexacore.verification.capture;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
@@ -87,6 +88,8 @@ public class SealedEvidencePromptTraceStore {
         pruneSnapshots();
         List<Document> relatedDocuments = context.getRelatedDocuments();
         Map<String, Object> metadata = promptResult.getMetadata();
+        // The baselines this prompt was drawn from, as the analysis fixed them when it read them.
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = context.getBehaviorAnalysis();
         pendingByTraceKey.put(resolveTraceKey(event), new SealedEvidencePromptSnapshot(
                 resolveRequestId(event),
                 clock.instant(),
@@ -99,7 +102,8 @@ public class SealedEvidencePromptTraceStore {
                 promptResult.getSystemPrompt(),
                 promptResult.getUserPrompt(),
                 metadata != null ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata)) : Map.of(),
-                promptResult.getPromptExecutionMetadata()));
+                promptResult.getPromptExecutionMetadata(),
+                analysis != null ? analysis.getDecisionBaselines() : null));
         pruneSnapshots();
     }
 
@@ -129,7 +133,8 @@ public class SealedEvidencePromptTraceStore {
                 pending.systemPrompt(),
                 pending.userPrompt(),
                 pending.metadata(),
-                pending.promptExecutionMetadata()));
+                pending.promptExecutionMetadata(),
+                pending.decisionBaselines()));
         pruneSnapshots();
     }
 

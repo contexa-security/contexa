@@ -22,12 +22,14 @@ import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.baseline.DecisionBaselines;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
+import io.contexa.contexacore.verification.evidence.SealedDecisionBaselines;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
@@ -46,8 +48,9 @@ import java.util.function.Supplier;
 /**
  * The operator's replay of a sealed decision (docs/agent OC-5): the decision's sealed inputs drawn again with a chosen
  * bundle and asked once, through the engine's prompt template, pipeline and first-layer options, and when it answers
- * ESCALATE, the second pass with each model asked for. The baselines are those the caller gives (the ones the decision
- * was drawn against); without them the person's and the organization's baselines as kept now, which the answer says.
+ * ESCALATE, the second pass with each model asked for. The baselines are those the caller gives; without them those the
+ * package sealed with its decision (the ones the decision read, or that it found none); and for a package sealed before
+ * the baselines were, the person's and the organization's baselines as kept now. The answer says which.
  * Nothing is applied, learned or sealed; a replay calls the model, so every replay is audited.
  */
 public class SealedDecisionReplays {
@@ -61,7 +64,9 @@ public class SealedDecisionReplays {
     public enum Baselines {
         /** Those the caller gave: the ones the decision was drawn against. */
         GIVEN,
-        /** Those Contexa keeps now, which may have changed since the decision. */
+        /** Those the package sealed with its decision: what the decision read, or that it found none. */
+        SEALED,
+        /** Those Contexa keeps now, which may have changed since the decision: the package sealed none. */
         CURRENT
     }
 
@@ -69,7 +74,7 @@ public class SealedDecisionReplays {
      * What to replay with.
      *
      * @param userBaseline         the person's baseline the decision was drawn against, as a JSON object or its text;
-     *                             null for the one kept now
+     *                             null for the one the package sealed, or the one kept now when it sealed none
      * @param organizationBaseline the organization's, likewise
      */
     public record ReplayRequest(String bundleVersion, @Nullable List<String> secondPassModels,
@@ -210,8 +215,8 @@ public class SealedDecisionReplays {
 
     /**
      * Plan 3.10 (2): the prompts the sealed decision of the package draws with the version, the model not asked, on the
-     * baselines Contexa keeps now, as a replay that is given none draws them; empty when there is no such package.
-     * Nothing is asked, so nothing is audited.
+     * baselines a replay that is given none draws them with (those the package sealed, else those kept now); empty when
+     * there is no such package. Nothing is asked, so nothing is audited.
      *
      * @throws IllegalArgumentException when the version is no version of the security decision prompt
      * @throws UnavailableException     when the engine's decision pipeline is not in this application
@@ -254,14 +259,23 @@ public class SealedDecisionReplays {
     }
 
     /**
-     * The baselines a sealed decision is drawn again with: those given, else the person's and the organization's as
-     * Contexa keeps them now.
+     * The baselines a sealed decision is drawn again with: those given; else those the package sealed with its
+     * decision, a baseline it sealed as none staying none; else, for a package that sealed no baselines, the person's
+     * and the organization's as Contexa keeps them now.
      */
     private DrawnWith baselinesOf(SealedEvidencePackage sealed, @Nullable JsonNode userBaseline,
                                   @Nullable JsonNode organizationBaseline) {
         BaselineVector user = vector(userBaseline);
         BaselineVector organization = vector(organizationBaseline);
         Baselines drawnWith = user != null || organization != null ? Baselines.GIVEN : Baselines.CURRENT;
+        Optional<DecisionBaselines> kept = drawnWith == Baselines.GIVEN ? Optional.empty()
+                : SealedDecisionBaselines.read(sealed, json);
+        if (kept.isPresent()) {
+            // Read from the package for this replay alone, so naming the user below changes nothing that is kept.
+            drawnWith = Baselines.SEALED;
+            user = kept.get().personal();
+            organization = kept.get().organization();
+        }
         if (drawnWith == Baselines.CURRENT && baselines != null) {
             // Copies, so that naming the user below leaves the kept baselines as they are.
             user = copy(baselines.getUserBaseline(BaselineDataStore.userKey(sealed.getTenantId(),

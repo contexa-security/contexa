@@ -16,16 +16,19 @@
 package io.contexa.contexaiam.admin.promptquality.inspection;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.baseline.DecisionBaselines;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
+import io.contexa.contexacore.verification.evidence.SealedDecisionBaselines;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.replay.SealedDecisionReplayService;
@@ -48,6 +51,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -153,6 +157,98 @@ class SealedDecisionReplaysTest {
         ArgumentCaptor<AuditRecord> audited = ArgumentCaptor.forClass(AuditRecord.class);
         verify(audit).recordAsync(audited.capture());
         assertThat(audited.getValue().getOutcome()).isEqualTo("FAILED");
+    }
+
+    /**
+     * A package that sealed the baselines its decision read is drawn again with them; the baselines kept now, which
+     * may have changed since the decision, are not read.
+     */
+    @Test
+    void aPackageThatSealedItsBaselinesIsReplayedWithThem() {
+        BaselineVector personal = BaselineVector.builder().userId("tenant-a::alice")
+                .normalIpRanges(new String[]{"10.1.0.0/16"}).updateCount(42L).build();
+        BaselineVector organization = BaselineVector.builder().userId("org:org-a")
+                .normalOperatingSystems(new String[]{"WINDOWS"}).build();
+        ObjectNode snapshot = JSON.createObjectNode().put("baselineEstablished", true);
+        snapshot.set(SealedDecisionBaselines.KEY,
+                SealedDecisionBaselines.write(new DecisionBaselines(personal, organization), JSON));
+        sealed.setBaselineSnapshotJson(snapshot.toString());
+        when(packages.findByPackageId("pkg-1")).thenReturn(Optional.of(sealed));
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result("ALLOW", null));
+
+        Replayed replayed = replays.replayPackage("admin-1", "pkg-1", new ReplayRequest(BUNDLE, null, null, null))
+                .orElseThrow();
+
+        assertThat(replayed.baselines()).isEqualTo(Baselines.SEALED);
+        ArgumentCaptor<BaselineVector> user = ArgumentCaptor.forClass(BaselineVector.class);
+        ArgumentCaptor<BaselineVector> org = ArgumentCaptor.forClass(BaselineVector.class);
+        verify(service).replay(eq(sealed), user.capture(), org.capture(), eq(BUNDLE), any(), eq(List.of()));
+        assertThat(user.getValue().getNormalIpRanges()).containsExactly("10.1.0.0/16");
+        assertThat(user.getValue().getUpdateCount()).isEqualTo(42L);
+        assertThat(user.getValue().getUserId()).as("read under the decision's user").isEqualTo("alice");
+        assertThat(org.getValue().getNormalOperatingSystems()).containsExactly("WINDOWS");
+        verifyNoInteractions(baselines);
+        ArgumentCaptor<AuditRecord> audited = ArgumentCaptor.forClass(AuditRecord.class);
+        verify(audit).recordAsync(audited.capture());
+        assertThat(audited.getValue().getDetails()).containsEntry("baselines", "SEALED");
+    }
+
+    /**
+     * A package that sealed that its decision found no baseline is drawn again with none: a baseline learned since is
+     * not taken for the one the decision had.
+     */
+    @Test
+    void aPackageThatSealedThatThereWasNoBaselineIsReplayedWithNone() {
+        sealed.setBaselineSnapshotJson("{\"baselineEstablished\":false,"
+                + "\"decisionBaselines\":{\"personal\":null,\"organization\":null}}");
+        when(packages.findByPackageId("pkg-1")).thenReturn(Optional.of(sealed));
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result("CHALLENGE", null));
+
+        Replayed replayed = replays.replayPackage("admin-1", "pkg-1", new ReplayRequest(BUNDLE, null, null, null))
+                .orElseThrow();
+
+        assertThat(replayed.baselines()).isEqualTo(Baselines.SEALED);
+        verify(service).replay(eq(sealed), isNull(), isNull(), eq(BUNDLE), any(), eq(List.of()));
+        verifyNoInteractions(baselines);
+    }
+
+    /**
+     * A package sealed before the baselines were has a baseline snapshot without them and is replayed as it always
+     * was, with the baselines kept now.
+     */
+    @Test
+    void aPackageSealedBeforeTheBaselinesIsReplayedWithTheOnesKeptNow() {
+        sealed.setBaselineSnapshotJson("{\"baselineEstablished\":true,\"isNewUser\":false}");
+        when(packages.findByPackageId("pkg-1")).thenReturn(Optional.of(sealed));
+        BaselineVector kept = BaselineVector.builder().userId("tenant-a::alice")
+                .normalIpRanges(new String[]{"192.0.2.0/24"}).build();
+        when(baselines.getUserBaseline("tenant-a::alice")).thenReturn(kept);
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result("ALLOW", null));
+
+        Replayed replayed = replays.replayPackage("admin-1", "pkg-1", new ReplayRequest(BUNDLE, null, null, null))
+                .orElseThrow();
+
+        assertThat(replayed.baselines()).isEqualTo(Baselines.CURRENT);
+        ArgumentCaptor<BaselineVector> user = ArgumentCaptor.forClass(BaselineVector.class);
+        verify(service).replay(eq(sealed), user.capture(), any(), eq(BUNDLE), any(), eq(List.of()));
+        assertThat(user.getValue().getNormalIpRanges()).containsExactly("192.0.2.0/24");
+    }
+
+    /** Baselines given with the replay come before the ones the package sealed. */
+    @Test
+    void baselinesGivenWithTheReplayComeBeforeTheSealedOnes() throws Exception {
+        sealed.setBaselineSnapshotJson("{\"decisionBaselines\":{\"personal\":null,\"organization\":null}}");
+        when(packages.findByPackageId("pkg-1")).thenReturn(Optional.of(sealed));
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result("ALLOW", null));
+        BaselineVector given = BaselineVector.builder().normalIpRanges(new String[]{"10.9.0.0/16"}).build();
+
+        Replayed replayed = replays.replayPackage("admin-1", "pkg-1", new ReplayRequest(BUNDLE, null,
+                JSON.valueToTree(given), null)).orElseThrow();
+
+        assertThat(replayed.baselines()).isEqualTo(Baselines.GIVEN);
+        ArgumentCaptor<BaselineVector> user = ArgumentCaptor.forClass(BaselineVector.class);
+        verify(service).replay(eq(sealed), user.capture(), isNull(), eq(BUNDLE), any(), eq(List.of()));
+        assertThat(user.getValue().getNormalIpRanges()).containsExactly("10.9.0.0/16");
     }
 
     @Test
