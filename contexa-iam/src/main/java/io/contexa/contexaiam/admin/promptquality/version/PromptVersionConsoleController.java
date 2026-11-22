@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.promptquality.version;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentException;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
@@ -254,12 +255,24 @@ public class PromptVersionConsoleController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
+    /**
+     * What the confirmation of a move shows: of using the version for decisions, or with {@code target=CANARY} of a
+     * canary of it, which the quality gate looks at the same way (plan 3.4).
+     */
     @ResponseBody
     @GetMapping(API + "/{number:\\d+}/use-check")
     public UseCheck useCheck(@PathVariable int number, @RequestParam(required = false) String scope,
-                             @RequestParam(required = false) String prompt, Authentication authentication) {
+                             @RequestParam(required = false) String prompt,
+                             @RequestParam(required = false) String target, Authentication authentication) {
         requireAdmin(authentication);
-        return console.useCheck(scope, prompt, number);
+        if (target == null || target.isBlank()) {
+            return console.useCheck(scope, prompt, number);
+        }
+        String move = target.trim();
+        if (!PromptBundleState.ACTIVE.name().equals(move) && !PromptBundleState.CANARY.name().equals(move)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "target is ACTIVE or CANARY");
+        }
+        return console.useCheck(scope, prompt, number, PromptBundleState.valueOf(move));
     }
 
     @ResponseBody

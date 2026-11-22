@@ -309,6 +309,20 @@ class PromptVersionQualityGatePostgresTest {
         source.answer(QualityGateReading.missing(Set.of(QualityGateSide.CANDIDATE), null));
         PromptVersionConsole console = console(QualityGateMode.BLOCK);
 
+        // The confirmation of the canary reads the quality gate of the canary, as the move then applies it.
+        UseCheck check = console.useCheck(null, PROMPT, 3, PromptBundleState.CANARY);
+        assertThat(check.ready()).isFalse();
+        assertThat(check.blockers()).singleElement().asString()
+                .startsWith(PromptGovernanceReleaseGateService.QUALITY_GATE_BLOCKED);
+        assertThat(check.quality().measurement()).isEqualTo("MISSING");
+        assertThat(check.quality().measurementSides()).containsExactly("CANDIDATE");
+        assertThat(check.quality().applied()).isEqualTo("BLOCKED");
+        assertThat(check.quality().rollback()).isFalse();
+        assertThat(check.quality().overridable()).isTrue();
+        assertThat(row(check, QualityGateCondition.COMPARABLE_MEASUREMENTS).status()).isEqualTo("BLOCKED");
+        assertThatThrownBy(() -> console.useCheck(null, PROMPT, 3, PromptBundleState.SHADOW))
+                .isInstanceOf(IllegalArgumentException.class);
+
         Receipt refused = console.startCanary(null, PROMPT, 3, 25, "tenant-a", "/api/", "admin", null);
 
         assertThat(refused.applied()).isFalse();

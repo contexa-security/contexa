@@ -818,6 +818,19 @@ public class PromptVersionConsole {
      * gate; plan 2.1: the conditions of the product policy apart from the blockers the customers act on.
      */
     public UseCheck useCheck(String scope, String prompt, int number) {
+        return useCheck(scope, prompt, number, PromptBundleState.ACTIVE);
+    }
+
+    /**
+     * The same for a move to the target: ACTIVE (use for decisions) or CANARY (a canary for some users), which the
+     * quality gate looks at the same way (plan 3.4), so the confirmation of a canary shows it too.
+     *
+     * @throws IllegalArgumentException for another target
+     */
+    public UseCheck useCheck(String scope, String prompt, int number, PromptBundleState move) {
+        if (move != PromptBundleState.ACTIVE && move != PromptBundleState.CANARY) {
+            throw new IllegalArgumentException("A use check is of ACTIVE or CANARY, not " + move);
+        }
         String scopeName = scopeOf(scope);
         String key = promptOf(prompt);
         String name = PromptVersionNames.name(number);
@@ -830,7 +843,7 @@ public class PromptVersionConsole {
             try {
                 Optional<PromptGovernanceReleaseGateService.ReleaseGateTarget> active = releaseGate
                         .assessPromptRelease(scopeName, key, name).targets().stream()
-                        .filter(target -> PromptBundleState.is(target.targetState(), PromptBundleState.ACTIVE))
+                        .filter(target -> PromptBundleState.is(target.targetState(), move))
                         .findFirst();
                 ready = active.map(PromptGovernanceReleaseGateService.ReleaseGateTarget::ready).orElse(false);
                 blockers = active.map(PromptGovernanceReleaseGateService.ReleaseGateTarget::blockers).orElse(List.of());
