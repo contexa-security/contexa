@@ -124,6 +124,10 @@ class PromptQualityPageControllerTest {
         assertThat(PromptQualityPageController.chosen(" run ", "runs")).isEqualTo("run");
         assertThat(PromptQualityPageController.chosen("trial", "runs")).isEqualTo("runs");
         assertThat(PromptQualityPageController.chosen(null, "compare")).isEqualTo("compare");
+        // A view added with its query in its path keeps it, the scope beside it.
+        assertThat(PromptQualityPageController.href("/run?view=causes", "tenant a"))
+                .isEqualTo("/contexa/admin/prompt-quality/measure/run?view=causes&scope=tenant%20a");
+        assertThat(PromptQualityPageController.href("", null)).isEqualTo(PromptQualityScreens.MEASURE);
         mvc.perform(get(PromptQualityScreens.MEASURE + "/trials/7").principal(admin))
                 .andExpect(view().name("contexa/admin/prompt-quality/measure"))
                 .andExpect(model().attribute("view", "trial")).andExpect(model().attribute("trialId", 7L));

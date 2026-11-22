@@ -186,14 +186,18 @@ public class PromptQualityPageController {
             }
             String text = count != null ? messages.getMessage("pqa.cases.tabCount", new Object[] {name, count},
                     name + " " + count, locale) : name;
-            UriComponentsBuilder href = UriComponentsBuilder.fromPath(PromptQualityScreens.MEASURE + one.path());
-            if (scope != null) {
-                href.queryParam("scope", scope);
-            }
-            tabs.add(new Tab(one.key(), href.encode(StandardCharsets.UTF_8).build().toUriString(), text,
-                    one.lit(view)));
+            tabs.add(new Tab(one.key(), href(one.path(), scope), text, one.lit(view)));
         }
         return List.copyOf(tabs);
+    }
+
+    /** The address of a view with the scope of the page; a view's path may carry its query (/run?view=causes). */
+    static String href(String path, @Nullable String scope) {
+        UriComponentsBuilder href = UriComponentsBuilder.fromUriString(PromptQualityScreens.MEASURE + path);
+        if (scope != null) {
+            href.queryParam("scope", scope);
+        }
+        return href.encode(StandardCharsets.UTF_8).build().toUriString();
     }
 
     private static void requireAdmin(Authentication authentication) {

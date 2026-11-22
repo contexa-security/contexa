@@ -36,7 +36,8 @@ public final class PromptQualityMeasureViews {
      * lists them): a view added there is one more tab on every page of the screen, its script loaded with the screen's.
      *
      * @param key    the name of the view ({@code runs}, {@code run}, {@code compare}, ...), the page's data-view
-     * @param path   the address the tab opens, under the screen's own
+     * @param path   the address the tab opens, under the screen's own, with its query when it has one
+     *               ({@code /run?view=causes})
      * @param label  the message key of the tab's name
      * @param count  what the count beside the name counts, as the menu bar counts it, or null for none
      * @param also   the other views the tab stays lit for, such as the result of a trial under "two versions"
