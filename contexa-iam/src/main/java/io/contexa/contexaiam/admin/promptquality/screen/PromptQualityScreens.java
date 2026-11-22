@@ -29,6 +29,8 @@ import java.util.Objects;
  */
 public final class PromptQualityScreens {
 
+    /** The state of quality (quality plan 3.6). */
+    public static final String STATUS = "/contexa/admin/prompt-quality/status";
     /** The labelled cases (quality plan 3.2). */
     public static final String CASES = "/contexa/admin/prompt-quality/cases";
     /** Measure and compare (quality plan 3.3). */
