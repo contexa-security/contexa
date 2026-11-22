@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import io.contexa.contexacore.verification.inspection.RendererInspectionChecks;
 import io.contexa.contexacore.verification.inspection.InspectedPrompt;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCheckResult;
 import io.contexa.contexacore.verification.inspection.PromptInspectionFinding;
@@ -22,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class PromptInspectionMatchedLinesTest {
 
-    private static final PromptInspector INSPECTOR = new PromptInspector(PromptInspector.coreChecks(),
+    private static final PromptInspector INSPECTOR = new PromptInspector(RendererInspectionChecks.coreChecks(),
             InspectionGolden.JSON);
 
     @Test

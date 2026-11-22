@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.verification.inspection.RendererInspectionChecks;
 import io.contexa.contexacore.verification.inspection.PromptInspectionFinding;
 import io.contexa.contexacore.verification.inspection.PromptInspectionOutcome;
 import io.contexa.contexacore.verification.inspection.PromptInspectionResult;
@@ -33,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class PromptInspectionFaultDetectionTest {
 
-    private static final PromptInspector INSPECTOR = new PromptInspector(PromptInspector.coreChecks(),
+    private static final PromptInspector INSPECTOR = new PromptInspector(RendererInspectionChecks.coreChecks(),
             InspectionGolden.JSON);
     private static final Pattern ENTRY_LABEL = Pattern.compile("^(?:\\[[A-Z]+\\d+] )?([A-Za-z][A-Za-z0-9]*): ");
 

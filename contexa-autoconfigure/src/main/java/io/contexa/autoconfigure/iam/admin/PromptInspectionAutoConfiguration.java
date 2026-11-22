@@ -14,7 +14,6 @@ import io.contexa.contexacore.verification.inspection.PromptInspectionResultStor
 import io.contexa.contexacore.verification.inspection.PromptInspectionScheduler;
 import io.contexa.contexacore.verification.inspection.PromptInspectionService;
 import io.contexa.contexacore.verification.inspection.PromptInspector;
-import io.contexa.contexacore.verification.inspection.SameFactCheck;
 import io.contexa.contexacore.verification.inspection.SourceTruthCheck;
 import io.contexa.contexaiam.admin.promptquality.inspection.BundleTraceCheck;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
@@ -73,8 +72,9 @@ public class PromptInspectionAutoConfiguration {
     }
 
     /**
-     * The core checks with the bundle trace right after the seal integrity. The trace reads the release registry when
-     * the prompt version management keeps one; otherwise it says the trace cannot be checked.
+     * The evidence audit (plan 2.1 of the prompt quality redesign): the core's seal integrity, the bundle trace right
+     * after it and the source truth last. The trace reads the release registry when the prompt version management keeps
+     * one; otherwise it says the trace cannot be checked.
      */
     @Bean(name = "contexaPromptInspector")
     @ConditionalOnMissingBean
@@ -94,9 +94,8 @@ public class PromptInspectionAutoConfiguration {
         JdbcOperations jdbc = jdbcOperations.getIfAvailable();
         checks.add(1, new BundleTraceCheck(registryService.getIfAvailable() != null && jdbc != null
                 ? new JdbcPromptReleaseLookup(jdbc) : null));
-        // W6-7: the host's own records of the facts, compared before the same-fact check.
-        int sameFact = checks.stream().map(PromptInspectionCheck::code).toList().indexOf(SameFactCheck.CODE);
-        checks.add(sameFact < 0 ? checks.size() : sameFact, new SourceTruthCheck(sourceVerifier.getIfAvailable()));
+        // W6-7: the host's own records of the facts the sealed decision collected.
+        checks.add(new SourceTruthCheck(sourceVerifier.getIfAvailable()));
         return new PromptInspector(checks, objectMapper);
     }
 

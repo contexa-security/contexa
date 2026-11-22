@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
+import io.contexa.contexacore.verification.inspection.RendererInspectionChecks;
 import io.contexa.contexacore.verification.inspection.PromptInspectionFinding;
 import io.contexa.contexacore.verification.inspection.PromptInspectionResult;
 import io.contexa.contexacore.verification.inspection.PromptInspectionVerdict;
@@ -35,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class V21InspectionTest {
 
-    private static final PromptInspector INSPECTOR = new PromptInspector(PromptInspector.coreChecks(),
+    private static final PromptInspector INSPECTOR = new PromptInspector(RendererInspectionChecks.coreChecks(),
             InspectionGolden.JSON);
 
     @Test

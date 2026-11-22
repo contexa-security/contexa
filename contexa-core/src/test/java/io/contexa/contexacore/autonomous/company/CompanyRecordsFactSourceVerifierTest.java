@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.company.CompanyRecordSet.OnCall;
 import io.contexa.contexacore.autonomous.company.CompanyRecordSet.Person;
 import io.contexa.contexacore.autonomous.company.CompanyRecordSet.Usage;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.ApprovalRecord;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.AssignmentRecord;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.FrictionProfile;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.OnCallRecord;
@@ -49,7 +50,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** docs/agent OC-4: the source truth check reads Contexa's own company records and delegations again. */
+/**
+ * docs/agent OC-4: the source truth check reads Contexa's own company records and delegations again, for the approval
+ * the sealed decision collected first (plan 2.1 of the prompt quality redesign: not the one the prompt's line names).
+ */
 class CompanyRecordsFactSourceVerifierTest {
 
     private static final Instant AT = Instant.parse("2026-09-30T05:30:00Z");
@@ -72,14 +76,9 @@ class CompanyRecordsFactSourceVerifierTest {
     @Test
     void theRecordsTheDecisionUsedAreReadAgain() {
         CanonicalSecurityContext context = context("alice", 300, new AssignmentRecord("HX-310", true, "DESIGN"));
-        String prompt = """
-                === DECISION FACTS ===
-                [F3] Approval: APR-1 by pm-11, APPROVED, HX-310, up to 500 items, used 120 before this request
-                [F4] Assignment: assigned to HX-310 (DESIGN)
-                [F8] OnCall: not on call
-                """;
+        context.getFrictionProfile().setApprovalRecords(List.of(approval("APR-1", "pm-11")));
 
-        SourceReading reading = verifier.read(subject(context, prompt));
+        SourceReading reading = verifier.read(subject(context, ""));
 
         assertThat(reading.recordsKept()).isTrue();
         assertThat(reading.facts()).extracting(SourceFact::entry, SourceFact::fragment).containsExactly(
@@ -95,13 +94,21 @@ class CompanyRecordsFactSourceVerifierTest {
         CanonicalSecurityContext customer = context("alice", 900, new AssignmentRecord("C-0042", false,
                 CompanyRecordSet.ACCOUNT_MANAGER));
         customer.getFrictionProfile().setOnCall(null);
-        List<SourceFact> facts = verifier.read(subject(customer, """
-                === DECISION FACTS ===
-                [F3] Approval: APR-1 by pm-11, APPROVED, HX-310, up to 500 items, valid 09-29 05:30..10-01 05:30
-                """)).facts();
+        customer.getFrictionProfile().setApprovalRecords(List.of(approval("APR-1", "pm-11")));
+        List<SourceFact> facts = verifier.read(subject(customer, "")).facts();
 
         assertThat(facts).extracting(SourceFact::fragment).containsExactly("not the account manager of C-0042",
                 "APR-1 by pm-11", "up to 500 items");
+    }
+
+    /** The approval line names the first approval with its approver; one collected without an approver is not read. */
+    @Test
+    void theFirstApprovalTheDecisionCollectedIsReadWhenItNamesItsApprover() {
+        CanonicalSecurityContext context = context("alice", 300, null);
+        context.getFrictionProfile().setOnCall(null);
+        context.getFrictionProfile().setApprovalRecords(List.of(approval("APR-1", null), approval("APR-2", "pm-11")));
+
+        assertThat(verifier.read(subject(context, "")).facts()).isEmpty();
     }
 
     @Test
@@ -164,6 +171,10 @@ class CompanyRecordsFactSourceVerifierTest {
         friction.setRecordsHolderId(user);
         context.setFrictionProfile(friction);
         return context;
+    }
+
+    private static ApprovalRecord approval(String id, String approver) {
+        return ApprovalRecord.builder().approvalId(id).approver(approver).status("APPROVED").build();
     }
 
     private static PromptInspectionSubject subject(CanonicalSecurityContext context, String prompt) {

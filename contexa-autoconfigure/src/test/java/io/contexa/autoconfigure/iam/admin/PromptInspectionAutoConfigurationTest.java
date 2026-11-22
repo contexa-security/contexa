@@ -38,9 +38,8 @@ import static org.mockito.Mockito.mock;
  */
 class PromptInspectionAutoConfigurationTest {
 
-    private static final List<String> CHECKS = List.of("SEAL_INTEGRITY", "BUNDLE_TRACE", "DICTIONARY_CONTRACT",
-            "DECISION_FACT_MATCH", "FACT_ACCURACY", "UNKNOWN_DECLARED", "PAST_RECORD_NOTATION", "SOURCE_TRUTH",
-            "SAME_FACT", "REASON_MATCH");
+    /** The evidence audit (plan 2.1 of the prompt quality redesign). */
+    private static final List<String> CHECKS = List.of("SEAL_INTEGRITY", "BUNDLE_TRACE", "SOURCE_TRUTH");
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(PromptInspectionAutoConfiguration.class))

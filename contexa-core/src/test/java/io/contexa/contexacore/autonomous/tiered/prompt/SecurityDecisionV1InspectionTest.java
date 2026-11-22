@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
+import io.contexa.contexacore.verification.inspection.RendererInspectionChecks;
 import io.contexa.contexacore.verification.inspection.DecisionFactMatchCheck;
 import io.contexa.contexacore.verification.inspection.FactAccuracyCheck;
 import io.contexa.contexacore.verification.inspection.InspectionCheckRunner;
@@ -55,7 +56,7 @@ class SecurityDecisionV1InspectionTest {
     void everyCoreCheckFindsAFallbackRenderWithSimilarCasesSound() {
         Sealed sealed = seal(MeasuredVariant.FALLBACK_SIMILAR, 3);
 
-        for (PromptInspectionCheck check : PromptInspector.coreChecks()) {
+        for (PromptInspectionCheck check : RendererInspectionChecks.coreChecks()) {
             PromptInspectionCheckResult result = run(check, SecurityDecisionPromptDictionary.V1_RULES_ENTRIES, sealed);
             assertThat(result.mismatched()).as(check.code() + " " + mismatches(result)).isZero();
         }
@@ -65,7 +66,7 @@ class SecurityDecisionV1InspectionTest {
     void everyCoreCheckFindsARecordRenderSound() {
         Sealed sealed = seal(MeasuredVariant.RECORD_EXACT, 0);
 
-        for (PromptInspectionCheck check : PromptInspector.coreChecks()) {
+        for (PromptInspectionCheck check : RendererInspectionChecks.coreChecks()) {
             PromptInspectionCheckResult result = run(check, SecurityDecisionPromptDictionary.V1_ENTRIES, sealed);
             assertThat(result.mismatched()).as(check.code() + " " + mismatches(result)).isZero();
         }
@@ -114,7 +115,7 @@ class SecurityDecisionV1InspectionTest {
 
     @Test
     void aV1PackageIsReadAsADictionaryPromptWithItsVariantsDictionary() {
-        PromptInspector inspector = new PromptInspector(PromptInspector.coreChecks(), InspectionGolden.JSON);
+        PromptInspector inspector = new PromptInspector(RendererInspectionChecks.coreChecks(), InspectionGolden.JSON);
 
         PromptInspectionResult rules = inspector.inspect(seal(MeasuredVariant.FALLBACK_SIMILAR, 3).pkg());
         PromptInspectionResult records = inspector.inspect(seal(MeasuredVariant.RECORD_EXACT, 0).pkg());

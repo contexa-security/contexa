@@ -95,7 +95,11 @@ public final class PromptInspectorVersions {
             new Version(28, "a package without the signature it should carry, whatever schema it names, and one whose "
                     + "predecessor is gone inside the retention, pointed at (Q-21)"),
             new Version(29, "a package that names a signing key the installation never held, and a lowered package with "
-                    + "any text as its signature"));
+                    + "any text as its signature"),
+            new Version(30, "the evidence audit only: the seal integrity, the bundle trace and the source truth, the "
+                    + "source truth compared with what the sealed decision collected instead of the prompt's lines; the "
+                    + "renderer's checks run in the build over the golden inputs and the reason codes on the decision "
+                    + "path (plan 2.1 of the prompt quality redesign)"));
 
     private PromptInspectorVersions() {
     }

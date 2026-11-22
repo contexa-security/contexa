@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
+import io.contexa.contexacore.verification.inspection.RendererInspectionChecks;
 import io.contexa.contexacore.verification.inspection.PromptInspectionFinding;
 import io.contexa.contexacore.verification.inspection.PromptInspectionOutcome;
 import io.contexa.contexacore.verification.inspection.PromptInspectionResult;
@@ -37,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class V21ValidatedCaseMemoryTest {
 
-    private static final PromptInspector INSPECTOR = new PromptInspector(PromptInspector.coreChecks(),
+    private static final PromptInspector INSPECTOR = new PromptInspector(RendererInspectionChecks.coreChecks(),
             InspectionGolden.JSON);
     private static final SecurityDecisionGoldenRender GOLDEN = SecurityDecisionGoldenRender.load();
 

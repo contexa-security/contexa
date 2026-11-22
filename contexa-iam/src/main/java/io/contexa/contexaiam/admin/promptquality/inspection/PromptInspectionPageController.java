@@ -30,7 +30,8 @@ public class PromptInspectionPageController {
     /** The message keys the inspection scripts draw. */
     static final List<String> SCRIPT_KEYS = Stream.of(
             PromptInspectionScreen.VERDICTS.stream().map(verdict -> "promptInspection.verdict." + verdict),
-            PromptInspectionScreen.CHECKS.stream().map(check -> "promptInspection.check." + check),
+            Stream.concat(PromptInspectionScreen.CHECKS.stream(), PromptInspectionScreen.RETIRED_CHECKS.stream())
+                    .map(check -> "promptInspection.check." + check),
             Stream.of("MISMATCH", "UNVERIFIABLE").map(outcome -> "promptInspection.outcome." + outcome),
             Stream.of("AUTO", "OPERATOR").map(trigger -> "promptInspection.trigger." + trigger),
             Stream.of("loading", "empty", "error", "notFound").map(word -> "promptInspection.common." + word),

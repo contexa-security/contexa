@@ -1,16 +1,10 @@
 package io.contexa.contexaiam.admin.promptquality.inspection;
 
-import io.contexa.contexacore.verification.inspection.DecisionFactMatchCheck;
-import io.contexa.contexacore.verification.inspection.DictionaryContractCheck;
-import io.contexa.contexacore.verification.inspection.FactAccuracyCheck;
-import io.contexa.contexacore.verification.inspection.PastRecordNotationCheck;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCheck;
 import io.contexa.contexacore.verification.inspection.PromptInspector;
-import io.contexa.contexacore.verification.inspection.SameFactCheck;
 import io.contexa.contexacore.verification.inspection.PromptInspectionVerdict;
 import io.contexa.contexacore.verification.inspection.SealIntegrityCheck;
 import io.contexa.contexacore.verification.inspection.SourceTruthCheck;
-import io.contexa.contexacore.verification.inspection.UnknownDeclaredCheck;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -52,20 +46,24 @@ class PromptInspectionScreenTest {
 
     /**
      * The screens offer the codes of the checks the inspector runs, in its order: the core checks with the bundle trace
-     * second and the source comparison before the same-fact check (PromptInspectionAutoConfiguration). A check added to
-     * the inspector shows on the screens with its name (W4-8 added REASON_MATCH to the inspector, and the screens drew
-     * its message key; N-UI-3: the source comparison was added without, and the detail screen showed its key).
+     * second and the source comparison last (PromptInspectionAutoConfiguration), the evidence audit of plan 2.1 of the
+     * prompt quality redesign. A check added to the inspector shows on the screens with its name (W4-8 added REASON_MATCH
+     * to the inspector, and the screens drew its message key; N-UI-3: the source comparison was added without, and the
+     * detail screen showed its key). The checks the inspector no longer runs keep their names for the stored results.
      */
     @Test
     void theScreensOfferTheCodesTheChecksDeclare() {
         List<String> run = new ArrayList<>(PromptInspector.coreChecks().stream()
                 .map(PromptInspectionCheck::code).toList());
         run.add(1, BundleTraceCheck.CODE);
-        run.add(run.indexOf(SameFactCheck.CODE), SourceTruthCheck.CODE);
-        assertThat(PromptInspectionScreen.CHECKS).containsExactlyElementsOf(run);
-        assertThat(PromptInspectionScreen.CHECKS).startsWith(SealIntegrityCheck.CODE, BundleTraceCheck.CODE,
-                DictionaryContractCheck.CODE, DecisionFactMatchCheck.CODE, FactAccuracyCheck.CODE,
-                UnknownDeclaredCheck.CODE, PastRecordNotationCheck.CODE, SourceTruthCheck.CODE, SameFactCheck.CODE);
+        run.add(SourceTruthCheck.CODE);
+        assertThat(PromptInspectionScreen.CHECKS).containsExactlyElementsOf(run)
+                .containsExactly(SealIntegrityCheck.CODE, BundleTraceCheck.CODE, SourceTruthCheck.CODE);
+        assertThat(PromptInspectionScreen.RETIRED_CHECKS).doesNotContainAnyElementsOf(PromptInspectionScreen.CHECKS)
+                .containsExactly("DICTIONARY_CONTRACT", "DECISION_FACT_MATCH", "FACT_ACCURACY", "UNKNOWN_DECLARED",
+                        "PAST_RECORD_NOTATION", "SAME_FACT", "REASON_MATCH");
+        assertThat(PromptInspectionPageController.SCRIPT_KEYS)
+                .contains("promptInspection.check.DICTIONARY_CONTRACT", "promptInspection.check.REASON_MATCH");
     }
 
     @Test
