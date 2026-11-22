@@ -26,6 +26,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
 import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionInUse;
@@ -192,7 +193,8 @@ public class PromptVersionAutoConfiguration {
             ObjectProvider<PromptGovernanceDescriptorResolver> promptGovernanceDescriptorResolver,
             ObjectProvider<TieredStrategyProperties> tieredStrategyProperties,
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper,
+            ObjectProvider<QualityGateSource> qualityGateSource) {
         PromptGovernanceDescriptorResolver descriptorResolver = promptGovernanceDescriptorResolver.getIfAvailable();
         PromptBundleSelector registry = null;
         if (descriptorResolver instanceof JdbcPromptGovernanceDescriptorResolver jdbcResolver) {
@@ -203,8 +205,11 @@ public class PromptVersionAutoConfiguration {
                     objectMapper.getIfAvailable(ObjectMapper::new)).registrySelector();
         }
         TieredStrategyProperties properties = tieredStrategyProperties.getIfAvailable(TieredStrategyProperties::new);
-        return new PromptVersionResolver(registry, contexaPromptVersionService,
+        PromptVersionResolver resolver = new PromptVersionResolver(registry, contexaPromptVersionService,
                 () -> properties.getPromptBundle().getActive(), Clock.systemUTC());
+        // Plan 3.4: a version that decides outside the release gate is checked once for a measurement taken here.
+        resolver.setQualityGateSource(qualityGateSource::getIfAvailable);
+        return resolver;
     }
 
     /**
