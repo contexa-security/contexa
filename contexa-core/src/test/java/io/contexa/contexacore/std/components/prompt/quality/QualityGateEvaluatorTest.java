@@ -43,7 +43,7 @@ class QualityGateEvaluatorTest {
     private static final int RUNS = 3;
 
     /** Ten roots on either side are enough here, so the shortage of cases does not colour every test. */
-    private static final QualityGateSettings SETTINGS = new QualityGateSettings(0.05, 0.05, 10, 10);
+    private static final QualityGateSettings SETTINGS = new QualityGateSettings(0.05, 0.05, 10, 10, 0.30);
 
     private static final QualityNoise NOISE = noise(0.05);
 
@@ -176,6 +176,8 @@ class QualityGateEvaluatorTest {
         assertThat(status(noCurrent, QualityGateCondition.MISS_NOT_INCREASED))
                 .isEqualTo(QualityGateStatus.NOT_EVALUATED);
         assertThat(status(noCurrent, QualityGateCondition.STOPPING_NOT_INCREASED))
+                .isEqualTo(QualityGateStatus.NOT_EVALUATED);
+        assertThat(status(noCurrent, QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT))
                 .isEqualTo(QualityGateStatus.NOT_EVALUATED);
         assertThat(status(noCurrent, QualityGateCondition.MODEL_USED_AND_CITATIONS_ACCURATE))
                 .isEqualTo(QualityGateStatus.NOT_EVALUATED);
@@ -350,7 +352,69 @@ class QualityGateEvaluatorTest {
                 .containsExactly("M1", "M2");
         assertThat(status(result, QualityGateCondition.MUST_NOT_BLOCK_NEVER_BLOCKED))
                 .isEqualTo(QualityGateStatus.PASSED);
+        // From no friction to all of it is far beyond the limit of the friction increase.
+        assertThat(result.finding(QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT).figures())
+                .containsEntry("increase", 1.0);
+        assertThat(status(result, QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT))
+                .isEqualTo(QualityGateStatus.BLOCKED);
         assertThat(result.status()).isEqualTo(QualityGateStatus.BLOCKED);
+    }
+
+    @Test
+    void besideRow5AFrictionThatGrowsByTheLimitOrMoreBlocksWhateverTheSignificance() {
+        List<String> challenged = keys("N", 1, 5);
+        List<QualityAnswer> candidate = answering(item -> challenged.contains(item.key()) ? QualityAction.CHALLENGE
+                : sound(item));
+
+        // Without a measured noise the friction cannot be called worse: only its limit speaks.
+        QualityGateResult result = gate(soundAnswers(), candidate, QualityNoise.unknown(), SETTINGS);
+
+        QualityGateFinding finding = result.finding(QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT);
+        assertThat(finding.status()).isEqualTo(QualityGateStatus.BLOCKED);
+        // 5 of the 14 normal cases in every run: 15 of 42 answers, 35.7 points over none.
+        assertThat(finding.figures()).containsEntry("pairedCases", 14).containsEntry("currentRate", 0.0)
+                .containsEntry("candidateRate", 15.0 / 42).containsEntry("increase", 15.0 / 42)
+                .containsEntry("limit", 0.30).containsEntry("newlyStoppedCases", 5);
+        assertThat(finding.caseKeys()).containsExactlyElementsOf(challenged);
+        assertThat(finding.comparisons()).extracting(QualityComparison::metric).containsExactly(QualityMetric.FRICTION);
+        assertThat(result.comparisons().get(QualityMetric.FRICTION).verdict()).isEqualTo(QualityVerdict.UNDECIDABLE);
+        assertThat(status(result, QualityGateCondition.STOPPING_NOT_INCREASED)).isEqualTo(QualityGateStatus.PASSED);
+        // The row blocks for the newly stopped cases, so they are not a warning of their own.
+        assertThat(status(result, QualityGateCondition.NO_NEWLY_MISSED_OR_STOPPED_CASES))
+                .isEqualTo(QualityGateStatus.PASSED);
+        assertThat(result.status()).isEqualTo(QualityGateStatus.BLOCKED);
+
+        // A rise of exactly the limit blocks, though the two rates differ in the last bits as doubles: 3 of 42 to 12.
+        List<QualityAnswer> before = answering(item -> "N1".equals(item.key()) ? QualityAction.CHALLENGE
+                : sound(item));
+        List<QualityAnswer> after = answering(item -> keys("N", 1, 4).contains(item.key()) ? QualityAction.CHALLENGE
+                : sound(item));
+        QualityGateFinding exactly = gate(before, after, NOISE, new QualityGateSettings(0.05, 0.05, 10, 10, 9.0 / 42))
+                .finding(QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT);
+        assertThat(exactly.status()).isEqualTo(QualityGateStatus.BLOCKED);
+        assertThat(gate(before, after, NOISE, new QualityGateSettings(0.05, 0.05, 10, 10, 0.22))
+                .finding(QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT).status())
+                .isEqualTo(QualityGateStatus.PASSED);
+        // Less friction, or the same, is no rise.
+        QualityGateFinding fewer = gate(after, before).finding(QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT);
+        assertThat(fewer.status()).isEqualTo(QualityGateStatus.PASSED);
+        assertThat(fewer.figures().get("increase").doubleValue()).isNegative();
+        assertThat(status(gate(soundAnswers(), soundAnswers()), QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT))
+                .isEqualTo(QualityGateStatus.PASSED);
+    }
+
+    @Test
+    void besideRow5WithoutCasesThatMustBeAllowedThereIsNoFrictionToCompare() {
+        List<QualityCase> threats = CASES.stream().filter(QualityCase::shouldStop).toList();
+        List<QualityAnswer> answers = QualityAnswerFixtures.answers(threats, RUNS, QualityGateEvaluatorTest::sound);
+
+        QualityGateFinding finding = QualityGateEvaluator.evaluate(new QualityGateInput(threats,
+                QualityAnswerFixtures.measurement("v1", RUNS, answers),
+                QualityAnswerFixtures.measurement("v2", RUNS, answers), NOISE, SETTINGS, null))
+                .finding(QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT);
+
+        assertThat(finding.status()).isEqualTo(QualityGateStatus.PASSED);
+        assertThat(finding.figures()).containsEntry("pairedCases", 0);
     }
 
     @Test
@@ -377,6 +441,10 @@ class QualityGateEvaluatorTest {
         assertThat(everythingDeferred.comparisons().get(QualityMetric.DEFERRAL).candidateValue()).isEqualTo(1.0);
         assertThat(everythingDeferred.finding(QualityGateCondition.STOPPING_NOT_INCREASED).figures())
                 .containsEntry("worseRates", 3L);
+        assertThat(status(everythingDeferred, QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT))
+                .isEqualTo(QualityGateStatus.BLOCKED);
+        assertThat(status(threatsDeferred, QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT))
+                .isEqualTo(QualityGateStatus.PASSED);
         assertThat(everythingDeferred.status()).isEqualTo(QualityGateStatus.BLOCKED);
     }
 
@@ -401,7 +469,7 @@ class QualityGateEvaluatorTest {
         QualityGateResult five = gate(soundAnswers(), withoutModel(5));
         QualityGateResult four = gate(soundAnswers(), withoutModel(4));
         QualityGateResult fiveUnderALooserLimit = gate(soundAnswers(), withoutModel(5), NOISE,
-                new QualityGateSettings(0.10, 0.05, 10, 10));
+                new QualityGateSettings(0.10, 0.05, 10, 10, 0.30));
         List<QualityAnswer> careless = soundAnswers().stream().map(answer -> new QualityAnswer(answer.caseKey(),
                 answer.run(), answer.firstAction(), null, false, false, 3, 1, 7000L, 120, false, null)).toList();
         QualityGateResult lessAccurate = gate(soundAnswers(), careless);

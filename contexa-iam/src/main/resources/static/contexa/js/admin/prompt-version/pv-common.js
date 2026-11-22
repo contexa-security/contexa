@@ -501,6 +501,11 @@
         return details.modelsBefore && details.modelsNow && details.modelsBefore !== details.modelsNow;
     }
 
+    /** A difference of two rates in percentage points, to one decimal: 0.267 is 26.7. */
+    function points(ratio) {
+        return ratio == null ? '—' : ZT.count(Math.round(ratio * 1000) / 10);
+    }
+
     function rateText(comparison) {
         return t('pv.gate.ev.rate', word('pv.gate.metric.' + comparison.metric), ZT.percent(comparison.currentValue),
             ZT.percent(comparison.candidateValue));
@@ -615,6 +620,20 @@
                     named('WORSE') ? t('pv.gate.ev.worse', named('WORSE')) : null,
                     named('UNDECIDABLE') ? t('pv.gate.ev.undecidable', named('UNDECIDABLE')) : null]
                     .filter(Boolean).join(' · ');
+            }
+            case 'FRICTION_INCREASE_WITHIN_LIMIT': {
+                // Quality P8: the rise of the friction against its limit, whatever the significance.
+                if (!figure(row, 'pairedCases')) {
+                    return t('pv.gate.ev.noAllowCases');
+                }
+                const increase = figure(row, 'increase');
+                const current = ZT.percent(figure(row, 'currentRate'));
+                const candidate = ZT.percent(figure(row, 'candidateRate'));
+                const limit = points(figure(row, 'limit'));
+                return [increase != null && Math.round(increase * 1000) > 0
+                    ? t('pv.gate.ev.frictionUp', current, candidate, points(increase), limit)
+                    : t('pv.gate.ev.frictionNotUp', current, candidate, limit),
+                status === 'BLOCKED' ? t('pv.gate.ev.frictionSetting') : null].filter(Boolean).join(' · ');
             }
             case 'MODEL_USED_AND_CITATIONS_ACCURATE': {
                 const citations = comparisons.find(comparison => comparison.metric === 'CITATION_ACCURACY');

@@ -21,7 +21,6 @@ import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
-import io.contexa.contexacore.std.components.prompt.quality.QualityGateSettings;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
 import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
@@ -390,11 +389,9 @@ public class PromptVersionConsoleAutoConfiguration {
                                                            ObjectProvider<PromptVersionConsole> console,
                                                            ObjectProvider<SealedEvidencePackageRepository> sealed,
                                                            PqaOssQualityProperties properties) {
-        PqaOssQualityProperties.Gate gate = properties.getGate();
         return new PromptQualityCaseScreen(contexaPromptQualityCases, measurements::getIfAvailable,
                 classes::getIfAvailable, console::getIfAvailable, sealed::getIfUnique,
-                new QualityGateSettings(gate.getModelLessLimit(), gate.getSignificance(), gate.getMinimumStopRoots(),
-                        gate.getMinimumAllowRoots()), Clock.systemUTC());
+                properties.getGate().settings(), Clock.systemUTC());
     }
 
     /** Quality plan 3.2: the JSON of the screen of the labelled cases. */

@@ -32,13 +32,15 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 /**
- * Quality P35 on the measurements of plan 6's check of the quality gate (the default case set, 70 cases, one run,
- * recorded on 2026-11-22): the version in use v1.0 against six candidates made from it, with the noise of the renamed
- * one, as the gate reads them. Before P35 the version that challenges every request was only warned of, though it
- * challenges the ten control cases v1.0 blocks (K186); the renamed version, which answers every case as v1.0 does,
- * must still pass. No model is called: the answers are the recorded ones.
+ * Quality P35 and P8 on the measurements of plan 6's check of the quality gate (the default case set, 70 cases, one
+ * run, recorded on 2026-11-22): the version in use v1.0 against six candidates made from it, with the noise of the
+ * renamed one, as the gate reads them. Before P35 the version that challenges every request was only warned of, though
+ * it challenges the ten control cases v1.0 blocks (K186); the renamed version, which answers every case as v1.0 does,
+ * must still pass. The friction of v1.0 is already 10 of 15 answers, which leaves the limit of the friction increase
+ * little room. No model is called: the answers are the recorded ones.
  */
 class QualityGateRecordedVersionsTest {
 
@@ -47,8 +49,11 @@ class QualityGateRecordedVersionsTest {
     private static final String CASE_SET = "recorded-case-set";
     private static final String CURRENT = "v1.0";
     private static final String RENAMED = "1-renamed";
+    private static final String REWORDED = "2-reworded";
+    private static final String NO_JUDGING = "3-no-judging";
     private static final String CHALLENGE_ALL = "4-challenge-all";
     private static final String DEFER_ALL = "5-defer-all";
+    private static final String ALLOW_MUST_CATCH = "6-allow-must-catch";
 
     private static final Recorded RECORDED = Recorded.read();
 
@@ -58,8 +63,13 @@ class QualityGateRecordedVersionsTest {
             QualityActionBasis.FIRST_ANSWER);
 
     private static QualityGateResult gate(QualityMeasurement current, QualityMeasurement candidate) {
+        return gate(current, candidate, QualityGateSettings.defaults());
+    }
+
+    private static QualityGateResult gate(QualityMeasurement current, QualityMeasurement candidate,
+                                          QualityGateSettings settings) {
         return QualityGateEvaluator.evaluate(new QualityGateInput(RECORDED.cases(), current, candidate, NOISE,
-                QualityGateSettings.defaults(), null));
+                settings, null));
     }
 
     private static QualityGateResult gate(String candidate) {
@@ -127,6 +137,10 @@ class QualityGateRecordedVersionsTest {
         QualityGateResult renamed = gate(RENAMED);
 
         assertThat(status(renamed, QualityGateCondition.MUST_CATCH_NOT_WEAKENED)).isEqualTo(QualityGateStatus.PASSED);
+        assertThat(status(renamed, QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT))
+                .isEqualTo(QualityGateStatus.PASSED);
+        assertThat(renamed.finding(QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT).figures())
+                .containsEntry("increase", 0.0);
         assertThat(renamed.findings()).extracting(QualityGateFinding::status)
                 .doesNotContain(QualityGateStatus.BLOCKED);
         assertThat(renamed.status()).isEqualTo(QualityGateStatus.WARNING);
@@ -138,6 +152,51 @@ class QualityGateRecordedVersionsTest {
         assertThat(finding.status()).isEqualTo(QualityGateStatus.WARNING);
         assertThat(finding.figures()).containsEntry("weakenedCases", 0).containsEntry("currentAlsoOutsideCases", 10);
         assertThat(again.status()).isEqualTo(QualityGateStatus.WARNING);
+    }
+
+    @Test
+    void theFrictionOfTheVersionThatChallengesEveryRequestRisesByLessThanTheDefaultLimit() {
+        QualityGateFinding byDefault = gate(CHALLENGE_ALL).finding(QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT);
+
+        // 10 of 15 to 14 of 15: 26.7 points, short of the 30 of the default; the control cases block it instead.
+        assertThat(byDefault.status()).isEqualTo(QualityGateStatus.PASSED);
+        assertThat(byDefault.figures()).containsEntry("pairedCases", 15).containsEntry("currentRate", 10.0 / 15)
+                .containsEntry("candidateRate", 14.0 / 15).containsEntry("limit", 0.30);
+        assertThat(byDefault.figures().get("increase").doubleValue()).isCloseTo(4.0 / 15, within(1e-12));
+        // A limit at or under the rise blocks it whatever the significance (p = 0.0625 on the four roots that turn).
+        QualityGateResult tighter = gate(RECORDED.measurement(CURRENT, CURRENT),
+                RECORDED.measurement(CHALLENGE_ALL, CHALLENGE_ALL), new QualityGateSettings(0.05, 0.05, 200, 300, 0.25));
+        assertThat(status(tighter, QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT))
+                .isEqualTo(QualityGateStatus.BLOCKED);
+        assertThat(tighter.comparisons().get(QualityMetric.FRICTION).verdict()).isEqualTo(QualityVerdict.UNDECIDABLE);
+        assertThat(tighter.comparisons().get(QualityMetric.FRICTION).worseProbability()).isEqualTo(1.0 / 16);
+        // The version that defers everything stops all normal work: 33.3 points, over the default.
+        QualityGateFinding deferred = gate(DEFER_ALL).finding(QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT);
+        assertThat(deferred.status()).isEqualTo(QualityGateStatus.BLOCKED);
+        assertThat(deferred.figures().get("increase").doubleValue()).isCloseTo(5.0 / 15, within(1e-12));
+    }
+
+    @Test
+    void theVerdictsOfTheSixVersionsWithTheTwoNewRows() {
+        Map<String, List<QualityGateStatus>> expected = new LinkedHashMap<>();
+        // The version, then: the weakened control cases, the friction limit, and the whole verdict.
+        expected.put(RENAMED, List.of(QualityGateStatus.PASSED, QualityGateStatus.PASSED, QualityGateStatus.WARNING));
+        expected.put(REWORDED, List.of(QualityGateStatus.PASSED, QualityGateStatus.PASSED, QualityGateStatus.BLOCKED));
+        expected.put(NO_JUDGING, List.of(QualityGateStatus.PASSED, QualityGateStatus.PASSED,
+                QualityGateStatus.WARNING));
+        expected.put(CHALLENGE_ALL, List.of(QualityGateStatus.BLOCKED, QualityGateStatus.PASSED,
+                QualityGateStatus.BLOCKED));
+        expected.put(DEFER_ALL, List.of(QualityGateStatus.BLOCKED, QualityGateStatus.BLOCKED,
+                QualityGateStatus.BLOCKED));
+        expected.put(ALLOW_MUST_CATCH, List.of(QualityGateStatus.PASSED, QualityGateStatus.PASSED,
+                QualityGateStatus.BLOCKED));
+
+        expected.forEach((version, statuses) -> {
+            QualityGateResult result = gate(version);
+            assertThat(List.of(status(result, QualityGateCondition.MUST_CATCH_NOT_WEAKENED),
+                    status(result, QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT), result.status()))
+                    .as(version).isEqualTo(statuses);
+        });
     }
 
     private static QualityGateStatus status(QualityGateResult result, QualityGateCondition condition) {

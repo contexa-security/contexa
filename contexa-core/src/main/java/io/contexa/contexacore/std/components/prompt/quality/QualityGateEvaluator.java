@@ -44,6 +44,9 @@ public final class QualityGateEvaluator {
     private static final List<QualityMetric> ON_LATER_CASES = List.of(QualityMetric.MISS, QualityMetric.FALSE_STOP,
             QualityMetric.OVER_BLOCK, QualityMetric.FRICTION);
 
+    /** Rates that are equal as fractions can differ in the last bits as doubles; this is far below any real limit. */
+    private static final double ROUNDING = 1e-12;
+
     private QualityGateEvaluator() {
     }
 
@@ -71,10 +74,14 @@ public final class QualityGateEvaluator {
         QualityGateFinding miss = notIncreased(QualityGateCondition.MISS_NOT_INCREASED, comparisons,
                 List.of(QualityMetric.MISS));
         QualityGateFinding stopping = notIncreased(QualityGateCondition.STOPPING_NOT_INCREASED, comparisons, STOPPING);
+        QualityGateFinding friction = frictionWithinLimit(comparisons, changes, settings);
         findings.add(miss);
         findings.add(stopping);
+        findings.add(friction);
         findings.add(modelUsedAndCitationsAccurate(measured, comparisons, settings));
-        findings.add(newlyMissedOrStopped(comparable, changes, miss.status(), stopping.status()));
+        // A friction over the limit blocks for the newly stopped cases as a stopping rate does.
+        findings.add(newlyMissedOrStopped(comparable, changes, miss.status(),
+                stopping.status().worse(friction.status())));
         findings.add(enoughCases(measured, comparisons, settings, input.noise()));
         findings.add(laterCases(input, measured != null, settings));
 
@@ -206,6 +213,34 @@ public final class QualityGateEvaluator {
         long worse = read.stream().filter(comparison -> comparison.verdict() == QualityVerdict.WORSE).count();
         return new QualityGateFinding(condition, worse > 0 ? QualityGateStatus.BLOCKED : QualityGateStatus.PASSED,
                 Map.of("worseRates", worse), read, List.of());
+    }
+
+    /**
+     * Beside row 5 (quality P8): the friction did not grow by the limit of the installation or more over the version in
+     * use, whatever the significance and the noise. The two rates are those of the paired comparison of the friction,
+     * over the cases both measurements scored, the rate the gate shows. Where the version in use already stops most
+     * normal work, too few roots are left that can turn for the exact test to say worse (plan 6: a version that
+     * challenges every request), so a large rise blocks by itself. Without cases that must be allowed there is no
+     * friction to compare and nothing grew.
+     */
+    private static QualityGateFinding frictionWithinLimit(Map<QualityMetric, QualityComparison> comparisons,
+                                                          QualityCaseChanges changes, QualityGateSettings settings) {
+        QualityGateCondition condition = QualityGateCondition.FRICTION_INCREASE_WITHIN_LIMIT;
+        if (comparisons.isEmpty()) {
+            return notEvaluated(condition);
+        }
+        QualityComparison friction = comparisons.get(QualityMetric.FRICTION);
+        Map<String, Number> figures = new LinkedHashMap<>();
+        figures.put("pairedCases", friction.pairedCases());
+        figures.put("currentRate", friction.currentValue());
+        figures.put("candidateRate", friction.candidateValue());
+        figures.put("increase", friction.difference());
+        figures.put("limit", settings.frictionIncreaseLimit());
+        figures.put("newlyStoppedCases", changes.newlyStopped().size());
+        boolean over = friction.pairedCases() > 0
+                && friction.difference() + ROUNDING >= settings.frictionIncreaseLimit();
+        return new QualityGateFinding(condition, over ? QualityGateStatus.BLOCKED : QualityGateStatus.PASSED, figures,
+                List.of(friction), changes.newlyStopped());
     }
 
     /** Row 6: the share decided without the model is within its limit, and the citation accuracy is not worse. */

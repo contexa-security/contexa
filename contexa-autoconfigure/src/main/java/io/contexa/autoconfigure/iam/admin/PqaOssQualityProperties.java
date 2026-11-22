@@ -159,10 +159,21 @@ public class PqaOssQualityProperties {
         /** The distinct roots of cases that must be allowed needed to tell two versions apart. */
         private int minimumAllowRoots = DEFAULTS.minimumAllowRoots();
 
+        /**
+         * Quality P8: how far the friction of the candidate may grow over that of the version in use, as a difference
+         * of the two rates (0.30 is 30 percentage points), before the gate blocks whatever the significance.
+         */
+        private double frictionIncreaseLimit = DEFAULTS.frictionIncreaseLimit();
+
         /** The quality gate with the measurements of the source, these thresholds and this mode. */
         public QualityGatePolicy policy(QualityGateSource source) {
-            return new QualityGatePolicy(source, mode,
-                    new QualityGateSettings(modelLessLimit, significance, minimumStopRoots, minimumAllowRoots));
+            return new QualityGatePolicy(source, mode, settings());
+        }
+
+        /** These thresholds; a value outside its range is refused. */
+        public QualityGateSettings settings() {
+            return new QualityGateSettings(modelLessLimit, significance, minimumStopRoots, minimumAllowRoots,
+                    frictionIncreaseLimit);
         }
 
         public QualityGateMode getMode() {
@@ -203,6 +214,14 @@ public class PqaOssQualityProperties {
 
         public void setMinimumAllowRoots(int minimumAllowRoots) {
             this.minimumAllowRoots = minimumAllowRoots;
+        }
+
+        public double getFrictionIncreaseLimit() {
+            return frictionIncreaseLimit;
+        }
+
+        public void setFrictionIncreaseLimit(double frictionIncreaseLimit) {
+            this.frictionIncreaseLimit = frictionIncreaseLimit;
         }
     }
 }

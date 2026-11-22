@@ -44,6 +44,13 @@ public enum QualityGateCondition {
     /** None of false stops, blocks beyond the right answer, friction and deferring grew significantly. */
     STOPPING_NOT_INCREASED,
 
+    /**
+     * The friction did not grow by the limit of the installation or more, whatever the significance (quality P8): a
+     * version that challenges every request is stopped also where the version in use already stops most normal work
+     * and too few roots are left to tell the two apart.
+     */
+    FRICTION_INCREASE_WITHIN_LIMIT,
+
     /** The share decided without the model is within its limit and the citation accuracy did not fall significantly. */
     MODEL_USED_AND_CITATIONS_ACCURATE,
 
