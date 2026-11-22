@@ -471,13 +471,34 @@
 
     /**
      * The words of the versions a state of the measurements is about, by the key ending CANDIDATE, CURRENT or BOTH;
-     * the candidate is {0}, the version in use {1}.
+     * the candidate is {0}, the version in use {1}, and more words after them.
      */
-    function sidesText(key, quality, check) {
+    function sidesText(key, quality, check, ...more) {
         const list = quality.measurementSides || [];
         const side = list.includes('CANDIDATE') && list.includes('CURRENT') ? 'BOTH'
             : list.includes('CURRENT') ? 'CURRENT' : 'CANDIDATE';
-        return t(key + side, check.version || '—', check.current || '—');
+        return t(key + side, check.version || '—', check.current || '—', ...more);
+    }
+
+    /** The details the use check read beside the verdict (the case set, the models, a measurement that runs). */
+    function gateDetails(quality) {
+        return quality.details || {};
+    }
+
+    /** The case set as the screens of the group name it: the start of its version. */
+    function caseSetText(details) {
+        return details.caseSetVersion ? t('pv.gate.ev.caseSet', String(details.caseSetVersion).slice(0, 8)) : null;
+    }
+
+    /** The measurement of the version in use that waits or runs, when the details have it. */
+    function baselineProgress(details, check) {
+        const measuring = details.measuring;
+        return measuring && measuring.version === check.current ? measuring : null;
+    }
+
+    /** Whether the model setting changed between a stale measurement and the server now, by their models. */
+    function modelsChanged(details) {
+        return details.modelsBefore && details.modelsNow && details.modelsBefore !== details.modelsNow;
     }
 
     function rateText(comparison) {
@@ -491,14 +512,18 @@
         return word('pv.gate.ev.verdict.' + comparison.verdict) + ' (' + noise + ')';
     }
 
-    function casesText(keys) {
+    /** The cases a row names, by the names the details give them (their keys when not given); the rest counted. */
+    function caseList(keys, details) {
         const list = keys || [];
         if (!list.length) {
             return null;
         }
-        const shown = list.slice(0, GATE_CASES).join(', ');
-        return t('pv.gate.ev.cases', shown) + (list.length > GATE_CASES
-            ? ' ' + t('pv.gate.ev.more', ZT.count(list.length - GATE_CASES)) : '');
+        const names = {};
+        (details.caseNames || []).forEach(item => {
+            names[item.key] = item.name;
+        });
+        return {names: list.slice(0, GATE_CASES).map(key => names[key] || key),
+            more: list.length > GATE_CASES ? t('pv.gate.ev.more', ZT.count(list.length - GATE_CASES)) : null};
     }
 
     /** The numbers behind a row, in the reader's words (plan 3.4: every row with its result and its numbers). */
@@ -514,11 +539,23 @@
                 if (state === 'missing' && status === 'BLOCKED') {
                     return sidesText('pv.gate.line.missing.', quality, check);
                 }
+                const details = gateDetails(quality);
                 if (state === 'stale' && status === 'BLOCKED') {
-                    return sidesText('pv.gate.ev.stale.', quality, check);
+                    return details.modelsBefore
+                        ? sidesText('pv.gate.ev.staleModel.', quality, check, details.modelsBefore)
+                        : sidesText('pv.gate.ev.stale.', quality, check);
                 }
                 if (state === 'pending') {
-                    return t('pv.gate.ev.pending', check.current || '—');
+                    const progress = baselineProgress(details, check);
+                    return progress ? t('pv.gate.ev.pendingProgress', check.current || '—',
+                        ZT.count(progress.answered), ZT.count(progress.planned), check.version || '—')
+                        : t('pv.gate.ev.pending', check.current || '—');
+                }
+                if (status === 'PASSED') {
+                    return [t('pv.gate.ev.pairOf', check.current || '—', check.version || '—'), caseSetText(details),
+                        details.models || null, figure(row, 'candidateRepeats') != null
+                            ? t('pv.gate.ev.runs', ZT.count(figure(row, 'candidateRepeats'))) : null]
+                        .filter(Boolean).join(' · ');
                 }
                 const parts = [];
                 const sameSet = figure(row, 'sameCaseSetVersion');
@@ -616,13 +653,19 @@
         } else if (state === 'missing') {
             sentences.push(sidesText('pv.gate.line.missing.', quality, check));
         } else if (state === 'pending') {
-            sentences.push(t('pv.gate.line.pending', check.current || '—'));
+            const progress = baselineProgress(gateDetails(quality), check);
+            sentences.push(progress ? t('pv.gate.line.pendingProgress', check.current || '—',
+                ZT.count(progress.answered), ZT.count(progress.planned))
+                : t('pv.gate.line.pending', check.current || '—'));
         } else if (state === 'stale') {
-            sentences.push(sidesText('pv.gate.line.stale.', quality, check));
+            const details = gateDetails(quality);
+            sentences.push(modelsChanged(details) ? sidesText('pv.gate.line.staleModels.', quality, check,
+                details.modelsBefore, details.modelsNow) : sidesText('pv.gate.line.stale.', quality, check));
         } else {
             sentences.push(t('pv.gate.line.' + state));
         }
-        if (quality.measurementDetail) {
+        // The sentence of the waiting baseline says already that it is being measured.
+        if (quality.measurementDetail && !(state === 'pending' && quality.measurementDetail === 'MEASURING')) {
             const detail = word('pv.gate.detail.' + quality.measurementDetail, '');
             if (detail) {
                 sentences.push(detail);
@@ -637,9 +680,10 @@
     }
 
     /**
-     * Quality plan 3.4 and the approved mockup: what the confirmation shows of the quality gate. The rows that block
-     * stay open; the rows that warn stay open too unless the gate blocks, when they fold into "N warnings"; the rows
-     * the gate could not look at and the rows that passed fold into a line each. The newly missed cases are not listed
+     * Quality plan 3.4 and the approved mockup: what the confirmation shows of the quality gate. When the verdict
+     * blocks, the blocking rows alone stay open and the warnings fold into "N warnings", whether the gate blocks or,
+     * in the warning mode, applies the verdict as a warning; otherwise the rows that warn stay open. The rows the gate
+     * could not look at and the rows that passed fold into a line each. The newly missed cases are not listed
      * in the confirmation: a link opens the comparison of the two versions. A blocked gate takes a reason when a reason
      * overrides it (it blocks on quality alone). Pure: it reads the use check and returns what the confirmation draws.
      *
@@ -656,7 +700,10 @@
         const rows = (quality.rows || []).map(row => ({row, status: gateRowStatus(row, quality)}));
         const blocking = rows.filter(item => item.status === 'BLOCKED');
         const warnings = rows.filter(item => item.status === 'WARNING');
-        const isOpen = item => item.status === 'BLOCKED' || (!blocked && item.status === 'WARNING');
+        // The verdict as the gate computes it, its rule for the first row while the baseline waits applied.
+        const blockedVerdict = blocking.length > 0;
+        const isOpen = item => (blockedVerdict ? item.status === 'BLOCKED' : item.status === 'WARNING');
+        const details = gateDetails(quality);
         const compareHref = measurePage('/compare', {candidate: numberOf(check.version),
             reference: numberOf(check.current)});
         const describe = item => {
@@ -672,7 +719,7 @@
                         : t('pv.gate.compare.stopped', ZT.count(stopped))};
                 }
             } else if (item.status !== 'PASSED' && item.status !== 'NOT_EVALUATED') {
-                described.cases = casesText(row.cases);
+                described.cases = caseList(row.cases, details);
             }
             return described;
         };
@@ -688,10 +735,11 @@
             state, kind: kind || 'use', chip: GATE_CHIPS[quality.applied] || null,
             label: t('pv.gate.state.' + state),
             line: gateLine(state, quality, check, blocking, warnings, override),
-            subhead: [t('pv.gate.title'), word('pv.gate.mode.' + quality.mode),
-                repeats != null ? t('pv.gate.ev.repeats', ZT.count(repeats)) : null].filter(Boolean).join(' · '),
-            modeTip: word('pv.gate.modeTip.' + quality.mode, ''),
-            open, folds, override, seen: !blocked && changed != null,
+            subhead: [t('pv.gate.title'), caseSetText(details), details.models || null,
+                repeats != null ? t('pv.gate.ev.runs', ZT.count(repeats)) : null].filter(Boolean).join(' · '),
+            modeTip: [word('pv.gate.mode.' + quality.mode, ''), word('pv.gate.modeTip.' + quality.mode, '')]
+                .filter(Boolean).join(': '),
+            open, folds, override, seen: !blockedVerdict && changed != null,
             remeasure: state === 'stale' && quality.measurementDetail !== 'MEASURING' && numberOf(staleSide) != null
                 ? measurePage('', {candidate: numberOf(staleSide)}) : null
         };
@@ -704,7 +752,9 @@
             return el('div', {class: 'zt-indicator', 'data-severity': row.chip, 'data-gate-row': row.condition},
                 el('div', {class: 'zt-indicator-text'}, el('span', {class: 'zt-indicator-title', text: row.title}),
                     row.evidence ? el('span', {class: 'zt-indicator-rule', text: row.evidence}) : null,
-                    row.cases ? el('span', {class: 'zt-indicator-rule', text: row.cases}) : null,
+                    row.cases ? el('ul', {class: 'zt-rows', style: {marginTop: '0.25rem'}},
+                        row.cases.names.map(name => el('li', {class: 'zt-row flex-wrap'}, el('span', {text: name}))),
+                        row.cases.more ? el('li', {class: 'zt-muted', text: row.cases.more}) : null) : null,
                     row.compare ? el('a', {class: 'zt-link', href: row.compare.href, 'data-pv-action': 'gate-compare',
                         text: row.compare.label}) : null),
                 chip);

@@ -281,7 +281,8 @@ public class PromptVersionConsoleAutoConfiguration {
                                                      ObjectProvider<VersionedPrompts> versionedPrompts,
                                                      ObjectProvider<SealedDecisionReplays> replays,
                                                      ObjectProvider<PromptQualityMeasurements> measurements,
-                                                     ObjectProvider<QualityAutoMeasurement> autoMeasurement) {
+                                                     ObjectProvider<QualityAutoMeasurement> autoMeasurement,
+                                                     ObjectProvider<QualityGateSource> gateSources) {
         PromptVersionConsole console = new PromptVersionConsole(versions, trials::getIfAvailable, selector::getIfUnique, () -> jdbcTemplate,
                 releases::getIfAvailable, gate::getIfAvailable, invalidation::getIfAvailable, rollbacks::getIfAvailable,
                 sealed::getIfAvailable, decisions::getIfAvailable, folder::getIfAvailable,
@@ -306,6 +307,10 @@ public class PromptVersionConsoleAutoConfiguration {
                 }
             };
         });
+        // Quality plan 3.4: the confirmation names the case set, the models and a measurement that runs beside the
+        // verdict of the quality gate, as the store of measurements the gate reads has them.
+        console.setQualityDetails(() -> gateSources.getIfUnique() instanceof MeasuredQualityGateSource source
+                ? source::details : null);
         // Plan 3.10 (2): the finished prompt draws the latest sealed decision again with the version, as a replay does.
         // K71: beside it, the state of the sealed package, as a replay tells it.
         console.setSealedDrawing(() -> {

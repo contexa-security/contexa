@@ -156,7 +156,8 @@ class PromptVersionMessagesTest {
         GATE_STATES.forEach(state -> keys.add("pv.gate.state." + state));
         Stream.of("pass", "rollback", "unmeasurable").forEach(state -> keys.add("pv.gate.line." + state));
         Stream.of("CANDIDATE", "CURRENT", "BOTH").forEach(side -> Stream.of("pv.gate.line.missing.",
-                "pv.gate.line.stale.", "pv.gate.ev.stale.").forEach(prefix -> keys.add(prefix + side)));
+                "pv.gate.line.stale.", "pv.gate.ev.stale.", "pv.gate.line.staleModels.", "pv.gate.ev.staleModel.")
+                .forEach(prefix -> keys.add(prefix + side)));
         Stream.of("missing", "unmeasurable", "pending", "stale").forEach(state -> keys.add("pv.gate.ev.wait." + state));
         Stream.of(QualityGateCondition.MUST_CATCH_NEVER_ALLOWED, QualityGateCondition.MUST_NOT_BLOCK_NEVER_BLOCKED)
                 .forEach(condition -> keys.add("pv.gate.ev.graded." + condition.name()));

@@ -68,6 +68,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  * The measurements of the prompt quality (quality plan 3.3): a prompt version, under the model setting of the server,
@@ -302,6 +303,16 @@ public class PromptQualityMeasurements implements AutoCloseable {
      */
     public String settingsHash() {
         return QualityModelSetting.hash(Map.copyOf(modelSettings.get()));
+    }
+
+    /**
+     * Quality plan 3.4: the models this server is set to ask now, of the first layer and then the second, each once;
+     * the confirmation of a version names the model setting by them.
+     */
+    public List<String> models() {
+        Map<String, String> now = modelSettings.get();
+        return Stream.of(QualityModelSetting.FIRST_MODEL, QualityModelSetting.SECOND_MODEL).map(now::get)
+                .filter(model -> model != null && !model.isBlank() && !"null".equals(model)).distinct().toList();
     }
 
     /**

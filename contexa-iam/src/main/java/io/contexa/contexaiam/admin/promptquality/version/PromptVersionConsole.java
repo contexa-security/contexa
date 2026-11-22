@@ -64,6 +64,7 @@ import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDto
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.PromptChoice;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityChanges;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityCheck;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityDetails;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityRateComparison;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityRow;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Receipt;
@@ -261,6 +262,28 @@ public class PromptVersionConsole {
     /** Plan 3.4: what starts the measurement of a saved version; a supplier of null without a measurement runner. */
     public void setMeasureStarter(Supplier<MeasureStarter> measureStarter) {
         this.measureStarter = orNone(measureStarter);
+    }
+
+    /**
+     * Plan 3.4: reads what the confirmation names beside the verdict of the quality gate (the case set, the models, a
+     * measurement that waits or runs, the names of cases) where the gate reads its measurements.
+     */
+    @FunctionalInterface
+    public interface QualityDetailsReader {
+
+        /**
+         * @param current  the version in use; null when none
+         * @param caseKeys the cases whose names the rows of the gate show
+         * @return the details, or null when there are none to read
+         */
+        QualityDetails read(String scope, String prompt, String candidate, String current, List<String> caseKeys);
+    }
+
+    private Supplier<QualityDetailsReader> qualityDetails = () -> null;
+
+    /** Plan 3.4: what reads the details of the quality gate; a supplier of null without a store of measurements. */
+    public void setQualityDetails(Supplier<QualityDetailsReader> qualityDetails) {
+        this.qualityDetails = orNone(qualityDetails);
     }
 
     /** Plan 3.10 (2): what draws a sealed decision again for the finished prompt; a supplier of null without one. */
@@ -857,12 +880,36 @@ public class PromptVersionConsole {
         else {
             blockers = List.of("GATE_MISSING");
         }
+        if (quality != null && !quality.rollback()) {
+            quality = quality.withDetails(qualityDetails(scopeName, key, name, used, quality));
+        }
         PromptVersionTrials trial = trials.get();
         List<String> gaps = blockers.stream().filter(PromptVersionConsole::productPolicy).toList();
         return new UseCheck(name, used != null ? used.version() : null, ready,
                 blockers.stream().filter(blocker -> !productPolicy(blocker)).toList(),
                 trial != null ? trial.latestDone(scopeName, key, number).orElse(null) : null, gaps, quality,
                 outsideGate(scopeName, key, used));
+    }
+
+    /**
+     * Plan 3.4: the details of the quality gate the confirmation names beside the verdict, with the names of the cases
+     * the rows name; none when they cannot be read, the verdict shown without them.
+     */
+    private QualityDetails qualityDetails(String scope, String prompt, String candidate, Used used,
+                                          QualityCheck quality) {
+        QualityDetailsReader reader = qualityDetails.get();
+        if (reader == null) {
+            return null;
+        }
+        List<String> keys = quality.rows().stream().flatMap(row -> row.cases().stream()).distinct().toList();
+        try {
+            return reader.read(scope, prompt, candidate, used != null ? used.version() : null, keys);
+        }
+        catch (RuntimeException failure) {
+            log.warn("[PromptVersionConsole] The details of the quality gate of {} {} could not be read", prompt,
+                    candidate, failure);
+            return null;
+        }
     }
 
     /** Uses the version for decisions (plan 3.4): the label moves through the release gate; a rollback is the same. */

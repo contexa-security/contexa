@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.promptquality.measure;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.contexa.contexacore.std.components.prompt.quality.QualityActionBasis;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCase;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateInput;
@@ -28,13 +29,19 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityNoise;
 import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityCaseName;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityDetails;
+import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.QualityProgress;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionRecord;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionService;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -72,6 +79,9 @@ public class MeasuredQualityGateSource implements QualityGateSource {
     public static final String NO_CASE_SET = "NO_CASE_SET";
     /** A measurement Contexa shipped with the product was read. */
     public static final String SHIPPED = "SHIPPED_MEASUREMENT";
+    /** Where a model setting names the models that answered, and how it names models it does not know. */
+    private static final String MODELS = "models=";
+    private static final String UNKNOWN_MODELS = "unknown";
     /** How many of the latest measurements of a version are looked at. */
     static final int RECENT = 50;
 
@@ -130,8 +140,16 @@ public class MeasuredQualityGateSource implements QualityGateSource {
         }
     }
 
-    /** What one version has on the case set: its fresh and stale measurements, newest first, and one that waits. */
-    private record Side(PromptVersionRecord version, List<Taken> fresh, List<Taken> stale, boolean open) {
+    /**
+     * What one version has on the case set: its fresh and stale measurements, newest first, and the newest one that
+     * waits or runs under the settings of now (null when none does).
+     */
+    private record Side(PromptVersionRecord version, List<Taken> fresh, List<Taken> stale,
+                        PromptQualityMeasurements.Measure waiting) {
+
+        boolean open() {
+            return waiting != null;
+        }
 
         boolean none() {
             return fresh.isEmpty() && stale.isEmpty();
@@ -219,11 +237,11 @@ public class MeasuredQualityGateSource implements QualityGateSource {
         PromptVersionRecord record = number.isPresent()
                 ? versions.find(scope, prompt, number.getAsInt()).orElse(null) : null;
         if (record == null) {
-            return new Side(null, List.of(), List.of(), false);
+            return new Side(null, List.of(), List.of(), null);
         }
         List<Taken> fresh = new ArrayList<>();
         List<Taken> stale = new ArrayList<>();
-        boolean open = false;
+        PromptQualityMeasurements.Measure waiting = null;
         if (set != null) {
             for (PromptQualityMeasurements.Measure row : runner.recent(scope, prompt, record.number(), RECENT)) {
                 if (row.caseSetId() != set.id() || !row.versionContentHash().equals(record.contentHash())) {
@@ -232,7 +250,9 @@ public class MeasuredQualityGateSource implements QualityGateSource {
                 boolean sameSettings = row.settingsHash().equals(now);
                 if (PromptQualityMeasurements.QUEUED.equals(row.status())
                         || PromptQualityMeasurements.RUNNING.equals(row.status())) {
-                    open = open || sameSettings;
+                    if (sameSettings && waiting == null) {
+                        waiting = row;
+                    }
                 }
                 else if (PromptQualityMeasurements.DONE.equals(row.status())) {
                     (sameSettings ? fresh : stale).add(new Taken(row, record.name()));
@@ -243,7 +263,97 @@ public class MeasuredQualityGateSource implements QualityGateSource {
             shipped.find(prompt, record.contentHash(), setVersion, now)
                     .ifPresent(found -> fresh.add(new Taken(found.measurement(record.name()))));
         }
-        return new Side(record, List.copyOf(fresh), List.copyOf(stale), open);
+        return new Side(record, List.copyOf(fresh), List.copyOf(stale), waiting);
+    }
+
+    /**
+     * Quality plan 3.4 and the approved confirmation: what it names beside the verdict, from the reads the verdict
+     * rests on: the version of the case set the measurements are taken on, the models of the measurements compared
+     * (else of the server now), the models of a stale measurement and of the server now, the measurement of the
+     * version in use that waits or runs (else of the candidate), and the names of the cases asked for. The verdict
+     * itself is the gate's; nothing here changes it.
+     *
+     * @return the details, or null when this application cannot measure or the prompt has no cases
+     */
+    public QualityDetails details(String scope, String prompt, String candidate, String current,
+                                  Collection<String> caseKeys) {
+        PromptQualityMeasurements runner = measurements.get();
+        if (runner == null || !PromptQualityCases.offeredFor(prompt)) {
+            return null;
+        }
+        String scopeName = scope != null && !scope.isBlank() ? scope.trim() : PromptVersionService.PLATFORM_SCOPE;
+        Optional<PromptQualityCases.PublishedSet> set = cases.latestPublished(scopeName, prompt);
+        String setVersion = set.map(PromptQualityCases.PublishedSet::version)
+                .orElseGet(() -> cases.defaultSet().version());
+        String now = runner.settingsHash();
+        Side candidateSide = side(runner, scopeName, prompt, candidate, set.orElse(null), setVersion, now);
+        Side currentSide = current != null
+                ? side(runner, scopeName, prompt, current, set.orElse(null), setVersion, now) : null;
+        Taken[] pair = pair(candidateSide, currentSide);
+        Taken compared = pair[0] != null ? pair[0] : pair[1];
+        String modelsNow = runner.models().isEmpty() ? null : String.join(", ", runner.models());
+        Side stale = currentSide != null && currentSide.staleOnly() ? currentSide
+                : candidateSide.staleOnly() ? candidateSide : null;
+        Side waiting = currentSide != null && currentSide.open() ? currentSide
+                : candidateSide.open() ? candidateSide : null;
+        QualityProgress measuring = waiting != null ? new QualityProgress(waiting.version().name(),
+                waiting.waiting().answered(), waiting.waiting().plannedAnswers()) : null;
+        return new QualityDetails(setVersion, compared != null ? models(compared.shape.modelSetting()) : modelsNow,
+                stale != null ? models(stale.stale().get(0).shape.modelSetting()) : null, modelsNow, measuring,
+                caseNames(set.orElse(null), caseKeys));
+    }
+
+    /** The models a model setting names (settings=<hash>;models=<names>); null when they are not known. */
+    static String models(String modelSetting) {
+        if (modelSetting == null) {
+            return null;
+        }
+        int at = modelSetting.indexOf(MODELS);
+        if (at < 0) {
+            return null;
+        }
+        int end = modelSetting.indexOf(';', at);
+        String models = modelSetting.substring(at + MODELS.length(), end < 0 ? modelSetting.length() : end).trim();
+        return models.isEmpty() || UNKNOWN_MODELS.equals(models) ? null : models.replace(",", ", ");
+    }
+
+    /** The names of the cases asked for, as the cases of the set the measurements are taken on have them. */
+    private List<QualityCaseName> caseNames(PromptQualityCases.PublishedSet set, Collection<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return List.of();
+        }
+        List<QualityCase> items = set != null ? cases.read(set).cases().cases() : cases.defaultSet().cases();
+        Map<String, QualityCase> byKey = new HashMap<>();
+        items.forEach(item -> byKey.put(item.key(), item));
+        List<QualityCaseName> names = new ArrayList<>();
+        for (String key : keys) {
+            QualityCase item = byKey.get(key);
+            names.add(new QualityCaseName(key, item != null ? caseName(item) : key));
+        }
+        return List.copyOf(names);
+    }
+
+    /**
+     * The name of a case as the screens give it (quality plan 3.2): what the request asked, its method and path, and
+     * the key; the key alone when the input names no request.
+     */
+    static String caseName(QualityCase item) {
+        JsonNode resource = item.input().canonicalContext().path("resource");
+        JsonNode facts = item.input().requestFacts();
+        String method = text(resource.path("httpMethod"));
+        method = method != null ? method : text(facts == null ? null : facts.path("httpMethod"));
+        String path = text(resource.path("requestPath"));
+        path = path != null ? path : text(facts == null ? null : facts.path("requestPath"));
+        String asked = ((method != null ? method + " " : "") + (path != null ? path : "")).trim();
+        return asked.isEmpty() ? item.key() : asked + " (" + item.key() + ")";
+    }
+
+    private static String text(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        String value = node.asText().trim();
+        return value.isEmpty() ? null : value;
     }
 
     /**

@@ -110,10 +110,18 @@ const MUST_CATCH_FAILS = {status: 'BLOCKED', figures: {gradedCases: 10, unmeasur
     failedAnswers: 1}, cases: ['VER-A1T']};
 const MISS_WORSE = {status: 'BLOCKED', figures: {worseRates: 1}, comparisons: [rate('MISS', 14 / 55, 23 / 55, 'WORSE', 0.055)]};
 
+/** What the use check reads beside the verdict, as the store of measurements has it. */
+const DETAILS = {caseSetVersion: '3ccbfed8b2f4a1c9', models: 'qwen3:8b', modelsBefore: null, modelsNow: 'qwen3:8b',
+    measuring: null, caseNames: [{key: 'VER-A1T', name: 'GET /api/documents/HX-310-DWG-00004 (VER-A1T)'}]};
+
+function details(change) {
+    return Object.assign({}, DETAILS, change);
+}
+
 function quality(change) {
     return Object.assign({mode: 'WARN', measurement: 'MEASURED', measurementSides: [], measurementDetail: null,
         verdict: 'PASSED', applied: 'PASSED', rollback: false, overridable: false, rows: passedRows(),
-        changes: {newlyMissed: [], newlyCaught: [], newlyStopped: [], newlyReleased: []}}, change);
+        changes: {newlyMissed: [], newlyCaught: [], newlyStopped: [], newlyReleased: []}, details: DETAILS}, change);
 }
 
 function check(gate) {
@@ -145,8 +153,10 @@ test('all nine passed: one line "9 passed" folds every row, nothing to tick, no 
     assert.equal(plan.override, false);
     assert.equal(plan.seen, false);
     assert.equal(plan.remeasure, null);
-    assert.equal(plan.subhead, '품질 관문 · 경고 방식 · 반복 1회');
-    assert.equal(plan.folds[0].rows[0].evidence, '같은 사례 묶음 판 · 같은 모델 설정 · 반복 1회 · 채점된 답 지금 판 70 · 후보 판 70');
+    assert.equal(plan.subhead, '품질 관문 · 사례 묶음 3ccbfed8 · qwen3:8b · 1회');
+    assert.equal(plan.modeTip, '경고 방식: 경고 방식에서는 막는 조건도 경고만 합니다.'
+        + ' 설정 contexa.pqa.oss.quality.gate.mode 로 막기 방식으로 바꿀 수 있습니다.');
+    assert.equal(plan.folds[0].rows[0].evidence, 'v1.0 과 v2.0 · 사례 묶음 3ccbfed8 · qwen3:8b · 1회');
     assert.equal(plan.folds[0].rows[3].evidence, '놓침 25.5% → 18.2% · 같음 (흔들림 폭 ±4.4%)');
     allWordsFound(plan);
 });
@@ -198,12 +208,13 @@ test('blocked: only the blocking rows open, the warnings fold into "N warnings",
     assert.deepEqual(folded(plan), [['WARNING', 2], ['PASSED', 5]]);
     assert.equal(plan.folds[0].label, '경고 2줄');
     assert.equal(plan.open[0].evidence, '반드시 잡을 사례 10건 가운데 허용 1건(답 1개)');
-    assert.equal(plan.open[0].cases, '사례 VER-A1T');
+    assert.deepEqual(plan.open[0].cases, {names: ['GET /api/documents/HX-310-DWG-00004 (VER-A1T)'], more: null});
     assert.equal(plan.open[1].evidence, '놓침 25.5% → 41.8% · 나빠짐 (흔들림 폭 ±5.5%)');
     assert.equal(plan.folds[0].rows[0].compare.label, '새로 놓친 사례 10건 보기');
     assert.equal(plan.override, true);
     assert.equal(plan.seen, false, 'the reason stands for the reading of the cases');
-    assert.equal(plan.subhead, '품질 관문 · 막기 방식 · 반복 1회');
+    assert.equal(plan.subhead, '품질 관문 · 사례 묶음 3ccbfed8 · qwen3:8b · 1회');
+    assert.match(plan.modeTip, /^막기 방식: /);
     allWordsFound(plan);
 });
 
@@ -217,7 +228,8 @@ test('blocked by something besides quality: no reason lets it through', () => {
     allWordsFound(plan);
 });
 
-test('the warning mode applies a blocked verdict as a warning, and says so; the blocking and warning rows open', () => {
+test('the warning mode applies a blocked verdict as a warning and says so; as the verdict blocks, the blocking rows'
+    + ' alone open and the warnings fold', () => {
     const rows = replaced(passedRows(), {MUST_CATCH_NEVER_ALLOWED: MUST_CATCH_FAILS, MISS_NOT_INCREASED: MISS_WORSE,
         NO_NEWLY_MISSED_OR_STOPPED_CASES: CHANGED_WARNS, ENOUGH_CASES: TOO_FEW});
     const plan = ko.gatePlan(check(quality({mode: 'WARN', verdict: 'BLOCKED', applied: 'WARNING', rows})), 'use');
@@ -225,12 +237,12 @@ test('the warning mode applies a blocked verdict as a warning, and says so; the 
     assert.equal(plan.state, 'warn');
     assert.equal(plan.chip, 'WARN');
     assert.equal(plan.line, '막는 조건 2건에 걸렸습니다. 관문이 경고 방식이라 막는 조건 2건도 경고로 적용됩니다.');
-    assert.deepEqual(conditions(plan.open), ['MUST_CATCH_NEVER_ALLOWED', 'MISS_NOT_INCREASED',
-        'NO_NEWLY_MISSED_OR_STOPPED_CASES', 'ENOUGH_CASES']);
-    assert.deepEqual(plan.open.map(item => item.status), ['BLOCKED', 'BLOCKED', 'WARNING', 'WARNING']);
-    assert.deepEqual(folded(plan), [['PASSED', 5]]);
+    assert.deepEqual(conditions(plan.open), ['MUST_CATCH_NEVER_ALLOWED', 'MISS_NOT_INCREASED']);
+    assert.deepEqual(plan.open.map(item => item.status), ['BLOCKED', 'BLOCKED']);
+    assert.deepEqual(folded(plan), [['WARNING', 2], ['PASSED', 5]]);
+    assert.equal(plan.folds[0].rows[0].compare.label, '새로 놓친 사례 1건 보기');
     assert.equal(plan.override, false);
-    assert.equal(plan.seen, true);
+    assert.equal(plan.seen, false, 'the newly missed cases fold with the warnings');
     allWordsFound(plan);
 });
 
@@ -276,15 +288,16 @@ test('the version in use waits for its first measurement: row 1 warns as the gat
         figures: {currentScoredAnswers: 0, candidateScoredAnswers: 70}}, ENOUGH_CASES: TOO_FEW}),
     ['MISS_NOT_INCREASED', 'STOPPING_NOT_INCREASED', 'MODEL_USED_AND_CITATIONS_ACCURATE', 'NO_NEWLY_MISSED_OR_STOPPED_CASES']);
     const plan = ko.gatePlan(check(quality({measurement: 'BASELINE_PENDING', measurementSides: ['CURRENT'],
-        measurementDetail: 'MEASURING', verdict: 'BLOCKED', applied: 'WARNING', rows})), 'use');
+        measurementDetail: 'MEASURING', verdict: 'BLOCKED', applied: 'WARNING', rows,
+        details: details({measuring: {version: 'v1.0', answered: 126, planned: 210}})})), 'use');
 
     assert.equal(plan.state, 'pending');
     assert.equal(plan.label, '기준 판 측정 대기');
-    assert.equal(plan.line, '지금 쓰는 판 v1.0 의 측정이 아직 없습니다. 자동으로 한 번 재는 중이며, 그 전에는 경고만 합니다.'
-        + ' 측정이 줄에 있거나 도는 중입니다.');
+    assert.equal(plan.line, '지금 쓰는 판 v1.0 의 측정이 아직 없습니다. 자동으로 한 번 재는 중이며(126 / 210답), 그 전에는'
+        + ' 경고만 합니다.');
     assert.deepEqual(conditions(plan.open), ['COMPARABLE_MEASUREMENTS', 'ENOUGH_CASES']);
     assert.deepEqual(plan.open.map(item => item.status), ['WARNING', 'WARNING']);
-    assert.equal(plan.open[0].evidence, '기준 판 v1.0 측정 대기 중');
+    assert.equal(plan.open[0].evidence, '기준 판 v1.0 측정 중 126 / 210답 · 후보 판 v2.0 끝남');
     assert.deepEqual(folded(plan), [['NOT_EVALUATED', 4], ['PASSED', 3]]);
     assert.equal(plan.folds[0].rows[0].evidence, '기준 판 측정 뒤에 견줍니다');
     assert.equal(plan.override, false);
@@ -297,14 +310,19 @@ test('a stale measurement asks for the version to be measured again, unless it i
             currentRepeats: 1, candidateRepeats: 1}}, ENOUGH_CASES: TOO_FEW}),
     ['MISS_NOT_INCREASED', 'STOPPING_NOT_INCREASED', 'MODEL_USED_AND_CITATIONS_ACCURATE', 'NO_NEWLY_MISSED_OR_STOPPED_CASES']);
     const stale = quality({mode: 'BLOCK', measurement: 'STALE', measurementSides: ['CURRENT'], verdict: 'BLOCKED',
-        applied: 'BLOCKED', overridable: true, rows});
+        applied: 'BLOCKED', overridable: true, rows, details: details({modelsBefore: 'qwen3:8b', modelsNow: 'qwen3:14b'})});
     const plan = ko.gatePlan(check(stale), 'use');
 
     assert.equal(plan.state, 'stale');
     assert.equal(plan.label, '측정이 낡음');
-    assert.match(plan.line, /^모델 설정이 바뀌어 지금 판 v1\.0 의 측정이 낡았습니다\. 다시 재야 견줄 수 있습니다\./);
+    assert.match(plan.line, /^모델 설정이 바뀌어\(qwen3:8b → qwen3:14b\) 지금 판 v1\.0 의 측정이 낡았습니다\. 다시 재야 견줄 수/);
     assert.deepEqual(conditions(plan.open), ['COMPARABLE_MEASUREMENTS']);
-    assert.equal(plan.open[0].evidence, '지금 판 v1.0 의 측정은 이전 모델 설정의 것입니다');
+    assert.equal(plan.open[0].evidence, '지금 판 v1.0 의 측정은 이전 모델 설정(qwen3:8b)의 것입니다');
+    // Without the details the confirmation says the same without the models.
+    const bare = ko.gatePlan(check(Object.assign({}, stale, {details: null})), 'use');
+    assert.match(bare.line, /^모델 설정이 바뀌어 지금 판 v1\.0 의 측정이 낡았습니다\./);
+    assert.equal(bare.open[0].evidence, '지금 판 v1.0 의 측정은 이전 모델 설정의 것입니다');
+    assert.equal(bare.subhead, '품질 관문 · 1회');
     assert.deepEqual(folded(plan), [['WARNING', 1], ['NOT_EVALUATED', 4], ['PASSED', 3]]);
     assert.equal(plan.folds[1].rows[0].evidence, '다시 잰 뒤에 견줍니다');
     assert.equal(plan.remeasure, '/contexa/admin/prompt-quality/measure?candidate=1');
@@ -331,6 +349,6 @@ test('in English: the words of the same warning', () => {
     assert.equal(plan.line, 'Nothing blocks it. Read the warnings (2) before you go on.');
     assert.equal(plan.folds[0].label, '7 passed');
     assert.equal(plan.open[0].compare.label, 'Show the 1 newly missed cases');
-    assert.equal(plan.subhead, 'Quality gate · warning mode · runs: 1');
+    assert.equal(plan.subhead, 'Quality gate · case set 3ccbfed8 · qwen3:8b · 1 run(s)');
     allWordsFound(plan);
 });
