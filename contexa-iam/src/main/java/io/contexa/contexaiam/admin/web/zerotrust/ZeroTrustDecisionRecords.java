@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.BreachConfirmed;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionDetail;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionPage;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.DecisionRow;
@@ -131,7 +132,7 @@ public class ZeroTrustDecisionRecords {
      */
     static final Set<String> OUTCOMES = Set.of("NONE", UNREVIEWED, "CHALLENGE_CODE_REQUESTED",
             "CHALLENGE_PASSED", "CHALLENGE_FAILED", "CHALLENGE_EXPIRED", "UNBLOCK_REQUESTED", "ADMIN_RELEASED",
-            "BLOCK_KEPT", "EVALUATED_VALID", "EVALUATED_INVALID");
+            "BLOCK_KEPT", "EVALUATED_VALID", "EVALUATED_INVALID", "ALLOWED_BREACH_CONFIRMED");
 
     /** The most audit records of one request the detail reads to find its decision's (a request judged again has two). */
     private static final int AUDIT_RECORDS_OF_A_REQUEST = 20;
@@ -678,6 +679,70 @@ public class ZeroTrustDecisionRecords {
         log.info("[ZeroTrustConsole] Decision {} evaluated {} by {}", observationId,
                 evaluation.valid() ? "valid" : "invalid", reviewer);
         return new EvaluationSaved(outcomeId, observationId, evaluation.valid() ? "EVALUATED_VALID" : "EVALUATED_INVALID");
+    }
+
+    /**
+     * Quality plan 3.6: the sealed package of a decision, found as its detail finds it (by the decision's processing
+     * identity); null when the decision has no package or does not exist.
+     */
+    public String sealedPackageOf(String observationId) {
+        JdbcOperations operations = jdbc.get();
+        if (operations == null || observationId == null || observationId.isBlank()) {
+            return null;
+        }
+        List<String> keys = operations.queryForList("SELECT idempotency_key FROM ctxa_ai_security_decision_observation"
+                + " WHERE observation_id = ?", String.class, observationId);
+        return keys.isEmpty() ? null : packageOf(operations, observationId, keys.get(0));
+    }
+
+    /**
+     * Quality plan 3.6: an administrator found that the request a decision allowed was a breach. The outcome is kept on
+     * the request's latest successful first decision, which must have allowed; the decision is a miss seen in
+     * operation. A decision that has the outcome already keeps the one it has.
+     *
+     * @return the outcome kept, or null when the request has no decision
+     * @throws IllegalArgumentException when no request is named, or its decision did not allow
+     */
+    public BreachConfirmed confirmBreach(String requestId, String note, String actor) {
+        if (requestId == null || requestId.isBlank()) {
+            throw new IllegalArgumentException("A breach is confirmed on the decision of a request");
+        }
+        JdbcOperations operations = jdbc.get();
+        if (operations == null || outcomes == null) {
+            return null;
+        }
+        List<Map<String, Object>> found = operations.queryForList("""
+                SELECT observation_id, request_id, user_id, tenant_id, final_action
+                  FROM ctxa_ai_security_decision_observation
+                 WHERE request_id = ? AND success = TRUE AND attempt_kind = 'FIRST'
+                 ORDER BY created_at DESC
+                 LIMIT 1
+                """, requestId.trim());
+        if (found.isEmpty()) {
+            return null;
+        }
+        Map<String, Object> row = found.get(0);
+        String observationId = text(row.get("observation_id"));
+        if (!"ALLOW".equals(text(row.get("final_action")))) {
+            throw new IllegalArgumentException("Only a decision that allowed the request is confirmed as a breach; "
+                    + "the decision of " + requestId + " ended in " + text(row.get("final_action")));
+        }
+        String kind = ZeroTrustDecisionOutcomes.Kind.ALLOWED_BREACH_CONFIRMED.name();
+        String existing = first(operations.queryForList("SELECT outcome_id FROM ctxa_zt_decision_outcome"
+                + " WHERE observation_id = ? AND outcome_kind = ? ORDER BY occurred_at LIMIT 1", String.class,
+                observationId, kind));
+        if (existing != null) {
+            return new BreachConfirmed(existing, observationId, text(row.get("request_id")), true);
+        }
+        String text = note == null || note.isBlank() ? null : note.trim();
+        String outcomeId = outcomes.record(observationId, text(row.get("request_id")), text(row.get("user_id")),
+                text(row.get("tenant_id")), ZeroTrustDecisionOutcomes.Kind.ALLOWED_BREACH_CONFIRMED, null, actor, text);
+        if (outcomeId == null) {
+            throw new IllegalStateException("The breach could not be kept");
+        }
+        log.warn("[ZeroTrustConsole] The request {} decision {} allowed was confirmed a breach by {}", requestId,
+                observationId, actor);
+        return new BreachConfirmed(outcomeId, observationId, text(row.get("request_id")), false);
     }
 
     // ----- helpers -----

@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 /**
  * What happened after a decision (console design 7.3): the account owner passed or failed the challenge, it expired,
  * the user asked to be unblocked, an administrator released the block or kept it, an administrator evaluated the
- * decision. These are the answers a decision gets later, the only signals of whether it was right. A write that fails
+ * decision, an administrator found a request the decision allowed to have been a breach. These are the answers a decision gets later, the only signals of whether it was right. A write that fails
  * never stops the flow that reports the outcome (an authentication, a release); it is logged as an error.
  */
 @Slf4j
@@ -58,7 +58,12 @@ public class ZeroTrustDecisionOutcomes {
         /** An administrator judged the decision right. */
         EVALUATED_VALID,
         /** An administrator judged the decision wrong, with a reason. */
-        EVALUATED_INVALID
+        EVALUATED_INVALID,
+        /**
+         * Quality plan 3.6: an administrator found that the request the decision allowed was a breach after all. It is
+         * kept only on a decision that allowed; such a decision is a miss seen in operation.
+         */
+        ALLOWED_BREACH_CONFIRMED
     }
 
     /** Why an administrator judged a decision wrong (console design 6.4). */

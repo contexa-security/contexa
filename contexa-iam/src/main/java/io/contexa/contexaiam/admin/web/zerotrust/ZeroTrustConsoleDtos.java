@@ -243,6 +243,14 @@ public final class ZeroTrustConsoleDtos {
     public record EvaluationSaved(String outcomeId, String observationId, String kind) {
     }
 
+    /**
+     * Quality plan 3.6: the outcome that the request a decision allowed was a breach, kept on its decision.
+     *
+     * @param already whether the decision had the outcome already, which is then the one returned
+     */
+    public record BreachConfirmed(String outcomeId, String observationId, String requestId, boolean already) {
+    }
+
     // ----- adoption (6.5) -----
 
     /**
