@@ -162,5 +162,39 @@
       "defaultValue": "30s",
       "description": "How often the server running a measurement renews its lock and the measurement's heartbeat and reads whether it was cancelled, and how often the other servers look for a measurement to run. The lock is held for four heartbeats, so a server that stops leaves the measurement to another server within about two and a half minutes, which resumes it from the answers taken."
     }
+  ],
+  "hints": [
+    {
+      "name": "contexa.capability.required.keys",
+      "values": [
+        {
+          "value": "llm-runtime"
+        },
+        {
+          "value": "embedding-runtime"
+        },
+        {
+          "value": "rag-vector"
+        },
+        {
+          "value": "security-learning"
+        },
+        {
+          "value": "autonomous-decision"
+        },
+        {
+          "value": "bridge"
+        },
+        {
+          "value": "enterprise-soar"
+        },
+        {
+          "value": "enterprise-mcp"
+        },
+        {
+          "value": "enterprise-dashboard"
+        }
+      ]
+    }
   ]
 }
