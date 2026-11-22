@@ -190,35 +190,45 @@ public class ZeroTrustReviewSampler {
     }
 
     /**
-     * The allowed decisions by risk: those of the day with a sign, and those of a user blocked in the day, from the
-     * lookback to the user's last block of the day.
+     * The allowed decisions by risk: those of the day with a sign, read from the day's rows, and those of a user blocked
+     * in the day from the lookback to the user's last block of the day, read by the user, so that the look back reads
+     * the blocked users' rows alone.
      */
     private int risky(JdbcOperations jdbc, SecurityZeroTrustProperties.Console console, LocalDate day,
                       Timestamp from, Timestamp to, Timestamp lookback, boolean sealed) {
         if (console.getReviewRiskSample() <= 0) {
             return 0;
         }
+        String signals = DecisionRiskSignals.sqlCount("o", unknownFactThreshold);
+        String sealedRow = sealed ? SEALED : "TRUE";
         return jdbc.update(BLOCKED + """
+                , candidates AS (
+                    SELECT o.observation_id, 0 AS later_blocked, %s AS signals
+                      FROM ctxa_ai_security_decision_observation o
+                     WHERE o.created_at >= ? AND o.created_at < ?
+                       AND %s
+                       AND %s
+                       AND %s
+                       AND %s
+                    UNION ALL
+                    SELECT o.observation_id, 1 AS later_blocked, %s AS signals
+                      FROM blocked k
+                      JOIN ctxa_ai_security_decision_observation o
+                        ON o.user_id = k.user_id AND COALESCE(o.tenant_id, '') = k.tenant
+                     WHERE o.created_at >= ? AND o.created_at < k.last_block
+                       AND o.final_action = 'ALLOW'
+                       AND %s
+                       AND %s
+                       AND %s)
                 INSERT INTO ctxa_zt_review_queue (observation_id, sample_day, sampled_at, review_status, review_reason)
                 SELECT c.observation_id, ?, ?, 'PENDING', 'SAMPLE'
-                  FROM (SELECT o.observation_id, o.created_at,
-                               CASE WHEN k.last_block IS NOT NULL AND o.created_at < k.last_block THEN 1 ELSE 0 END
-                                   AS later_blocked,
-                               %s AS signals
-                          FROM ctxa_ai_security_decision_observation o
-                          LEFT JOIN blocked k ON k.user_id = o.user_id AND k.tenant = COALESCE(o.tenant_id, '')
-                         WHERE o.final_action = 'ALLOW'
-                           AND %s
-                           AND ((o.created_at >= ? AND o.created_at < ?)
-                                OR (k.last_block IS NOT NULL AND o.created_at >= ? AND o.created_at < k.last_block))
-                           AND %s
-                           AND %s) c
-                 WHERE c.later_blocked = 1 OR (c.signals > 0 AND c.created_at >= ?)
+                  FROM (SELECT observation_id, MAX(later_blocked) AS later_blocked, MAX(signals) AS signals
+                          FROM candidates GROUP BY observation_id) c
                  ORDER BY c.later_blocked DESC, c.signals DESC, random()
                  LIMIT ?
-                """.formatted(DecisionRiskSignals.sqlCount("o", unknownFactThreshold), FIRST_DECISION, NOT_QUEUED,
-                sealed ? SEALED : "TRUE"),
-                from, to, Date.valueOf(day), Timestamp.from(clock.instant()), from, to, lookback, from,
+                """.formatted(signals, DecisionRiskSignals.sqlCondition("o", unknownFactThreshold), FIRST_DECISION,
+                NOT_QUEUED, sealedRow, signals, FIRST_DECISION, NOT_QUEUED, sealedRow),
+                from, to, from, to, lookback, Date.valueOf(day), Timestamp.from(clock.instant()),
                 console.getReviewRiskSample());
     }
 
