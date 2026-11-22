@@ -270,10 +270,23 @@ public final class DecisionConsoleColumns {
     }
 
     static String resourceClass(CanonicalSecurityContext context, Map<String, Object> meta) {
-        if (context != null && context.getResource() != null && text(context.getResource().getResourceClass()) != null) {
-            return truncate(context.getResource().getResourceClass().toUpperCase(Locale.ROOT), 32);
+        return resourceClass(context != null && context.getResource() != null
+                ? context.getResource().getResourceClass() : null, meta.get("isSensitiveResource"));
+    }
+
+    /**
+     * The resource class of a decision row: the class the canonical context gives the resource, else SENSITIVE when
+     * the request marks the resource sensitive, else none. The labelled cases of the quality measurement take the class
+     * of their input with this rule, so a case is counted under the class its decisions are (quality P46).
+     *
+     * @param declared          the resource class of the canonical context, or null
+     * @param sensitiveResource the request's {@code isSensitiveResource}: a flag, its text, or null
+     */
+    public static String resourceClass(String declared, Object sensitiveResource) {
+        if (text(declared) != null) {
+            return truncate(declared.toUpperCase(Locale.ROOT), 32);
         }
-        if (Boolean.TRUE.equals(bool(meta.get("isSensitiveResource")))) {
+        if (Boolean.TRUE.equals(bool(sensitiveResource))) {
             return "SENSITIVE";
         }
         return null;

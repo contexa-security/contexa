@@ -246,6 +246,19 @@ public class PromptQualityCases {
     }
 
     /**
+     * Quality plan 3.8: how many cases the prompt has in the scope, as the menu bar of the screens counts them: the
+     * cases of the default set Contexa ships and the cases kept in the scope, waiting for confirmation or not.
+     */
+    public long count(String scope, String prompt) {
+        if (!offeredFor(prompt)) {
+            return 0L;
+        }
+        Long kept = jdbc.get().queryForObject("select count(*) from ctxa_prompt_version_case where registry_scope = ?"
+                + " and prompt_key = ?", Long.class, scopeOf(scope), prompt);
+        return defaultSet().cases().size() + (kept != null ? kept : 0L);
+    }
+
+    /**
      * Quality plan 3.2: a sealed decision as a case of the operation, with the answer the administrator gives. Its
      * input is the package's sealed sections with the baselines given, else those the package sealed with its
      * decision; it names the package, which is then kept past its retention for as long as the case is.

@@ -85,4 +85,37 @@ public final class QualityScorer {
                                                             QualityActionBasis basis, Instant moment) {
         return scoreBy(cases, answers, basis, item -> item.arrivedAfter(moment));
     }
+
+    /**
+     * The metrics by the resource class of the cases (quality P46), so a version worse on a sensitive resource alone
+     * is not hidden in the average: every class of {@code shown} in its order, also when no case has it and so no
+     * score, then the other classes the cases have, by name, and the unclassified last.
+     *
+     * @param resourceOf the resource and class of a case, as the decision rows of the operation take them
+     * @param shown      the classes shown even when no case has them
+     */
+    public static List<QualityResourceClassScore> scoreByResourceClass(
+            Collection<QualityCase> cases, Collection<QualityAnswer> answers, QualityActionBasis basis,
+            Function<QualityCase, QualityCaseResource> resourceOf, List<String> shown) {
+        Map<String, List<QualityCase>> groups = byResourceClass(cases, resourceOf);
+        List<QualityResourceClassScore> scores = new ArrayList<>();
+        for (String group : QualityCaseResource.order(shown, groups.keySet())) {
+            List<QualityCase> members = groups.getOrDefault(group, List.of());
+            scores.add(QualityResourceClassScore.of(group, members,
+                    members.isEmpty() ? null : score(members, answers, basis)));
+        }
+        return scores;
+    }
+
+    /** The cases by the class of their resource, in the order the classes first appear. */
+    static Map<String, List<QualityCase>> byResourceClass(Collection<QualityCase> cases,
+                                                          Function<QualityCase, QualityCaseResource> resourceOf) {
+        Map<String, List<QualityCase>> groups = new LinkedHashMap<>();
+        for (QualityCase item : cases) {
+            QualityCaseResource resource = resourceOf.apply(item);
+            groups.computeIfAbsent(resource != null ? resource.group() : QualityCaseResource.UNCLASSIFIED,
+                    group -> new ArrayList<>()).add(item);
+        }
+        return groups;
+    }
 }

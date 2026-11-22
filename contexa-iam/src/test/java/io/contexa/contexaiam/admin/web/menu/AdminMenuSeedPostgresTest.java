@@ -95,8 +95,63 @@ class AdminMenuSeedPostgresTest {
                   FROM ctxa_admin_menu m
                   JOIN ctxa_admin_menu g ON g.id = m.parent_id AND g.data_page = 'prompt-quality'
                  WHERE m.data_page = 'prompt-quality-versions'
-                """, String.class)).containsExactly("5 menu.pqa.versions /contexa/admin/prompt-quality/versions");
+                """, String.class)).containsExactly("4 menu.pqa.versions /contexa/admin/prompt-quality/versions");
         assertThat(count("SELECT count(*) FROM ctxa_admin_menu WHERE data_page = 'prompt-quality-releases'")).isZero();
+    }
+
+    @Test
+    @DisplayName("quality plan 3.8: the prompt quality group holds its menus in the order of its screens' menu bar")
+    void thePromptQualityGroupHoldsItsMenusInTheOrderOfTheBar() {
+        assertThat(promptQualityMenus()).containsExactly(PROMPT_QUALITY_MENUS);
+        assertThat(jdbc.queryForObject("SELECT name || ' ' || menu_type FROM ctxa_admin_menu WHERE data_page = "
+                + "'prompt-quality' AND parent_id IS NULL", String.class)).isEqualTo("menu.nav.pqa CORE");
+    }
+
+    @Test
+    @DisplayName("quality plan 3.8: an installation of the earlier menus gets the new ones once, in the new order, its roles kept")
+    void anInstallationOfTheEarlierMenusGetsTheNewOnesOnce() throws Exception {
+        // An installation seeded before the labelled cases and measure and compare: the sealed prompts before the
+        // versions, a role on the versions.
+        jdbc.update("DELETE FROM ctxa_admin_menu WHERE data_page IN ('prompt-quality-cases', 'prompt-quality-measure')");
+        jdbc.update("UPDATE ctxa_admin_menu SET menu_order = 5 WHERE data_page = 'prompt-quality-versions'");
+        jdbc.update("UPDATE ctxa_admin_menu SET menu_order = 4 WHERE data_page = 'prompt-inspection-packages'");
+        Long versions = jdbc.queryForObject("SELECT id FROM ctxa_admin_menu WHERE data_page = 'prompt-quality-versions'",
+                Long.class);
+        jdbc.update("INSERT INTO ctxa_admin_menu_role (menu_id, role_name) VALUES (?, 'ROLE_QUALITY_REVIEWER')", versions);
+        long menusBefore = count("SELECT count(*) FROM ctxa_admin_menu");
+
+        run("META-INF/contexa/db/data-menu.sql");
+
+        assertThat(promptQualityMenus()).containsExactly(PROMPT_QUALITY_MENUS);
+        assertThat(count("SELECT count(*) FROM ctxa_admin_menu")).isEqualTo(menusBefore + 2);
+        assertThat(jdbc.queryForObject("SELECT id FROM ctxa_admin_menu WHERE data_page = 'prompt-quality-versions'",
+                Long.class)).isEqualTo(versions);
+        assertThat(jdbc.queryForList("SELECT role_name FROM ctxa_admin_menu_role WHERE menu_id = ?", String.class,
+                versions)).contains("ROLE_QUALITY_REVIEWER");
+
+        run("META-INF/contexa/db/data-menu.sql");
+
+        assertThat(count("SELECT count(*) FROM ctxa_admin_menu")).isEqualTo(menusBefore + 2);
+        assertThat(promptQualityMenus()).containsExactly(PROMPT_QUALITY_MENUS);
+        // The database is shared by the tests of this class: the role goes again.
+        jdbc.update("DELETE FROM ctxa_admin_menu_role WHERE role_name = 'ROLE_QUALITY_REVIEWER'");
+    }
+
+    /** Quality plan 3.8: the menus of the group, order 1 left to the quality status of the second bundle. */
+    private static final String[] PROMPT_QUALITY_MENUS = {
+            "2 menu.pqa.cases /contexa/admin/prompt-quality/cases prompt-quality-cases CORE",
+            "3 menu.pqa.measure /contexa/admin/prompt-quality/measure prompt-quality-measure CORE",
+            "4 menu.pqa.versions /contexa/admin/prompt-quality/versions prompt-quality-versions CORE",
+            "5 menu.pqa.inspection.packages /contexa/admin/prompt-inspection/packages prompt-inspection-packages CORE"};
+
+    private static List<String> promptQualityMenus() {
+        return jdbc.queryForList("""
+                SELECT m.menu_order || ' ' || m.name || ' ' || m.url || ' ' || m.data_page || ' ' || m.menu_type
+                  FROM ctxa_admin_menu m
+                  JOIN ctxa_admin_menu g ON g.id = m.parent_id AND g.data_page = 'prompt-quality'
+                 WHERE m.enabled
+                 ORDER BY m.menu_order
+                """, String.class);
     }
 
     @Test

@@ -493,6 +493,13 @@ public class PromptQualityMeasurements implements AutoCloseable {
                 prompt, Timestamp.from(from), Timestamp.from(to), Math.max(1, limit));
     }
 
+    /** Quality plan 3.8: how many measurements the prompt has in the scope, of every version and state. */
+    public long count(String scope, String prompt) {
+        Long count = jdbc.get().queryForObject("select count(*) from ctxa_prompt_version_measure where registry_scope = ?"
+                + " and prompt_key = ?", Long.class, scopeOf(scope), prompt);
+        return count != null ? count : 0L;
+    }
+
     /** The answers of the measurement as the scoring reads them, in the order they were kept. */
     public List<QualityAnswer> answers(long id) {
         return jdbc.get().query("select case_key, run_number, first_action, final_action, reasked, decided_without_model,"
