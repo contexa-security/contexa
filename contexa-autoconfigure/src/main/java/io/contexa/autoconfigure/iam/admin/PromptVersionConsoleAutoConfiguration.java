@@ -25,6 +25,7 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
 import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.causes.PromptQualityCauses;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
@@ -171,6 +172,26 @@ public class PromptVersionConsoleAutoConfiguration {
                 ManagementFactory.getRuntimeMXBean().getName() + "#" + UUID.randomUUID().toString().substring(0, 8));
         measurements.startLookingForWork();
         return measurements;
+    }
+
+    /**
+     * Quality plan 3.5: the causes of the wrong answers of the measurements and of the decisions an administrator rated
+     * inadequate, by deterministic rules; a measurement is classified once it is done. A model call over the first
+     * layer's model call limit of the decisions counts as over the time limit.
+     */
+    @Bean(name = "contexaPromptQualityCauses")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean({PromptVersionService.class, PromptQualityCases.class})
+    public PromptQualityCauses promptQualityCauses(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                   PromptQualityCases contexaPromptQualityCases,
+                                                   @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
+                                                   ObjectProvider<TieredStrategyProperties> tiered,
+                                                   ObjectProvider<PromptQualityMeasurements> measurements) {
+        PromptQualityCauses causes = new PromptQualityCauses(() -> jdbcTemplate, contexaPromptQualityCases,
+                objectMapper, () -> PromptQualityCauses.decisionCallLimitMillis(tiered.getIfAvailable()),
+                Clock.systemUTC());
+        measurements.ifAvailable(found -> found.whenDone(causes::classifyMeasurement));
+        return causes;
     }
 
     /**

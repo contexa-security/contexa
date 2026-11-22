@@ -67,6 +67,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -254,6 +255,8 @@ public class PromptQualityMeasurements implements AutoCloseable {
     private final AtomicBoolean drainWaiting = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
     private volatile ScheduledFuture<?> sweep;
+    private volatile LongConsumer whenDone = id -> {
+    };
 
     /**
      * @param line          the line of this server the trials wait in too
@@ -294,6 +297,15 @@ public class PromptQualityMeasurements implements AutoCloseable {
 
     public Settings settings() {
         return settings;
+    }
+
+    /**
+     * Quality plan 3.5: what follows a measurement once it is done, on the server that ran it, such as putting its
+     * wrong answers down to their causes. Its failure is logged and leaves the measurement done.
+     */
+    public void whenDone(@Nullable LongConsumer listener) {
+        this.whenDone = listener != null ? listener : id -> {
+        };
     }
 
     /**
@@ -829,6 +841,12 @@ public class PromptQualityMeasurements implements AutoCloseable {
                 id, RUNNING);
         if (updated == 1) {
             log.info("[PromptQualityMeasure] Measurement {} done under {}", id, fingerprint);
+            try {
+                whenDone.accept(id);
+            }
+            catch (RuntimeException failure) {
+                log.error("[PromptQualityMeasure] What follows measurement {} once done failed", id, failure);
+            }
         }
     }
 

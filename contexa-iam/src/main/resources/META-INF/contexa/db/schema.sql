@@ -2899,6 +2899,22 @@ create index if not exists ctxa_idx_prompt_version_case_cause_measure
 create index if not exists ctxa_idx_prompt_version_case_cause_request
     on ctxa_prompt_version_case_cause (registry_scope, request_id);
 
+-- Quality plan 3.5 (stage 6): what the classification of the causes keeps beside the columns above. A decision is named
+-- by its decision row, as the administrator's evaluation names it, since a request may have more than one; a measured
+-- answer by which of its actions is wrong (plan 3.3: the first answer, the final action, or both); a correction by the
+-- category it replaced.
+alter table ctxa_prompt_version_case_cause
+    add column if not exists observation_id varchar(64),
+    add column if not exists wrong_basis varchar(16),
+    add column if not exists previous_category varchar(32);
+
+-- One cause per answer of a measurement and one per decision, so that classifying again finds the row it wrote.
+create unique index if not exists ctxa_uq_prompt_version_case_cause_answer
+    on ctxa_prompt_version_case_cause (measure_id, case_key, run_number) where measure_id is not null;
+
+create unique index if not exists ctxa_uq_prompt_version_case_cause_decision
+    on ctxa_prompt_version_case_cause (observation_id) where observation_id is not null;
+
 -- Plan 6-5 (3.10 4): a trial decides recent sealed decisions again with a candidate and a reference version.
 create table if not exists ctxa_prompt_version_trial (
     id bigserial primary key,
