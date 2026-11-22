@@ -26,8 +26,6 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.context.OfficialContextRequestAttributes;
 import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
-import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
-import io.contexa.contexacore.verification.runtime.VerificationFaultScenario;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -36,6 +34,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -397,7 +396,7 @@ class RequestInfoExtractorTest {
     @DisplayName("forged runtime capability value should not unlock overrides or simulation")
     void forgedRuntimeCapabilityShouldNotUnlockOverridesOrSimulation() {
         MockHttpServletRequest request = clientForgedProbeRequest();
-        request.addHeader(OfficialVerificationProbeHeaders.RUNTIME_OVERRIDE_CAPABILITY, "00000000-0000-0000-0000-000000000000");
+        request.addHeader("X-Contexa-Verification-Runtime-Capability", "00000000-0000-0000-0000-000000000000");
 
         RequestInfoExtractor.RequestInfo requestInfo =
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
@@ -409,9 +408,9 @@ class RequestInfoExtractorTest {
     @DisplayName("fault capability should not unlock runtime overrides")
     void faultCapabilityShouldNotUnlockRuntimeOverrides() {
         MockHttpServletRequest request = clientForgedProbeRequest();
-        OfficialVerificationProbeHeaders faultHeaders = new OfficialVerificationProbeHeaders();
-        faultHeaders.setAuthorizedFault(VerificationFaultScenario.of("RUNTIME_SLOT_MULTI_FAULT", "TEST", "operator"));
-        faultHeaders.asMap().forEach(request::addHeader);
+        // The fault headers the retired verification bridge set: a scenario and its capability.
+        request.addHeader("X-Contexa-Verification-Bridge-Fault-Scenario", "RUNTIME_SLOT_MULTI_FAULT");
+        request.addHeader("X-Contexa-Verification-Bridge-Fault-Capability", UUID.randomUUID().toString());
 
         RequestInfoExtractor.RequestInfo requestInfo =
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());

@@ -4,7 +4,6 @@ import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
-import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +17,7 @@ import org.springframework.web.servlet.HandlerMapping;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -27,10 +27,12 @@ import static org.mockito.Mockito.when;
  * R4-C9: the decision path honours no verification probe. The former server-issued capability opens no override or
  * simulation header and no trusted anomaly signal, a fault scenario attribute travels nowhere, and the synthetic user
  * and session attributes name neither the user nor the session. Request attributes keep carrying the model settings an
- * application chose (R4-L7). The test asks the probe headers for the capability only while that class stays for the
- * enterprise (R6).
+ * application chose (R4-L7).
  */
 class ZeroTrustEventPublisherProbeRemovedTest {
+
+    /** The header the retired verification probe carried its server-issued runtime capability in. */
+    private static final String FORMER_RUNTIME_CAPABILITY_HEADER = "X-Contexa-Verification-Runtime-Capability";
 
     @AfterEach
     void tearDown() {
@@ -41,9 +43,7 @@ class ZeroTrustEventPublisherProbeRemovedTest {
     @Test
     void theFormerProbeCapabilityOpensNoOverrideAndCarriesNoFault() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        OfficialVerificationProbeHeaders probe = new OfficialVerificationProbeHeaders();
-        probe.setRuntimeOverrideCapability();
-        probe.asMap().forEach(request::addHeader);
+        request.addHeader(FORMER_RUNTIME_CAPABILITY_HEADER, UUID.randomUUID().toString());
         request.addHeader("User-Agent", "Mozilla/5.0 real");
         request.addHeader("X-Simulated-User-Agent", "Simulated/1.0");
         request.addHeader("X-Contexa-Temperature", "0.9");

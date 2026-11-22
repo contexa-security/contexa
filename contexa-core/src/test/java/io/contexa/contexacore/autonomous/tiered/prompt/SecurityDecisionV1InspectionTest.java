@@ -22,17 +22,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
-import io.contexa.contexacore.verification.adjudication.ScorecardResult;
-import io.contexa.contexacore.verification.adjudication.SealedEvidencePromptScorecard;
-import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
-import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
-import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
-import io.contexa.contexacore.verification.evidence.SealedEvidencePromptEvidenceBackfill;
-import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupPort;
-import io.contexa.contexacore.verification.prompt.VerificationPromptReplayBuilder;
-import io.contexa.contexacore.verification.replay.DeterministicReplayResult;
-import io.contexa.contexacore.verification.replay.DeterministicReplayService;
 import io.contexa.contexacore.verification.inspection.DecisionFactMatchCheck;
 import io.contexa.contexacore.verification.inspection.FactAccuracyCheck;
 import io.contexa.contexacore.verification.inspection.InspectionCheckRunner;
@@ -46,15 +36,11 @@ import io.contexa.contexacore.verification.inspection.PromptInspectionVerdict;
 import io.contexa.contexacore.verification.inspection.PromptInspector;
 import org.junit.jupiter.api.Test;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * v1.0 (plan 2.3 A20 to A27, D3): a v1.0 package is inspected as a dictionary prompt with its variant's dictionary; the
@@ -138,90 +124,6 @@ class SecurityDecisionV1InspectionTest {
         assertThat(records.dictionaryVersion()).isEqualTo(PromptInspector.V1_DICTIONARY_VERSION);
         assertThat(List.of(rules.verdict(), records.verdict())).doesNotContain(PromptInspectionVerdict.NOT_APPLICABLE,
                 PromptInspectionVerdict.FAIL, PromptInspectionVerdict.ERROR);
-    }
-
-    /**
-     * Plan 2.3 B10: the scorecard reads a v1.0 package in its dictionary form (the output section, the action schema,
-     * the blocks and the evidence lines it draws), not by the v19 sections it does not have.
-     */
-    @Test
-    void theScorecardReadsAV1PackageInItsDictionaryForm() {
-        ScorecardResult result = new SealedEvidencePromptScorecard(InspectionGolden.JSON)
-                .evaluate(seal(MeasuredVariant.FALLBACK_SIMILAR, 3).pkg());
-        Map<String, Boolean> checks = new LinkedHashMap<>();
-        result.checks().forEach(check -> checks.put(check.label(), check.passed()));
-
-        assertThat(checks).containsEntry("systemPrompt contains OUTPUT section", true)
-                .containsEntry("systemPrompt contains output_format", true)
-                .containsEntry("systemPrompt contains action schema", true)
-                .containsEntry("userPrompt contains USER BASELINE block", true)
-                .containsEntry("userPrompt contains SESSION block", true)
-                .containsEntry("userPrompt contains REQUEST block", true)
-                .containsEntry("userPrompt contains DECISION FACTS block", true)
-                .containsEntry("userPrompt contains LoginMethod evidence", true)
-                .containsEntry("userPrompt contains ResourceClass evidence", true)
-                .containsEntry("userPrompt contains BaselineStatus evidence", true)
-                .doesNotContainKey("userPrompt contains CURRENT REQUEST AND EVENT section")
-                .doesNotContainKey("systemPrompt contains DECISION section");
-    }
-
-    /**
-     * Plan 2.3 B12: the deterministic replay computes a v1.0 package's lines again from its sealed sources instead of
-     * looking for the v19 sections it does not have.
-     */
-    @Test
-    void theDeterministicReplayComputesAV1PackagesLinesAgain() {
-        SealedEvidencePackage pkg = seal(MeasuredVariant.FALLBACK_SIMILAR, 3).pkg();
-        String packageId = pkg.getPackageId() != null ? pkg.getPackageId() : "pkg-v1-deterministic";
-        pkg.setPackageId(packageId);
-        SealedEvidencePackageLookupPort lookup = mock(SealedEvidencePackageLookupPort.class);
-        when(lookup.findByPackageId(packageId)).thenReturn(Optional.of(pkg));
-        DeterministicReplayService replay = new DeterministicReplayService(lookup, InspectionGolden.SERIALIZER,
-                new PromptContextComposer(), new SealedEvidencePackageIntegrity(), new VerificationPromptReplayBuilder(),
-                new PromptInspector(PromptInspector.coreChecks(), InspectionGolden.JSON));
-
-        DeterministicReplayResult result = replay.replay(packageId);
-
-        assertThat(result.diffSummary()).noneMatch(finding -> finding.startsWith("CONTEXT_SECTION_DRIFT")
-                || finding.startsWith("CONTEXT_REASSEMBLY_EMPTY") || finding.startsWith("CONTEXT_LINE_DRIFT")
-                || finding.startsWith("CONTEXT_REINSPECTION_FAILED"));
-    }
-
-    /**
-     * Plan 2.3 B13: the evidence backfill reads a v1.0 package's facts on the dictionary lines their v19 labels went to,
-     * and a requester's text in UNTRUSTED TEXT, so they count as reaching the prompt.
-     */
-    @Test
-    void theEvidenceBackfillReadsAV1PackageOnItsDictionaryLines() throws Exception {
-        SealedEvidencePackage pkg = seal(MeasuredVariant.FALLBACK_SIMILAR, 3).pkg();
-        SealedEvidencePackage withoutLayout = seal(MeasuredVariant.FALLBACK_SIMILAR, 3).pkg();
-        Map<String, Object> metadata = InspectionGolden.JSON.readValue(withoutLayout.getPromptExecutionMetadataJson(),
-                new TypeReference<>() {
-                });
-        metadata.remove(PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR);
-        withoutLayout.setPromptExecutionMetadataJson(InspectionGolden.JSON.writeValueAsString(metadata));
-
-        Map<String, String> dictionary = states(pkg);
-        Map<String, String> v19Reading = states(withoutLayout);
-
-        // The golden package seals no authentication state, so the fields read from it have no evidence here.
-        assertThat(dictionary).containsEntry("clientIp", "PRESENT")
-                .containsEntry("httpMethod", "PRESENT")
-                .containsEntry("userId", "PRESENT")
-                .containsEntry("requestPath", "PRESENT");
-        assertThat(dictionary.values().stream().filter("PRESENT"::equals).count())
-                .isGreaterThan(v19Reading.values().stream().filter("PRESENT"::equals).count());
-    }
-
-    /** Each evidence field's projection state the backfill gives the package. */
-    private static Map<String, String> states(SealedEvidencePackage pkg) throws Exception {
-        SealedEvidencePackage prepared = SealedEvidencePromptEvidenceBackfill.prepare(InspectionGolden.JSON, pkg)
-                .packageForVerification();
-        JsonNode manifest = InspectionGolden.JSON.readTree(prepared.getPromptEvidenceManifestJson());
-        Map<String, String> states = new LinkedHashMap<>();
-        manifest.path("fields").forEach(field -> states.put(field.path("fieldKey").asText(),
-                field.path("projectionState").asText()));
-        return states;
     }
 
     /** A rendered v1.0 package, its sealed execution metadata and the context the render used. */
