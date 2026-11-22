@@ -37,6 +37,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -145,6 +146,8 @@ class PromptQualityScreenTemplateTest {
     /** The scripts and styles of the two screens carry a version mark, so a browser never runs an older copy. */
     @Test
     void theScriptsAndStylesCarryAVersionMark() throws IOException {
+        // K197: the script of the cases changed its words of a case's input and raised its mark.
+        Map<String, String> marks = Map.of("cases", "20261123-fc", "measure", "20261122-s1");
         for (String screen : List.of("cases", "measure")) {
             String template = read("templates/contexa/admin/prompt-quality/" + screen + ".html");
             Matcher assets = Pattern.compile("@\\{(/contexa/[^}]*\\.(?:js|css)[^}]*)}").matcher(template);
@@ -155,7 +158,7 @@ class PromptQualityScreenTemplateTest {
             assertThat(found).hasSizeGreaterThanOrEqualTo(5).allSatisfy(asset -> assertThat(asset).contains("?v="));
             assertThat(found).contains("/contexa/js/admin/prompt-version/pv-common.js?v=20261122-s2b",
                     "/contexa/js/admin/prompt-quality/pqa-common.js?v=20261122-s1",
-                    "/contexa/js/admin/prompt-quality/" + screen + ".js?v=20261122-s1");
+                    "/contexa/js/admin/prompt-quality/" + screen + ".js?v=" + marks.get(screen));
         }
         assertThat(read("templates/contexa/admin/prompt-quality/measure.html"))
                 .contains("/contexa/js/admin/prompt-quality/measure-trials.js?v=20261122-s1")

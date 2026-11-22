@@ -105,6 +105,10 @@ class PromptVersionMessagesTest {
         Stream.of(JdbcPromptInspectionQueries.DECISION_STAGE, JdbcPromptInspectionQueries.SHADOW_STAGE)
                 .forEach(stage -> keys.add("pv.shadow.stage." + stage));
         addGateWords(keys);
+        // K201: the history of a version names every audit action it reads, the override of the quality gate included.
+        List<String> history = historyActions();
+        assertThat(history).hasSizeGreaterThanOrEqualTo(14).contains(PromptVersionAudit.QUALITY_GATE_OVERRIDDEN);
+        history.forEach(action -> keys.add("pv.history." + action));
         keys.add("menu.pqa.versions");
 
         Properties english = properties("contexa/i18n/messages.properties");
@@ -177,6 +181,20 @@ class PromptVersionMessagesTest {
         Stream.of(PromptQualityMeasurements.Refusal.values())
                 .forEach(refusal -> keys.add("pv.refused.MEASURE_" + refusal.name()));
         keys.add("pv.blocker." + PromptGovernanceReleaseGateService.QUALITY_GATE_BLOCKED);
+    }
+
+    /** The audit actions the history of a version reads: those that start as a version action's (PROMPT_VERSION_%). */
+    private static List<String> historyActions() {
+        return Stream.of(PromptVersionAudit.class.getFields()).filter(field -> field.getType() == String.class)
+                .map(field -> {
+                    try {
+                        return (String) field.get(null);
+                    }
+                    catch (IllegalAccessException unreadable) {
+                        throw new IllegalStateException(unreadable);
+                    }
+                })
+                .filter(action -> action.startsWith("PROMPT_VERSION_")).toList();
     }
 
     private static void collect(Pattern pattern, String text, Set<String> keys) {

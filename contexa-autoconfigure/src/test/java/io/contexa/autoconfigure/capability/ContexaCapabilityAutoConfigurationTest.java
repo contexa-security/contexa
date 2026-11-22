@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.capability;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.autoconfigure.capability.CapabilityStatus;
 import io.contexa.contexacommon.autoconfigure.capability.ContexaCapability;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
@@ -31,6 +33,9 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -348,5 +353,56 @@ class ContexaCapabilityAutoConfigurationTest {
                             assertThat(result.required()).isTrue();
                             assertThat(result.status()).isEqualTo(CapabilityStatus.INACTIVE_UNEXPECTED);
                         }));
+    }
+
+    /**
+     * P23: the settings of an installation may still name a capability an upgrade removed (pqa-engine, retired with
+     * the official verification); the start goes on with a warning, and the capabilities it names, in any spelling
+     * the binding read before, still decide.
+     */
+    @Test
+    @DisplayName("a requirement of a removed capability is reported and left; the others still decide")
+    void aRequirementOfARemovedCapabilityDoesNotStopTheStart(CapturedOutput output) {
+        contextRunner
+                .withPropertyValues(
+                        "spring.application.name=legacy-customer-app",
+                        "contexa.capability.required.pqa-engine=true",
+                        "contexa.capability.required.RAG_VECTOR=false",
+                        "contexa.capability.required.embedding-runtime=false")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    ContexaCapabilityProperties properties = context.getBean(ContexaCapabilityProperties.class);
+                    assertThat(properties.unknownRequirements()).containsExactly("pqa-engine");
+                    CapabilityRequirementResolver resolver = context.getBean(CapabilityRequirementResolver.class);
+                    assertThat(resolver.requirement(ContexaCapability.RAG_VECTOR).reason())
+                            .isEqualTo("requirement disabled by contexa.capability.required.rag-vector");
+                    assertThat(resolver.requirement(ContexaCapability.EMBEDDING_RUNTIME).reason())
+                            .isEqualTo("requirement disabled by contexa.capability.required.embedding-runtime");
+                    assertThat(output.getOut().lines()
+                            .filter(line -> line.contains("Ignoring contexa.capability.required.pqa-engine")))
+                            .singleElement()
+                            .satisfies(line -> assertThat(line).contains(" WARN ")
+                                    .contains("this version has no such capability").contains("rag-vector"));
+                });
+    }
+
+    /** P23: the keys of contexa.capability.required are bound as names; the metadata still offers every capability. */
+    @Test
+    @DisplayName("the metadata offers every capability as a key of the requirements")
+    void theMetadataOffersEveryCapabilityAsARequirementKey() throws Exception {
+        JsonNode hints;
+        try (InputStream stream = getClass().getClassLoader()
+                .getResourceAsStream("META-INF/additional-spring-configuration-metadata.json")) {
+            hints = new ObjectMapper().readTree(stream).path("hints");
+        }
+        List<String> offered = new ArrayList<>();
+        for (JsonNode hint : hints) {
+            if ("contexa.capability.required.keys".equals(hint.path("name").asText())) {
+                hint.path("values").forEach(value -> offered.add(value.path("value").asText()));
+            }
+        }
+
+        assertThat(offered).containsExactlyElementsOf(Arrays.stream(ContexaCapability.values())
+                .map(ContexaCapability::propertyKey).toList());
     }
 }

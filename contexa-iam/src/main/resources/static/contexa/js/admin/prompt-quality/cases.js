@@ -307,7 +307,7 @@
             ['request', 'session', 'deviation', 'records', 'unknown'].map(part => ({label: m('detail.tab.' + part),
                 node: d.input[part].length ? PQA.form('input-rows', PQA.wrapRows(d.input[part].map(line => ({
                     label: line.name ? PQA.word((part === 'deviation' ? 'pqa.cases.dimension.' : 'pqa.cases.input.')
-                        + line.name, line.name) : '·', value: line.value}))))
+                        + line.name, line.name) : '·', value: inputValue(part, line)}))))
                     : PQA.emptyState(m('detail.noLines'))})));
         const history = ZT.card(m('detail.results'), m('detail.resultsAside'),
             d.results.length ? PQA.form('result-history', PQA.table([{label: m('detail.version')},
@@ -340,6 +340,81 @@
         content.replaceChildren(...[privacy, PQA.grid(PQA.span(answer, 4), PQA.span(input, 8)),
             PQA.grid(PQA.span(history, 8), PQA.span(changes, 4))].filter(Boolean));
         PQA.fitChips();
+    }
+
+    // ----- K197: the values of a case's input in words -----
+
+    const VALUE_WORD = 'pqa.cases.value.';
+    const LOGIN_WORD = 'zt.console.ui.decision.value.login.';
+    const FACT_WORD = 'zt.console.fact.';
+    /**
+     * The dictionaries of the engine's codes, in the order a code is looked up: the screen's own words (yes, no, an
+     * authorization effect, a level, an approval state), the resource grades, then the words the decision detail of
+     * the console reads an action, an operating system, a network zone, a record state and a login by.
+     */
+    const CODE_WORDS = [VALUE_WORD, 'pqa.cases.resGrade.', 'zt.console.ui.decision.value.action.',
+        'zt.console.ui.decision.value.os.', 'zt.console.ui.decision.value.zone.',
+        'zt.console.ui.decision.value.recordStatus.', LOGIN_WORD];
+    /** The lines of the request, the session and the records that hold codes; the others hold the host's names. */
+    const CODED_LINES = ['resourceClass', 'sensitivity', 'action', 'authorization', 'authentication', 'network',
+        'device', 'approvalStatus'];
+    const YES_NO_LINES = ['mfa', 'newSession', 'newDevice'];
+    /** A code as the engine writes it (EXPORT, PASSWORD+ONE_TIME_CODE), set apart from the text around it. */
+    const ENGINE_CODE = /(^|[^\w./@#:+-])([A-Z][A-Z0-9_]*(?:\+[A-Z][A-Z0-9_]*)*)(?![\w./@#:+-])/g;
+
+    function knownWord(prefix, code) {
+        const key = prefix + code;
+        const text = ZT.t(key);
+        return text === key ? null : text;
+    }
+
+    /**
+     * A code in words: a login of several methods by the word of each, else the first dictionary that names it, else,
+     * when it is plainly a code of two words or more, in plain words, as the console reads it (ZeroTrustFactWords).
+     */
+    function codeWord(code) {
+        if (code.includes('+')) {
+            const methods = code.split('+').map(method => knownWord(LOGIN_WORD, method));
+            return methods.every(Boolean) ? methods.join(' + ') : code;
+        }
+        for (const prefix of CODE_WORDS) {
+            const word = knownWord(prefix, code);
+            if (word) {
+                return word;
+            }
+        }
+        return code.includes('_') ? code.toLowerCase().replace(/_/g, ' ') : code;
+    }
+
+    function codesInWords(text) {
+        return String(text).replace(ENGINE_CODE, (all, before, code) => before + codeWord(code));
+    }
+
+    /**
+     * A value of the decision input as the screen shows it (quality plan 3.2): the codes of the engine in words, yes
+     * and no in words, the time of the request in the screen's time, a fact the context could not have by its name.
+     * A name the host gives (a user, a role, an address, a resource, a record) is shown as it is.
+     */
+    function inputValue(part, line) {
+        const value = line.value;
+        if (part === 'deviation' || CODED_LINES.includes(line.name)) {
+            return codesInWords(value);
+        }
+        if (YES_NO_LINES.includes(line.name)) {
+            return PQA.word(VALUE_WORD + value, value);
+        }
+        if (line.name === 'requestedAt') {
+            return ZT.time(value);
+        }
+        if (line.name === 'unknownFact') {
+            return PQA.word(FACT_WORD + value, value);
+        }
+        if (line.name === 'unavailableFact') {
+            const at = value.indexOf(': ');
+            return at < 0 ? PQA.word(FACT_WORD + value, value)
+                : PQA.word(FACT_WORD + value.slice(0, at), value.slice(0, at)) + ': ' + codesInWords(value.slice(at + 2));
+        }
+        return value;
     }
 
     function changeText(change) {

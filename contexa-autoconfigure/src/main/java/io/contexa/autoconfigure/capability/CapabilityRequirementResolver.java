@@ -20,6 +20,7 @@ import io.contexa.contexacommon.autoconfigure.capability.CapabilityCheckResult;
 import io.contexa.contexacommon.autoconfigure.capability.CapabilityStatus;
 import io.contexa.contexacommon.autoconfigure.capability.CapabilityRequirement;
 import io.contexa.contexacommon.autoconfigure.capability.ContexaCapability;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
@@ -27,10 +28,12 @@ import org.springframework.core.env.Environment;
 import org.springframework.util.ClassUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+@Slf4j
 public class CapabilityRequirementResolver {
 
     private final ContexaCapabilityProperties properties;
@@ -44,6 +47,24 @@ public class CapabilityRequirementResolver {
         this.properties = properties;
         this.environment = environment;
         this.beanFactory = beanFactory;
+        reportUnknownRequirements();
+    }
+
+    /**
+     * P23: a requirement of a capability this version does not have (one an upgrade removed, such as pqa-engine)
+     * decides nothing; it is reported once and left, so an installation that kept it in its settings still starts.
+     */
+    private void reportUnknownRequirements() {
+        List<String> unknown = properties.unknownRequirements();
+        if (unknown.isEmpty()) {
+            return;
+        }
+        List<String> known = Arrays.stream(ContexaCapability.values()).map(ContexaCapability::propertyKey).toList();
+        for (String key : unknown) {
+            log.warn("[CapabilityRequirementResolver] Ignoring contexa.capability.required.{}: this version has no"
+                    + " such capability (it may have been removed in an upgrade); remove the setting. Known"
+                    + " capabilities: {}", key, known);
+        }
     }
 
     public CapabilityMode effectiveMode() {
