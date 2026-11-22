@@ -56,6 +56,8 @@ import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustHourlyStats;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustReviewSampler;
+import io.contexa.contexacore.autonomous.handler.handler.SealedEvidenceCaptureHandler;
+import io.contexa.contexacore.verification.evidence.DecisionPriorityCaptureSampling;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.properties.SecurityColdPathProperties;
@@ -391,14 +393,26 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ZeroTrustConsoleRetention(jdbcOperationsProvider::getIfAvailable, securityZeroTrustProperties, null);
     }
 
-    /** Console decision 11.3: the stopped decisions of a day an administrator is asked to review. */
+    /**
+     * Console decision 11.3, quality plan 3.6: the decisions of a day an administrator is asked to review: the stopped
+     * ones, and the allowed ones by risk and at random. The signs of risk are those the sealing of allowed decisions
+     * chooses by, with its threshold of unknown facts; while the sealed evidence capture runs, only sealed decisions
+     * are drawn.
+     */
     @Bean(name = "contexaZeroTrustReviewSampler")
     @ConditionalOnMissingBean
     public ZeroTrustReviewSampler zeroTrustReviewSampler(
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new ZeroTrustReviewSampler(jdbcOperationsProvider::getIfAvailable, securityZeroTrustProperties, null);
+            SecurityZeroTrustProperties securityZeroTrustProperties, Environment environment,
+            ObjectProvider<SealedEvidenceCaptureHandler> captureHandler) {
+        Integer threshold = environment.getProperty(UNKNOWN_FACT_THRESHOLD, Integer.class,
+                DecisionPriorityCaptureSampling.DEFAULT_UNKNOWN_FACT_THRESHOLD);
+        return new ZeroTrustReviewSampler(jdbcOperationsProvider::getIfAvailable, securityZeroTrustProperties, null,
+                threshold, () -> captureHandler.getIfAvailable() != null);
     }
+
+    /** The threshold of unknown facts the sealing of allowed decisions uses (PqaOssSealedEvidenceCaptureProperties). */
+    static final String UNKNOWN_FACT_THRESHOLD = "contexa.pqa.oss.sealed-evidence.unknown-fact-threshold";
 
     private static String defaultModelProvider(Environment environment) {
         if (environment == null) {

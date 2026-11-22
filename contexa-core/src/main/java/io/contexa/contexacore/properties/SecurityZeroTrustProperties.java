@@ -579,8 +579,8 @@ public class SecurityZeroTrustProperties {
      */
     /**
      * The data the Zero Trust console reads (console design 7, 11.3): how long the decision rows and the hourly tables
-     * are kept, how often the hourly tables are brought up to date, and how many stopped decisions are sampled each day
-     * for a person's review.
+     * are kept, how often the hourly tables are brought up to date, and how many decisions are sampled each day for a
+     * person's review (the stopped ones, and the allowed ones by risk and at random, quality plan 3.6).
      */
     @Data
     public static class Console {
@@ -594,6 +594,18 @@ public class SecurityZeroTrustProperties {
         private long aggregationIntervalMs = 60_000L;
         /** How many stopped decisions of a day are sampled for a person's review. */
         private int reviewDailySample = 20;
+        /**
+         * Quality plan 3.6: how many allowed decisions of a day are sampled for review by risk: those with a sign that
+         * they may be misses, and those of a user blocked afterwards. 0 samples none.
+         */
+        private int reviewRiskSample = 10;
+        /**
+         * Quality plan 3.6: how many allowed decisions of a day without a sign are sampled for review at random, to fill
+         * the number of the ordinary cases. 0 samples none.
+         */
+        private int reviewAllowedSample = 5;
+        /** Quality plan 3.6: the days looked back from a block for the allowed decisions of the blocked user. */
+        private int reviewBlockedLookbackDays = 7;
         /**
          * When the retention pass runs (a Spring cron expression in the server's zone); the operations screen says
          * when it runs next.

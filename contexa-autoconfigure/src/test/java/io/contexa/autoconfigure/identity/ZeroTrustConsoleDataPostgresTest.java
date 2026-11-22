@@ -562,7 +562,10 @@ class ZeroTrustConsoleDataPostgresTest {
                 .as("an aggregate keeps two years").isEqualTo(1L);
     }
 
-    /** The day's sample is drawn from the stopped first decisions, once, up to the daily number. */
+    /**
+     * The day's sample is drawn from the stopped first decisions, once, up to the daily number; quality plan 3.6: an
+     * allowed decision without a sign of risk joins it in the random part of the allowed decisions.
+     */
     @Test
     void theReviewQueueDrawsUpToTheDailySampleOnce() {
         LocalDate day = LocalDate.now(clock.withZone(ZoneOffset.UTC)).minusDays(1);
@@ -575,10 +578,12 @@ class ZeroTrustConsoleDataPostgresTest {
         decision("tested", noon, "FIRST", "BLOCK", null, "run-1");
         ZeroTrustReviewSampler sampler = new ZeroTrustReviewSampler(() -> jdbc, properties, clock);
 
-        assertThat(sampler.sample(day)).isEqualTo(20);
+        assertThat(sampler.sample(day)).isEqualTo(21);
         assertThat(sampler.sample(day)).as("the day's sample is complete").isZero();
+        assertThat(jdbc.queryForList("SELECT observation_id FROM ctxa_zt_review_queue WHERE observation_id <> 'allowed'",
+                String.class)).hasSize(20).allMatch(id -> id.startsWith("stopped-"));
         assertThat(jdbc.queryForList("SELECT observation_id FROM ctxa_zt_review_queue", String.class))
-                .hasSize(20).allMatch(id -> id.startsWith("stopped-"));
+                .hasSize(21).contains("allowed");
     }
 
     /** An outcome finds the request's latest successful decision; an evaluation keeps its reason. */

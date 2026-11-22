@@ -20,6 +20,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.monitoring.ai.DecisionConsoleColumns;
+import io.contexa.contexacore.monitoring.ai.DecisionRiskSignals;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import org.junit.jupiter.api.Test;
 
@@ -41,9 +42,13 @@ class SealedCaptureDecisionTest {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("learningPersonalBaselineEstablished", false);
         metadata.put("promptEvidenceCompletenessReasons", List.of("approval", "duty", "assignment"));
+        // Both layers called the model and the first was asked again: three calls past the two of the layers.
+        metadata.put(PromptRuntimeTelemetrySupport.MODEL_CALL_STAGES, List.of(Map.of("layer", "Layer1"),
+                Map.of("layer", "Layer2")));
         metadata.put(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.of(Map.of("layer", "Layer1")));
         ProcessingResult result = result("allow", 2,
                 List.of(Map.of("id", "H1", "assessment", "POSSIBLE"), Map.of("id", "h3", "assessment", "MOST_LIKELY")));
+        result.addAnalysisData("decisionAppliedStage", "LAYER2");
 
         SealedCaptureDecision decision = SealedCaptureDecision.of(context(metadata, result));
 
@@ -58,8 +63,32 @@ class SealedCaptureDecisionTest {
         assertThat(decision.mostLikelyHypothesis()).isEqualTo(columns.mostLikelyHypothesis());
         assertThat(decision.unknownFactCount()).isEqualTo(columns.unknownFactCount());
         assertThat(decision.baselineStatus()).isEqualTo(columns.baselineStatus());
+        // Quality plan 3.6: the signs are the ones the review sample reads from the same columns of the decision row.
+        assertThat(decision.secondAnalysis()).isEqualTo(DecisionRiskSignals.secondAnalysis(columns.analysisDepth()));
+        assertThat(decision.askedAgain())
+                .isEqualTo(DecisionRiskSignals.askedAgain(columns.modelCallCount(), columns.decisionStage()));
+        assertThat(decision.signals(3)).isEqualTo(DecisionRiskSignals.of(columns, "ALLOW", 3))
+                .containsExactlyInAnyOrder(DecisionRiskSignals.Signal.values());
         assertThat(decision.stopped()).isFalse();
         assertThat(decision.allowedWithRisk(3)).isTrue();
+    }
+
+    /** One call per layer that ran is no retry: the first layer alone, or both when the second decided. */
+    @Test
+    void aCallPerLayerIsNotAskingAgain() {
+        Map<String, Object> first = new HashMap<>();
+        first.put(PromptRuntimeTelemetrySupport.MODEL_CALL_STAGES, List.of(Map.of("layer", "Layer1")));
+        Map<String, Object> both = new HashMap<>();
+        both.put(PromptRuntimeTelemetrySupport.MODEL_CALL_STAGES, List.of(Map.of("layer", "Layer1"),
+                Map.of("layer", "Layer2")));
+        ProcessingResult second = result("ALLOW", 2, null);
+        second.addAnalysisData("decisionAppliedStage", "LAYER2");
+
+        assertThat(SealedCaptureDecision.of(context(first, result("ALLOW", 1, null))).askedAgain()).isFalse();
+        assertThat(SealedCaptureDecision.of(context(both, second)).askedAgain()).isFalse();
+        assertThat(SealedCaptureDecision.of(context(both, second)).secondAnalysis()).isTrue();
+        assertThat(SealedCaptureDecision.of(context(both, result("ALLOW", 1, null))).askedAgain())
+                .as("two calls of a decision the first layer set").isTrue();
     }
 
     @Test
