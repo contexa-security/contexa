@@ -34,9 +34,8 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityGateSettings;
 import io.contexa.contexacore.std.components.prompt.quality.QualityMetric;
 import io.contexa.contexacore.std.components.prompt.quality.QualityRate;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
-import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
-import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseResources;
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
@@ -141,26 +140,27 @@ public class PromptQualityCaseScreen {
     private final Supplier<PromptQualityMeasurements> measurements;
     private final Supplier<PromptQualityResourceClasses> classes;
     private final Supplier<PromptVersionConsole> console;
-    private final Supplier<SealedEvidencePackageRepository> sealed;
+    private final Supplier<QualityCasePromotions> promotions;
     private final QualityGateSettings gate;
     private final Clock clock;
 
     /**
      * @param measurements a supplier of null when this application cannot replay decisions
      * @param console      what tells the version decisions run now; a supplier of null without the version screens
-     * @param sealed       the sealed decisions a case is promoted from; a supplier of null when there are none
+     * @param promotions   what makes a sealed decision a case (K199: the one way, which refuses a decision that is not
+     *                     sealed); a supplier of null when no decision is sealed in this application
      * @param gate         the gate's settings: the targets of roots and the level of its comparisons
      */
     public PromptQualityCaseScreen(PromptQualityCases cases, @Nullable Supplier<PromptQualityMeasurements> measurements,
                                    @Nullable Supplier<PromptQualityResourceClasses> classes,
                                    @Nullable Supplier<PromptVersionConsole> console,
-                                   @Nullable Supplier<SealedEvidencePackageRepository> sealed,
+                                   @Nullable Supplier<QualityCasePromotions> promotions,
                                    @Nullable QualityGateSettings gate, @Nullable Clock clock) {
         this.cases = Objects.requireNonNull(cases, "cases");
         this.measurements = measurements != null ? measurements : () -> null;
         this.classes = classes != null ? classes : () -> null;
         this.console = console != null ? console : () -> null;
-        this.sealed = sealed != null ? sealed : () -> null;
+        this.promotions = promotions != null ? promotions : () -> null;
         this.gate = gate != null ? gate : QualityGateSettings.defaults();
         this.clock = clock != null ? clock : Clock.systemUTC();
     }
@@ -485,28 +485,27 @@ public class PromptQualityCaseScreen {
     }
 
     /**
-     * Quality plan 3.2: a sealed decision as a case of the operation, with the answer the administrator gives.
+     * Quality plan 3.2: a sealed decision as a case of the operation, with the answer the administrator gives. K199: it
+     * is made the one way a sealed decision is made a case ({@link QualityCasePromotions#fromSealed}), which refuses a
+     * decision that is not sealed.
      *
-     * @throws RefusedException with {@link #NOT_SEALED} when no decision of the id is sealed, or its package was kept
-     *                          without its seal (the sealing failed): K199, a decision that is not sealed is no case
+     * @throws RefusedException                    with {@link #INVALID} when the id or the answer cannot be read, with
+     *                                             {@link #NOT_SEALED} when no decision is sealed in this application
+     * @throws PromptQualityCases.RefusedException with {@code NOT_SEALED} when no decision of the id is sealed or its
+     *                                             package was kept without its seal (the sealing failed), or when the
+     *                                             answer or the input cannot make a case
      */
     public Saved promote(@Nullable String scope, String packageId, AnswerForm answer, String actor) {
         if (packageId == null || packageId.isBlank()) {
             throw new RefusedException(INVALID, "The id of the sealed decision is required");
         }
-        SealedEvidencePackageRepository repository = sealed.get();
-        Optional<SealedEvidencePackage> found = repository != null
-                ? repository.findByPackageId(packageId.trim()) : Optional.empty();
-        if (found.isEmpty()) {
-            throw new RefusedException(NOT_SEALED, "No decision of the id " + packageId.trim() + " is sealed");
-        }
-        if (!found.get().hasSealedState()) {
-            throw new RefusedException(NOT_SEALED, "The decision of the id " + packageId.trim()
-                    + " was kept without its seal (" + found.get().getSealState() + ")");
+        QualityCasePromotions promoting = promotions.get();
+        if (promoting == null) {
+            throw new RefusedException(NOT_SEALED, "No decision is sealed in this application");
         }
         Answer parsed = parse(answer);
-        PromptQualityCases.Kept kept = cases.promote(scopeOf(scope), PROMPT, found.get(), null, null,
-                parsed.expectation(), parsed.grade(), actor);
+        PromptQualityCases.Kept kept = promoting.fromSealed(scopeOf(scope), packageId.trim(), parsed.expectation(),
+                parsed.grade(), actor).kept();
         return new Saved(kept.key(), kept.status());
     }
 

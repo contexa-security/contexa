@@ -525,10 +525,10 @@ public class PromptVersionConsoleAutoConfiguration {
                                                            ObjectProvider<PromptQualityMeasurements> measurements,
                                                            ObjectProvider<PromptQualityResourceClasses> classes,
                                                            ObjectProvider<PromptVersionConsole> console,
-                                                           ObjectProvider<SealedEvidencePackageRepository> sealed,
+                                                           ObjectProvider<QualityCasePromotions> promotions,
                                                            PqaOssQualityProperties properties) {
         return new PromptQualityCaseScreen(contexaPromptQualityCases, measurements::getIfAvailable,
-                classes::getIfAvailable, console::getIfAvailable, sealed::getIfUnique,
+                classes::getIfAvailable, console::getIfAvailable, promotions::getIfAvailable,
                 properties.getGate().settings(), Clock.systemUTC());
     }
 

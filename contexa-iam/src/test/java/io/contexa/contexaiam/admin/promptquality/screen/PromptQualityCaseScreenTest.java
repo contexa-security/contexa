@@ -24,6 +24,7 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityCaseResource;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCaseSet;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCaseSetReader;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseScreen.AnswerForm;
@@ -43,6 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -171,18 +173,23 @@ class PromptQualityCaseScreenTest {
         }
     }
 
-    /** Only a sealed decision becomes a case: an id no package has is refused as NOT_SEALED, nothing kept. */
+    /**
+     * Only a sealed decision becomes a case: an id no package has is refused as NOT_SEALED by the promotions the screen
+     * goes through (K199), as is any id where no decision is sealed in the application; nothing kept.
+     */
     @Test
     void aDecisionThatIsNotSealedIsRefused() {
         PromptQualityCases cases = mock(PromptQualityCases.class);
         SealedEvidencePackageRepository sealed = mock(SealedEvidencePackageRepository.class);
         when(sealed.findByPackageId("p-1")).thenReturn(Optional.empty());
-        PromptQualityCaseScreen screen = new PromptQualityCaseScreen(cases, null, null, null, () -> sealed, null, null);
+        PromptQualityCaseScreen screen = new PromptQualityCaseScreen(cases, null, null, null, () -> promotions(cases,
+                sealed), null, null);
         AnswerForm answer = new AnswerForm(List.of("BLOCK"), null, "THREAT", "INSIDER", "차단", null, null, "ORDINARY");
 
         assertThatThrownBy(() -> screen.promote(null, " p-1 ", answer, "admin"))
-                .isInstanceOfSatisfying(PromptQualityCaseScreen.RefusedException.class,
-                        refused -> assertThat(refused.code()).isEqualTo(PromptQualityCaseScreen.NOT_SEALED));
+                .isInstanceOfSatisfying(PromptQualityCases.RefusedException.class, refused -> assertThat(
+                        refused.refusal()).isEqualTo(PromptQualityCases.Refusal.NOT_SEALED));
+        verify(sealed).findByPackageId("p-1");
         assertThatThrownBy(() -> new PromptQualityCaseScreen(cases, null, null, null, null, null, null)
                 .promote(null, "p-1", answer, "admin"))
                 .isInstanceOfSatisfying(PromptQualityCaseScreen.RefusedException.class,
@@ -193,7 +200,10 @@ class PromptQualityCaseScreenTest {
         verify(cases, never()).promote(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
-    /** K199: a package kept without its seal (the sealing failed) is refused as NOT_SEALED; a sealed one is kept. */
+    /**
+     * K199: a package kept without its seal (the sealing failed) is refused as NOT_SEALED; a sealed one is kept, in the
+     * scope of the screen.
+     */
     @Test
     void aDecisionWhoseSealingFailedIsRefused() {
         PromptQualityCases cases = mock(PromptQualityCases.class);
@@ -207,15 +217,22 @@ class PromptQualityCaseScreenTest {
                 .Kept(7L, "tenant-a", "security-decision", item, "PENDING", "p-sealed", null, "admin",
                 Instant.parse("2026-11-23T00:00:00Z"), "admin", Instant.parse("2026-11-23T00:00:00Z"), null, null,
                 false));
-        PromptQualityCaseScreen screen = new PromptQualityCaseScreen(cases, null, null, null, () -> sealed, null, null);
+        PromptQualityCaseScreen screen = new PromptQualityCaseScreen(cases, null, null, null, () -> promotions(cases,
+                sealed), null, null);
         AnswerForm answer = new AnswerForm(List.of("BLOCK"), null, "THREAT", "INSIDER", "차단", null, null, "ORDINARY");
 
         assertThatThrownBy(() -> screen.promote(null, "p-failed", answer, "admin"))
-                .isInstanceOfSatisfying(PromptQualityCaseScreen.RefusedException.class,
-                        refused -> assertThat(refused.code()).isEqualTo(PromptQualityCaseScreen.NOT_SEALED));
+                .isInstanceOfSatisfying(PromptQualityCases.RefusedException.class, refused -> assertThat(
+                        refused.refusal()).isEqualTo(PromptQualityCases.Refusal.NOT_SEALED));
         verify(cases, never()).promote(any(), any(), any(), any(), any(), any(), any(), any());
 
-        assertThat(screen.promote(null, "p-sealed", answer, "admin").key()).isEqualTo(item.key());
-        verify(cases).promote(any(), any(), any(), any(), any(), any(), any(), any());
+        assertThat(screen.promote("tenant-a", " p-sealed ", answer, "admin").key()).isEqualTo(item.key());
+        verify(cases).promote(eq("tenant-a"), eq(PromptQualityCaseScreen.PROMPT), eq(kept), any(), any(), any(),
+                eq(QualityCaseGrade.ORDINARY), eq("admin"));
+    }
+
+    /** The promotions of the decisions, as the application makes them, over the sealed packages of the test. */
+    private static QualityCasePromotions promotions(PromptQualityCases cases, SealedEvidencePackageRepository sealed) {
+        return new QualityCasePromotions(() -> null, cases, sealed, null, null, null);
     }
 }
