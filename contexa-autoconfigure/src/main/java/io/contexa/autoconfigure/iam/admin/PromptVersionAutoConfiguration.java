@@ -194,7 +194,8 @@ public class PromptVersionAutoConfiguration {
             ObjectProvider<TieredStrategyProperties> tieredStrategyProperties,
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
             @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper,
-            ObjectProvider<QualityGateSource> qualityGateSource) {
+            ObjectProvider<QualityGateSource> qualityGateSource,
+            ObjectProvider<PromptVersionResolver.OutsideGateListener> outsideGateListener) {
         PromptGovernanceDescriptorResolver descriptorResolver = promptGovernanceDescriptorResolver.getIfAvailable();
         PromptBundleSelector registry = null;
         if (descriptorResolver instanceof JdbcPromptGovernanceDescriptorResolver jdbcResolver) {
@@ -209,6 +210,8 @@ public class PromptVersionAutoConfiguration {
                 () -> properties.getPromptBundle().getActive(), Clock.systemUTC());
         // Plan 3.4: a version that decides outside the release gate is checked once for a measurement taken here.
         resolver.setQualityGateSource(qualityGateSource::getIfAvailable);
+        // Plan 3.4: and is then measured automatically, once, when this installation can measure.
+        resolver.setOutsideGateListener(outsideGateListener::getIfAvailable);
         return resolver;
     }
 

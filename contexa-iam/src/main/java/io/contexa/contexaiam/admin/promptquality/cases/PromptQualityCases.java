@@ -473,12 +473,26 @@ public class PromptQualityCases {
      * cases published again are the set published before.
      */
     public PublishedSet publish(String scope, String prompt, String actor) {
+        return publish(scope, prompt, actor, true);
+    }
+
+    /**
+     * Quality plan 3.4: publishes the default set of this build alone in the scope, as the automatic measurement does
+     * when nothing is published there yet: the cases kept in the scope are not in it. The same set published again is
+     * the set published before.
+     */
+    public PublishedSet publishDefault(String scope, String prompt, String actor) {
+        return publish(scope, prompt, actor, false);
+    }
+
+    private PublishedSet publish(String scope, String prompt, String actor, boolean withKeptCases) {
         if (!offeredFor(prompt)) {
             throw new RefusedException(Refusal.PROMPT, "Only the security decision has labelled cases");
         }
         String scopeName = scopeOf(scope);
         QualityCaseSet shipped = defaultSet();
-        List<Kept> confirmed = list(scopeName, prompt).stream().filter(Kept::confirmed).toList();
+        List<Kept> confirmed = withKeptCases
+                ? list(scopeName, prompt).stream().filter(Kept::confirmed).toList() : List.of();
         List<QualityCase> cases = new ArrayList<>(shipped.cases());
         confirmed.forEach(kept -> cases.add(kept.item()));
         QualityCaseSet set = new QualityCaseSet(shipped.name(), cases);

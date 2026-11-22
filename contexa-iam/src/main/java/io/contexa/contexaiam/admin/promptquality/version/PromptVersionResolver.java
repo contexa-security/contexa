@@ -73,8 +73,21 @@ public class PromptVersionResolver implements PromptBundleSelector {
     /** Plan 3.4: the versions found deciding outside the gate, by prompt, version and source. */
     private final Set<String> foundOutsideGate = ConcurrentHashMap.newKeySet();
     private volatile Supplier<QualityGateSource> measurements = () -> null;
+    private volatile Supplier<OutsideGateListener> outsideGateListener = () -> null;
 
     private record CachedVersion(Optional<String> version, long readAt) {
+    }
+
+    /**
+     * Plan 3.4: what is told when a version of the security decision is found deciding outside the release gate
+     * without a measurement taken in this installation, so that it is measured. It is told on the decision's thread and
+     * hands the work over at once.
+     */
+    @FunctionalInterface
+    public interface OutsideGateListener {
+
+        void decidesOutsideGate(String prompt, String version, PromptBundleSelectionSource source,
+                                QualityMeasurementState state);
     }
 
     /**
@@ -93,6 +106,11 @@ public class PromptVersionResolver implements PromptBundleSelector {
     /** Plan 3.4: where the measurements are read for a version that decides outside the gate; none when not set. */
     public void setQualityGateSource(Supplier<QualityGateSource> measurements) {
         this.measurements = measurements != null ? measurements : () -> null;
+    }
+
+    /** Plan 3.4: who measures a version found deciding outside the gate without a measurement; none when not set. */
+    public void setOutsideGateListener(Supplier<OutsideGateListener> listener) {
+        this.outsideGateListener = listener != null ? listener : () -> null;
     }
 
     @Override
@@ -173,8 +191,24 @@ public class PromptVersionResolver implements PromptBundleSelector {
                     prompt, selection.bundleVersion(), selection.source() == PromptBundleSelectionSource.CONFIGURATION
                             ? "the setting contexa.security.tiered.prompt-bundle.active" : "the newest Contexa version",
                     state);
+            tellOutsideGate(prompt, selection, state);
         }
         return selection;
+    }
+
+    /** Plan 3.4: the version is measured automatically; the listener hands the work over, the decision goes on. */
+    private void tellOutsideGate(String prompt, PromptBundleSelection selection, QualityMeasurementState state) {
+        OutsideGateListener listener = outsideGateListener.get();
+        if (listener == null) {
+            return;
+        }
+        try {
+            listener.decidesOutsideGate(prompt, selection.bundleVersion(), selection.source(), state);
+        }
+        catch (RuntimeException failure) {
+            log.error("The automatic measurement of {} {}, which decides outside the release gate, could not be asked"
+                    + " for", prompt, selection.bundleVersion(), failure);
+        }
     }
 
     @Override

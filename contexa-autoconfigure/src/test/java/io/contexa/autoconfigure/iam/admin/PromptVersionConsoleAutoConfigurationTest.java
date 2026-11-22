@@ -25,6 +25,10 @@ import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsole;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleController;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionService;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionTrials;
+import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurementState;
+import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
+import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
+import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -66,6 +70,12 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).hasSingleBean(PromptQualityMeasurements.class);
                     assertThat(context.getBean(PromptQualityMeasurements.class).settings())
                             .isEqualTo(PromptQualityMeasurements.Settings.DEFAULTS);
+                    // Quality plan 3.4: the store of measurements the quality gate reads, and the measurements
+                    // Contexa starts by itself once the application is ready.
+                    assertThat(context).hasSingleBean(MeasuredQualityGateSource.class);
+                    assertThat(context).hasSingleBean(QualityAutoMeasurement.class);
+                    assertThat(context).hasBean("contexaQualityAutoMeasurementStart");
+                    assertThat(context).hasSingleBean(QualityShippedMeasurements.class);
                 });
     }
 
@@ -100,6 +110,14 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).doesNotHaveBean(PromptVersionTrials.class);
                     assertThat(context).doesNotHaveBean(PromptQualityMeasurements.class);
                     assertThat(context).hasSingleBean(PromptQualityCases.class);
+                    // Quality plan 3.4: without the replay nothing can be measured, which the gate warns of only.
+                    assertThat(context.getBean(MeasuredQualityGateSource.class)
+                            .read("PLATFORM_GLOBAL", "cortex.security-decision", "v2.0", "v1.0"))
+                            .satisfies(reading -> {
+                                assertThat(reading.state()).isEqualTo(QualityMeasurementState.UNMEASURABLE);
+                                assertThat(reading.detail())
+                                        .isEqualTo(MeasuredQualityGateSource.NO_MEASUREMENT_RUNNER);
+                            });
                 });
     }
 

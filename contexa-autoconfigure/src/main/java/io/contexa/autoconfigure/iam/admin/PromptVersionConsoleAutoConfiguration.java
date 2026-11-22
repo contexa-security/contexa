@@ -21,6 +21,8 @@ import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
+import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
@@ -32,7 +34,10 @@ import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplay
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityRunLine;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityMeasureLock;
+import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
+import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityModelSetting;
+import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionCatalog;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsole;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleController;
@@ -49,7 +54,9 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationListener;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
@@ -166,6 +173,66 @@ public class PromptVersionConsoleAutoConfiguration {
         return measurements;
     }
 
+    /**
+     * Quality plan 3.4: the measurements Contexa shipped of its own versions on the default case set; none when the
+     * product ships none.
+     */
+    @Bean(name = "contexaQualityShippedMeasurements")
+    @ConditionalOnMissingBean
+    public QualityShippedMeasurements qualityShippedMeasurements() {
+        return QualityShippedMeasurements.contexa();
+    }
+
+    /**
+     * Quality plan 3.4: what the quality gate of the release gate reads, from the store of the measurements. Without the
+     * measurement runner (no replay of decisions in this application) every version cannot be measured.
+     */
+    @Bean(name = "contexaQualityGateSource")
+    @ConditionalOnMissingBean(QualityGateSource.class)
+    @ConditionalOnBean({PromptVersionService.class, PromptQualityCases.class})
+    public MeasuredQualityGateSource qualityGateSource(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                       PromptVersionService versions,
+                                                       PromptQualityCases contexaPromptQualityCases,
+                                                       ObjectProvider<PromptQualityMeasurements> measurements,
+                                                       QualityShippedMeasurements contexaQualityShippedMeasurements) {
+        return new MeasuredQualityGateSource(() -> jdbcTemplate, versions, contexaPromptQualityCases,
+                measurements::getIfAvailable, contexaQualityShippedMeasurements);
+    }
+
+    /**
+     * Quality plan 3.4: the measurements Contexa starts by itself, of the version that decides outside the release gate
+     * and of the version in use with no measurement; the servers of one database decide them under the lock store of
+     * the scheduled work of Contexa, so one of them starts each.
+     */
+    @Bean(name = "contexaQualityAutoMeasurement", destroyMethod = "close")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean({PromptVersionService.class, PromptQualityCases.class})
+    public QualityAutoMeasurement qualityAutoMeasurement(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                         PromptVersionService versions,
+                                                         PromptQualityCases contexaPromptQualityCases,
+                                                         ObjectProvider<PromptQualityMeasurements> measurements,
+                                                         ObjectProvider<PromptBundleSelector> selector,
+                                                         QualityShippedMeasurements contexaQualityShippedMeasurements,
+                                                         ObjectProvider<LockProvider> lockProviders) {
+        LockProvider lockProvider = lockProviders.getIfUnique();
+        return new QualityAutoMeasurement(() -> jdbcTemplate, versions, contexaPromptQualityCases,
+                measurements::getIfAvailable, new JdbcPromptVersionCatalog(versions, () -> jdbcTemplate,
+                selector::getIfUnique), contexaQualityShippedMeasurements,
+                lockProvider != null ? QualityMeasureLock.shedLock(lockProvider, QualityAutoMeasurement.LOCK_NAME,
+                        Clock.systemUTC()) : QualityMeasureLock.local());
+    }
+
+    /**
+     * Quality plan 3.4: once the application is ready, the versions that decide outside the gate and the versions in
+     * use with no measurement are measured, on the measurer's own thread.
+     */
+    @Bean(name = "contexaQualityAutoMeasurementStart")
+    @ConditionalOnBean(QualityAutoMeasurement.class)
+    public ApplicationListener<ApplicationReadyEvent> qualityAutoMeasurementStart(
+            QualityAutoMeasurement contexaQualityAutoMeasurement) {
+        return ready -> contexaQualityAutoMeasurement.measureDecidingVersionsLater();
+    }
+
     /** Quality plan 3.2: the deletion of a person reaches the labelled cases whose decision is the person's. */
     @Bean(name = "contexaQualityCaseUserDeletionListener")
     @ConditionalOnMissingBean
@@ -191,7 +258,9 @@ public class PromptVersionConsoleAutoConfiguration {
                                                      ObjectProvider<PromptVersionLengthLimits> limits,
                                                      ObjectProvider<PromptVersionAudit> audit, Environment environment,
                                                      ObjectProvider<VersionedPrompts> versionedPrompts,
-                                                     ObjectProvider<SealedDecisionReplays> replays) {
+                                                     ObjectProvider<SealedDecisionReplays> replays,
+                                                     ObjectProvider<PromptQualityMeasurements> measurements,
+                                                     ObjectProvider<QualityAutoMeasurement> autoMeasurement) {
         PromptVersionConsole console = new PromptVersionConsole(versions, trials::getIfAvailable, selector::getIfUnique, () -> jdbcTemplate,
                 releases::getIfAvailable, gate::getIfAvailable, invalidation::getIfAvailable, rollbacks::getIfAvailable,
                 sealed::getIfAvailable, decisions::getIfAvailable, folder::getIfAvailable,
@@ -203,6 +272,19 @@ public class PromptVersionConsoleAutoConfiguration {
                 audit.getIfAvailable(PromptVersionAudit::none), Clock.systemUTC());
         // Plan 3.11: the prompts other than the security decision show their finished prompt with an example input.
         console.setVersionedPrompts(versionedPrompts.getIfAvailable());
+        // Quality plan 3.4: "save and measure" measures on the case set the measurements of the scope run on.
+        console.setMeasureStarter(() -> {
+            PromptQualityMeasurements runner = measurements.getIfAvailable();
+            QualityAutoMeasurement sets = autoMeasurement.getIfAvailable();
+            return runner == null || sets == null ? null : (scope, prompt, number, actor) -> {
+                try {
+                    return runner.start(scope, prompt, number, sets.caseSet(scope, prompt).id(), null, actor);
+                }
+                catch (PromptQualityMeasurements.RefusedException refused) {
+                    throw new PromptVersionConsole.RefusedException("MEASURE_" + refused.refusal().name());
+                }
+            };
+        });
         // Plan 3.10 (2): the finished prompt draws the latest sealed decision again with the version, as a replay does.
         // K71: beside it, the state of the sealed package, as a replay tells it.
         console.setSealedDrawing(() -> {

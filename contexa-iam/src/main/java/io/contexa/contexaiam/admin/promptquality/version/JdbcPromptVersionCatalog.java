@@ -95,9 +95,19 @@ public class JdbcPromptVersionCatalog implements PromptVersionCatalog {
 
     @Override
     public Optional<String> deciding(String scope, String prompt) {
+        PromptBundleSelection selection = decidingSelection(scope, prompt);
+        String name = selection != null ? selection.bundleVersion() : null;
+        return PromptVersionNames.number(name).stream().mapToObj(PromptVersionNames::name).findFirst();
+    }
+
+    /**
+     * Plan 3.4: the selection the decisions of the scope run now, with where it comes from (the label, the setting or
+     * the newest Contexa version); null when there is no selector or it cannot be read.
+     */
+    public PromptBundleSelection decidingSelection(String scope, String prompt) {
         PromptBundleSelector selector = decisions.get();
         if (selector == null || prompt == null || prompt.isBlank()) {
-            return Optional.empty();
+            return null;
         }
         String scopeName = scope != null && !scope.isBlank() ? scope.trim() : PLATFORM_SCOPE;
         String templateKey = versions.target(prompt.trim()).map(PromptVersionService.RegistryTarget::templateKey)
@@ -109,10 +119,9 @@ public class JdbcPromptVersionCatalog implements PromptVersionCatalog {
         }
         catch (RuntimeException failure) {
             log.error("[PromptVersion] The version {} decides with in {} could not be read", prompt, scopeName, failure);
-            return Optional.empty();
+            return null;
         }
-        String name = selection != null ? selection.bundleVersion() : null;
-        return PromptVersionNames.number(name).stream().mapToObj(PromptVersionNames::name).findFirst();
+        return selection;
     }
 
     @Override
