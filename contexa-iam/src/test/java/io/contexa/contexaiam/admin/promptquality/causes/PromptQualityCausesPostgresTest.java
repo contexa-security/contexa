@@ -158,8 +158,9 @@ class PromptQualityCausesPostgresTest {
     /**
      * A done measurement of three runs: A1 allows a threat in two runs of three (unstable), S04 allows it in every run
      * with the right citations (judgement), S10 deferred rightly and the closing rules ended it in ALLOW (engine
-     * changed), INS-S03 allows it while its deciding on-call record is unknown to the prompt (input shortage), S01
-     * blocks normal work after a call of 95 seconds (format and model) and once could not be measured.
+     * changed), INS-S03 allows it citing a fact the prompt does not say (grounding; K189 corrected its input, so its
+     * deciding on-call record is no longer unknown to the prompt), S01 blocks normal work after a call of 95 seconds
+     * (format and model) and once could not be measured.
      */
     private long aDoneMeasurement() {
         PromptQualityCases.PublishedSet set = cases.publish(SCOPE, PROMPT, "admin");
@@ -208,8 +209,10 @@ class PromptQualityCausesPostgresTest {
                 Map.entry("A1#1", QualityCause.UNSTABLE), Map.entry("A1#3", QualityCause.UNSTABLE),
                 Map.entry("S04#1", QualityCause.JUDGEMENT_ERROR), Map.entry("S04#2", QualityCause.JUDGEMENT_ERROR),
                 Map.entry("S04#3", QualityCause.JUDGEMENT_ERROR), Map.entry("S10#1", QualityCause.ENGINE_CHANGED),
-                Map.entry("INS-S03#1", QualityCause.INPUT_SHORTAGE), Map.entry("INS-S03#2", QualityCause.INPUT_SHORTAGE),
-                Map.entry("INS-S03#3", QualityCause.INPUT_SHORTAGE), Map.entry("S01#1", QualityCause.FORMAT_AND_MODEL)));
+                Map.entry("INS-S03#1", QualityCause.GROUNDING_ERROR),
+                Map.entry("INS-S03#2", QualityCause.GROUNDING_ERROR),
+                Map.entry("INS-S03#3", QualityCause.GROUNDING_ERROR),
+                Map.entry("S01#1", QualityCause.FORMAT_AND_MODEL)));
         assertThat(summary.counts()).extracting(PromptQualityCauses.Count::cause).containsExactly(QualityCause.values());
         assertThat(count(summary, QualityCause.JUDGEMENT_ERROR)).isEqualTo(3);
         assertThat(count(summary, QualityCause.INPUT_ERROR)).isZero();
@@ -238,11 +241,14 @@ class PromptQualityCausesPostgresTest {
                 .filter(cause -> "S01".equals(cause.caseKey())).findFirst().orElseThrow();
         assertThat(slow.checks().get(0).details()).containsExactly("reason=OVER_TIME_LIMIT", "call1Ms=95000",
                 "limitMs=90000");
-        PromptQualityCauses.Cause shortage = summary.causes().stream()
+        // The input shortage is read against the facts the prompt names unknown: the variant's deciding facts are
+        // all known since K189, so it is clear and the grounding decides.
+        PromptQualityCauses.Cause grounded = summary.causes().stream()
                 .filter(cause -> "INS-S03".equals(cause.caseKey())).findFirst().orElseThrow();
-        assertThat(shortage.checks().get(3).details()).contains("fact=frictionProfile.onCall.onCall=false",
-                "unknown=OnCall");
-        assertThat(shortage.fix()).isEqualTo(QualityCauseFix.INTEGRATION);
+        assertThat(grounded.checks().get(3).cause()).isEqualTo(QualityCause.INPUT_SHORTAGE);
+        assertThat(grounded.checks().get(3).state()).isEqualTo(QualityCauseCheck.State.CLEAR);
+        assertThat(grounded.checks().get(3).details()).containsExactly("level=BUSINESS_AWARE", "unknown=PeerCohort");
+        assertThat(grounded.fix()).isEqualTo(QualityCauseFix.PROMPT_OR_MODEL);
 
         List<Map<String, Object>> before = rows();
         assertThat(causes.ofMeasurement(id).orElseThrow().causes()).hasSize(10);

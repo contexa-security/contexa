@@ -470,13 +470,15 @@ class QualityCauseClassifierTest {
             }
         }
         assertThat(wrong).isEqualTo(14);
-        assertThat(counts).containsExactlyInAnyOrderEntriesOf(Map.of(QualityCause.GROUNDING_ERROR, 8,
-                QualityCause.JUDGEMENT_ERROR, 5, QualityCause.INPUT_SHORTAGE, 1));
+        assertThat(counts).containsExactlyInAnyOrderEntriesOf(Map.of(QualityCause.GROUNDING_ERROR, 9,
+                QualityCause.JUDGEMENT_ERROR, 5));
         // One run: never unstable; three wrong answers are of original cases, which list no deciding fact.
         assertThat(notComputed).containsExactlyInAnyOrderEntriesOf(Map.of(QualityCause.UNSTABLE, 14,
                 QualityCause.INPUT_SHORTAGE, 3));
-        // The insider variant lists the on-call record as deciding, and its prompt names it unknown.
-        assertThat(byCase.get("INS-S03")).isEqualTo(QualityCause.INPUT_SHORTAGE);
+        // The insider variant lists the on-call record as deciding; K189 corrected its input, which named that record
+        // unknown and stated it at once, so no deciding fact is unknown and its answer cites what the input does not
+        // say.
+        assertThat(byCase.get("INS-S03")).isEqualTo(QualityCause.GROUNDING_ERROR);
     }
 
     private static List<QualityCauseAnswer> realAnswers() throws IOException {

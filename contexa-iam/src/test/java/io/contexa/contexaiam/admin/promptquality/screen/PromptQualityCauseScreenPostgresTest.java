@@ -141,7 +141,8 @@ class PromptQualityCauseScreenPostgresTest {
         assertThat(view.timeLimitMillis()).isEqualTo(90_000L);
         assertThat(view.tiles()).extracting(Tile::cause).containsExactly("FORMAT_AND_MODEL", "ENGINE_CHANGED",
                 "INPUT_ERROR", "INPUT_SHORTAGE", "GROUNDING_ERROR", "UNSTABLE", "JUDGEMENT_ERROR");
-        assertThat(view.tiles()).extracting(Tile::count).containsExactly(1, 1, 0, 3, 0, 2, 3);
+        // K189: the insider variant of the default set names no deciding fact unknown, so its answers are grounding.
+        assertThat(view.tiles()).extracting(Tile::count).containsExactly(1, 1, 0, 0, 3, 2, 3);
         assertThat(view.tiles()).extracting(Tile::fix).containsExactly("MODEL_SETTING", "RULE_SETTING",
                 "COLLECTOR_OR_RECORDS", "INTEGRATION", "PROMPT_OR_MODEL", "PROMPT_OR_MODEL", "PROMPT_VERSION");
         assertThat(view.tiles()).extracting(Tile::conditional).containsExactly(true, false, true, true, false, true,
