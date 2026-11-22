@@ -51,7 +51,7 @@ public final class QualityGateFixtures {
     public static final String CASE_SET = "case-set-version-a";
     public static final int RUNS = 2;
     /** Thresholds the four cases are enough for: one root on either side tells two versions apart. */
-    public static final QualityGateSettings SETTINGS = new QualityGateSettings(0.05, 0.05, 1, 1);
+    public static final QualityGateSettings SETTINGS = new QualityGateSettings(0.05, 0.05, 1, 1, 0.30);
     public static final String MUST_CATCH = "must-catch-1";
 
     private static final ObjectMapper JSON = new ObjectMapper();

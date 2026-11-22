@@ -53,7 +53,7 @@ public record QualityGateReading(QualityMeasurementState state, Set<QualityGateS
         }
     }
 
-    /** Both versions are measured: the gate computes its nine conditions from the input. */
+    /** Both versions are measured: the gate computes its conditions from the input. */
     public static QualityGateReading measured(QualityGateInput input) {
         return new QualityGateReading(QualityMeasurementState.MEASURED, Set.of(), input, null);
     }
