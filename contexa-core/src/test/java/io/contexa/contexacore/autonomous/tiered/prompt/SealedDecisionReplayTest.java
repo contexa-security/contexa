@@ -98,6 +98,9 @@ class SealedDecisionReplayTest {
             assertThat(drawing.result.replayId()).startsWith(SealedDecisionReplayInputs.REPLAY_ID_PREFIX);
             assertThat(drawing.result.replayedRequestId()).isEqualTo(goldenCase.path("requestFacts").path("requestId").asText());
             assertThat(drawing.result.failure()).isNull();
+            // A replay keeps nothing of its own once drawn: neither the context it fixed nor a cached copy of it.
+            assertThat(drawing.keptContextBytes).as(caseKey).isZero();
+            assertThat(drawing.released).as(caseKey).isTrue();
         }
     }
 
@@ -261,9 +264,9 @@ class SealedDecisionReplayTest {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         try {
             TieredStrategyProperties properties = new TieredStrategyProperties();
-            SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
-                    new SecurityDecisionPromptSections(new SecurityEventEnricher(), properties,
-                            event -> Optional.empty(), new PromptContextComposer(), null, null, null));
+            SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(new SecurityEventEnricher(),
+                    properties, event -> Optional.empty(), new PromptContextComposer(), null, null, null);
+            SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(sections);
             template.setPromptVersionStore(store);
             List<String> asked = new ArrayList<>();
             PipelineOrchestrator pipeline = new PipelineOrchestrator(List.of()) {
@@ -282,6 +285,7 @@ class SealedDecisionReplayTest {
                     vector(goldenCase.path("learningEvidence").path("personalBaseline")),
                     vector(goldenCase.path("learningEvidence").path("organizationBaseline")), release);
             assertThat(asked).as("the model is not asked").isEmpty();
+            assertThat(sections.canonicalContextCacheBytes()).as("a drawing caches no canonical context").isZero();
             return drawn;
         }
         finally {
@@ -521,9 +525,13 @@ class SealedDecisionReplayTest {
                 }).result;
     }
 
+    /**
+     * {@code keptContextBytes}: the canonical contexts the template's cache keeps after the replay; {@code released}:
+     * whether the contexts the replay fixed for its passes were let go once their prompts were drawn.
+     */
     private record Drawing(SealedDecisionReplayService.Result result, List<String> userPrompts, List<Integer> tiers,
                            List<String> models, List<String> pinned, List<String> systemPrompts,
-                           List<Boolean> keptPrompts) {
+                           List<Boolean> keptPrompts, long keptContextBytes, boolean released) {
     }
 
     private static Drawing replay(JsonNode goldenCase) {
@@ -558,9 +566,9 @@ class SealedDecisionReplayTest {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         try {
             TieredStrategyProperties properties = new TieredStrategyProperties();
-            SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
-                    new SecurityDecisionPromptSections(new SecurityEventEnricher(), properties,
-                            event -> Optional.empty(), new PromptContextComposer(), null, null, null));
+            SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(new SecurityEventEnricher(),
+                    properties, event -> Optional.empty(), new PromptContextComposer(), null, null, null);
+            SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(sections);
             template.setPromptVersionStore(store);
             List<String> userPrompts = new ArrayList<>();
             List<Integer> tiers = new ArrayList<>();
@@ -605,7 +613,19 @@ class SealedDecisionReplayTest {
                     StructuredOutputCapabilityRegistry.defaultRegistry(), () -> null,
                     null, "OBSERVE", new CanonicalSecurityContextSerializer(MAPPER), MAPPER);
             SealedDecisionReplayService.Result result = service.replay(asking.apply(sealed(goldenCase)));
-            return new Drawing(result, userPrompts, tiers, models, pinned, systemPrompts, keptPrompts);
+            boolean released = true;
+            for (int pass = 0; result.replayId() != null && pass < userPrompts.size(); pass++) {
+                String id = pass == 0 ? result.replayId() : result.replayId() + "-second-" + pass;
+                try {
+                    sections.resolveCanonicalSecurityContext(replayEvent(id));
+                    released = false;
+                }
+                catch (SealedReplayContextMissingException expected) {
+                    // The context fixed for this pass is no longer kept.
+                }
+            }
+            return new Drawing(result, userPrompts, tiers, models, pinned, systemPrompts, keptPrompts,
+                    sections.canonicalContextCacheBytes(), released);
         }
         finally {
             TimeZone.setDefault(original);
