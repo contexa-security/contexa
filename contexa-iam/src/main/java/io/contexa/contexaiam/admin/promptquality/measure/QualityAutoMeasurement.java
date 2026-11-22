@@ -54,6 +54,11 @@ import java.util.function.Supplier;
  * line, within the call limit and the concurrency of every measurement; the servers of one database decide what to
  * start under one lock, so one of them starts it. With nothing published in the scope, the default set of the product
  * is published first and measured on.
+ *
+ * <p>Plan 3.6: the version in use is measured again on schedule and when the model setting changed. The same version,
+ * case set and settings measured before give no new answer (every answer is used again), so the schedule measures only
+ * what is new: a case set published with new cases, or settings that change an answer; it tries a measurement it
+ * could not finish again. A changed model setting is measured once.</p>
  */
 public class QualityAutoMeasurement implements PromptVersionResolver.OutsideGateListener, AutoCloseable {
 
@@ -73,7 +78,11 @@ public class QualityAutoMeasurement implements PromptVersionResolver.OutsideGate
         /** It decides outside the release gate: the setting names it, or it is the newest Contexa version. */
         OUTSIDE_GATE,
         /** It is the version in use and has no measurement (right after an upgrade). */
-        BASELINE
+        BASELINE,
+        /** Plan 3.6: the version in use, measured again on schedule. */
+        SCHEDULED,
+        /** Plan 3.6: the version in use, measured only under other settings that change an answer. */
+        SETTINGS_CHANGED
     }
 
     /** What an automatic measurement came to. */
@@ -167,14 +176,14 @@ public class QualityAutoMeasurement implements PromptVersionResolver.OutsideGate
                     .filter(row -> row.caseSetId() == set.id() && row.versionContentHash().equals(record.contentHash())
                             && row.settingsHash().equals(now))
                     .toList();
-            Optional<Result> already = already(taken);
+            Optional<Result> already = already(taken, reason);
             if (already.isPresent()) {
                 return already.get();
             }
             if (shipped.find(prompt, record.contentHash(), set.version(), now).isPresent()) {
                 return new Result(Outcome.SHIPPED, null, MeasuredQualityGateSource.SHIPPED);
             }
-            long id = runner.start(scopeName, prompt, record.number(), set.id(), null, ACTOR);
+            long id = runner.start(scopeName, prompt, record.number(), set.id(), null, ACTOR, reason.name());
             log.info("[PromptQualityAutoMeasure] {} {} in {} is measured automatically ({}) on case set {}:"
                     + " measurement {}", prompt, record.name(), scopeName, reason, set.version(), id);
             return new Result(Outcome.QUEUED, id, reason.name());
@@ -189,7 +198,11 @@ public class QualityAutoMeasurement implements PromptVersionResolver.OutsideGate
         }
     }
 
-    private static Optional<Result> already(List<PromptQualityMeasurements.Measure> taken) {
+    /**
+     * A measurement that says the version needs none now: one done, one waiting, or one Contexa tried already; the
+     * schedule tries again a measurement it could not finish.
+     */
+    private static Optional<Result> already(List<PromptQualityMeasurements.Measure> taken, Reason reason) {
         for (PromptQualityMeasurements.Measure row : taken) {
             if (PromptQualityMeasurements.DONE.equals(row.status())) {
                 return Optional.of(new Result(Outcome.MEASURED_ALREADY, row.id(), null));
@@ -202,7 +215,7 @@ public class QualityAutoMeasurement implements PromptVersionResolver.OutsideGate
             }
         }
         for (PromptQualityMeasurements.Measure row : taken) {
-            if (ACTOR.equals(row.createdBy())) {
+            if (ACTOR.equals(row.createdBy()) && reason != Reason.SCHEDULED) {
                 return Optional.of(new Result(Outcome.TRIED_ONCE, row.id(), row.status()));
             }
         }
@@ -241,8 +254,8 @@ public class QualityAutoMeasurement implements PromptVersionResolver.OutsideGate
     /**
      * Plan 3.4, at the start of the application: in the platform scope and each scope with a label of the security
      * decision, the version deciding outside the gate is measured, and so is a labelled version with no measurement on
-     * the case set (right after an upgrade). A labelled version measured under other settings only is said to be
-     * stale, to be measured again by an administrator.
+     * the case set (right after an upgrade). Plan 3.6: a labelled version measured under other settings only is
+     * measured again, once.
      */
     public List<Result> measureDecidingVersions() {
         List<Result> results = new ArrayList<>();
@@ -268,9 +281,38 @@ public class QualityAutoMeasurement implements PromptVersionResolver.OutsideGate
                 results.add(request(scope, prompt, version, Reason.BASELINE));
             }
             else if (state == QualityMeasurementState.STALE) {
+                // Plan 3.6: the model setting changed since it was measured, so it is measured again.
                 log.warn("[PromptQualityAutoMeasure] {} {}, used for decisions in {}, was measured under other server"
-                        + " settings only: its measurement is stale, measure it again", prompt, version, scope);
+                        + " settings only: it is measured again", prompt, version, scope);
+                results.add(request(scope, prompt, version, Reason.SETTINGS_CHANGED));
             }
+        }
+        return results;
+    }
+
+    /**
+     * Plan 3.6: the version each scope decides with, measured again for the reason: on schedule, every one; after a
+     * change of the model setting, the labelled ones measured under other settings only (a version outside the gate
+     * is measured under the present settings by {@link #measureDecidingVersions()}).
+     */
+    public List<Result> remeasureInUse(Reason reason) {
+        List<Result> results = new ArrayList<>();
+        PromptQualityMeasurements runner = measurements.get();
+        if (runner == null || catalog == null) {
+            return results;
+        }
+        String prompt = SecurityDecisionPromptDocument.PROMPT;
+        for (String scope : scopes(prompt)) {
+            PromptBundleSelection selection = catalog.decidingSelection(scope, prompt);
+            String version = selection != null ? selection.bundleVersion() : null;
+            if (PromptVersionNames.number(version).isEmpty()) {
+                continue;
+            }
+            if (reason == Reason.SETTINGS_CHANGED && labelled(runner, scope, prompt, version)
+                    != QualityMeasurementState.STALE) {
+                continue;
+            }
+            results.add(request(scope, prompt, version, reason));
         }
         return results;
     }

@@ -87,7 +87,14 @@ public class PromptQualityCases {
         /** The answer is confirmed already. */
         ALREADY_CONFIRMED,
         /** The case, its answer or its input is not one a case can have. */
-        INVALID
+        INVALID,
+        /**
+         * Quality plan 3.6: the decision is not sealed, so there is no input of it to make a case of (its evaluation
+         * alone can be kept).
+         */
+        NOT_SEALED,
+        /** Quality plan 3.6: the two versions of the trial did not decide the sealed decision differently. */
+        NOT_DIVERGENT
     }
 
     /** What cannot be done, and why. */
@@ -112,11 +119,14 @@ public class PromptQualityCases {
      * @param sealedPackageId the sealed package it was promoted from, or null
      * @param subjectUserId   whose decision its input is, or null
      * @param labelledBy      who set its present answer
+     * @param secondAnalysis  quality plan 3.6: whether it was promoted from a decision the second analysis decided; the
+     *                        package holds the second analysis's input, so the first pass replayed from it may read
+     *                        another input than the decision's first pass did
      */
     public record Kept(long id, String scope, String prompt, QualityCase item, String status,
                        @Nullable String sealedPackageId, @Nullable String subjectUserId, String submittedBy,
                        Instant submittedAt, String labelledBy, Instant labelledAt, @Nullable String confirmedBy,
-                       @Nullable Instant confirmedAt) {
+                       @Nullable Instant confirmedAt, boolean secondAnalysis) {
 
         public String key() {
             return item.key();
@@ -125,6 +135,17 @@ public class PromptQualityCases {
         public boolean confirmed() {
             return CONFIRMED.equals(status);
         }
+    }
+
+    /**
+     * Quality plan 3.6: the cases kept in a scope, counted apart by where they came from.
+     *
+     * @param kept           every case kept in the scope
+     * @param operation      those promoted from a decision of the operation
+     * @param secondAnalysis those promoted from a decision the second analysis decided, counted apart
+     * @param pending        those whose answer waits for another administrator
+     */
+    public record Counts(int kept, int operation, int secondAnalysis, int pending) {
     }
 
     /** One change of a case's answer: what it was and what it became. */
@@ -247,7 +268,8 @@ public class PromptQualityCases {
         QualityCaseEnvironment environment = new QualityCaseEnvironment(ZoneId.systemDefault().getId(),
                 SealedDecisionReplayInputs.CONTEXT_FORMAT_VERSION);
         return insert(scope, prompt, QualityCaseOrigin.OPERATION, input, expectation, grade, null, environment,
-                sealed.getPackageId(), subject != null ? subject : sealed.getUserId(), actor);
+                sealed.getPackageId(), subject != null ? subject : sealed.getUserId(), actor,
+                QualityCaseSealedForm.secondAnalysis(sealed, json));
     }
 
     /**
@@ -269,7 +291,8 @@ public class PromptQualityCases {
             subject = keptSource.get().subjectUserId();
         }
         return insert(scope, prompt, QualityCaseOrigin.CUSTOMER, copied, expectation, grade, source.rootKey(),
-                source.environment(), keptSource.map(Kept::sealedPackageId).orElse(null), subject, actor);
+                source.environment(), keptSource.map(Kept::sealedPackageId).orElse(null), subject, actor,
+                keptSource.map(Kept::secondAnalysis).orElse(false));
     }
 
     /**
@@ -349,6 +372,14 @@ public class PromptQualityCases {
         return kept(scope, prompt, key).orElseThrow();
     }
 
+    /** Quality plan 3.6: the cases kept in the scope, with those promoted from the second analysis counted apart. */
+    public Counts counts(String scope, String prompt) {
+        return jdbc.get().queryForObject("select count(*), count(*) filter (where origin = ?), count(*) filter (where"
+                + " second_analysis), count(*) filter (where status = ?) from ctxa_prompt_version_case where"
+                + " registry_scope = ? and prompt_key = ?", (rs, row) -> new Counts(rs.getInt(1), rs.getInt(2),
+                rs.getInt(3), rs.getInt(4)), QualityCaseOrigin.OPERATION.name(), PENDING, scopeOf(scope), prompt);
+    }
+
     /** The changes of the case's answer, the oldest first. */
     public List<AnswerChange> answerChanges(String scope, String prompt, String key) {
         return jdbc.get().query("select h.id, h.case_key, h.changed_by, h.changed_at, h.previous_grade, h.new_grade,"
@@ -422,7 +453,7 @@ public class PromptQualityCases {
     private Kept insert(String scope, String prompt, QualityCaseOrigin origin, QualityCaseInput input,
                         QualityCaseExpectation expectation, QualityCaseGrade grade, @Nullable String rootCaseKey,
                         QualityCaseEnvironment environment, @Nullable String sealedPackageId,
-                        @Nullable String subject, String actor) {
+                        @Nullable String subject, String actor, boolean secondAnalysis) {
         if (!offeredFor(prompt)) {
             throw new RefusedException(Refusal.PROMPT, "Only the security decision has labelled cases");
         }
@@ -440,17 +471,18 @@ public class PromptQualityCases {
         jdbc.get().update("insert into ctxa_prompt_version_case (id, registry_scope, prompt_key, case_key, origin,"
                 + " root_case_key, sealed_package_id, subject_user_id, grade, classification, case_kind,"
                 + " content_hash, case_input, expectation, time_zone, context_format_version, status,"
-                + " submitted_by, submitted_at, labelled_by, labelled_at, confirmed_by, confirmed_at) values"
-                + " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", id, scopeName, prompt, key,
-                origin.name(), item.rootCaseKey(), sealedPackageId, subject, grade.name(),
+                + " submitted_by, submitted_at, labelled_by, labelled_at, confirmed_by, confirmed_at, second_analysis)"
+                + " values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", id, scopeName,
+                prompt, key, origin.name(), item.rootCaseKey(), sealedPackageId, subject, grade.name(),
                 expectation.classification().name(), expectation.kind().name(), item.contentHash(),
                 QualityCaseDocuments.writeInput(input).toString(),
                 QualityCaseDocuments.writeExpectation(expectation).toString(), environment.timeZone(),
                 environment.contextFormatVersion(), confirmed ? CONFIRMED : PENDING, who, Timestamp.from(now), who,
-                Timestamp.from(now), confirmed ? who : null, confirmed ? Timestamp.from(now) : null);
+                Timestamp.from(now), confirmed ? who : null, confirmed ? Timestamp.from(now) : null, secondAnalysis);
         audit.record(PromptVersionAudit.CASE_SUBMITTED, scopeName, prompt, key, who,
                 origin.name() + (item.rootCaseKey() != null ? " from " + item.rootCaseKey() : "")
-                        + (sealedPackageId != null ? " package " + sealedPackageId : ""));
+                        + (sealedPackageId != null ? " package " + sealedPackageId : "")
+                        + (secondAnalysis ? " second analysis" : ""));
         return kept(scopeName, prompt, key).orElseThrow();
     }
 
@@ -597,8 +629,8 @@ public class PromptQualityCases {
 
     private static final String CASE_SQL = "select id, registry_scope, prompt_key, case_key, origin, root_case_key,"
             + " sealed_package_id, subject_user_id, grade, case_input, expectation, time_zone, context_format_version,"
-            + " status, submitted_by, submitted_at, labelled_by, labelled_at, confirmed_by, confirmed_at"
-            + " from ctxa_prompt_version_case";
+            + " status, submitted_by, submitted_at, labelled_by, labelled_at, confirmed_by, confirmed_at,"
+            + " second_analysis from ctxa_prompt_version_case";
 
     private Kept kept(ResultSet rs, int row) throws SQLException {
         Instant submittedAt = rs.getTimestamp("submitted_at").toInstant();
@@ -612,7 +644,7 @@ public class PromptQualityCases {
                 rs.getString("status"), rs.getString("sealed_package_id"), rs.getString("subject_user_id"),
                 rs.getString("submitted_by"), submittedAt, rs.getString("labelled_by"),
                 rs.getTimestamp("labelled_at").toInstant(), rs.getString("confirmed_by"),
-                instant(rs.getTimestamp("confirmed_at")));
+                instant(rs.getTimestamp("confirmed_at")), rs.getBoolean("second_analysis"));
     }
 
     private static final String SET_SQL = "select id, registry_scope, prompt_key, set_version, name, case_count,"

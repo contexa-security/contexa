@@ -24,8 +24,10 @@ import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
 import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
 import io.contexa.contexaiam.admin.promptquality.causes.PromptQualityCauses;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
@@ -38,6 +40,8 @@ import io.contexa.contexaiam.admin.promptquality.measure.QualityMeasureLock;
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityModelSetting;
+import io.contexa.contexaiam.admin.promptquality.measure.QualityScheduledMeasurement;
+import io.contexa.contexaiam.admin.promptquality.status.PromptQualityStatus;
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionCatalog;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsole;
@@ -48,6 +52,7 @@ import io.contexa.contexaiam.admin.promptquality.version.PromptVersionService;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionTrials;
 import io.contexa.autoconfigure.core.infra.CoreSchedulerLockAutoConfiguration;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleService;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustDecisionRecords;
 import net.javacrumbs.shedlock.core.LockProvider;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -55,6 +60,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationListener;
@@ -82,7 +88,8 @@ import java.util.UUID;
  */
 @AutoConfiguration(after = {PromptVersionAutoConfiguration.class, PromptGovernanceAutoConfiguration.class,
         PromptInspectionAutoConfiguration.class, SealedDecisionReplayAutoConfiguration.class,
-        IamAdminMonitoringAutoConfiguration.class, CoreSchedulerLockAutoConfiguration.class})
+        IamAdminMonitoringAutoConfiguration.class, CoreSchedulerLockAutoConfiguration.class,
+        SealedEvidenceStoreAutoConfiguration.class})
 @ConditionalOnProperty(prefix = "contexa.prompt.governance", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(PqaOssQualityProperties.class)
 public class PromptVersionConsoleAutoConfiguration {
@@ -244,6 +251,43 @@ public class PromptVersionConsoleAutoConfiguration {
     }
 
     /**
+     * Quality plan 3.6: the version in use measured again on schedule and when the model setting changed, compared
+     * with its measurement before once done; one server runs each under the lock store of the scheduled work.
+     */
+    @Bean(name = "contexaQualityScheduledMeasurement")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(QualityAutoMeasurement.class)
+    public QualityScheduledMeasurement qualityScheduledMeasurement(
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+            QualityAutoMeasurement contexaQualityAutoMeasurement, ObjectProvider<PromptQualityMeasurements> measurements,
+            PromptQualityCases contexaPromptQualityCases, PqaOssQualityProperties properties,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+        return new QualityScheduledMeasurement(() -> jdbcTemplate, contexaQualityAutoMeasurement,
+                measurements::getIfAvailable, contexaPromptQualityCases, properties.getRemeasure().getCron(),
+                properties.getGate().getSignificance(), objectMapper, Clock.systemUTC());
+    }
+
+    /**
+     * Quality plan 3.6: the data of the state of quality: the latest measurement of the version in use, its operation
+     * metrics beside those of the version it replaced, and what there is to check.
+     */
+    @Bean(name = "contexaPromptQualityStatus")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean({PromptVersionService.class, PromptQualityCases.class})
+    public PromptQualityStatus promptQualityStatus(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                   PromptVersionService versions,
+                                                   PromptQualityCases contexaPromptQualityCases,
+                                                   ObjectProvider<PromptQualityMeasurements> measurements,
+                                                   ObjectProvider<QualityScheduledMeasurement> scheduled,
+                                                   ObjectProvider<PromptBundleSelector> selector,
+                                                   ObjectProvider<ZeroTrustConsoleService> console,
+                                                   ObjectProvider<ZeroTrustDecisionRecords> decisions) {
+        return new PromptQualityStatus(versions, new JdbcPromptVersionCatalog(versions, () -> jdbcTemplate,
+                selector::getIfUnique), contexaPromptQualityCases, measurements::getIfAvailable,
+                scheduled::getIfAvailable, console::getIfAvailable, decisions::getIfAvailable);
+    }
+
+    /**
      * Quality plan 3.4: once the application is ready, the versions that decide outside the gate and the versions in
      * use with no measurement are measured, on the measurer's own thread.
      */
@@ -260,6 +304,28 @@ public class PromptVersionConsoleAutoConfiguration {
     @ConditionalOnBean(PromptQualityCases.class)
     public QualityCaseUserDeletionListener qualityCaseUserDeletionListener(PromptQualityCases contexaPromptQualityCases) {
         return new QualityCaseUserDeletionListener(contexaPromptQualityCases);
+    }
+
+    /**
+     * Quality plan 3.6: the decisions of the operation made cases, from the decision detail with their evaluation and
+     * from a trial whose two versions decided them differently, always from their seal; the evaluation and the case
+     * are kept in one transaction of Contexa's own.
+     */
+    @Bean(name = "contexaQualityCasePromotions")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityCases.class)
+    @ConditionalOnSingleCandidate(SealedEvidencePackageRepository.class)
+    public QualityCasePromotions qualityCasePromotions(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                       PromptQualityCases contexaPromptQualityCases,
+                                                       SealedEvidencePackageRepository sealedEvidencePackageRepository,
+                                                       ObjectProvider<ZeroTrustDecisionRecords> decisions,
+                                                       ObjectProvider<PromptVersionTrials> trials,
+                                                       @Qualifier("contexaTransactionManager")
+                                                       ObjectProvider<PlatformTransactionManager> transactionManager) {
+        PlatformTransactionManager manager = transactionManager.getIfAvailable();
+        return new QualityCasePromotions(() -> jdbcTemplate, contexaPromptQualityCases,
+                sealedEvidencePackageRepository, decisions.getIfAvailable(), trials::getIfAvailable,
+                manager != null ? new TransactionTemplate(manager) : null);
     }
 
     @Bean(name = "contexaPromptVersionConsole")
