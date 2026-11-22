@@ -10,20 +10,50 @@
 <div class="flex flex-1 overflow-hidden">
     <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
-        <!-- Measure and compare (quality plan 3.3, 3.8): the frame of the screen, its content to come. -->
-        <div class="zt-page modern-card" id="zt-console" th:data-screen="${screen}">
+        <!--
+          Measure and compare (quality plan 3.3, 3.8): the view of the page (data-view) under the tab bar of the views,
+          which comes from the screen's one list of views (PromptQualityMeasureScreen.VIEWS). The screen's script draws
+          the view from the screen's JSON (data-pqa-api); a trial on the latest sealed decisions reads the JSON of the
+          prompt versions (data-api-base), as the version screens' script does.
+        -->
+        <div class="zt-page modern-card" id="zt-console" th:data-screen="${screen}" th:data-view="${view}"
+             th:data-pqa-api="${apiBase}" th:data-api-base="${versionsApi}" th:data-pages-base="${versionsPages}"
+             th:data-measure-id="${measureId}" th:data-trial-id="${trialId}"
+             th:data-candidate="${candidate}" th:data-reference="${reference}" th:data-measure-base="${measureBase}"
+             th:data-candidate-measure="${candidateMeasure}" th:data-reference-measure="${referenceMeasure}"
+             th:data-csrf-token="${_csrf != null ? _csrf.token : ''}"
+             th:data-csrf-header="${_csrf != null ? _csrf.headerName : 'X-CSRF-TOKEN'}">
+            <script type="application/json" id="zt-messages" th:utext="${scriptMessagesJson}"></script>
             <div class="zt-title-row pv-title-row mb-6">
                 <div class="min-w-0">
+                    <nav class="pv-crumbs" id="pv-crumbs" th:attr="aria-label=#{pv.ui.crumbs}"></nav>
                     <h1 class="text-3xl font-bold pc-header-gradient" id="pv-title" th:text="#{pqa.nav.measure}">Measure &amp; compare</h1>
                     <p class="text-dark-muted mt-1" id="pv-question" th:text="#{pqa.nav.question.measure}">Question</p>
                 </div>
                 <div class="zt-toolbar" id="pv-toolbar"></div>
             </div>
             <nav th:replace="~{contexa/admin/prompt-quality/fragments :: nav('measure')}"></nav>
+            <div class="filter-container zt-band-box mb-6"><div class="zt-band" id="zt-band" aria-live="polite"></div></div>
+            <div class="zt-tabs mb-6" id="pqa-views" role="tablist" th:if="${measureTabs != null}"
+                 th:attr="aria-label=#{pqa.measure.tabs}">
+                <button th:each="tab : ${measureTabs}" type="button" role="tab" th:data-view="${tab.key()}"
+                        th:data-href="@{${tab.href()}}" th:attr="aria-selected=${tab.selected()}"
+                        th:text="${tab.text()}">View</button>
+            </div>
+            <div class="pv-notice" id="pv-notice" aria-live="polite"></div>
             <div class="zt-stack" id="zt-content"></div>
+            <div class="ai-confirm-overlay hidden" id="pv-confirm-overlay" role="dialog" aria-modal="true">
+                <div class="ai-confirm-modal pv-confirm-modal"></div>
+            </div>
         </div>
     </main>
 </div>
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+<script th:src="@{/contexa/js/admin/zero-trust/console-common.js?v=20261118-k119}"></script>
+<script th:src="@{/contexa/js/admin/prompt-version/pv-common.js?v=20261122-s2b}"></script>
+<script th:src="@{/contexa/js/admin/prompt-quality/pqa-common.js?v=20261122-s1}"></script>
+<script th:src="@{/contexa/js/admin/prompt-quality/measure.js?v=20261122-s1}"></script>
+<script th:src="@{/contexa/js/admin/prompt-quality/measure-trials.js?v=20261122-s1}"></script>
+<script th:each="extra : ${viewScripts}" th:src="@{${extra}}"></script>
 </body>
 </html>

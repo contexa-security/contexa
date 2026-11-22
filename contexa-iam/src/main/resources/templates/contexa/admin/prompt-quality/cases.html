@@ -10,20 +10,38 @@
 <div class="flex flex-1 overflow-hidden">
     <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
-        <!-- The labelled cases (quality plan 3.2): the frame of the screen, its content to come. -->
-        <div class="zt-page modern-card" id="zt-console" th:data-screen="${screen}">
+        <!--
+          The labelled cases (quality plan 3.2): the list, or a case (data-case-key). The screen's script draws the views
+          from the screen's JSON (data-pqa-api); the version screens' script gives the confirmation and the notices.
+        -->
+        <div class="zt-page modern-card" id="zt-console" th:data-screen="${screen}" th:data-view="${view}"
+             th:data-pqa-api="${apiBase}" th:data-api-base="${versionsApi}" th:data-pages-base="${versionsPages}"
+             th:data-case-key="${caseKey}" th:data-measure-base="${measureBase}"
+             th:data-csrf-token="${_csrf != null ? _csrf.token : ''}"
+             th:data-csrf-header="${_csrf != null ? _csrf.headerName : 'X-CSRF-TOKEN'}">
+            <script type="application/json" id="zt-messages" th:utext="${scriptMessagesJson}"></script>
             <div class="zt-title-row pv-title-row mb-6">
                 <div class="min-w-0">
+                    <nav class="pv-crumbs" id="pv-crumbs" th:attr="aria-label=#{pv.ui.crumbs}"></nav>
                     <h1 class="text-3xl font-bold pc-header-gradient" id="pv-title" th:text="#{pqa.nav.cases}">Labelled cases</h1>
                     <p class="text-dark-muted mt-1" id="pv-question" th:text="#{pqa.nav.question.cases}">Question</p>
                 </div>
                 <div class="zt-toolbar" id="pv-toolbar"></div>
             </div>
             <nav th:replace="~{contexa/admin/prompt-quality/fragments :: nav('cases')}"></nav>
+            <div class="filter-container zt-band-box mb-6"><div class="zt-band" id="zt-band" aria-live="polite"></div></div>
+            <div class="pv-notice" id="pv-notice" aria-live="polite"></div>
             <div class="zt-stack" id="zt-content"></div>
+            <div class="ai-confirm-overlay hidden" id="pv-confirm-overlay" role="dialog" aria-modal="true">
+                <div class="ai-confirm-modal pv-confirm-modal"></div>
+            </div>
         </div>
     </main>
 </div>
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+<script th:src="@{/contexa/js/admin/zero-trust/console-common.js?v=20261118-k119}"></script>
+<script th:src="@{/contexa/js/admin/prompt-version/pv-common.js?v=20261122-s2b}"></script>
+<script th:src="@{/contexa/js/admin/prompt-quality/pqa-common.js?v=20261122-s1}"></script>
+<script th:src="@{/contexa/js/admin/prompt-quality/cases.js?v=20261122-s1}"></script>
 </body>
 </html>

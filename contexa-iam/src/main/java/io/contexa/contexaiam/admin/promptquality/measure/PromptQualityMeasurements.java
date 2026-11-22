@@ -511,15 +511,66 @@ public class PromptQualityMeasurements implements AutoCloseable {
         return count != null ? count : 0L;
     }
 
+    /**
+     * Quality plan 3.8: the measurements of the prompt in the scope, of every version and state, newest first, a page
+     * of them for the list of the screen.
+     */
+    public List<Measure> list(String scope, String prompt, int offset, int limit) {
+        return jdbc.get().query(MEASURE_SQL + " where m.registry_scope = ? and m.prompt_key = ?"
+                + " order by m.created_at desc, m.id desc offset ? limit ?", MEASURE_ROW, scopeOf(scope), prompt,
+                Math.max(0, offset), Math.max(1, limit));
+    }
+
+    /** Quality plan 3.8: the settings of this server that change an answer, by their stable names, as it runs now. */
+    public Map<String, String> modelSettings() {
+        return Map.copyOf(modelSettings.get());
+    }
+
+    /**
+     * One answer to a case in a measurement as the screens show it beside the other version's.
+     *
+     * @param citationFindings the facts the answer cited and what each came to, as kept (JSON); null when not checked
+     */
+    public record CaseAnswer(int run, @Nullable QualityAction firstAction, @Nullable QualityAction finalAction,
+                             boolean measurementFailed, @Nullable String citationFindings) {
+    }
+
+    /** Quality plan 3.8: the answers to the case in the measurement, run by run. */
+    public List<CaseAnswer> caseAnswers(long measureId, String caseKey) {
+        return jdbc.get().query("select run_number, first_action, final_action, measurement_failed, citation_findings"
+                + " from ctxa_prompt_version_measure_answer where measure_id = ? and case_key = ? order by run_number",
+                (rs, row) -> new CaseAnswer(rs.getInt(1), QualityAction.parse(rs.getString(2)),
+                        QualityAction.parse(rs.getString(3)), rs.getBoolean(4), rs.getString(5)), measureId, caseKey);
+    }
+
+    /** The measurements that answered a case, with the answers to it in each. */
+    public record CaseHistory(Measure measure, List<QualityAnswer> answers) {
+    }
+
+    /**
+     * Quality plan 3.2, 3.8: the latest measurements of the prompt in the scope that answered the case, newest first,
+     * each with its answers to the case, for the history of the case and what a change of its answer did.
+     */
+    public List<CaseHistory> caseHistory(String scope, String prompt, String caseKey, int limit) {
+        List<Measure> measures = jdbc.get().query(MEASURE_SQL + " where m.registry_scope = ? and m.prompt_key = ? and"
+                + " exists (select 1 from ctxa_prompt_version_measure_answer a where a.measure_id = m.id and"
+                + " a.case_key = ?) order by m.created_at desc, m.id desc limit ?", MEASURE_ROW, scopeOf(scope), prompt,
+                caseKey, Math.max(1, limit));
+        List<CaseHistory> history = new ArrayList<>();
+        for (Measure measure : measures) {
+            history.add(new CaseHistory(measure, jdbc.get().query("select case_key, run_number, first_action,"
+                    + " final_action, reasked, decided_without_model, cited_facts, accurate_cited_facts, decision_ms,"
+                    + " answer_tokens, measurement_failed, failure_reason from ctxa_prompt_version_measure_answer where"
+                    + " measure_id = ? and case_key = ? order by run_number", ANSWER_ROW, measure.id(), caseKey)));
+        }
+        return history;
+    }
+
     /** The answers of the measurement as the scoring reads them, in the order they were kept. */
     public List<QualityAnswer> answers(long id) {
         return jdbc.get().query("select case_key, run_number, first_action, final_action, reasked, decided_without_model,"
                 + " cited_facts, accurate_cited_facts, decision_ms, answer_tokens, measurement_failed, failure_reason"
-                + " from ctxa_prompt_version_measure_answer where measure_id = ? order by id", (rs, row) ->
-                new QualityAnswer(rs.getString(1), rs.getInt(2), QualityAction.parse(rs.getString(3)),
-                        QualityAction.parse(rs.getString(4)), rs.getBoolean(5), rs.getBoolean(6), rs.getInt(7),
-                        rs.getInt(8), (Long) rs.getObject(9), (Integer) rs.getObject(10), rs.getBoolean(11),
-                        rs.getString(12)), id);
+                + " from ctxa_prompt_version_measure_answer where measure_id = ? order by id", ANSWER_ROW, id);
     }
 
     /** The measurement, its answers and its metrics on both bases. */
@@ -1078,6 +1129,11 @@ public class PromptQualityMeasurements implements AutoCloseable {
             + " where a.measure_id = m.id) as answered, m.start_reason from ctxa_prompt_version_measure m";
 
     private static final RowMapper<Measure> MEASURE_ROW = PromptQualityMeasurements::measure;
+
+    private static final RowMapper<QualityAnswer> ANSWER_ROW = (rs, row) -> new QualityAnswer(rs.getString(1),
+            rs.getInt(2), QualityAction.parse(rs.getString(3)), QualityAction.parse(rs.getString(4)), rs.getBoolean(5),
+            rs.getBoolean(6), rs.getInt(7), rs.getInt(8), (Long) rs.getObject(9), (Integer) rs.getObject(10),
+            rs.getBoolean(11), rs.getString(12));
 
     private static Measure measure(ResultSet rs, int row) throws SQLException {
         return new Measure(rs.getLong("id"), rs.getString("registry_scope"), rs.getString("prompt_key"),

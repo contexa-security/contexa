@@ -25,6 +25,10 @@ import io.contexa.contexaiam.admin.promptquality.causes.PromptQualityCauses;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityResourceClasses;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityRunLine;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseApiController;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseScreen;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureApiController;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureScreen;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityNavAdvice;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityNavCounts;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityPageController;
@@ -97,6 +101,12 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).hasSingleBean(PromptQualityNavCounts.class);
                     assertThat(context).hasSingleBean(PromptQualityNavAdvice.class);
                     assertThat(context).hasSingleBean(PromptQualityPageController.class);
+                    // Quality plan 3.2, 3.3: what the two screens show, and their JSON.
+                    assertThat(context).hasSingleBean(PromptQualityCaseScreen.class);
+                    assertThat(context).hasSingleBean(PromptQualityCaseApiController.class);
+                    assertThat(context).hasSingleBean(PromptQualityMeasureScreen.class);
+                    assertThat(context).hasSingleBean(PromptQualityMeasureApiController.class);
+                    assertThat(context.getBean(PromptQualityMeasureScreen.class).band().model()).isNull();
                     assertThat(context.getBean(PromptQualityNavCounts.class)
                             .count(PromptQualityScreens.Count.SEALED, null)).isNull();
                 });
@@ -187,6 +197,8 @@ class PromptVersionConsoleAutoConfigurationTest {
             assertThat(context).doesNotHaveBean(PromptQualityPageController.class);
             assertThat(context).doesNotHaveBean(PromptQualityStatusController.class);
             assertThat(context).doesNotHaveBean(PromptQualityReportController.class);
+            assertThat(context).doesNotHaveBean(PromptQualityCaseScreen.class);
+            assertThat(context).doesNotHaveBean(PromptQualityMeasureApiController.class);
         });
         runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
                 .withPropertyValues("contexa.prompt.governance.enabled=false")
