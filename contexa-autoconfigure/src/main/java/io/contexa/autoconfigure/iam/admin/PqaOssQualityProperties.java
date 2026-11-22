@@ -15,10 +15,13 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
+
 /**
- * The settings of the prompt quality measurement (quality plan 3.2, 3.3): the labelled cases.
+ * The settings of the prompt quality measurement (quality plan 3.2, 3.3): the labelled cases and the measurements.
  */
 @ConfigurationProperties("contexa.pqa.oss.quality")
 public class PqaOssQualityProperties {
@@ -30,11 +33,94 @@ public class PqaOssQualityProperties {
      */
     private boolean twoPersonConfirmation = true;
 
+    private final Measurement measurement = new Measurement();
+
+    public Measurement getMeasurement() {
+        return measurement;
+    }
+
     public boolean isTwoPersonConfirmation() {
         return twoPersonConfirmation;
     }
 
     public void setTwoPersonConfirmation(boolean twoPersonConfirmation) {
         this.twoPersonConfirmation = twoPersonConfirmation;
+    }
+
+    /** How the measurements run (quality plan 3.3). */
+    public static class Measurement {
+
+        private static final PromptQualityMeasurements.Settings DEFAULTS = PromptQualityMeasurements.Settings.DEFAULTS;
+
+        /** How many times each case is run when a measurement asks for no number. */
+        private int repeats = DEFAULTS.repeats();
+
+        /** How many replays of one measurement run at once, behind the decisions at the model server's gate. */
+        private int concurrency = DEFAULTS.concurrency();
+
+        /** How many more times a replay the model server did not answer (busy, unreachable, a time limit) is asked. */
+        private int retries = DEFAULTS.retries();
+
+        /** The wait before the first such retry; the second waits twice as long, and so on. */
+        private Duration retryDelay = DEFAULTS.retryDelay();
+
+        /** The most model calls one measurement makes; 0 sets no limit. */
+        private int callLimit = DEFAULTS.callLimit();
+
+        /** How often the server running a measurement renews its lock and heartbeat, and the others look for work. */
+        private Duration heartbeat = DEFAULTS.heartbeat();
+
+        public PromptQualityMeasurements.Settings toSettings() {
+            return new PromptQualityMeasurements.Settings(repeats, concurrency, retries, retryDelay, callLimit,
+                    heartbeat);
+        }
+
+        public int getRepeats() {
+            return repeats;
+        }
+
+        public void setRepeats(int repeats) {
+            this.repeats = repeats;
+        }
+
+        public int getConcurrency() {
+            return concurrency;
+        }
+
+        public void setConcurrency(int concurrency) {
+            this.concurrency = concurrency;
+        }
+
+        public int getRetries() {
+            return retries;
+        }
+
+        public void setRetries(int retries) {
+            this.retries = retries;
+        }
+
+        public Duration getRetryDelay() {
+            return retryDelay;
+        }
+
+        public void setRetryDelay(Duration retryDelay) {
+            this.retryDelay = retryDelay;
+        }
+
+        public int getCallLimit() {
+            return callLimit;
+        }
+
+        public void setCallLimit(int callLimit) {
+            this.callLimit = callLimit;
+        }
+
+        public Duration getHeartbeat() {
+            return heartbeat;
+        }
+
+        public void setHeartbeat(Duration heartbeat) {
+            this.heartbeat = heartbeat;
+        }
     }
 }
