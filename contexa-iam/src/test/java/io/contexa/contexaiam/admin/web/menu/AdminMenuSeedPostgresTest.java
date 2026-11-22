@@ -114,7 +114,7 @@ class AdminMenuSeedPostgresTest {
         // versions, a role on the versions.
         jdbc.update("DELETE FROM ctxa_admin_menu WHERE data_page IN ('prompt-quality-cases', 'prompt-quality-measure')");
         jdbc.update("UPDATE ctxa_admin_menu SET menu_order = 5 WHERE data_page = 'prompt-quality-versions'");
-        jdbc.update("UPDATE ctxa_admin_menu SET menu_order = 4 WHERE data_page = 'prompt-inspection-packages'");
+        jdbc.update("UPDATE ctxa_admin_menu SET menu_order = 4 WHERE data_page = 'prompt-quality-evidence'");
         Long versions = jdbc.queryForObject("SELECT id FROM ctxa_admin_menu WHERE data_page = 'prompt-quality-versions'",
                 Long.class);
         jdbc.update("INSERT INTO ctxa_admin_menu_role (menu_id, role_name) VALUES (?, 'ROLE_QUALITY_REVIEWER')", versions);
@@ -137,12 +137,46 @@ class AdminMenuSeedPostgresTest {
         jdbc.update("DELETE FROM ctxa_admin_menu_role WHERE role_name = 'ROLE_QUALITY_REVIEWER'");
     }
 
-    /** Quality plan 3.8: the menus of the group, order 1 left to the quality status of the second bundle. */
+    /** Quality plan 3.8: the five menus of the group in the order of the screens' menu bar. */
     private static final String[] PROMPT_QUALITY_MENUS = {
+            "1 menu.pqa.status /contexa/admin/prompt-quality/status prompt-quality-status CORE",
             "2 menu.pqa.cases /contexa/admin/prompt-quality/cases prompt-quality-cases CORE",
             "3 menu.pqa.measure /contexa/admin/prompt-quality/measure prompt-quality-measure CORE",
             "4 menu.pqa.versions /contexa/admin/prompt-quality/versions prompt-quality-versions CORE",
-            "5 menu.pqa.inspection.packages /contexa/admin/prompt-quality/evidence prompt-inspection-packages CORE"};
+            "5 menu.pqa.evidence /contexa/admin/prompt-quality/evidence prompt-quality-evidence CORE"};
+
+    @Test
+    @DisplayName("quality plan 3.6 to 3.8: an installation of the first bundle gets the quality status once and its sealed prompts become the sealed evidence, roles kept")
+    void anInstallationOfTheFirstBundleGetsTheStatusAndTheSealedEvidence() throws Exception {
+        // An installation seeded by the first bundle: no quality status, the sealed prompts under their own page, a
+        // role on them.
+        jdbc.update("DELETE FROM ctxa_admin_menu WHERE data_page = 'prompt-quality-status'");
+        jdbc.update("UPDATE ctxa_admin_menu SET data_page = 'prompt-inspection-packages',"
+                + " name = 'menu.pqa.inspection.packages', url = '/contexa/admin/prompt-inspection/packages'"
+                + " WHERE data_page = 'prompt-quality-evidence'");
+        Long sealed = jdbc.queryForObject("SELECT id FROM ctxa_admin_menu WHERE data_page = 'prompt-inspection-packages'",
+                Long.class);
+        jdbc.update("INSERT INTO ctxa_admin_menu_role (menu_id, role_name) VALUES (?, 'ROLE_EVIDENCE_AUDITOR')", sealed);
+        long menusBefore = count("SELECT count(*) FROM ctxa_admin_menu");
+
+        run("META-INF/contexa/db/data-menu.sql");
+
+        assertThat(promptQualityMenus()).containsExactly(PROMPT_QUALITY_MENUS);
+        assertThat(count("SELECT count(*) FROM ctxa_admin_menu")).isEqualTo(menusBefore + 1);
+        assertThat(count("SELECT count(*) FROM ctxa_admin_menu WHERE data_page = 'prompt-inspection-packages'"))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT id FROM ctxa_admin_menu WHERE data_page = 'prompt-quality-evidence'",
+                Long.class)).isEqualTo(sealed);
+        assertThat(jdbc.queryForList("SELECT role_name FROM ctxa_admin_menu_role WHERE menu_id = ?", String.class,
+                sealed)).contains("ROLE_EVIDENCE_AUDITOR");
+
+        run("META-INF/contexa/db/data-menu.sql");
+
+        assertThat(count("SELECT count(*) FROM ctxa_admin_menu")).isEqualTo(menusBefore + 1);
+        assertThat(promptQualityMenus()).containsExactly(PROMPT_QUALITY_MENUS);
+        // The database is shared by the tests of this class: the role goes again.
+        jdbc.update("DELETE FROM ctxa_admin_menu_role WHERE role_name = 'ROLE_EVIDENCE_AUDITOR'");
+    }
 
     private static List<String> promptQualityMenus() {
         return jdbc.queryForList("""

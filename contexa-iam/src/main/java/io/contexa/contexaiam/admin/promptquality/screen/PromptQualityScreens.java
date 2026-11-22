@@ -90,15 +90,14 @@ public final class PromptQualityScreens {
 
     /**
      * The menus of the bar, in the order of the plan (quality plan 3.8): quality status, labelled cases, measure and
-     * compare, prompt versions, sealed evidence. The quality status comes with the second bundle, which puts it first
-     * ({@code new Menu("status", <its address>, "fa-heartbeat", "pqa.nav.status", null)}) and names the last menu the
-     * sealed evidence ({@code "pqa.nav.evidence"}) when it joins the two sealed prompt screens.
+     * compare, prompt versions, sealed evidence. The quality status counts nothing beside its name.
      */
     public static final List<Menu> MENUS = List.of(
+            new Menu("status", STATUS, "fa-heartbeat", "pqa.nav.status", null),
             new Menu("cases", CASES, "fa-clipboard-check", "pqa.nav.cases", Count.CASES),
             new Menu("measure", MEASURE, "fa-balance-scale", "pqa.nav.measure", Count.MEASUREMENTS),
             new Menu("versions", VERSIONS, "fa-code-branch", "pqa.nav.versions", Count.VERSIONS),
-            new Menu("evidence", EVIDENCE, "fa-stamp", "pqa.nav.sealedPrompts", Count.SEALED));
+            new Menu("evidence", EVIDENCE, "fa-stamp", "pqa.nav.evidence", Count.SEALED));
 
     private PromptQualityScreens() {
     }

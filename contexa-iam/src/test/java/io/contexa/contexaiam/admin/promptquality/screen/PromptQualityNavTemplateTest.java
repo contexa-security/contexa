@@ -75,20 +75,20 @@ class PromptQualityNavTemplateTest {
                 .contains("판정을 채점하는 기준입니다.")
                 .contains("class=\"pc-tab-nav zt-tab-nav mb-6\"")
                 .contains("aria-label=\"프롬프트 품질 보증\"");
-        assertThat(tabs).extracting(Drawn::key).containsExactly("cases", "measure", "versions", "evidence");
-        assertThat(tabs).extracting(Drawn::name).containsExactly("정답 사례",
+        assertThat(tabs).extracting(Drawn::key).containsExactly("status", "cases", "measure", "versions", "evidence");
+        assertThat(tabs).extracting(Drawn::name).containsExactly("품질 현황", "정답 사례",
                 "측정과 비교", "프롬프트 버전",
-                "봉인 프롬프트");
-        assertThat(tabs).extracting(Drawn::icon).containsExactly("fas fa-clipboard-check", "fas fa-balance-scale",
-                "fas fa-code-branch", "fas fa-stamp");
-        assertThat(tabs).extracting(Drawn::href).containsExactly("/contexa/admin/prompt-quality/cases",
-                "/contexa/admin/prompt-quality/measure", "/contexa/admin/prompt-quality/versions",
-                "/contexa/admin/prompt-quality/evidence");
-        assertThat(tabs).extracting(Drawn::classes).containsExactly("pc-tab-btn active", "pc-tab-btn", "pc-tab-btn",
-                "pc-tab-btn");
-        assertThat(tabs).extracting(Drawn::current).containsExactly("page", null, null, null);
-        assertThat(tabs).extracting(Drawn::badge).containsExactly("76", "6", "2", "1.2만");
-        assertThat(tabs).extracting(Drawn::tooltip).containsExactly(
+                "봉인 증거");
+        assertThat(tabs).extracting(Drawn::icon).containsExactly("fas fa-heartbeat", "fas fa-clipboard-check",
+                "fas fa-balance-scale", "fas fa-code-branch", "fas fa-stamp");
+        assertThat(tabs).extracting(Drawn::href).containsExactly("/contexa/admin/prompt-quality/status",
+                "/contexa/admin/prompt-quality/cases", "/contexa/admin/prompt-quality/measure",
+                "/contexa/admin/prompt-quality/versions", "/contexa/admin/prompt-quality/evidence");
+        assertThat(tabs).extracting(Drawn::classes).containsExactly("pc-tab-btn", "pc-tab-btn active", "pc-tab-btn",
+                "pc-tab-btn", "pc-tab-btn");
+        assertThat(tabs).extracting(Drawn::current).containsExactly(null, "page", null, null, null);
+        assertThat(tabs).extracting(Drawn::badge).containsExactly(null, "76", "6", "2", "1.2만");
+        assertThat(tabs).extracting(Drawn::tooltip).containsExactly(null,
                 "사례 76건 (Contexa 기본 묶음과 확인 대기 사례 포함)",
                 "측정 6건 (정답 사례 측정과 봉인 판정 측정)",
                 "버전 2개 (숨긴 버전 제외)",
@@ -103,14 +103,14 @@ class PromptQualityNavTemplateTest {
         assertThat(page).contains("id=\"pv-title\">Measure &amp; compare</h1>")
                 .contains("Measure a version on the labelled cases and see whether it beats the one in use.")
                 .contains("aria-label=\"Prompt quality assurance\"");
-        assertThat(tabs).extracting(Drawn::name).containsExactly("Labelled cases", "Measure &amp; compare",
-                "Prompt versions", "Sealed prompts");
-        assertThat(tabs).extracting(Drawn::current).containsExactly(null, "page", null, null);
-        assertThat(tabs).extracting(Drawn::classes).containsExactly("pc-tab-btn", "pc-tab-btn active", "pc-tab-btn",
-                "pc-tab-btn");
+        assertThat(tabs).extracting(Drawn::name).containsExactly("Quality", "Labelled cases", "Measure &amp; compare",
+                "Prompt versions", "Sealed evidence");
+        assertThat(tabs).extracting(Drawn::current).containsExactly(null, null, "page", null, null);
+        assertThat(tabs).extracting(Drawn::classes).containsExactly("pc-tab-btn", "pc-tab-btn", "pc-tab-btn active",
+                "pc-tab-btn", "pc-tab-btn");
         assertThat(tabs).extracting(Drawn::href).allSatisfy(href -> assertThat(href).endsWith("?scope=tenant-a"));
-        assertThat(tabs).extracting(Drawn::badge).containsExactly("76", "6", "2", "12.3K");
-        assertThat(tabs).extracting(Drawn::tooltip).containsExactly(
+        assertThat(tabs).extracting(Drawn::badge).containsExactly(null, "76", "6", "2", "12.3K");
+        assertThat(tabs).extracting(Drawn::tooltip).containsExactly(null,
                 "76 cases, the Contexa default set and the cases waiting for confirmation included",
                 "6 measurements, on the labelled cases and on sealed decisions",
                 "2 versions, the hidden ones left out", "12,345 sealed in the last 7 days");
@@ -121,7 +121,7 @@ class PromptQualityNavTemplateTest {
         counts.remove(Count.MEASUREMENTS);
         List<Drawn> tabs = tabs(render("cases", Locale.ENGLISH, nav(null, Locale.ENGLISH)));
 
-        assertThat(tabs).extracting(Drawn::badge).containsExactly("76", null, "2", "12.3K");
+        assertThat(tabs).extracting(Drawn::badge).containsExactly(null, "76", null, "2", "12.3K");
         assertThat(render("cases", Locale.ENGLISH, null)).doesNotContain("pc-tab-nav", "data-pqa-tab")
                 .contains("id=\"pv-title\">Labelled cases</h1>");
     }
