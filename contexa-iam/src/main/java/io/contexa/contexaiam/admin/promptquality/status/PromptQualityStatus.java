@@ -79,7 +79,7 @@ public class PromptQualityStatus {
     public record Rate(long events, long trials, @Nullable Double value, @Nullable Double lower,
                        @Nullable Double upper, int roots) {
 
-        static Rate of(QualityRate rate) {
+        public static Rate of(QualityRate rate) {
             if (rate == null) {
                 return new Rate(0, 0, null, null, null, 0);
             }
@@ -101,7 +101,7 @@ public class PromptQualityStatus {
     public record Score(Map<String, Rate> rates, Spread decisionMillis, Spread answerTokens, int answers,
                         int scoredAnswers, int incompleteAnswers, int cases, int unmeasuredCases, int roots) {
 
-        static Score of(QualityScore score) {
+        public static Score of(QualityScore score) {
             Map<String, Rate> rates = new LinkedHashMap<>();
             for (QualityMetric metric : QualityMetric.values()) {
                 rates.put(metric.name(), Rate.of(score.rate(metric)));

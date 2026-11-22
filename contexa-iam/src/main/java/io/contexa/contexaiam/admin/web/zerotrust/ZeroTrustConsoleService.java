@@ -63,6 +63,8 @@ import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.Previous;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.UnknownFact;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.WouldHave;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.VersionChange;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.PeriodRate;
+import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.VersionPeriod;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.VersionDecisions;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleDtos.VersionRate;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleReader.DayRow;
@@ -744,6 +746,39 @@ public class ZeroTrustConsoleService {
                 firstSeen != null ? firstSeen.toString() : null, changedAt != null ? changedAt.toString() : null,
                 beforeFrom != null ? beforeFrom.toString() : null, changedAt != null ? changedAt.toString() : null,
                 afterFrom.toString(), afterTo.toString(), rates);
+    }
+
+    /**
+     * Quality plan 3.7: the six operation metrics of every prompt version that decided in the period, from the hourly
+     * table, counted as {@link #versionChange} counts them; the version with the most decisions first.
+     */
+    public List<VersionPeriod> versionPeriods(Instant from, Instant to, String tenant) {
+        List<StatsRow> rows = reader.stats(new ZeroTrustConsoleRange("custom", from, to), tenant);
+        Map<String, Instant[]> spans = new TreeMap<>();
+        for (StatsRow row : rows) {
+            if (!row.decision() || row.bundle() == null || row.bundle().isBlank()) {
+                continue;
+            }
+            Instant[] span = spans.computeIfAbsent(row.bundle(), ignored -> new Instant[2]);
+            if (row.first() != null && (span[0] == null || row.first().isBefore(span[0]))) {
+                span[0] = row.first();
+            }
+            if (row.last() != null && (span[1] == null || row.last().isAfter(span[1]))) {
+                span[1] = row.last();
+            }
+        }
+        List<VersionPeriod> periods = new ArrayList<>();
+        for (Map.Entry<String, Instant[]> span : spans.entrySet()) {
+            long[] counts = versionCounts(rows, span.getKey());
+            List<PeriodRate> rates = new ArrayList<>();
+            for (int index = 0; index < VERSION_RATES.size(); index++) {
+                rates.add(new PeriodRate(VERSION_RATES.get(index), counts[2 * index], counts[2 * index + 1]));
+            }
+            periods.add(new VersionPeriod(span.getKey(), span.getValue()[0] != null ? span.getValue()[0].toString()
+                    : null, span.getValue()[1] != null ? span.getValue()[1].toString() : null, counts[1], rates));
+        }
+        periods.sort(Comparator.comparingLong(VersionPeriod::decisions).reversed());
+        return periods;
     }
 
     /** The length of a period of the screens: a day, 30 or 90 days, else a week. */

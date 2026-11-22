@@ -486,6 +486,13 @@ public class PromptQualityMeasurements implements AutoCloseable {
                 Math.max(1, limit));
     }
 
+    /** Quality plan 3.7: the measurements of the prompt in the scope that finished in the period, the newest first. */
+    public List<Measure> finished(String scope, String prompt, Instant from, Instant to, int limit) {
+        return jdbc.get().query(MEASURE_SQL + " where m.registry_scope = ? and m.prompt_key = ? and m.finished_at >= ?"
+                + " and m.finished_at < ? order by m.finished_at desc, m.id desc limit ?", MEASURE_ROW, scopeOf(scope),
+                prompt, Timestamp.from(from), Timestamp.from(to), Math.max(1, limit));
+    }
+
     /** The answers of the measurement as the scoring reads them, in the order they were kept. */
     public List<QualityAnswer> answers(long id) {
         return jdbc.get().query("select case_key, run_number, first_action, final_action, reasked, decided_without_model,"

@@ -573,6 +573,12 @@ public class PromptQualityCases {
                 scopeOf(scope), prompt, version).stream().findFirst();
     }
 
+    /** Quality plan 3.7: every set published in the scope, the latest first. */
+    public List<PublishedSet> publishedSets(String scope, String prompt) {
+        return jdbc.get().query(SET_SQL + " where registry_scope = ? and prompt_key = ? order by published_at desc,"
+                + " id desc", SET_ROW, scopeOf(scope), prompt);
+    }
+
     /** The latest set published in the scope. */
     public Optional<PublishedSet> latestPublished(String scope, String prompt) {
         return jdbc.get().query(SET_SQL + " where registry_scope = ? and prompt_key = ?"

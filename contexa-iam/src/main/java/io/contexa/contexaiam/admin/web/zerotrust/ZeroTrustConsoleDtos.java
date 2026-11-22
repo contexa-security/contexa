@@ -217,6 +217,23 @@ public final class ZeroTrustConsoleDtos {
     public record VersionRate(String key, long beforeEvents, long beforeTrials, long afterEvents, long afterTrials) {
     }
 
+    /**
+     * Quality plan 3.7: the operation metrics of one prompt version over a period of the quality report, from the
+     * hourly table, counted as the version change counts them.
+     *
+     * @param firstHour the first hour the version decided in within the period
+     * @param lastHour  the last hour it decided in within the period
+     * @param decisions the decisions it made in the period
+     * @param rates     the six metrics of {@link VersionChange}, each with its numerator and denominator
+     */
+    public record VersionPeriod(String version, String firstHour, String lastHour, long decisions,
+                                List<PeriodRate> rates) {
+    }
+
+    /** One operation metric of a version over a period: its numerator and denominator. */
+    public record PeriodRate(String key, long events, long trials) {
+    }
+
     // ----- decision records (6.4) -----
 
     public record DecisionPage(List<DecisionRow> rows, String nextCursor) {

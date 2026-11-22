@@ -41,6 +41,7 @@ import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSour
 import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityModelSetting;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityScheduledMeasurement;
+import io.contexa.contexaiam.admin.promptquality.report.PromptQualityReports;
 import io.contexa.contexaiam.admin.promptquality.status.PromptQualityStatus;
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionCatalog;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
@@ -285,6 +286,31 @@ public class PromptVersionConsoleAutoConfiguration {
         return new PromptQualityStatus(versions, new JdbcPromptVersionCatalog(versions, () -> jdbcTemplate,
                 selector::getIfUnique), contexaPromptQualityCases, measurements::getIfAvailable,
                 scheduled::getIfAvailable, console::getIfAvailable, decisions::getIfAvailable);
+    }
+
+    /**
+     * Quality plan 3.7: the quality report of a scope over a period, in one bundle: the measurements, the case set
+     * versions, the operation metrics, the overturned decisions and the changes and approvals, masked as it is read.
+     * The comparisons with the versions before the version in use are those of the quality gate, with its thresholds.
+     */
+    @Bean(name = "contexaPromptQualityReports")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean({PromptVersionService.class, PromptQualityCases.class, PromptQualityStatus.class,
+            QualityGateSource.class})
+    public PromptQualityReports promptQualityReports(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                     PromptVersionService versions,
+                                                     PromptQualityCases contexaPromptQualityCases,
+                                                     PromptQualityStatus contexaPromptQualityStatus,
+                                                     ObjectProvider<PromptQualityMeasurements> measurements,
+                                                     ObjectProvider<PromptQualityCauses> causes,
+                                                     ObjectProvider<ZeroTrustConsoleService> console,
+                                                     QualityGateSource qualityGateSource,
+                                                     PqaOssQualityProperties properties, MessageSource messageSource,
+                                                     @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+        return new PromptQualityReports(() -> jdbcTemplate, versions, contexaPromptQualityCases,
+                contexaPromptQualityStatus, measurements::getIfAvailable, causes::getIfAvailable,
+                console::getIfAvailable, properties.getGate().policy(qualityGateSource), messageSource, objectMapper,
+                Clock.systemUTC());
     }
 
     /**
