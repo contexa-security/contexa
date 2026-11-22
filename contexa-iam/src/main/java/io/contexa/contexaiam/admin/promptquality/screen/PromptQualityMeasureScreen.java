@@ -745,7 +745,7 @@ public class PromptQualityMeasureScreen {
                                 Map<String, List<String>> nowActions, Map<String, List<String>> nextActions) {
         for (String key : keys) {
             QualityCase item = byKey.get(key);
-            rows.add(new SplitRow(key, item != null ? PromptQualityCaseScreen.name(item) : key, split,
+            rows.add(new SplitRow(key, item != null ? MeasuredQualityGateSource.caseName(item) : key, split,
                     nowActions.getOrDefault(key, List.of()), nextActions.getOrDefault(key, List.of())));
         }
     }
@@ -847,7 +847,7 @@ public class PromptQualityMeasureScreen {
         if (item.isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(new CaseAnswers(item.get().key(), PromptQualityCaseScreen.name(item.get()),
+        return Optional.of(new CaseAnswers(item.get().key(), MeasuredQualityGateSource.caseName(item.get()),
                 answerSide(pair.currentSide(), input.current(), item.get().key()),
                 answerSide(pair.candidateSide(), input.candidate(), item.get().key())));
     }

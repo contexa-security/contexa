@@ -38,6 +38,7 @@ import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseResources;
+import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityResourceClasses;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseViews.Bundle;
@@ -269,7 +270,7 @@ public class PromptQualityCaseScreen {
         QualityCaseExpectation expectation = item.expectation();
         boolean pending = kept != null && !kept.confirmed();
         String now = pending ? "PENDING" : measured ? result(item, answers) : "NONE";
-        return new CaseRow(item.key(), name(item), item.origin().name(), kept != null ? kept.submittedAt() : item.addedAt(),
+        return new CaseRow(item.key(), MeasuredQualityGateSource.caseName(item), item.origin().name(), kept != null ? kept.submittedAt() : item.addedAt(),
                 item.rootCaseKey(), kept == null, pending, kept != null ? kept.labelledBy() : null, resource.resource(),
                 resourceName(resource), resource.group(), expectation.classification().name(),
                 expectation.kind().name(), expectation.allowedActions().stream().map(Enum::name).toList(),
@@ -301,18 +302,6 @@ public class PromptQualityCaseScreen {
             return "MISS";
         }
         return actions.stream().allMatch(expectation::allows) ? "HIT" : "OFF";
-    }
-
-    /** What the case asks: the method and path of its request, with its key. */
-    static String name(QualityCase item) {
-        JsonNode resource = item.input().canonicalContext().path("resource");
-        JsonNode facts = item.input().requestFacts();
-        String method = QualityCaseInputSummary.text(resource.path("httpMethod"));
-        method = method != null ? method : QualityCaseInputSummary.text(facts.path("httpMethod"));
-        String path = QualityCaseInputSummary.text(resource.path("requestPath"));
-        path = path != null ? path : QualityCaseInputSummary.text(facts.path("requestPath"));
-        String asked = (method != null ? method + " " : "") + (path != null ? path : "");
-        return asked.isBlank() ? item.key() : asked.trim() + " (" + item.key() + ")";
     }
 
     @Nullable

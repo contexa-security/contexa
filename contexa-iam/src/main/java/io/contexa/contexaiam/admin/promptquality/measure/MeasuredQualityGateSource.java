@@ -337,7 +337,7 @@ public class MeasuredQualityGateSource implements QualityGateSource {
      * The name of a case as the screens give it (quality plan 3.2): what the request asked, its method and path, and
      * the key; the key alone when the input names no request.
      */
-    static String caseName(QualityCase item) {
+    public static String caseName(QualityCase item) {
         JsonNode resource = item.input().canonicalContext().path("resource");
         JsonNode facts = item.input().requestFacts();
         String method = text(resource.path("httpMethod"));

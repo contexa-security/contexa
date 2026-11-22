@@ -24,6 +24,7 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityCaseResource;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCaseSet;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCaseSetReader;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseScreen.AnswerForm;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseViews.Improved;
@@ -119,7 +120,7 @@ class PromptQualityCaseScreenTest {
         assertThat(summary.records()).extracting(InputLine::value).anySatisfy(value -> assertThat(value)
                 .contains("APR-107dabe3a78d-1"));
         assertThat(summary.unknown()).extracting(InputLine::value).contains("PeerCohort");
-        assertThat(PromptQualityCaseScreen.name(item)).endsWith("(S11)").contains("/api/");
+        assertThat(MeasuredQualityGateSource.caseName(item)).endsWith("(S11)").contains("/api/");
     }
 
     @Test
