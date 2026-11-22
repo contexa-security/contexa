@@ -29,11 +29,14 @@ import java.util.UUID;
  * runtime caches are told and the execution is recorded with its conditions. An emergency stop runs the same way and
  * waits for a second operator's approval. A refused rollback is recorded with its reasons and changes nothing.
  *
- * <p>Plan 3.9: a rollback to a version of the database ({@code v2.0}) goes to any version of the scope that exists, is
+ * <p>Plan 3.9: a rollback to a version of the database ({@code v2.0}) goes to a version of the scope that exists, is
  * not hidden and has its registry row; a target that is missing, hidden or not registered is refused as
- * {@link #TARGET_MISSING_OR_HIDDEN}. Its vocabulary is its reason codes: a security decision version whose reason codes
- * are not the engine's is refused as VOCABULARY_INCOMPATIBLE. The version it replaces, and any other version that was
- * used for decisions, become AVAILABLE.
+ * {@link #TARGET_MISSING_OR_HIDDEN}. Plan 3.4: it goes back only to a version the scope used for decisions before
+ * ({@code PromptVersionCatalog.usedForDecisions}); any other target is refused as
+ * {@link #TARGET_NOT_USED_FOR_DECISIONS}, so a version nobody measured or used does not reach the decisions this way.
+ * Its vocabulary is its reason codes: a security decision version whose reason codes are not the engine's is refused as
+ * VOCABULARY_INCOMPATIBLE. The version it replaces, and any other version that was used for decisions, become
+ * AVAILABLE.
  */
 public class PromptBundleRollbackService {
 
@@ -52,6 +55,8 @@ public class PromptBundleRollbackService {
      * target cannot run.
      */
     public static final String TARGET_MISSING_OR_HIDDEN = "TARGET_MISSING_OR_HIDDEN";
+    /** Plan 3.4: the target version exists but the scope never used it for decisions. */
+    public static final String TARGET_NOT_USED_FOR_DECISIONS = "TARGET_NOT_USED_FOR_DECISIONS";
     /** W7-14: how many executions of a bundle the version screen lists. */
     private static final int EXECUTION_LIMIT = 20;
     /** N-GOV-5: the stored values of an active release, of every vocabulary (decision 1). */
@@ -83,9 +88,19 @@ public class PromptBundleRollbackService {
                           boolean emergency) {
     }
 
-    /** The conditions the rollback was checked against. */
+    /**
+     * The conditions the rollback was checked against; plan 3.4: whether the scope used the target for decisions
+     * before (a bundle's declared target is, by its declaration).
+     */
     public record Conditions(boolean sourceExecuting, boolean targetInBuild, boolean targetDeclared,
-                             boolean vocabularyCompatible, boolean targetRegistered, String policySet) {
+                             boolean vocabularyCompatible, boolean targetRegistered, String policySet,
+                             boolean targetUsedForDecisions) {
+
+        public Conditions(boolean sourceExecuting, boolean targetInBuild, boolean targetDeclared,
+                          boolean vocabularyCompatible, boolean targetRegistered, String policySet) {
+            this(sourceExecuting, targetInBuild, targetDeclared, vocabularyCompatible, targetRegistered, policySet,
+                    true);
+        }
     }
 
     /** The recorded execution: its key, its status, the conditions and why it was refused. */
@@ -150,6 +165,9 @@ public class PromptBundleRollbackService {
         if (!conditions.targetInBuild() || !conditions.targetDeclared() || !conditions.targetRegistered()) {
             refusals.add(TARGET_MISSING_OR_HIDDEN);
         }
+        else if (!conditions.targetUsedForDecisions()) {
+            refusals.add(TARGET_NOT_USED_FOR_DECISIONS);
+        }
         if (!conditions.vocabularyCompatible()) {
             refusals.add("VOCABULARY_INCOMPATIBLE");
         }
@@ -180,16 +198,18 @@ public class PromptBundleRollbackService {
 
     /**
      * Plan 3.9: the conditions of a target version. It runs when the version table of the scope has it and it is not
-     * hidden; any such version is a target (it is "used for decisions" again); its vocabulary is its reason codes,
-     * which a security decision version must share with the engine (a prompt without reason codes has no vocabulary to
-     * differ in). A target that does not run is refused as missing or hidden alone.
+     * hidden; plan 3.4: it is a target when the scope used it for decisions before (it is "used for decisions" again);
+     * its vocabulary is its reason codes, which a security decision version must share with the engine (a prompt
+     * without reason codes has no vocabulary to differ in). A target that does not run is refused as missing or hidden
+     * alone.
      */
     private Conditions versionConditions(String scope, String key, String to, boolean sourceExecuting,
                                          boolean targetRegistered, String policySet) {
         boolean runs = PromptBundleRunnability.runnable(catalog, scope, key, to);
         boolean vocabulary = !runs || !SecurityDecisionPromptDocument.PROMPT.equals(key) || catalog.versions()
                 .assembled(scope, key, to).map(SecurityDecisionPromptDocument::reasonCodesOfEngine).orElse(false);
-        return new Conditions(sourceExecuting, runs, runs, vocabulary, targetRegistered, policySet);
+        boolean usedBefore = !runs || catalog.versions().usedForDecisions(scope, key, to);
+        return new Conditions(sourceExecuting, runs, runs, vocabulary, targetRegistered, policySet, usedBefore);
     }
 
     /**
