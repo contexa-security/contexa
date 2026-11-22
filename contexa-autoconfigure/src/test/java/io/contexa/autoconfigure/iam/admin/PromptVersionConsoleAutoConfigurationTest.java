@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.iam.admin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotionController;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
@@ -111,6 +112,8 @@ class PromptVersionConsoleAutoConfigurationTest {
                     // Quality plan 3.5: the view of the wrong cases and their causes, and its JSON.
                     assertThat(context).hasSingleBean(PromptQualityCauseScreen.class);
                     assertThat(context).hasSingleBean(PromptQualityCauseApiController.class);
+                    // Quality plan 3.6: the decisions of a trial made cases, refused when there are no seals.
+                    assertThat(context).hasSingleBean(QualityCasePromotionController.class);
                     assertThat(context.getBean(PromptQualityMeasureScreen.class).band().model()).isNull();
                     assertThat(context.getBean(PromptQualityNavCounts.class)
                             .count(PromptQualityScreens.Count.SEALED, null)).isNull();
@@ -205,6 +208,7 @@ class PromptVersionConsoleAutoConfigurationTest {
             assertThat(context).doesNotHaveBean(PromptQualityCaseScreen.class);
             assertThat(context).doesNotHaveBean(PromptQualityMeasureApiController.class);
             assertThat(context).doesNotHaveBean(PromptQualityCauseScreen.class);
+            assertThat(context).doesNotHaveBean(QualityCasePromotionController.class);
         });
         runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
                 .withPropertyValues("contexa.prompt.governance.enabled=false")

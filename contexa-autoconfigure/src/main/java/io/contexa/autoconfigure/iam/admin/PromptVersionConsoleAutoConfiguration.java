@@ -28,6 +28,7 @@ import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceR
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
 import io.contexa.contexaiam.admin.promptquality.causes.PromptQualityCauses;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotionController;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
@@ -579,6 +580,18 @@ public class PromptVersionConsoleAutoConfiguration {
     public PromptQualityCauseApiController promptQualityCauseApiController(
             PromptQualityCauseScreen contexaPromptQualityCauseScreen) {
         return new PromptQualityCauseApiController(contexaPromptQualityCauseScreen);
+    }
+
+    /**
+     * Quality plan 3.6: a sealed decision the two versions of a trial decided differently made a case in the result of
+     * the trial; refused as unavailable when the cases are not here.
+     */
+    @Bean(name = "contexaQualityCasePromotionController")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptQualityCases.class)
+    public QualityCasePromotionController qualityCasePromotionController(
+            ObjectProvider<QualityCasePromotions> promotions) {
+        return new QualityCasePromotionController(promotions::getIfAvailable);
     }
 
     /** Quality plan 3.6, 3.8: the screen of the state of quality and the data it draws. */

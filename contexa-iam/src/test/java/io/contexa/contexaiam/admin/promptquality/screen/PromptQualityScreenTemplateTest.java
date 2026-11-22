@@ -113,7 +113,7 @@ class PromptQualityScreenTemplateTest {
                 "Wrong cases and causes");
         // The result of a trial stands under "two versions".
         assertThat(english).extracting(Drawn::selected).containsExactly("false", "false", "true", "false");
-        assertThat(english).extracting(Drawn::href).allSatisfy(href -> assertThat(href).endsWith("?scope=tenant-a"));
+        assertThat(english).extracting(Drawn::href).allSatisfy(href -> assertThat(href).endsWith("scope=tenant-a"));
 
         HashMap<String, Object> compare = variables("measure", "compare", Locale.KOREAN, null);
         compare.put("candidate", 3);
@@ -163,7 +163,8 @@ class PromptQualityScreenTemplateTest {
                     "/contexa/js/admin/prompt-quality/" + screen + ".js?v=20261122-s1");
         }
         assertThat(read("templates/contexa/admin/prompt-quality/measure.html"))
-                .contains("/contexa/js/admin/prompt-quality/measure-trials.js?v=20261122-s1")
+                .contains("/contexa/js/admin/prompt-quality/measure-trials.js?v=20261122-s3b")
+                .contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261122-s3b")
                 .contains("th:each=\"extra : ${viewScripts}\"");
         assertThat(read("templates/contexa/fragments/admin-menu.html")).contains("admin-menu.js?v=20261122-s1");
     }
