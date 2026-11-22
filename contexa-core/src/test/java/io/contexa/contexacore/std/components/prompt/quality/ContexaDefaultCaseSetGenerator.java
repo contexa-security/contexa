@@ -15,11 +15,36 @@
  */
 package io.contexa.contexacore.std.components.prompt.quality;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacommon.domain.request.AIResponse;
+import io.contexa.contexacommon.security.baseline.BaselineVector;
+import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
+import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
+import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
+import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
+import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
+import io.contexa.contexacore.verification.replay.SealedDecisionReplayService;
+import reactor.core.publisher.Mono;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -27,13 +52,17 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.zip.Deflater;
 import java.util.zip.GZIPInputStream;
@@ -44,7 +73,9 @@ import java.util.zip.GZIPOutputStream;
  * measurement and its 10 control cases. 25 are decisions sealed in the showcase measurement as they are; 35 are
  * controlled variants of the 10 normal ones, whose answer follows from what is changed; the 10 control cases carry a
  * signal the server itself confirmed. The product ships the finished cases, so the rules of the variants live here and
- * not in the product. To make the resource again, run {@link #main} with the golden inputs and the resource path.
+ * not in the product. A variant states the decision facts the engine draws from its changed input (K189), so no fact of
+ * the decision it was made from stays beside the change. To make the resource again, run {@link #main} with the golden
+ * inputs and the resource path.
  */
 final class ContexaDefaultCaseSetGenerator {
 
@@ -75,6 +106,13 @@ final class ContexaDefaultCaseSetGenerator {
 
     /** How many past records of a case the similar cases are made from; each gives two similar cases. */
     private static final int SIMILAR_CASE_SOURCES = 3;
+
+    /** Where the prompt's drawing leaves the canonical context it drew from on the event. */
+    private static final String DRAWN_CANONICAL_CONTEXT = "sealedEvidence.canonicalContext";
+
+    /** How the drawing of a case reads and writes the canonical context, as the sealed evidence does. */
+    private static final ObjectMapper DRAWING_JSON = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).findAndRegisterModules();
 
     private ContexaDefaultCaseSetGenerator() {
     }
@@ -310,16 +348,93 @@ final class ContexaDefaultCaseSetGenerator {
                                       QualityCaseGrade grade, String korean, String english,
                                       List<String> decidingFacts) {
         JsonNode learning = item.path("learningEvidence");
-        return new QualityCase(key,
-                new QualityCaseInput(item.path("canonicalContext"), item.path("requestFacts"), item.path("authState"),
-                        item.path("baselineSnapshot"), withSimilarCases(item.path("ragResults")),
-                        item.get("pastDeniedDecisions"), learning.get("personalBaseline"),
-                        learning.get("organizationBaseline")),
+        QualityCaseInput input = new QualityCaseInput(item.path("canonicalContext"), item.path("requestFacts"),
+                item.path("authState"), item.path("baselineSnapshot"), withSimilarCases(item.path("ragResults")),
+                item.get("pastDeniedDecisions"), learning.get("personalBaseline"),
+                learning.get("organizationBaseline"));
+        if (root != null) {
+            // K189: a variant states the facts its changed input gives, not those its root was sealed with.
+            ((ObjectNode) input.canonicalContext()).set("decisionFacts", drawnDecisionFacts(key, input));
+        }
+        return new QualityCase(key, input,
                 // Nothing says which of the stopping actions is the most desirable; normal work is best allowed.
                 new QualityCaseExpectation(allowed, classification == QualityCaseClass.NORMAL ? QualityAction.ALLOW
                         : null, classification, kind, new QualityCaseRationale(korean, english), decidingFacts),
                 grade, root, new QualityCaseEnvironment(TIME_ZONE, QualityCaseEnvironment.FIRST_CONTEXT_FORMAT),
                 QualityCaseOrigin.CONTEXA, null);
+    }
+
+    /**
+     * K189: the decision facts the engine computes from the case's input when a replay of the case draws its prompt:
+     * the sealed form of the case, its baselines, the product version and the time zone the cases fix, through the
+     * engine's template and the replay service, the model not asked.
+     */
+    static JsonNode drawnDecisionFacts(String key, QualityCaseInput input) {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityDecisionPromptSections(new SecurityEventEnricher(), properties, event -> Optional.empty(),
+                        new PromptContextComposer(), null, null, null));
+        AtomicReference<CanonicalSecurityContext> drawn = new AtomicReference<>();
+        PipelineOrchestrator pipeline = new PipelineOrchestrator(List.of()) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T extends DomainContext, R extends AIResponse> Mono<R> execute(
+                    AIRequest<T> request, PipelineConfiguration config, Class<R> responseType) {
+                template.generateUserPrompt(request, null);
+                if (request.getContext() instanceof SecurityDecisionContext decision
+                        && decision.getSecurityEvent().getMetadata().get(DRAWN_CANONICAL_CONTEXT)
+                        instanceof CanonicalSecurityContext context) {
+                    drawn.compareAndSet(null, context);
+                }
+                SecurityDecisionResponse response = new SecurityDecisionResponse();
+                response.setAction("ALLOW");
+                response.setReasoning("drawn only");
+                return Mono.just((R) response);
+            }
+        };
+        CanonicalSecurityContextSerializer serializer = new CanonicalSecurityContextSerializer(DRAWING_JSON);
+        SealedDecisionReplayService service = new SealedDecisionReplayService(template, pipeline,
+                new BaselineLearningService(null, new SecurityZeroTrustProperties()), properties,
+                StructuredOutputCapabilityRegistry.defaultRegistry(), () -> null, null, "OBSERVE", serializer,
+                DRAWING_JSON);
+        service.replay(new SealedDecisionReplayService.Request(sealedForm(key, input),
+                vector(input.personalBaseline()), vector(input.organizationBaseline()),
+                SecurityDecisionPromptBundles.V1.version(), Duration.ofSeconds(30), List.of(), false, null, null,
+                ZoneId.of(TIME_ZONE)));
+        if (drawn.get() == null) {
+            throw new IllegalStateException("The prompt of " + key + " was not drawn");
+        }
+        try {
+            return DRAWING_JSON.readTree(serializer.serialize(drawn.get())).path("decisionFacts");
+        }
+        catch (JsonProcessingException failure) {
+            throw new IllegalStateException("The drawn context of " + key + " cannot be read", failure);
+        }
+    }
+
+    /** The case's input as the package in memory a replay of the case reads (QualityCaseSealedForm). */
+    private static SealedEvidencePackage sealedForm(String key, QualityCaseInput input) {
+        SealedEvidencePackage sealed = new SealedEvidencePackage();
+        sealed.setPackageId("quality-case:" + key);
+        sealed.setCorrelationId(input.requestFacts().path("requestId").asText(key));
+        sealed.setUserId(input.requestFacts().path("userId").asText(null));
+        sealed.setCanonicalContextJson(input.canonicalContext().toString());
+        sealed.setRequestFactsJson(input.requestFacts().toString());
+        sealed.setAuthStateJson(input.authState().toString());
+        sealed.setBaselineSnapshotJson(input.baselineSnapshot().toString());
+        sealed.setRagResultsJson(input.ragResults().toString());
+        if (input.pastDeniedDecisions() != null) {
+            ObjectNode execution = JSON.createObjectNode();
+            execution.putObject("supplementalMetadata").set(PromptExecutionMetadata.PROMPT_PAST_DENIED_DECISIONS,
+                    input.pastDeniedDecisions());
+            sealed.setPromptExecutionMetadataJson(execution.toString());
+        }
+        return sealed;
+    }
+
+    private static BaselineVector vector(JsonNode node) {
+        return node == null || node.isNull() || node.isMissingNode() ? null
+                : DRAWING_JSON.convertValue(node, BaselineVector.class);
     }
 
     private static JsonNode required(Map<String, JsonNode> golden, String key) {
