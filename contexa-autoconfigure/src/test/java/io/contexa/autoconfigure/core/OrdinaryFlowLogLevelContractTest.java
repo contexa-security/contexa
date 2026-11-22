@@ -112,9 +112,6 @@ class OrdinaryFlowLogLevelContractTest {
                 "Specific condition template batch response is empty", "Universal condition template response is empty", "Condition template rejected"));
         WARN.put("ResourceNamingTemplate.java", List.of("ResourceNamingTemplate batch size {} exceeds"));
         WARN.put("HmacEvidenceSigner.java", List.of("[EvidenceSigning] No evidence signing key configured"));
-        WARN.put("DefaultPromptQualityOfficialRunDetailService.java", List.of("[PQA-OFFICIAL-DETAIL-SLOW]"));
-        WARN.put("OfficialVerificationEvidencePreflight.java", List.of(
-                "PQA sealed evidence prompt contract recovered", "PQA sealed evidence prompt projection contract failed"));
     }
 
     private static Map<String, Path> mainSources() throws IOException {

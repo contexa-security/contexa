@@ -122,6 +122,15 @@ UPDATE ctxa_admin_menu SET data_page = 'prompt-quality-versions'
  WHERE data_page = 'prompt-quality-releases'
    AND NOT EXISTS (SELECT 1 FROM ctxa_admin_menu m WHERE m.data_page = 'prompt-quality-versions');
 
+-- The official verification and the inspection overview went: their menus go, with the roles given to them.
+DELETE FROM ctxa_admin_menu_role r
+ USING ctxa_admin_menu m
+ WHERE r.menu_id = m.id
+   AND m.data_page IN ('prompt-quality-resources', 'prompt-quality-runtime-evidence', 'prompt-inspection-overview');
+
+DELETE FROM ctxa_admin_menu
+ WHERE data_page IN ('prompt-quality-resources', 'prompt-quality-runtime-evidence', 'prompt-inspection-overview');
+
 -- ----------------------------------------------------------------
 -- Submenu items (parent_id resolved by data_page for stability under regenerated IDs)
 -- ----------------------------------------------------------------
@@ -149,9 +158,6 @@ WITH seed(name, url, icon, parent_data_page, menu_order, enabled, menu_type, dat
     ('menu.zerotrust.decisions',     '/contexa/admin/zero-trust/decisions',   '',                'ai-monitor', 4,  TRUE, 'CORE',       'zero-trust-decisions'),
     ('menu.zerotrust.adoption',      '/contexa/admin/zero-trust/adoption',    '',                'ai-monitor', 5,  TRUE, 'CORE',       'zero-trust-adoption'),
     ('menu.zerotrust.operations',    '/contexa/admin/zero-trust/operations',  '',                'ai-monitor', 6,  TRUE, 'CORE',       'zero-trust-operations'),
-    ('menu.pqa.resources',           '/contexa/admin/prompt-quality/resources', '',              'prompt-quality', 1, TRUE, 'CORE',       'prompt-quality-resources'),
-    ('menu.pqa.runtimeEvidence',     '/contexa/admin/prompt-quality/runtime-evidence', '',       'prompt-quality', 2, TRUE, 'CORE',       'prompt-quality-runtime-evidence'),
-    ('menu.pqa.inspection.overview', '/contexa/admin/prompt-inspection',               '',       'prompt-quality', 3, TRUE, 'CORE',       'prompt-inspection-overview'),
     ('menu.pqa.inspection.packages', '/contexa/admin/prompt-inspection/packages',      '',       'prompt-quality', 4, TRUE, 'CORE',       'prompt-inspection-packages'),
     ('menu.pqa.versions',            '/contexa/admin/prompt-quality/versions',         '',       'prompt-quality', 5, TRUE, 'CORE',       'prompt-quality-versions')
 ),
