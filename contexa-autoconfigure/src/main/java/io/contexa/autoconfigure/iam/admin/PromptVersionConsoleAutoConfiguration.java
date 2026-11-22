@@ -51,10 +51,13 @@ import java.util.concurrent.Executors;
  * The prompt version screens (plan 3.10, 6-5, 6-6): the console that composes what they show, the trials that decide
  * sealed decisions again with two versions, the length limit of the checks before saving, and the controller of the
  * screens and their API. They stand on the versions of the database: without the version service there are no screens.
- * The length limit of the checks is the version service's (PromptVersionAutoConfiguration).
+ * The length limit of the checks is the version service's (PromptVersionAutoConfiguration). The trials stand on the
+ * replay of sealed decisions (SealedDecisionReplayAutoConfiguration), which the prompt inspection's switch does not
+ * turn off.
  */
 @AutoConfiguration(after = {PromptVersionAutoConfiguration.class, PromptGovernanceAutoConfiguration.class,
-        PromptInspectionAutoConfiguration.class, IamAdminMonitoringAutoConfiguration.class})
+        PromptInspectionAutoConfiguration.class, SealedDecisionReplayAutoConfiguration.class,
+        IamAdminMonitoringAutoConfiguration.class})
 @ConditionalOnProperty(prefix = "contexa.prompt.governance", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class PromptVersionConsoleAutoConfiguration {
 

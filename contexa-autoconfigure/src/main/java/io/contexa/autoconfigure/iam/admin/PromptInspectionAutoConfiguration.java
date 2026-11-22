@@ -1,23 +1,11 @@
 package io.contexa.autoconfigure.iam.admin;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
-import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
-import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
-import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.company.CompanyRecordStore;
 import io.contexa.contexacore.autonomous.company.CompanyRecordsFactSourceVerifier;
 import io.contexa.contexacore.autonomous.company.InMemoryCompanyRecordStore;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
-import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
-import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceRegistryService;
-import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
-import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
-import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
-import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
-import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.inspection.PromptFactSourceVerifier;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCheck;
@@ -29,7 +17,6 @@ import io.contexa.contexacore.verification.inspection.PromptInspectionService;
 import io.contexa.contexacore.verification.inspection.PromptInspector;
 import io.contexa.contexacore.verification.inspection.SameFactCheck;
 import io.contexa.contexacore.verification.inspection.SourceTruthCheck;
-import io.contexa.contexacore.verification.replay.SealedDecisionReplayService;
 import io.contexa.contexaiam.admin.promptquality.inspection.BundleTraceCheck;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionResultStore;
@@ -37,8 +24,6 @@ import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptReleaseLoo
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionApiController;
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionConsole;
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionPageController;
-import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplayApiController;
-import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -55,7 +40,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.inspection.SealIntegrityCheck;
 
@@ -65,7 +49,8 @@ import io.contexa.contexacore.verification.inspection.SealIntegrityCheck;
  * of the packages it found nothing wrong in (R4-S5), and the inspection
  * console (its read model, API and three screens). Nothing here
  * runs on a decision thread. Enterprise keeps sealed packages in its own schema, so none of these beans are created
- * while Enterprise is enabled.
+ * while Enterprise is enabled. The replay of sealed decisions is not wired here: switching the inspection off leaves it
+ * and the prompt version trials on (SealedDecisionReplayAutoConfiguration).
  */
 @AutoConfiguration(after = {PromptGovernanceAutoConfiguration.class, SealedEvidenceStoreAutoConfiguration.class,
         PqaSealedEvidenceAutoConfiguration.class})
@@ -86,57 +71,6 @@ public class PromptInspectionAutoConfiguration {
             ObjectProvider<DelegationRegistry> delegationRegistry) {
         return new CompanyRecordsFactSourceVerifier(companyRecordStore.getIfAvailable(InMemoryCompanyRecordStore::new),
                 delegationRegistry.getIfAvailable());
-    }
-
-    /**
-     * docs/agent OC-5: the operator's replay of a sealed decision with a chosen bundle, through the engine's prompt
-     * template and pipeline; without them the replay API answers that the replay is not available.
-     */
-    @Bean(name = "contexaSealedDecisionReplays")
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(SealedEvidencePackageRepository.class)
-    public SealedDecisionReplays sealedDecisionReplays(
-            SealedEvidencePackageRepository sealedEvidencePackageRepository,
-            ObjectProvider<SecurityDecisionStandardPromptTemplate> templates,
-            ObjectProvider<PipelineOrchestrator> pipelines,
-            ObjectProvider<BaselineLearningService> baselineLearning,
-            ObjectProvider<TieredStrategyProperties> tieredProperties,
-            ObjectProvider<SecurityZeroTrustProperties> zeroTrustProperties,
-            ObjectProvider<StructuredOutputCapabilityRegistry> structuredOutput,
-            ObjectProvider<ModelSelectionStrategy> modelSelection,
-            ObjectProvider<CanonicalSecurityContextSerializer> serializers,
-            ObjectProvider<BaselineDataStore> baselineDataStore,
-            ObjectProvider<CentralAuditFacade> auditFacade,
-            ObjectProvider<SealedEvidencePackageIntegrity> integrity,
-            ObjectProvider<PromptVersionCatalog> promptVersionCatalog,
-            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
-        ObjectMapper tolerant = objectMapper.copy().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        Supplier<SealedDecisionReplayService> service = () -> {
-            SecurityDecisionStandardPromptTemplate template = templates.getIfAvailable();
-            PipelineOrchestrator pipeline = pipelines.getIfAvailable();
-            BaselineLearningService baselines = baselineLearning.getIfAvailable();
-            if (template == null || pipeline == null || baselines == null) {
-                return null;
-            }
-            SecurityZeroTrustProperties zeroTrust = zeroTrustProperties.getIfAvailable(SecurityZeroTrustProperties::new);
-            return new SealedDecisionReplayService(template, pipeline, baselines,
-                    tieredProperties.getIfAvailable(TieredStrategyProperties::new),
-                    structuredOutput.getIfAvailable(StructuredOutputCapabilityRegistry::defaultRegistry),
-                    modelSelection::getIfAvailable, zeroTrust.getMinimumAction().toRules(),
-                    zeroTrust.getMinimumAction().getMode().name(),
-                    serializers.getIfAvailable(() -> new CanonicalSecurityContextSerializer(tolerant)), tolerant);
-        };
-        // Plan 3.9: a replay names a version of the database (v2.0), drawn with its parts.
-        return new SealedDecisionReplays(sealedEvidencePackageRepository, service, baselineDataStore.getIfAvailable(),
-                auditFacade.getIfAvailable(), objectMapper, integrity.getIfAvailable(SealedEvidencePackageIntegrity::new),
-                () -> promptVersionCatalog.getIfAvailable(PromptVersionCatalog::none));
-    }
-
-    @Bean(name = "contexaSealedDecisionReplayApiController")
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(SealedDecisionReplays.class)
-    public SealedDecisionReplayApiController sealedDecisionReplayApiController(SealedDecisionReplays contexaSealedDecisionReplays) {
-        return new SealedDecisionReplayApiController(contexaSealedDecisionReplays);
     }
 
     /**

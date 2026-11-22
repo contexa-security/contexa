@@ -18,8 +18,6 @@ import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspection
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionApiController;
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionConsole;
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionPageController;
-import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplayApiController;
-import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -76,10 +74,6 @@ class PromptInspectionAutoConfigurationTest {
             // docs/agent OC-4: the source truth check reads Contexa's own records without a host verifier.
             assertThat(context.getBean(PromptFactSourceVerifier.class))
                     .isInstanceOf(CompanyRecordsFactSourceVerifier.class);
-            // docs/agent OC-5: the operator's replay API, which says it is unavailable without the pipeline.
-            assertThat(context).hasSingleBean(SealedDecisionReplays.class);
-            assertThat(context).hasSingleBean(SealedDecisionReplayApiController.class);
-            assertThat(context.getBean(SealedDecisionReplayApiController.class).bundles()).isNotEmpty();
         });
     }
 
