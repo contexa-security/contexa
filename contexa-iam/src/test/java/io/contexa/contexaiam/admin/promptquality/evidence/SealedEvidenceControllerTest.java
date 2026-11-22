@@ -127,21 +127,27 @@ class SealedEvidenceControllerTest {
     void theListReadsThePeriodAskedForWithTheFilterOrTheLastSevenDays() throws Exception {
         when(queries.evidence(any(), anyInt(), anyInt())).thenReturn(new JdbcPromptInspectionQueries.EvidencePage(1, 2,
                 20, List.of(new JdbcPromptInspectionQueries.EvidenceRow("p-1", NOW, "alice", "GET", "/a", "BLOCK",
-                "v1.0", "MISMATCH", "OK", "UNCHECKED")), new JdbcPromptInspectionQueries.EvidenceTotals(1, 1, 0, 1, 0,
-                0), List.of("v1.0")));
+                "v1.0", "MISMATCH", "OK", "UNCHECKED", "FAIL", 1, 2, "prompt-inspector/31", NOW)),
+                new JdbcPromptInspectionQueries.EvidenceTotals(1, 1, 0, 1, 0, 0), List.of("v1.0")));
 
         mvc.perform(get(SealedEvidenceController.API).param("from", "2026-11-01T00:00:00Z")
                         .param("to", "2026-11-08T00:00:00Z").param("action", "BLOCK").param("version", "v1.0")
                         .param("result", "PROBLEM").param("user", "alice").param("q", "/a").param("block", "REQUEST")
-                        .param("entry", "Action").param("page", "2").param("size", "20").principal(admin))
+                        .param("entry", "Action").param("verdict", "FAIL").param("checkCode", "SOURCE_TRUTH")
+                        .param("page", "2").param("size", "20").principal(admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rows[0].packageId").value("p-1"))
                 .andExpect(jsonPath("$.rows[0].integrity").value("MISMATCH"))
+                .andExpect(jsonPath("$.rows[0].verdict").value("FAIL"))
+                .andExpect(jsonPath("$.rows[0].mismatchCount").value(1))
+                .andExpect(jsonPath("$.rows[0].unverifiableCount").value(2))
+                .andExpect(jsonPath("$.rows[0].inspectorVersion").value("prompt-inspector/31"))
+                .andExpect(jsonPath("$.rows[0].inspectedAt").exists())
                 .andExpect(jsonPath("$.totals.sealed").value(1))
                 .andExpect(jsonPath("$.versions[0]").value("v1.0"));
         verify(queries).evidence(new JdbcPromptInspectionQueries.EvidenceFilter(Instant.parse("2026-11-01T00:00:00Z"),
-                Instant.parse("2026-11-08T00:00:00Z"), "BLOCK", "v1.0", "PROBLEM", "alice", "/a", "REQUEST", "Action"),
-                2, 20);
+                Instant.parse("2026-11-08T00:00:00Z"), "BLOCK", "v1.0", "PROBLEM", "alice", "/a", "REQUEST", "Action",
+                "FAIL", "SOURCE_TRUTH"), 2, 20);
 
         mvc.perform(get(SealedEvidenceController.API).principal(admin)).andExpect(status().isOk());
         ArgumentCaptor<JdbcPromptInspectionQueries.EvidenceFilter> filter =

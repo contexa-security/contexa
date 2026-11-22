@@ -133,6 +133,15 @@ class SealedEvidencePostgresTest {
         assertThat(first.capturedAt()).isEqualTo(T0);
         assertThat(page.rows().get(1).version()).as("the bundle of the governance descriptor").isEqualTo("v0.9");
         assertThat(page.totals()).isEqualTo(new JdbcPromptInspectionQueries.EvidenceTotals(5, 3, 2, 1, 0, 1));
+        // As the sealed prompt list showed them: the latest result's verdict, its counts, its inspector and time.
+        assertThat(page.rows()).extracting(EvidenceRow::verdict).containsExactly("ERROR",
+                JdbcPromptInspectionQueries.NOT_INSPECTED, "INCOMPLETE", "PASS", "FAIL");
+        assertThat(page.rows()).extracting(row -> row.mismatchCount() + "/" + row.unverifiableCount())
+                .containsExactly("0/0", "null/null", "0/1", "0/0", "2/0");
+        assertThat(page.rows()).extracting(EvidenceRow::inspectorVersion).containsExactly("prompt-inspector/31", null,
+                "prompt-inspector/31", "prompt-inspector/31", "prompt-inspector/31");
+        assertThat(first.inspectedAt()).isEqualTo(T0.plusSeconds(20_000));
+        assertThat(page.rows().get(1).inspectedAt()).isNull();
         assertThat(page.versions()).containsExactly("v0.9", "v1.0", "v2.0");
     }
 
@@ -150,10 +159,18 @@ class SealedEvidencePostgresTest {
         assertThat(ids(filter(null, null, null, null, "documents"))).containsExactly("e2");
         assertThat(ids(filter(null, null, null, null, "_"))).as("a wildcard is written as it is").containsExactly("e2");
         assertThat(ids(filter(null, null, null, null, "0%_O"))).as("any case").containsExactly("e2");
-        assertThat(ids(new EvidenceFilter(FROM, TO, null, null, null, null, null, "IDENTITY", null)))
+        assertThat(ids(new EvidenceFilter(FROM, TO, null, null, null, null, null, "IDENTITY", null, null, null)))
                 .containsExactly("e1");
-        assertThat(ids(new EvidenceFilter(FROM, TO, null, null, null, null, null, null, "department")))
+        assertThat(ids(new EvidenceFilter(FROM, TO, null, null, null, null, null, null, "department", null, null)))
                 .containsExactly("e1");
+        // The sealed prompt list's filters: by the latest result's verdict, none being not inspected, and by a check
+        // with a finding of either outcome.
+        assertThat(ids(byInspection("FAIL", null))).containsExactly("e1");
+        assertThat(ids(byInspection("error", null))).containsExactly("e5");
+        assertThat(ids(byInspection(JdbcPromptInspectionQueries.NOT_INSPECTED, null))).containsExactly("e4");
+        assertThat(ids(byInspection(null, "BUNDLE_TRACE"))).containsExactly("e3");
+        assertThat(ids(byInspection(null, "SOURCE_TRUTH"))).containsExactly("e1");
+        assertThat(ids(byInspection("PASS", "SOURCE_TRUTH"))).isEmpty();
 
         EvidencePage second = queries.evidence(filter(null, null, null, null, null), 1, 2);
         assertThat(second.total()).isEqualTo(5);
@@ -292,6 +309,10 @@ class SealedEvidencePostgresTest {
     }
 
     private static EvidenceFilter filter(String action, String version, String result, String user, String path) {
-        return new EvidenceFilter(FROM, TO, action, version, result, user, path, null, null);
+        return new EvidenceFilter(FROM, TO, action, version, result, user, path, null, null, null, null);
+    }
+
+    private static EvidenceFilter byInspection(String verdict, String checkCode) {
+        return new EvidenceFilter(FROM, TO, null, null, null, null, null, null, null, verdict, checkCode);
     }
 }

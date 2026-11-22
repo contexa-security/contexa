@@ -143,7 +143,8 @@ public class SealedEvidenceController {
             @RequestParam(required = false) String action, @RequestParam(required = false) String version,
             @RequestParam(required = false) String result, @RequestParam(required = false) String user,
             @RequestParam(required = false) String q, @RequestParam(required = false) String block,
-            @RequestParam(required = false) String entry, @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) String entry, @RequestParam(required = false) String verdict,
+            @RequestParam(required = false) String checkCode, @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = PromptInspectionScreen.DEFAULT_PAGE_SIZE) int size,
             Authentication authentication) {
         requireAdmin(authentication);
@@ -154,7 +155,7 @@ public class SealedEvidenceController {
         }
         try {
             return queries.evidence(new JdbcPromptInspectionQueries.EvidenceFilter(start, end, action, version, result,
-                    user, q, block, entry), page, size);
+                    user, q, block, entry, verdict, checkCode), page, size);
         }
         catch (IllegalArgumentException refused) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, refused.getMessage());

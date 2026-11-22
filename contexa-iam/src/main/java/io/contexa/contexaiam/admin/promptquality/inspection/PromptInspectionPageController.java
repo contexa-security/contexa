@@ -12,39 +12,18 @@ import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 
 /**
  * The addresses of the sealed prompt screens, which became the sealed evidence (quality plan 3.7, 3.8): the list and
  * a prompt's detail open their place in it, so a bookmark and the links that name them (the decision detail, the
  * trials) keep working. The root address, which was the overview of a period, opens the list. The list's filter comes
- * along in the words of the sealed evidence: the days of the period, the result (a verdict or a check, as the audit
- * result), the block, the entry and the page.
+ * along: the days of the period, the verdict and the check (the sealed evidence filters by both again), the block, the
+ * entry and the page.
  */
 @Controller
 @RequestMapping("/contexa/admin/prompt-inspection")
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptInspectionPageController {
-
-    /** The audit result of the sealed evidence that a verdict of the sealed prompt list filtered by, or null. */
-    static String resultOfVerdict(String verdict) {
-        return switch (verdict) {
-            case "FAIL" -> "PROBLEM";
-            case "INCOMPLETE", "ERROR", JdbcPromptInspectionQueries.NOT_INSPECTED -> "UNCHECKED";
-            case "PASS", "NOT_APPLICABLE" -> "WHOLE";
-            default -> null;
-        };
-    }
-
-    /** The audit result of the sealed evidence that a check of the sealed prompt list filtered by, or null. */
-    static String resultOfCheck(String checkCode) {
-        return switch (checkCode) {
-            case "SEAL_INTEGRITY" -> "INTEGRITY";
-            case BundleTraceCheck.CODE -> "TRACE";
-            case "SOURCE_TRUTH" -> "SOURCE";
-            default -> null;
-        };
-    }
 
     @GetMapping({"", "/", "/packages"})
     public String list(@RequestParam(required = false) String from, @RequestParam(required = false) String to,
@@ -59,12 +38,8 @@ public class PromptInspectionPageController {
                 target.queryParam("to", to.trim());
             }
         }
-        String result = StringUtils.hasText(checkCode) ? resultOfCheck(checkCode.trim().toUpperCase(Locale.ROOT))
-                : null;
-        if (result == null && StringUtils.hasText(verdict)) {
-            result = resultOfVerdict(verdict.trim().toUpperCase(Locale.ROOT));
-        }
-        keep(target, "result", result);
+        keep(target, "verdict", verdict);
+        keep(target, "checkCode", checkCode);
         keep(target, "block", block);
         keep(target, "entry", entry);
         keep(target, "page", page);

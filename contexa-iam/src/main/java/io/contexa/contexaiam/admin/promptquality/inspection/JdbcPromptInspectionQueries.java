@@ -251,7 +251,8 @@ public class JdbcPromptInspectionQueries {
     private static final String EVIDENCE = LATEST.stripTrailing() + """
             ,
             evidence as (
-                select p.id, p.package_id, p.captured_at, p.user_id, l.id as result_id,
+                select p.id, p.package_id, p.captured_at, p.user_id, l.id as result_id, l.verdict, l.mismatch_count,
+                       l.unverifiable_count, l.inspector_version, l.inspected_at,
                        contexa_safe_jsonb(p.request_facts_json) ->> 'httpMethod' as http_method,
                        contexa_safe_jsonb(p.request_facts_json) ->> 'requestPath' as request_path,
                        coalesce(contexa_safe_jsonb(p.decision_json) ->> 'action', '') as action,
@@ -268,17 +269,24 @@ public class JdbcPromptInspectionQueries {
 
     /**
      * The sealed evidence list's filter: the capture period (both ends included), the decision's action, its version,
-     * the audit result ({@link #EVIDENCE_RESULTS}), the user, a part of the request path, and a block and an entry (a
-     * finding of the latest result in that block, with that entry, or both); a blank filter value does not filter.
+     * the audit result ({@link #EVIDENCE_RESULTS}), the user, a part of the request path, a block and an entry (a
+     * finding of the latest result in that block, with that entry, or both), and, as the sealed prompt list filtered,
+     * the latest result's verdict or {@link #NOT_INSPECTED} and a check with a finding in it; a blank filter value does
+     * not filter.
      */
     public record EvidenceFilter(Instant from, Instant to, String action, String version, String result, String user,
-                                 String path, String block, String entry) {
+                                 String path, String block, String entry, String verdict, String checkCode) {
     }
 
-    /** A sealed decision as the list shows it; each check's result is OK, MISMATCH or UNCHECKED. */
+    /**
+     * A sealed decision as the list shows it; each check's result is OK, MISMATCH or UNCHECKED. As the sealed prompt
+     * list showed them: the latest result's verdict ({@link #NOT_INSPECTED} without one), its mismatches and the items
+     * it could not check (none without one), the inspector and when it inspected.
+     */
     public record EvidenceRow(String packageId, Instant capturedAt, String userId, String httpMethod,
                               String requestPath, String action, String version, String integrity, String trace,
-                              String source) {
+                              String source, String verdict, Integer mismatchCount, Integer unverifiableCount,
+                              String inspectorVersion, Instant inspectedAt) {
     }
 
     /**
@@ -311,15 +319,13 @@ public class JdbcPromptInspectionQueries {
         pageArguments.add((long) safePage * safeSize);
         List<EvidenceRow> rows = jdbc.query(EVIDENCE + """
                 select e.package_id, e.captured_at, e.user_id, e.http_method, e.request_path, e.action, e.version,
-                       e.integrity, e.trace, e.source
+                       e.integrity, e.trace, e.source, e.verdict, e.mismatch_count, e.unverifiable_count,
+                       e.inspector_version, e.inspected_at
                   from evidence e
                 """ + where + """
                  order by e.captured_at desc, e.id desc
                  limit ? offset ?
-                """, (rs, rowNum) -> new EvidenceRow(rs.getString("package_id"),
-                rs.getTimestamp("captured_at").toInstant(), rs.getString("user_id"), rs.getString("http_method"),
-                rs.getString("request_path"), rs.getString("action"), rs.getString("version"),
-                rs.getString("integrity"), rs.getString("trace"), rs.getString("source")), pageArguments.toArray());
+                """, (rs, rowNum) -> evidenceRow(rs), pageArguments.toArray());
         EvidenceTotals totals = jdbc.queryForObject(EVIDENCE + """
                 select count(*) as sealed,
                        count(*) filter (where e.action in %s) as stopped,
@@ -383,6 +389,16 @@ public class JdbcPromptInspectionQueries {
             arguments.add("%" + filter.path().trim().replace("\\", "\\\\")
                     .replace("%", "\\%").replace("_", "\\_") + "%");
         }
+        if (StringUtils.hasText(filter.verdict())) {
+            where.append(" and coalesce(e.verdict, ?) = ?");
+            arguments.add(NOT_INSPECTED);
+            arguments.add(filter.verdict().trim().toUpperCase(Locale.ROOT));
+        }
+        if (StringUtils.hasText(filter.checkCode())) {
+            where.append(" and exists (select 1 from finding_lines f where f.result_id = e.result_id"
+                    + " and f.check_code = ?)");
+            arguments.add(filter.checkCode().trim());
+        }
         if (StringUtils.hasText(filter.block()) || StringUtils.hasText(filter.entry())) {
             where.append(" and exists (select 1 from finding_lines f where f.result_id = e.result_id");
             if (StringUtils.hasText(filter.block())) {
@@ -432,6 +448,18 @@ public class JdbcPromptInspectionQueries {
             where.append(")");
         }
         return where + "\n";
+    }
+
+    private static EvidenceRow evidenceRow(ResultSet rs) throws SQLException {
+        Timestamp inspectedAt = rs.getTimestamp("inspected_at");
+        String verdict = rs.getString("verdict");
+        return new EvidenceRow(rs.getString("package_id"), rs.getTimestamp("captured_at").toInstant(),
+                rs.getString("user_id"), rs.getString("http_method"), rs.getString("request_path"),
+                rs.getString("action"), rs.getString("version"), rs.getString("integrity"), rs.getString("trace"),
+                rs.getString("source"), verdict != null ? verdict : NOT_INSPECTED,
+                verdict != null ? rs.getInt("mismatch_count") : null,
+                verdict != null ? rs.getInt("unverifiable_count") : null,
+                rs.getString("inspector_version"), inspectedAt != null ? inspectedAt.toInstant() : null);
     }
 
     private static PackageRow packageRow(ResultSet rs) throws SQLException {

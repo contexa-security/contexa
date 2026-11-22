@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.promptquality.screen;
 
 import io.contexa.contexacore.verification.inspection.PromptInspectionOutcome;
+import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionScreen;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -90,7 +91,7 @@ class PromptQualityStatusEvidenceTemplateTest {
         assertThat(scripts(list)).containsExactly("/contexa/js/admin/zero-trust/console-common.js?v=20261118-k119",
                 "/contexa/js/admin/prompt-quality/pqa-parts.js?v=20261122-s3",
                 "/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f",
-                "/contexa/js/admin/prompt-quality/evidence.js?v=20261123-b2f");
+                "/contexa/js/admin/prompt-quality/evidence.js?v=20261123-b2f2");
 
         String decision = render("evidence", Locale.ENGLISH, true, "3f2b-91c0");
         assertThat(decision).contains("id=\"pv-title\">Sealed evidence</h1>")
@@ -143,12 +144,7 @@ class PromptQualityStatusEvidenceTemplateTest {
      */
     @Test
     void theFindingsOfTheEvidenceSayTheEngineReasonAndTheOutcomeInTheReadersWords() throws IOException {
-        String script;
-        try (InputStream input = PromptQualityStatusEvidenceTemplateTest.class.getClassLoader()
-                .getResourceAsStream("static/contexa/js/admin/prompt-quality/evidence.js")) {
-            assertThat(input).isNotNull();
-            script = new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        }
+        String script = evidenceScript();
         assertThat(script).contains("const EARLIER_VERSION = '(decision D7)';")
                 .contains("m('finding.earlierVersion')").contains("m('finding.reason', reasonText(finding.reason))")
                 .contains("m('finding.outcome.' + outcome)").contains("[outcomeWord(finding.outcome), checkName(");
@@ -163,6 +159,51 @@ class PromptQualityStatusEvidenceTemplateTest {
             assertThat(korean.getProperty(key)).as(key).isNotBlank();
         }
         assertThat(korean.getProperty("pqa.evidence.finding.earlierVersion")).isEqualTo("옛 버전, 다시 점검할 수 없음");
+    }
+
+    /**
+     * What the sealed prompt screens showed stays on the sealed evidence that joined them: each check's counts in
+     * sight, the time of the result compared with, every line of the user prompt with its state in words and, opened,
+     * its checks and findings, and in the list the latest result's verdict, counts, inspector and time beside the three
+     * checks, with the filters by verdict and by check; the verdicts are those the screens offer, in their order.
+     */
+    @Test
+    void theSealedEvidenceShowsWhatTheSealedPromptScreensShowed() throws IOException {
+        String script = evidenceScript();
+        assertThat(script).contains("'data-counts': check.code").contains("m('detail.counts',")
+                .contains("changes.comparedAt ? ZT.time(changes.comparedAt) : '—'")
+                .contains("promptLines(detail.inspection)").doesNotContain("matchedLines(")
+                .contains("ZT.statusChip(LINE_STATUS[state], lineWord(state))").contains("m('line.noFinding')")
+                .contains("verdictChip(row.verdict)").contains("row.mismatchCount").contains("row.unverifiableCount")
+                .contains("row.inspectorVersion").contains("row.inspectedAt")
+                .contains("choice('verdict', VERDICTS, verdictWord)").contains("choice('checkCode', CHECKS.map(")
+                .contains("const FILTERS = ['action', 'version', 'result', 'verdict', 'checkCode', 'user', 'block',");
+        Matcher verdicts = Pattern.compile("const VERDICTS = \\[([^\\]]*)]").matcher(script);
+        assertThat(verdicts.find()).isTrue();
+        assertThat(Pattern.compile(",").splitAsStream(verdicts.group(1)).map(verdict -> verdict.trim().replace("'", ""))
+                .toList()).containsExactlyElementsOf(PromptInspectionScreen.VERDICTS);
+        Properties english = properties("contexa/i18n/messages.properties");
+        Properties korean = properties("contexa/i18n/messages_ko.properties");
+        for (String key : List.of("pqa.evidence.filter.verdict", "pqa.evidence.filter.checkCode",
+                "pqa.evidence.detail.lines", "pqa.evidence.detail.noLines", "pqa.evidence.line.MATCHED",
+                "pqa.evidence.line.noFinding")) {
+            assertThat(english.getProperty(key)).as(key).isNotBlank().isNotEqualTo(korean.getProperty(key));
+            assertThat(korean.getProperty(key)).as(key).isNotBlank();
+        }
+        for (String verdict : PromptInspectionScreen.VERDICTS) {
+            assertThat(english.getProperty("promptInspection.verdict." + verdict)).as(verdict).isNotBlank();
+            assertThat(korean.getProperty("promptInspection.verdict." + verdict)).as(verdict).isNotBlank();
+        }
+        assertThat(english.getProperty("pqa.evidence.history.changes")).contains("{3}");
+        assertThat(korean.getProperty("pqa.evidence.history.changes")).contains("{3}");
+    }
+
+    private static String evidenceScript() throws IOException {
+        try (InputStream input = PromptQualityStatusEvidenceTemplateTest.class.getClassLoader()
+                .getResourceAsStream("static/contexa/js/admin/prompt-quality/evidence.js")) {
+            assertThat(input).isNotNull();
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     private static Set<String> keys(Properties bundle) {

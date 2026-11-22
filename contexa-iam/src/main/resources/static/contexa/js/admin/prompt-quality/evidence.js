@@ -32,7 +32,14 @@
     const RESULT_STATUS = {OK: 'GOOD', MISMATCH: 'BAD', UNCHECKED: 'WARN'};
     const ACTIONS = ['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK'];
     const RESULTS = ['PROBLEM', 'INTEGRITY', 'TRACE', 'SOURCE', 'UNCHECKED', 'WHOLE'];
-    const FILTERS = ['action', 'version', 'result', 'user', 'block', 'entry'];
+    /** The verdicts of the latest result, what needs work first (PromptInspectionScreen.VERDICTS), and their tones. */
+    const VERDICTS = ['FAIL', 'INCOMPLETE', 'PASS', 'NOT_APPLICABLE', 'ERROR', 'NOT_INSPECTED'];
+    const VERDICT_STATUS = {FAIL: 'BAD', INCOMPLETE: 'WARN', ERROR: 'BAD', PASS: 'GOOD'};
+    /** A line's state as the sealed prompt detail coloured it, and its tone. */
+    const LINE_STATUS = {MISMATCH: 'BAD', UNVERIFIABLE: 'WARN', MATCHED: 'GOOD'};
+    const FILTERS = ['action', 'version', 'result', 'verdict', 'checkCode', 'user', 'block', 'entry'];
+    /** The lines of a prompt shown open; a longer prompt starts folded. */
+    const OPEN_LINES = 40;
     const PAGE_SIZE = 20;
 
     /** The name of a check: one of the audit, or one an earlier inspector ran, as its stored result names it. */
@@ -47,6 +54,14 @@
 
     function actionChip(action) {
         return action ? ZT.chip(action) : ZT.statusChip(null, '—');
+    }
+
+    function verdictWord(verdict) {
+        return ZT.t('promptInspection.verdict.' + (verdict || 'NOT_INSPECTED'));
+    }
+
+    function verdictChip(verdict) {
+        return ZT.statusChip(VERDICT_STATUS[verdict] || null, verdictWord(verdict));
     }
 
     function target(row) {
@@ -88,8 +103,10 @@
             select.title = current ? select.options[select.selectedIndex].text : '';
             return P.field(m('filter.' + name), select);
         };
+        // The sealed prompt list filtered by the latest result's verdict and by a check with a finding: both stay.
         const fields = [choice('action', ACTIONS, action => ZT.t('zt.console.ui.action.' + action)),
             choice('version', page.versions || []), choice('result', RESULTS, result => m('filter.result.' + result)),
+            choice('verdict', VERDICTS, verdictWord), choice('checkCode', CHECKS.map(check => check.code), checkName),
             choice('user', [])];
         // The sealed prompt list filtered by a finding in a block, with an entry, or both: typed, as it was.
         const typed = ['block', 'entry'].map(name => el('input', {type: 'text', class: 'modern-input', name,
@@ -125,14 +142,23 @@
             const who = ZT.time(row.capturedAt) + ' · ' + (row.userId || '—');
             const href = detailHref(row.packageId);
             const line = el('tr', {tabindex: '0', 'data-selectable': true, 'data-package': row.packageId},
-                el('td', {title: who}, el('a', {class: 'zt-link', href},
+                // The sealed prompt list named a decision by its package id: it is in the link's title.
+                el('td', {title: who + ' · ' + row.packageId}, el('a', {class: 'zt-link', href},
                     el('span', {class: 'zt-long', text: who}),
                     el('span', {class: 'zt-short'}, el('span', {class: 'zt-line', text: ZT.shortTime(row.capturedAt)}),
                         el('span', {class: 'zt-line', text: row.userId || '—'})))),
                 el('td', {class: 'zt-fill', title: target(row), text: target(row)}),
                 el('td', {class: 'zt-cell-chips'}, actionChip(row.action)),
                 el('td', {class: 'zt-wide', title: row.version || '—', text: row.version || '—'}),
-                result(row.integrity), result(row.trace), result(row.source));
+                result(row.integrity), result(row.trace), result(row.source),
+                el('td', {class: 'zt-cell-chips zt-wide'}, verdictChip(row.verdict)),
+                el('td', {class: 'zt-num zt-wide',
+                    text: row.mismatchCount != null ? ZT.count(row.mismatchCount) : '—'}),
+                el('td', {class: 'zt-num zt-wide',
+                    text: row.unverifiableCount != null ? ZT.count(row.unverifiableCount) : '—'}),
+                el('td', {class: 'zt-wide', title: row.inspectorVersion || '—', text: row.inspectorVersion || '—'}),
+                el('td', {class: 'zt-num zt-wide', title: row.inspectedAt ? ZT.time(row.inspectedAt) : null,
+                    text: row.inspectedAt ? ZT.shortTime(row.inspectedAt) : '—'}));
             line.addEventListener('keydown', event => {
                 if (event.key === 'Enter') {
                     global.location.assign(href);
@@ -141,11 +167,13 @@
             return line;
         });
         const columns = [m('column.who'), m('column.target'), m('column.action'), m('column.version'),
-            m('check.SEAL_INTEGRITY'), m('check.BUNDLE_TRACE'), m('check.SOURCE_TRUTH')];
+            m('check.SEAL_INTEGRITY'), m('check.BUNDLE_TRACE'), m('check.SOURCE_TRUTH'), m('history.verdict'),
+            m('history.mismatch'), m('history.unverifiable'), m('history.inspector'), m('history.inspectedAt')];
+        const numbers = [8, 9, 11];
         return el('div', {class: 'modern-table zt-table-wrap'}, el('table', {class: 'zt-table'},
             el('caption', {class: 'zt-sr-only', text: m('list.title')}),
             el('thead', {}, el('tr', {}, columns.map((label, index) => el('th', {scope: 'col',
-                class: index >= 3 ? 'zt-wide' : null, text: label})))),
+                class: index >= 3 ? 'zt-wide' + (numbers.includes(index) ? ' zt-num' : '') : null, text: label})))),
             el('tbody', {}, rows)));
     }
 
@@ -309,7 +337,8 @@
                 el('td', {class: 'zt-wide', text: ZT.t('promptInspection.trigger.' + row.trigger)}))))));
         return el('details', {class: 'zt-item'}, el('summary', {class: 'zt-link', text: m('history.title',
             ZT.count(history.length))}), changes ? P.muted(m('history.changes', changes.comparedVersion,
-            ZT.count((changes.disappeared || []).length), ZT.count((changes.appeared || []).length))) : null,
+            ZT.count((changes.disappeared || []).length), ZT.count((changes.appeared || []).length),
+            changes.comparedAt ? ZT.time(changes.comparedAt) : '—')) : null,
         ...(changes ? (changes.disappeared || []).map(finding => el('div', {class: 'zt-fact',
             text: m('history.gone', findingText(finding))})).concat((changes.appeared || []).map(finding =>
             el('div', {class: 'zt-fact', text: m('history.new', findingText(finding))}))) : []), table);
@@ -317,11 +346,14 @@
 
     function wholeCard(detail) {
         const inspection = detail.inspection;
+        // The counts of each check, as the sealed prompt detail's table of checks showed them.
         const rows = el('div', {class: 'zt-result-rows'}, detail.checks.map(check => el('div',
-            {class: 'zt-result-row', title: m('check.' + check.code + '.def') + ' ' + m('detail.counts',
-                ZT.count(check.matched), ZT.count(check.mismatched), ZT.count(check.unverifiable)),
-            'data-check': check.code},
-            el('span', {class: 'zt-result-name', text: m('check.' + check.code)}), resultChip(check.result))));
+            {class: 'zt-result-row', title: m('check.' + check.code + '.def'), 'data-check': check.code},
+            el('span', {class: 'zt-result-name'}, el('span', {class: 'zt-item'},
+                el('span', {text: m('check.' + check.code)}),
+                el('span', {class: 'zt-muted', 'data-counts': check.code, text: m('detail.counts',
+                    ZT.count(check.matched), ZT.count(check.mismatched), ZT.count(check.unverifiable))}))),
+            resultChip(check.result))));
         const notes = detail.checks.flatMap(check => check.findings.map(finding => el('div', {class: 'zt-fact',
             text: findingText(finding)})));
         const card = ZT.card(m('detail.whole'), m('detail.wholeAside'), P.form('check-badges', rows), ...notes,
@@ -346,32 +378,58 @@
         return P.foot(card, again);
     }
 
-    /**
-     * The lines of the user prompt the audit compared, each with the checks that matched it and the findings on it, as
-     * the sealed prompt detail showed them line by line.
-     */
-    function matchedLines(inspection) {
-        const lines = (inspection && inspection.lines ? inspection.lines : []).filter(line =>
-            (line.matchedBy || []).length || (line.findings || []).length);
-        if (!lines.length) {
-            return P.muted(m('detail.noMatchedLines'));
+    /** A line's state as the sealed prompt detail showed it: a mismatch, a finding not checked, matched, or none. */
+    function lineState(line) {
+        const findings = line.findings || [];
+        if (findings.some(finding => finding.outcome === 'MISMATCH')) {
+            return 'MISMATCH';
         }
-        return el('details', {class: 'zt-item', 'data-form': 'matched-lines'},
-            el('summary', {class: 'zt-link', text: m('detail.matchedLines', ZT.count(lines.length))}),
-            el('ul', {class: 'zt-rows'}, lines.map(line => el('li', {class: 'zt-fact flex items-start gap-3',
-                'data-line': line.number},
-            el('span', {class: 'zt-fact-id', text: String(line.number)}),
-            el('span', {class: 'zt-item min-w-0'}, el('span', {class: 'zt-fact-value pv-wrap', text: line.text}),
-                (line.matchedBy || []).length ? P.muted(m('detail.matchedBy', line.matchedBy.map(checkName).join(', ')))
-                    : null,
-                ...(line.findings || []).map(finding => el('span', {class: 'zt-muted', text: findingText(finding)})))))));
+        if (findings.length) {
+            return 'UNVERIFIABLE';
+        }
+        return (line.matchedBy || []).length ? 'MATCHED' : null;
+    }
+
+    function lineWord(state) {
+        return state === 'MATCHED' ? m('line.MATCHED') : m('finding.outcome.' + state);
+    }
+
+    /**
+     * Every line of the user prompt, as the sealed prompt detail listed them: each with its state in words and colour,
+     * and, opened, the checks that matched it and the findings on it. A prompt of more lines than a screen holds
+     * starts folded, as the history does.
+     */
+    function promptLines(inspection) {
+        const lines = inspection && inspection.lines ? inspection.lines : [];
+        if (!lines.length) {
+            return P.muted(m('detail.noLines'));
+        }
+        const states = lines.map(lineState);
+        const count = state => states.filter(found => found === state).length;
+        return el('details', {class: 'zt-item', 'data-form': 'prompt-lines', open: lines.length <= OPEN_LINES},
+            el('summary', {class: 'zt-link', text: m('detail.lines', ZT.count(lines.length),
+                ZT.count(count('MISMATCH')), ZT.count(count('UNVERIFIABLE')), ZT.count(count('MATCHED')))}),
+            el('ul', {class: 'zt-rows'}, lines.map((line, index) => {
+                const state = states[index];
+                const findings = line.findings || [];
+                return el('li', {class: 'zt-fact', 'data-line': line.number, 'data-state': state || 'NONE'},
+                    el('details', {class: 'zt-item'},
+                        el('summary', {class: 'flex items-start gap-3 cursor-pointer'},
+                            el('span', {class: 'zt-fact-id', text: String(line.number)}),
+                            state ? ZT.statusChip(LINE_STATUS[state], lineWord(state)) : null,
+                            el('span', {class: 'zt-fact-value pv-wrap min-w-0', text: line.text})),
+                        (line.matchedBy || []).length ? P.muted(m('detail.matchedBy',
+                            line.matchedBy.map(checkName).join(', '))) : null,
+                        ...(findings.length ? findings.map(finding => el('span', {class: 'zt-muted',
+                            text: findingText(finding)})) : [P.muted(m('line.noFinding'))])));
+            })));
     }
 
     function insideCard(detail) {
         const prompt = el('div', {class: 'zt-item', style: {gap: '0.75rem'}},
             P.muted(m('detail.system')), el('pre', {class: 'pv-text', tabindex: '0', text: detail.systemPrompt || '—'}),
             P.muted(m('detail.user')), el('pre', {class: 'pv-text', tabindex: '0', text: detail.userPrompt || '—'}),
-            matchedLines(detail.inspection));
+            promptLines(detail.inspection));
         const facts = detail.facts.length ? el('ul', {class: 'zt-rows'}, detail.facts.map(fact => el('li',
             {class: 'zt-fact flex items-start gap-3', 'data-fact': fact.id},
             el('span', {class: 'zt-fact-id', text: fact.id}),
