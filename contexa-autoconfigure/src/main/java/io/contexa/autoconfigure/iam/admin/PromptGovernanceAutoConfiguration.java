@@ -29,9 +29,6 @@ import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernance
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernanceRuntimeCacheInvalidationService;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRuntimeCacheInvalidationService;
-import io.contexa.contexaiam.admin.promptquality.official.application.JdbcPromptRuntimeGovernanceDescriptorVerifier;
-import io.contexa.contexaiam.admin.promptquality.official.application.PromptRuntimeGovernanceDescriptorVerifier;
-import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.ApplicationRunner;
@@ -47,17 +44,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * Prompt version management: the registry, its lifecycle ledger, release gate, evaluation and model compatibility
  * services, the startup registration, the ledger writer, the descriptor resolver, the runtime cache invalidation, the
- * descriptor verifier, the release query and the bundle rollback. The prompt version screens and their API, which took
- * the place of the release screens, are PromptVersionConsoleAutoConfiguration's (plan 6-6).
+ * release query and the bundle rollback. The prompt version screens and their API, which took the place of the release
+ * screens, are PromptVersionConsoleAutoConfiguration's (plan 6-6).
  *
  * <p>One property, {@code contexa.prompt.governance.enabled} (default on, version management decision 11), turns all
- * of them on or off together, in an OSS-only installation as well as with the enterprise modules. The descriptor
- * verifier requires an active registry release, so it only exists when the registry service, and with it the startup
- * registration, exists (PV-22). The beans that depend on other beans of this class are declared after them, because
- * {@code @ConditionalOnBean} only sees the beans registered before it (PV-24). Registered before the official
- * inspection so the descriptor verifier precedes its none() default.
+ * of them on or off together, in an OSS-only installation as well as with the enterprise modules. The beans that
+ * depend on other beans of this class are declared after them, because {@code @ConditionalOnBean} only sees the beans
+ * registered before it (PV-24).
  */
-@AutoConfiguration(after = CoreDataAutoConfiguration.class, before = PqaOfficialInspectionAutoConfiguration.class)
+@AutoConfiguration(after = CoreDataAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "contexa.prompt.governance", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class PromptGovernanceAutoConfiguration {
 
@@ -246,16 +241,5 @@ public class PromptGovernanceAutoConfiguration {
             promptGovernanceLifecycleLedgerService.ifAvailable(PromptGovernanceLifecycleLedgerService::syncPlatformLifecycleLedgers);
             promptGovernanceModelCompatibilityRegistryService.ifAvailable(PromptGovernanceModelCompatibilityRegistryService::syncPlatformRegistry);
         };
-    }
-
-    /** Only with the startup registration: the verifier requires an active registry release (PV-22). */
-    @Bean(name = "contexaPromptRuntimeGovernanceDescriptorVerifier")
-    @ConditionalOnMissingBean(PromptRuntimeGovernanceDescriptorVerifier.class)
-    @ConditionalOnBean(PromptGovernanceRegistryService.class)
-    public JdbcPromptRuntimeGovernanceDescriptorVerifier promptRuntimeGovernanceDescriptorVerifier(
-            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            PromptQualityMessageResolver messageResolver
-    ) {
-        return new JdbcPromptRuntimeGovernanceDescriptorVerifier(jdbcTemplate, messageResolver);
     }
 }

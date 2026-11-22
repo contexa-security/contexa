@@ -123,11 +123,6 @@ public class CapabilityRequirementResolver {
                     platformConfigPresent || hasBean("io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter"),
                     platformConfigPresent,
                     "AI security bridge is active");
-            case PQA_ENGINE -> activeWhen(capability,
-                    enterpriseEnabled
-                            && classPresent("io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityRuntimeVerificationService"),
-                    contexaOwnedApplication && enterpriseEnabled,
-                    "prompt quality official inspection engine is available");
             case ENTERPRISE_SOAR -> activeWhen(capability,
                     enterpriseEnabled && hasBeanName("contexaSoarContextRetriever"),
                     contexaOwnedApplication && enterpriseEnabled,
@@ -234,7 +229,6 @@ public class CapabilityRequirementResolver {
                 guidance.add("Set contexa.security.zerotrust.mode=DISABLED if the application intentionally runs without decisions.");
             }
             case BRIDGE -> guidance.add("Verify AI security bridge configuration is active before invoking protected resources.");
-            case PQA_ENGINE -> guidance.add("Verify the Core prompt quality official inspection modules are on the runtime classpath.");
             case ENTERPRISE_SOAR -> guidance.add("Enable enterprise mode and include the enterprise SOAR module on the runtime classpath.");
             case ENTERPRISE_MCP -> guidance.add("Include the enterprise MCP server module before enabling MCP capability.");
             case ENTERPRISE_DASHBOARD -> guidance.add("Enable enterprise mode and include enterprise dashboard metrics modules on the runtime classpath.");

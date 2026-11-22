@@ -35,7 +35,6 @@ import io.contexa.contexacore.repository.prompt.PromptGovernanceReleaseWorkflowR
 import io.contexa.contexacore.repository.prompt.PromptGovernanceRollbackRecordRepository;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionStore;
-import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import io.contexa.contexaiam.admin.promptquality.version.AuditLogPromptVersionAudit;
 import io.contexa.contexaiam.admin.promptquality.version.JdbcPromptVersionStore;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionAudit;
@@ -76,7 +75,6 @@ class PromptVersionAutoConfigurationTest {
                     PromptGovernanceAutoConfiguration.class))
             .withBean("contexaJdbcTemplate", JdbcTemplate.class, () -> mock(JdbcTemplate.class))
             .withBean("contexaObjectMapper", ObjectMapper.class, ObjectMapper::new)
-            .withBean(PromptQualityMessageResolver.class, () -> mock(PromptQualityMessageResolver.class))
             .withBean(PromptGovernanceRegistryRepository.class, () -> mock(PromptGovernanceRegistryRepository.class))
             .withBean(PromptGovernanceChangeRecordRepository.class, () -> mock(PromptGovernanceChangeRecordRepository.class))
             .withBean(PromptGovernanceEvaluationRecordRepository.class,
