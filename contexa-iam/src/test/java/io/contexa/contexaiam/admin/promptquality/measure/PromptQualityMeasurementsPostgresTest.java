@@ -460,6 +460,36 @@ class PromptQualityMeasurementsPostgresTest {
         assertThat(untouched.answered()).isZero();
     }
 
+    /**
+     * Quality plan 3.5, 3.9 (supplement U1): what follows a measurement once done is told to every listener added, in
+     * order; one that fails leaves the measurement done and the others told.
+     */
+    @Test
+    void everyListenerIsToldOnceAMeasurementIsDone() throws Exception {
+        List<QualityCase> three = all.cases().subList(0, 3);
+        PromptQualityCases cases = cases(three);
+        cases.publish(SCOPE, PROMPT, "admin");
+        PromptQualityMeasurements measurements = measurements(cases, standInOf(three), settings(1, 0, 0),
+                QualityMeasureLock.local(), "server-a", SETTINGS, line());
+        List<String> told = new CopyOnWriteArrayList<>();
+        measurements.whenDone(done -> {
+            told.add("causes " + done);
+            throw new IllegalStateException("a listener that fails");
+        });
+        measurements.whenDone(null);
+        measurements.whenDone(done -> told.add("ledger " + done));
+
+        long id = measurements.start(SCOPE, PROMPT, 1, null, 1, "admin");
+        assertThat(await(measurements, id, PromptQualityMeasurements.DONE).answered()).isEqualTo(3);
+        long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (told.size() < 2 && System.nanoTime() < until) {
+            Thread.sleep(20);
+        }
+
+        assertThat(told).containsExactly("causes " + id, "ledger " + id);
+        assertThat(measurements.find(id).orElseThrow().status()).isEqualTo(PromptQualityMeasurements.DONE);
+    }
+
     /** Quality plan 9, 6: one server at a time runs measurements, and a cancellation on another reaches it. */
     @Test
     void twoServersShareOneLockAndACancellationReachesTheServerThatRuns() throws Exception {

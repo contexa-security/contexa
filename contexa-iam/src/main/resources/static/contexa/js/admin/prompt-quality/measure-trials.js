@@ -5,7 +5,8 @@
  * the actions of each version and the decisions that changed. Its start is the measurement start's other input, its
  * runs stand in the list of the measurements, its result is a view of the screen (under "two versions"), and the results
  * of a version running alongside the decisions stand under the list. It reads and starts trials through the JSON of the
- * prompt versions (PV), as before.
+ * prompt versions (PV), as before. Quality plan 3.10: each version's actions are counted as first answered and, when the
+ * trial kept them, as they end under the server's closing rules after the second pass of an ESCALATE.
  */
 (function (global) {
     'use strict';
@@ -170,6 +171,10 @@
         if (trial.actual != null && trial.actual < trial.requested) {
             lines.push(t('pv.trial.fewer', ZT.count(trial.requested), ZT.count(trial.actual)));
         }
+        if (trial.status === 'QUEUED') {
+            // Quality plan 3.3: one server at a time runs the measurements and the trials.
+            lines.push(t('pv.trial.queuedLine'));
+        }
         if (trial.failure) {
             lines.push(t('pv.trial.failure'));
         }
@@ -199,26 +204,46 @@
             + ' ' + (errors ? t('pv.trial.verdictErrors', ZT.count(errors)) : t('pv.trial.verdictNoErrors'));
     }
 
+    /**
+     * The actions of each version as first answered and, quality plan 3.10, as they end under the server's closing
+     * rules; a trial of a release before keeps no final action, and shows the first answers alone.
+     */
     function distributionCard(result) {
+        const finals = (result.reference.finalAnswered || 0) + (result.candidate.finalAnswered || 0) > 0;
         const head = el('tr', {}, el('th', {scope: 'col', text: t('pv.trial.version')}),
             // K121: an action's word of a hyphen (Step-up) is kept whole in its head by a hyphen that does not break
             ...PV.ACTIONS.map(action => el('th', {scope: 'col', class: 'zt-num',
                 text: PV.actionName(action).replace(/-/g, '‑')})),
             el('th', {scope: 'col', class: 'zt-num', text: t('pv.trial.noAnswer')}));
-        const row = (side, tag) => el('tr', {}, el('td', {class: 'zt-fill', text: side.name + ' ' + tag}),
-            ...PV.ACTIONS.map(action => el('td', {class: 'zt-num', text: ZT.count(side.actions[action] || 0)})),
-            el('td', {class: 'zt-num', text: ZT.count(side.noAnswer)}));
+        // The counts of a side: its first answers, or its final actions and the replays that end in none.
+        const counts = (side, final) => final
+            ? {actions: side.finalActions || {}, answered: side.finalAnswered || 0,
+                none: side.answered + side.noAnswer - (side.finalAnswered || 0)}
+            : {actions: side.actions, answered: side.answered, none: side.noAnswer};
+        const label = (side, tag, final) => side.name + ' ' + tag
+            + (finals ? ' · ' + t(final ? 'pv.trial.finalTag' : 'pv.trial.firstTag') : '');
+        const row = (side, tag, final) => {
+            const shown = counts(side, final);
+            return el('tr', {}, el('td', {class: 'zt-fill', text: label(side, tag, final)}),
+                ...PV.ACTIONS.map(action => el('td', {class: 'zt-num', text: ZT.count(shown.actions[action] || 0)})),
+                el('td', {class: 'zt-num', text: ZT.count(shown.none)}));
+        };
+        const kinds = finals ? [false, true] : [false];
+        const sides = [[result.reference, t('pv.trial.referenceTag')], [result.candidate, t('pv.trial.candidateTag')]];
+        const rows = kinds.flatMap(final => sides.map(([side, tag]) => row(side, tag, final)));
         // A phone cannot hold the six columns: it shows the same numbers as one bar per version.
-        const bars = [result.reference, result.candidate].map((side, index) => el('div', {class: 'zt-item'},
-            el('strong', {text: side.name + ' ' + t(index === 0 ? 'pv.trial.referenceTag' : 'pv.trial.candidateTag')}),
-            PV.actionBar(side.actions, side.answered),
-            side.noAnswer ? el('span', {class: 'zt-muted', text: t('pv.trial.noAnswer') + ' ' + ZT.count(side.noAnswer)})
-                : null));
+        const bars = kinds.flatMap(final => sides.map(([side, tag]) => {
+            const shown = counts(side, final);
+            return el('div', {class: 'zt-item'}, el('strong', {text: label(side, tag, final)}),
+                PV.actionBar(shown.actions, shown.answered),
+                shown.none ? el('span', {class: 'zt-muted', text: t('pv.trial.noAnswer') + ' ' + ZT.count(shown.none)})
+                    : null);
+        }));
         return ZT.card(t('pv.trial.distribution'), t('pv.trial.distributionAside', ZT.count(result.pairs)),
             el('div', {class: 'zt-table-wrap pv-desk'}, el('table', {class: 'zt-table modern-table'},
-                el('thead', {}, head), el('tbody', {}, row(result.reference, t('pv.trial.referenceTag')),
-                    row(result.candidate, t('pv.trial.candidateTag'))))),
-            el('div', {class: 'zt-stack pv-phone'}, ...bars));
+                el('thead', {}, head), el('tbody', {}, ...rows))),
+            el('div', {class: 'zt-stack pv-phone'}, ...bars),
+            finals ? PQA.muted(t('pv.trial.finalNote')) : null);
     }
 
     /**
@@ -268,7 +293,9 @@
             const asked = await PV.confirm({title: t('pqa.answer.trialTitle'),
                 rows: [[t('pv.trial.column.target'), target], [t('pqa.answer.trialActions'),
                     PV.actionName(pair.referenceAction) + ' → ' + PV.actionName(pair.candidateAction)]],
-                content: [answer.node, PQA.muted(t('pqa.answer.trialNote'))], confirmLabel: t('pqa.answer.promote'),
+                // Quality plan 3.2: the person's data the case keeps is said before it is kept, as on every way in.
+                content: [global.PQA_CASE_ANSWER.privacyNotice(), answer.node, PQA.muted(t('pqa.answer.trialNote'))],
+                confirmLabel: t('pqa.answer.promote'),
                 icon: 'fa-upload'});
             if (!asked) {
                 return;

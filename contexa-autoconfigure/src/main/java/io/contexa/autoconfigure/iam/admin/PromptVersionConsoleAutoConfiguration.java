@@ -101,9 +101,9 @@ import java.util.UUID;
  * replay of sealed decisions (SealedDecisionReplayAutoConfiguration), which the prompt inspection's switch does not
  * turn off. The labelled cases of the prompt quality measurement and their published sets (quality plan 3.2) stand on the
  * same schema as the versions, and the measurements (quality plan 3.3) on the cases and the replay: they wait in the
- * line of the trials, and one server at a time runs them under the lock of the scheduled work of Contexa. The menu bar
- * of the screens of the prompt quality assurance group and its new screens (quality plan 3.8) stand on the version
- * service too.
+ * line of the trials, and one server at a time runs them and the trials under the lock of the scheduled work of
+ * Contexa. The menu bar of the screens of the prompt quality assurance group and its new screens (quality plan 3.8)
+ * stand on the version service too.
  */
 @AutoConfiguration(after = {PromptVersionAutoConfiguration.class, PromptGovernanceAutoConfiguration.class,
         PromptInspectionAutoConfiguration.class, SealedDecisionReplayAutoConfiguration.class,
@@ -112,6 +112,10 @@ import java.util.UUID;
 @ConditionalOnProperty(prefix = "contexa.prompt.governance", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(PqaOssQualityProperties.class)
 public class PromptVersionConsoleAutoConfiguration {
+
+    /** The name of this server in the heartbeat of a measurement or a trial it runs. */
+    private final String serverId = ManagementFactory.getRuntimeMXBean().getName() + "#"
+            + UUID.randomUUID().toString().substring(0, 8);
 
     /**
      * Quality plan 3.3: the line of this server the trials and the measurements wait in, one after the other on one
@@ -125,8 +129,11 @@ public class PromptVersionConsoleAutoConfiguration {
     }
 
     /**
-     * Plan 6-5: the trials, one at a time in the line of the measurements; a trial a stop left unfinished is marked
-     * failed.
+     * Plan 6-5, quality plan 3.3: the trials, one at a time in the line of the measurements and, among the servers of
+     * one database, under the lock the measurements take, with the heartbeat of the measurements. A trial a server
+     * left is resumed by the server that takes the lock next; one of a release before, which keeps no list of its
+     * sealed decisions, is marked failed. Quality plan 3.10: the second pass is asked with the second layer's own
+     * model after an ESCALATE, and the closing rules of the server's settings give the final action.
      */
     @Bean(name = "contexaPromptVersionTrials", destroyMethod = "close")
     @ConditionalOnMissingBean
@@ -134,14 +141,20 @@ public class PromptVersionConsoleAutoConfiguration {
     public PromptVersionTrials promptVersionTrials(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
                                                    PromptVersionService versions, SealedDecisionReplays replays,
                                                    PromptQualityRunLine contexaPromptQualityRunLine,
-                                                   ObjectProvider<PromptVersionAudit> audit) {
+                                                   ObjectProvider<PromptVersionAudit> audit,
+                                                   PqaOssQualityProperties properties,
+                                                   ObjectProvider<LockProvider> lockProviders,
+                                                   ObjectProvider<TieredStrategyProperties> tiered) {
         PromptVersionTrials trials = new PromptVersionTrials(() -> jdbcTemplate, versions,
                 (actor, packageId, version) -> replays.replayPackage(actor, packageId,
-                        new SealedDecisionReplays.ReplayRequest(version, null, null, null))
-                        .map(replayed -> PromptVersionTrials.replayed(replayed.result())),
+                        new SealedDecisionReplays.ReplayRequest(version, null, null, null, true))
+                        .map(replayed -> PromptVersionTrials.replayed(replayed.result(),
+                                QualityModelSetting.closingRules(tiered.getIfAvailable()))),
                 contexaPromptQualityRunLine.executor(), audit.getIfAvailable(PromptVersionAudit::none),
-                Clock.systemUTC());
+                Clock.systemUTC(), qualityRunLock(lockProviders), properties.getMeasurement().toSettings().heartbeat(),
+                serverId);
         trials.closeInterrupted();
+        trials.startLookingForWork();
         return trials;
     }
 
@@ -182,10 +195,7 @@ public class PromptVersionConsoleAutoConfiguration {
             ObjectProvider<TieredLLMProperties> models, ObjectProvider<SecurityZeroTrustProperties> zeroTrust,
             @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel,
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
-        LockProvider lockProvider = lockProviders.getIfUnique();
-        QualityMeasureLock lock = lockProvider != null
-                ? QualityMeasureLock.shedLock(lockProvider, PromptQualityMeasurements.LOCK_NAME, Clock.systemUTC())
-                : QualityMeasureLock.local();
+        QualityMeasureLock lock = qualityRunLock(lockProviders);
         PromptQualityMeasurements measurements = new PromptQualityMeasurements(() -> jdbcTemplate, versions,
                 contexaPromptQualityCases,
                 (actor, given, contextFormat, version, userBaseline, organizationBaseline, scope, timeZone) ->
@@ -196,10 +206,20 @@ public class PromptVersionConsoleAutoConfiguration {
                 () -> QualityModelSetting.settings(tiered.getIfAvailable(), models.getIfAvailable(),
                         zeroTrust.getIfAvailable(), defaultModel(primaryChatModel)),
                 () -> QualityModelSetting.closingRules(tiered.getIfAvailable()),
-                properties.getMeasurement().toSettings(), objectMapper, Clock.systemUTC(),
-                ManagementFactory.getRuntimeMXBean().getName() + "#" + UUID.randomUUID().toString().substring(0, 8));
+                properties.getMeasurement().toSettings(), objectMapper, Clock.systemUTC(), serverId);
         measurements.startLookingForWork();
         return measurements;
+    }
+
+    /**
+     * Quality plan 3.3: the lock the measurements and the trials take, of the lock store of the scheduled work of
+     * Contexa (ShedLock) the servers of one database share; without it the lock of this server alone.
+     */
+    private static QualityMeasureLock qualityRunLock(ObjectProvider<LockProvider> lockProviders) {
+        LockProvider lockProvider = lockProviders.getIfUnique();
+        return lockProvider != null
+                ? QualityMeasureLock.shedLock(lockProvider, PromptQualityMeasurements.LOCK_NAME, Clock.systemUTC())
+                : QualityMeasureLock.local();
     }
 
     /**

@@ -263,6 +263,11 @@ class PromptQualityScreenMessagesTest {
                         "PV.useVersion(trial.candidate, true, drawTrial)", "result.sameAction",
                         "result.candidate.formatErrors", "result.candidate.averageMs",
                         "result.candidate.averageAnswerTokens", "result.changed", "MEASURE.views.trial = drawTrial");
+        // Quality plan 3.10: the final actions beside the first answers; 3.3: a trial that waits for the lock says so;
+        // 3.2: the person's data is said before a changed decision is made a case.
+        assertThat(trials).contains("'pv.trial.firstTag'", "'pv.trial.finalTag'", "'pv.trial.finalNote'",
+                "'pv.trial.queuedLine'", "side.finalActions", "side.finalAnswered",
+                "global.PQA_CASE_ANSWER.privacyNotice()");
         assertThat(PromptQualityScreenMessagesTest.class.getClassLoader()
                 .getResource("templates/contexa/admin/prompt-version/trials.html")).isNull();
         assertThat(PromptQualityScreenMessagesTest.class.getClassLoader()
