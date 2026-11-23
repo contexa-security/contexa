@@ -348,10 +348,10 @@
             PQA.pills(m('run.basis'), ['FIRST', 'FINAL'].map(key => [key, m('run.basis.' + key),
                 m('run.basis.' + key + '.def')]), basis, key => {
                 basis = key;
-                holder.replaceChildren(...runParts(run, basis === 'FIRST' ? run.firstAnswer : run.finalAction));
+                holder.replaceChildren(...basisParts(run, basis));
             }),
             ZT.info(m('run.basisTip')));
-        holder.replaceChildren(...runParts(run, run.firstAnswer));
+        holder.replaceChildren(...basisParts(run, basis));
         content.replaceChildren(pickBox, holder);
         const grade = PQA.params().get('grade');
         if (grade) {
@@ -395,15 +395,35 @@
     function metricRow(metric) {
         const note = metricNote(metric);
         const time = metric.key === 'TIME';
+        // Quality plan 3.3: with two runs or more, the cases where it happened in at least one run, beside the rate.
+        const anyRun = metric.anyCases != null && metric.anyOf ? el('span', {class: 'zt-muted pv-cut',
+            'data-any-run': metric.key, text: m('metric.anyRun', ZT.count(metric.anyCases), ZT.count(metric.anyOf))})
+            : null;
         return el('tr', {title: definitionOf(metric), 'data-metric': metric.key},
             el('td', {class: 'zt-fill'}, el('div', {class: 'zt-item'},
                 el('span', {class: 'pv-cut', text: m('metric.' + metric.key)}),
                 note ? el('span', {class: 'zt-muted pv-cut', text: note}) : ZT.bar(metric.n ? metric.k / metric.n : null, 1,
                     {lower: metric.lo, upper: metric.hi, color: C.ACCENT, label: m('metric.' + metric.key) + ' '
-                        + percentOf(metric)}))),
+                        + percentOf(metric)}), anyRun)),
             PQA.cell(metricValue(metric), {class: 'zt-num'}),
             PQA.cell(time || metric.none ? '—' : countsOf(metric), {class: 'zt-num'}),
             PQA.cell(time || metric.none ? '—' : rangeOf(metric), {class: 'zt-num zt-wide'}));
+    }
+
+    /**
+     * The parts of a measurement on a basis. The final action says first what its closing rules leave out (quality
+     * plan 3.3): the overload protection, which depends on the load of the moment, and the second pass of a case
+     * whose first answer found no past records, whose search cannot be replayed, so its final action is incomplete.
+     */
+    function basisParts(run, basis) {
+        if (basis !== 'FINAL') {
+            return runParts(run, run.firstAnswer);
+        }
+        const rules = el('div', {class: 'zt-alert max-sm:!grid-cols-1', role: 'note', 'data-final-rules': 'true'},
+            ZT.statusChip('INFO', m('run.finalRules.chip')),
+            el('div', {class: 'zt-item'}, el('span', {text: m('run.finalRules.overload')}),
+                el('span', {text: m('run.finalRules.secondSearch')})));
+        return [rules, ...runParts(run, run.finalAction)];
     }
 
     function runParts(run, b) {

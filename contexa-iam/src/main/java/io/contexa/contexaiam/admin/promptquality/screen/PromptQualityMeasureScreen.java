@@ -507,7 +507,7 @@ public class PromptQualityMeasureScreen {
     private static Metric missOf(@Nullable QualityScore score, int repeats) {
         return score != null ? metric(QualityMetric.MISS, score.rate(QualityMetric.MISS), repeats)
                 : new Metric(QualityMetric.MISS.name(), 0L, 0L, null, null, null, 0, "NO_CASES", null, null, null,
-                null);
+                null, null, null);
     }
 
     static List<Metric> metrics(QualityScore score, int repeats) {
@@ -519,20 +519,27 @@ public class PromptQualityMeasureScreen {
         QualitySpread tokens = score.answerTokens();
         metrics.add(new Metric(TIME, null, null, null, null, null, 0, time.count() == 0 ? "NO_CASES" : null,
                 number(time.median()), number(time.ninetyFifth()), number(tokens.median()),
-                number(tokens.ninetyFifth())));
+                number(tokens.ninetyFifth()), null, null));
         return List.copyOf(metrics);
     }
 
+    /**
+     * A rate of a measurement as the screen shows it. With two runs or more, the cases where it happened in at least
+     * one run are given beside it (quality plan 3.3: shown only as an aid, never the rate itself); the consistency is
+     * already counted by case over the runs, so it has none.
+     */
     static Metric metric(QualityMetric metric, @Nullable QualityRate rate, int repeats) {
         if (metric == QualityMetric.CONSISTENCY && repeats < 2) {
-            return new Metric(metric.name(), null, null, null, null, null, 0, "ONE_RUN", null, null, null, null);
+            return new Metric(metric.name(), null, null, null, null, null, 0, "ONE_RUN", null, null, null, null, null,
+                    null);
         }
         Rate value = rate(rate);
         if (value == null) {
-            return new Metric(metric.name(), 0L, 0L, null, null, null, 0, null, null, null, null, null);
+            return new Metric(metric.name(), 0L, 0L, null, null, null, 0, null, null, null, null, null, null, null);
         }
+        boolean anyRun = repeats >= 2 && metric != QualityMetric.CONSISTENCY && rate.cases() > 0;
         return new Metric(metric.name(), value.k(), value.n(), value.value(), value.lo(), value.hi(), value.roots(),
-                null, null, null, null, null);
+                null, null, null, null, null, anyRun ? rate.casesWithEvent() : null, anyRun ? rate.cases() : null);
     }
 
     @Nullable

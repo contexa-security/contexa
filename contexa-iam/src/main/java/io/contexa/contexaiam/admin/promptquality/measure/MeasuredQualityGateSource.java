@@ -383,7 +383,7 @@ public class MeasuredQualityGateSource implements QualityGateSource {
         Taken reference = pair[0] != null ? pair[0] : pair[1];
         for (Side side : current != null ? List.of(current, candidate) : List.of(candidate)) {
             List<Taken> own = side.fresh().stream().filter(taken -> taken.row != null
-                    && taken.comparableWith(reference) && ownAnswers(taken.row)).limit(2).toList();
+                    && taken.comparableWith(reference) && ownAnswers(jdbc.get(), taken.row)).limit(2).toList();
             if (own.size() == 2) {
                 return QualityNoise.between(items, own.get(0).measurement(runner), own.get(1).measurement(runner),
                         QualityActionBasis.FIRST_ANSWER);
@@ -394,13 +394,13 @@ public class MeasuredQualityGateSource implements QualityGateSource {
 
     /**
      * Whether every answer of the measurement is its own: it was taken anew, or it used no answer kept from another
-     * measurement again.
+     * measurement again. The scheduled comparison reads its noise by the same rule (plan 3.6).
      */
-    private boolean ownAnswers(PromptQualityMeasurements.Measure measure) {
+    static boolean ownAnswers(JdbcTemplate jdbc, PromptQualityMeasurements.Measure measure) {
         if (measure.anew()) {
             return true;
         }
-        Integer reused = jdbc.get().queryForObject("select count(*) from ctxa_prompt_version_measure_answer where"
+        Integer reused = jdbc.queryForObject("select count(*) from ctxa_prompt_version_measure_answer where"
                 + " measure_id = ? and reused_from_answer_id is not null", Integer.class, measure.id());
         return reused == null || reused == 0;
     }

@@ -153,7 +153,7 @@ class PromptQualityScreenTemplateTest {
     void theScriptsAndStylesCarryAVersionMark() throws IOException {
         // K197: the script of the cases changed its words of a case's input and raised its mark; K200: it draws the
         // answer fields with the shared script, which raised its mark too.
-        Map<String, String> marks = Map.of("cases", "20261123-b2f", "measure", "20261123-fb");
+        Map<String, String> marks = Map.of("cases", "20261123-b2f", "measure", "20261123-sup2");
         for (String screen : List.of("cases", "measure")) {
             String template = read("templates/contexa/admin/prompt-quality/" + screen + ".html");
             Matcher assets = Pattern.compile("@\\{(/contexa/[^}]*\\.(?:js|css)[^}]*)}").matcher(template);
