@@ -78,9 +78,13 @@ class ConsoleOutputEscapingTest {
 
     private static final Pattern RAW_OUTPUT = Pattern.compile("th:utext=\"([^\"]*)\"");
 
-    /** The raw outputs that are known to be safe: the two script payloads and the menu icons checked on the server. */
+    /**
+     * The raw outputs that are known to be safe: the two script payloads, the menu icons checked on the server, and the
+     * addresses of the quality status screen, which are the server's own constant paths written as JSON with every
+     * {@code </} hidden, so that nothing a user typed reaches them and they cannot end their script element.
+     */
     private static final Set<String> CHECKED_RAW_OUTPUTS = Set.of(
-            "${scriptMessagesJson}", "${screenSettingsJson}", "${node.icon()}", "${menu.icon}");
+            "${scriptMessagesJson}", "${screenSettingsJson}", "${node.icon()}", "${menu.icon}", "${pathsJson}");
 
     private static final Pattern UNESCAPED_INLINING = Pattern.compile("\\[\\(\\s*[$#*@]\\{");
 
