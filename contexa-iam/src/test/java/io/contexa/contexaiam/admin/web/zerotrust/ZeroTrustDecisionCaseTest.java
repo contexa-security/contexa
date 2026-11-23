@@ -140,7 +140,9 @@ class ZeroTrustDecisionCaseTest {
                 .get("scriptMessagesJson"), Map.class);
         assertThat(words).containsEntry("pqa.answer.allowed", "정답(허용되는 조치)")
                 .containsEntry("zt.console.ui.decision.case.choice", "이 판정을 정답 사례로도 올리기")
-                .containsEntry("zt.console.ui.decision.laterBreach.button", "허용 뒤 침해로 확인");
+                .containsEntry("zt.console.ui.decision.laterBreach.button", "허용 뒤 침해로 확인")
+                .containsEntry("pqa.cases.detail.privacy", "개인 정보")
+                .containsKey("pqa.cases.detail.privacyLine");
         MvcResult overview = mvc.perform(get("/contexa/admin/zero-trust").principal(admin).locale(Locale.KOREAN))
                 .andReturn();
         assertThat((String) overview.getModelAndView().getModel().get("scriptMessagesJson"))
@@ -150,8 +152,8 @@ class ZeroTrustDecisionCaseTest {
                 .getContentAsString(StandardCharsets.UTF_8);
         assertThat(template).contains("id=\"pqa-confirm-overlay\"")
                 .contains("/contexa/js/admin/prompt-quality/pqa-parts.js?v=20261122-s3")
-                .contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f")
-                .contains("/contexa/js/admin/zero-trust/decision.js?v=20261122-s3b");
+                .contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-sup3")
+                .contains("/contexa/js/admin/zero-trust/decision.js?v=20261123-sup3");
         assertThat(template.indexOf("case-answer.js")).isLessThan(template.indexOf("decision.js"));
     }
 

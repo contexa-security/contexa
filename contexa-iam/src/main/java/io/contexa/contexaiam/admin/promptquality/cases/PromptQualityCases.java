@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.promptquality.cases;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCase;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCaseDocuments;
@@ -44,7 +45,6 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -277,8 +277,9 @@ public class PromptQualityCases {
             throw new RefusedException(Refusal.INVALID, unreadable.getMessage());
         }
         String subject = QualityCaseSealedForm.subject(input);
-        // The decision was drawn in the time zone of the server that made it, and with the context format it reads.
-        QualityCaseEnvironment environment = new QualityCaseEnvironment(ZoneId.systemDefault().getId(),
+        // The engine draws a decision's wall-clock times in the company's time zone (the system's when none is set),
+        // so the case keeps that zone, with the context format this build reads. Cases kept earlier stay as they are.
+        QualityCaseEnvironment environment = new QualityCaseEnvironment(EventTimeZone.get().getId(),
                 SealedDecisionReplayInputs.CONTEXT_FORMAT_VERSION);
         return insert(scope, prompt, QualityCaseOrigin.OPERATION, input, expectation, grade, null, environment,
                 sealed.getPackageId(), subject != null ? subject : sealed.getUserId(), actor,

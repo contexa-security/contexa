@@ -285,8 +285,7 @@
             el('span', {text: row.root ? m('rootOf', row.root) : m('rootSelf')}),
             row.pending ? ZT.statusChip('WARN', m('now.PENDING')) : null,
             el('span', {text: row.at ? ZT.time(row.at) : m('origin.CONTEXA')}));
-        const privacy = d.privacy ? el('div', {class: 'zt-alert max-sm:!grid-cols-1', role: 'note'},
-            ZT.statusChip('WARN', m('detail.privacy')), el('span', {text: m('detail.privacyLine')})) : null;
+        const privacy = d.privacy ? global.PQA_CASE_ANSWER.privacyNotice() : null;
         const lang = document.documentElement.lang || 'en';
         const why = lang === 'ko' ? (d.rationaleKo || d.rationaleEn) : (d.rationaleEn || d.rationaleKo);
         const answer = ZT.card(m('detail.answer'), m('detail.answerAside'),
@@ -512,8 +511,7 @@
         const fields = answerFields(null);
         const answer = await PV.confirm({title: m('promote.title'), rows: [], confirmLabel: m('promote'),
             icon: 'fa-upload', content: [el('div', {class: 'flex flex-col gap-3 mb-3'},
-                el('div', {class: 'zt-alert max-sm:!grid-cols-1', role: 'note'}, ZT.statusChip('WARN', m('detail.privacy')),
-                    el('span', {text: m('detail.privacyLine')})),
+                global.PQA_CASE_ANSWER.privacyNotice(),
                 el('label', {class: 'zt-filter-field'}, el('span', {class: 'zt-filter-name', text: m('promote.id')}), id),
                 fields.node)]});
         if (!answer) {

@@ -509,7 +509,7 @@
         const rows = [[m('replay.integrity'), m('replay.integrity.' + answer.integrity)],
             [m('column.action'), result.action ? ZT.t('zt.console.ui.action.' + result.action) : null],
             [m('detail.reason'), result.reason], [m('replay.codes'), codes],
-            [m('detail.model'), telemetry.model || telemetry.modelName],
+            [m('detail.model'), telemetry.providerResponseModel],
             [m('replay.took'), result.elapsedMs != null ? ZT.seconds(result.elapsedMs) : null],
             [m('replay.baselines'), m('replay.baselines.' + answer.baselines)],
             [m('replay.failure'), result.failure]];
@@ -570,7 +570,7 @@
         const asked = await P.dialog({title: m('promote.title'),
             rows: [[m('column.who'), ZT.time(detail.capturedAt) + ' · ' + (detail.userId || '—')],
                 [m('replay.original'), detail.action ? ZT.t('zt.console.ui.action.' + detail.action) : '—']],
-            content: [answer.node, P.muted(m('promote.note'))],
+            content: [global.PQA_CASE_ANSWER.privacyNotice(), answer.node, P.muted(m('promote.note'))],
             confirmLabel: m('promote.run'), cancelLabel: m('dialog.cancel'), icon: 'fa-upload',
             check: answer.check});
         if (!asked) {

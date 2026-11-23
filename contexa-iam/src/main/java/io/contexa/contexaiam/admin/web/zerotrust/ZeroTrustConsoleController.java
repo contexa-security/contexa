@@ -68,6 +68,8 @@ public class ZeroTrustConsoleController {
     static final String API = "/contexa/admin/api/zero-trust";
     /** The words of the input window of the answer of a case, which the decision's detail shows (quality plan 3.6). */
     static final String DECISION_CASE_WORDS = "pqa.answer.";
+    /** The notice of the person's data that every window making a case shows (quality plan 3.2, CaseAnswer). */
+    static final String CASE_PRIVACY_WORDS = "pqa.cases.detail.privacy";
 
     private final ZeroTrustConsoleService service;
     private final ZeroTrustDecisionRecords records;
@@ -357,7 +359,8 @@ public class ZeroTrustConsoleController {
         // Quality plan 3.6: a decision's detail makes it a labelled case with the words of the answer's input window.
         model.addAttribute("scriptMessagesJson", "decision".equals(screen)
                 ? ZeroTrustConsoleMessages.json(messages, locale, objectMapper, ZeroTrustConsoleMessages.PREFIX,
-                DECISION_CASE_WORDS) : ZeroTrustConsoleMessages.json(messages, locale, objectMapper));
+                DECISION_CASE_WORDS, CASE_PRIVACY_WORDS) : ZeroTrustConsoleMessages.json(messages, locale,
+                objectMapper));
         return "contexa/admin/zero-trust/" + screen;
     }
 
