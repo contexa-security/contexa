@@ -285,7 +285,8 @@ class RedisKeyRoutingSourceTest {
                 throw new UncheckedIOException(failure);
             }
         }
-        assertThat(sources).as("sources of the five modules").hasSizeGreaterThan(2500);
+        // About 2,300 since the official verification left the core and the administration module (plan 2.1).
+        assertThat(sources).as("sources of the five modules").hasSizeGreaterThan(2000);
         return sources;
     }
 

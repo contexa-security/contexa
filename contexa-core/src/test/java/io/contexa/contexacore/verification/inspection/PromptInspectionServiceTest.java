@@ -70,11 +70,6 @@ class PromptInspectionServiceTest {
             }
 
             @Override
-            public int removeCleanPackagesCapturedBefore(Instant before, int limit) {
-                return results.removeCleanPackagesCapturedBefore(before, limit);
-            }
-
-            @Override
             public PeriodCount countPeriod(String inspectorVersion, Instant from, Instant to, int samplePercent) {
                 return results.countPeriod(inspectorVersion, from, to, samplePercent);
             }
@@ -164,11 +159,6 @@ class PromptInspectionServiceTest {
             @Override
             public int removeResults(String inspectorVersion, Instant from, Instant to, int samplePercent) {
                 return results.removeResults(inspectorVersion, from, to, samplePercent);
-            }
-
-            @Override
-            public int removeCleanPackagesCapturedBefore(Instant before, int limit) {
-                return results.removeCleanPackagesCapturedBefore(before, limit);
             }
 
             @Override

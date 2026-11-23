@@ -21,11 +21,11 @@ import io.contexa.contexacore.autonomous.company.CompanyRecordSet.Approval;
 import io.contexa.contexacore.autonomous.company.CompanyRecordSet.OnCall;
 import io.contexa.contexacore.autonomous.company.CompanyRecordSet.Usage;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.ApprovalRecord;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.AssignmentRecord;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.FrictionProfile;
 import io.contexa.contexacore.autonomous.context.enricher.RecordedDelegationContextProvider;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
-import io.contexa.contexacore.verification.inspection.InspectedPrompt;
 import io.contexa.contexacore.verification.inspection.PromptFactSourceVerifier;
 import io.contexa.contexacore.verification.inspection.PromptInspectionSubject;
 import io.contexa.contexacore.verification.inspection.PromptInspectionUnavailableException;
@@ -40,8 +40,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * The source truth check's reading of Contexa's own records (docs/agent OC-4): for a sealed decision, the company
@@ -50,8 +48,8 @@ import java.util.regex.Pattern;
  * <ul>
  *     <li>whether the person was on call, and whether they were assigned to the target (or its account manager), when
  *     the decision looked these up;</li>
- *     <li>the approval the prompt's approval line names: its approver, its item limit and what was delivered under it
- *     before the request;</li>
+ *     <li>the approval the sealed decision collected first, when it names its approver (the one the decision's approval
+ *     line names first): its approver, its item limit and what was delivered under it before the request;</li>
  *     <li>the delegation record the decision used: its agent and person, its objective, and who wrote it.</li>
  * </ul>
  * A person or delegation the decision used and the stores no longer hold (the account was deleted) is reported as
@@ -62,7 +60,6 @@ public class CompanyRecordsFactSourceVerifier implements PromptFactSourceVerifie
 
     static final String RECORDS = "contexa company records ";
     static final String DELEGATIONS = "contexa delegation registry";
-    private static final Pattern APPROVAL = Pattern.compile("^(\\S+) by ");
 
     private final CompanyRecordStore records;
     @Nullable
@@ -99,7 +96,7 @@ public class CompanyRecordsFactSourceVerifier implements PromptFactSourceVerifie
                 if (person.people().isEmpty()) {
                     return SourceReading.notKept(RECORDS + "(person)");
                 }
-                companyFacts(facts, friction, person, context, subject.prompt());
+                companyFacts(facts, friction, person, context);
             }
             String delegationId = context.getAttributes() != null
                     ? text(context.getAttributes().get(RecordedDelegationContextProvider.RECORD_ID_ATTRIBUTE)) : null;
@@ -123,7 +120,7 @@ public class CompanyRecordsFactSourceVerifier implements PromptFactSourceVerifie
     }
 
     private static void companyFacts(List<SourceFact> facts, FrictionProfile friction, CompanyRecordSet person,
-                                     CanonicalSecurityContext context, InspectedPrompt prompt) {
+                                     CanonicalSecurityContext context) {
         Instant at = context.getRequestObservedAt();
         if (friction.getOnCall() != null) {
             boolean onCall = person.onCall().stream().anyMatch(shift -> active(shift, at));
@@ -144,7 +141,7 @@ public class CompanyRecordsFactSourceVerifier implements PromptFactSourceVerifie
             facts.add(held ? fact("Assignment", holds, lacks, "assignment") : fact("Assignment", lacks, null,
                     "assignment"));
         }
-        approvalKey(prompt).flatMap(key -> person.approvals().stream().filter(record -> key.equals(record.id()))
+        approvalKey(friction).flatMap(key -> person.approvals().stream().filter(record -> key.equals(record.id()))
                 .findFirst()).ifPresent(approval -> facts.addAll(approvalFacts(approval, person, context)));
     }
 
@@ -209,16 +206,20 @@ public class CompanyRecordsFactSourceVerifier implements PromptFactSourceVerifie
                 && (shift.endsAt() == null || at.isBefore(shift.endsAt()));
     }
 
-    /** The approval the prompt names on its approval line, which the store then reads by its key. */
-    private static Optional<String> approvalKey(@Nullable InspectedPrompt prompt) {
-        if (prompt == null) {
+    /**
+     * The approval the sealed decision collected first, which the store then reads by its key: the first approval record
+     * with an id, when it names its approver (the approval line names that one first, with its approver).
+     */
+    private static Optional<String> approvalKey(FrictionProfile friction) {
+        if (friction.getApprovalRecords() == null) {
             return Optional.empty();
         }
-        return prompt.lines().stream()
-                .filter(line -> line.kind() == InspectedPrompt.Kind.ENTRY && line.entryLine() != null)
-                .filter(line -> line.block() == PromptBlock.DECISION_FACTS && "Approval".equals(line.entryLine().label()))
-                .map(line -> APPROVAL.matcher(line.entryLine().value()))
-                .filter(Matcher::find).map(matcher -> matcher.group(1)).findFirst();
+        return friction.getApprovalRecords().stream()
+                .filter(record -> record != null && text(record.getApprovalId()) != null)
+                .findFirst()
+                .filter(record -> text(record.getApprover()) != null)
+                .map(ApprovalRecord::getApprovalId)
+                .map(String::trim);
     }
 
     private static SourceFact fact(String entry, String fragment, @Nullable String excluded, String kind) {

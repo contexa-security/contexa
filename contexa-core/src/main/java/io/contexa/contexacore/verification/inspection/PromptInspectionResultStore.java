@@ -47,16 +47,6 @@ public interface PromptInspectionResultStore {
      */
     int removeResults(String inspectorVersion, Instant from, Instant to, int samplePercent);
 
-    /**
-     * Removes up to {@code limit} sealed packages captured before {@code before}, oldest capture first, whose latest
-     * result found nothing wrong (PASS or NOT_APPLICABLE) and that no official verification run names, with their
-     * results (R4-S5). The sealed rows are deleted, never changed. A package whose latest result is FAIL,
-     * INCOMPLETE or ERROR, or that has no result, is left to the default retention.
-     *
-     * @return how many packages were removed
-     */
-    int removeCleanPackagesCapturedBefore(Instant before, int limit);
-
     /** The packages captured in the period that the round samples, and how many have no result of this version. */
     PeriodCount countPeriod(String inspectorVersion, Instant from, Instant to, int samplePercent);
 

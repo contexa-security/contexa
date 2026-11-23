@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.evidence;
 
+import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexacore.verification.evidence.SealedEvidenceChain;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
@@ -17,6 +18,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public final class JdbcSealedEvidencePackageRepository implements SealedEvidencePackageRepository, SealedEvidenceChain {
 
@@ -82,6 +85,28 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
                   where id < ? and package_signature is not null order by id desc limit 1)
             ) kept
             """;
+    /** The outcome kinds that are an administrator's evaluation of a decision, as the values of an SQL IN list. */
+    private static final String EVALUATIONS = Stream.of(ZeroTrustDecisionOutcomes.Kind.EVALUATED_VALID,
+                    ZeroTrustDecisionOutcomes.Kind.EVALUATED_INVALID)
+            .map(kind -> "'" + kind.name() + "'").collect(Collectors.joining(", "));
+    /**
+     * The retention's delete: the packages past their expiry, except the ones something still stands on. The package
+     * a prompt version trial decided again, and the package of a decision an administrator evaluated (the evaluation
+     * names the decision's request), stay past their expiry for as long as that trial case or evaluation is kept. So
+     * does the package a labelled case was promoted from (quality plan 3.7), for as long as the case is kept: the case
+     * names it to show the evidence of its input.
+     */
+    private static final String DELETE_EXPIRED_SQL = """
+            delete from ctxa_sealed_evidence_package p
+             where p.expires_at < ?
+               and not exists (select 1 from ctxa_prompt_version_trial_case trial_case
+                                where trial_case.sealed_package_id = p.package_id)
+               and not exists (select 1 from ctxa_prompt_version_case labelled_case
+                                where labelled_case.sealed_package_id = p.package_id)
+               and not exists (select 1 from ctxa_zt_decision_outcome outcome
+                                where outcome.request_id = p.correlation_id
+                                  and outcome.outcome_kind in (%s))
+            """.formatted(EVALUATIONS);
     private final JdbcOperations jdbcOperations;
     /** Seals linked packages in the order this store inserts them. */
     private final Object sealLock = new Object();
@@ -179,10 +204,17 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
     }
 
     @Override
+    public long countCapturedSince(Instant since) {
+        Long count = jdbcOperations.queryForObject(
+                "select count(*) from ctxa_sealed_evidence_package where captured_at >= ?",
+                Long.class,
+                timestamp(since));
+        return count == null ? 0L : count;
+    }
+
+    @Override
     public long deleteByExpiresAtBefore(Instant now) {
-        return jdbcOperations.update(
-                "delete from ctxa_sealed_evidence_package where expires_at < ?",
-                timestamp(now));
+        return jdbcOperations.update(DELETE_EXPIRED_SQL, timestamp(now));
     }
 
     private SealedEvidencePackage insert(SealedEvidencePackage evidencePackage) {

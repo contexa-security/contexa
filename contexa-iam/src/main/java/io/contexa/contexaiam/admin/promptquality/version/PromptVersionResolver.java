@@ -21,6 +21,9 @@ import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRelease;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateReading;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
+import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurementState;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +52,11 @@ import java.util.function.Supplier;
  * console's database; without the registry (prompt governance turned off) it reads the setting and the newest version.
  * A prompt other than the security decision (plan 3.11) runs its label, else its newest Contexa version: the setting
  * names a version of the security decision.
+ *
+ * <p>Plan 3.4: the setting and the newest Contexa version decide without passing the release gate. The first time a
+ * version of the security decision decides that way, the store of measurements is asked once for that version alone,
+ * and a version without a measurement taken in this installation is logged as a warning. The screens read the state
+ * through the release gate.
  */
 public class PromptVersionResolver implements PromptBundleSelector {
 
@@ -62,8 +70,24 @@ public class PromptVersionResolver implements PromptBundleSelector {
     private final Set<String> warned = ConcurrentHashMap.newKeySet();
     private final Map<String, CachedVersion> latestProduct = new ConcurrentHashMap<>();
     private final Map<String, CachedVersion> existing = new ConcurrentHashMap<>();
+    /** Plan 3.4: the versions found deciding outside the gate, by prompt, version and source. */
+    private final Set<String> foundOutsideGate = ConcurrentHashMap.newKeySet();
+    private volatile Supplier<QualityGateSource> measurements = () -> null;
+    private volatile Supplier<OutsideGateListener> outsideGateListener = () -> null;
 
     private record CachedVersion(Optional<String> version, long readAt) {
+    }
+
+    /**
+     * Plan 3.4: what is told when a version of the security decision is found deciding outside the release gate
+     * without a measurement taken in this installation, so that it is measured. It is told on the decision's thread and
+     * hands the work over at once.
+     */
+    @FunctionalInterface
+    public interface OutsideGateListener {
+
+        void decidesOutsideGate(String prompt, String version, PromptBundleSelectionSource source,
+                                QualityMeasurementState state);
     }
 
     /**
@@ -77,6 +101,16 @@ public class PromptVersionResolver implements PromptBundleSelector {
         this.versions = Objects.requireNonNull(versions, "versions");
         this.configured = configured != null ? configured : () -> null;
         this.clock = clock != null ? clock : Clock.systemUTC();
+    }
+
+    /** Plan 3.4: where the measurements are read for a version that decides outside the gate; none when not set. */
+    public void setQualityGateSource(Supplier<QualityGateSource> measurements) {
+        this.measurements = measurements != null ? measurements : () -> null;
+    }
+
+    /** Plan 3.4: who measures a version found deciding outside the gate without a measurement; none when not set. */
+    public void setOutsideGateListener(Supplier<OutsideGateListener> listener) {
+        this.outsideGateListener = listener != null ? listener : () -> null;
     }
 
     @Override
@@ -101,8 +135,8 @@ public class PromptVersionResolver implements PromptBundleSelector {
         }
         if (setting != null && PromptVersionNames.number(setting).isPresent()) {
             if (isVersion(prompt, setting)) {
-                return new PromptBundleSelection(PromptVersionNames.name(number(setting)),
-                        PromptBundleSelectionSource.CONFIGURATION);
+                return outsideGate(prompt, new PromptBundleSelection(PromptVersionNames.name(number(setting)),
+                        PromptBundleSelectionSource.CONFIGURATION));
             }
             if (warned.add(prompt + "|" + setting)) {
                 log.warn("contexa.security.tiered.prompt-bundle.active names {}, which is not a version of {} that"
@@ -110,8 +144,71 @@ public class PromptVersionResolver implements PromptBundleSelector {
             }
         }
         return latest(prompt)
-                .map(version -> new PromptBundleSelection(version, PromptBundleSelectionSource.BUILD_DEFAULT))
+                .map(version -> outsideGate(prompt, new PromptBundleSelection(version,
+                        PromptBundleSelectionSource.BUILD_DEFAULT)))
                 .orElseGet(PromptBundleSelection::none);
+    }
+
+    /**
+     * Plan 3.4: a version of the security decision chosen by the setting or as the newest Contexa version decides
+     * without passing the release gate. The first time it is chosen so, its measurement is read once; one without a
+     * measurement taken here is logged as a warning, and a store that cannot be read is logged as an error. The
+     * selection is returned as it is.
+     */
+    private PromptBundleSelection outsideGate(String prompt, PromptBundleSelection selection) {
+        if (!SecurityDecisionPromptDocument.PROMPT.equals(prompt)) {
+            return selection;
+        }
+        String key = prompt + "|" + selection.bundleVersion() + "|" + selection.source().name();
+        if (foundOutsideGate.contains(key)) {
+            return selection;
+        }
+        QualityGateSource source = measurements.get();
+        QualityMeasurementState state;
+        try {
+            QualityGateReading reading = (source != null ? source : QualityGateSource.none())
+                    .read(PromptVersionService.PLATFORM_SCOPE, prompt, selection.bundleVersion(), null);
+            state = reading != null ? reading.state() : QualityMeasurementState.UNMEASURABLE;
+        }
+        catch (RuntimeException failure) {
+            // Not asked again for every decision: the decisions do not wait on a store that fails.
+            if (foundOutsideGate.add(key)) {
+                log.error("The measurement of {} {}, which decides outside the release gate, could not be read",
+                        prompt, selection.bundleVersion(), failure);
+            }
+            return selection;
+        }
+        if (!foundOutsideGate.add(key)) {
+            return selection;
+        }
+        if (state == QualityMeasurementState.MEASURED) {
+            log.debug("{} {} decides outside the release gate ({}) with a measurement taken in this installation",
+                    prompt, selection.bundleVersion(), selection.source());
+        }
+        else {
+            log.warn("{} {} decides outside the release gate ({}) with no measurement taken in this installation"
+                    + " ({}); the version screens show it",
+                    prompt, selection.bundleVersion(), selection.source() == PromptBundleSelectionSource.CONFIGURATION
+                            ? "the setting contexa.security.tiered.prompt-bundle.active" : "the newest Contexa version",
+                    state);
+            tellOutsideGate(prompt, selection, state);
+        }
+        return selection;
+    }
+
+    /** Plan 3.4: the version is measured automatically; the listener hands the work over, the decision goes on. */
+    private void tellOutsideGate(String prompt, PromptBundleSelection selection, QualityMeasurementState state) {
+        OutsideGateListener listener = outsideGateListener.get();
+        if (listener == null) {
+            return;
+        }
+        try {
+            listener.decidesOutsideGate(prompt, selection.bundleVersion(), selection.source(), state);
+        }
+        catch (RuntimeException failure) {
+            log.error("The automatic measurement of {} {}, which decides outside the release gate, could not be asked"
+                    + " for", prompt, selection.bundleVersion(), failure);
+        }
     }
 
     @Override

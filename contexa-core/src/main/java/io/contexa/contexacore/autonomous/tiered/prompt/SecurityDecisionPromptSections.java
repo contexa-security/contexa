@@ -230,6 +230,11 @@ public class SecurityDecisionPromptSections {
     public static final String EVENT_BUNDLE_VERSION = "promptBundleSelection.version";
     public static final String EVENT_BUNDLE_SOURCE = "promptBundleSelection.source";
     public static final String EVENT_BUNDLE_CONTENT_HASH = "promptBundleSelection.contentHash";
+    /**
+     * Quality plan 3.2: the registry scope the version fixed on the event is read in, when it is fixed with one (a
+     * replay of a labelled case reads the version of its measurement's scope); without it the store's own scope.
+     */
+    public static final String EVENT_BUNDLE_SCOPE = "promptBundleSelection.scope";
     private static final String SECOND_PASS_LAYOUT = "v20-second-pass";
     /** PR-91: the canonical contexts kept may take a thirty-second of the maximum heap, within these bounds. */
     private static final int CANONICAL_CONTEXT_HEAP_SHARE_DIVISOR = 32;
@@ -636,7 +641,7 @@ public class SecurityDecisionPromptSections {
         if (name == null || source == null) {
             return Optional.empty();
         }
-        Optional<AssembledPrompt> version = findVersion(name, source);
+        Optional<AssembledPrompt> version = findVersion(metadataText(metadata.get(EVENT_BUNDLE_SCOPE)), name, source);
         if (version.isPresent() && !version.get().contentHash().equals(metadata.get(EVENT_BUNDLE_CONTENT_HASH))) {
             event.addMetadata(EVENT_BUNDLE_CONTENT_HASH, version.get().contentHash());
         }
@@ -663,7 +668,7 @@ public class SecurityDecisionPromptSections {
                     product.release(), product);
         }
         String name = selection.bundleVersion().trim();
-        Optional<AssembledPrompt> version = findVersion(name, selection.source());
+        Optional<AssembledPrompt> version = findVersion(null, name, selection.source());
         if (version.isPresent()) {
             return new SelectedBundle(SecurityDecisionPromptBundles.DEFAULT, selection.source(), name, version.get());
         }
@@ -671,11 +676,15 @@ public class SecurityDecisionPromptSections {
                 product.release(), product);
     }
 
-    /** The version of the name in the store; empty, reported as an error once per name, when the store has none. */
-    private Optional<AssembledPrompt> findVersion(String name, PromptBundleSelectionSource source) {
+    /**
+     * The version of the name in the store, in the scope when one is given; empty, reported as an error once per name,
+     * when the store has none.
+     */
+    private Optional<AssembledPrompt> findVersion(String scope, String name, PromptBundleSelectionSource source) {
         Optional<AssembledPrompt> version;
         try {
-            version = promptVersionStore.find(SecurityDecisionPromptDocument.PROMPT, name);
+            version = scope != null ? promptVersionStore.find(scope, SecurityDecisionPromptDocument.PROMPT, name)
+                    : promptVersionStore.find(SecurityDecisionPromptDocument.PROMPT, name);
         }
         catch (RuntimeException exception) {
             version = Optional.empty();
@@ -1046,7 +1055,7 @@ public class SecurityDecisionPromptSections {
         Instant at = canonical != null && canonical.getRequestObservedAt() != null
                 ? canonical.getRequestObservedAt()
                 : context.getEvent() != null ? context.getEvent().getTimestamp() : null;
-        return at != null ? LocalDateTime.ofInstant(at, EventTimeZone.get()) : null;
+        return at != null ? LocalDateTime.ofInstant(at, EventTimeZone.of(context.getEvent())) : null;
     }
 
     private void putRagMetadata(
@@ -1136,7 +1145,7 @@ public class SecurityDecisionPromptSections {
         // The decision facts are computed once, from the context and evidence this prompt is built from (W2-5).
         if (canonicalSecurityContext != null) {
             canonicalSecurityContext.setDecisionFacts(DecisionFactsResolver.resolve(
-                    canonicalSecurityContext, learningContextEvidence, EventTimeZone.get()));
+                    canonicalSecurityContext, learningContextEvidence, EventTimeZone.of(event)));
         }
         BaselineStatus baselineStatus = determineBaselineStatus(event, behaviorAnalysis, learningContextEvidence);
         return new SecurityPromptBuildContext(
@@ -1378,7 +1387,7 @@ public class SecurityDecisionPromptSections {
             return;
         }
         canonical.setDecisionFacts(DecisionFactsResolver.resolve(canonical, buildContext.getLearningContextEvidence(),
-                EventTimeZone.get(), DecisionFactsResolver.Notation.RECORDS));
+                EventTimeZone.of(buildContext.getEvent()), DecisionFactsResolver.Notation.RECORDS));
     }
 
     /** Whether a v20 prompt over its budget takes entries out (W3-7); by default the budget is only observed. */
@@ -1399,7 +1408,7 @@ public class SecurityDecisionPromptSections {
         PromptDictionaryRenderer renderer = kit.renderer();
         List<PromptDictionaryEntry> entries = kit.entries();
         PromptEntryValues values = SecurityDecisionPromptValues.of(this, context, renderer.values(),
-                EventTimeZone.get());
+                EventTimeZone.of(context.getEvent()));
         // Plan 3.5, 3.8 (4): the blocks the version's organization added stand at their places in every drawing, the
         // ones the budget counts as well; they are no entries, so the budget takes none of them out.
         Map<PromptBlock, List<String>> organizationBlocks = kit.firstPassOrganizationBlocks();
@@ -1447,7 +1456,7 @@ public class SecurityDecisionPromptSections {
         // clock the times were drawn on, the retrieval state of the block, the counted past record facts the counts line
         // was drawn from (W3-18) and the baseline state the evidence and status lines state (W3-19). The fact ids are
         // on the lines themselves; no check reads a separate map of them (R1b-10).
-        metadata.put(PromptExecutionMetadata.EVENT_TIME_ZONE, EventTimeZone.get().getId());
+        metadata.put(PromptExecutionMetadata.EVENT_TIME_ZONE, EventTimeZone.of(context.getEvent()).getId());
         metadata.put(PromptExecutionMetadata.PROMPT_RAG_STATE, ragState(context).toMetadata());
         PastRecordCounts counts = pastRecordCounts(context);
         if (counts != null) {
@@ -1493,7 +1502,7 @@ public class SecurityDecisionPromptSections {
                         + secondPass.firstPastRecordsState() + ")");
         values.lines(PromptBlock.SECOND_PASS, "NewPastRecord{i}", records);
         values.headerQualifier(PromptBlock.SECOND_PASS, "only the facts gathered after the first pass");
-        values.timeZone(EventTimeZone.get());
+        values.timeZone(EventTimeZone.of(context.getEvent()));
         if (records.stream().anyMatch(record -> !record.text().startsWith(PastRecordLines.TIME_NOT_RECORDED))) {
             values.clocked(PromptBlock.SECOND_PASS, "NewPastRecord{i}");
         }
@@ -1868,6 +1877,20 @@ public class SecurityDecisionPromptSections {
             return Optional.empty();
         }
         return promptVersionStore.find(SecurityDecisionPromptDocument.PROMPT, name.trim());
+    }
+
+    /**
+     * Quality plan 3.2: the version the name stands for in the registry scope, as a replay that fixes the scope on its
+     * event ({@link #EVENT_BUNDLE_SCOPE}) draws it; the store's own scope when none is given.
+     */
+    public Optional<AssembledPrompt> findPromptVersion(String scope, String name) {
+        if (scope == null || scope.isBlank()) {
+            return findPromptVersion(name);
+        }
+        if (name == null || name.isBlank()) {
+            return Optional.empty();
+        }
+        return promptVersionStore.find(scope.trim(), SecurityDecisionPromptDocument.PROMPT, name.trim());
     }
 
     /**
@@ -2759,11 +2782,31 @@ public class SecurityDecisionPromptSections {
         }
     }
 
+    /**
+     * Lets go of the canonical context a replay fixed for its event, once the replay has drawn its prompts: the event id
+     * is the replay's own, so nothing draws with it again, and the context would otherwise stay until it expires.
+     */
+    public void releaseCanonicalContext(SecurityEvent event) {
+        if (event == null || !StringUtils.hasText(event.getEventId())) {
+            return;
+        }
+        pinnedCanonicalContexts.invalidate(event.getEventId());
+    }
+
     Optional<CanonicalSecurityContext> resolveCanonicalSecurityContext(SecurityEvent event) {
         byte[] pinned = event != null && StringUtils.hasText(event.getEventId())
                 ? pinnedCanonicalContexts.getIfPresent(event.getEventId()) : null;
         if (pinned != null) {
-            return restoreCanonicalContext(pinned);
+            Optional<CanonicalSecurityContext> fixed = restoreCanonicalContext(pinned);
+            if (fixed.isEmpty() && replayed(event)) {
+                throw new SealedReplayContextMissingException(event.getEventId());
+            }
+            return fixed;
+        }
+        if (replayed(event)) {
+            // Quality plan 9 (K161): a replay is drawn with the context it fixed or not at all; the context the
+            // provider resolves now is another decision's. A decision's own path below is as it was.
+            throw new SealedReplayContextMissingException(event.getEventId());
         }
         if (event == null || canonicalSecurityContextProvider == null) {
             return Optional.empty();
@@ -2781,6 +2824,12 @@ public class SecurityDecisionPromptSections {
         resolved.ifPresent(context -> cacheCanonicalSecurityContext(event, context));
         return resolved.flatMap(context -> restoreCanonicalContext(snapshotCanonicalContext(context)))
                 .or(() -> resolved);
+    }
+
+    /** Whether the event is a sealed decision drawn again: the replay fixes that as the source of its version. */
+    public static boolean replayed(SecurityEvent event) {
+        return event != null && event.getMetadata() != null && PromptBundleSelectionSource.REPLAY.name().equals(
+                String.valueOf(event.getMetadata().get(EVENT_BUNDLE_SOURCE)));
     }
 
     /**
@@ -2803,7 +2852,9 @@ public class SecurityDecisionPromptSections {
     }
 
     private void cacheCanonicalSecurityContext(SecurityEvent event, CanonicalSecurityContext context) {
-        if (event == null || context == null) {
+        // A replay draws with the context it fixed, under its own replay id, and never reads this cache: its entry
+        // would only take the place of a decision's until it expires.
+        if (event == null || context == null || replayed(event)) {
             return;
         }
         byte[] snapshot = snapshotCanonicalContext(context);

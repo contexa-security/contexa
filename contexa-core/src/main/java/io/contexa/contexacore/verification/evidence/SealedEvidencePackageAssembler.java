@@ -2,6 +2,7 @@ package io.contexa.contexacore.verification.evidence;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.baseline.DecisionBaselines;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.PastRecordRanking;
 import io.contexa.contexacore.autonomous.context.support.PastRecordRelevance;
@@ -130,7 +131,7 @@ public class SealedEvidencePackageAssembler {
         String requestFactsJson = buildRequestFacts(event, correlationId);
         String authStateJson = buildAuthState(event);
         String canonicalContextJson = canonicalContext != null ? contextSerializer.serialize(canonicalContext) : null;
-        String baselineSnapshotJson = buildBaselineSnapshot(event);
+        String baselineSnapshotJson = buildBaselineSnapshot(event, promptSnapshot, correlationId);
         String ragResultsJson = buildRagResults(event, promptSnapshot);
         String promptExecutionMetadataJson = serializePromptExecutionMetadata(promptSnapshot, event.getMetadata());
         String decisionJson = buildDecisionSnapshot(result, event.getMetadata());
@@ -161,7 +162,8 @@ public class SealedEvidencePackageAssembler {
                 // (set by P1-F01 hook in SecurityDecisionPromptSections.createBuildContext())
                 .canonicalContextJson(canonicalContextJson)
 
-                // Section 4: Baseline -- from SecurityEvent.metadata (set by ZeroTrustEventPublisher)
+                // Section 4: Baseline -- from SecurityEvent.metadata (set by ZeroTrustEventPublisher), and the
+                // baselines the decision read, from the prompt snapshot (fixed when the analysis read them)
                 .baselineSnapshotJson(baselineSnapshotJson)
 
                 // Section 5: RAG results -- from prompt snapshot's related documents + event metadata
@@ -301,9 +303,14 @@ public class SealedEvidencePackageAssembler {
 
     /**
      * Section 4: Behavioral baseline.
-     * Source: SecurityEvent.metadata (set by request context and behavior analysis)
+     * Source: SecurityEvent.metadata (set by request context and behavior analysis), and the prompt snapshot for the
+     * baselines themselves. The person's and the organization's baselines the decision read are sealed under one key
+     * ({@link SealedDecisionBaselines#KEY}) of this section, which the package hash has always covered: with the key
+     * the package says what was read (a baseline, or null for none), without it nothing was kept. They are the values
+     * the analysis fixed when it read them, never read again here, where the store may hold what the decision taught.
      */
-    private String buildBaselineSnapshot(SecurityEvent event) {
+    private String buildBaselineSnapshot(SecurityEvent event, SealedEvidencePromptSnapshot promptSnapshot,
+                                         String correlationId) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         putFromMetadata(snapshot, event, "baselineEstablished");
         putFromMetadata(snapshot, event, "personalBaselineEstablished");
@@ -319,6 +326,17 @@ public class SealedEvidencePackageAssembler {
         putFromMetadata(snapshot, event, "observationDays");
         putFromMetadata(snapshot, event, "fallbackRatio");
         putFromMetadata(snapshot, event, "coverage");
+        DecisionBaselines decisionBaselines = promptSnapshot != null ? promptSnapshot.decisionBaselines() : null;
+        if (decisionBaselines != null) {
+            try {
+                snapshot.put(SealedDecisionBaselines.KEY,
+                        SealedDecisionBaselines.write(decisionBaselines, objectMapper));
+            } catch (RuntimeException e) {
+                // The rest of the section is sealed as before; the package then says nothing about the baselines.
+                log.error("[SealedEvidence] The baselines the decision read could not be sealed: correlationId={}",
+                        correlationId, e);
+            }
+        }
         return toJson(snapshot);
     }
 

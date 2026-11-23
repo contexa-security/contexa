@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{pv.ui.title.advanced})}"></th:block>
-    <link rel="stylesheet" th:href="@{/contexa/css/policy-center.css}" />
+    <link rel="stylesheet" th:href="@{/contexa/css/policy-center.css?v=20261122-f0}" />
     <link rel="stylesheet" th:href="@{/contexa/css/zero-trust-console.css?v=20261119-m1}" />
 </head>
 <body class="flex flex-col min-h-screen font-sans">
@@ -15,7 +15,7 @@
 </div>
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
 <script th:src="@{/contexa/js/admin/zero-trust/console-common.js?v=20261118-k119}"></script>
-<script th:src="@{/contexa/js/admin/prompt-version/pv-common.js?v=20261117-k96}"></script>
-<script th:src="@{/contexa/js/admin/prompt-version/advanced.js?v=20261117-k96}"></script>
+<script th:src="@{/contexa/js/admin/prompt-version/pv-common.js?v=20261122-s2b}"></script>
+<script th:src="@{/contexa/js/admin/prompt-version/advanced.js?v=20261122-s2}"></script>
 </body>
 </html>

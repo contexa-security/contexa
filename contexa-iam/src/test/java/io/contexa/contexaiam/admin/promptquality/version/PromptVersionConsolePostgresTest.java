@@ -82,6 +82,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -497,6 +498,69 @@ class PromptVersionConsolePostgresTest {
         assertThat(check.ready()).isFalse();
         assertThat(check.blockers()).containsExactly("EMPIRICAL_EVAL_MISSING");
         assertThat(check.latestTrial()).isNull();
+    }
+
+    /**
+     * Plan 2.1: the conditions a version inherits from the policy of its product are named apart from the blockers the
+     * customers act on; plan 3.4: a target without a quality gate (the gate leaves it out) has none to show.
+     */
+    @Test
+    void theConfirmationNamesTheConditionsOfTheProductPolicyApart() {
+        console.create(null, form(1, List.of(change("how-to-judge", "Weigh the duty roster first.")), List.of()), "admin");
+        when(gate.assessPromptRelease("PLATFORM_GLOBAL", PROMPT, "v2.0")).thenReturn(
+                new PromptGovernanceReleaseGateService.ReleaseGateAssessment("PLATFORM_GLOBAL", PROMPT, "v2.0", "AVAILABLE",
+                        List.of(new PromptGovernanceReleaseGateService.ReleaseGateTarget("ACTIVE", false, "BLOCKED",
+                                List.of("MODEL_COMPATIBILITY_MISSING the product declares none.",
+                                        "PROMPT_INJECTION_GATE_FAILED the guard is gone.",
+                                        "CACHE_POLICY_MISSING the product declares none."))), null));
+
+        PromptVersionConsoleDtos.UseCheck check = console.useCheck(null, PROMPT, 2);
+
+        assertThat(check.ready()).isFalse();
+        assertThat(check.blockers()).containsExactly("PROMPT_INJECTION_GATE_FAILED the guard is gone.");
+        assertThat(check.productPolicyGaps()).containsExactly("MODEL_COMPATIBILITY_MISSING the product declares none.",
+                "CACHE_POLICY_MISSING the product declares none.");
+        assertThat(check.quality()).isNull();
+    }
+
+    /**
+     * Plan 3.4: "save and measure": a saved version of the security decision is measured at once, and asking to use it
+     * at once (the earlier "save and use for decisions") measures it too instead of using it. A measurement that cannot
+     * start leaves the version saved and says why.
+     */
+    @Test
+    void savingAVersionOfTheSecurityDecisionMeasuresItInsteadOfUsingIt() {
+        List<String> started = new ArrayList<>();
+        console.setMeasureStarter(() -> (scope, prompt, number, actor) -> {
+            started.add(scope + " " + prompt + " " + number + " " + actor);
+            if (number == 3) {
+                throw new PromptVersionConsole.RefusedException("MEASURE_CALL_LIMIT");
+            }
+            return 40L + number;
+        });
+        List<FormPart> judge = List.of(change("how-to-judge", "Weigh the duty roster first."));
+
+        PromptVersionConsoleDtos.Created measured = console.create(null, new DraftForm(PROMPT, 1, "Finance closing",
+                null, judge, List.of(), false, null, true), "admin");
+        PromptVersionConsoleDtos.Created asked = console.create(null, new DraftForm(PROMPT, 1, "Payroll", null,
+                List.of(change("how-to-judge", "Weigh the payroll calendar first.")), List.of(), true, "at once"),
+                "admin");
+
+        assertThat(measured.measureId()).isEqualTo(42L);
+        assertThat(measured.used()).isNull();
+        assertThat(asked.measureId()).isNull();
+        assertThat(asked.measureRefusal()).isEqualTo("MEASURE_CALL_LIMIT");
+        assertThat(asked.used()).isNull();
+        assertThat(started).containsExactly("PLATFORM_GLOBAL " + PROMPT + " 2 admin", "PLATFORM_GLOBAL " + PROMPT
+                + " 3 admin");
+        verify(gate, never()).transitionPromptRelease(anyString(), anyString(), anyString(),
+                any(PromptBundleState.class), any(), any(), anyString());
+        assertThat(versions.find(null, PROMPT, 3)).isPresent();
+
+        console.setMeasureStarter(() -> null);
+        assertThat(console.create(null, new DraftForm(PROMPT, 1, "Audit", null,
+                List.of(change("how-to-judge", "Weigh the audit trail first.")), List.of(), false, null, true),
+                "admin").measureRefusal()).isEqualTo("NO_MEASUREMENT_RUNNER");
     }
 
     /** The emergency rollback goes back from the version in use, tells the caches, and another operator approves it. */

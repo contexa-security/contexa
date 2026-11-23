@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -70,6 +71,8 @@ public class ThreatAssessment {
     private List<SecurityDecisionOutputContract.Citation> reasonCodes;
     /** V-3: the explanations a v21 model weighed (id, name, assessment, the fact ids for and against); none before v21. */
     private List<Map<String, Object>> hypotheses;
+    /** Quality plan 3.6: what the response check found of the reason codes of the answer; null without a model answer. */
+    private SecurityDecisionCitationCheck citationCheck;
     private Boolean autonomyConstraintApplied;
     private List<String> autonomyConstraintReasons;
     private String autonomyConstraintSummary;

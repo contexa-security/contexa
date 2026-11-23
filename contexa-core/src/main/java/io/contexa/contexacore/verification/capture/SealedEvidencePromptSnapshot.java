@@ -1,6 +1,7 @@
 package io.contexa.contexacore.verification.capture;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.baseline.DecisionBaselines;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import org.springframework.ai.document.Document;
 
@@ -18,6 +19,7 @@ import java.util.Map;
  * - RAG documents retrieved and authorized
  * - Raw and LLM-view prompts (before and after compression)
  * - Prompt metadata and execution metadata
+ * - The person's and the organization's baselines the decision read, fixed when it read them; null when it read none
  *
  * Modeled after TDD source: OfficialVerificationPromptTraceSnapshot
  */
@@ -33,7 +35,8 @@ public record SealedEvidencePromptSnapshot(
         String systemPrompt,
         String userPrompt,
         Map<String, Object> metadata,
-        PromptExecutionMetadata promptExecutionMetadata
+        PromptExecutionMetadata promptExecutionMetadata,
+        DecisionBaselines decisionBaselines
 ) {
 
     public String resolveRequestId() {

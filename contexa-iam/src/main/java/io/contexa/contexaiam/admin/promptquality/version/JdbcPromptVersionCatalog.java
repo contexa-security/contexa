@@ -18,9 +18,11 @@ package io.contexa.contexaiam.admin.promptquality.version;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionContext;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
+import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -41,6 +43,10 @@ import java.util.function.Supplier;
 public class JdbcPromptVersionCatalog implements PromptVersionCatalog {
 
     private static final Logger log = LoggerFactory.getLogger(JdbcPromptVersionCatalog.class);
+    /** The stored values of a release used for decisions, of every vocabulary (decision 1). */
+    private static final String ACTIVE_STATES = PromptBundleState.sqlList(PromptBundleState.ACTIVE);
+    /** The workflow state of a transition the release gate applied. */
+    private static final String APPLIED = "APPROVED_AND_APPLIED";
 
     private final PromptVersionService versions;
     private final Supplier<JdbcTemplate> jdbc;
@@ -89,9 +95,19 @@ public class JdbcPromptVersionCatalog implements PromptVersionCatalog {
 
     @Override
     public Optional<String> deciding(String scope, String prompt) {
+        PromptBundleSelection selection = decidingSelection(scope, prompt);
+        String name = selection != null ? selection.bundleVersion() : null;
+        return PromptVersionNames.number(name).stream().mapToObj(PromptVersionNames::name).findFirst();
+    }
+
+    /**
+     * Plan 3.4: the selection the decisions of the scope run now, with where it comes from (the label, the setting or
+     * the newest Contexa version); null when there is no selector or it cannot be read.
+     */
+    public PromptBundleSelection decidingSelection(String scope, String prompt) {
         PromptBundleSelector selector = decisions.get();
         if (selector == null || prompt == null || prompt.isBlank()) {
-            return Optional.empty();
+            return null;
         }
         String scopeName = scope != null && !scope.isBlank() ? scope.trim() : PLATFORM_SCOPE;
         String templateKey = versions.target(prompt.trim()).map(PromptVersionService.RegistryTarget::templateKey)
@@ -103,10 +119,9 @@ public class JdbcPromptVersionCatalog implements PromptVersionCatalog {
         }
         catch (RuntimeException failure) {
             log.error("[PromptVersion] The version {} decides with in {} could not be read", prompt, scopeName, failure);
-            return Optional.empty();
+            return null;
         }
-        String name = selection != null ? selection.bundleVersion() : null;
-        return PromptVersionNames.number(name).stream().mapToObj(PromptVersionNames::name).findFirst();
+        return selection;
     }
 
     @Override
@@ -120,5 +135,37 @@ public class JdbcPromptVersionCatalog implements PromptVersionCatalog {
                 scope != null && !scope.isBlank() ? scope.trim() : PLATFORM_SCOPE, prompt.trim(), number.getAsInt(),
                 PromptVersionTrials.DONE);
         return done != null && done > 0;
+    }
+
+    /**
+     * Plan 3.4: a version was used for decisions in the scope when it decides there now, when the release gate applied
+     * it as the version used for decisions there, when a rollback went to it there and was not refused, or when it was
+     * the version deciding there as the gate started another version, which the rollback ledger keeps as the target to
+     * go back to. That last record also holds a version that decided without a label: the one the setting names, or
+     * the newest Contexa version. A canary alone is not a use for decisions.
+     */
+    @Override
+    public boolean usedForDecisions(String scope, String prompt, String name) {
+        OptionalInt number = PromptVersionNames.number(name);
+        if (number.isEmpty() || prompt == null || prompt.isBlank()) {
+            return false;
+        }
+        String scopeName = scope != null && !scope.isBlank() ? scope.trim() : PLATFORM_SCOPE;
+        String version = PromptVersionNames.name(number.getAsInt());
+        if (deciding(scopeName, prompt).filter(version::equals).isPresent()) {
+            return true;
+        }
+        Integer recorded = jdbc.get().queryForObject("select (select count(*) from"
+                        + " ctxa_prompt_governance_release_workflow where registry_scope = ? and prompt_key = ? and"
+                        + " prompt_version = ? and upper(target_release_status) in (" + ACTIVE_STATES + ") and"
+                        + " workflow_state = ?) + (select count(*) from ctxa_prompt_governance_rollback_execution where"
+                        + " registry_scope = ? and prompt_key = ? and to_version = ? and status in (?, ?, ?)) + (select"
+                        + " count(*) from ctxa_prompt_governance_rollback_ledger where registry_scope = ? and prompt_key"
+                        + " = ? and rollback_target_prompt_version = ?)", Integer.class,
+                scopeName, prompt.trim(), version, APPLIED,
+                scopeName, prompt.trim(), version, PromptBundleRollbackService.EXECUTED,
+                PromptBundleRollbackService.AWAITING_APPROVAL, PromptBundleRollbackService.APPROVED,
+                scopeName, prompt.trim(), version);
+        return recorded != null && recorded > 0;
     }
 }

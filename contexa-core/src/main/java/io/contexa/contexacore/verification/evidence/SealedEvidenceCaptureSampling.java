@@ -11,4 +11,13 @@ public interface SealedEvidenceCaptureSampling {
     SealedEvidenceCaptureSampling ALL = evidencePackage -> true;
 
     boolean shouldSeal(SealedEvidencePackage evidencePackage);
+
+    /**
+     * Whether the package is sealed, with what the capture knows of its decision (the action it ended in and the
+     * signs of a risky allow); null when the capture could not read them. A sampling that does not weigh the decision
+     * answers as it does for the package alone.
+     */
+    default boolean shouldSeal(SealedEvidencePackage evidencePackage, SealedCaptureDecision decision) {
+        return shouldSeal(evidencePackage);
+    }
 }

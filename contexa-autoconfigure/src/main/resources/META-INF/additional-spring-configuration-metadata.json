@@ -19,28 +19,40 @@
       "description": "The sliding window the decisions of a new context are counted in. A time that is not positive reads as one minute."
     },
     {
-      "name": "contexa.pqa.routes.official-api-root",
-      "type": "java.lang.String",
-      "defaultValue": "/contexa/admin/api/prompt-quality",
-      "description": "Canonical root for the OSS prompt-quality administration API."
+      "name": "contexa.pqa.oss.quality.gate.mode",
+      "type": "io.contexa.contexacore.std.components.prompt.quality.QualityGateMode",
+      "defaultValue": "warn",
+      "description": "How the quality gate acts when a version of the security decision is used for decisions or started as a canary. WARN applies a blocked verdict as a warning and keeps the verdict as it was; BLOCK blocks it, and an administrator may still use the version by giving a reason, which is audited. A version that goes back to one the scope used for decisions takes no quality condition, a version this installation cannot measure is warned of only, and so is the missing measurement of the version in use while its first measurement waits. The gate goes in as WARN; set BLOCK once the reproducibility and discrimination checks have passed on this installation."
     },
     {
-      "name": "contexa.pqa.routes.enterprise-api-root",
-      "type": "java.lang.String",
-      "defaultValue": "/contexa/admin/api/enterprise/prompt-quality",
-      "description": "Canonical root for the Enterprise prompt-quality administration API."
+      "name": "contexa.pqa.oss.quality.gate.model-less-limit",
+      "type": "java.lang.Double",
+      "defaultValue": 0.05,
+      "description": "The largest share (0 to 1) of the candidate's answers that the engine decided without the model's answer; above it the quality gate blocks."
     },
     {
-      "name": "contexa.pqa.routes.enterprise-verification-runtime-runs-path",
-      "type": "java.lang.String",
-      "defaultValue": "/verification/runtime-runs",
-      "description": "Path below the Enterprise API root for official verification runtime runs."
+      "name": "contexa.pqa.oss.quality.gate.significance",
+      "type": "java.lang.Double",
+      "defaultValue": 0.05,
+      "description": "The level (between 0 and 1) of the exact one-sided tests that say a rate of the candidate grew beyond what two measurements of one version differ by, root case by root case, and that the candidate is worse on the cases added after it was made. A larger level blocks smaller differences."
     },
     {
-      "name": "contexa.pqa.official-verification.stale-execution-timeout",
-      "type": "java.time.Duration",
-      "defaultValue": "15m",
-      "description": "Elapsed time without execution progress after which an interrupted official verification can be recovered by the next request."
+      "name": "contexa.pqa.oss.quality.gate.minimum-stop-roots",
+      "type": "java.lang.Integer",
+      "defaultValue": 200,
+      "description": "The distinct root cases that must be stopped from which the quality gate can tell two versions apart; with fewer it warns that it cannot decide and how many are short. Variants of one case count once."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.gate.minimum-allow-roots",
+      "type": "java.lang.Integer",
+      "defaultValue": 300,
+      "description": "The distinct root cases that must be allowed from which the quality gate can tell two versions apart; with fewer it warns that it cannot decide and how many are short. Variants of one case count once."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.gate.friction-increase-limit",
+      "type": "java.lang.Double",
+      "defaultValue": 0.20,
+      "description": "How far the friction of the candidate (the share of its answers to cases that must be allowed that did not allow them) may grow over that of the version in use, as a difference of the two rates on the same cases: 0.20 is 20 percentage points, three more of the fifteen such answers of the default case set run once. A rise by this much or more blocks the version whatever the significance, so a version that challenges every request is stopped also where the version in use already stops most normal work and too few root cases are left to tell the two apart. Above 0 and at most 1; a value outside stops the start. The mode (contexa.pqa.oss.quality.gate.mode) decides whether a blocked verdict blocks or warns."
     },
     {
       "name": "contexa.pqa.oss.sealed-evidence.capture-enabled",
@@ -76,7 +88,19 @@
       "name": "contexa.pqa.oss.sealed-evidence.sample-percent",
       "type": "java.lang.Integer",
       "defaultValue": 1,
-      "description": "Share of requests (1 to 100) whose decision is sealed, chosen by a stable hash of the request id, outside the full-capture window. Ignored when contexa.enterprise.enabled is true."
+      "description": "Share of requests (1 to 100) whose decision is sealed, chosen by a stable hash of the request id, outside the full-capture window. It applies to the allowed decisions without a sign of risk, and to every decision once daily-limit is reached. Ignored when contexa.enterprise.enabled is true."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.daily-limit",
+      "type": "java.lang.Integer",
+      "defaultValue": 2000,
+      "description": "Sealed evidence packages of one UTC day up to which every decision that stopped the request (CHALLENGE, ESCALATE, BLOCK) and every allowed decision with a sign of risk is sealed: the most likely explanation is not legitimate work, the second analysis decided, the model was asked again, at least unknown-fact-threshold decision facts were unknown, or the personal baseline is not established. Every package of the day counts, as the store holds them, so the servers that share a database stay near one limit (each reads the count every 30 seconds and may pass the limit by what is sealed in between). Past the limit the day seals by full-capture-after-change and sample-percent alone, which the limit never holds back; the decisions left out are counted in the log. 0 seals by the window and the share alone. A sealed package takes about 60 KB of storage (measured on the sample decisions of the product), so the default adds at most about 120 MB a day. Ignored when contexa.enterprise.enabled is true."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.unknown-fact-threshold",
+      "type": "java.lang.Integer",
+      "defaultValue": 3,
+      "description": "Unknown decision facts (facts the prompt lists as not integrated or not available) from which an allowed decision is sealed within daily-limit; at least 1. Ignored when contexa.enterprise.enabled is true."
     },
     {
       "name": "contexa.pqa.oss.sealed-evidence.full-capture-after-change",
@@ -88,19 +112,95 @@
       "name": "contexa.pqa.oss.sealed-evidence.retention.period",
       "type": "java.time.Duration",
       "defaultValue": "90d",
-      "description": "How long a sealed evidence package is kept; the package's expiry is its capture time plus this period. Ignored when contexa.enterprise.enabled is true."
+      "description": "How long a sealed evidence package is kept, whatever a prompt inspection found in it; the package's expiry is its capture time plus this period. A package that a prompt version trial decided again, or whose decision an administrator evaluated, is kept past its expiry for as long as that trial or evaluation is kept. Ignored when contexa.enterprise.enabled is true."
     },
     {
       "name": "contexa.pqa.oss.sealed-evidence.retention.clean-period",
       "type": "java.time.Duration",
       "defaultValue": "30d",
-      "description": "How long a sealed evidence package whose latest prompt inspection found nothing wrong (PASS or NOT_APPLICABLE) is kept, unless an official verification run names it; other packages keep retention.period. Runs on retention.cleanup-cron while prompt inspection and retention are enabled. Ignored when contexa.enterprise.enabled is true."
+      "description": "No package is removed by this period any more: every sealed evidence package is kept for retention.period. Earlier versions removed a package whose latest prompt inspection found nothing wrong once it was older than this period; the integrity check of sealed packages still reads a package missing before one older than the shorter of this period and retention.period as such a removal. Ignored when contexa.enterprise.enabled is true."
     },
     {
       "name": "contexa.pqa.oss.sealed-evidence.retention.cleanup-cron",
       "type": "java.lang.String",
       "defaultValue": "0 30 3 * * *",
       "description": "Cron expression of the cleanup that deletes sealed evidence packages whose expiresAt has passed."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.two-person-confirmation",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether a labelled case of the prompt quality measurement, and each change of its right answer, waits until an administrator other than the one who set the answer confirms it, before the case enters a published case set and so the measurements the quality gate reads. A case labelled wrongly on purpose (an attack marked as normal) would let a version that allows the attack pass, so the answer is set by two people. Turn it off for an installation with one administrator: cases are then confirmed as they are submitted, and every change of an answer is still kept with who made it."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.measurement.repeats",
+      "type": "java.lang.Integer",
+      "defaultValue": 3,
+      "description": "How many times a prompt quality measurement runs each labelled case when the start asks for no number, from 1 to 10. The same prompt answers a case differently from one run to the next, so one run cannot show the consistency and a difference of one run says little. Only measurements with the same number of runs are compared."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.measurement.concurrency",
+      "type": "java.lang.Integer",
+      "defaultValue": 1,
+      "description": "How many replays of one measurement run at once. Every model call of a measurement waits behind the decisions at the gate of its model server, but a call that is in is never cut: with as many replays as the gate has slots (contexa.llm.gate.self-hosted-max-concurrent, 2 by default), a decision that arrives waits for one of them to end. 1 leaves a slot of a self-hosted server to the decisions; a remote provider (16 slots by default) can take more, and 2 halves the time of a measurement."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.measurement.retries",
+      "type": "java.lang.Integer",
+      "defaultValue": 2,
+      "description": "How many more times a replay of a measurement is asked when the model server gave no answer (busy, unreachable, a time limit), also when only the second pass after an ESCALATE gave none. An answer that still did not come is kept as a failure of the measurement: it enters no metric and the measurement shows it as incomplete, so a busy model server does not count against the prompt. A replay that could not read its case (no context, another context format, an unreadable input, an error of the engine) is not asked again."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.measurement.retry-delay",
+      "type": "java.time.Duration",
+      "defaultValue": "15s",
+      "description": "The wait before the first retry of a replay the model server gave no answer to; the second retry waits twice as long. The gate keeps an overloaded server closed for 2 s, then 4 s, 8 s and at most 12 s, so the first retry comes after that."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.measurement.call-limit",
+      "type": "java.lang.Integer",
+      "defaultValue": 3000,
+      "description": "The most model calls one measurement makes, for installations that pay for each call; 0 sets no limit. A measurement that makes at least more calls than the limit does not start, and one that reaches it stops and ends failed with the answers it took. Each answer that is not kept already makes at least one call and at most four (the first pass and its corrective retry, the second pass and its retry) for each attempt. The default set of 70 cases run 3 times makes at least 210 and at most 2,520 calls with the default retries."
+    },
+    {
+      "name": "contexa.pqa.oss.quality.measurement.heartbeat",
+      "type": "java.time.Duration",
+      "defaultValue": "30s",
+      "description": "How often the server running a measurement renews its lock and the measurement's heartbeat and reads whether it was cancelled, and how often the other servers look for a measurement to run. The lock is held for four heartbeats, so a server that stops leaves the measurement to another server within about two and a half minutes, which resumes it from the answers taken."
+    }
+  ],
+  "hints": [
+    {
+      "name": "contexa.capability.required.keys",
+      "values": [
+        {
+          "value": "llm-runtime"
+        },
+        {
+          "value": "embedding-runtime"
+        },
+        {
+          "value": "rag-vector"
+        },
+        {
+          "value": "security-learning"
+        },
+        {
+          "value": "autonomous-decision"
+        },
+        {
+          "value": "bridge"
+        },
+        {
+          "value": "enterprise-soar"
+        },
+        {
+          "value": "enterprise-mcp"
+        },
+        {
+          "value": "enterprise-dashboard"
+        }
+      ]
     }
   ]
 }

@@ -7,10 +7,13 @@ import java.time.Clock;
 import java.util.Objects;
 
 /**
- * Enforces the sealed evidence retention contract by deleting packages whose expiresAt has passed.
+ * Enforces the sealed evidence retention contract by deleting packages whose expiresAt has passed. It is the only
+ * retention of sealed packages: every package is kept for the one retention period, whatever a prompt inspection
+ * found in it.
  *
  * The schedule is guarded by a ShedLock lock so that only one node runs the cleanup at a time when
- * scheduler locking is enabled. Packages without expiresAt are never deleted.
+ * scheduler locking is enabled. Packages without expiresAt are never deleted, and the store leaves the expired
+ * packages a prompt version trial or an administrator's evaluation still stands on.
  */
 public class SealedEvidencePackageRetentionScheduler {
 

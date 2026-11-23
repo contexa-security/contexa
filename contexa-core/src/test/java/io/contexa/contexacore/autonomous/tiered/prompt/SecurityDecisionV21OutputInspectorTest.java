@@ -149,6 +149,66 @@ class SecurityDecisionV21OutputInspectorTest {
         assertThat(sound.unsupportedCodesOnly()).isFalse();
     }
 
+    /**
+     * Quality plan 3.3, 3.6: what the check found of each reason code is kept with the inspection, so the citation
+     * accuracy can be counted: the cited facts, those of them the prompt drew, those of these the check named, and
+     * whether it named any. Without the canonical context the check is left out, which is told apart from an answer
+     * without a wrong citation; an answer without a usable form has no reason codes to check.
+     */
+    @Test
+    void whatTheCheckFoundOfEachReasonCodeIsKeptWithTheInspection() {
+        // One code the lines state, one its line does not support, one on an ID the prompt does not give, and one
+        // that is no code of the output contract on a line that exists.
+        SecurityDecisionCitationCheck mixed = inspectFull("A3", answer("CHALLENGE", HYPOTHESES,
+                "{\"code\":\"DEVIATION_TIME\",\"fact\":\"F1\"},{\"code\":\"DEVIATION_NETWORK\",\"fact\":\"F1\"},"
+                        + "{\"code\":\"DEVIATION_TIME\",\"fact\":\"F99\"},{\"code\":\"NOT_A_REAL_CODE\",\"fact\":\"F1\"}"))
+                .citationCheck();
+        SecurityDecisionCitationCheck sound = inspectFull("A3", answer("ALLOW", HYPOTHESES,
+                "{\"code\":\"DEVIATION_TIME\",\"fact\":\"F1\"}")).citationCheck();
+        SecurityDecisionCitationCheck noCodes = inspectFull("A3", answer("ALLOW", HYPOTHESES, "")).citationCheck();
+        SecurityDecisionCitationCheck withoutContext = INSPECTOR.inspect(answer("ALLOW", HYPOTHESES,
+                "{\"code\":\"DEVIATION_TIME\",\"fact\":\"F1\"},{\"code\":\"DEVIATION_TIME\",\"fact\":\"F99\"}"), "r-1",
+                "initial", new SecurityDecisionV21OutputInspector.V21Check(null, RENDERED.get("A3").userText()))
+                .citationCheck();
+        SecurityDecisionCitationCheck unreadable = inspectFull("A3", "the request looks risky").citationCheck();
+
+        assertThat(mixed.state()).isEqualTo(SecurityDecisionCitationCheck.State.CHECKED);
+        assertThat(mixed.cited()).isEqualTo(4);
+        assertThat(mixed.present()).as("F99 is no line of the prompt").isEqualTo(3);
+        assertThat(mixed.flagged()).as("the unsupported code and the made-up code, on a line that exists").isEqualTo(2);
+        assertThat(mixed.undecided()).isZero();
+        assertThat(mixed.unsupported()).isTrue();
+        assertThat(mixed.findings()).extracting(SecurityDecisionCitationCheck.Finding::fact)
+                .containsExactly("F1", "F1", "F99", "F1");
+        assertThat(mixed.findings()).extracting(SecurityDecisionCitationCheck.Finding::outcome).containsExactly(
+                SecurityDecisionFactChecks.Outcome.MATCH, SecurityDecisionFactChecks.Outcome.MISMATCH,
+                SecurityDecisionFactChecks.Outcome.MISMATCH, SecurityDecisionFactChecks.Outcome.MISMATCH);
+        assertThat(mixed.findings()).extracting(SecurityDecisionCitationCheck.Finding::present)
+                .containsExactly(true, true, false, true);
+
+        assertThat(sound.state()).isEqualTo(SecurityDecisionCitationCheck.State.CHECKED);
+        assertThat(sound.cited()).isEqualTo(1);
+        assertThat(sound.present()).isEqualTo(1);
+        assertThat(sound.flagged()).isZero();
+        assertThat(sound.unsupported()).isFalse();
+
+        assertThat(noCodes.state()).as("no reason code is no citation, checked").isEqualTo(
+                SecurityDecisionCitationCheck.State.CHECKED);
+        assertThat(noCodes.cited()).isZero();
+        assertThat(noCodes.present()).isZero();
+        assertThat(noCodes.unsupported()).isFalse();
+
+        assertThat(withoutContext.state()).isEqualTo(SecurityDecisionCitationCheck.State.SKIPPED);
+        assertThat(withoutContext.cited()).isEqualTo(2);
+        assertThat(withoutContext.present()).as("not checked, so not zero").isNull();
+        assertThat(withoutContext.flagged()).isNull();
+        assertThat(withoutContext.undecided()).isNull();
+        assertThat(withoutContext.unsupported()).isNull();
+        assertThat(withoutContext.findings()).isEmpty();
+
+        assertThat(unreadable).isNull();
+    }
+
     @Test
     void anAnswerWithoutAUsableFormIsATechnicalFailure() {
         Inspection inspection = inspect("A3", "the request looks risky");

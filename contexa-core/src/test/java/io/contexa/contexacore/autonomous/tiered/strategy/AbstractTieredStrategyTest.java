@@ -56,6 +56,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
+import io.contexa.contexacore.autonomous.baseline.DecisionBaselines;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
@@ -1420,6 +1421,40 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
+    @DisplayName("enrichBehaviorAnalysisWithBaselineSupport should fix the baselines it read, for the sealed evidence")
+    void enrichBehaviorAnalysisWithBaselineSupport_fixesTheBaselinesItRead() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-fixed-baselines")
+                .userId("user-123")
+                .metadata(new LinkedHashMap<>())
+                .build();
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        // The baseline as the store keeps it: the in-memory store hands out this very object.
+        BaselineVector kept = BaselineVector.builder()
+                .userId("user-123")
+                .normalIpRanges(new String[]{"10.1.0.0/16"})
+                .updateCount(25L)
+                .build();
+        BaselineLearningService.BaselineMaturitySnapshot maturity =
+                new BaselineLearningService.BaselineMaturitySnapshot(true, true, false, false, false, List.of());
+        when(baselineLearningService.buildPromptBaselineEvidenceSnapshot("user-123", event))
+                .thenReturn(new BaselineLearningService.PromptBaselineEvidence(maturity, kept, null, null, null));
+
+        strategy.enrichBehaviorAnalysisWithBaselineSupportForTest(behaviorAnalysis, event, null);
+        // The decision is enforced and learned from before its evidence is sealed: the kept baseline moves on.
+        kept.getNormalIpRanges()[0] = "203.0.113.0/24";
+        kept.setUpdateCount(26L);
+
+        DecisionBaselines read = behaviorAnalysis.getDecisionBaselines();
+        assertThat(read).as("the baselines the decision read are kept").isNotNull();
+        assertThat(read.personal()).isNotSameAs(kept);
+        assertThat(read.personal().getNormalIpRanges()).containsExactly("10.1.0.0/16");
+        assertThat(read.personal().getUpdateCount()).isEqualTo(25L);
+        assertThat(read.organization()).as("the decision found no organization baseline").isNull();
+    }
+
+    @Test
     @DisplayName("enrichBehaviorAnalysisWithBaselineSupport should set typed service unavailable evidence when baseline service is missing")
     void enrichBehaviorAnalysisWithBaselineSupport_missingService_setsTypedUnavailableEvidence() {
         ConcreteStrategy strategyWithoutBaselineService = new ConcreteStrategy(
@@ -1447,6 +1482,9 @@ class AbstractTieredStrategyTest {
         assertThat(behaviorAnalysis.getSupportingBaselineEvidence()).isNotNull();
         assertThat(behaviorAnalysis.getSupportingBaselineEvidence().status())
                 .isEqualTo(BaselineEvidenceStatus.SERVICE_UNAVAILABLE);
+        assertThat(behaviorAnalysis.getDecisionBaselines())
+                .as("no baseline was read, so none is kept for the sealed evidence")
+                .isNull();
     }
 
     @Test

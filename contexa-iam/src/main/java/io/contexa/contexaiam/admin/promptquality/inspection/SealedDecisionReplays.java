@@ -22,12 +22,14 @@ import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.baseline.DecisionBaselines;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
+import io.contexa.contexacore.verification.evidence.SealedDecisionBaselines;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
@@ -35,7 +37,9 @@ import io.contexa.contexacore.verification.replay.SealedDecisionReplayService;
 import org.springframework.lang.Nullable;
 
 import java.io.IOException;
+import java.time.DateTimeException;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,8 +50,9 @@ import java.util.function.Supplier;
 /**
  * The operator's replay of a sealed decision (docs/agent OC-5): the decision's sealed inputs drawn again with a chosen
  * bundle and asked once, through the engine's prompt template, pipeline and first-layer options, and when it answers
- * ESCALATE, the second pass with each model asked for. The baselines are those the caller gives (the ones the decision
- * was drawn against); without them the person's and the organization's baselines as kept now, which the answer says.
+ * ESCALATE, the second pass with each model asked for. The baselines are those the caller gives; without them those the
+ * package sealed with its decision (the ones the decision read, or that it found none); and for a package sealed before
+ * the baselines were, the person's and the organization's baselines as kept now. The answer says which.
  * Nothing is applied, learned or sealed; a replay calls the model, so every replay is audited.
  */
 public class SealedDecisionReplays {
@@ -61,7 +66,9 @@ public class SealedDecisionReplays {
     public enum Baselines {
         /** Those the caller gave: the ones the decision was drawn against. */
         GIVEN,
-        /** Those Contexa keeps now, which may have changed since the decision. */
+        /** Those the package sealed with its decision: what the decision read, or that it found none. */
+        SEALED,
+        /** Those Contexa keeps now, which may have changed since the decision: the package sealed none. */
         CURRENT
     }
 
@@ -69,16 +76,41 @@ public class SealedDecisionReplays {
      * What to replay with.
      *
      * @param userBaseline         the person's baseline the decision was drawn against, as a JSON object or its text;
-     *                             null for the one kept now
+     *                             null for the one the package sealed, or the one kept now when it sealed none
      * @param organizationBaseline the organization's, likewise
+     * @param configuredSecondPass whether the second pass is also asked with the second layer's own model, the one the
+     *                             server is set to, before the named ones (quality plan 3.3); null or false for the
+     *                             named models only
+     * @param scope                quality plan 3.2: the registry scope the version is a version of (a measurement's
+     *                             scope); null for the platform scope
      */
     public record ReplayRequest(String bundleVersion, @Nullable List<String> secondPassModels,
-                                @Nullable JsonNode userBaseline, @Nullable JsonNode organizationBaseline) {
+                                @Nullable JsonNode userBaseline, @Nullable JsonNode organizationBaseline,
+                                @Nullable Boolean configuredSecondPass, @Nullable String scope) {
+
+        /** A replay of a version of the platform scope. */
+        public ReplayRequest(String bundleVersion, @Nullable List<String> secondPassModels,
+                             @Nullable JsonNode userBaseline, @Nullable JsonNode organizationBaseline,
+                             @Nullable Boolean configuredSecondPass) {
+            this(bundleVersion, secondPassModels, userBaseline, organizationBaseline, configuredSecondPass, null);
+        }
+
+        /** A replay of a version of the platform scope whose second pass is asked with the named models only. */
+        public ReplayRequest(String bundleVersion, @Nullable List<String> secondPassModels,
+                             @Nullable JsonNode userBaseline, @Nullable JsonNode organizationBaseline) {
+            this(bundleVersion, secondPassModels, userBaseline, organizationBaseline, null, null);
+        }
+
+        /** The registry scope the version is read in: the one asked for, else the platform scope. */
+        String scopeName() {
+            return scope != null && !scope.isBlank() ? scope.trim() : PromptVersionCatalog.PLATFORM_SCOPE;
+        }
     }
 
     /**
      * What the replay answered, with the baselines it was drawn with and the state of the sealed package it was drawn
-     * from: an answer drawn from a package changed after its seal is no fact about the decision (PR-77).
+     * from: an answer drawn from a package changed after its seal is no fact about the decision (PR-77). The state is
+     * null for a decision given in memory ({@link #replayGiven}): it was never sealed, so there is no seal to tell of.
      */
     public record Replayed(SealedDecisionReplayService.Result result, Baselines baselines,
                            SealedEvidencePackageIntegrity.Status integrity) {
@@ -150,13 +182,13 @@ public class SealedDecisionReplays {
     }
 
     /**
-     * Whether a replay may name the release: a version of the database, hidden or not (a sealed decision and its
-     * replay name the version it ran, plan 3.3), or a bundle this build runs.
+     * Whether a replay may name the release: a version of the database in the scope, hidden or not (a sealed decision
+     * and its replay name the version it ran, plan 3.3; a measurement names a version of its own scope, quality plan
+     * 3.2), or a bundle this build runs.
      */
-    private boolean replayable(String release) {
+    private boolean replayable(String scope, String release) {
         if (PromptBundleCatalog.isVersionName(release)) {
-            return catalog().find(PromptVersionCatalog.PLATFORM_SCOPE, SecurityDecisionPromptDocument.PROMPT, release)
-                    .isPresent();
+            return catalog().find(scope, SecurityDecisionPromptDocument.PROMPT, release).isPresent();
         }
         return SecurityDecisionPromptBundles.find(release).isPresent();
     }
@@ -170,34 +202,110 @@ public class SealedDecisionReplays {
     }
 
     private Optional<Replayed> replay(String actor, Optional<SealedEvidencePackage> found, ReplayRequest request) {
+        Asked asked = asked(request);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        SealedEvidencePackage sealed = found.get();
+        return Optional.of(run(actor, sealed, request, asked, null, null, integrity.evaluate(sealed)));
+    }
+
+    /**
+     * Quality plan 3.2, 5 stage 3: the replay of a decision that is in no store, given in the form of a sealed package
+     * (its canonical context, request facts, authentication state, baseline snapshot and retrieval results): a
+     * labelled case is kept apart from the sealed decisions and built in memory for its replay. Everything the prompt
+     * is drawn from comes with it: the baselines are those the request gives, else those its baseline snapshot keeps;
+     * without either the decision had none, and the baselines Contexa keeps now are not read, so the same case is the
+     * same input on every server and at every time. The context format its inputs are written in is compared with the
+     * one this build reads; inputs of another format are not read, and the answer says so. The replay calls the model,
+     * so it is audited like any other.
+     *
+     * @param given                the inputs in the sealed form; its package id and correlation id name the case
+     * @param contextFormatVersion the version of the context format the inputs are written in
+     * @throws IllegalArgumentException when the version is no version of the security decision prompt, or no context
+     *                                  format is named
+     * @throws UnavailableException     when the engine's decision pipeline is not in this application
+     */
+    public Replayed replayGiven(String actor, SealedEvidencePackage given, String contextFormatVersion,
+                                ReplayRequest request) {
+        return replayGiven(actor, given, contextFormatVersion, null, request);
+    }
+
+    /**
+     * The replay of a given decision as {@link #replayGiven(String, SealedEvidencePackage, String, ReplayRequest)},
+     * drawn in the time zone the decision fixes (quality plan 3.2: a labelled case is the same input whatever the time
+     * zone of the server is).
+     *
+     * @param timeZone the id of the time zone the prompt's times are drawn in; null for the time zone of the events of
+     *                 this server
+     * @throws IllegalArgumentException also when there is no such time zone
+     */
+    public Replayed replayGiven(String actor, SealedEvidencePackage given, String contextFormatVersion,
+                                @Nullable String timeZone, ReplayRequest request) {
+        Objects.requireNonNull(given, "given");
+        Asked asked = asked(request);
+        if (contextFormatVersion == null || contextFormatVersion.isBlank()) {
+            throw new IllegalArgumentException("The context format of a given decision's inputs is required");
+        }
+        return run(actor, given, request, asked, contextFormatVersion.trim(), zone(timeZone), null);
+    }
+
+    @Nullable
+    private static ZoneId zone(@Nullable String timeZone) {
+        if (timeZone == null || timeZone.isBlank()) {
+            return null;
+        }
+        try {
+            return ZoneId.of(timeZone.trim());
+        }
+        catch (DateTimeException unknown) {
+            throw new IllegalArgumentException("There is no time zone " + timeZone, unknown);
+        }
+    }
+
+    /** What a replay request asks for, checked: the version and the models of the second pass. */
+    private record Asked(String bundle, List<String> models, boolean configuredSecondPass) {
+    }
+
+    private Asked asked(ReplayRequest request) {
         if (request == null || request.bundleVersion() == null || request.bundleVersion().isBlank()) {
             throw new IllegalArgumentException("A bundle version is required");
         }
         String bundle = request.bundleVersion().trim();
-        if (!replayable(bundle)) {
+        if (!replayable(request.scopeName(), bundle)) {
             throw new IllegalArgumentException(PromptBundleCatalog.isVersionName(bundle)
                     ? "Version " + bundle + " is not a version of the security decision prompt"
                     : "Bundle " + bundle + " is not a bundle this build runs");
         }
         List<String> models = request.secondPassModels() == null ? List.of() : request.secondPassModels().stream()
                 .filter(Objects::nonNull).map(String::trim).filter(model -> !model.isEmpty()).distinct().toList();
-        if (models.size() > SECOND_PASS_LIMIT) {
+        // Quality plan 3.3: the second layer's own model is one more second pass, asked under no name.
+        boolean configured = Boolean.TRUE.equals(request.configuredSecondPass());
+        if (models.size() + (configured ? 1 : 0) > SECOND_PASS_LIMIT) {
             throw new IllegalArgumentException("At most " + SECOND_PASS_LIMIT + " second-pass models may be asked");
         }
-        if (found.isEmpty()) {
-            return Optional.empty();
-        }
+        return new Asked(bundle, models, configured);
+    }
+
+    /**
+     * The replay of the sealed inputs: of a package of the store with its state, or of a given decision with the
+     * context format its inputs are written in, the time zone it fixes and no state. The version is read in the scope
+     * the request names.
+     */
+    private Replayed run(String actor, SealedEvidencePackage sealed, ReplayRequest request, Asked asked,
+                         @Nullable String givenContextFormat, @Nullable ZoneId givenTimeZone,
+                         @Nullable SealedEvidencePackageIntegrity.Status state) {
         SealedDecisionReplayService replays = service.get();
         if (replays == null) {
             throw new UnavailableException();
         }
-        SealedEvidencePackage sealed = found.get();
-        DrawnWith drawnWith = baselinesOf(sealed, request.userBaseline(), request.organizationBaseline());
-        SealedEvidencePackageIntegrity.Status state = integrity.evaluate(sealed);
-        SealedDecisionReplayService.Result result = replays.replay(sealed, drawnWith.user(), drawnWith.organization(),
-                bundle, TIMEOUT, models);
-        audit(actor, sealed, bundle, models, drawnWith.baselines(), state, result);
-        return Optional.of(new Replayed(result, drawnWith.baselines(), state));
+        boolean given = givenContextFormat != null;
+        DrawnWith drawnWith = baselinesOf(sealed, request.userBaseline(), request.organizationBaseline(), !given);
+        SealedDecisionReplayService.Result result = replays.replay(new SealedDecisionReplayService.Request(sealed,
+                drawnWith.user(), drawnWith.organization(), asked.bundle(), TIMEOUT, asked.models(),
+                asked.configuredSecondPass(), givenContextFormat, request.scopeName(), givenTimeZone));
+        audit(actor, sealed, asked, drawnWith.baselines(), state, given, result);
+        return new Replayed(result, drawnWith.baselines(), state);
     }
 
     /**
@@ -210,8 +318,8 @@ public class SealedDecisionReplays {
 
     /**
      * Plan 3.10 (2): the prompts the sealed decision of the package draws with the version, the model not asked, on the
-     * baselines Contexa keeps now, as a replay that is given none draws them; empty when there is no such package.
-     * Nothing is asked, so nothing is audited.
+     * baselines a replay that is given none draws them with (those the package sealed, else those kept now); empty when
+     * there is no such package. Nothing is asked, so nothing is audited.
      *
      * @throws IllegalArgumentException when the version is no version of the security decision prompt
      * @throws UnavailableException     when the engine's decision pipeline is not in this application
@@ -221,7 +329,7 @@ public class SealedDecisionReplays {
             throw new IllegalArgumentException("A version is required");
         }
         String name = version.trim();
-        if (!replayable(name)) {
+        if (!replayable(PromptVersionCatalog.PLATFORM_SCOPE, name)) {
             throw new IllegalArgumentException(PromptBundleCatalog.isVersionName(name)
                     ? "Version " + name + " is not a version of the security decision prompt"
                     : "Bundle " + name + " is not a bundle this build runs");
@@ -235,7 +343,7 @@ public class SealedDecisionReplays {
             throw new UnavailableException();
         }
         SealedEvidencePackage sealed = found.get();
-        DrawnWith drawnWith = baselinesOf(sealed, null, null);
+        DrawnWith drawnWith = baselinesOf(sealed, null, null, true);
         SealedDecisionReplayService.Drawing drawing = replays.draw(sealed, drawnWith.user(), drawnWith.organization(),
                 name);
         return Optional.of(new Drawn(drawing, drawnWith.baselines(), integrity.evaluate(sealed)));
@@ -254,14 +362,27 @@ public class SealedDecisionReplays {
     }
 
     /**
-     * The baselines a sealed decision is drawn again with: those given, else the person's and the organization's as
-     * Contexa keeps them now.
+     * The baselines a sealed decision is drawn again with: those given; else those the package sealed with its
+     * decision, a baseline it sealed as none staying none; else, for a package that sealed no baselines, the person's
+     * and the organization's as Contexa keeps them now. A given decision is never drawn with those kept now: without a
+     * baseline given or kept in its snapshot it had none, and that is what the caller gave.
      */
     private DrawnWith baselinesOf(SealedEvidencePackage sealed, @Nullable JsonNode userBaseline,
-                                  @Nullable JsonNode organizationBaseline) {
+                                  @Nullable JsonNode organizationBaseline, boolean keptNowAllowed) {
         BaselineVector user = vector(userBaseline);
         BaselineVector organization = vector(organizationBaseline);
         Baselines drawnWith = user != null || organization != null ? Baselines.GIVEN : Baselines.CURRENT;
+        Optional<DecisionBaselines> kept = drawnWith == Baselines.GIVEN ? Optional.empty()
+                : SealedDecisionBaselines.read(sealed, json);
+        if (kept.isPresent()) {
+            // Read from the package for this replay alone, so naming the user below changes nothing that is kept.
+            drawnWith = Baselines.SEALED;
+            user = kept.get().personal();
+            organization = kept.get().organization();
+        }
+        if (drawnWith == Baselines.CURRENT && !keptNowAllowed) {
+            drawnWith = Baselines.GIVEN;
+        }
         if (drawnWith == Baselines.CURRENT && baselines != null) {
             // Copies, so that naming the user below leaves the kept baselines as they are.
             user = copy(baselines.getUserBaseline(BaselineDataStore.userKey(sealed.getTenantId(),
@@ -312,8 +433,8 @@ public class SealedDecisionReplays {
         }
     }
 
-    private void audit(String actor, SealedEvidencePackage sealed, String bundle, List<String> models,
-                       Baselines drawnWith, SealedEvidencePackageIntegrity.Status state,
+    private void audit(String actor, SealedEvidencePackage sealed, Asked asked, Baselines drawnWith,
+                       @Nullable SealedEvidencePackageIntegrity.Status state, boolean given,
                        SealedDecisionReplayService.Result result) {
         if (audit == null) {
             return;
@@ -321,10 +442,14 @@ public class SealedDecisionReplays {
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("requestId", String.valueOf(sealed.getCorrelationId()));
         details.put("packageId", String.valueOf(sealed.getPackageId()));
-        details.put("bundleVersion", bundle);
-        details.put("secondPassModels", models);
+        details.put("bundleVersion", asked.bundle());
+        details.put("secondPassModels", asked.models());
+        details.put("configuredSecondPass", asked.configuredSecondPass());
         details.put("baselines", drawnWith.name());
-        details.put("integrity", state.name());
+        // A given decision was never sealed: it has no state, and the record says it is no sealed package.
+        details.put("integrity", state != null ? state.name() : "NOT_SEALED");
+        details.put("given", given);
+        details.put("outcome", String.valueOf(result.outcome()));
         details.put("replayId", String.valueOf(result.replayId()));
         details.put("action", String.valueOf(result.action()));
         if (result.failure() != null) {

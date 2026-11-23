@@ -18,8 +18,9 @@ import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
- * The inspection screens, one purpose each: the overview of a period, the sealed prompt list, and one prompt's
- * detail. The pages draw their data from the inspection API; the words their scripts draw come with the page.
+ * The inspection screens, one purpose each: the sealed prompt list and one prompt's detail. The root address, which
+ * was the overview of a period, opens the list. The pages draw their data from the inspection API; the words their
+ * scripts draw come with the page.
  */
 @Controller
 @RequestMapping("/contexa/admin/prompt-inspection")
@@ -29,7 +30,8 @@ public class PromptInspectionPageController {
     /** The message keys the inspection scripts draw. */
     static final List<String> SCRIPT_KEYS = Stream.of(
             PromptInspectionScreen.VERDICTS.stream().map(verdict -> "promptInspection.verdict." + verdict),
-            PromptInspectionScreen.CHECKS.stream().map(check -> "promptInspection.check." + check),
+            Stream.concat(PromptInspectionScreen.CHECKS.stream(), PromptInspectionScreen.RETIRED_CHECKS.stream())
+                    .map(check -> "promptInspection.check." + check),
             Stream.of("MISMATCH", "UNVERIFIABLE").map(outcome -> "promptInspection.outcome." + outcome),
             Stream.of("AUTO", "OPERATOR").map(trigger -> "promptInspection.trigger." + trigger),
             Stream.of("loading", "empty", "error", "notFound").map(word -> "promptInspection.common." + word),
@@ -57,8 +59,8 @@ public class PromptInspectionPageController {
     }
 
     @GetMapping({"", "/"})
-    public String overview(Model model, Locale locale) {
-        return page(model, locale, "overview", "overview");
+    public String root() {
+        return "redirect:/contexa/admin/prompt-inspection/packages";
     }
 
     @GetMapping("/packages")

@@ -1,15 +1,8 @@
 package io.contexa.contexaiam.admin.promptquality.inspection;
 
-import io.contexa.contexacore.verification.inspection.DecisionFactMatchCheck;
-import io.contexa.contexacore.verification.inspection.DictionaryContractCheck;
-import io.contexa.contexacore.verification.inspection.FactAccuracyCheck;
-import io.contexa.contexacore.verification.inspection.PastRecordNotationCheck;
-import io.contexa.contexacore.verification.inspection.SameFactCheck;
 import io.contexa.contexacore.verification.inspection.PromptInspectionVerdict;
-import io.contexa.contexacore.verification.inspection.ReasonMatchCheck;
 import io.contexa.contexacore.verification.inspection.SealIntegrityCheck;
 import io.contexa.contexacore.verification.inspection.SourceTruthCheck;
-import io.contexa.contexacore.verification.inspection.UnknownDeclaredCheck;
 
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -31,9 +24,15 @@ public final class PromptInspectionScreen {
 
     /** The codes of the checks the inspector runs, in the order the screens offer them. */
     public static final List<String> CHECKS = List.of(SealIntegrityCheck.CODE, BundleTraceCheck.CODE,
-            DictionaryContractCheck.CODE, DecisionFactMatchCheck.CODE, FactAccuracyCheck.CODE,
-            UnknownDeclaredCheck.CODE, PastRecordNotationCheck.CODE, SourceTruthCheck.CODE, SameFactCheck.CODE,
-            ReasonMatchCheck.CODE);
+            SourceTruthCheck.CODE);
+
+    /**
+     * The codes of the checks the inspector ran before it was narrowed to the evidence audit (plan 2.1 of the prompt
+     * quality redesign): the renderer's checks went to the build and the reason codes to the decision path. Results
+     * stored before then still name them, so the screens keep their names; the filter no longer offers them.
+     */
+    public static final List<String> RETIRED_CHECKS = List.of("DICTIONARY_CONTRACT", "DECISION_FACT_MATCH",
+            "FACT_ACCURACY", "UNKNOWN_DECLARED", "PAST_RECORD_NOTATION", "SAME_FACT", "REASON_MATCH");
 
     /** The tone of each verdict's chip; a finding's outcome chip takes the tone of the same name. */
     public static final Map<String, String> TONES = tones();

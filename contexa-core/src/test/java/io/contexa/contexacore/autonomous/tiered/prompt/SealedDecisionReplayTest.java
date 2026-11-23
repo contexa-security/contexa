@@ -18,11 +18,13 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -30,6 +32,8 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
+import io.contexa.contexacore.std.llm.gate.ModelServerBusyException;
 import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentReader;
@@ -48,11 +52,17 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.ZoneId;
+import java.net.ConnectException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TimeZone;
+import java.util.concurrent.TimeoutException;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -88,6 +98,9 @@ class SealedDecisionReplayTest {
             assertThat(drawing.result.replayId()).startsWith(SealedDecisionReplayInputs.REPLAY_ID_PREFIX);
             assertThat(drawing.result.replayedRequestId()).isEqualTo(goldenCase.path("requestFacts").path("requestId").asText());
             assertThat(drawing.result.failure()).isNull();
+            // A replay keeps nothing of its own once drawn: neither the context it fixed nor a cached copy of it.
+            assertThat(drawing.keptContextBytes).as(caseKey).isZero();
+            assertThat(drawing.released).as(caseKey).isTrue();
         }
     }
 
@@ -214,6 +227,36 @@ class SealedDecisionReplayTest {
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("v9.0");
     }
 
+    /**
+     * Quality plan 3.2 (P24): a replay that fixes a time zone draws the prompt's times in it, whatever the time zone of
+     * the server; one that fixes none draws them in the server's, as a decision sealed here was drawn.
+     */
+    @Test
+    void aReplayDrawsInTheTimeZoneItFixesWhateverTheServers() {
+        JsonNode goldenCase = goldenCase("A3");
+        String golden = SecurityDecisionGoldenRender.load()
+                .render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, new TieredStrategyProperties())
+                .userText();
+        String bundle = SecurityDecisionPromptBundles.V1.version();
+        BaselineVector personal = vector(goldenCase.path("learningEvidence").path("personalBaseline"));
+        BaselineVector organization = vector(goldenCase.path("learningEvidence").path("organizationBaseline"));
+
+        // The server runs fourteen hours ahead of the time zone the golden prompt was drawn in.
+        Drawing fixed = replay(goldenCase, "ALLOW", bundle, null, sealed -> {
+            TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Kiritimati"));
+            return new SealedDecisionReplayService.Request(sealed, personal, organization, bundle,
+                    Duration.ofSeconds(30), List.of(), false, null, null, ZoneId.of("UTC"));
+        }, null);
+        Drawing onTheServersClock = replay(goldenCase, "ALLOW", bundle, null, sealed -> {
+            TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Kiritimati"));
+            return new SealedDecisionReplayService.Request(sealed, personal, organization, bundle,
+                    Duration.ofSeconds(30), List.of(), false, null);
+        }, null);
+
+        assertThat(fixed.userPrompts).singleElement().isEqualTo(golden);
+        assertThat(onTheServersClock.userPrompts).singleElement().isNotEqualTo(golden);
+    }
+
     /** The drawing through the replay service, with a pipeline that fails the test when it is asked. */
     private static SealedDecisionReplayService.Drawing draw(JsonNode goldenCase, String release,
                                                            PromptVersionStore store) {
@@ -221,9 +264,9 @@ class SealedDecisionReplayTest {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         try {
             TieredStrategyProperties properties = new TieredStrategyProperties();
-            SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
-                    new SecurityDecisionPromptSections(new SecurityEventEnricher(), properties,
-                            event -> Optional.empty(), new PromptContextComposer(), null, null, null));
+            SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(new SecurityEventEnricher(),
+                    properties, event -> Optional.empty(), new PromptContextComposer(), null, null, null);
+            SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(sections);
             template.setPromptVersionStore(store);
             List<String> asked = new ArrayList<>();
             PipelineOrchestrator pipeline = new PipelineOrchestrator(List.of()) {
@@ -242,6 +285,7 @@ class SealedDecisionReplayTest {
                     vector(goldenCase.path("learningEvidence").path("personalBaseline")),
                     vector(goldenCase.path("learningEvidence").path("organizationBaseline")), release);
             assertThat(asked).as("the model is not asked").isEmpty();
+            assertThat(sections.canonicalContextCacheBytes()).as("a drawing caches no canonical context").isZero();
             return drawn;
         }
         finally {
@@ -265,8 +309,229 @@ class SealedDecisionReplayTest {
         }
     }
 
+    /**
+     * Quality plan 3.3: the second pass is asked with the second layer's own model, the one the server is set to, when
+     * the request says so: under no name, on the second layer's tier, before the named models.
+     */
+    @Test
+    void theSecondPassIsAskedWithTheSecondLayersOwnModelWhenTheRequestSaysSo() {
+        Drawing drawing = replay(goldenCase("A3"), "ESCALATE", SecurityDecisionPromptBundles.V1.version(), null,
+                sealed -> new SealedDecisionReplayService.Request(sealed, null, null,
+                        SecurityDecisionPromptBundles.V1.version(), Duration.ofSeconds(30), List.of("model-two"), true,
+                        null), null);
+        Drawing ownModelOnly = replay(goldenCase("A3"), "ESCALATE", SecurityDecisionPromptBundles.V1.version(), null,
+                sealed -> new SealedDecisionReplayService.Request(sealed, null, null,
+                        SecurityDecisionPromptBundles.V1.version(), Duration.ofSeconds(30), null, true, null), null);
+
+        assertThat(drawing.tiers).containsExactly(1, 2, 2);
+        assertThat(drawing.models).as("no model is named for the server's own").containsExactly(null, null, "model-two");
+        assertThat(drawing.result.secondPasses()).extracting(SealedDecisionReplayService.SecondPass::requestedModel)
+                .containsExactly(null, "model-two");
+        assertThat(drawing.result.secondPasses()).extracting(SealedDecisionReplayService.SecondPass::action)
+                .containsExactly("CHALLENGE", "BLOCK");
+        assertThat(drawing.result.secondPasses()).allSatisfy(pass -> assertThat(pass.failure()).isNull());
+        assertThat(ownModelOnly.tiers).containsExactly(1, 2);
+        assertThat(ownModelOnly.result.secondPasses()).singleElement()
+                .satisfies(pass -> assertThat(pass.requestedModel()).isNull());
+    }
+
+    /**
+     * Quality plan 3.3: the answer of a replay carries what the pipeline returns for it: the prompts drawn for the
+     * model call (the replay's request asks the pipeline for them), what the response check found of each reason code,
+     * and the model calls with their times; so does each second pass.
+     */
+    @Test
+    void theAnswerCarriesThePromptsDrawnTheCitationCheckAndTheModelCalls() {
+        SecurityDecisionCitationCheck check = SecurityDecisionCitationCheck.skipped(List.of());
+        Drawing drawing = replay(goldenCase("A3"), "ESCALATE", SecurityDecisionPromptBundles.V1.version(), null,
+                sealed -> new SealedDecisionReplayService.Request(sealed, null, null,
+                        SecurityDecisionPromptBundles.V1.version(), Duration.ofSeconds(30), List.of("model-two"), false,
+                        null),
+                (response, userPrompt) -> {
+                    response.withMetadata(PromptRuntimeTelemetrySupport.DRAWN_SYSTEM_PROMPT, "SYSTEM AS DRAWN");
+                    response.withMetadata(PromptRuntimeTelemetrySupport.DRAWN_USER_PROMPT, userPrompt);
+                    response.withMetadata(SecurityDecisionCitationCheck.METADATA_KEY, check);
+                    response.withMetadata(PromptRuntimeTelemetrySupport.MODEL_CALLS,
+                            PromptRuntimeTelemetrySupport.withModelCall(PromptRuntimeTelemetrySupport.withModelCall(
+                                    null, 7_000, 120L, 90_000, false), 6_500L, null, null, true));
+                });
+
+        assertThat(drawing.keptPrompts).as("every request of a replay asks for the drawn prompts")
+                .containsExactly(true, true);
+        SealedDecisionReplayService.Result result = drawing.result;
+        assertThat(result.systemPrompt()).isEqualTo("SYSTEM AS DRAWN");
+        assertThat(result.userPrompt()).isEqualTo(drawing.userPrompts.get(0));
+        assertThat(result.citationCheck()).isSameAs(check);
+        assertThat(result.modelCalls()).containsExactly(
+                new SealedDecisionReplayService.ModelCall(7_000L, 120L, 90_000L, false),
+                new SealedDecisionReplayService.ModelCall(6_500L, null, null, true));
+        assertThat(result.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.ANSWERED);
+        assertThat(result.modelAction()).isEqualTo("ESCALATE");
+        SealedDecisionReplayService.SecondPass second = result.secondPasses().get(0);
+        assertThat(second.userPrompt()).isEqualTo(drawing.userPrompts.get(1)).contains("=== SECOND PASS");
+        assertThat(second.citationCheck()).isSameAs(check);
+        assertThat(second.modelCalls()).hasSize(2);
+        assertThat(second.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.ANSWERED);
+        assertThat(second.modelAction()).isEqualTo("BLOCK");
+    }
+
+    /**
+     * Quality plan 3.3: a failure of the measurement is told apart from an answer that could not be used. When the
+     * model call fails the engine sets a safe-side action on the response, so the action alone does not tell: a busy
+     * or unreachable model server and a time limit are a failure of the infrastructure, to be asked again; an answer
+     * that broke the response contract or had no usable form is the model's, with the action the model gave when one
+     * could be read.
+     */
+    @Test
+    void aFailureOfTheMeasurementIsToldApartFromAnAnswerThatCouldNotBeUsed() {
+        SealedDecisionReplayService.Result busy = answered(Map.of("rawExecutionSucceeded", false,
+                "structuredOutputFailureCategory", "MODEL_SERVER_BUSY", "securityDecisionParsingFallbackApplied", true));
+        SealedDecisionReplayService.Result timedOut = answered(Map.of("rawExecutionSucceeded", false,
+                "securityDecisionParseFailureCategory", "TIMEOUT"));
+        SealedDecisionReplayService.Result unavailable = answered(Map.of("rawExecutionSucceeded", false,
+                "structuredOutputFailureCategory", "MODEL_UNAVAILABLE"));
+        SealedDecisionReplayService.Result contractBroken = answered(Map.of("rawExecutionSucceeded", false,
+                "structuredOutputFailureCategory", "VALIDATION_FAILED", "securityDecisionContractFallbackAction",
+                "ESCALATE", "securityDecisionRetryAction", "ALLOW"));
+        SealedDecisionReplayService.Result cut = answered(Map.of("rawExecutionSucceeded", false,
+                "structuredOutputFailureCategory", "OUTPUT_TRUNCATED"));
+        SealedDecisionReplayService.Result unreadable = answered(Map.of("rawExecutionSucceeded", true,
+                "securityDecisionParsingFallbackApplied", true, "llmDecisionPresent", false));
+        SealedDecisionReplayService.Result sound = answered(Map.of("rawExecutionSucceeded", true,
+                "securityDecisionParsingFallbackApplied", false, "llmDecisionPresent", true));
+
+        for (SealedDecisionReplayService.Result infrastructure : List.of(busy, timedOut, unavailable)) {
+            assertThat(infrastructure.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.INFRASTRUCTURE_FAILURE);
+            assertThat(infrastructure.action()).as("the action the engine set, no answer of the prompt")
+                    .isEqualTo("CHALLENGE");
+            assertThat(infrastructure.modelAction()).isNull();
+        }
+        assertThat(contractBroken.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.MODEL_ANSWER_UNUSABLE);
+        assertThat(contractBroken.modelAction()).as("the answer the contract replaced").isEqualTo("ALLOW");
+        assertThat(cut.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.MODEL_ANSWER_UNUSABLE);
+        assertThat(cut.modelAction()).isNull();
+        assertThat(unreadable.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.MODEL_ANSWER_UNUSABLE);
+        assertThat(unreadable.modelAction()).isNull();
+        assertThat(sound.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.ANSWERED);
+        assertThat(sound.modelAction()).isEqualTo("CHALLENGE");
+
+        assertThat(failing(new ModelServerBusyException("ollama", "No free slot")).outcome())
+                .isEqualTo(SealedDecisionReplayService.Outcome.INFRASTRUCTURE_FAILURE);
+        assertThat(failing(new IllegalStateException("wrapped", new TimeoutException("the layer's limit"))).outcome())
+                .isEqualTo(SealedDecisionReplayService.Outcome.INFRASTRUCTURE_FAILURE);
+        assertThat(failing(new IllegalStateException("wrapped", new ConnectException("refused"))).outcome())
+                .isEqualTo(SealedDecisionReplayService.Outcome.INFRASTRUCTURE_FAILURE);
+        SealedDecisionReplayService.Result contextGone = failing(new SealedReplayContextMissingException("replay-x"));
+        assertThat(contextGone.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.CONTEXT_MISSING);
+        assertThat(contextGone.action()).isNull();
+        assertThat(contextGone.failure()).contains("SealedReplayContextMissingException");
+        assertThat(failing(new IllegalArgumentException("a defect of the engine")).outcome())
+                .isEqualTo(SealedDecisionReplayService.Outcome.REPLAY_ERROR);
+
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        SealedDecisionReplayService withoutPipeline = new SealedDecisionReplayService(
+                new SecurityDecisionStandardPromptTemplate(new SecurityDecisionPromptSections(new SecurityEventEnricher(),
+                        properties, event -> Optional.empty(), new PromptContextComposer(), null, null, null)),
+                null, new BaselineLearningService(null, new SecurityZeroTrustProperties()), properties,
+                StructuredOutputCapabilityRegistry.defaultRegistry(), () -> null, null, "OBSERVE",
+                new CanonicalSecurityContextSerializer(MAPPER), MAPPER);
+        SealedDecisionReplayService.Result notRun = withoutPipeline.replay(sealed(goldenCase("A3")), null, null,
+                SecurityDecisionPromptBundles.V1.version(), Duration.ofSeconds(30));
+        assertThat(notRun.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.INFRASTRUCTURE_FAILURE);
+        assertThat(notRun.failure()).isEqualTo("PIPELINE_UNAVAILABLE");
+    }
+
+    /**
+     * Quality plan 9: a replay that is told the context format of its inputs does not read inputs of another format
+     * as if they were of this build's, and says so without asking the model; inputs that name none (a package this
+     * server sealed) are read as before. Sealed inputs that cannot be read at all are told apart too.
+     */
+    @Test
+    void inputsOfAnotherContextFormatAreNotReadAndUnreadableInputsAreToldApart() {
+        JsonNode goldenCase = goldenCase("A3T");
+        String bundle = SecurityDecisionPromptBundles.V1.version();
+        Drawing other = replay(goldenCase, "ALLOW", bundle, null, sealed -> new SealedDecisionReplayService.Request(
+                sealed, null, null, bundle, Duration.ofSeconds(30), List.of(), false, "2"), null);
+        Drawing same = replay(goldenCase, "ALLOW", bundle, null, sealed -> new SealedDecisionReplayService.Request(
+                sealed, null, null, bundle, Duration.ofSeconds(30), List.of(), false,
+                " " + SealedDecisionReplayInputs.CONTEXT_FORMAT_VERSION + " "), null);
+        Drawing unnamed = replay(goldenCase, "ALLOW", bundle, null, sealed -> new SealedDecisionReplayService.Request(
+                sealed, null, null, bundle, Duration.ofSeconds(30), List.of(), false, null), null);
+        Drawing unreadable = replay(goldenCase, "ALLOW", bundle, null, sealed -> {
+            sealed.setCanonicalContextJson(null);
+            return new SealedDecisionReplayService.Request(sealed, null, null, bundle, Duration.ofSeconds(30),
+                    List.of(), false, SealedDecisionReplayInputs.CONTEXT_FORMAT_VERSION);
+        }, null);
+
+        assertThat(other.result.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.CONTEXT_FORMAT_MISMATCH);
+        assertThat(other.result.failure()).startsWith("CONTEXT_FORMAT_MISMATCH").contains("format 2");
+        assertThat(other.result.action()).isNull();
+        assertThat(other.userPrompts).as("the model is not asked").isEmpty();
+        assertThat(same.result.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.ANSWERED);
+        assertThat(same.userPrompts).hasSize(1);
+        assertThat(unnamed.result.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.ANSWERED);
+        assertThat(unreadable.result.outcome()).isEqualTo(SealedDecisionReplayService.Outcome.INPUT_UNREADABLE);
+        assertThat(unreadable.userPrompts).isEmpty();
+    }
+
+    /**
+     * Quality plan 9 (K161): the prompt of a replay is drawn with the canonical context the replay fixed for its event,
+     * or not at all: once that context is no longer kept, the context the provider resolves now is not taken in its
+     * place. An event that is no replay resolves its context as before.
+     */
+    @Test
+    void aReplayIsNotDrawnWithTheContextOfNowWhenItsSealedContextIsNoLongerKept() {
+        CanonicalSecurityContext live = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder().resourceClass("NORMAL").build()).build();
+        CanonicalSecurityContext sealedContext = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder().resourceClass("SENSITIVE").build()).build();
+        SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(new SecurityEventEnricher(),
+                new TieredStrategyProperties(), event -> Optional.of(live), new PromptContextComposer(), null, null, null);
+        SecurityEvent fixed = replayEvent("replay-fixed");
+        SecurityEvent forgotten = replayEvent("replay-forgotten");
+        SecurityEvent decision = SecurityEvent.builder().eventId("event-live").userId("alice")
+                .metadata(new LinkedHashMap<>()).build();
+        sections.useCanonicalContext(fixed, sealedContext);
+
+        assertThat(sections.resolveCanonicalSecurityContext(fixed).orElseThrow().getResource().getResourceClass())
+                .isEqualTo("SENSITIVE");
+        assertThatThrownBy(() -> sections.resolveCanonicalSecurityContext(forgotten))
+                .isInstanceOf(SealedReplayContextMissingException.class).hasMessageContaining("replay-forgotten");
+        assertThat(sections.resolveCanonicalSecurityContext(decision).orElseThrow().getResource().getResourceClass())
+                .as("a decision's own path is as it was").isEqualTo("NORMAL");
+    }
+
+    private static SecurityEvent replayEvent(String id) {
+        SecurityEvent event = SecurityEvent.builder().eventId(id).userId("alice").metadata(new LinkedHashMap<>()).build();
+        event.addMetadata(SecurityDecisionPromptSections.EVENT_BUNDLE_SOURCE, PromptBundleSelectionSource.REPLAY.name());
+        return event;
+    }
+
+    /** A replay of A3T whose pipeline answers CHALLENGE with the given marks of the engine on its response. */
+    private static SealedDecisionReplayService.Result answered(Map<String, Object> marks) {
+        return replay(goldenCase("A3T"), "CHALLENGE", SecurityDecisionPromptBundles.V1.version(), null,
+                sealed -> new SealedDecisionReplayService.Request(sealed, null, null,
+                        SecurityDecisionPromptBundles.V1.version(), Duration.ofSeconds(30), List.of(), false, null),
+                (response, userPrompt) -> marks.forEach(response::withMetadata)).result;
+    }
+
+    /** A replay of A3T whose pipeline ends in the given failure. */
+    private static SealedDecisionReplayService.Result failing(RuntimeException failure) {
+        return replay(goldenCase("A3T"), "CHALLENGE", SecurityDecisionPromptBundles.V1.version(), null,
+                sealed -> new SealedDecisionReplayService.Request(sealed, null, null,
+                        SecurityDecisionPromptBundles.V1.version(), Duration.ofSeconds(30), List.of(), false, null),
+                (response, userPrompt) -> {
+                    throw failure;
+                }).result;
+    }
+
+    /**
+     * {@code keptContextBytes}: the canonical contexts the template's cache keeps after the replay; {@code released}:
+     * whether the contexts the replay fixed for its passes were let go once their prompts were drawn.
+     */
     private record Drawing(SealedDecisionReplayService.Result result, List<String> userPrompts, List<Integer> tiers,
-                           List<String> models, List<String> pinned, List<String> systemPrompts) {
+                           List<String> models, List<String> pinned, List<String> systemPrompts,
+                           List<Boolean> keptPrompts, long keptContextBytes, boolean released) {
     }
 
     private static Drawing replay(JsonNode goldenCase) {
@@ -284,19 +549,33 @@ class SealedDecisionReplayTest {
      */
     private static Drawing replay(JsonNode goldenCase, List<String> secondPassModels, String firstAction,
                                   String release, PromptVersionStore store) {
+        return replay(goldenCase, firstAction, release, store, sealed -> new SealedDecisionReplayService.Request(sealed,
+                vector(goldenCase.path("learningEvidence").path("personalBaseline")),
+                vector(goldenCase.path("learningEvidence").path("organizationBaseline")),
+                release, Duration.ofSeconds(30), secondPassModels, false, null), null);
+    }
+
+    /**
+     * The replay of the request the sealed package is made into, through the stand-in pipeline; {@code marking} may
+     * add to each response what the engine's pipeline leaves on it, or fail as the pipeline would.
+     */
+    private static Drawing replay(JsonNode goldenCase, String firstAction, String release, PromptVersionStore store,
+                                  Function<SealedEvidencePackage, SealedDecisionReplayService.Request> asking,
+                                  BiConsumer<SecurityDecisionResponse, String> marking) {
         TimeZone original = TimeZone.getDefault();
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         try {
             TieredStrategyProperties properties = new TieredStrategyProperties();
-            SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
-                    new SecurityDecisionPromptSections(new SecurityEventEnricher(), properties,
-                            event -> Optional.empty(), new PromptContextComposer(), null, null, null));
+            SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(new SecurityEventEnricher(),
+                    properties, event -> Optional.empty(), new PromptContextComposer(), null, null, null);
+            SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(sections);
             template.setPromptVersionStore(store);
             List<String> userPrompts = new ArrayList<>();
             List<Integer> tiers = new ArrayList<>();
             List<String> models = new ArrayList<>();
             List<String> pinned = new ArrayList<>();
             List<String> systemPrompts = new ArrayList<>();
+            List<Boolean> keptPrompts = new ArrayList<>();
             PipelineOrchestrator pipeline = new PipelineOrchestrator(List.of()) {
                 @Override
                 @SuppressWarnings("unchecked")
@@ -309,6 +588,8 @@ class SealedDecisionReplayTest {
                     String model = request.getParameter("requestedModelId", String.class);
                     tiers.add(tier);
                     models.add(model);
+                    keptPrompts.add(Boolean.TRUE.equals(
+                            request.getParameter(PromptRuntimeTelemetrySupport.KEEP_DRAWN_PROMPTS, Boolean.class)));
                     if (request.getContext() instanceof SecurityDecisionContext decision) {
                         decision.getSecurityEvent().getMetadata()
                                 .putIfAbsent(PromptRuntimeTelemetrySupport.FIRST_PASS_USER_PROMPT, userPrompt);
@@ -321,6 +602,9 @@ class SealedDecisionReplayTest {
                     response.setAction(tier != null && tier == 2 ? ("model-two".equals(model) ? "BLOCK" : "CHALLENGE")
                             : firstAction);
                     response.setReasoning("stand-in");
+                    if (marking != null) {
+                        marking.accept(response, userPrompt);
+                    }
                     return Mono.just((R) response);
                 }
             };
@@ -328,11 +612,20 @@ class SealedDecisionReplayTest {
                     new BaselineLearningService(null, new SecurityZeroTrustProperties()), properties,
                     StructuredOutputCapabilityRegistry.defaultRegistry(), () -> null,
                     null, "OBSERVE", new CanonicalSecurityContextSerializer(MAPPER), MAPPER);
-            SealedDecisionReplayService.Result result = service.replay(sealed(goldenCase),
-                    vector(goldenCase.path("learningEvidence").path("personalBaseline")),
-                    vector(goldenCase.path("learningEvidence").path("organizationBaseline")),
-                    release, Duration.ofSeconds(30), secondPassModels);
-            return new Drawing(result, userPrompts, tiers, models, pinned, systemPrompts);
+            SealedDecisionReplayService.Result result = service.replay(asking.apply(sealed(goldenCase)));
+            boolean released = true;
+            for (int pass = 0; result.replayId() != null && pass < userPrompts.size(); pass++) {
+                String id = pass == 0 ? result.replayId() : result.replayId() + "-second-" + pass;
+                try {
+                    sections.resolveCanonicalSecurityContext(replayEvent(id));
+                    released = false;
+                }
+                catch (SealedReplayContextMissingException expected) {
+                    // The context fixed for this pass is no longer kept.
+                }
+            }
+            return new Drawing(result, userPrompts, tiers, models, pinned, systemPrompts, keptPrompts,
+                    sections.canonicalContextCacheBytes(), released);
         }
         finally {
             TimeZone.setDefault(original);

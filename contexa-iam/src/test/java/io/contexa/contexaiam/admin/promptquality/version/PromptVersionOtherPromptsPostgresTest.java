@@ -20,6 +20,8 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
+import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
 import io.contexa.contexacore.std.components.prompt.version.ProductPromptRelease;
 import io.contexa.contexacore.std.components.prompt.version.PromptAssembler;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionInUse;
@@ -57,6 +59,8 @@ import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -155,6 +159,40 @@ class PromptVersionOtherPromptsPostgresTest {
         policy.setPromptVersions(new PromptVersionInUse(() -> resolver, () -> store));
         policy.generateSystemPrompt(request(), null);
         assertThat(policy.getPromptGovernanceDescriptor().promptVersion()).isEqualTo("v1.0");
+    }
+
+    /**
+     * Plan 3.4: a prompt other than the security decision has no means of measurement: "save and measure" is refused
+     * before anything is saved, and "save and use" uses the version at once as before.
+     */
+    @Test
+    void anotherPromptIsNotMeasuredAndIsUsedAtOnceAsBefore() {
+        versions.registerProducts(null);
+        PromptGovernanceReleaseGateService gate = mock(PromptGovernanceReleaseGateService.class);
+        when(gate.transitionPromptRelease(anyString(), anyString(), anyString(), any(PromptBundleState.class), any(),
+                any(), anyString())).thenAnswer(call -> new PromptGovernanceReleaseGateService.ReleaseTransitionReceipt(
+                call.getArgument(0), call.getArgument(1), call.getArgument(2), null, "ACTIVE", true, "PASSED",
+                List.of(), null));
+        PromptVersionConsole console = new PromptVersionConsole(versions, () -> null, () -> null, () -> jdbc,
+                () -> null, () -> gate, () -> null, () -> null, () -> null, () -> null, () -> null, null, () -> null,
+                null, Clock.systemUTC());
+        console.setMeasureStarter(() -> (scope, prompt, number, actor) -> 1L);
+        List<PromptVersionConsoleDtos.FormPart> parts = List.of(new PromptVersionConsoleDtos.FormPart("finance-terms",
+                "ADD", "Finance terms", "Ledger, payroll.\n", "reference"));
+
+        assertThatThrownBy(() -> console.create(null, new PromptVersionConsoleDtos.DraftForm("ResourceNaming", 1,
+                "Finance names", null, List.of(), parts, false, null, true), "admin"))
+                .isInstanceOf(PromptVersionConsole.RefusedException.class)
+                .satisfies(refused -> assertThat(((PromptVersionConsole.RefusedException) refused).code())
+                        .isEqualTo("MEASURE_NOT_OFFERED"));
+        assertThat(versions.list(null, "ResourceNaming", true)).hasSize(1);
+
+        PromptVersionConsoleDtos.Created used = console.create(null, new PromptVersionConsoleDtos.DraftForm(
+                "ResourceNaming", 1, "Finance names", null, List.of(), parts, true, "at once"), "admin");
+
+        assertThat(used.used().applied()).isTrue();
+        assertThat(used.measureId()).isNull();
+        assertThat(used.measureRefusal()).isNull();
     }
 
     @Test

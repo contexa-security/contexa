@@ -1,9 +1,9 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexacore.verification.capture.VerificationCaptureStoreOptions;
+import io.contexa.contexacore.verification.evidence.DecisionPriorityCaptureSampling;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
 import io.contexa.contexacore.verification.evidence.VersionChangeCaptureSampling;
-import io.contexa.contexacore.verification.inspection.PromptInspectionCleanPackageRetentionScheduler;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
@@ -32,6 +32,16 @@ public class PqaOssSealedEvidenceCaptureProperties {
      * version a canary or a shadow runs beside it has a window of its own.
      */
     private int fullCaptureAfterChange = VersionChangeCaptureSampling.DEFAULT_FULL_CAPTURE_AFTER_CHANGE;
+
+    /**
+     * Plan 3.6: the packages sealed in one UTC day up to which every decision that stopped the request (CHALLENGE,
+     * ESCALATE, BLOCK) and every allowed decision with a sign of risk is sealed, counted over the servers that share
+     * the store; past it the day seals by the window and the share alone. 0 seals by the window and the share alone.
+     */
+    private int dailyLimit = DecisionPriorityCaptureSampling.DEFAULT_DAILY_LIMIT;
+
+    /** Plan 3.6: the unknown decision facts from which an allowed decision counts as one with a sign of risk. */
+    private int unknownFactThreshold = DecisionPriorityCaptureSampling.DEFAULT_UNKNOWN_FACT_THRESHOLD;
 
     public boolean isCaptureEnabled() {
         return captureEnabled;
@@ -81,6 +91,22 @@ public class PqaOssSealedEvidenceCaptureProperties {
         this.fullCaptureAfterChange = fullCaptureAfterChange;
     }
 
+    public int getDailyLimit() {
+        return dailyLimit;
+    }
+
+    public void setDailyLimit(int dailyLimit) {
+        this.dailyLimit = dailyLimit;
+    }
+
+    public int getUnknownFactThreshold() {
+        return unknownFactThreshold;
+    }
+
+    public void setUnknownFactThreshold(int unknownFactThreshold) {
+        this.unknownFactThreshold = unknownFactThreshold;
+    }
+
     public VerificationCaptureStoreOptions storeOptions() {
         return new VerificationCaptureStoreOptions(snapshotTtl, maxPendingSnapshots, maxCompletedSnapshots);
     }
@@ -92,14 +118,20 @@ public class PqaOssSealedEvidenceCaptureProperties {
     }
 
     /**
-     * How long a sealed package is kept before the retention job deletes it (R4-S4, D-C), and how long one whose
-     * latest inspection found nothing wrong is kept (R4-S5).
+     * How long a sealed package is kept before the retention job deletes it (R4-S4, D-C): one period for every
+     * package, whatever a prompt inspection found in it.
      */
     public static class Retention {
 
         private Duration period = SealedEvidencePackageAssembler.DEFAULT_RETENTION;
 
-        private Duration cleanPeriod = PromptInspectionCleanPackageRetentionScheduler.DEFAULT_CLEAN_PERIOD;
+        /**
+         * No package is removed by this period any more. Earlier versions removed a package whose latest inspection
+         * found nothing wrong once it was older than this (R4-S5), from inside the chain of sealed packages; the
+         * integrity check still reads a package missing before one older than the shorter of this and {@link #period}
+         * as that removal (SealedEvidenceStoreAutoConfiguration).
+         */
+        private Duration cleanPeriod = Duration.ofDays(30);
 
         public Duration getPeriod() {
             return period;

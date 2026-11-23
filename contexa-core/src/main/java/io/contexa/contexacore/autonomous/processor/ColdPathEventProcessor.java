@@ -22,6 +22,7 @@ import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.event.CompositeLlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
@@ -122,6 +123,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
             result.setLlmReasoning(analysisResult.getLlmReasoning());
             result.setReasonCodes(analysisResult.getReasonCodes());
             result.setHypotheses(analysisResult.getHypotheses());
+            result.setCitationCheck(analysisResult.getCitationCheck());
             result.setThreatIndicators(analysisResult.getIndicators());
             result.setRecommendedActions(new ArrayList<>(analysisResult.getRecommendedActions()));
             result.setAiAnalysisLevel(analysisResult.getAnalysisDepth());
@@ -220,6 +222,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                     result.setLlmReasoning(layer1Assessment.getLlmReasoning());
                     result.setReasonCodes(layer1Assessment.getReasonCodes());
                     result.setHypotheses(layer1Assessment.getHypotheses());
+                    result.setCitationCheck(layer1Assessment.getCitationCheck());
                     result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
                     result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
                     result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
@@ -337,6 +340,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                 result.setLlmReasoning(layer2Assessment.getLlmReasoning());
                 result.setReasonCodes(layer2Assessment.getReasonCodes());
                 result.setHypotheses(layer2Assessment.getHypotheses());
+                result.setCitationCheck(layer2Assessment.getCitationCheck());
                 result.setAutonomyConstraintApplied(layer2Assessment.getAutonomyConstraintApplied());
                 result.setAutonomyConstraintReasons(layer2Assessment.getAutonomyConstraintReasons());
                 result.setAutonomyConstraintSummary(layer2Assessment.getAutonomyConstraintSummary());
@@ -384,6 +388,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                 result.setLlmReasoning(layer1Assessment.getLlmReasoning());
                 result.setReasonCodes(layer1Assessment.getReasonCodes());
                 result.setHypotheses(layer1Assessment.getHypotheses());
+                result.setCitationCheck(layer1Assessment.getCitationCheck());
                 result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
                 result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
                 result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
@@ -617,6 +622,8 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
         private List<SecurityDecisionOutputContract.Citation> reasonCodes;
         /** V-3: the explanations a v21 model weighed; none before v21. */
         private List<Map<String, Object>> hypotheses;
+        /** Quality plan 3.6: what the response check found of the reason codes of the answer that was kept. */
+        private SecurityDecisionCitationCheck citationCheck;
         private Boolean llmDecisionPresent;
         private Boolean technicalFallbackApplied;
         private String technicalFallbackCategory;
@@ -695,6 +702,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                     .llmReasoning(llmReasoning)
                     .reasonCodes(reasonCodes)
                     .hypotheses(hypotheses)
+                    .citationCheck(citationCheck)
                     .autonomyConstraintApplied(autonomyConstraintApplied)
                     .autonomyConstraintReasons(new ArrayList<>(autonomyConstraintReasons))
                     .autonomyConstraintSummary(autonomyConstraintSummary)

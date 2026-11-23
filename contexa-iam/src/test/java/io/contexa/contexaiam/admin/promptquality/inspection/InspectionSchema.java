@@ -14,8 +14,7 @@ import java.util.regex.Pattern;
 
 /**
  * The statements of the OSS schema the inspection store, queries and bundle trace read: the sealed package table with
- * its request facts shadow column, the safe JSON function, the inspection tables, the prompt release registry and the
- * two official verification tables that name sealed packages (R4-S5), taken
+ * its request facts shadow column, the safe JSON function, the inspection tables and the prompt release registry, taken
  * from {@code META-INF/contexa/db/schema.sql} as is.
  */
 final class InspectionSchema {
@@ -35,10 +34,7 @@ final class InspectionSchema {
                     || lower.equals("alter table ctxa_sealed_evidence_package add column if not exists request_facts_jsonb jsonb")
                     || lower.contains("prompt_inspection_")
                     || lower.startsWith("create table if not exists ctxa_prompt_governance_registry ")
-                    || lower.startsWith("create unique index if not exists ctxa_idx_prompt_governance_registry_identity")
-                    || lower.startsWith("create table if not exists ctxa_official_verification_run_batch ")
-                    || lower.startsWith("create table if not exists ctxa_verification_run_ledger ")
-                    || lower.equals("alter table ctxa_verification_run_ledger add column if not exists package_id varchar(160)")) {
+                    || lower.startsWith("create unique index if not exists ctxa_idx_prompt_governance_registry_identity")) {
                 wanted.add(text);
             }
         }

@@ -3,6 +3,8 @@ package io.contexa.contexacore.verification.capture;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
@@ -25,6 +27,8 @@ import java.util.concurrent.ConcurrentMap;
  * 1. capture() -- called by SealedEvidencePromptCaptureAspect when PromptGenerator.generatePrompt() completes
  * 2. complete() -- called by SealedEvidenceLayer1CompletionAspect when Layer1.evaluate() finishes
  * 3. consume() -- called once by the capture handler when it seals the decision
+ *
+ * A replay of a sealed decision is not kept: no layer completes it and nothing seals it.
  *
  * Only a completed snapshot is handed out, and only under the trace key it was completed with. The snapshot keeps the
  * prompt metadata as the prompt generation gave it.
@@ -84,9 +88,16 @@ public class SealedEvidencePromptTraceStore {
         if (event == null || !StringUtils.hasText(event.getEventId())) {
             return;
         }
+        if (SecurityDecisionPromptSections.replayed(event)) {
+            // A replay is no decision: no layer completes it and nothing seals it, and its answer carries the prompts
+            // it drew. Kept here it would stay until it expires and push out the snapshots of the decisions to seal.
+            return;
+        }
         pruneSnapshots();
         List<Document> relatedDocuments = context.getRelatedDocuments();
         Map<String, Object> metadata = promptResult.getMetadata();
+        // The baselines this prompt was drawn from, as the analysis fixed them when it read them.
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = context.getBehaviorAnalysis();
         pendingByTraceKey.put(resolveTraceKey(event), new SealedEvidencePromptSnapshot(
                 resolveRequestId(event),
                 clock.instant(),
@@ -99,7 +110,8 @@ public class SealedEvidencePromptTraceStore {
                 promptResult.getSystemPrompt(),
                 promptResult.getUserPrompt(),
                 metadata != null ? Collections.unmodifiableMap(new LinkedHashMap<>(metadata)) : Map.of(),
-                promptResult.getPromptExecutionMetadata()));
+                promptResult.getPromptExecutionMetadata(),
+                analysis != null ? analysis.getDecisionBaselines() : null));
         pruneSnapshots();
     }
 
@@ -129,7 +141,8 @@ public class SealedEvidencePromptTraceStore {
                 pending.systemPrompt(),
                 pending.userPrompt(),
                 pending.metadata(),
-                pending.promptExecutionMetadata()));
+                pending.promptExecutionMetadata(),
+                pending.decisionBaselines()));
         pruneSnapshots();
     }
 

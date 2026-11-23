@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import io.contexa.contexacore.autonomous.baseline.DecisionBaselines;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
@@ -224,6 +225,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         promptSections.useCanonicalContext(event, context);
     }
 
+    /** Lets go of the canonical context a replay fixed for its event, once the replay has drawn its prompts. */
+    public void releaseCanonicalContext(SecurityEvent event) {
+        promptSections.releaseCanonicalContext(event);
+    }
+
     public SecurityDecisionPromptBundles.Bundle promptBundle(SecurityEvent event) {
         return promptSections.bundleOf(event);
     }
@@ -236,6 +242,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     /** Plan 3.9: the version the name stands for in the store an event's version is read from; empty when it has none. */
     public Optional<AssembledPrompt> findPromptVersion(String name) {
         return promptSections.findPromptVersion(name);
+    }
+
+    /** Quality plan 3.2: the version the name stands for in the registry scope; the store's own without one. */
+    public Optional<AssembledPrompt> findPromptVersion(String scope, String name) {
+        return promptSections.findPromptVersion(scope, name);
     }
 
     /** Plan 6-2: the store the version an event names is read from; the product versions when null. */
@@ -458,6 +469,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         private BaselineEvidenceSnapshot personalBaselineEvidence;
         private BaselineEvidenceSnapshot supportingBaselineEvidence;
         private LearningContextEvidence learningContextEvidence;
+        /**
+         * The person's and the organization's baselines the baseline evidence was built from, fixed when they were
+         * read; null when the decision read none (no baseline service, no user, a failed read).
+         */
+        private DecisionBaselines decisionBaselines;
 
         public boolean isBaselineEstablished() {
             return baselineEstablished;
@@ -641,6 +657,10 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
 
         public LearningContextEvidence getLearningContextEvidence() {
             return learningContextEvidence;
+        }
+
+        public DecisionBaselines getDecisionBaselines() {
+            return decisionBaselines;
         }
     }
 

@@ -20,6 +20,7 @@ import io.contexa.contexacommon.autoconfigure.capability.CapabilityCheckResult;
 import io.contexa.contexacommon.autoconfigure.capability.CapabilityStatus;
 import io.contexa.contexacommon.autoconfigure.capability.CapabilityRequirement;
 import io.contexa.contexacommon.autoconfigure.capability.ContexaCapability;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
@@ -27,10 +28,12 @@ import org.springframework.core.env.Environment;
 import org.springframework.util.ClassUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+@Slf4j
 public class CapabilityRequirementResolver {
 
     private final ContexaCapabilityProperties properties;
@@ -44,6 +47,24 @@ public class CapabilityRequirementResolver {
         this.properties = properties;
         this.environment = environment;
         this.beanFactory = beanFactory;
+        reportUnknownRequirements();
+    }
+
+    /**
+     * P23: a requirement of a capability this version does not have (one an upgrade removed, such as pqa-engine)
+     * decides nothing; it is reported once and left, so an installation that kept it in its settings still starts.
+     */
+    private void reportUnknownRequirements() {
+        List<String> unknown = properties.unknownRequirements();
+        if (unknown.isEmpty()) {
+            return;
+        }
+        List<String> known = Arrays.stream(ContexaCapability.values()).map(ContexaCapability::propertyKey).toList();
+        for (String key : unknown) {
+            log.warn("[CapabilityRequirementResolver] Ignoring contexa.capability.required.{}: this version has no"
+                    + " such capability (it may have been removed in an upgrade); remove the setting. Known"
+                    + " capabilities: {}", key, known);
+        }
     }
 
     public CapabilityMode effectiveMode() {
@@ -123,11 +144,6 @@ public class CapabilityRequirementResolver {
                     platformConfigPresent || hasBean("io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter"),
                     platformConfigPresent,
                     "AI security bridge is active");
-            case PQA_ENGINE -> activeWhen(capability,
-                    enterpriseEnabled
-                            && classPresent("io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityRuntimeVerificationService"),
-                    contexaOwnedApplication && enterpriseEnabled,
-                    "prompt quality official inspection engine is available");
             case ENTERPRISE_SOAR -> activeWhen(capability,
                     enterpriseEnabled && hasBeanName("contexaSoarContextRetriever"),
                     contexaOwnedApplication && enterpriseEnabled,
@@ -234,7 +250,6 @@ public class CapabilityRequirementResolver {
                 guidance.add("Set contexa.security.zerotrust.mode=DISABLED if the application intentionally runs without decisions.");
             }
             case BRIDGE -> guidance.add("Verify AI security bridge configuration is active before invoking protected resources.");
-            case PQA_ENGINE -> guidance.add("Verify the Core prompt quality official inspection modules are on the runtime classpath.");
             case ENTERPRISE_SOAR -> guidance.add("Enable enterprise mode and include the enterprise SOAR module on the runtime classpath.");
             case ENTERPRISE_MCP -> guidance.add("Include the enterprise MCP server module before enabling MCP capability.");
             case ENTERPRISE_DASHBOARD -> guidance.add("Enable enterprise mode and include enterprise dashboard metrics modules on the runtime classpath.");

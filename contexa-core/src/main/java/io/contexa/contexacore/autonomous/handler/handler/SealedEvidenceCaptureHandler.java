@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.verification.evidence.SealedCaptureDecision;
 import io.contexa.contexacore.verification.evidence.SealedEvidenceCaptureSampling;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
@@ -37,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Persists a sealed evidence package for every successfully enforced security decision.
@@ -48,7 +50,11 @@ import java.util.concurrent.RejectedExecutionException;
  * The decision pipeline can run on a request thread (synchronous protectable decisions), so the
  * handler only takes a detached snapshot of the event context on the calling thread. Package assembly,
  * the processing owner check and the database insert run on the dedicated capture executor. A capture
- * that cannot be scheduled or fails is logged and dropped; it never blocks or fails decision enforcement.
+ * that cannot be scheduled or fails is logged and dropped; it never blocks or fails decision enforcement. A capture the
+ * executor's full queue rejected is counted ({@link #rejectedCaptures()}).
+ *
+ * Which assembled packages are stored is the sampling's choice, made with what the handler knows of the decision right
+ * after its enforcement: the action it ended in and the signs of a risky allow (SealedCaptureDecision).
  *
  * Prompt originals are consumed from SealedEvidencePromptTraceStore, which is filled by
  * SealedEvidencePromptCaptureAspect and SealedEvidenceLayer1CompletionAspect. When no prompt trace
@@ -71,6 +77,7 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
     private final Executor captureExecutor;
     private final SecurityContextDataStore securityContextDataStore;
     private final SealedEvidenceCaptureSampling sampling;
+    private final AtomicLong rejectedCaptures = new AtomicLong();
 
     public SealedEvidenceCaptureHandler(
             SealedEvidencePackageAssembler assembler,
@@ -120,8 +127,9 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
             SecurityEventContext snapshot = detachedSnapshot(context);
             captureExecutor.execute(() -> capture(snapshot));
         } catch (RejectedExecutionException e) {
-            log.error("[{}] Sealed evidence capture rejected by the capture executor: eventId={}",
-                    HANDLER_NAME, event.getEventId(), e);
+            log.error("[{}] Sealed evidence capture rejected by the capture executor, the decision is not sealed: "
+                            + "eventId={}, rejectedCaptures={}",
+                    HANDLER_NAME, event.getEventId(), rejectedCaptures.incrementAndGet(), e);
         } catch (RuntimeException e) {
             log.error("[{}] Failed to schedule sealed evidence capture: eventId={}",
                     HANDLER_NAME, event.getEventId(), e);
@@ -136,6 +144,11 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
                 HANDLER_NAME,
                 context == null || context.getSecurityEvent() == null ? null : context.getSecurityEvent().getEventId(),
                 error);
+    }
+
+    /** The decisions that were not sealed because the capture executor's queue was full, since the start. */
+    public long rejectedCaptures() {
+        return rejectedCaptures.get();
     }
 
     @Override
@@ -159,12 +172,26 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
             if (evidencePackage == null || !isCurrentProcessingOwner(event)) {
                 return;
             }
-            if (!sampling.shouldSeal(evidencePackage)) {
+            if (!sampling.shouldSeal(evidencePackage, decisionOf(snapshot))) {
                 return;
             }
             saveIfAbsent(evidencePackage);
         } catch (RuntimeException e) {
             log.error("[{}] Failed to capture sealed evidence: eventId={}", HANDLER_NAME, event.getEventId(), e);
+        }
+    }
+
+    /**
+     * What the sampling may weigh: the action the decision ended in and the signs of a risky allow; null when they
+     * cannot be read, which leaves the choice to the window and the share.
+     */
+    private SealedCaptureDecision decisionOf(SecurityEventContext snapshot) {
+        try {
+            return SealedCaptureDecision.of(snapshot);
+        } catch (RuntimeException e) {
+            log.error("[{}] The decision's action and signals could not be read for the capture sample: eventId={}",
+                    HANDLER_NAME, snapshot.getSecurityEvent().getEventId(), e);
+            return null;
         }
     }
 

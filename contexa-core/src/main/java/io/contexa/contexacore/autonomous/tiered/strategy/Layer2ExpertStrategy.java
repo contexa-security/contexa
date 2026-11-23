@@ -210,6 +210,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .llmReasoning(expertDecision.getLlmReasoning())
                 .reasonCodes(expertDecision.getReasonCodes())
                 .hypotheses(expertDecision.getHypotheses())
+                .citationCheck(expertDecision.getCitationCheck())
                 .autonomyConstraintApplied(expertDecision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(expertDecision.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(expertDecision.getAutonomyConstraintSummary())

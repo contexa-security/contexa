@@ -16,10 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.sql.DataSource;
-import java.lang.reflect.Method;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -111,17 +108,7 @@ class SealedEvidenceStoreAutoConfigurationTest {
         assertThat(PqaSealedEvidenceAutoConfiguration.class.getAnnotation(AutoConfiguration.class).after())
                 .containsExactly(SealedEvidenceStoreAutoConfiguration.class);
         assertThat(PromptInspectionAutoConfiguration.class.getAnnotation(AutoConfiguration.class).after())
-                .contains(SealedEvidenceStoreAutoConfiguration.class)
-                .doesNotContain(PqaOfficialInspectionAutoConfiguration.class);
-    }
-
-    @Test
-    void theOfficialVerificationConfigurationDeclaresNoStoreIntegrityOrSerializerBean() {
-        List<Class<?>> moved = List.of(SealedEvidencePackageRepository.class, SealedEvidencePackageIntegrity.class,
-                CanonicalSecurityContextSerializer.class);
-        assertThat(Arrays.stream(PqaOfficialInspectionAutoConfiguration.class.getDeclaredMethods())
-                .map(Method::getReturnType))
-                .doesNotContainAnyElementsOf(moved);
+                .contains(SealedEvidenceStoreAutoConfiguration.class);
     }
 
     @Test

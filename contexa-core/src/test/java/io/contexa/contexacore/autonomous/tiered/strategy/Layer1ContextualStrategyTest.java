@@ -22,6 +22,7 @@ import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
 import io.contexa.contexacore.autonomous.tiered.prompt.MeasuredVariant;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
@@ -111,12 +112,16 @@ class Layer1ContextualStrategyTest {
         response.setAction("CHALLENGE");
         response.setReasoning("The export time differs from usual.");
         response.setReasonCodes(List.of(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1")));
+        SecurityDecisionCitationCheck citationCheck = SecurityDecisionCitationCheck.skipped(response.getReasonCodes());
+        response.withMetadata(SecurityDecisionCitationCheck.METADATA_KEY, citationCheck);
         when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
                 .thenReturn(Mono.just(response));
 
         ThreatAssessment assessment = strategy.evaluate(event);
 
         assertThat(assessment.getReasonCodes()).containsExactly(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1"));
+        // Quality plan 3.6: what the response check found of those codes reaches the assessment with them.
+        assertThat(assessment.getCitationCheck()).isSameAs(citationCheck);
     }
 
     @Test

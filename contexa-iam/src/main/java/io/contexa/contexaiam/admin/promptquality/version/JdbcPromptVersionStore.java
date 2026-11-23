@@ -28,9 +28,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The versions the engine runs, from the database (plan 3.8, 2 and 7): a version name ({@code v2.0}) of the platform
- * scope, assembled once and kept. A product version is found by its release as well, so an event that names the
- * release still runs it. When the database cannot be read the version is not found and the engine runs the product
- * document; the first failure is logged once.
+ * scope, or of the scope asked for, assembled once and kept. A product version is found by its release as well, so an
+ * event that names the release still runs it. When the database cannot be read the version is not found and the
+ * engine runs the product document; the first failure is logged once.
  */
 public class JdbcPromptVersionStore implements PromptVersionStore {
 
@@ -51,12 +51,22 @@ public class JdbcPromptVersionStore implements PromptVersionStore {
 
     @Override
     public Optional<AssembledPrompt> find(String prompt, String version) {
+        return find(PromptVersionService.PLATFORM_SCOPE, prompt, version);
+    }
+
+    /**
+     * Quality plan 3.2: a version name of the registry scope (a replay of a labelled case reads the version of its
+     * measurement's scope); a product version by its release, as in every scope.
+     */
+    @Override
+    public Optional<AssembledPrompt> find(String scope, String prompt, String version) {
         OptionalInt number = PromptVersionNames.number(version);
         if (number.isEmpty()) {
             return fallback.find(prompt, version);
         }
+        String scopeName = scope != null && !scope.isBlank() ? scope.trim() : PromptVersionService.PLATFORM_SCOPE;
         try {
-            return versions.assembled(PromptVersionService.PLATFORM_SCOPE, prompt, number.getAsInt());
+            return versions.assembled(scopeName, prompt, number.getAsInt());
         }
         catch (RuntimeException failure) {
             if (reported.compareAndSet(false, true)) {

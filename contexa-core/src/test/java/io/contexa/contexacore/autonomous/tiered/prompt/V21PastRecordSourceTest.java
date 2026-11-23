@@ -22,6 +22,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.verification.evidence.SealedPastRecordSummary;
+import io.contexa.contexacore.verification.inspection.RendererInspectionChecks;
 import io.contexa.contexacore.verification.inspection.PromptInspectionFinding;
 import io.contexa.contexacore.verification.inspection.PromptInspectionOutcome;
 import io.contexa.contexacore.verification.inspection.PromptInspectionResult;
@@ -48,7 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class V21PastRecordSourceTest {
 
-    private static final PromptInspector INSPECTOR = new PromptInspector(PromptInspector.coreChecks(),
+    private static final PromptInspector INSPECTOR = new PromptInspector(RendererInspectionChecks.coreChecks(),
             InspectionGolden.JSON);
     private static final List<String> SOURCES = List.of("MODEL_ALLOW", "VERIFIED", "PROMOTED", "ADMIN_RELEASE");
     private static final PromptDictionaryEntry PAST_RECORD = entry("PastRecord{i}");

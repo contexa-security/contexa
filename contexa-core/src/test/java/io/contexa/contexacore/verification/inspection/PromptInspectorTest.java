@@ -29,12 +29,17 @@ class PromptInspectorTest {
     /** Why a check does not read a package of a bundle this build no longer ships (decision D7). */
     private static final String NOT_READ_AGAIN = "cannot be inspected again (decision D7)";
 
+    /**
+     * Plan 2.1 of the prompt quality redesign: a sealed package's inspection is the evidence audit, whose core check is
+     * the seal integrity; the renderer's checks and the reason codes run in the build over the golden inputs.
+     */
     @Test
     void theCoreChecksAreTheChecksOfTheSealedPackageAloneInReportOrder() {
-        assertThat(PromptInspector.coreChecks()).extracting(PromptInspectionCheck::code).containsExactly(
+        assertThat(PromptInspector.coreChecks()).extracting(PromptInspectionCheck::code).containsExactly("SEAL_INTEGRITY");
+        assertThat(RendererInspectionChecks.coreChecks()).extracting(PromptInspectionCheck::code).containsExactly(
                 "SEAL_INTEGRITY", "DICTIONARY_CONTRACT", "DECISION_FACT_MATCH", "FACT_ACCURACY", "UNKNOWN_DECLARED",
                 "PAST_RECORD_NOTATION", "SAME_FACT", "REASON_MATCH");
-        assertThat(PromptInspector.coreChecks()).filteredOn(check -> !check.dictionaryPromptOnly())
+        assertThat(RendererInspectionChecks.coreChecks()).filteredOn(check -> !check.dictionaryPromptOnly())
                 .extracting(PromptInspectionCheck::code).containsExactly("SEAL_INTEGRITY");
     }
 
@@ -56,8 +61,9 @@ class PromptInspectorTest {
         // 24: the target scope line (finding 7); 25: the counted fact of the past records as a same-target citation
         // (finding 12); 26: the argument origin line and the tool output sentence (CQ-1); 27: the learned and the
         // arguments fields of a past record line (BR-C6); 28: a missing signature and a broken link of the chain;
-        // 29: a key the installation never held, and a lowered package with any text as its signature.
-        assertThat(PromptInspector.INSPECTOR_VERSION).isEqualTo("prompt-inspector/29");
+        // 29: a key the installation never held, and a lowered package with any text as its signature; 30: the
+        // evidence audit only, the source truth compared with what the sealed decision collected (plan 2.1).
+        assertThat(PromptInspector.INSPECTOR_VERSION).isEqualTo("prompt-inspector/30");
     }
 
     /**

@@ -19,15 +19,23 @@ import io.contexa.contexacommon.autoconfigure.capability.CapabilityMode;
 import io.contexa.contexacommon.autoconfigure.capability.ContexaCapability;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 @ConfigurationProperties(prefix = "contexa.capability")
 public class ContexaCapabilityProperties {
 
     private CapabilityMode mode = CapabilityMode.AUTO;
-    private Map<ContexaCapability, Boolean> required = new EnumMap<>(ContexaCapability.class);
+    /**
+     * Whether a capability is required, by its key (contexa.capability.required.rag-vector=true). The keys are bound
+     * as names and read as capabilities here, so a key of a capability an upgrade removed (pqa-engine) does not stop
+     * the start: the resolver reports it and leaves it.
+     */
+    private Map<String, Boolean> required = new LinkedHashMap<>();
     private boolean exposeDiagnosticsEndpoint = true;
 
     public CapabilityMode getMode() {
@@ -38,12 +46,12 @@ public class ContexaCapabilityProperties {
         this.mode = mode == null ? CapabilityMode.AUTO : mode;
     }
 
-    public Map<ContexaCapability, Boolean> getRequired() {
+    public Map<String, Boolean> getRequired() {
         return required;
     }
 
-    public void setRequired(Map<ContexaCapability, Boolean> required) {
-        this.required = new EnumMap<>(ContexaCapability.class);
+    public void setRequired(Map<String, Boolean> required) {
+        this.required = new LinkedHashMap<>();
         if (required != null) {
             this.required.putAll(required);
         }
@@ -58,6 +66,28 @@ public class ContexaCapabilityProperties {
     }
 
     public Optional<Boolean> requiredOverride(ContexaCapability capability) {
-        return Optional.ofNullable(required.get(capability));
+        return required.entrySet().stream()
+                .filter(entry -> entry.getValue() != null && capabilityOf(entry.getKey()).orElse(null) == capability)
+                .map(Map.Entry::getValue)
+                .findFirst();
+    }
+
+    /** The keys of contexa.capability.required that name no capability, in the order they were set. */
+    public List<String> unknownRequirements() {
+        return required.keySet().stream().filter(key -> capabilityOf(key).isEmpty()).toList();
+    }
+
+    /**
+     * The capability a key names, read as the binding read the enum before: letters and digits alone, case ignored
+     * (rag-vector, RAG_VECTOR and the rag.vector of an environment variable name RAG_VECTOR).
+     */
+    static Optional<ContexaCapability> capabilityOf(String key) {
+        String wanted = lenient(key);
+        return Stream.of(ContexaCapability.values()).filter(capability -> lenient(capability.name()).equals(wanted))
+                .findFirst();
+    }
+
+    private static String lenient(String value) {
+        return value == null ? "" : value.replaceAll("[^A-Za-z0-9]", "").toLowerCase(Locale.ROOT);
     }
 }

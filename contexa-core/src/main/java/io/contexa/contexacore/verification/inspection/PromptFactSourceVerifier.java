@@ -21,11 +21,13 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * W6-7 (P6-CHANGE-5): a host's own record of the facts a sealed prompt states. Given the sealed decision, the host
+ * W6-7 (P6-CHANGE-5): a host's own record of the facts a sealed decision collected. Given the sealed decision, the host
  * reads its sources again (its business records, its sign-in records) and says, for each fact it keeps, the piece of
- * the dictionary line the prompt must hold. The prompt inspector's source truth check compares them; without an
- * implementation the check records that no host source is integrated. A host whose records of a decision can be gone
- * says so through {@link #read} (N-SRC-2).
+ * the dictionary line's value that states it. The prompt inspector's source truth check compares them with the values
+ * the sealed decision collected, written as the dictionary lines state them (plan 2.1 of the prompt quality redesign:
+ * the on-call record, the assignment, the approvals and the delegation of the sealed context, not the prompt's lines);
+ * without an implementation the check records that no host source is integrated. A host whose records of a decision
+ * can be gone says so through {@link #read} (N-SRC-2).
  */
 public interface PromptFactSourceVerifier {
 

@@ -51,6 +51,8 @@ document.addEventListener('DOMContentLoaded', function() {
         '/contexa/admin/permissions': 'iam', '/contexa/admin/role-hierarchies': 'iam', '/contexa/admin/password-policy': 'iam',
         '/contexa/admin/security-monitor': 'security',
         '/contexa/admin/zero-trust': 'ai-monitor',
+        // The prompt quality assurance group: every screen under its addresses, the second bundle's included.
+        '/contexa/admin/prompt-quality': 'prompt-quality', '/contexa/admin/prompt-inspection': 'prompt-quality',
         '/contexa/admin/blacklist': 'security', '/contexa/admin/session-management': 'security', '/contexa/admin/ip-management': 'security',
         '/contexa/admin/enterprise/zerotrust': 'security', '/contexa/admin/enterprise/incidents': 'security',
         '/contexa/admin/enterprise': 'enterprise',

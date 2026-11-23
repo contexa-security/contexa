@@ -16,9 +16,11 @@
 package io.contexa.contexaiam.admin.promptquality.version;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionDocumentException;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptBundleRollbackService;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityScreens;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.AdvancedView;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.Cancelled;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionConsoleDtos.CheckView;
@@ -70,9 +72,10 @@ import java.util.Objects;
 import java.util.OptionalInt;
 
 /**
- * The prompt version screens (plan 3.10): the list, a version, a new version, the trials and the advanced screen, and
- * the JSON they read and send. Every screen and call is an administrator's; every change is a POST, which the console's
- * CSRF protection covers.
+ * The prompt version screens (plan 3.10): the list, a version, a new version and the advanced screen, and the JSON they
+ * read and send. The trials moved to measure and compare (quality plan 3.8): their addresses lead there, their JSON
+ * stays here. Every screen and call is an administrator's; every change is a POST, which the console's CSRF protection
+ * covers.
  */
 @Controller
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
@@ -121,15 +124,20 @@ public class PromptVersionConsoleController {
         return page("new", model, locale, authentication);
     }
 
+    /** Quality plan 3.8: the trials moved to measure and compare; their start opens there, for the version asked. */
     @GetMapping(BASE + "/trials")
-    public String trialsPage(Model model, Locale locale, Authentication authentication) {
-        return page("trials", model, locale, authentication);
+    public String trialsPage(@RequestParam(required = false) String scope, @RequestParam(required = false) String prompt,
+                             @RequestParam(required = false) Integer candidate, Authentication authentication) {
+        requireAdmin(authentication);
+        return "redirect:" + PromptQualityScreens.MEASURE + query(scope, prompt, candidate);
     }
 
+    /** Quality plan 3.8: a trial's result opens in measure and compare. */
     @GetMapping(BASE + "/trials/{id:\\d+}")
-    public String trialPage(@PathVariable long id, Model model, Locale locale, Authentication authentication) {
-        model.addAttribute("trialId", id);
-        return page("trials", model, locale, authentication);
+    public String trialPage(@PathVariable long id, @RequestParam(required = false) String scope,
+                            @RequestParam(required = false) String prompt, Authentication authentication) {
+        requireAdmin(authentication);
+        return "redirect:" + PromptQualityScreens.MEASURE + "/trials/" + id + query(scope, prompt, null);
     }
 
     @GetMapping(BASE + "/advanced")
@@ -156,21 +164,28 @@ public class PromptVersionConsoleController {
         return "redirect:" + (number.isPresent() ? BASE + "/" + number.getAsInt() : BASE) + query(registryScope, promptKey);
     }
 
-    /** The comparison of the release screens: the trials, where two versions are compared and the shadow results read. */
+    /** The comparison of the release screens: measure and compare, where the trials moved and the shadow results are. */
     @GetMapping(RELEASES + "/compare")
     public String releaseCompare(@RequestParam(required = false) String registryScope,
                                  @RequestParam(required = false) String promptKey, Authentication authentication) {
         requireAdmin(authentication);
-        return "redirect:" + BASE + "/trials" + query(registryScope, promptKey);
+        return "redirect:" + PromptQualityScreens.MEASURE + query(registryScope, promptKey);
     }
 
     private static String query(String scope, String prompt) {
+        return query(scope, prompt, null);
+    }
+
+    private static String query(String scope, String prompt, Integer candidate) {
         UriComponentsBuilder query = UriComponentsBuilder.newInstance();
         if (scope != null && !scope.isBlank()) {
             query.queryParam("scope", scope.trim());
         }
         if (prompt != null && !prompt.isBlank()) {
             query.queryParam("prompt", prompt.trim());
+        }
+        if (candidate != null) {
+            query.queryParam("candidate", candidate);
         }
         return query.encode(StandardCharsets.UTF_8).build().toUriString();
     }
@@ -181,6 +196,7 @@ public class PromptVersionConsoleController {
         model.addAttribute("activePage", ACTIVE_PAGE);
         model.addAttribute("apiBase", API);
         model.addAttribute("pagesBase", BASE);
+        model.addAttribute("measureBase", PromptQualityScreens.MEASURE);
         model.addAttribute("scriptMessagesJson", ZeroTrustConsoleMessages.json(messages, locale, objectMapper,
                 MESSAGE_PREFIXES));
         return "contexa/admin/prompt-version/" + screen;
@@ -239,12 +255,24 @@ public class PromptVersionConsoleController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
+    /**
+     * What the confirmation of a move shows: of using the version for decisions, or with {@code target=CANARY} of a
+     * canary of it, which the quality gate looks at the same way (plan 3.4).
+     */
     @ResponseBody
     @GetMapping(API + "/{number:\\d+}/use-check")
     public UseCheck useCheck(@PathVariable int number, @RequestParam(required = false) String scope,
-                             @RequestParam(required = false) String prompt, Authentication authentication) {
+                             @RequestParam(required = false) String prompt,
+                             @RequestParam(required = false) String target, Authentication authentication) {
         requireAdmin(authentication);
-        return console.useCheck(scope, prompt, number);
+        if (target == null || target.isBlank()) {
+            return console.useCheck(scope, prompt, number);
+        }
+        String move = target.trim();
+        if (!PromptBundleState.ACTIVE.name().equals(move) && !PromptBundleState.CANARY.name().equals(move)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "target is ACTIVE or CANARY");
+        }
+        return console.useCheck(scope, prompt, number, PromptBundleState.valueOf(move));
     }
 
     @ResponseBody
@@ -323,12 +351,23 @@ public class PromptVersionConsoleController {
     public record Reason(String reason) {
     }
 
+    /**
+     * Using a version for decisions: why, and plan 3.4: why an operator overrides the quality gate that blocks it (left
+     * out for no override; a blank one is refused).
+     */
+    public record UseBody(String reason, String overrideReason) {
+    }
+
     @PostMapping(API + "/{number:\\d+}/use")
     public ResponseEntity<Receipt> use(@PathVariable int number, @RequestParam(required = false) String scope,
                                        @RequestParam(required = false) String prompt,
-                                       @RequestBody(required = false) Reason body, Authentication authentication) {
+                                       @RequestBody(required = false) UseBody body, Authentication authentication) {
         requireAdmin(authentication);
-        return receipt(console.use(scope, prompt, number, authentication.getName(), reasonOf(body)));
+        String reason = body != null ? body.reason() : null;
+        String overrideReason = body != null ? body.overrideReason() : null;
+        return receipt(overrideReason == null
+                ? console.use(scope, prompt, number, authentication.getName(), reason)
+                : console.use(scope, prompt, number, authentication.getName(), reason, overrideReason));
     }
 
     @ResponseBody
@@ -360,8 +399,16 @@ public class PromptVersionConsoleController {
         return console.rescan();
     }
 
-    /** A canary: the version, the share of users, the tenants and the address starts or resource IDs it covers. */
-    public record CanaryBody(Integer number, Integer percent, String tenants, String paths, String reason) {
+    /**
+     * A canary: the version, the share of users, the tenants and the address starts or resource IDs it covers; plan
+     * 3.4: why an operator overrides the quality gate that blocks it (left out for no override).
+     */
+    public record CanaryBody(Integer number, Integer percent, String tenants, String paths, String reason,
+                             String overrideReason) {
+
+        public CanaryBody(Integer number, Integer percent, String tenants, String paths, String reason) {
+            this(number, percent, tenants, paths, reason, null);
+        }
     }
 
     @PostMapping(API + "/canary/start")
@@ -372,8 +419,11 @@ public class PromptVersionConsoleController {
         if (body == null || body.number() == null || body.percent() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "number and percent are required");
         }
-        return receipt(console.startCanary(scope, prompt, body.number(), body.percent(), body.tenants(), body.paths(),
-                authentication.getName(), body.reason()));
+        return receipt(body.overrideReason() == null
+                ? console.startCanary(scope, prompt, body.number(), body.percent(), body.tenants(), body.paths(),
+                authentication.getName(), body.reason())
+                : console.startCanary(scope, prompt, body.number(), body.percent(), body.tenants(), body.paths(),
+                authentication.getName(), body.reason(), body.overrideReason()));
     }
 
     @PostMapping(API + "/canary/stop")

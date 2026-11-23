@@ -4,12 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
+import io.contexa.contexacore.verification.inspection.InspectedPrompt;
+import io.contexa.contexacore.verification.inspection.PromptInspectionCheck;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCheckResult;
 import io.contexa.contexacore.verification.inspection.PromptInspectionFinding;
 import io.contexa.contexacore.verification.inspection.PromptInspectionOutcome;
 import io.contexa.contexacore.verification.inspection.PromptInspectionRecord;
 import io.contexa.contexacore.verification.inspection.PromptInspectionResult;
 import io.contexa.contexacore.verification.inspection.PromptInspectionResultStore;
+import io.contexa.contexacore.verification.inspection.PromptInspectionTally;
 import io.contexa.contexacore.verification.inspection.PromptInspectionTrigger;
 import io.contexa.contexacore.verification.inspection.PromptInspectionVerdict;
 import io.contexa.contexacore.verification.inspection.PromptInspector;
@@ -41,7 +44,12 @@ class PromptInspectionConsoleTest {
 
     private final SealedEvidencePackageRepository packages = mock(SealedEvidencePackageRepository.class);
     private final PromptInspectionResultStore store = mock(PromptInspectionResultStore.class);
-    private final PromptInspector inspector = new PromptInspector(PromptInspector.coreChecks(), new ObjectMapper());
+    /**
+     * The core checks read no line of the prompt since the inspection is the evidence audit (plan 2.1 of the prompt
+     * quality redesign), so a check of the test matches the lines that read as lines and points at the others.
+     */
+    private static final String LINES = "LINES";
+    private final PromptInspector inspector = new PromptInspector(withLineCheck(), new ObjectMapper());
     private final PromptInspectionConsole console = new PromptInspectionConsole(packages, inspector, store,
             new ObjectMapper());
 
@@ -54,15 +62,15 @@ class PromptInspectionConsoleTest {
 
         assertThat(detail.lines()).extracting(PromptInspectionConsole.LineView::text)
                 .containsExactly("=== REQUEST ===", "Subject: user-1", "NotALine");
-        assertThat(detail.lines().get(0).matchedBy()).contains("DICTIONARY_CONTRACT");
+        assertThat(detail.lines().get(0).matchedBy()).contains(LINES);
         PromptInspectionConsole.LineView notALine = detail.lines().get(2);
-        assertThat(notALine.findings()).extracting(PromptInspectionFinding::checkCode).contains("DICTIONARY_CONTRACT");
+        assertThat(notALine.findings()).extracting(PromptInspectionFinding::checkCode).contains(LINES);
         assertThat(notALine.findings()).allMatch(finding -> finding.outcome() == PromptInspectionOutcome.MISMATCH);
         assertThat(detail.unplacedFindings()).allMatch(finding -> finding.lineNumber() == null);
         assertThat(detail.verdict()).isEqualTo("FAIL");
         assertThat(detail.inspectorVersion()).isEqualTo(PromptInspector.INSPECTOR_VERSION);
         assertThat(detail.checks()).extracting(PromptInspectionConsole.CheckView::checkCode)
-                .contains("SEAL_INTEGRITY", "DICTIONARY_CONTRACT");
+                .contains("SEAL_INTEGRITY", LINES);
         assertThat(detail.stored()).isNull();
         assertThat(detail.changes()).isNull();
         assertThat(detail.history()).isEmpty();
@@ -199,6 +207,35 @@ class PromptInspectionConsoleTest {
     void anUnknownPackageHasNoDetail() {
         when(packages.findByPackageId("none")).thenReturn(Optional.empty());
         assertThat(console.detail("none")).isEmpty();
+    }
+
+    /** The core checks and a check that matches every header and entry line and points at any other line. */
+    private static List<PromptInspectionCheck> withLineCheck() {
+        List<PromptInspectionCheck> checks = new ArrayList<>(PromptInspector.coreChecks());
+        checks.add(new PromptInspectionCheck() {
+            @Override
+            public String code() {
+                return LINES;
+            }
+
+            @Override
+            public boolean dictionaryPromptOnly() {
+                return false;
+            }
+
+            @Override
+            public void inspect(PromptInspectionTally tally) {
+                for (InspectedPrompt.Line line : tally.subject().prompt().lines()) {
+                    if (line.kind() == InspectedPrompt.Kind.HEADER || line.kind() == InspectedPrompt.Kind.ENTRY) {
+                        tally.matched(line);
+                    } else if (line.kind() == InspectedPrompt.Kind.OTHER) {
+                        tally.mismatch(tally.mismatchFinding().lineNumber(line.number()).actual(line.text())
+                                .reason("not a line of the dictionary").build());
+                    }
+                }
+            }
+        });
+        return checks;
     }
 
     private static SealedEvidencePackage sealed() {

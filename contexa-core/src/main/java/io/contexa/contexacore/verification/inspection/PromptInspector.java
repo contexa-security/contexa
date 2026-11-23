@@ -44,7 +44,10 @@ import java.util.Objects;
  * them; it never changes a prompt, a decision, a rule or anything on the decision path.
  *
  * <p>Checks that read the user prompt as a dictionary prompt read it only when the sealed layout is a dictionary layout
- * (v20, v21, v1.0); on any other package they record that they could not read it. The others run on every package.</p>
+ * (v20, v21, v1.0); on any other package they record that they could not read it. The others run on every package.
+ * The checks of a sealed package's inspection are the evidence audit (plan 2.1 of the prompt quality redesign): the seal
+ * integrity, the bundle trace and the source truth. The renderer's checks, which read the prompt's lines, run in the
+ * build over the golden inputs with this inspector, not on the sealed packages.</p>
  */
 @Slf4j
 public final class PromptInspector {
@@ -104,13 +107,11 @@ public final class PromptInspector {
     }
 
     /**
-     * The checks the core runs on a sealed package alone, in report order. A host that keeps the prompt release
-     * registry adds the bundle trace check to these.
+     * The checks the core runs on a sealed package alone, in report order: the seal integrity. A host adds the bundle
+     * trace check, with the prompt release registry, and the source truth check, with its sources, after it.
      */
     public static List<PromptInspectionCheck> coreChecks() {
-        return List.of(new SealIntegrityCheck(new SealedEvidencePackageIntegrity()), new DictionaryContractCheck(), new DecisionFactMatchCheck(),
-                new FactAccuracyCheck(), new UnknownDeclaredCheck(), new PastRecordNotationCheck(), new SameFactCheck(),
-                new ReasonMatchCheck());
+        return List.of(new SealIntegrityCheck(new SealedEvidencePackageIntegrity()));
     }
 
     public List<PromptInspectionCheck> checks() {

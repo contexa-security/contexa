@@ -257,6 +257,13 @@ public class PromptVersionTrials implements AutoCloseable {
                 Math.max(1, limit));
     }
 
+    /** Quality plan 3.8: how many trials the prompt has in the scope, of every state. */
+    public long count(String scope, String prompt) {
+        Long count = jdbc.get().queryForObject("select count(*) from ctxa_prompt_version_trial where registry_scope = ?"
+                + " and prompt_key = ?", Long.class, scopeOf(scope), prompt);
+        return count != null ? count : 0L;
+    }
+
     /** The latest finished trial of the version, whichever version it was compared with. */
     public Optional<Trial> latestDone(String scope, String prompt, int candidate) {
         return jdbc.get().query(TRIAL_SQL + " where t.registry_scope = ? and t.prompt_key = ? and t.candidate_number = ?"
@@ -304,6 +311,15 @@ public class PromptVersionTrials implements AutoCloseable {
         if (failure != null || action == null || action.isBlank()) {
             return true;
         }
+        return askedAgainForTheContract(telemetry);
+    }
+
+    /**
+     * Quality plan 3.3: whether the model was asked again because its answer broke the output contract (its
+     * explanations, its reason codes, a cut answer, an answer that could not be read); a retry for a rule of the
+     * decision (a boundary, a floor, a past record claim, a cited line) is none.
+     */
+    public static boolean askedAgainForTheContract(Map<String, Object> telemetry) {
         Object retries = telemetry != null ? telemetry.get(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES) : null;
         if (!(retries instanceof List<?> list)) {
             return false;

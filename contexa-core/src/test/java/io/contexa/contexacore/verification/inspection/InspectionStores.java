@@ -169,24 +169,6 @@ final class InspectionStores {
         }
 
         @Override
-        public synchronized int removeCleanPackagesCapturedBefore(Instant before, int limit) {
-            Set<PromptInspectionVerdict> clean = Set.of(PromptInspectionVerdict.PASS,
-                    PromptInspectionVerdict.NOT_APPLICABLE);
-            List<String> removed = packages.oldestFirst().stream()
-                    .filter(evidencePackage -> evidencePackage.getCapturedAt().isBefore(before))
-                    .map(SealedEvidencePackage::getPackageId)
-                    .filter(id -> findLatest(id).map(record -> clean.contains(record.result().verdict()))
-                            .orElse(false))
-                    .limit(limit)
-                    .toList();
-            for (String packageId : removed) {
-                stored.values().removeIf(record -> packageId.equals(record.result().packageId()));
-                packages.remove(packageId);
-            }
-            return removed.size();
-        }
-
-        @Override
         public synchronized PeriodCount countPeriod(String inspectorVersion, Instant from, Instant to,
                                                     int samplePercent) {
             List<String> period = capturedIn(from, to);

@@ -16,7 +16,6 @@
 package io.contexa.autoconfigure.core;
 
 import io.contexa.autoconfigure.core.infra.CoreSchedulerLockAutoConfiguration;
-import io.contexa.autoconfigure.iam.admin.PqaOfficialInspectionAutoConfiguration;
 import io.contexa.autoconfigure.identity.IamSeedDataAutoConfiguration;
 import io.contexa.autoconfigure.identity.IdentityOAuth2AutoConfiguration;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -146,21 +145,6 @@ class CoreContexaDataSourceIsolationContractTest {
         assertInfrastructureParametersAreQualified(CoreSchedulerLockAutoConfiguration.class);
         assertInfrastructureParametersAreQualified(IamSeedDataAutoConfiguration.class);
         assertInfrastructureParametersAreQualified(IdentityOAuth2AutoConfiguration.class);
-        assertInfrastructureParametersAreQualified(PqaOfficialInspectionAutoConfiguration.class);
-    }
-
-    @Test
-    void pqaQueryServiceUsesContexaJdbcTemplateExplicitly() {
-        Method method = Stream.of(PqaOfficialInspectionAutoConfiguration.class.getDeclaredMethods())
-                .filter(candidate -> candidate.getName().equals("pqaSealedEvidencePackageQueryService"))
-                .findFirst()
-                .orElseThrow();
-        Parameter parameter = Stream.of(method.getParameters())
-                .filter(candidate -> candidate.getType().equals(JdbcTemplate.class))
-                .findFirst()
-                .orElseThrow();
-
-        assertThat(parameter.getAnnotation(Qualifier.class).value()).isEqualTo(CONTEXA_JDBC_TEMPLATE);
     }
 
     @Test

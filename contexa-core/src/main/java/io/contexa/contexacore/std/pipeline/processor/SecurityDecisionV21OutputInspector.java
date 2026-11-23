@@ -18,6 +18,7 @@ package io.contexa.contexacore.std.pipeline.processor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionAnswerChecks;
@@ -76,15 +77,23 @@ public final class SecurityDecisionV21OutputInspector {
      * sound, so asking the model again would only give it the chance to choose another action.
      */
     public record V21Inspection(Inspection inspection, List<Map<String, Object>> hypotheses,
-                                boolean unsupportedCodesOnly) {
+                                boolean unsupportedCodesOnly, SecurityDecisionCitationCheck citationCheck) {
 
         public V21Inspection(Inspection inspection, List<Map<String, Object>> hypotheses) {
-            this(inspection, hypotheses, false);
+            this(inspection, hypotheses, false, null);
+        }
+
+        public V21Inspection(Inspection inspection, List<Map<String, Object>> hypotheses,
+                             boolean unsupportedCodesOnly) {
+            this(inspection, hypotheses, unsupportedCodesOnly, null);
         }
     }
 
-    /** What the answer says wrongly, in one text, and whether that is only reason codes the lines do not support. */
-    private record Violation(String text, boolean unsupportedCodesOnly) {
+    /**
+     * What the answer says wrongly, in one text (null when it says nothing wrongly), whether that is only reason codes
+     * the lines do not support, and what the check found of each reason code (quality plan 3.6).
+     */
+    private record Violation(String text, boolean unsupportedCodesOnly, SecurityDecisionCitationCheck citationCheck) {
     }
 
     public V21Inspection inspect(String rawResponse, String requestId, String attempt, V21Check check) {
@@ -105,10 +114,14 @@ public final class SecurityDecisionV21OutputInspector {
                 inspectionContext.getMetadata("securityDecisionRawOutputHash", String.class),
                 inspectionContext.getMetadata("securityDecisionRawOutputLength", Integer.class),
                 violation, retryReason);
-        return new V21Inspection(inspection, records(hypotheses), found != null && found.unsupportedCodesOnly());
+        return new V21Inspection(inspection, records(hypotheses), found != null && found.unsupportedCodesOnly(),
+                found != null ? found.citationCheck() : null);
     }
 
-    /** Everything the answer says wrongly, in one text the corrective retry names; null when it says nothing wrongly. */
+    /**
+     * Everything the answer says wrongly, in one text the corrective retry names (no text when it says nothing wrongly),
+     * with what the check found of each reason code; null when there is no answer or nothing to check it against.
+     */
     private static Violation violation(V21Check check, SecurityDecisionResponseLite response,
                                        List<SecurityDecisionAnswerChecks.Hypothesis> hypotheses) {
         if (response == null || check == null) {
@@ -118,6 +131,8 @@ public final class SecurityDecisionV21OutputInspector {
         List<String> parts = new ArrayList<>();
         boolean otherThanCodes = false;
         boolean codesMadeUp = false;
+        // Quality plan 3.6: the findings of the reason codes are kept as they are worked out, not only their one text.
+        SecurityDecisionCitationCheck citationCheck;
         String claim = SecurityDecisionFactChecks.claimViolation(check.context(), drawn, response.getReasoning());
         if (claim != null) {
             parts.add(claim);
@@ -126,6 +141,8 @@ public final class SecurityDecisionV21OutputInspector {
         if (response.getReasonCodes() == null || response.getReasonCodes().isEmpty()) {
             parts.add(SecurityDecisionAnswerChecks.REASON_CODES_MISSING);
             otherThanCodes = true;
+            citationCheck = check.context() != null ? SecurityDecisionCitationCheck.checked(drawn, List.of())
+                    : SecurityDecisionCitationCheck.skipped(List.of());
         }
         else if (check.context() != null) {
             // Plan 6-2: without the canonical context the prompt was drawn from, its facts cannot be checked.
@@ -136,6 +153,10 @@ public final class SecurityDecisionV21OutputInspector {
                 parts.add(reasons);
                 codesMadeUp = findings.stream().anyMatch(SecurityDecisionAnswerChecks::madeUp);
             }
+            citationCheck = SecurityDecisionCitationCheck.checked(drawn, findings);
+        }
+        else {
+            citationCheck = SecurityDecisionCitationCheck.skipped(response.getReasonCodes());
         }
         String explanations = SecurityDecisionAnswerChecks.hypothesisViolation(drawn, hypotheses);
         if (explanations != null) {
@@ -148,9 +169,9 @@ public final class SecurityDecisionV21OutputInspector {
             otherThanCodes = true;
         }
         if (parts.isEmpty()) {
-            return null;
+            return new Violation(null, false, citationCheck);
         }
-        return new Violation(String.join("; ", parts), !otherThanCodes && !codesMadeUp);
+        return new Violation(String.join("; ", parts), !otherThanCodes && !codesMadeUp, citationCheck);
     }
 
     /** The explanations of the answer's JSON object; none when it has no such list or no JSON object. */

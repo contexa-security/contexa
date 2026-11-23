@@ -27,6 +27,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionVersionFe
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV1OutputInspector;
 import io.contexa.contexacore.autonomous.tiered.prompt.SimilarCases;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
+import io.contexa.contexacore.autonomous.baseline.DecisionBaselines;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
@@ -60,6 +61,7 @@ import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV5;
 import io.contexa.contexacore.std.llm.gate.ModelCallTimer;
@@ -697,6 +699,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         try {
             BaselineLearningService.PromptBaselineEvidence baselineEvidence =
                     baselineLearningService.buildPromptBaselineEvidenceSnapshot(event.getUserId(), event);
+            // The baselines this prompt is drawn from are fixed as they were read: the sealed evidence is assembled
+            // after the decision is enforced, when the store may already hold what this decision taught.
+            context.setDecisionBaselines(decisionBaselinesOf(baselineEvidence, event));
             BaselineVector personalBaseline = baselineEvidence.personalBaseline();
             if (personalBaseline != null) {
                 context.setBaselineIpRanges(personalBaseline.getNormalIpRanges());
@@ -763,6 +768,25 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     firstNonBlankTextValue(ex.getMessage(), "baseline service unavailable"));
             log.error("[{}] Failed to enrich baseline support context for user {}",
                     getLayerName(), event.getUserId(), ex);
+        }
+    }
+
+    /**
+     * The baselines the evidence was built from, copied now; null when they cannot be copied, which leaves the decision
+     * as it is and its sealed evidence without them.
+     */
+    private DecisionBaselines decisionBaselinesOf(BaselineLearningService.PromptBaselineEvidence baselineEvidence,
+                                                  SecurityEvent event) {
+        if (baselineEvidence == null) {
+            return null;
+        }
+        try {
+            return DecisionBaselines.readNow(baselineEvidence.personalBaseline(),
+                    baselineEvidence.organizationBaseline());
+        } catch (RuntimeException ex) {
+            log.error("[{}] The baselines the decision read could not be kept for its sealed evidence: eventId={}",
+                    getLayerName(), event.getEventId(), ex);
+            return null;
         }
     }
 
@@ -2391,6 +2415,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 }
             }
             decision.setHypotheses(List.copyOf(hypotheses));
+        }
+        // Quality plan 3.6: what the response check found of the answer's reason codes stays with its decision too.
+        SecurityDecisionCitationCheck citationCheck = metadata != null
+                ? SecurityDecisionCitationCheck.of(metadata.get(SecurityDecisionCitationCheck.METADATA_KEY)) : null;
+        if (citationCheck != null) {
+            decision.setCitationCheck(citationCheck);
         }
     }
 

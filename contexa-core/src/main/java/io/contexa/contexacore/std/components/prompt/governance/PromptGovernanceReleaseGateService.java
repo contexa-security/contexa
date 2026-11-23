@@ -22,9 +22,18 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDoc
 import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateCondition;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateFinding;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGatePolicy;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateReading;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateStatus;
+import io.contexa.contexacore.std.components.prompt.quality.QualityGateVerdict;
+import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurementState;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionCatalog;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -37,10 +46,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 @Transactional(transactionManager = "contexaTransactionManager")
 public class PromptGovernanceReleaseGateService implements PromptGovernanceReleaseGateReadOperations {
 
+    private static final Logger log = LoggerFactory.getLogger(PromptGovernanceReleaseGateService.class);
     private static final int DEFAULT_LIMIT = 16;
     private static final int MAX_LIMIT = 40;
 
@@ -56,6 +67,8 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
     private final PromptVersionCatalog versions;
     /** Plan 3.11: the prompts other than the security decision whose products declare the policy of their versions. */
     private final VersionedPrompts versionedPrompts;
+    /** Plan 3.4: the quality gate of the security decision: its measurements, thresholds and mode. */
+    private final QualityGatePolicy quality;
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     /** N-GOV-5: the gate state of a deprecation, by a transition or by the activation of the bundle in its place. */
     private static final String SUPERSEDED = "SUPERSEDED";
@@ -70,6 +83,12 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             + " decisions again with this version; a trial is recommended before it decides.";
     private static final String VERSION_IN_USE = "NO_OTHER_ACTIVE_RELEASE the version is used for decisions; use"
             + " another version for decisions first.";
+    /** Plan 3.4: the blocker of a version the quality gate blocks; an operator may override it with a reason. */
+    public static final String QUALITY_GATE_BLOCKED = "QUALITY_GATE_BLOCKED";
+    /** Plan 3.4: the gate state of a transition applied over a blocking quality gate, with the operator's reason. */
+    public static final String QUALITY_GATE_OVERRIDDEN = "QUALITY_GATE_OVERRIDDEN";
+    /** The longest rationale the workflow ledger keeps. */
+    private static final int RATIONALE_LIMIT = 2000;
 
     public PromptGovernanceReleaseGateService(
             PromptGovernanceLifecycleLedgerService lifecycleLedgerService,
@@ -124,6 +143,33 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             PromptGovernanceBudgetProfileRepository budgetProfileRepository,
             PromptVersionCatalog versions,
             VersionedPrompts versionedPrompts) {
+        this(lifecycleLedgerService, registryRepository, changeRepository, evaluationRepository,
+                releaseApprovalRepository, rollbackRepository, workflowRepository, modelCompatibilityRepository,
+                budgetProfileRepository, versions, versionedPrompts, null);
+    }
+
+    /**
+     * Plan 3.4: the gate with the quality gate of the security decision. A version of the security decision used for
+     * decisions or started as a canary passes the quality gate too, except one that goes back to a version the scope
+     * used for decisions before.
+     *
+     * @param quality the measurements, thresholds and mode of the quality gate; none (no version can be measured, a
+     *                warning only) when null
+     */
+    public PromptGovernanceReleaseGateService(
+            PromptGovernanceLifecycleLedgerService lifecycleLedgerService,
+            PromptGovernanceRegistryRepository registryRepository,
+            PromptGovernanceChangeRecordRepository changeRepository,
+            PromptGovernanceEvaluationRecordRepository evaluationRepository,
+            PromptGovernanceReleaseApprovalRepository releaseApprovalRepository,
+            PromptGovernanceRollbackRecordRepository rollbackRepository,
+            PromptGovernanceReleaseWorkflowRepository workflowRepository,
+            PromptGovernanceModelCompatibilityRepository modelCompatibilityRepository,
+            PromptGovernanceBudgetProfileRepository budgetProfileRepository,
+            PromptVersionCatalog versions,
+            VersionedPrompts versionedPrompts,
+            QualityGatePolicy quality) {
+        this.quality = quality != null ? quality : QualityGatePolicy.none();
         this.versionedPrompts = versionedPrompts != null ? versionedPrompts : new VersionedPrompts(List.of());
         ProductPromptPolicy.verify(this.versionedPrompts);
         this.versions = versions != null ? versions : PromptVersionCatalog.none();
@@ -205,6 +251,28 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             String actor,
             String rationale,
             String approvalChannel) {
+        return transitionPromptRelease(registryScope, promptKey, promptVersion, targetState, actor, rationale,
+                approvalChannel, null);
+    }
+
+    /**
+     * Plan 3.4: a transition that may override the quality gate. A version the quality gate blocks is applied when the
+     * operator gives a reason and nothing else blocks it; the workflow records the override as its gate state
+     * ({@link #QUALITY_GATE_OVERRIDDEN}) and its rationale. The override passes over the quality gate alone: the state
+     * rules, the version in use, the injection guard and the rollback target still block.
+     *
+     * @param overrideReason why the operator overrides a blocking quality gate; null asks for no override, and a blank
+     *                       reason is refused
+     */
+    public ReleaseTransitionReceipt transitionPromptRelease(
+            String registryScope,
+            String promptKey,
+            String promptVersion,
+            PromptBundleState targetState,
+            String actor,
+            String rationale,
+            String approvalChannel,
+            String overrideReason) {
         String safeScope = normalizeRegistryScope(registryScope);
         validatePromptKey(promptKey);
         validatePromptVersion(promptVersion);
@@ -212,15 +280,24 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
         if (targetState == null) {
             throw new IllegalArgumentException("Target release state is required.");
         }
+        if (overrideReason != null && !StringUtils.hasText(overrideReason)) {
+            throw new IllegalArgumentException("An override of the quality gate needs a reason.");
+        }
         PromptLifecycleContext context = resolveContext(safeScope, promptKey, promptVersion);
-        List<String> blockers = determineBlockers(context, targetState);
+        List<String> blockers = new ArrayList<>(determineBlockers(context, targetState));
+        QualityGateVerdict qualityVerdict = qualityVerdict(context, targetState, measuredOnce(context));
+        boolean overridden = applyQuality(blockers, qualityVerdict, overrideReason);
         List<String> warnings = determineWarnings(context, targetState);
         String workflowState = blockers.isEmpty() ? "APPROVED_AND_APPLIED" : "BLOCKED";
-        String gateState = determineTransitionGateState(context.currentReleaseStatus(), targetState, blockers);
+        String gateState = overridden ? QUALITY_GATE_OVERRIDDEN
+                : determineTransitionGateState(context.currentReleaseStatus(), targetState, blockers);
         String normalizedChannel = normalizeApprovalChannel(approvalChannel);
-        String normalizedRationale = normalizeRationale(
+        String normalizedRationale = overridden ? overrideRationale(qualityVerdict, overrideReason, rationale)
+                : normalizeRationale(
                 rationale,
                 String.format(Locale.ROOT, "Prompt release transition to %s requested by enterprise operator.", targetState.name()));
+        logQuality(safeScope, promptKey.trim(), promptVersion.trim(), targetState, actor.trim(), qualityVerdict,
+                blockers.isEmpty(), overridden);
 
         PromptGovernanceReleaseWorkflowRecord workflowRecord = PromptGovernanceReleaseWorkflowRecord.builder()
                 .registryScope(safeScope)
@@ -249,7 +326,9 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                     gateState,
                     List.copyOf(blockers),
                     savedWorkflow.getCreatedAt(),
-                    warnings);
+                    warnings,
+                    qualityVerdict,
+                    false);
         }
 
         PromptGovernanceRegistryRecord registryRecord = context.registryRecord();
@@ -277,7 +356,9 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                 gateState,
                 List.of(),
                 savedWorkflow.getCreatedAt(),
-                warnings);
+                warnings,
+                qualityVerdict,
+                overridden);
     }
 
     /**
@@ -292,12 +373,15 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
         validatePromptVersion(promptVersion);
         PromptLifecycleContext context = resolveContext(safeScope, promptKey, promptVersion);
         List<ReleaseGateTarget> targets = new ArrayList<>();
+        Supplier<QualityGateVerdict> measured = measuredOnce(context);
         for (String next : allowedNextStates(context)) {
             PromptBundleState target = PromptBundleState.valueOf(next);
-            List<String> blockers = determineBlockers(context, target);
+            List<String> blockers = new ArrayList<>(determineBlockers(context, target));
+            QualityGateVerdict qualityVerdict = qualityVerdict(context, target, measured);
+            applyQuality(blockers, qualityVerdict, null);
             targets.add(new ReleaseGateTarget(target.name(), blockers.isEmpty(),
                     determineTransitionGateState(context.currentReleaseStatus(), target, blockers),
-                    List.copyOf(blockers), determineWarnings(context, target)));
+                    List.copyOf(blockers), determineWarnings(context, target), qualityVerdict));
         }
         PromptGovernanceEvaluationRecord evaluation = evaluationRepository
                 .findFirstByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(safeScope, promptKey.trim(),
@@ -544,7 +628,7 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                 || versions.assembled(registryScope, promptKey, promptVersion)
                 .map(SecurityDecisionPromptDocument::keepsInjectionGuard).orElse(false);
         VersionEvidence version = new VersionEvidence(entry, versions.trialFinished(registryScope, promptKey,
-                promptVersion), rollbackTarget, decidesNow, onlyVersion, injectionGuardKept);
+                promptVersion), rollbackTarget, decidesNow, onlyVersion, injectionGuardKept, deciding);
         ProductPromptPolicy.Policy policy = ProductPromptPolicy.of(promptKey, versionedPrompts).orElse(null);
         List<String> gaps = policy != null ? policy.gaps() : List.of("MODEL_COMPATIBILITY_MISSING",
                 "BUDGET_PROFILE_MISSING", "TOKEN_COUNTING_POLICY_MISSING", "CACHE_POLICY_MISSING",
@@ -669,6 +753,133 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             return List.of();
         }
         return List.of(TRIAL_RECOMMENDED_WARNING);
+    }
+
+    /**
+     * Plan 3.4: the state of the measurement of one version of the security decision alone, as the screens show it for
+     * a version that decides outside the gate (the setting, or the newest Contexa version); null for another prompt,
+     * which has no means of measurement.
+     */
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public QualityMeasurementState qualityMeasurement(String registryScope, String promptKey, String promptVersion) {
+        if (promptKey == null || !SecurityDecisionPromptDocument.PROMPT.equals(promptKey.trim())
+                || !StringUtils.hasText(promptVersion)) {
+            return null;
+        }
+        return quality.measurement(normalizeRegistryScope(registryScope), promptKey.trim(), promptVersion.trim());
+    }
+
+    /**
+     * Plan 3.4: what the store of measurements found of one version of the security decision alone, with why (such as
+     * a measurement of it that waits or runs); null for another prompt.
+     */
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public QualityGateReading qualityReading(String registryScope, String promptKey, String promptVersion) {
+        if (promptKey == null || !SecurityDecisionPromptDocument.PROMPT.equals(promptKey.trim())
+                || !StringUtils.hasText(promptVersion)) {
+            return null;
+        }
+        return quality.reading(normalizeRegistryScope(registryScope), promptKey.trim(), promptVersion.trim());
+    }
+
+    /**
+     * Plan 3.4: the quality gate of a version of the security decision used for decisions or started as a canary; null
+     * for every other transition, prompt or bundle (the other prompts have no means of measurement), and for a version
+     * that is hidden or missing (the state rules block it). Going back to a version the scope used for decisions
+     * before, the one deciding now included, takes no quality condition; a canary is no going back.
+     */
+    private QualityGateVerdict qualityVerdict(PromptLifecycleContext context, PromptBundleState target,
+                                              Supplier<QualityGateVerdict> measured) {
+        VersionEvidence version = context.version();
+        PromptGovernanceRegistryRecord release = context.registryRecord();
+        if (version == null || version.entry() == null || version.entry().hidden()
+                || !SecurityDecisionPromptDocument.PROMPT.equals(release.getPromptKey())
+                || (target != PromptBundleState.ACTIVE && target != PromptBundleState.CANARY)) {
+            return null;
+        }
+        if (target == PromptBundleState.ACTIVE && (version.decidesNow() || versions.usedForDecisions(
+                release.getRegistryScope(), release.getPromptKey(), release.getPromptVersion()))) {
+            return quality.rollback();
+        }
+        return measured.get();
+    }
+
+    /** The quality gate of the candidate against the version deciding now, read once for every target. */
+    private Supplier<QualityGateVerdict> measuredOnce(PromptLifecycleContext context) {
+        QualityGateVerdict[] read = new QualityGateVerdict[1];
+        return () -> {
+            if (read[0] == null) {
+                PromptGovernanceRegistryRecord release = context.registryRecord();
+                read[0] = quality.assess(release.getRegistryScope(), release.getPromptKey(),
+                        release.getPromptVersion(), context.version().deciding());
+            }
+            return read[0];
+        };
+    }
+
+    /**
+     * Plan 3.4: adds the blocker of a blocking quality gate, unless the operator overrides it with a reason and nothing
+     * else blocks the transition. Returns whether the override was applied.
+     */
+    private static boolean applyQuality(List<String> blockers, QualityGateVerdict verdict, String overrideReason) {
+        if (verdict == null || !verdict.blocks()) {
+            return false;
+        }
+        if (overrideReason != null && blockers.isEmpty()) {
+            return true;
+        }
+        blockers.add(String.format(Locale.ROOT, "%s the quality gate blocks the version (measurement=%s,"
+                + " conditions=%s); an operator may override it with a reason.", QUALITY_GATE_BLOCKED,
+                verdict.measurement(), blockingConditions(verdict)));
+        return false;
+    }
+
+    /**
+     * The conditions that block, by name. While the first measurement of the version in use waits, the first
+     * condition warns instead of blocking.
+     */
+    private static List<String> blockingConditions(QualityGateVerdict verdict) {
+        if (verdict.result() == null) {
+            return List.of();
+        }
+        return verdict.result().findings().stream()
+                .filter(finding -> finding.status() == QualityGateStatus.BLOCKED)
+                .map(QualityGateFinding::condition)
+                .filter(condition -> verdict.measurement() != QualityMeasurementState.BASELINE_PENDING
+                        || condition != QualityGateCondition.COMPARABLE_MEASUREMENTS)
+                .map(Enum::name)
+                .toList();
+    }
+
+    /** The rationale the workflow keeps for an override: what blocked, and the operator's reason. */
+    private static String overrideRationale(QualityGateVerdict verdict, String overrideReason, String rationale) {
+        String text = String.format(Locale.ROOT, "%s (measurement=%s, conditions=%s): %s", QUALITY_GATE_OVERRIDDEN,
+                verdict.measurement(), blockingConditions(verdict), overrideReason.trim());
+        if (StringUtils.hasText(rationale)) {
+            text = text + " / " + rationale.trim();
+        }
+        return text.length() > RATIONALE_LIMIT ? text.substring(0, RATIONALE_LIMIT) : text;
+    }
+
+    private static void logQuality(String scope, String prompt, String version, PromptBundleState target, String actor,
+                                   QualityGateVerdict verdict, boolean applied, boolean overridden) {
+        if (verdict == null || verdict.rollback()) {
+            return;
+        }
+        if (overridden) {
+            log.warn("[PromptReleaseGate] {} overrode the quality gate for {} {} in {} toward {}: measurement={},"
+                    + " verdict={}, conditions={}", actor, prompt, version, scope, target, verdict.measurement(),
+                    verdict.verdict(), blockingConditions(verdict));
+        }
+        else if (verdict.blocks()) {
+            log.warn("[PromptReleaseGate] The quality gate blocks {} {} in {} toward {}: measurement={}, conditions={}",
+                    prompt, version, scope, target, verdict.measurement(), blockingConditions(verdict));
+        }
+        else if (applied && verdict.warns()) {
+            log.info("[PromptReleaseGate] {} {} in {} goes to {} with a quality warning: measurement={}, verdict={},"
+                    + " mode={}", prompt, version, scope, target, verdict.measurement(), verdict.verdict(),
+                    verdict.mode());
+        }
     }
 
     private List<String> determineBlockers(PromptLifecycleContext context, PromptBundleState targetReleaseStatus) {
@@ -914,6 +1125,9 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             }
             if (blockers.stream().anyMatch(blocker -> blocker.startsWith("ROLLBACK_TARGET_MISSING"))) {
                 return "BLOCKED_BY_ROLLBACK_GAP";
+            }
+            if (blockers.stream().anyMatch(blocker -> blocker.startsWith(QUALITY_GATE_BLOCKED))) {
+                return "BLOCKED_BY_QUALITY_GATE";
             }
             return "BLOCKED_BY_CHANGE_GAP";
         }
@@ -1178,14 +1392,28 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
      * it warns of without blocking ({@link #TRIAL_RECOMMENDED}).
      */
     public record ReleaseGateTarget(String targetState, boolean ready, String gateState, List<String> blockers,
-                                    List<String> warnings) {
+                                    List<String> warnings, QualityGateVerdict quality) {
 
         public ReleaseGateTarget {
             warnings = warnings != null ? List.copyOf(warnings) : List.of();
         }
 
+        public ReleaseGateTarget(String targetState, boolean ready, String gateState, List<String> blockers,
+                                 List<String> warnings) {
+            this(targetState, ready, gateState, blockers, warnings, null);
+        }
+
         public ReleaseGateTarget(String targetState, boolean ready, String gateState, List<String> blockers) {
             this(targetState, ready, gateState, blockers, List.of());
+        }
+
+        /**
+         * Plan 3.4: whether an override with a reason would apply the transition: the quality gate blocks it and
+         * nothing else does.
+         */
+        public boolean overridable() {
+            return quality != null && quality.blocks() && blockers != null && !blockers.isEmpty()
+                    && blockers.stream().allMatch(blocker -> blocker.startsWith(QUALITY_GATE_BLOCKED));
         }
     }
 
@@ -1239,10 +1467,20 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             String gateState,
             List<String> blockers,
             LocalDateTime recordedAt,
-            List<String> warnings) {
+            List<String> warnings,
+            QualityGateVerdict quality,
+            boolean qualityOverridden) {
 
         public ReleaseTransitionReceipt {
             warnings = warnings != null ? List.copyOf(warnings) : List.of();
+        }
+
+        public ReleaseTransitionReceipt(String registryScope, String promptKey, String promptVersion,
+                                        String previousReleaseStatus, String targetReleaseStatus, boolean applied,
+                                        String gateState, List<String> blockers, LocalDateTime recordedAt,
+                                        List<String> warnings) {
+            this(registryScope, promptKey, promptVersion, previousReleaseStatus, targetReleaseStatus, applied, gateState,
+                    blockers, recordedAt, warnings, null, false);
         }
 
         public ReleaseTransitionReceipt(String registryScope, String promptKey, String promptVersion,
@@ -1256,10 +1494,12 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
     /**
      * Plan 3.9: what the gate reads of a version of the database: its row in the version table (null when it has
      * none), whether a trial with it finished, the version a rollback would go back to (the one deciding now), whether
-     * it decides now already, whether it is the prompt's one shown version, and whether it keeps the injection guard.
+     * it decides now already, whether it is the prompt's one shown version, whether it keeps the injection guard, and
+     * the version the scope decides with now (null when none), which the quality gate compares it with (plan 3.4).
      */
     private record VersionEvidence(PromptVersionCatalog.Entry entry, boolean trialFinished, String rollbackTarget,
-                                   boolean decidesNow, boolean onlyVersion, boolean injectionGuardKept) {
+                                   boolean decidesNow, boolean onlyVersion, boolean injectionGuardKept,
+                                   String deciding) {
     }
 
     /**

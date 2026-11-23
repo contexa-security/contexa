@@ -6,7 +6,6 @@ import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceR
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.inspection.PromptFactSourceVerifier;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCheck;
-import io.contexa.contexacore.verification.inspection.PromptInspectionCleanPackageRetentionScheduler;
 import io.contexa.contexacore.verification.inspection.PromptInspectionReinspection;
 import io.contexa.contexacore.verification.inspection.PromptInspectionResultStore;
 import io.contexa.contexacore.verification.inspection.PromptInspectionScheduler;
@@ -18,14 +17,10 @@ import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspection
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionApiController;
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionConsole;
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionPageController;
-import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplayApiController;
-import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import java.lang.reflect.Method;
@@ -43,9 +38,8 @@ import static org.mockito.Mockito.mock;
  */
 class PromptInspectionAutoConfigurationTest {
 
-    private static final List<String> CHECKS = List.of("SEAL_INTEGRITY", "BUNDLE_TRACE", "DICTIONARY_CONTRACT",
-            "DECISION_FACT_MATCH", "FACT_ACCURACY", "UNKNOWN_DECLARED", "PAST_RECORD_NOTATION", "SOURCE_TRUTH",
-            "SAME_FACT", "REASON_MATCH");
+    /** The evidence audit (plan 2.1 of the prompt quality redesign). */
+    private static final List<String> CHECKS = List.of("SEAL_INTEGRITY", "BUNDLE_TRACE", "SOURCE_TRUTH");
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(PromptInspectionAutoConfiguration.class))
@@ -76,10 +70,6 @@ class PromptInspectionAutoConfigurationTest {
             // docs/agent OC-4: the source truth check reads Contexa's own records without a host verifier.
             assertThat(context.getBean(PromptFactSourceVerifier.class))
                     .isInstanceOf(CompanyRecordsFactSourceVerifier.class);
-            // docs/agent OC-5: the operator's replay API, which says it is unavailable without the pipeline.
-            assertThat(context).hasSingleBean(SealedDecisionReplays.class);
-            assertThat(context).hasSingleBean(SealedDecisionReplayApiController.class);
-            assertThat(context.getBean(SealedDecisionReplayApiController.class).bundles()).isNotEmpty();
         });
     }
 
@@ -154,29 +144,21 @@ class PromptInspectionAutoConfigurationTest {
                 .run(context -> assertThat(context).hasFailed());
     }
 
-    /** R4-S5: the short retention of clean packages runs with the sealed package retention, 30 days by default. */
+    /**
+     * What an inspection found plays no part in how long a sealed package is kept: the inspection wires no retention
+     * of its own and its result store removes no package, whatever the earlier clean period is set to.
+     */
     @Test
-    void theShortRetentionOfCleanPackagesRunsWithTheSealedPackageRetention() {
-        runner.run(context -> {
-            assertThat(context).hasSingleBean(PromptInspectionCleanPackageRetentionScheduler.class);
-            assertThat(cleanPeriod(context)).isEqualTo(Duration.ofDays(30))
-                    .isEqualTo(PromptInspectionCleanPackageRetentionScheduler.DEFAULT_CLEAN_PERIOD);
-        });
-        runner.withPropertyValues("contexa.pqa.oss.sealed-evidence.retention.clean-period=7d")
-                .run(context -> assertThat(cleanPeriod(context)).isEqualTo(Duration.ofDays(7)));
+    void theInspectionRemovesNoSealedPackage() {
         runner.withPropertyValues("contexa.pqa.oss.sealed-evidence.retention.clean-period=0s")
-                .run(context -> assertThat(context).hasFailed());
-        runner.withPropertyValues("contexa.pqa.oss.sealed-evidence.retention.enabled=false")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    assertThat(context).doesNotHaveBean(PromptInspectionCleanPackageRetentionScheduler.class);
                     assertThat(context).hasSingleBean(PromptInspectionScheduler.class);
+                    assertThat(context).doesNotHaveBean("contexaPromptInspectionCleanPackageRetentionScheduler");
+                    assertThat(context.getBeanNamesForType(Object.class)).noneMatch(name -> name.contains("Retention"));
                 });
-    }
-
-    private static Object cleanPeriod(ApplicationContext context) {
-        return ReflectionTestUtils.getField(context.getBean(PromptInspectionCleanPackageRetentionScheduler.class),
-                "cleanPeriod");
+        assertThat(Arrays.stream(PromptInspectionResultStore.class.getMethods()).map(Method::getName))
+                .doesNotContain("removeCleanPackagesCapturedBefore");
     }
 
     @Test
@@ -190,7 +172,6 @@ class PromptInspectionAutoConfigurationTest {
                     assertThat(context).hasSingleBean(PromptInspector.class);
                     assertThat(context).doesNotHaveBean(PromptInspectionResultStore.class);
                     assertThat(context).doesNotHaveBean(PromptInspectionScheduler.class);
-                    assertThat(context).doesNotHaveBean(PromptInspectionCleanPackageRetentionScheduler.class);
                     assertThat(context).doesNotHaveBean(PromptInspectionApiController.class);
                     assertThat(context).doesNotHaveBean(PromptInspectionPageController.class);
                 });

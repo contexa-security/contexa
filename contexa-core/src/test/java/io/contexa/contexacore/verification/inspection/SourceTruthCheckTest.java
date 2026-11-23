@@ -15,9 +15,16 @@
  */
 package io.contexa.contexacore.verification.inspection;
 
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.ApprovalRecord;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.FrictionProfile;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.OnCallRecord;
+import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,20 +33,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * W6-7 (P6-CHANGE-5): the facts the prompt states are compared with the host's own records of them; without a host
- * source the check says the facts are not compared.
+ * W6-7 (P6-CHANGE-5), plan 2.1 of the prompt quality redesign: the facts the sealed decision collected are compared with
+ * the host's own records of them, not the prompt's lines; without a host source the check says the facts are not
+ * compared.
  */
 class SourceTruthCheckTest {
 
-    private static final String PROMPT = """
-            === DECISION FACTS ===
-            [F5] Approval: APR-1 by pm-11, APPROVED, up to 500 items, used 480 before this request
-            [F8] OnCall: not on call
-            """;
+    private static final Instant AT = Instant.parse("2026-09-30T05:30:00Z");
 
     @Test
     void withoutAHostSourceTheFactsAreNotCompared() {
-        PromptInspectionTally tally = tally(PROMPT);
+        PromptInspectionTally tally = tally(collected());
 
         new SourceTruthCheck(null).inspect(tally);
 
@@ -48,42 +52,63 @@ class SourceTruthCheckTest {
     }
 
     @Test
-    void aLineHoldingTheSourcePieceMatchesAndAnotherValueIsAMismatch() {
-        PromptInspectionTally tally = tally(PROMPT);
+    void aCollectedValueHoldingTheSourcePieceMatchesAndAnotherValueIsAMismatch() {
+        PromptInspectionTally tally = tally(collected());
         PromptFactSourceVerifier verifier = subject -> List.of(
                 new PromptFactSourceVerifier.SourceFact(PromptBlock.DECISION_FACTS, "Approval", "used 480 before this request", null, "work.export_job"),
+                new PromptFactSourceVerifier.SourceFact(PromptBlock.DECISION_FACTS, "Approval", "APR-1 by pm-11", null, "work.approval"),
                 new PromptFactSourceVerifier.SourceFact(PromptBlock.DECISION_FACTS, "OnCall", "on call", "not on call", "work.oncall_roster"));
 
         new SourceTruthCheck(verifier).inspect(tally);
 
-        assertThat(tally.result().matched()).isEqualTo(1);
+        assertThat(tally.result().matched()).isEqualTo(2);
         assertThat(tally.result().mismatched()).isEqualTo(1);
         assertThat(tally.result().findings()).singleElement().satisfies(finding -> {
             assertThat(finding.entry()).isEqualTo("OnCall");
-            assertThat(finding.factId()).isEqualTo("F8");
+            assertThat(finding.expected()).isEqualTo("on call");
             assertThat(finding.actual()).isEqualTo("not on call");
+            assertThat(finding.sourceRef()).isEqualTo("work.oncall_roster");
         });
     }
 
+    /** The prompt's lines are not read: a line that says otherwise than what was collected changes nothing here. */
     @Test
-    void aFactTheSourceKeepsWithoutALineIsAMismatch() {
-        PromptInspectionTally tally = tally(PROMPT);
+    void thePromptsLinesAreNotRead() {
+        PromptInspectionTally tally = tally(collected(), """
+                === DECISION FACTS ===
+                [F8] OnCall: on call
+                """);
         PromptFactSourceVerifier verifier = subject -> List.of(
-                new PromptFactSourceVerifier.SourceFact(PromptBlock.DECISION_FACTS, "Ticket", "no ticket found", null, "work.itsm_ticket"));
+                new PromptFactSourceVerifier.SourceFact(PromptBlock.DECISION_FACTS, "OnCall", "not on call", null, "work.oncall_roster"));
+
+        new SourceTruthCheck(verifier).inspect(tally);
+
+        assertThat(tally.result().matched()).isEqualTo(1);
+        assertThat(tally.result().mismatched()).isZero();
+        assertThat(new SourceTruthCheck(verifier).dictionaryPromptOnly()).isFalse();
+    }
+
+    @Test
+    void aFactTheSourceKeepsAndTheDecisionDidNotCollectIsAMismatch() {
+        CanonicalSecurityContext context = collected();
+        context.getFrictionProfile().setOnCall(null);
+        PromptInspectionTally tally = tally(context);
+        PromptFactSourceVerifier verifier = subject -> List.of(
+                new PromptFactSourceVerifier.SourceFact(PromptBlock.DECISION_FACTS, "OnCall", "not on call", null, "work.oncall_roster"));
 
         new SourceTruthCheck(verifier).inspect(tally);
 
         assertThat(tally.result().mismatched()).isEqualTo(1);
-        assertThat(tally.result().findings()).singleElement().extracting(PromptInspectionFinding::actual).isEqualTo("no line");
+        assertThat(tally.result().findings()).singleElement().extracting(PromptInspectionFinding::actual)
+                .isEqualTo("not collected");
     }
 
     @Test
-    void aFactTheUnknownLineNamesIsItsMissingNotationNotALeftOutLine() {
-        PromptInspectionTally tally = tally("""
-                === DECISION FACTS ===
-                [F5] Approval: APR-1 by pm-11, APPROVED, up to 500 items, used 480 before this request
-                Unknown: not-integrated: [U1] ClientSignals, [U3] OnCall, [U4] PeerCohort
-                """);
+    void aFactTheSealedDecisionFactsNameUnknownIsItsMissingNotation() {
+        CanonicalSecurityContext context = collected();
+        context.getFrictionProfile().setOnCall(null);
+        context.setDecisionFacts(new DecisionFacts(List.of(), List.of(), null, List.of("ClientSignals", "OnCall")));
+        PromptInspectionTally tally = tally(context);
         PromptFactSourceVerifier verifier = subject -> List.of(
                 new PromptFactSourceVerifier.SourceFact(PromptBlock.DECISION_FACTS, "OnCall", "not on call", null, "work.oncall_roster"));
 
@@ -93,9 +118,39 @@ class SourceTruthCheckTest {
         assertThat(tally.result().matched()).isEqualTo(1);
     }
 
+    /** A line the sealed context keeps no structured value of cannot be compared, and says so. */
+    @Test
+    void aFactOfALineWithoutAStructuredValueIsNotCompared() {
+        PromptInspectionTally tally = tally(collected());
+        PromptFactSourceVerifier verifier = subject -> List.of(
+                new PromptFactSourceVerifier.SourceFact(PromptBlock.DECISION_FACTS, "Ticket", "no ticket found", null, "work.itsm_ticket"));
+
+        new SourceTruthCheck(verifier).inspect(tally);
+
+        assertThat(tally.result().unverifiable()).isEqualTo(1);
+        assertThat(tally.result().mismatched()).isZero();
+        assertThat(tally.result().findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.entry()).isEqualTo("Ticket");
+            assertThat(finding.sourceRef()).isEqualTo("work.itsm_ticket");
+        });
+    }
+
+    @Test
+    void withoutTheSealedContextTheFactsAreNotCompared() {
+        PromptInspectionTally tally = tally(null);
+        PromptFactSourceVerifier verifier = subject -> List.of(
+                new PromptFactSourceVerifier.SourceFact(PromptBlock.DECISION_FACTS, "OnCall", "not on call", null, "work.oncall_roster"));
+
+        new SourceTruthCheck(verifier).inspect(tally);
+
+        assertThat(tally.result().unverifiable()).isEqualTo(1);
+        assertThat(tally.result().matched()).isZero();
+        assertThat(tally.result().mismatched()).isZero();
+    }
+
     @Test
     void aSourceThatCannotBeReadNowInspectsThePackageAgainLater() {
-        PromptInspectionTally tally = tally(PROMPT);
+        PromptInspectionTally tally = tally(collected());
         PromptFactSourceVerifier verifier = subject -> {
             throw new PromptInspectionUnavailableException("work database down", new IllegalStateException());
         };
@@ -110,7 +165,7 @@ class SourceTruthCheckTest {
      */
     @Test
     void aHostThatDoesNotKeepTheDecisionsRecordsCountsTheFactsAsNotCompared() {
-        PromptInspectionTally tally = tally(PROMPT);
+        PromptInspectionTally tally = tally(collected());
         PromptFactSourceVerifier verifier = new PromptFactSourceVerifier() {
             @Override
             public List<PromptFactSourceVerifier.SourceFact> sourceFacts(PromptInspectionSubject subject) {
@@ -137,7 +192,7 @@ class SourceTruthCheckTest {
     /** N-SRC-2: a host that keeps the records but no fact of them leaves nothing to compare, and nothing is counted. */
     @Test
     void aHostThatKeepsNoFactOfTheDecisionLeavesNothingToCompare() {
-        PromptInspectionTally tally = tally(PROMPT);
+        PromptInspectionTally tally = tally(collected());
 
         new SourceTruthCheck(subject -> List.of()).inspect(tally);
 
@@ -146,8 +201,26 @@ class SourceTruthCheckTest {
         assertThat(tally.result().unverifiable()).isZero();
     }
 
-    private static PromptInspectionTally tally(String prompt) {
+    /** What the decision collected: approval APR-1 by pm-11 up to 500 items with 480 used, and not on call. */
+    private static CanonicalSecurityContext collected() {
+        CanonicalSecurityContext context = new CanonicalSecurityContext();
+        context.setRequestObservedAt(AT);
+        context.setAttributes(new HashMap<>());
+        FrictionProfile friction = new FrictionProfile();
+        friction.setApprovalRecords(List.of(ApprovalRecord.builder().approvalId("APR-1").approver("pm-11")
+                .status("APPROVED").maxItems(500).usedItems(480).build()));
+        friction.setOnCall(OnCallRecord.builder().onCall(false).build());
+        context.setFrictionProfile(friction);
+        return context;
+    }
+
+    private static PromptInspectionTally tally(CanonicalSecurityContext context) {
+        return tally(context, "");
+    }
+
+    private static PromptInspectionTally tally(CanonicalSecurityContext context, String prompt) {
         PromptInspectionSubject subject = mock(PromptInspectionSubject.class);
+        when(subject.canonicalContext()).thenReturn(context);
         when(subject.prompt()).thenReturn(InspectedPrompt.parse(prompt));
         return new PromptInspectionTally(SourceTruthCheck.CODE, subject);
     }

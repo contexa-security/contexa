@@ -234,100 +234,6 @@ class JdbcPromptInspectionResultStoreTest {
         assertThat(store.findUninspectedPackageIds(VERSION, 1000, 1)).hasSizeLessThan(half.size());
     }
 
-    /**
-     * R4-S5: a package captured before the given time goes when its latest result found nothing wrong (PASS or
-     * NOT_APPLICABLE) and no official verification names it; a failed, incomplete, erroneous or uninspected package,
-     * one whose latest result found something, and one an official verification names keep the default retention.
-     */
-    @Test
-    void theShortRetentionRemovesTheOldPackagesWhoseLatestResultFoundNothingWrong() {
-        Instant before = T0.plusSeconds(100);
-        List<String> ids = List.of("pass", "not-applicable", "fail", "incomplete", "error", "uninspected",
-                "pass-then-fail", "fail-then-pass", "pass-in-official-run", "pass-in-run-ledger");
-        for (int index = 0; index < ids.size(); index++) {
-            seal(ids.get(index), T0.plusSeconds(index + 1));
-        }
-        seal("pass-recent", before.plusSeconds(1));
-        for (String id : List.of("pass", "pass-in-official-run", "pass-in-run-ledger", "pass-recent")) {
-            store.save(verdict(id, VERSION, PromptInspectionVerdict.PASS), PromptInspectionTrigger.AUTO,
-                    T0.plusSeconds(200));
-        }
-        store.save(verdict("not-applicable", VERSION, PromptInspectionVerdict.NOT_APPLICABLE),
-                PromptInspectionTrigger.AUTO, T0.plusSeconds(200));
-        store.save(verdict("fail", VERSION, PromptInspectionVerdict.FAIL), PromptInspectionTrigger.AUTO,
-                T0.plusSeconds(200));
-        store.save(verdict("incomplete", VERSION, PromptInspectionVerdict.INCOMPLETE), PromptInspectionTrigger.AUTO,
-                T0.plusSeconds(200));
-        store.save(verdict("error", VERSION, PromptInspectionVerdict.ERROR), PromptInspectionTrigger.AUTO,
-                T0.plusSeconds(200));
-        store.save(verdict("pass-then-fail", "prompt-inspector/0", PromptInspectionVerdict.PASS),
-                PromptInspectionTrigger.AUTO, T0.plusSeconds(200));
-        store.save(verdict("pass-then-fail", VERSION, PromptInspectionVerdict.FAIL), PromptInspectionTrigger.AUTO,
-                T0.plusSeconds(300));
-        store.save(verdict("fail-then-pass", "prompt-inspector/0", PromptInspectionVerdict.FAIL),
-                PromptInspectionTrigger.AUTO, T0.plusSeconds(200));
-        store.save(verdict("fail-then-pass", VERSION, PromptInspectionVerdict.PASS), PromptInspectionTrigger.AUTO,
-                T0.plusSeconds(300));
-        jdbc.update("insert into ctxa_official_verification_run_batch (aggregate_run_id, package_id, tenant_id, scope_type, "
-                + "expected_metric_count, final_decision) values ('run-1', 'pass-in-official-run', 'tenant-1', "
-                + "'PACKAGE', 12, 'PASSED')");
-        jdbc.update("insert into ctxa_verification_run_ledger (run_id, user_id, metric_code, execution_path, package_id) "
-                + "values ('ledger-1', 'user-1', 'M01', 'official', 'pass-in-run-ledger')");
-
-        assertThat(store.removeCleanPackagesCapturedBefore(before, 100)).isEqualTo(3);
-
-        assertThat(jdbc.queryForList("select package_id from ctxa_sealed_evidence_package order by captured_at",
-                String.class)).containsExactly("fail", "incomplete", "error", "uninspected", "pass-then-fail",
-                "pass-in-official-run", "pass-in-run-ledger", "pass-recent");
-        assertThat(jdbc.queryForObject("select count(*) from ctxa_prompt_inspection_result where package_id in "
-                + "('pass', 'not-applicable', 'fail-then-pass')", Integer.class)).isZero();
-        // fail, incomplete, error, the two of pass-then-fail, and the three that keep the default retention.
-        assertThat(count("ctxa_prompt_inspection_result")).isEqualTo(8);
-    }
-
-    /** R4-S5: one call removes at most the limit, oldest capture first. */
-    @Test
-    void theShortRetentionRemovesAtMostTheLimitOldestFirst() {
-        seal("c", T0.plusSeconds(3));
-        seal("a", T0.plusSeconds(1));
-        seal("b", T0.plusSeconds(2));
-        for (String id : List.of("a", "b", "c")) {
-            store.save(verdict(id, VERSION, PromptInspectionVerdict.PASS), PromptInspectionTrigger.AUTO,
-                    T0.plusSeconds(10));
-        }
-
-        assertThat(store.removeCleanPackagesCapturedBefore(T0.plusSeconds(100), 2)).isEqualTo(2);
-        assertThat(jdbc.queryForList("select package_id from ctxa_sealed_evidence_package", String.class))
-                .containsExactly("c");
-        assertThat(store.removeCleanPackagesCapturedBefore(T0.plusSeconds(100), 2)).isEqualTo(1);
-        assertThat(count("ctxa_sealed_evidence_package")).isZero();
-    }
-
-    /**
-     * R4-S5: a NOT_APPLICABLE result can hold findings that could not be checked; the short retention takes a removed
-     * result out of its finding kinds as a period's removal does.
-     */
-    @Test
-    void theShortRetentionTakesTheRemovedResultsOutOfTheirFindingKinds() {
-        seal("old", T0);
-        seal("recent", T0.plusSeconds(200));
-        for (String id : List.of("old", "recent")) {
-            PromptInspectionFinding unverifiable = PromptInspectionFinding.builder("FACT_ACCURACY",
-                            PromptInspectionOutcome.UNVERIFIABLE).sourceRef("canonicalContext.requestObservedAt")
-                    .reason("the request time is not sealed").build();
-            store.save(new PromptInspectionResult(id, VERSION, "dictionary-v20", "v20-dictionary-blocks",
-                    PromptInspectionVerdict.NOT_APPLICABLE, List.of(new PromptInspectionCheckResult("FACT_ACCURACY", 7,
-                    0, 1, List.of(unverifiable))), null), PromptInspectionTrigger.AUTO, T0.plusSeconds(300));
-        }
-
-        assertThat(store.removeCleanPackagesCapturedBefore(T0.plusSeconds(100), 100)).isEqualTo(1);
-
-        assertThat(jdbc.queryForObject("select package_count from ctxa_prompt_inspection_finding_kind", Long.class))
-                .isEqualTo(1);
-        assertThat(jdbc.queryForObject("select line_count from ctxa_prompt_inspection_finding_kind", Long.class))
-                .isEqualTo(1);
-    }
-
     private void seal(String packageId, Instant capturedAt) {
         jdbc.update("insert into ctxa_sealed_evidence_package (package_id, correlation_id, captured_at, package_hash) "
                 + "values (?, ?, ?, ?)", packageId, "correlation-" + packageId, Timestamp.from(capturedAt), "hash");
@@ -342,12 +248,6 @@ class JdbcPromptInspectionResultStoreTest {
         return PromptInspectionFinding.builder("DICTIONARY_CONTRACT", PromptInspectionOutcome.MISMATCH)
                 .block("SESSION").entry("LoginMethod").lineNumber(20).expected("an entry line").actual("text")
                 .reason(reason).build();
-    }
-
-    private static PromptInspectionResult verdict(String packageId, String version, PromptInspectionVerdict verdict) {
-        return new PromptInspectionResult(packageId, version, "dictionary-v20", "v20-dictionary-blocks", verdict,
-                List.of(new PromptInspectionCheckResult("SEAL_INTEGRITY", 10, 0, 0, List.of())),
-                verdict == PromptInspectionVerdict.ERROR ? "a check failed" : null);
     }
 
     private static PromptInspectionResult result(String packageId, String version,

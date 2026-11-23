@@ -22,6 +22,7 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV5;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
@@ -451,6 +452,7 @@ public class LLMExecutionStep implements PipelineStep {
                     Inspection initialCheck = initial.inspection();
                     if (!initialCheck.requiresRetry()) {
                         context.addMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, initial.hypotheses());
+                        keepCitationCheck(context, initial);
                         return Mono.just(rawResponse);
                     }
                     if (initial.unsupportedCodesOnly()) {
@@ -460,6 +462,8 @@ public class LLMExecutionStep implements PipelineStep {
                         context.addMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, initial.hypotheses());
                         context.addMetadata(SecurityDecisionV21OutputInspector.UNRESOLVED_FINDINGS,
                                 initialCheck.retryReason());
+                        // K157: the codes the answer is kept with are counted on the decision record too.
+                        keepCitationCheck(context, initial);
                         return Mono.just(rawResponse);
                     }
                     recordInitialSecurityDecisionFailure(context, initialCheck, rawResponse);
@@ -543,6 +547,7 @@ public class LLMExecutionStep implements PipelineStep {
                                     }
                                 }
                                 context.addMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, retry.hypotheses());
+                                keepCitationCheck(context, retry);
                                 return retryResponse;
                             })
                             .doOnError(error -> {
@@ -552,6 +557,18 @@ public class LLMExecutionStep implements PipelineStep {
                                 }
                             });
                 });
+    }
+
+    /**
+     * Quality plan 3.6: what the response check found of the reason codes of the answer that is kept goes with it, as
+     * its explanations do: an answer accepted as it came, one kept with reason codes the lines do not support (RL-4)
+     * and one kept after its retry. An answer that is replaced keeps none.
+     */
+    private static void keepCitationCheck(PipelineExecutionContext context,
+                                          SecurityDecisionV1OutputInspector.V1Inspection kept) {
+        if (kept.citationCheck() != null) {
+            context.addMetadata(SecurityDecisionCitationCheck.METADATA_KEY, kept.citationCheck());
+        }
     }
 
     /**
@@ -667,8 +684,19 @@ public class LLMExecutionStep implements PipelineStep {
             AtomicReference<ExecutionContext> lastCall) {
         return Mono.defer(() -> {
             lastCall.set(executionContext);
-            return executeRaw(executionContext, context);
+            return executeRaw(executionContext, context)
+                    .doOnSuccess(answer -> recordModelCall(context, executionContext, false))
+                    .doOnError(error -> recordModelCall(context, executionContext, true));
         });
+    }
+
+    /** Quality plan 3.3: one model call added to the run's calls in their order, with the times the call left. */
+    private static void recordModelCall(PipelineExecutionContext context, ExecutionContext call, boolean failed) {
+        Map<String, Object> times = call.getMetadata() != null ? call.getMetadata() : Map.of();
+        context.addMetadata(PromptRuntimeTelemetrySupport.MODEL_CALLS, PromptRuntimeTelemetrySupport.withModelCall(
+                context.getMetadata(PromptRuntimeTelemetrySupport.MODEL_CALLS, Object.class),
+                times.get("providerCallMs"), times.get(UnifiedLLMOrchestrator.MODEL_SERVER_WAIT_MS),
+                times.get("providerCallTimeoutMs"), failed));
     }
 
     /**

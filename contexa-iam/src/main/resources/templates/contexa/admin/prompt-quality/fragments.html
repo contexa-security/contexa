@@ -1,56 +1,24 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
-<th:block th:fragment="head(pageTitle)">
-    <meta charset="UTF-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=${pageTitle})}"></th:block>
-    <meta name="contexa-pqa-api-root" content="" th:content="${promptQualityUiMode == 'enterprise' ? pqaEnterpriseApiRoot : pqaOfficialApiRoot}">
-    <link rel="stylesheet" th:href="@{/contexa/css/enterprise-operations.css}">
-    <link rel="stylesheet" th:href="@{/contexa/css/admin/prompt-quality/prompt-quality-common.css}">
-    <link rel="stylesheet" th:href="@{/contexa/css/admin/prompt-quality/prompt-quality-layout.css}">
-    <link rel="stylesheet" th:href="@{/contexa/css/admin/prompt-quality/policy-center.css}">
-    <link rel="stylesheet" th:href="@{/contexa/css/admin/prompt-quality/access-center.css}">
-    <link rel="stylesheet" th:href="@{/contexa/css/admin/prompt-quality/prompt-quality-reference-aliases.css}">
-    <script th:src="@{/contexa/js/admin/prompt-quality/prompt-quality-native-select.js}"></script>
-    <script type="module" th:src="@{/contexa/js/admin/prompt-quality/prompt-quality-debug.js}"></script>
-</th:block>
+<html xmlns:th="http://www.thymeleaf.org">
 <body>
-<section th:fragment="pageHeader(title, subtitle)" class="pqa-page-header">
-    <div class="pqa-page-header-content">
-        <div class="pqa-page-header-icon-box">
-            <i th:class="${activeKey == 'dashboard' ? 'fa-solid fa-house-laptop' : 
-                          activeKey == 'resources' ? 'fa-solid fa-box-open' : 
-                          activeKey == 'runtime-evidence' ? 'fa-solid fa-file-shield' : 
-                          activeKey == 'verification' ? 'fa-solid fa-file-circle-check' : 
-                          activeKey == 'verification-readiness' ? 'fa-solid fa-file-circle-check' : 
-                          activeKey == 'verification-run' ? 'fa-solid fa-play' : 
-                          activeKey == 'verification-comparison' ? 'fa-solid fa-code-compare' : 
-                          activeKey == 'verification-metrics' ? 'fa-solid fa-chart-simple' : 
-                          'fa-solid fa-shield-halved'}" aria-hidden="true"></i>
-        </div>
-        <div class="pqa-page-header-text">
-            <div class="breadcrumb">
-                <a th:href="@{/contexa/admin}" th:text="#{enterprise.pqa.common.pageHeader.breadcrumb.enterprise}"></a>
-                <span>/</span>
-                <a th:href="${promptQualityRouteRoot != null ? promptQualityRouteRoot : '/contexa/admin/prompt-quality'}"
-                   th:text="#{enterprise.pqa.common.pageHeader.breadcrumb.engine}"></a>
-            </div>
-            <h1 th:text="${title}"></h1>
-            <p th:text="${subtitle}"></p>
-        </div>
-    </div>
-    <div class="pqa-help-box">
-        <strong th:text="#{enterprise.pqa.common.pageHeader.help.title}"></strong>
-        <span th:text="#{enterprise.pqa.common.pageHeader.help.body}"></span>
-    </div>
-</section>
-
-<section th:fragment="apiStatus"
-         class="pqa-status-panel"
-         data-pqa-status
-         th:attr="data-pqa-route-root=${promptQualityRouteRoot},data-pqa-api-root=${promptQualityUiMode == 'enterprise' ? pqaEnterpriseApiRoot : pqaOfficialApiRoot},data-pqa-ui-mode=${promptQualityUiMode}">
-    <strong th:text="#{enterprise.pqa.common.status.loading}"></strong>
-    <span th:text="#{enterprise.pqa.common.status.loadingDetail}"></span>
-</section>
+<!--
+  The menu bar of the prompt quality assurance group (quality plan 3.8), the tab bar of the policy center as the Zero
+  Trust console draws its own: the menus of PromptQualityScreens in their order, each with its icon, its name and its
+  count, the screen's own menu lit up. A screen of the group calls it with the name of its menu:
+      <nav th:replace="~{contexa/admin/prompt-quality/fragments :: nav('cases')}"></nav>
+  The bar comes with every page of the group (PromptQualityNavAdvice) and keeps the scope of the page on its links.
+-->
+<nav th:fragment="nav(active)" th:if="${pqaNav != null}" class="pc-tab-nav zt-tab-nav mb-6"
+     th:attr="aria-label=#{pqa.nav.group}">
+    <a th:each="tab : ${pqaNav.tabs()}" class="pc-tab-btn"
+       th:href="${pqaNav.scope() == null} ? @{${tab.path()}} : @{${tab.path()}(scope=${pqaNav.scope()})}"
+       th:classappend="${tab.key() == active} ? 'active' : ''"
+       th:data-pqa-tab="${tab.key()}"
+       th:attr="aria-current=${tab.key() == active} ? 'page' : null">
+        <i th:class="'fas ' + ${tab.icon()}" aria-hidden="true"></i><span th:text="#{${tab.label()}}">Menu</span><span
+            th:if="${tab.count() != null}" class="tab-count" th:text="${tab.shortCount()}"
+            th:title="#{${tab.countLabel()}(${tab.fullCount()})}">0</span>
+    </a>
+</nav>
 </body>
 </html>

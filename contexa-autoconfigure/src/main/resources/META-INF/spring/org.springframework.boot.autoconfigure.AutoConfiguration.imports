@@ -127,11 +127,11 @@ io.contexa.autoconfigure.iam.admin.IamAdminIpAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminClusterStateAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PromptVersionAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PromptGovernanceAutoConfiguration
-io.contexa.autoconfigure.iam.admin.PqaOfficialInspectionAutoConfiguration
 io.contexa.autoconfigure.iam.admin.SealedEvidenceStoreAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PqaSealedEvidenceAutoConfiguration
 io.contexa.autoconfigure.iam.admin.SealedEvidenceAdvisorAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PromptInspectionAutoConfiguration
+io.contexa.autoconfigure.iam.admin.SealedDecisionReplayAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PromptVersionConsoleAutoConfiguration
 
 # IAM Security Core

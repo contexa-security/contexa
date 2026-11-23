@@ -18,7 +18,7 @@ class PromptInspectionCleanupShapeTest {
 
     @Test
     void eachCoreCheckHasOneConstructor() {
-        for (PromptInspectionCheck check : PromptInspector.coreChecks()) {
+        for (PromptInspectionCheck check : RendererInspectionChecks.coreChecks()) {
             assertThat(check.getClass().getConstructors()).as(check.code()).hasSize(1);
         }
     }

@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.context.decision.Deviation;
 import io.contexa.contexacore.autonomous.context.decision.DeviationDimension;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionCitationCheck;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV4;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
@@ -85,7 +86,7 @@ public final class DecisionConsoleColumns {
                          Long cachedPromptTokens, Long outputTokens, Integer modelCallCount, Long userWaitMs,
                          Long providerThrottleWaitMs, Boolean providerThrottleAcquired, String providerThrottleReason,
                          Long providerEstimatedTokens, Map<String, Object> summary, List<Reason> reasons,
-                         boolean ruleBroken) {
+                         boolean ruleBroken, SecurityDecisionCitationCheck citationCheck) {
     }
 
     /** One reason code the model gave, with the fact it cites. */
@@ -147,7 +148,10 @@ public final class DecisionConsoleColumns {
                 longValue(meta.get("providerThrottleEstimatedTokens")),
                 summary(result, facts, meta, reasons, context, source[0], breaches),
                 reasons,
-                !breaches.isEmpty());
+                !breaches.isEmpty(),
+                // Quality plan 3.6: what the response check found of the reason codes of the answer the decision kept;
+                // none for a decision no model answer stands behind.
+                result != null ? result.getCitationCheck() : null);
     }
 
     /**
@@ -266,10 +270,23 @@ public final class DecisionConsoleColumns {
     }
 
     static String resourceClass(CanonicalSecurityContext context, Map<String, Object> meta) {
-        if (context != null && context.getResource() != null && text(context.getResource().getResourceClass()) != null) {
-            return truncate(context.getResource().getResourceClass().toUpperCase(Locale.ROOT), 32);
+        return resourceClass(context != null && context.getResource() != null
+                ? context.getResource().getResourceClass() : null, meta.get("isSensitiveResource"));
+    }
+
+    /**
+     * The resource class of a decision row: the class the canonical context gives the resource, else SENSITIVE when
+     * the request marks the resource sensitive, else none. The labelled cases of the quality measurement take the class
+     * of their input with this rule, so a case is counted under the class its decisions are (quality P46).
+     *
+     * @param declared          the resource class of the canonical context, or null
+     * @param sensitiveResource the request's {@code isSensitiveResource}: a flag, its text, or null
+     */
+    public static String resourceClass(String declared, Object sensitiveResource) {
+        if (text(declared) != null) {
+            return truncate(declared.toUpperCase(Locale.ROOT), 32);
         }
-        if (Boolean.TRUE.equals(bool(meta.get("isSensitiveResource")))) {
+        if (Boolean.TRUE.equals(bool(sensitiveResource))) {
             return "SENSITIVE";
         }
         return null;
