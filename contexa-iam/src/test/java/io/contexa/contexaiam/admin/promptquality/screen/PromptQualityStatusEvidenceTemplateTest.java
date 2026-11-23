@@ -68,7 +68,7 @@ class PromptQualityStatusEvidenceTemplateTest {
         assertThat(tabs(korean)).containsExactly("status*", "cases", "measure", "versions", "evidence");
         assertThat(scripts(korean)).containsExactly("/contexa/js/admin/zero-trust/console-common.js?v=20261118-k119",
                 "/contexa/js/admin/prompt-quality/pqa-parts.js?v=20261122-s3",
-                "/contexa/js/admin/prompt-quality/status.js?v=20261122-s3b");
+                "/contexa/js/admin/prompt-quality/status.js?v=20261123-sup2");
 
         String english = render("status", Locale.ENGLISH, true, null);
         assertThat(english).contains("id=\"pv-title\">Quality</h1>")

@@ -31,7 +31,7 @@
     const GATED = ['MISS', 'FALSE_STOP', 'OVER_BLOCK', 'FRICTION', 'DEFERRAL', 'CITATION_ACCURACY'];
     const ICONS = {MEASUREMENT_STALE: 'fa-history', MEASUREMENT_MISSING: 'fa-ruler', BASELINE_PENDING: 'fa-hourglass-half',
         UNMEASURABLE: 'fa-ban', REMEASURE_WORSE: 'fa-chart-line', REMEASURE_CHANGED: 'fa-exchange-alt',
-        CASES_PENDING: 'fa-user-check', REVIEW_PENDING: 'fa-clipboard-list'};
+        CASES_PENDING: 'fa-user-check', REVIEW_PENDING: 'fa-clipboard-list', SEAL_MISSED: 'fa-stamp'};
 
     // ----- numbers: a ratio with its counts and its 95% range -----
 
@@ -138,6 +138,10 @@
             case 'CASES_PENDING':
             case 'REVIEW_PENDING':
                 return m('todo.' + item.kind + '.text', ZT.count(item.count));
+            case 'SEAL_MISSED':
+                // Quality plan 3.6: the decisions this server left unsealed, by the queue and by the daily limit.
+                return m('todo.SEAL_MISSED.text', ZT.count(item.count), ZT.count(figures.queueFull || 0),
+                    ZT.count(figures.overDailyLimit || 0));
             default:
                 return m('todo.' + item.kind + '.text', version);
         }

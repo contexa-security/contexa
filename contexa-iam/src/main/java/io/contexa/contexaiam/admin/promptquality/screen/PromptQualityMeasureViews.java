@@ -188,12 +188,16 @@ public final class PromptQualityMeasureViews {
     /**
      * A metric: a rate with its counts and 95% interval over its roots, or the decision time and answer tokens.
      *
-     * @param none   why there is no value: ONE_RUN (consistency needs two runs or more) or NO_CASES
-     * @param median the median decision time in milliseconds (the time row only)
+     * @param none      why there is no value: ONE_RUN (consistency needs two runs or more) or NO_CASES
+     * @param median    the median decision time in milliseconds (the time row only)
+     * @param anyCases  quality plan 3.3: the cases where it happened in at least one run, shown beside the rate only;
+     *                  null with one run, for the consistency and the time row, which it does not apply to
+     * @param anyOf     the cases with a trial that {@code anyCases} is out of; null when {@code anyCases} is
      */
     public record Metric(String key, @Nullable Long k, @Nullable Long n, @Nullable Double value, @Nullable Double lo,
                          @Nullable Double hi, int roots, @Nullable String none, @Nullable Double median,
-                         @Nullable Double p95, @Nullable Double tokens, @Nullable Double tokensP95) {
+                         @Nullable Double p95, @Nullable Double tokens, @Nullable Double tokensP95,
+                         @Nullable Integer anyCases, @Nullable Integer anyOf) {
     }
 
     /** Plan 9: the default bundle and our cases seen apart, by their misses. */
