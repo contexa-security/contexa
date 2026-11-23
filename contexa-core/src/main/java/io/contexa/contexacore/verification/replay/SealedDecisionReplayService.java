@@ -282,10 +282,18 @@ public class SealedDecisionReplayService {
         }
         SealedDecisionReplayInputs inputs = SealedDecisionReplayInputs.of(sealed,
                 SealedDecisionReplayInputs.REPLAY_ID_PREFIX + UUID.randomUUID(), objectMapper, serializer);
-        SecurityDecisionRequest request = strategy(SealedDecisionReplayStrategy.FIRST_LAYER, personalBaseline,
-                organizationBaseline).request(inputs, name);
-        String systemPrompt = promptTemplate.generateSystemPrompt(request, null);
-        String userPrompt = promptTemplate.generateUserPrompt(request, null);
+        String systemPrompt;
+        String userPrompt;
+        try {
+            SecurityDecisionRequest request = strategy(SealedDecisionReplayStrategy.FIRST_LAYER, personalBaseline,
+                    organizationBaseline).request(inputs, name);
+            systemPrompt = promptTemplate.generateSystemPrompt(request, null);
+            userPrompt = promptTemplate.generateUserPrompt(request, null);
+        }
+        finally {
+            // The prompts are drawn: the context fixed under the drawing's own id is read by nothing after this.
+            promptTemplate.releaseCanonicalContext(inputs.event());
+        }
         Object contentHash = inputs.event().getMetadata() != null
                 ? inputs.event().getMetadata().get(SecurityDecisionPromptSections.EVENT_BUNDLE_CONTENT_HASH) : null;
         return new Drawing(sealed.getPackageId(), name, contentHash != null ? String.valueOf(contentHash) : null,

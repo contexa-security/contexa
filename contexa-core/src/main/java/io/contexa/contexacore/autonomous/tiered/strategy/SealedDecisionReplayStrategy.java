@@ -74,11 +74,17 @@ public class SealedDecisionReplayStrategy extends AbstractTieredStrategy {
 
     /** The answer of the pipeline to the sealed inputs drawn with the bundle of that version. */
     public SecurityDecisionResponse replay(SealedDecisionReplayInputs inputs, String bundleVersion, Duration timeout) {
-        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = prepare(inputs, bundleVersion);
-        return executeSecurityDecisionPipeline(pipelineOrchestrator, inputs.event(), inputs.session(), analysis,
-                inputs.documents())
-                .subscribeOn(ContexaBackgroundExecution.scheduler())
-                .block(timeout);
+        try {
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = prepare(inputs, bundleVersion);
+            return executeSecurityDecisionPipeline(pipelineOrchestrator, inputs.event(), inputs.session(), analysis,
+                    inputs.documents())
+                    .subscribeOn(ContexaBackgroundExecution.scheduler())
+                    .block(timeout);
+        }
+        finally {
+            // The prompts are drawn: the context fixed under the replay's own id is read by nothing after this.
+            promptTemplate.releaseCanonicalContext(inputs.event());
+        }
     }
 
     /**
@@ -89,21 +95,27 @@ public class SealedDecisionReplayStrategy extends AbstractTieredStrategy {
     public SecurityDecisionResponse replaySecondPass(SealedDecisionReplayInputs inputs, String bundleVersion,
                                                      String firstUserPrompt, String firstPastRecordsState, String model,
                                                      Duration timeout) {
-        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = prepare(inputs, bundleVersion);
-        SecurityEvent event = inputs.event();
-        if (model != null && !model.isBlank()) {
-            // The request names the model, as a runtime selection option the model selection follows.
-            event.addMetadata("requestedModelId", model.trim());
+        try {
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = prepare(inputs, bundleVersion);
+            SecurityEvent event = inputs.event();
+            if (model != null && !model.isBlank()) {
+                // The request names the model, as a runtime selection option the model selection follows.
+                event.addMetadata("requestedModelId", model.trim());
+            }
+            SecurityDecisionRequest request = buildSecurityDecisionRequest(event, inputs.session(), analysis,
+                    inputs.documents());
+            request.withParameter("layer2FirstPassUserPrompt", firstUserPrompt);
+            request.withParameter("layer2FirstPassVerdict", ZeroTrustAction.ESCALATE.name());
+            request.withParameter("layer2FirstPassPastRecordsState", firstPastRecordsState);
+            return pipelineOrchestrator.execute(request, SECURITY_DECISION_PIPELINE_CONFIGURATION,
+                            SecurityDecisionResponse.class)
+                    .subscribeOn(ContexaBackgroundExecution.scheduler())
+                    .block(timeout);
         }
-        SecurityDecisionRequest request = buildSecurityDecisionRequest(event, inputs.session(), analysis,
-                inputs.documents());
-        request.withParameter("layer2FirstPassUserPrompt", firstUserPrompt);
-        request.withParameter("layer2FirstPassVerdict", ZeroTrustAction.ESCALATE.name());
-        request.withParameter("layer2FirstPassPastRecordsState", firstPastRecordsState);
-        return pipelineOrchestrator.execute(request, SECURITY_DECISION_PIPELINE_CONFIGURATION,
-                        SecurityDecisionResponse.class)
-                .subscribeOn(ContexaBackgroundExecution.scheduler())
-                .block(timeout);
+        finally {
+            // The second pass has its own replay id; its fixed context is read by nothing after its prompts are drawn.
+            promptTemplate.releaseCanonicalContext(inputs.event());
+        }
     }
 
     /**

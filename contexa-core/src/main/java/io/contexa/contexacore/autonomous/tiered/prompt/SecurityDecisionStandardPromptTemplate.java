@@ -225,6 +225,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         promptSections.useCanonicalContext(event, context);
     }
 
+    /** Lets go of the canonical context a replay fixed for its event, once the replay has drawn its prompts. */
+    public void releaseCanonicalContext(SecurityEvent event) {
+        promptSections.releaseCanonicalContext(event);
+    }
+
     public SecurityDecisionPromptBundles.Bundle promptBundle(SecurityEvent event) {
         return promptSections.bundleOf(event);
     }
