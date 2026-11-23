@@ -16,14 +16,18 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.handler.handler.SealedEvidenceCaptureHandler;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.repository.prompt.PromptGovernanceEvaluationRecordRepository;
 import io.contexa.contexacore.std.components.prompt.version.VersionedPrompts;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.quality.QualityGateSource;
 import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
+import io.contexa.contexacore.verification.evidence.DecisionPriorityCaptureSampling;
+import io.contexa.contexacore.verification.evidence.SealedEvidenceCaptureSampling;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
 import io.contexa.contexaiam.admin.promptquality.causes.PromptQualityCauses;
@@ -42,6 +46,7 @@ import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityRunLine;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityMeasureLock;
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
+import io.contexa.contexaiam.admin.promptquality.measure.QualityEvaluationLedger;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityModelSetting;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityScheduledMeasurement;
 import io.contexa.contexaiam.admin.promptquality.report.PromptQualityReportController;
@@ -223,6 +228,23 @@ public class PromptVersionConsoleAutoConfiguration {
     }
 
     /**
+     * Quality plan 2.1, 3.9: the evaluation ledger of the prompt governance points at the measurement of a version once
+     * it is done, on the server that ran it, beside the classification of its causes.
+     */
+    @Bean(name = "contexaQualityEvaluationLedger")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean({PromptVersionService.class, PromptGovernanceEvaluationRecordRepository.class})
+    public QualityEvaluationLedger qualityEvaluationLedger(
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+            PromptGovernanceEvaluationRecordRepository evaluationRepository,
+            ObjectProvider<PromptQualityMeasurements> measurements) {
+        QualityEvaluationLedger ledger = new QualityEvaluationLedger(() -> jdbcTemplate, evaluationRepository,
+                Clock.systemUTC());
+        measurements.ifAvailable(found -> found.whenDone(ledger::record));
+        return ledger;
+    }
+
+    /**
      * Quality plan 3.5: the causes of the wrong answers of the measurements and of the decisions an administrator rated
      * inadequate, by deterministic rules; a measurement is classified once it is done. A model call over the first
      * layer's model call limit of the decisions counts as over the time limit.
@@ -335,7 +357,8 @@ public class PromptVersionConsoleAutoConfiguration {
 
     /**
      * Quality plan 3.6: the data of the state of quality: the latest measurement of the version in use, its operation
-     * metrics beside those of the version it replaced, and what there is to check.
+     * metrics beside those of the version it replaced, and what there is to check, among it the decisions this server
+     * did not seal since it started (the capture's full queue and the sampling's daily limit).
      */
     @Bean(name = "contexaPromptQualityStatus")
     @ConditionalOnMissingBean
@@ -347,10 +370,28 @@ public class PromptVersionConsoleAutoConfiguration {
                                                    ObjectProvider<QualityScheduledMeasurement> scheduled,
                                                    ObjectProvider<PromptBundleSelector> selector,
                                                    ObjectProvider<ZeroTrustConsoleService> console,
-                                                   ObjectProvider<ZeroTrustDecisionRecords> decisions) {
+                                                   ObjectProvider<ZeroTrustDecisionRecords> decisions,
+                                                   ObjectProvider<SealedEvidenceCaptureHandler> captureHandler,
+                                                   ObjectProvider<SealedEvidenceCaptureSampling> captureSampling) {
         return new PromptQualityStatus(versions, new JdbcPromptVersionCatalog(versions, () -> jdbcTemplate,
                 selector::getIfUnique), contexaPromptQualityCases, measurements::getIfAvailable,
-                scheduled::getIfAvailable, console::getIfAvailable, decisions::getIfAvailable);
+                scheduled::getIfAvailable, console::getIfAvailable, decisions::getIfAvailable,
+                () -> sealMisses(captureHandler.getIfUnique(), captureSampling.getIfUnique()));
+    }
+
+    /**
+     * Quality plan 3.6: the decisions this server did not seal since it started, as the capture and its sampling count
+     * them in memory; null where nothing here seals decisions.
+     */
+    private static PromptQualityStatus.SealMisses sealMisses(SealedEvidenceCaptureHandler handler,
+                                                             SealedEvidenceCaptureSampling sampling) {
+        DecisionPriorityCaptureSampling priority = sampling instanceof DecisionPriorityCaptureSampling found
+                ? found : null;
+        if (handler == null && priority == null) {
+            return null;
+        }
+        return new PromptQualityStatus.SealMisses(handler != null ? handler.rejectedCaptures() : 0L,
+                priority != null ? priority.notSealedOverLimit() : 0L);
     }
 
     /**
