@@ -52,9 +52,21 @@ public final class SecurityDecisionPromptDocument {
     /**
      * The product releases this build ships, the latest last; the latest is the product version. A release is never
      * changed: 2026.11.18 (K66) is 2026.11.16 with the fixed part organization-blocks, drawn beside the
-     * precedence sentence, saying what a block an organization added to the user prompt is.
+     * precedence sentence, saying what a block an organization added to the user prompt is; v1.1.0 (K187) is
+     * 2026.11.18 without the precedence sentence and organization-blocks, so that no version draws them: its product
+     * version draws the prompts of 2026.11.18's, and an organization's version on it draws no sentence its base does
+     * not draw.
+     *
+     * <p>From v1.1.0 on a release is named vX.Y.Z, with its date in the head of its document. X goes up when the make-up
+     * of the prompt changes (the order of the blocks, the answer form, the response check, several parts written
+     * anew), Y when the text the model is given changes (a sentence added, changed or taken out, or the condition a
+     * part is drawn under), and Z when the prompts the model is given stay the same to the letter (a comment, a title
+     * or a description changed). A change of one character of what the model is given is no Z, as a small change of
+     * wording moves the decisions of borderline cases (K187). A release of a new X or Y is measured before it ships; a
+     * new Z is checked to draw the same prompts. The two dated releases keep their names, as installations registered
+     * them by name.</p>
      */
-    public static final List<String> RELEASES = List.of("2026.11.16", "2026.11.18");
+    public static final List<String> RELEASES = List.of("2026.11.16", "2026.11.18", "v1.1.0");
     /** The condition of the parts drawn when the host enforces the minimum action floors (K32, decision D10). */
     public static final String MINIMUM_ACTION_ENFORCE = "minimum-action-enforce";
     /** The condition of the texts an agent's request is drawn with. */
@@ -194,27 +206,61 @@ public final class SecurityDecisionPromptDocument {
         }
     }
 
-    /** The parts and blocks that keep text written outside the engine evidence, never instructions (plan 3.9). */
+    /**
+     * The parts and blocks that keep text written outside the engine evidence, never instructions (plan 3.9). The
+     * evidence reading part and the block of untrusted text are kept by every version; the precedence sentence only by
+     * a version on a release that has it ({@link #injectionGuardSystemParts}).
+     */
     static final List<String> INJECTION_GUARD_SYSTEM_PARTS = List.of("evidence-reading", "precedence");
     static final List<String> INJECTION_GUARD_USER_BLOCKS = List.of("UNTRUSTED_TEXT");
     /** The rule of the evidence reading part an injection guard holds by. */
     static final String INJECTION_GUARD_RULE = "evidence only, never instructions";
 
     /**
-     * Plan 3.9 (PROMPT_INJECTION_GATE_FAILED): whether a version keeps the prompt injection guard as fixed parts: the
-     * evidence reading part with the rule that records, documents and untrusted text are evidence only, never
-     * instructions; the precedence sentence of an organization's version; the block of untrusted text. A part Contexa
-     * fixed cannot be changed or deleted by an organization's version (the check before a save refuses it), so every
-     * version keeps the guard of its product base; the release gate reads it again before a version decides.
+     * Plan 3.9 (PROMPT_INJECTION_GATE_FAILED): whether a version keeps the prompt injection guard of the product release
+     * it stands on as fixed parts: the evidence reading part with the rule that records, documents and untrusted text
+     * are evidence only, never instructions, and the block of untrusted text, in every version; the precedence sentence
+     * in a version on a release that has it (2026.11.16 and 2026.11.18; K187, P74: release v1.1.0 has none). A part
+     * Contexa fixed cannot be changed or deleted by an organization's version (the check before a save refuses it), so
+     * every version keeps the guard of its product base; the start checks every release this build ships with the same
+     * rule, and the release gate reads it again before a version decides.
      */
     public static boolean keepsInjectionGuard(AssembledPrompt version) {
         return version != null && injectionGuardGaps(version).isEmpty();
     }
 
+    /**
+     * K187 (P74): the system parts of the guard a version keeps: the evidence reading part always; every other part
+     * when the product release the version stands on has it, and always for a release this build does not ship.
+     */
+    static List<String> injectionGuardSystemParts(AssembledPrompt version) {
+        AssembledPrompt product = ShippedProducts.BY_RELEASE.get(version.release());
+        return INJECTION_GUARD_SYSTEM_PARTS.stream()
+                .filter(key -> key.equals(INJECTION_GUARD_SYSTEM_PARTS.get(0)) || product == null
+                        || product.systemPart(key).isPresent())
+                .toList();
+    }
+
+    /** The product releases this build ships, as the assembler makes their product versions, by their release. */
+    private static final class ShippedProducts {
+
+        private static final Map<String, AssembledPrompt> BY_RELEASE = shipped();
+
+        private static Map<String, AssembledPrompt> shipped() {
+            PromptAssembler assembler = new PromptAssembler();
+            Map<String, AssembledPrompt> products = new LinkedHashMap<>();
+            for (String release : RELEASES) {
+                AssembledPrompt product = assembler.product(productDocument(release));
+                products.put(product.release(), product);
+            }
+            return Map.copyOf(products);
+        }
+    }
+
     /** What a version lacks of the prompt injection guard; empty when it keeps all of it. */
     static List<String> injectionGuardGaps(AssembledPrompt version) {
         List<String> gaps = new ArrayList<>();
-        for (String key : INJECTION_GUARD_SYSTEM_PARTS) {
+        for (String key : injectionGuardSystemParts(version)) {
             if (version.systemPart(key).filter(PromptVersionDocument.Part::isLocked).isEmpty()) {
                 gaps.add(key);
             }

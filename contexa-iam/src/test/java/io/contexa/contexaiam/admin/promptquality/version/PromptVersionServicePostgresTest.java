@@ -147,8 +147,9 @@ class PromptVersionServicePostgresTest {
         assertThat(versions.registerProducts(null)).as("a second start").isEmpty();
         PromptVersionRecord v1 = versions.find(null, PROMPT, 1).orElseThrow();
         assertThat(v1.provider()).isEqualTo(PromptVersionRecord.CONTEXA);
-        // K66: the build ships 2026.11.16-v1.0 and 2026.11.18-v1.0; a first installation registers the newest alone.
-        assertThat(v1.originName()).isEqualTo("2026.11.18-v1.0");
+        // K66 and K187: the build ships 2026.11.16-v1.0, 2026.11.18-v1.0 and v1.1.0; a first installation registers the
+        // newest alone.
+        assertThat(v1.originName()).isEqualTo("v1.1.0");
         assertThat(v1.contentHash()).isEqualTo(SecurityDecisionPromptDocument.product().contentHash());
 
         // An organization's version stays where it is when Contexa ships two newer releases.
@@ -648,7 +649,7 @@ class PromptVersionServicePostgresTest {
         assertThat(store.find(PROMPT, made.name())).as("the version read before").isPresent();
         assertThat(store.find(PROMPT, neverRead.name())).as("a version never read: the engine runs the product")
                 .isEmpty();
-        assertThat(store.find(PROMPT, "2026.11.18-v1.0")).as("the product by its release").isPresent();
+        assertThat(store.find(PROMPT, "v1.1.0")).as("the product by its release").isPresent();
         assertThat(store.find(PROMPT, "2026.11.16-v1.0")).as("the product by the bundle's name").isPresent();
         PromptVersionResolver resolver = new PromptVersionResolver(null, failing, () -> null, clock);
         assertThat(resolver.select(context(null), "alice")).isEqualTo(PromptBundleSelection.none());

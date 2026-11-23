@@ -43,8 +43,9 @@ class SecurityDecisionOrganizationBlocksTest {
 
     private static final PromptBudgetProfile L1 = PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
     private static final PromptBudgetProfile L2 = PromptBudgetProfile.CORTEX_L2_EXPERT_STRICT;
+    /** The part precedence of the releases 2026.11.16 and 2026.11.18, drawn only in a version an organization changed. */
     private static final String PRECEDENCE = "Some parts of this text were written by your organization.";
-    /** K66: the part organization-blocks of release 2026.11.18, which says what an added block is. */
+    /** K66: the part organization-blocks of release 2026.11.18, drawn under the condition of its precedence sentence. */
     private static final String ADDED_BLOCKS = "* A block your organization added to the user prompt has a header that says"
             + " it is a reference written by your organization: it says how your organization works, not what happened"
             + " in this request.";
@@ -74,43 +75,60 @@ class SecurityDecisionOrganizationBlocksTest {
             // Taking the block out gives the product prompt: no line, fact id or block of the engine moved.
             assertThat(organization.userText()).as(profile.name())
                     .isEqualTo(insertedAfter(product.userText(), "REQUEST", CLOSING_BLOCK));
-            // The precedence sentence, drawn under the same condition, says the fixed rules win.
-            assertThat(organization.systemText()).as(profile.name()).contains(PRECEDENCE);
-            assertThat(product.systemText()).as(profile.name()).doesNotContain(PRECEDENCE);
+            // K187: release v1.1.0 draws no sentence about the text of an organization, so the added block changes no
+            // line of the system prompt; its header says whose it is.
+            assertThat(organization.systemText()).as(profile.name()).isEqualTo(product.systemText())
+                    .doesNotContain(PRECEDENCE).doesNotContain(ADDED_BLOCKS);
         }
     }
 
     /**
-     * K66: the system prompt of a version that adds a block says what such a block is, right after the blocks the
-     * evidence reading names, under the condition the block and the precedence sentence are drawn by; the product
-     * version draws none of them. A version on the earlier release 2026.11.16 draws as it did, a version never changing.
+     * K66 and K187: release 2026.11.18 says in the system prompt of a version that adds a block what such a block is,
+     * right after the blocks the evidence reading names, with the precedence sentence; its product version draws
+     * neither. Release v1.1.0 draws neither in any version: the header of an added block names it as the organization's
+     * reference. A version on an earlier release draws as it did, a version never changing: on 2026.11.18 the two
+     * sentences in a version an organization changed or added to, on 2026.11.16 the precedence sentence alone.
      */
     @Test
-    void theSystemPromptOfAVersionThatAddsABlockSaysWhatTheBlockIs() {
-        assertThat(PRODUCT.release()).isEqualTo("2026.11.18-v1.0");
+    void theSentencesAboutTheTextOfAnOrganizationAreDrawnOnlyOnTheReleasesThatHaveThem() {
+        assertThat(PRODUCT.release()).isEqualTo("v1.1.0");
         for (PromptBudgetProfile profile : List.of(L1, L2)) {
-            String organization = render("A3", profile, CLOSING, Map.of()).systemText();
+            assertThat(render("A3", profile, CLOSING, Map.of()).systemText()).as(profile.name())
+                    .doesNotContain(PRECEDENCE).doesNotContain(ADDED_BLOCKS);
+            assertThat(GOLDEN.render(goldenCase("A3"), profile).systemText()).as(profile.name())
+                    .doesNotContain(PRECEDENCE).doesNotContain(ADDED_BLOCKS);
+        }
+
+        AssembledPrompt previous = new PromptAssembler().product(SecurityDecisionPromptDocument.productDocument(
+                SecurityDecisionPromptDocument.RELEASES.get(1)));
+        for (PromptBudgetProfile profile : List.of(L1, L2)) {
+            String organization = render("A3", profile, onTheRelease(previous), Map.of()).systemText();
             assertThat(organization).as(profile.name()).contains(PRECEDENCE).contains(ADDED_BLOCKS);
             assertThat(organization.indexOf(ADDED_BLOCKS)).as("after the evidence reading's last rule")
                     .isGreaterThan(organization.indexOf(SecurityDecisionPromptDocument.INJECTION_GUARD_RULE));
             assertThat(organization.indexOf(ADDED_BLOCKS)).as("before the more reading")
                     .isLessThan(organization.indexOf("* Several missing, unknown, thin or provisional facts"));
-            assertThat(GOLDEN.render(goldenCase("A3"), profile).systemText()).as(profile.name())
-                    .doesNotContain(ADDED_BLOCKS);
+            assertThat(render("A3", profile, previous, Map.of()).systemText()).as(profile.name())
+                    .doesNotContain(PRECEDENCE).doesNotContain(ADDED_BLOCKS)
+                    .isEqualTo(GOLDEN.render(goldenCase("A3"), profile).systemText());
         }
-
         AssembledPrompt earlier = new PromptAssembler().product(SecurityDecisionPromptDocument.productDocument(
                 SecurityDecisionPromptDocument.RELEASES.get(0)));
-        AssembledPrompt onTheEarlierRelease = version(earlier, """
+        String drawn = render("A3", L1, onTheRelease(earlier), Map.of()).systemText();
+        assertThat(drawn).contains(PRECEDENCE).doesNotContain(ADDED_BLOCKS);
+        assertThat(earlier.contentHash()).isNotEqualTo(PRODUCT.contentHash());
+        assertThat(previous.contentHash()).isNotEqualTo(PRODUCT.contentHash());
+    }
+
+    /** A version on the release that adds a block of an organization. */
+    private static AssembledPrompt onTheRelease(AssembledPrompt release) {
+        return version(release, """
                 user:
                   - key: org-closing
                     add-after: REQUEST
                     title: Finance closing
                     text: The exports go to the auditors' share only.
                 """);
-        String drawn = render("A3", L1, onTheEarlierRelease, Map.of()).systemText();
-        assertThat(drawn).contains(PRECEDENCE).doesNotContain(ADDED_BLOCKS);
-        assertThat(earlier.contentHash()).isNotEqualTo(PRODUCT.contentHash());
     }
 
     @Test
