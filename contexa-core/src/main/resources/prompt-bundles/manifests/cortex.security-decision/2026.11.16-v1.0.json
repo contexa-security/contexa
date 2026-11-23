@@ -1,11 +1,11 @@
 {
   "promptKey" : "cortex.security-decision",
   "bundleVersion" : "2026.11.16-v1.0",
-  "bundleHash" : "b201c9f43b0f10439f373e12990ef185a07314acfe2eb201d6134be0f71108e5",
+  "bundleHash" : "8d58989d8480afa4a9e6e347dae5ef8ee39cd7fad2f28d1cc49b4be10d173af0",
   "elements" : [ {
     "id" : "B1",
     "state" : "PRESENT",
-    "hash" : "7b874512169ea75b06ad3e7dd69b74dc5ed41fc0620d421ec2818ae4b0083d30",
+    "hash" : "ef2ba0d7b16a0daca30f796d21c5f9e33470992d44e60e9afa962f44e17ec5a0",
     "detail" : "rendered system text of the L1 and L2 budget profiles"
   }, {
     "id" : "B2",
@@ -15,7 +15,7 @@
   }, {
     "id" : "B3",
     "state" : "PRESENT",
-    "hash" : "c251dfec3c0e3bc18dfa4cd473dbf813f760245a4a3245f6e28550ad1a695878",
+    "hash" : "e77c493ddfe63c87f195b6160680d8a68aa5c8305a1fc05656af9a0b587e0be1",
     "detail" : "golden render digest: 27 cases x L1/L2 and 24 second passes, inputs 165fcd4d2f5dded94f8af9073cbd76b72774b20999b8c96e42b0cd9a0821a89e"
   }, {
     "id" : "B4",
