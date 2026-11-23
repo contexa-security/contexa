@@ -15,11 +15,16 @@
  */
 package io.contexa.contexacore.std.components.prompt.quality;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
+import io.contexa.contexacore.std.components.prompt.version.AssembledPrompt;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -74,6 +79,39 @@ class QualityShippedMeasurementsTest {
         assertThat(shipped.find("cortex.security-decision", "content-a", "set-b", "settings-a")).isEmpty();
         assertThat(shipped.find("cortex.security-decision", "content-a", "set-a", "settings-b")).isEmpty();
         assertThat(shipped.find("other.prompt", "content-a", "set-a", "settings-a")).isEmpty();
+    }
+
+    /**
+     * Quality supplement P-1: the product ships the measurement of release v1.1.0 taken the product's way, on the
+     * default case set this build ships, three runs of every case; it is of the content the build draws for v1.1.0.
+     */
+    @Test
+    void theProductShipsTheMeasurementOfItsLatestReleaseOnTheDefaultSet() {
+        AssembledPrompt release = SecurityDecisionPromptDocument.product();
+        QualityCaseSet defaults = QualityCaseSetReader.contexaDefault();
+
+        List<QualityShippedMeasurements.Shipped> shipped = QualityShippedMeasurements.contexa().all();
+
+        assertThat(release.release()).isEqualTo("v1.1.0");
+        assertThat(shipped).hasSize(1);
+        QualityShippedMeasurements.Shipped measured = shipped.get(0);
+        assertThat(measured.prompt()).isEqualTo(SecurityDecisionPromptDocument.PROMPT);
+        assertThat(measured.release()).isEqualTo("v1.1.0");
+        assertThat(measured.versionContentHash()).isEqualTo(release.contentHash());
+        assertThat(measured.caseSetVersion()).isEqualTo(defaults.version());
+        assertThat(measured.repeats()).isEqualTo(3);
+        assertThat(measured.answers()).hasSize(210)
+                .noneMatch(QualityAnswer::measurementFailed);
+        assertThat(measured.modelSetting()).startsWith("settings=" + measured.settingsHash() + ";");
+        Set<String> keys = defaults.cases().stream().map(QualityCase::key).collect(Collectors.toSet());
+        assertThat(measured.answers().stream().map(answer -> answer.caseKey() + "#" + answer.run())
+                .collect(Collectors.toSet())).hasSize(210);
+        assertThat(measured.answers()).allSatisfy(answer -> {
+            assertThat(keys).contains(answer.caseKey());
+            assertThat(answer.run()).isBetween(1, 3);
+        });
+        assertThat(QualityShippedMeasurements.contexa().find(SecurityDecisionPromptDocument.PROMPT,
+                release.contentHash(), defaults.version(), measured.settingsHash())).isPresent();
     }
 
     @Test

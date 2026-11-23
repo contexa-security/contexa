@@ -152,8 +152,9 @@ class PromptQualityScreenTemplateTest {
     @Test
     void theScriptsAndStylesCarryAVersionMark() throws IOException {
         // K197: the script of the cases changed its words of a case's input and raised its mark; K200: it draws the
-        // answer fields with the shared script, which raised its mark too.
-        Map<String, String> marks = Map.of("cases", "20261123-b2f", "measure", "20261123-fb");
+        // answer fields with the shared script, which raised its mark too; the supplement (P-6) draws the notice of
+        // the person's data with the shared script in every window that makes a case.
+        Map<String, String> marks = Map.of("cases", "20261123-sup3", "measure", "20261123-sup2");
         for (String screen : List.of("cases", "measure")) {
             String template = read("templates/contexa/admin/prompt-quality/" + screen + ".html");
             Matcher assets = Pattern.compile("@\\{(/contexa/[^}]*\\.(?:js|css)[^}]*)}").matcher(template);
@@ -167,11 +168,11 @@ class PromptQualityScreenTemplateTest {
                     "/contexa/js/admin/prompt-quality/" + screen + ".js?v=" + marks.get(screen));
         }
         assertThat(read("templates/contexa/admin/prompt-quality/measure.html"))
-                .contains("/contexa/js/admin/prompt-quality/measure-trials.js?v=20261123-k225")
-                .contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f")
+                .contains("/contexa/js/admin/prompt-quality/measure-trials.js?v=20261123-sup1")
+                .contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-sup3")
                 .contains("th:each=\"extra : ${viewScripts}\"");
         String cases = read("templates/contexa/admin/prompt-quality/cases.html");
-        assertThat(cases).contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f");
+        assertThat(cases).contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-sup3");
         assertThat(cases.indexOf("case-answer.js")).isLessThan(cases.indexOf("prompt-quality/cases.js"));
         assertThat(read("templates/contexa/fragments/admin-menu.html")).contains("admin-menu.js?v=20261122-s1");
     }

@@ -255,6 +255,29 @@ class PromptQualityStatusPostgresTest {
         assertThat(unmeasurable.nextScheduled()).isNull();
     }
 
+    /**
+     * Quality plan 3.6 (supplement P-4): the decisions this server left unsealed, by the full queue and over the daily
+     * limit, are to check with both counts; with none missed, or nothing here that seals, there is nothing of them.
+     */
+    @Test
+    void theDecisionsThisServerLeftUnsealedAreToCheck() {
+        PromptQualityStatus.Status missed = new PromptQualityStatus(versions, catalog(), cases, () -> null,
+                () -> null, () -> null, () -> null, () -> new PromptQualityStatus.SealMisses(2, 3))
+                .status(SCOPE, null, null);
+        assertThat(missed.toCheck()).extracting(PromptQualityStatus.ToCheck::kind, PromptQualityStatus.ToCheck::severity,
+                PromptQualityStatus.ToCheck::count).containsExactly(tuple("SEAL_MISSED", "WARN", 5L),
+                tuple("UNMEASURABLE", "INFO", 1L));
+        assertThat(missed.toCheck().get(0).figures()).containsEntry("queueFull", 2L)
+                .containsEntry("overDailyLimit", 3L);
+        for (PromptQualityStatus none : List.of(new PromptQualityStatus(versions, catalog(), cases, () -> null,
+                () -> null, () -> null, () -> null, () -> PromptQualityStatus.SealMisses.NONE),
+                new PromptQualityStatus(versions, catalog(), cases, () -> null, () -> null, () -> null, () -> null,
+                        () -> null))) {
+            assertThat(none.status(SCOPE, null, null).toCheck()).extracting(PromptQualityStatus.ToCheck::kind)
+                    .containsExactly("UNMEASURABLE");
+        }
+    }
+
     /** The cases promoted from a decision the second analysis decided are counted apart, with their own rates. */
     @Test
     void theCasesOfTheSecondAnalysisAreCountedApartInTheMeasurement() {

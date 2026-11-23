@@ -52,9 +52,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
@@ -270,6 +272,52 @@ class QualityScheduledMeasurementPostgresTest {
         assertThat(one.compareFinished()).isEqualTo(1);
         assertThat(jdbc.queryForObject("select comparison from ctxa_prompt_version_measure where id = ?", String.class,
                 alone)).isEqualTo("NOT_COMPARED");
+    }
+
+    /**
+     * Quality P65 (supplement P-3): the comparison reads the noise of the version from the newest two of its
+     * measurements done before the two compared whose answers are their own, as the gate reads it; a rate that came out
+     * worse beyond that noise, confirmed by the exact test, is worse, and the detail names the two. Without two such
+     * measurements (one used answers kept from another) the noise is not known and the same difference is a change.
+     */
+    @Test
+    void aRateWorseBeyondTheNoiseOfTheMeasurementsBeforeIsWorse() {
+        List<QualityCase> picked = new ArrayList<>();
+        Set<String> roots = new HashSet<>();
+        all.cases().stream().filter(item -> item.shouldStop() && item.grade() == QualityCaseGrade.ORDINARY)
+                .filter(item -> roots.add(item.rootKey())).limit(6).forEach(picked::add);
+        all.cases().stream().filter(item -> !item.shouldStop()).limit(2).forEach(picked::add);
+        assertThat(picked).hasSize(8);
+        QualityCaseSet shipped = new QualityCaseSet(all.name(), picked);
+        cases = new PromptQualityCases(() -> jdbc, JSON, false, PromptVersionAudit.none(), CLOCK, null, () -> shipped);
+        PromptQualityMeasurements runner = measurements();
+        PromptQualityCases.PublishedSet set = cases.publishDefault(SCOPE, PROMPT, "admin");
+        long oldest = measured(set, NOW(), "admin", null, QualityScheduledMeasurementPostgresTest::sound);
+        long older = measured(set, NOW(), "admin", null, QualityScheduledMeasurementPostgresTest::sound);
+        long before = measured(set, NOW(), "admin", null, QualityScheduledMeasurementPostgresTest::sound);
+        long later = measured(set, NOW(), QualityAutoMeasurement.ACTOR, "SCHEDULED", item -> "ALLOW");
+        QualityScheduledMeasurement scheduled = scheduled(runner, shared());
+
+        assertThat(scheduled.compareFinished()).isEqualTo(1);
+        Map<String, Object> row = jdbc.queryForMap("select compared_measure_id, comparison, comparison_detail from"
+                + " ctxa_prompt_version_measure where id = ?", later);
+        assertThat(row).containsEntry("compared_measure_id", before).containsEntry("comparison", "WORSE");
+        assertThat((String) row.get("comparison_detail")).contains("\"noiseMeasureIds\":[" + older + "," + oldest + "]")
+                .contains("\"MISS\":{\"before\":[0,18],\"after\":[18,18],\"pairedVerdict\":\"WORSE\"")
+                .contains("\"newlyFailedGraded\":[]");
+        assertThat(scheduled.latestComparison(SCOPE, PROMPT, 2)).hasValueSatisfying(kept ->
+                assertThat(kept.verdict()).isEqualTo(QualityRemeasureComparison.Verdict.WORSE));
+
+        // The oldest used answers kept from another measurement: no own pair is left, so the noise is not known.
+        jdbc.update("update ctxa_prompt_version_measure_answer set reused_from_answer_id = id where measure_id = ?",
+                oldest);
+        jdbc.update("update ctxa_prompt_version_measure set compared_at = null, comparison = null where id = ?", later);
+        assertThat(scheduled.compareFinished()).isEqualTo(1);
+        Map<String, Object> again = jdbc.queryForMap("select comparison, comparison_detail from"
+                + " ctxa_prompt_version_measure where id = ?", later);
+        assertThat(again).containsEntry("comparison", "CHANGED");
+        assertThat((String) again.get("comparison_detail")).contains("\"noiseMeasureIds\":[]")
+                .contains("\"pairedVerdict\":\"UNDECIDABLE\"");
     }
 
     @Test

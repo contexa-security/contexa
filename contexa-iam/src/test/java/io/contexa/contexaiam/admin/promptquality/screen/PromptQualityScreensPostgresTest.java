@@ -25,6 +25,8 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityCaseGrade;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCaseKind;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCaseRationale;
 import io.contexa.contexacore.std.components.prompt.quality.QualityClosingRules;
+import io.contexa.contexacore.std.components.prompt.quality.QualityMetric;
+import io.contexa.contexacore.std.components.prompt.quality.QualityRate;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
@@ -366,6 +368,14 @@ class PromptQualityScreensPostgresTest {
         assertThat(run.firstAnswer().headline()).extracting(Metric::key)
                 .containsExactly("MISS", "FALSE_STOP", "ACTION_HIT", "CITATION_ACCURACY");
         assertThat(run.firstAnswer().headline().get(0).k()).isEqualTo(3);
+        // Quality plan 3.3 (supplement P-8): with three runs, the cases missed in at least one run, beside the rate.
+        Metric miss = run.firstAnswer().headline().get(0);
+        assertThat(miss.anyCases()).isEqualTo(1);
+        assertThat(miss.anyOf()).isNotNull().satisfies(count -> assertThat(count * 3L).isEqualTo(miss.n()));
+        assertThat(run.firstAnswer().grades().get(0).metrics()).filteredOn(metric -> metric.key().equals("CONSISTENCY")
+                || metric.key().equals("TIME")).extracting(Metric::anyCases).containsOnlyNulls();
+        assertThat(PromptQualityMeasureScreen.metric(QualityMetric.MISS, new QualityRate(1, 3, 3, 1, 3), 1)
+                .anyCases()).as("one run has no 'at least once'").isNull();
         assertThat(run.firstAnswer().grades()).extracting(GradeMetrics::key)
                 .startsWith("ALL", "CRITICAL", "SENSITIVE", "NORMAL", "PUBLIC");
         assertThat(run.firstAnswer().grades().get(0).metrics()).hasSize(11);

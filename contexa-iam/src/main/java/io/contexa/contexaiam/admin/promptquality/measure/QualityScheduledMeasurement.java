@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.promptquality.measure;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.std.components.prompt.quality.QualityActionBasis;
 import io.contexa.contexacore.std.components.prompt.quality.QualityCase;
 import io.contexa.contexacore.std.components.prompt.quality.QualityComparison;
 import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurement;
@@ -55,7 +56,11 @@ import java.util.function.Supplier;
  * (70 cases, 3 runs); nothing starts while a measurement of the version waits or runs.</li>
  * <li>Every watch looks for a version in use measured under other settings only and measures it once, and compares each
  * measurement Contexa took again, once it is done, with the version's measurement before
- * ({@link QualityRemeasureComparison}). The comparison is kept on the measurement, so the state of quality shows what
+ * ({@link QualityRemeasureComparison}). The width inside which a rate counts as the same is the noise of the version,
+ * by the rule the gate reads it with: the newest two of its measurements done before the two compared, taken the same
+ * way as the later one (else as the one before) and whose answers are their own. The two compared are left out, for
+ * their own difference is what is judged; without such a pair the noise is not known, and a rate that moved the
+ * harmful way is a change, not worse. The comparison is kept on the measurement, so the state of quality shows what
  * to check; one worse or changed is logged as a warning. There is no notification of administrators in this product
  * to send it to.</li>
  * <li>One server runs each: the schedule and the watch hold locks of the scheduled work of Contexa, the measurer
@@ -199,10 +204,12 @@ public class QualityScheduledMeasurement {
                 PromptQualityMeasurements.DONE, id, Timestamp.from(later.createdAt()),
                 Timestamp.from(later.createdAt()), id).stream().findFirst().orElse(null);
         PromptQualityMeasurements.Measure previous = previousId != null ? runner.find(previousId).orElse(null) : null;
+        Noise noise = previous != null ? noise(runner, previous, later) : Noise.UNKNOWN;
         QualityRemeasureComparison comparison = previous == null ? QualityRemeasureComparison.notCompared()
                 : QualityRemeasureComparison.compare(casesOf(previous), measurement(runner, previous),
-                casesOf(later), measurement(runner, later), QualityNoise.unknown(), significance);
+                casesOf(later), measurement(runner, later), noise.noise(), significance);
         Map<String, Object> detail = detail(comparison, previous, later);
+        detail.put("noiseMeasureIds", noise.measureIds());
         detail.put("changedSettings", previous != null ? QualityModelSetting.changed(runner.settingsOf(previous.id()),
                 runner.settingsOf(later.id())) : Map.of());
         int kept = jdbc.get().update("update ctxa_prompt_version_measure set compared_measure_id = ?, comparison = ?,"
@@ -225,6 +232,52 @@ public class QualityScheduledMeasurement {
                     previousId);
         }
         return true;
+    }
+
+    /** The noise a comparison reads, and the two measurements it was taken from (none when it is not known). */
+    private record Noise(QualityNoise noise, List<Long> measureIds) {
+
+        static final Noise UNKNOWN = new Noise(QualityNoise.unknown(), List.of());
+    }
+
+    /**
+     * Quality P65: the noise of the version for the comparison of a measurement taken again with the one before, by the
+     * rule of the gate ({@link MeasuredQualityGateSource}): the newest two measurements of the version with the same
+     * content, done before the one before (so the two compared are left out), taken the same way as the later one, else
+     * as the one before, and whose answers are their own. Unknown without such a pair.
+     */
+    private Noise noise(PromptQualityMeasurements runner, PromptQualityMeasurements.Measure previous,
+                        PromptQualityMeasurements.Measure later) {
+        List<PromptQualityMeasurements.Measure> earlier = runner.recent(later.scope(), later.prompt(),
+                later.versionNumber(), MeasuredQualityGateSource.RECENT).stream()
+                .filter(row -> PromptQualityMeasurements.DONE.equals(row.status())
+                        && row.versionContentHash().equals(later.versionContentHash())
+                        && before(row, previous))
+                .toList();
+        for (PromptQualityMeasurements.Measure reference : List.of(later, previous)) {
+            QualityMeasurement shape = shape(reference);
+            List<PromptQualityMeasurements.Measure> own = earlier.stream()
+                    .filter(row -> shape(row).comparableWith(shape)
+                            && MeasuredQualityGateSource.ownAnswers(jdbc.get(), row))
+                    .limit(2).toList();
+            if (own.size() == 2) {
+                return new Noise(QualityNoise.between(casesOf(reference), measurement(runner, own.get(0)),
+                        measurement(runner, own.get(1)), QualityActionBasis.FIRST_ANSWER),
+                        List.of(own.get(0).id(), own.get(1).id()));
+            }
+        }
+        return Noise.UNKNOWN;
+    }
+
+    /** Whether the measurement was made before the other: earlier, or at the same time with a lower number. */
+    private static boolean before(PromptQualityMeasurements.Measure row, PromptQualityMeasurements.Measure other) {
+        int order = row.createdAt().compareTo(other.createdAt());
+        return order < 0 || (order == 0 && row.id() < other.id());
+    }
+
+    private static QualityMeasurement shape(PromptQualityMeasurements.Measure measure) {
+        return new QualityMeasurement(measure.versionName(), measure.modelSettingOrSettings(),
+                measure.caseSetVersion(), measure.repeats(), List.of());
     }
 
     /** The latest comparison kept on a measurement of the version taken again, or empty. */

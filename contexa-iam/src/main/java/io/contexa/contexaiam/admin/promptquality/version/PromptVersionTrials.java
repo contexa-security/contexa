@@ -16,13 +16,21 @@
 package io.contexa.contexaiam.admin.promptquality.version;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
+import io.contexa.contexacore.std.components.prompt.quality.QualityAction;
+import io.contexa.contexacore.std.components.prompt.quality.QualityClosingRules;
 import io.contexa.contexacore.std.components.prompt.version.PromptVersionNames;
 import io.contexa.contexacore.std.llm.gate.ModelCallTimer;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV1OutputInspector;
 import io.contexa.contexacore.verification.replay.SealedDecisionReplayService;
+import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
+import io.contexa.contexaiam.admin.promptquality.measure.QualityMeasureLock;
+import io.contexa.contexaiam.admin.promptquality.measure.QualityRunLease;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -34,25 +42,38 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
  * The trial of a prompt version (plan 3.10 (4), 6-5): the latest sealed decisions, up to the count asked for, decided
  * again with the version and with the version it is compared with. Nothing is applied: each answer is kept in the
- * trial's tables and the trial shows how the two versions answered. A trial runs one at a time per prompt, on a thread
- * of its own, and its model calls wait behind the decisions at the model server's gate; it can be cancelled.
+ * trial's tables and the trial shows how the two versions answered. A trial runs one at a time per prompt, in the line
+ * of this server with the measurements, and its model calls wait behind the decisions at the model server's gate; it
+ * can be cancelled. Quality plan 3.10: after a first answer of ESCALATE the second pass is asked with the server's
+ * second-layer model, and the closing rules of the server's settings give each answer's final action beside its first.
+ *
+ * <p>Quality plan 3.3 (supplement U2): the servers of one database run the trials and the measurements one at a time,
+ * under the lock they share ({@link QualityRunLease}). A trial keeps the sealed decisions it chose, and the server that
+ * runs it keeps a heartbeat on it; a server that stops lets the lock and the heartbeat run out, and whichever server
+ * takes the lock next resumes the trial, skipping the sealed decisions and versions already answered. A cancellation
+ * is written to the trial, so the server that runs it stops before its next replay.</p>
  */
 public class PromptVersionTrials implements AutoCloseable {
 
@@ -60,17 +81,25 @@ public class PromptVersionTrials implements AutoCloseable {
 
     /** How many sealed decisions a trial may ask for. */
     public static final List<Integer> COUNTS = List.of(20, 50, 100);
-    public static final String QUEUED = "QUEUED";
-    public static final String RUNNING = "RUNNING";
+    public static final String QUEUED = QualityRunLease.QUEUED;
+    public static final String RUNNING = QualityRunLease.RUNNING;
     public static final String DONE = "DONE";
     public static final String FAILED = "FAILED";
-    public static final String CANCELLED = "CANCELLED";
+    public static final String CANCELLED = QualityRunLease.CANCELLED;
     /** The actions a decision may answer, in the order the screen shows them. */
     public static final List<String> ACTIONS = List.of("ALLOW", "CHALLENGE", "ESCALATE", "BLOCK");
+    /** The heartbeat of a trial when none is set: that of the measurements by default. */
+    public static final Duration DEFAULT_HEARTBEAT = Duration.ofSeconds(30);
     /** How many decisions that changed a trial lists. */
     static final int CHANGED_LIMIT = 100;
-    /** The longest one replay may take: a call and its retry, each within the first layer's limit. */
-    private static final long REPLAY_LIMIT_MS = TimeUnit.MINUTES.toMillis(6);
+    /**
+     * The longest one replay may take: a call and its retry, each within the first layer's limit, then the second pass
+     * after an ESCALATE.
+     */
+    private static final long REPLAY_LIMIT_MS = TimeUnit.MINUTES.toMillis(12);
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final TypeReference<List<String>> PACKAGE_IDS = new TypeReference<>() {
+    };
 
     /** Why a trial cannot start. */
     public enum Refusal {
@@ -104,15 +133,23 @@ public class PromptVersionTrials implements AutoCloseable {
     /**
      * One sealed decision decided again with one version.
      *
-     * @param action       the action the answer gave; null when the replay gave no usable answer
+     * @param action       the action the first answer gave; null when the replay gave no usable answer
      * @param reason       the answer's reason
      * @param formatError  the first answer broke the output contract, or no usable answer came
      * @param decisionMs   how long the replay took
      * @param answerTokens the tokens of the answer, when the model counted them
      * @param failure      why the replay gave no answer; null otherwise
+     * @param finalAction  quality plan 3.10: the action the decision ends in under the closing rules, after the second
+     *                     pass of an ESCALATE; null when it cannot be computed
      */
     public record Replayed(String action, String reason, boolean formatError, Long decisionMs, Integer answerTokens,
-                           String failure) {
+                           String failure, String finalAction) {
+
+        /** A replay whose final action is not known. */
+        public Replayed(String action, String reason, boolean formatError, Long decisionMs, Integer answerTokens,
+                        String failure) {
+            this(action, reason, formatError, decisionMs, answerTokens, failure, null);
+        }
     }
 
     /** Decides a sealed decision again with a version (the sealed decision replay); empty when the package is gone. */
@@ -144,9 +181,15 @@ public class PromptVersionTrials implements AutoCloseable {
         }
     }
 
-    /** How one version answered in a trial. */
+    /**
+     * How one version answered in a trial.
+     *
+     * @param finalAnswered quality plan 3.10: the answers with a final action under the closing rules
+     * @param finalActions  the final actions, in the order of {@link #ACTIONS}
+     */
     public record Side(int number, String name, long answered, long noAnswer, long formatErrors, Long averageMs,
-                       Long averageAnswerTokens, Map<String, Long> actions) {
+                       Long averageAnswerTokens, Map<String, Long> actions, long finalAnswered,
+                       Map<String, Long> finalActions) {
     }
 
     /** A sealed decision the two versions answered with different actions. */
@@ -163,7 +206,7 @@ public class PromptVersionTrials implements AutoCloseable {
     }
 
     private record Case(String packageId, String observationId, int number, String action, boolean formatError,
-                        Long decisionMs, Integer answerTokens, String reason) {
+                        Long decisionMs, Integer answerTokens, String reason, String finalAction) {
     }
 
     private final Supplier<JdbcTemplate> jdbc;
@@ -172,19 +215,46 @@ public class PromptVersionTrials implements AutoCloseable {
     private final ExecutorService executor;
     private final PromptVersionAudit audit;
     private final Clock clock;
-    private final Set<Long> cancelled = ConcurrentHashMap.newKeySet();
+    private final QualityRunLease lease;
+    private final ScheduledExecutorService timer;
+    private final AtomicBoolean drainWaiting = new AtomicBoolean();
+    private final AtomicBoolean closed = new AtomicBoolean();
+    private volatile ScheduledFuture<?> sweep;
 
     /**
-     * @param executor the one thread trials run on, closed with this service
+     * Trials of this server alone, under a lock of its own.
+     *
+     * @param executor the line the trials run in, closed with this service
      */
     public PromptVersionTrials(Supplier<JdbcTemplate> jdbc, PromptVersionService versions, Replayer replayer,
                                ExecutorService executor, PromptVersionAudit audit, Clock clock) {
+        this(jdbc, versions, replayer, executor, audit, clock, QualityMeasureLock.local(), DEFAULT_HEARTBEAT,
+                "server");
+    }
+
+    /**
+     * @param executor  the line the trials run in, with the measurements; closed with this service
+     * @param lock      the lock the servers of the database share with the measurements, or the lock of this server
+     * @param heartbeat how often the running server renews the lock and the heartbeat, and the servers look for trials
+     * @param serverId  the name of this server in the heartbeat of a trial it runs
+     */
+    public PromptVersionTrials(Supplier<JdbcTemplate> jdbc, PromptVersionService versions, Replayer replayer,
+                               ExecutorService executor, PromptVersionAudit audit, Clock clock,
+                               QualityMeasureLock lock, Duration heartbeat, String serverId) {
         this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
         this.versions = Objects.requireNonNull(versions, "versions");
         this.replayer = Objects.requireNonNull(replayer, "replayer");
         this.executor = Objects.requireNonNull(executor, "executor");
         this.audit = audit != null ? audit : PromptVersionAudit.none();
         this.clock = clock != null ? clock : Clock.systemUTC();
+        this.lease = new QualityRunLease(jdbc, "ctxa_prompt_version_trial", "trial",
+                Objects.requireNonNull(lock, "lock"), heartbeat != null ? heartbeat : DEFAULT_HEARTBEAT, this.clock,
+                serverId);
+        this.timer = Executors.newSingleThreadScheduledExecutor(work -> {
+            Thread thread = new Thread(work, "contexa-prompt-version-trial-heartbeat");
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     /** Whether trials can be run for the prompt: only the security decision has sealed decisions (plan 3.11). */
@@ -193,8 +263,19 @@ public class PromptVersionTrials implements AutoCloseable {
     }
 
     /**
+     * Looks for trials to run, or to resume after a server stopped, at every heartbeat from now on: a trial queued on
+     * a server that is busy, or that stopped, is run by whichever server takes the lock.
+     */
+    public void startLookingForWork() {
+        if (sweep == null && !closed.get()) {
+            long every = lease.heartbeat().toMillis();
+            sweep = timer.scheduleWithFixedDelay(this::lookForWork, every, every, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    /**
      * Starts a trial of the candidate against the reference with the latest sealed decisions, as many as there are up
-     * to the count; returns its id.
+     * to the count; returns its id. It waits in this server's line, or is run by the server that holds the lock.
      *
      * @throws RefusedException when it cannot start
      */
@@ -214,29 +295,26 @@ public class PromptVersionTrials implements AutoCloseable {
         if (open != null && open > 0) {
             throw new RefusedException(Refusal.RUNNING);
         }
-        List<Sealed> sealed = latestSealed(scopeName, count);
+        List<String> sealed = latestSealed(scopeName, count);
         if (sealed.isEmpty()) {
             throw new RefusedException(Refusal.NO_SEALED_DECISIONS);
         }
-        long id = insertTrial(scopeName, prompt, candidate, reference, count, sealed.size(), actor);
+        long id = insertTrial(scopeName, prompt, candidate, reference, count, sealed, actor);
         audit.record(PromptVersionAudit.TRIAL_STARTED, scopeName, prompt, PromptVersionNames.name(candidate), actor,
                 PromptVersionNames.name(reference) + " " + sealed.size() + "/" + count);
-        try {
-            executor.execute(() -> run(id, actor, candidate, reference, sealed));
-        }
-        catch (RejectedExecutionException closed) {
-            finish(id, FAILED, "The trial could not be run: the service is closing");
-        }
+        submitDrain();
         return id;
     }
 
-    /** Cancels a trial that has not finished; returns whether it was. */
+    /**
+     * Cancels a trial that has not finished, on whichever server runs it: the server stops before its next replay.
+     * Returns whether it was cancelled.
+     */
     public boolean cancel(long id, String actor) {
         Optional<Trial> trial = find(id);
         if (trial.isEmpty() || !(QUEUED.equals(trial.get().status()) || RUNNING.equals(trial.get().status()))) {
             return false;
         }
-        cancelled.add(id);
         int updated = jdbc.get().update("update ctxa_prompt_version_trial set status = ?, finished_at = ? where id = ?"
                 + " and status in (?, ?)", CANCELLED, Timestamp.from(clock.instant()), id, QUEUED, RUNNING);
         if (updated == 1) {
@@ -278,18 +356,19 @@ public class PromptVersionTrials implements AutoCloseable {
             return Optional.empty();
         }
         List<Case> cases = jdbc.get().query("select sealed_package_id, observation_id, version_number, action,"
-                + " format_error, decision_ms, answer_tokens, reason from ctxa_prompt_version_trial_case where trial_id = ?"
-                + " order by id", CASE_ROW, id);
+                + " format_error, decision_ms, answer_tokens, reason, final_action from ctxa_prompt_version_trial_case"
+                + " where trial_id = ? order by id", CASE_ROW, id);
         return Optional.of(result(trial.get(), cases));
     }
 
     /**
-     * A trial a server left unfinished when it stopped is marked failed when the service starts again: its thread is
-     * gone. Returns how many were.
+     * A trial that keeps no list of its sealed decisions, left unfinished by a server of a release before the trials
+     * were resumed, is marked failed when the service starts: no server can resume it. A trial that keeps its list is
+     * left to the server that runs it, or resumed once its heartbeat runs out. Returns how many were marked failed.
      */
     public int closeInterrupted() {
         int updated = jdbc.get().update("update ctxa_prompt_version_trial set status = ?, finished_at = ?, failure = ?"
-                + " where status in (?, ?)", FAILED, Timestamp.from(clock.instant()),
+                + " where status in (?, ?) and sealed_package_ids is null", FAILED, Timestamp.from(clock.instant()),
                 "The server stopped before the trial finished", QUEUED, RUNNING);
         if (updated > 0) {
             log.warn("[PromptVersionTrial] {} trials left unfinished by a stop were marked failed", updated);
@@ -299,6 +378,8 @@ public class PromptVersionTrials implements AutoCloseable {
 
     @Override
     public void close() {
+        closed.set(true);
+        timer.shutdownNow();
         executor.shutdownNow();
     }
 
@@ -332,13 +413,27 @@ public class PromptVersionTrials implements AutoCloseable {
         return false;
     }
 
-    /** A replay of the sealed decision replay as the trial keeps it: its action, reason, format, time and tokens. */
+    /**
+     * A replay of the sealed decision replay as the trial keeps it, its final action under the closing rules of a
+     * server that ends an ESCALATE with CHALLENGE.
+     */
     public static Replayed replayed(SealedDecisionReplayService.Result result) {
+        return replayed(result, QualityClosingRules.DEFAULTS);
+    }
+
+    /**
+     * A replay of the sealed decision replay as the trial keeps it: its first action, reason, format, time and tokens,
+     * and quality plan 3.10 its final action under the closing rules, after the second pass of an ESCALATE.
+     */
+    public static Replayed replayed(SealedDecisionReplayService.Result result, QualityClosingRules rules) {
         Map<String, Object> telemetry = result.telemetry() != null ? result.telemetry() : Map.of();
         Object tokens = telemetry.get("actualCompletionTokens");
+        QualityAction last = PromptQualityMeasurements.finalAction(result,
+                rules != null ? rules : QualityClosingRules.DEFAULTS);
         return new Replayed(result.action(), result.reason(),
                 formatError(result.action(), result.failure(), telemetry), result.elapsedMs(),
-                tokens instanceof Number number && number.intValue() > 0 ? number.intValue() : null, result.failure());
+                tokens instanceof Number number && number.intValue() > 0 ? number.intValue() : null, result.failure(),
+                last != null ? last.name() : null);
     }
 
     private static final Set<String> RULE_REASONS = Set.of(SecurityDecisionFactChecks.REQUIRED_BLOCK,
@@ -353,31 +448,138 @@ public class PromptVersionTrials implements AutoCloseable {
 
     // ----- the run -----
 
-    private void run(long id, String actor, int candidate, int reference, List<Sealed> sealed) {
+    private void lookForWork() {
         try {
-            if (cancelled.contains(id) || jdbc.get().update("update ctxa_prompt_version_trial set status = ?,"
-                    + " started_at = ? where id = ? and status = ?", RUNNING, Timestamp.from(clock.instant()), id,
-                    QUEUED) != 1) {
-                return;
+            if (lease.anyWaiting()) {
+                submitDrain();
             }
-            for (Sealed decision : sealed) {
-                for (int number : List.of(candidate, reference)) {
-                    if (cancelled.contains(id) || Thread.currentThread().isInterrupted()) {
-                        return;
+        }
+        catch (RuntimeException failure) {
+            log.error("[PromptVersionTrial] Looking for trials to run failed", failure);
+        }
+    }
+
+    private void submitDrain() {
+        if (closed.get() || !drainWaiting.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            executor.execute(() -> {
+                drainWaiting.set(false);
+                drain();
+            });
+        }
+        catch (RejectedExecutionException closing) {
+            drainWaiting.set(false);
+            log.info("[PromptVersionTrial] The line is closing; the trials wait for another server");
+        }
+    }
+
+    /** Runs the trials that wait, while this server holds the lock it shares with the measurements. */
+    void drain() {
+        if (closed.get()) {
+            return;
+        }
+        Optional<QualityMeasureLock.Held> held;
+        try {
+            held = lease.acquire();
+        }
+        catch (RuntimeException failure) {
+            log.error("[PromptVersionTrial] The lock of the trials could not be taken", failure);
+            return;
+        }
+        if (held.isEmpty()) {
+            log.debug("[PromptVersionTrial] Another server runs the measurements or the trials");
+            return;
+        }
+        try {
+            Set<Long> tried = new HashSet<>();
+            while (!closed.get() && !Thread.currentThread().isInterrupted()) {
+                Optional<Trial> next = lease.waiting(TRIAL_SQL, "t", TRIAL_ROW, 20).stream()
+                        .filter(trial -> !tried.contains(trial.id())).findFirst();
+                if (next.isEmpty()) {
+                    break;
+                }
+                tried.add(next.get().id());
+                if (!run(next.get(), held.get())) {
+                    break;
+                }
+            }
+        }
+        finally {
+            held.get().release();
+        }
+    }
+
+    /** Runs the trial from where it stands; returns whether the lock is still held. */
+    private boolean run(Trial trial, QualityMeasureLock.Held held) {
+        long id = trial.id();
+        if (!lease.claim(id)) {
+            return true;
+        }
+        QualityRunLease.Stop stop = new QualityRunLease.Stop();
+        ScheduledFuture<?> heartbeat = lease.keepAlive(timer, id, held, stop);
+        try {
+            List<String> packages = sealedOf(id);
+            if (packages == null) {
+                finish(id, FAILED, "The trial keeps no list of its sealed decisions to resume from");
+                return true;
+            }
+            Set<String> done = new HashSet<>(jdbc.get().queryForList("select sealed_package_id || '#' ||"
+                    + " version_number from ctxa_prompt_version_trial_case where trial_id = ?", String.class, id));
+            log.info("[PromptVersionTrial] Trial {} runs on {}: {} sealed decisions, {} replays kept", id,
+                    lease.serverId(), packages.size(), done.size());
+            replays:
+            for (String packageId : packages) {
+                Sealed decision = null;
+                for (int number : List.of(trial.candidate(), trial.reference())) {
+                    if (done.contains(packageId + "#" + number)) {
+                        continue;
                     }
-                    Replayed replayed = behindTheDecisions(actor, decision.packageId(), PromptVersionNames.name(number));
+                    if (stopped(id, stop)) {
+                        break replays;
+                    }
+                    if (decision == null) {
+                        decision = sealed(packageId);
+                    }
+                    Replayed replayed = behindTheDecisions(trial.createdBy(), packageId,
+                            PromptVersionNames.name(number));
                     insertCase(id, decision, number, replayed);
                 }
             }
+            if (closed.get() || stop.lockLost() || Thread.currentThread().isInterrupted()) {
+                // Left as it is: the server that takes the lock next resumes it once its heartbeat runs out.
+                log.warn("[PromptVersionTrial] Trial {} stopped on {} before its end; it is resumed later", id,
+                        lease.serverId());
+                return !stop.lockLost() && !closed.get();
+            }
+            if (stop.cancelled() || CANCELLED.equals(lease.status(id))) {
+                log.info("[PromptVersionTrial] Trial {} was cancelled", id);
+                return true;
+            }
             finish(id, DONE, null);
+            return true;
         }
         catch (RuntimeException failure) {
             log.error("[PromptVersionTrial] Trial {} failed", id, failure);
             finish(id, FAILED, failure.getClass().getSimpleName() + ": " + failure.getMessage());
+            return true;
         }
         finally {
-            cancelled.remove(id);
+            heartbeat.cancel(false);
         }
+    }
+
+    /** Whether the trial stops before its next replay: cancelled on any server, the lock lost, or this server closing. */
+    private boolean stopped(long id, QualityRunLease.Stop stop) {
+        if (stop.any() || closed.get() || Thread.currentThread().isInterrupted()) {
+            return true;
+        }
+        if (CANCELLED.equals(lease.status(id))) {
+            stop.cancel();
+            return true;
+        }
+        return false;
     }
 
     /** One replay, its model calls in line behind the decisions waiting at the model server's gate. */
@@ -401,56 +603,84 @@ public class PromptVersionTrials implements AutoCloseable {
                 RUNNING);
     }
 
-    private List<Sealed> latestSealed(String scope, int count) {
+    /** The sealed decisions the trial chose, in their order; null when it keeps none that can be read. */
+    private List<String> sealedOf(long id) {
+        String text = jdbc.get().query("select sealed_package_ids from ctxa_prompt_version_trial where id = ?",
+                (rs, row) -> rs.getString(1), id).stream().findFirst().orElse(null);
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return JSON.readValue(text, PACKAGE_IDS);
+        }
+        catch (JsonProcessingException unreadable) {
+            log.warn("[PromptVersionTrial] The sealed decisions of trial {} cannot be read", id);
+            return null;
+        }
+    }
+
+    private List<String> latestSealed(String scope, int count) {
         boolean platform = PromptVersionService.PLATFORM_SCOPE.equals(scope);
         List<Object> arguments = new ArrayList<>();
         if (!platform) {
             arguments.add(scope);
         }
         arguments.add(count);
-        List<Sealed> found = jdbc.get().query("select p.package_id, p.correlation_id from ctxa_sealed_evidence_package p"
+        return jdbc.get().query("select p.package_id from ctxa_sealed_evidence_package p"
                 + " where p.seal_state = 'SEALED' and coalesce(contexa_safe_jsonb(p.decision_json) ->>"
                 + " 'decisionAppliedStage', '') <> 'SHADOW'" + (platform ? "" : " and p.tenant_id = ?")
-                + " order by p.captured_at desc limit ?", (rs, row) -> new Sealed(rs.getString(1), rs.getString(2),
-                null), arguments.toArray());
-        List<Sealed> withObservation = new ArrayList<>();
-        for (Sealed decision : found) {
-            String observation = decision.requestId() == null ? null : jdbc.get().query("select observation_id from"
-                    + " ctxa_ai_security_decision_observation where request_id = ? order by created_at desc limit 1",
-                    (rs, row) -> rs.getString(1), decision.requestId()).stream().findFirst().orElse(null);
-            withObservation.add(new Sealed(decision.packageId(), decision.requestId(), observation));
-        }
-        return withObservation;
+                + " order by p.captured_at desc limit ?", (rs, row) -> rs.getString(1), arguments.toArray());
     }
 
-    private long insertTrial(String scope, String prompt, int candidate, int reference, int requested, int actual,
-                             String actor) {
+    /** The sealed decision with its request and the latest decision row of the request, as they are now. */
+    private Sealed sealed(String packageId) {
+        String requestId = jdbc.get().query("select correlation_id from ctxa_sealed_evidence_package where"
+                + " package_id = ?", (rs, row) -> rs.getString(1), packageId).stream().findFirst().orElse(null);
+        String observation = requestId == null ? null : jdbc.get().query("select observation_id from"
+                + " ctxa_ai_security_decision_observation where request_id = ? order by created_at desc limit 1",
+                (rs, row) -> rs.getString(1), requestId).stream().findFirst().orElse(null);
+        return new Sealed(packageId, requestId, observation);
+    }
+
+    private long insertTrial(String scope, String prompt, int candidate, int reference, int requested,
+                             List<String> sealed, String actor) {
+        String packages;
+        try {
+            packages = JSON.writeValueAsString(sealed);
+        }
+        catch (JsonProcessingException exception) {
+            throw new IllegalStateException("The sealed decisions of a trial could not be written", exception);
+        }
         KeyHolder key = new GeneratedKeyHolder();
         jdbc.get().update(connection -> {
             PreparedStatement statement = connection.prepareStatement("insert into ctxa_prompt_version_trial"
                     + " (registry_scope, prompt_key, candidate_number, reference_number, requested_count, actual_count,"
-                    + " status, created_by, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    + " status, created_by, created_at, sealed_package_ids) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS);
             statement.setString(1, scope);
             statement.setString(2, prompt);
             statement.setInt(3, candidate);
             statement.setInt(4, reference);
             statement.setInt(5, requested);
-            statement.setInt(6, actual);
+            statement.setInt(6, sealed.size());
             statement.setString(7, QUEUED);
             statement.setString(8, actor != null ? actor : "system");
             statement.setTimestamp(9, Timestamp.from(clock.instant()));
+            statement.setString(10, packages);
             return statement;
         }, key);
         return ((Number) Objects.requireNonNull(key.getKeys()).get("id")).longValue();
     }
 
+    /** Keeps one replay; a replay a server that lost the lock kept already is not kept twice. */
     private void insertCase(long id, Sealed decision, int number, Replayed replayed) {
         jdbc.get().update("insert into ctxa_prompt_version_trial_case (trial_id, sealed_package_id, observation_id,"
-                + " version_number, action, format_error, decision_ms, answer_tokens, reason) values"
-                + " (?, ?, ?, ?, ?, ?, ?, ?, ?)", id, decision.packageId(), decision.observationId(), number,
-                replayed.action(), replayed.formatError(), replayed.decisionMs(), replayed.answerTokens(),
-                truncate(replayed.reason() != null ? replayed.reason() : replayed.failure(), 2000));
+                + " version_number, action, format_error, decision_ms, answer_tokens, reason, final_action) values"
+                + " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (trial_id, sealed_package_id, version_number) do nothing",
+                id, decision.packageId(), decision.observationId(), number, replayed.action(), replayed.formatError(),
+                replayed.decisionMs(), replayed.answerTokens(),
+                truncate(replayed.reason() != null ? replayed.reason() : replayed.failure(), 2000),
+                truncate(replayed.finalAction(), 16));
     }
 
     // ----- the result -----
@@ -486,8 +716,13 @@ public class PromptVersionTrials implements AutoCloseable {
     private static Side side(int number, List<Case> cases) {
         List<Case> mine = cases.stream().filter(one -> one.number() == number).toList();
         Map<String, Long> actions = new LinkedHashMap<>();
-        ACTIONS.forEach(action -> actions.put(action, 0L));
+        Map<String, Long> finalActions = new LinkedHashMap<>();
+        ACTIONS.forEach(action -> {
+            actions.put(action, 0L);
+            finalActions.put(action, 0L);
+        });
         long answered = 0;
+        long finalAnswered = 0;
         long totalMs = 0;
         long timed = 0;
         long totalTokens = 0;
@@ -501,6 +736,10 @@ public class PromptVersionTrials implements AutoCloseable {
                 answered++;
                 actions.merge(one.action(), 1L, Long::sum);
             }
+            if (one.finalAction() != null) {
+                finalAnswered++;
+                finalActions.merge(one.finalAction(), 1L, Long::sum);
+            }
             if (one.decisionMs() != null) {
                 totalMs += one.decisionMs();
                 timed++;
@@ -512,7 +751,7 @@ public class PromptVersionTrials implements AutoCloseable {
         }
         return new Side(number, PromptVersionNames.name(number), answered, mine.size() - answered, formatErrors,
                 timed > 0 ? Math.round((double) totalMs / timed) : null,
-                counted > 0 ? Math.round((double) totalTokens / counted) : null, actions);
+                counted > 0 ? Math.round((double) totalTokens / counted) : null, actions, finalAnswered, finalActions);
     }
 
     private List<Changed> changed(List<Case> candidates, Map<String, Case> referenceOf) {
@@ -562,7 +801,7 @@ public class PromptVersionTrials implements AutoCloseable {
     private static final RowMapper<Case> CASE_ROW = (rs, row) -> new Case(rs.getString("sealed_package_id"),
             rs.getString("observation_id"), rs.getInt("version_number"), rs.getString("action"),
             rs.getBoolean("format_error"), (Long) rs.getObject("decision_ms"), (Integer) rs.getObject("answer_tokens"),
-            rs.getString("reason"));
+            rs.getString("reason"), rs.getString("final_action"));
 
     private static Instant instant(Timestamp timestamp) {
         return timestamp != null ? timestamp.toInstant() : null;

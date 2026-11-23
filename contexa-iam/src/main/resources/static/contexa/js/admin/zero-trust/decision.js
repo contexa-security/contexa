@@ -448,7 +448,8 @@
                 [t(P + 'case.evaluation'), evaluation.valid ? t(P + 'evaluation.valid')
                     : t(P + 'evaluation.invalid') + ' · ' + known(P + 'evaluation.reason.' + evaluation.reason,
                     evaluation.reason || '—')]],
-            content: [answer.node, muted(t(P + 'case.note'))], confirmLabel: t(P + 'case.save'),
+            content: [ANSWER.privacyNotice(), answer.node, muted(t(P + 'case.note'))],
+            confirmLabel: t(P + 'case.save'),
             cancelLabel: t(P + 'case.cancel'), icon: 'fa-upload', check: answer.check});
         if (!asked) {
             return;

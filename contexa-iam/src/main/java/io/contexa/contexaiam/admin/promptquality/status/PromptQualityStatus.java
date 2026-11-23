@@ -65,8 +65,9 @@ import java.util.stream.Collectors;
  * <li>The cases promoted from a decision the second analysis decided are counted apart, with their first-answer
  * rates.</li>
  * <li>To check: a stale measurement, a measurement missing or waited for, a version measured again that came out worse
- * or changed against the measurement before, the cases waiting for another administrator's confirmation, and the
- * decisions waiting for review.</li>
+ * or changed against the measurement before, the cases waiting for another administrator's confirmation, the
+ * decisions waiting for review, and the decisions this server left unsealed (quality plan 3.6: counted, not
+ * stored, so they are this server's since it started).</li>
  * </ul>
  */
 public class PromptQualityStatus {
@@ -132,7 +133,7 @@ public class PromptQualityStatus {
      * Something to check, worst first.
      *
      * @param kind     MEASUREMENT_STALE, MEASUREMENT_MISSING, BASELINE_PENDING, UNMEASURABLE, REMEASURE_WORSE,
-     *                 REMEASURE_CHANGED, CASES_PENDING, REVIEW_PENDING
+     *                 REMEASURE_CHANGED, CASES_PENDING, REVIEW_PENDING, SEAL_MISSED
      * @param severity BAD, WARN or INFO
      * @param count    how many it is about
      * @param figures  what it rests on
@@ -158,6 +159,24 @@ public class PromptQualityStatus {
                          List<ToCheck> toCheck) {
     }
 
+    /**
+     * Quality plan 3.6: the decisions this server did not seal since it started, which it counts and does not store:
+     * those the capture's queue had no room for, and those left over the daily limit of the capture sampling. Each
+     * server counts its own, and a restart counts from zero.
+     *
+     * @param queueFull      the decisions the full queue of the capture turned away
+     * @param overDailyLimit the decisions the sampling left unsealed over its daily limit
+     */
+    public record SealMisses(long queueFull, long overDailyLimit) {
+
+        /** Nothing missed, or nothing here that seals. */
+        public static final SealMisses NONE = new SealMisses(0, 0);
+
+        public long total() {
+            return queueFull + overDailyLimit;
+        }
+    }
+
     private final PromptVersionService versions;
     private final JdbcPromptVersionCatalog catalog;
     private final PromptQualityCases cases;
@@ -165,6 +184,7 @@ public class PromptQualityStatus {
     private final Supplier<QualityScheduledMeasurement> scheduled;
     private final Supplier<ZeroTrustConsoleService> console;
     private final Supplier<ZeroTrustDecisionRecords> decisions;
+    private final Supplier<SealMisses> sealMisses;
 
     /**
      * @param measurements the measurement runner; a supplier of null when this application cannot replay decisions
@@ -176,6 +196,18 @@ public class PromptQualityStatus {
                                PromptQualityCases cases, Supplier<PromptQualityMeasurements> measurements,
                                Supplier<QualityScheduledMeasurement> scheduled,
                                Supplier<ZeroTrustConsoleService> console, Supplier<ZeroTrustDecisionRecords> decisions) {
+        this(versions, catalog, cases, measurements, scheduled, console, decisions, null);
+    }
+
+    /**
+     * @param sealMisses the decisions this server did not seal since it started; a supplier of null, or none, when
+     *                   nothing here seals decisions
+     */
+    public PromptQualityStatus(PromptVersionService versions, JdbcPromptVersionCatalog catalog,
+                               PromptQualityCases cases, Supplier<PromptQualityMeasurements> measurements,
+                               Supplier<QualityScheduledMeasurement> scheduled,
+                               Supplier<ZeroTrustConsoleService> console, Supplier<ZeroTrustDecisionRecords> decisions,
+                               @Nullable Supplier<SealMisses> sealMisses) {
         this.versions = Objects.requireNonNull(versions, "versions");
         this.catalog = Objects.requireNonNull(catalog, "catalog");
         this.cases = Objects.requireNonNull(cases, "cases");
@@ -183,6 +215,7 @@ public class PromptQualityStatus {
         this.scheduled = scheduled != null ? scheduled : () -> null;
         this.console = console != null ? console : () -> null;
         this.decisions = decisions != null ? decisions : () -> null;
+        this.sealMisses = sealMisses != null ? sealMisses : () -> null;
     }
 
     /**
@@ -251,7 +284,9 @@ public class PromptQualityStatus {
         ZeroTrustConsoleService operations = console.get();
         VersionChange operation = operations != null && version != null
                 ? operations.versionChange(version, period, tenant) : null;
-        List<ToCheck> toCheck = toCheck(state, measuring, measurement, latest, counts, pendingReviews, version);
+        SealMisses missed = sealMisses.get();
+        List<ToCheck> toCheck = toCheck(state, measuring, measurement, latest, counts, pendingReviews, version,
+                missed != null ? missed : SealMisses.NONE);
         return new Status(scopeName, PROMPT, version, selection != null ? selection.source().name() : null, state,
                 measuring, measurement, operation, latest, again != null ? again.nextScheduled() : null, counts,
                 pendingReviews, toCheck);
@@ -279,7 +314,7 @@ public class PromptQualityStatus {
                                          @Nullable Measurement measurement,
                                          @Nullable QualityScheduledMeasurement.Kept latest,
                                          PromptQualityCases.Counts counts, long pendingReviews,
-                                         @Nullable String version) {
+                                         @Nullable String version, SealMisses missed) {
         List<ToCheck> found = new ArrayList<>();
         Map<String, Object> versionFigure = new LinkedHashMap<>();
         versionFigure.put("version", version);
@@ -309,6 +344,10 @@ public class PromptQualityStatus {
         if (pendingReviews > 0) {
             found.add(new ToCheck("REVIEW_PENDING", "INFO", pendingReviews,
                     Map.<String, Object>of("pending", pendingReviews)));
+        }
+        if (missed.total() > 0) {
+            found.add(new ToCheck("SEAL_MISSED", "WARN", missed.total(), Map.<String, Object>of("queueFull",
+                    missed.queueFull(), "overDailyLimit", missed.overDailyLimit())));
         }
         found.sort(Comparator.comparingInt(item -> SEVERITIES.indexOf(item.severity())));
         return found;

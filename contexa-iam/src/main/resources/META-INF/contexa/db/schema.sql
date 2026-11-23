@@ -2974,6 +2974,23 @@ create table if not exists ctxa_prompt_version_trial_case (
 create index if not exists ctxa_idx_prompt_version_trial_case_trial
     on ctxa_prompt_version_trial_case (trial_id, version_number);
 
+-- Quality plan 3.3, 3.10: a trial is resumed as a measurement is. It keeps the sealed decisions it chose (a JSON array
+-- of their package ids), and the server that runs it keeps a heartbeat on it, so the server that takes the lock of the
+-- measurements next resumes it where it stopped. Each replay keeps its final action under the closing rules, after the
+-- second pass of an ESCALATE, beside its first action. A database installed before gains them here. A trial of a
+-- release before keeps no list: one it left unfinished is marked failed.
+alter table ctxa_prompt_version_trial
+    add column if not exists runner_id varchar(256),
+    add column if not exists heartbeat_at timestamp(6),
+    add column if not exists sealed_package_ids text;
+
+alter table ctxa_prompt_version_trial_case
+    add column if not exists final_action varchar(16);
+
+-- One replay of each sealed decision and version in a trial, so a resumed trial keeps none twice.
+create unique index if not exists ctxa_uq_prompt_version_trial_case_pair
+    on ctxa_prompt_version_trial_case (trial_id, sealed_package_id, version_number);
+
 create index ctxa_idx_soar_approval_vote_decision
     on ctxa_soar_approval_votes (decision);
 

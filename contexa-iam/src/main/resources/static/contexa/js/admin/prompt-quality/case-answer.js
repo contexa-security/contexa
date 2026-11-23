@@ -133,5 +133,16 @@
             promotion.secondAnalysis ? w('secondAnalysis') : null].filter(Boolean);
     }
 
-    global.PQA_CASE_ANSWER = {fields, refusal, doneLines};
+    /**
+     * Quality plan 3.2: a case made of a decision of the operation keeps the real user, the address and the user's
+     * baselines past the sealed retention, and goes when the user is deleted; every window that makes one says so
+     * before it is kept (the decision detail, the sealed evidence, a trial's result and the screen of the cases).
+     */
+    function privacyNotice() {
+        return el('div', {class: 'zt-alert max-sm:!grid-cols-1', role: 'note', 'data-form': 'case-privacy'},
+            ZT.statusChip('WARN', ZT.t('pqa.cases.detail.privacy')),
+            el('span', {text: ZT.t('pqa.cases.detail.privacyLine')}));
+    }
+
+    global.PQA_CASE_ANSWER = {fields, refusal, doneLines, privacyNotice};
 })(window);
