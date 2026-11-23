@@ -90,8 +90,8 @@ class PromptQualityStatusEvidenceTemplateTest {
         assertThat(tabs(list)).containsExactly("status", "cases", "measure", "versions", "evidence*");
         assertThat(scripts(list)).containsExactly("/contexa/js/admin/zero-trust/console-common.js?v=20261118-k119",
                 "/contexa/js/admin/prompt-quality/pqa-parts.js?v=20261122-s3",
-                "/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f",
-                "/contexa/js/admin/prompt-quality/evidence.js?v=20261123-k230");
+                "/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-sup3",
+                "/contexa/js/admin/prompt-quality/evidence.js?v=20261123-sup3");
 
         String decision = render("evidence", Locale.ENGLISH, true, "3f2b-91c0");
         assertThat(decision).contains("id=\"pv-title\">Sealed evidence</h1>")
@@ -198,9 +198,29 @@ class PromptQualityStatusEvidenceTemplateTest {
         assertThat(korean.getProperty("pqa.evidence.history.changes")).contains("{3}");
     }
 
+    /**
+     * Quality plan 3.2 (supplement P-6): every window that makes a case of a decision says what of the person the case
+     * keeps, drawn by the one shared function; the replay's result shows the model the server names (K227).
+     */
+    @Test
+    void everyWindowThatMakesACaseSaysThePersonsDataAndTheReplayShowsItsModel() throws IOException {
+        assertThat(script("prompt-quality/case-answer.js")).contains("function privacyNotice()")
+                .contains("ZT.t('pqa.cases.detail.privacy')").contains("ZT.t('pqa.cases.detail.privacyLine')")
+                .contains("{fields, refusal, doneLines, privacyNotice}");
+        assertThat(evidenceScript()).contains("[global.PQA_CASE_ANSWER.privacyNotice(), answer.node")
+                .contains("[m('detail.model'), telemetry.providerResponseModel]").doesNotContain("telemetry.modelName");
+        assertThat(script("zero-trust/decision.js")).contains("[ANSWER.privacyNotice(), answer.node");
+        assertThat(script("prompt-quality/cases.js")).contains("global.PQA_CASE_ANSWER.privacyNotice(),")
+                .doesNotContain("m('detail.privacyLine')");
+    }
+
     private static String evidenceScript() throws IOException {
+        return script("prompt-quality/evidence.js");
+    }
+
+    private static String script(String path) throws IOException {
         try (InputStream input = PromptQualityStatusEvidenceTemplateTest.class.getClassLoader()
-                .getResourceAsStream("static/contexa/js/admin/prompt-quality/evidence.js")) {
+                .getResourceAsStream("static/contexa/js/admin/" + path)) {
             assertThat(input).isNotNull();
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }

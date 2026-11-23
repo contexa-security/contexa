@@ -68,12 +68,12 @@ public class SealedEvidenceController {
     static final String INSPECTION_API = "/contexa/admin/api/prompt-inspection";
     static final String REPLAY_API = "/contexa/admin/api/sealed-decisions";
     /**
-     * The messages the screen reads: its own, the input window of the answer of a case, the period buttons', the
-     * console's status words, units, actions and explanations, and the names of the checks a stored result of an
-     * earlier inspector names.
+     * The messages the screen reads: its own, the input window of the answer of a case and its notice of the person's
+     * data, the period buttons', the console's status words, units, actions and explanations, and the names of the
+     * checks a stored result of an earlier inspector names.
      */
-    static final String[] MESSAGE_PREFIXES = {"pqa.evidence.", "pqa.answer.", "zt.console.ui.period.",
-            "zt.console.ui.status.",
+    static final String[] MESSAGE_PREFIXES = {"pqa.evidence.", "pqa.answer.", "pqa.cases.detail.privacy",
+            "zt.console.ui.period.", "zt.console.ui.status.",
             "zt.console.ui.unit.", "zt.console.ui.action.", "zt.console.ui.decisions.hypothesis.",
             "promptInspection.check.", "promptInspection.verdict.", "promptInspection.trigger."};
 

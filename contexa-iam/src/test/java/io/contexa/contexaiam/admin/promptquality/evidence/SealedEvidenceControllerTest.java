@@ -91,6 +91,7 @@ class SealedEvidenceControllerTest {
         user.setAuthenticated(true);
         StaticMessageSource messages = new StaticMessageSource();
         messages.addMessage("pqa.evidence.list.title", Locale.KOREAN, "봉인 목록");
+        messages.addMessage("pqa.cases.detail.privacyLine", Locale.KOREAN, "실제 사용자");
         PromptQualityNavCounts counts = new PromptQualityNavCounts(() -> null, () -> null, () -> null, () -> null,
                 () -> null, null);
         mvc = MockMvcBuilders.standaloneSetup(new SealedEvidenceController(queries, details, promoting::get, messages,
@@ -115,7 +116,9 @@ class SealedEvidenceControllerTest {
             assertThat(result.getModelAndView().getModel().get(PromptQualityNavAdvice.ATTRIBUTE))
                     .isInstanceOf(PromptQualityNav.class);
             assertThat((String) result.getModelAndView().getModel().get("scriptMessagesJson"))
-                    .contains("\"pqa.evidence.list.title\":\"봉인 목록\"");
+                    .contains("\"pqa.evidence.list.title\":\"봉인 목록\"")
+                    // The window that makes a case says what of the person it keeps (quality plan 3.2, P-6).
+                    .contains("\"pqa.cases.detail.privacyLine\":\"실제 사용자\"");
         }
         mvc.perform(get(PromptQualityScreens.EVIDENCE + "/p-1").principal(admin))
                 .andExpect(status().isOk())

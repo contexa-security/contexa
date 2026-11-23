@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.promptquality.cases;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.security.UserAccountDeletedEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDocument;
 import io.contexa.contexacore.std.components.prompt.quality.QualityAction;
@@ -170,9 +171,19 @@ class PromptQualityCasesPostgresTest {
         SealedEvidencePackage sealed = sealedOf(threat, "package-1", "alice");
         ObjectNode personal = JSON.createObjectNode().put("userId", "alice").put("updateCount", 12);
 
-        PromptQualityCases.Kept kept = cases.promote(SCOPE, PROMPT, sealed, personal, null,
-                answer(QualityCaseClass.THREAT, QualityAction.BLOCK, QualityAction.CHALLENGE),
-                QualityCaseGrade.ORDINARY, "admin-a");
+        // The company's time zone, which the engine draws the decision in, differs from the system's here.
+        ZoneId company = ZoneId.of("Pacific/Chatham").equals(ZoneId.systemDefault())
+                ? ZoneId.of("America/Sao_Paulo") : ZoneId.of("Pacific/Chatham");
+        PromptQualityCases.Kept kept;
+        EventTimeZone.set(company);
+        try {
+            kept = cases.promote(SCOPE, PROMPT, sealed, personal, null,
+                    answer(QualityCaseClass.THREAT, QualityAction.BLOCK, QualityAction.CHALLENGE),
+                    QualityCaseGrade.ORDINARY, "admin-a");
+        }
+        finally {
+            EventTimeZone.set(null);
+        }
 
         assertThat(kept.key()).startsWith("operation-");
         assertThat(kept.status()).isEqualTo(PromptQualityCases.PENDING);
@@ -182,6 +193,7 @@ class PromptQualityCasesPostgresTest {
         assertThat(kept.item().addedAt()).isEqualTo(now.get());
         assertThat(kept.item().environment().contextFormatVersion())
                 .isEqualTo(SealedDecisionReplayInputs.CONTEXT_FORMAT_VERSION);
+        assertThat(kept.item().environment().timeZone()).isEqualTo(company.getId());
         QualityCaseInput input = kept.item().input();
         assertThat(input.canonicalContext()).isEqualTo(threat.input().canonicalContext());
         assertThat(input.ragResults()).isEqualTo(threat.input().ragResults());
