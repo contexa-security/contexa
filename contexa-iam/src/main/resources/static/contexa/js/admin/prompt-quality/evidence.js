@@ -316,32 +316,53 @@
             : stored.sameFindings ? m('detail.stored.same') : m('detail.stored.differs');
     }
 
+    /**
+     * K230, as PV.fold does on the version screens: what a folded part holds is out of the page until it is opened,
+     * since a closed details still lays it out under its summary in some browsers, here over the card's foot. It comes
+     * back each time the part opens. The parts it hides have no display of their own, so their hidden holds.
+     */
+    function folded(details) {
+        const parts = [...details.children].filter(child => child.tagName !== 'SUMMARY');
+        const show = () => parts.forEach(part => {
+            part.hidden = !details.open;
+        });
+        show();
+        details.addEventListener('toggle', show);
+        return details;
+    }
+
+    /**
+     * K230: the stored results as rows of the card's own kind, as its checks are: each result's time with its
+     * inspector, dictionary, counts and start in words beside its verdict badge, wrapping in the card's width. A table
+     * of seven columns cannot keep its numbers and heads whole in a third of the screen.
+     */
+    function historyRows(history) {
+        return P.form('history-rows', el('div', {style: {marginTop: '0.5rem'}}, el('div', {class: 'zt-result-rows'},
+            history.map(row => el('div', {class: 'zt-result-row'},
+                el('span', {class: 'zt-result-name'}, el('span', {class: 'zt-item'},
+                    el('span', {text: row.inspectedAt ? ZT.time(row.inspectedAt) : '—'}),
+                    el('span', {class: 'zt-muted', text: [[m('history.inspector'), row.inspectorVersion || '—'],
+                        [m('history.dictionary'), row.dictionaryVersion || '—'],
+                        [m('history.mismatch'), ZT.count(row.mismatchCount)],
+                        [m('history.unverifiable'), ZT.count(row.unverifiableCount)],
+                        [m('history.trigger'), ZT.t('promptInspection.trigger.' + row.trigger)]]
+                        .map(([label, value]) => label + ' ' + value).join(' · ')}))),
+                verdictChip(row.verdict))))));
+    }
+
     function historyBlock(inspection) {
         const history = inspection.history || [];
         if (!history.length) {
             return null;
         }
         const changes = inspection.changes;
-        const table = el('div', {class: 'modern-table zt-table-wrap'}, el('table', {class: 'zt-table'},
-            el('thead', {}, el('tr', {}, [[m('history.inspectedAt'), 'zt-num'], [m('history.inspector'), null],
-                [m('history.dictionary'), 'zt-wide'], [m('history.verdict'), null], [m('history.mismatch'), 'zt-num'],
-                [m('history.unverifiable'), 'zt-num'], [m('history.trigger'), 'zt-wide']].map(([label, cls]) =>
-                el('th', {scope: 'col', class: cls, text: label})))),
-            el('tbody', {}, history.map(row => el('tr', {},
-                el('td', {class: 'zt-num', text: ZT.shortTime(row.inspectedAt)}),
-                el('td', {text: row.inspectorVersion || '—'}),
-                el('td', {class: 'zt-wide', text: row.dictionaryVersion || '—'}),
-                el('td', {text: ZT.t('promptInspection.verdict.' + row.verdict)}),
-                el('td', {class: 'zt-num', text: ZT.count(row.mismatchCount)}),
-                el('td', {class: 'zt-num', text: ZT.count(row.unverifiableCount)}),
-                el('td', {class: 'zt-wide', text: ZT.t('promptInspection.trigger.' + row.trigger)}))))));
-        return el('details', {class: 'zt-item'}, el('summary', {class: 'zt-link', text: m('history.title',
+        return folded(el('details', {class: 'zt-item'}, el('summary', {class: 'zt-link', text: m('history.title',
             ZT.count(history.length))}), changes ? P.muted(m('history.changes', changes.comparedVersion,
             ZT.count((changes.disappeared || []).length), ZT.count((changes.appeared || []).length),
             changes.comparedAt ? ZT.time(changes.comparedAt) : '—')) : null,
         ...(changes ? (changes.disappeared || []).map(finding => el('div', {class: 'zt-fact',
             text: m('history.gone', findingText(finding))})).concat((changes.appeared || []).map(finding =>
-            el('div', {class: 'zt-fact', text: m('history.new', findingText(finding))}))) : []), table);
+            el('div', {class: 'zt-fact', text: m('history.new', findingText(finding))}))) : []), historyRows(history)));
     }
 
     function wholeCard(detail) {
