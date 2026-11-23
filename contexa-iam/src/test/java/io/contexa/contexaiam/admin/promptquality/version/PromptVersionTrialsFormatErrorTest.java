@@ -18,6 +18,7 @@ package io.contexa.contexaiam.admin.promptquality.version;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionAnswerChecks;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
+import io.contexa.contexacore.std.components.prompt.quality.QualityClosingRules;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV1OutputInspector;
 import io.contexa.contexacore.verification.replay.SealedDecisionReplayService;
 import org.junit.jupiter.api.Test;
@@ -75,5 +76,52 @@ class PromptVersionTrialsFormatErrorTest {
         assertThat(replayed.decisionMs()).isEqualTo(5_100L);
         assertThat(replayed.answerTokens()).isEqualTo(118);
         assertThat(replayed.failure()).isNull();
+    }
+
+    private static SealedDecisionReplayService.Result firstAnswer(String action,
+                                                                  SealedDecisionReplayService.Outcome outcome,
+                                                                  List<SealedDecisionReplayService.SecondPass> second) {
+        return new SealedDecisionReplayService.Result("req-1", "replay-1", "p1", "v2.0", action, "first", List.of(),
+                null, null, Map.of(), 5_000L, action == null ? "TIMEOUT" : null, second, outcome, action, null, null,
+                null, List.of());
+    }
+
+    private static SealedDecisionReplayService.SecondPass secondPass(String requestedModel, String action,
+                                                                     SealedDecisionReplayService.Outcome outcome) {
+        return new SealedDecisionReplayService.SecondPass(requestedModel, action, "second", List.of(), null, null,
+                Map.of(), 4_000L, null, outcome, action, null, null, null, List.of());
+    }
+
+    /**
+     * Quality plan 3.10 (supplement P-9): a replay of a trial keeps the action it ends in under the closing rules: the
+     * first answer's, or after an ESCALATE the second pass asked with the server's second-layer model, the first
+     * action kept as it was answered.
+     */
+    @Test
+    void aReplayKeepsItsFinalActionUnderTheClosingRules() {
+        SealedDecisionReplayService.Outcome answered = SealedDecisionReplayService.Outcome.ANSWERED;
+        SealedDecisionReplayService.Result settled = firstAnswer("ESCALATE", answered,
+                List.of(secondPass("named-model", "BLOCK", answered), secondPass(null, "CHALLENGE", answered)));
+        assertThat(PromptVersionTrials.replayed(settled).action()).isEqualTo("ESCALATE");
+        assertThat(PromptVersionTrials.replayed(settled).finalAction()).isEqualTo("CHALLENGE");
+
+        SealedDecisionReplayService.Result stillDefers = firstAnswer("ESCALATE", answered,
+                List.of(secondPass(null, "ESCALATE", answered)));
+        // A server that ends an ESCALATE left after the second pass with CHALLENGE, and one that lets it stay.
+        assertThat(PromptVersionTrials.replayed(stillDefers, QualityClosingRules.DEFAULTS).finalAction())
+                .isEqualTo("CHALLENGE");
+        assertThat(PromptVersionTrials.replayed(stillDefers, new QualityClosingRules(null)).finalAction())
+                .isEqualTo("ESCALATE");
+
+        // Only a second pass under another model's name, or one the model server did not answer: no final action.
+        assertThat(PromptVersionTrials.replayed(firstAnswer("ESCALATE", answered,
+                List.of(secondPass("named-model", "BLOCK", answered)))).finalAction()).isNull();
+        assertThat(PromptVersionTrials.replayed(firstAnswer("ESCALATE", answered, List.of(secondPass(null, null,
+                SealedDecisionReplayService.Outcome.INFRASTRUCTURE_FAILURE)))).finalAction()).isNull();
+
+        assertThat(PromptVersionTrials.replayed(firstAnswer("BLOCK", answered, List.of())).finalAction())
+                .isEqualTo("BLOCK");
+        assertThat(PromptVersionTrials.replayed(firstAnswer(null,
+                SealedDecisionReplayService.Outcome.INFRASTRUCTURE_FAILURE, List.of())).finalAction()).isNull();
     }
 }

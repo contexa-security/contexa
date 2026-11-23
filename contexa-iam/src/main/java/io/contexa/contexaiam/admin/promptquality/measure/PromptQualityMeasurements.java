@@ -65,6 +65,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
@@ -79,8 +80,9 @@ import java.util.stream.Stream;
  * final action from the server's settings (the overload protection is not replayed, and the result says so).
  *
  * <p>A measurement waits in the line of this server with the trials of prompt versions, and its model calls wait
- * behind the decisions at the model server's gate, as many at once as set. One server at a time runs measurements:
- * it holds a lock of the database and keeps a heartbeat on the measurement; a server that stops lets both run out,
+ * behind the decisions at the model server's gate, as many at once as set. One server at a time runs measurements and
+ * trials ({@link QualityRunLease}): it holds a lock of the database and keeps a heartbeat on the measurement; a server
+ * that stops lets both run out,
  * and any server resumes the measurement where it stopped, case by case and run by run. A cancellation is written to
  * the database, so the server running the measurement stops at its next answer.</p>
  *
@@ -253,7 +255,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
     private final PromptQualityCases cases;
     private final Replayer replayer;
     private final PromptQualityRunLine line;
-    private final QualityMeasureLock lock;
+    private final QualityRunLease lease;
     private final Supplier<Map<String, String>> modelSettings;
     private final Supplier<QualityClosingRules> closingRules;
     private final Settings settings;
@@ -265,8 +267,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
     private final AtomicBoolean drainWaiting = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
     private volatile ScheduledFuture<?> sweep;
-    private volatile LongConsumer whenDone = id -> {
-    };
+    private final List<LongConsumer> whenDone = new CopyOnWriteArrayList<>();
 
     /**
      * @param line          the line of this server the trials wait in too
@@ -285,13 +286,14 @@ public class PromptQualityMeasurements implements AutoCloseable {
         this.cases = Objects.requireNonNull(cases, "cases");
         this.replayer = Objects.requireNonNull(replayer, "replayer");
         this.line = Objects.requireNonNull(line, "line");
-        this.lock = Objects.requireNonNull(lock, "lock");
         this.modelSettings = Objects.requireNonNull(modelSettings, "modelSettings");
         this.closingRules = closingRules != null ? closingRules : () -> QualityClosingRules.DEFAULTS;
         this.settings = settings != null ? settings : Settings.DEFAULTS;
         this.json = Objects.requireNonNull(json, "json");
         this.clock = clock != null ? clock : Clock.systemUTC();
         this.serverId = serverId != null && !serverId.isBlank() ? serverId : "server";
+        this.lease = new QualityRunLease(jdbc, "ctxa_prompt_version_measure", "measurement",
+                Objects.requireNonNull(lock, "lock"), this.settings.heartbeat(), this.clock, this.serverId);
         AtomicInteger threads = new AtomicInteger();
         this.workers = Executors.newFixedThreadPool(this.settings.concurrency(), work -> {
             Thread thread = new Thread(work, "contexa-prompt-quality-measure-" + threads.incrementAndGet());
@@ -311,11 +313,13 @@ public class PromptQualityMeasurements implements AutoCloseable {
 
     /**
      * Quality plan 3.5: what follows a measurement once it is done, on the server that ran it, such as putting its
-     * wrong answers down to their causes. Its failure is logged and leaves the measurement done.
+     * wrong answers down to their causes, or the evaluation ledger pointed at it. Each listener added is told, in the
+     * order added; the failure of one is logged, leaves the measurement done and does not keep the others from it.
      */
     public void whenDone(@Nullable LongConsumer listener) {
-        this.whenDone = listener != null ? listener : id -> {
-        };
+        if (listener != null) {
+            whenDone.add(listener);
+        }
     }
 
     /**
@@ -642,10 +646,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
 
     private void lookForWork() {
         try {
-            Integer waiting = jdbc.get().queryForObject("select count(*) from ctxa_prompt_version_measure where"
-                    + " status = ? or (status = ? and (heartbeat_at is null or heartbeat_at < ?))", Integer.class,
-                    QUEUED, RUNNING, Timestamp.from(clock.instant().minus(settings.lockFor())));
-            if (waiting != null && waiting > 0) {
+            if (lease.anyWaiting()) {
                 submitDrain();
             }
         }
@@ -677,7 +678,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
         }
         Optional<QualityMeasureLock.Held> held;
         try {
-            held = lock.acquire(settings.lockFor());
+            held = lease.acquire();
         }
         catch (RuntimeException failure) {
             log.error("[PromptQualityMeasure] The lock of the measurements could not be taken", failure);
@@ -710,38 +711,19 @@ public class PromptQualityMeasurements implements AutoCloseable {
      * queued, the oldest first.
      */
     private Optional<Measure> next(Set<Long> tried) {
-        List<Measure> waiting = jdbc.get().query(MEASURE_SQL + " where m.status = ? and (m.runner_id = ? or"
-                + " m.heartbeat_at is null or m.heartbeat_at < ?) or m.status = ? order by case when m.status = ?"
-                + " then 0 else 1 end, m.created_at, m.id limit 20", MEASURE_ROW, RUNNING, serverId,
-                Timestamp.from(clock.instant().minus(settings.lockFor())), QUEUED, RUNNING);
+        List<Measure> waiting = lease.waiting(MEASURE_SQL, "m", MEASURE_ROW, 20);
         return waiting.stream().filter(measure -> !tried.contains(measure.id())).findFirst();
-    }
-
-    /** What stops a running measurement before its last answer. */
-    private static final class Stop {
-
-        private final AtomicBoolean cancelled = new AtomicBoolean();
-        private final AtomicBoolean lockLost = new AtomicBoolean();
-        private final AtomicBoolean limitReached = new AtomicBoolean();
-
-        boolean any() {
-            return cancelled.get() || lockLost.get() || limitReached.get();
-        }
     }
 
     /** Runs the measurement; returns whether the lock is still held. */
     private boolean run(Measure measure, QualityMeasureLock.Held held) {
         long id = measure.id();
-        int claimed = jdbc.get().update("update ctxa_prompt_version_measure set status = ?, runner_id = ?,"
-                + " heartbeat_at = ?, started_at = coalesce(started_at, ?) where id = ? and status in (?, ?)", RUNNING,
-                serverId, Timestamp.from(clock.instant()), Timestamp.from(clock.instant()), id, QUEUED, RUNNING);
-        if (claimed != 1) {
+        if (!lease.claim(id)) {
             return true;
         }
-        Stop stop = new Stop();
+        QualityRunLease.Stop stop = new QualityRunLease.Stop();
         AtomicInteger calls = new AtomicInteger(measure.modelCalls());
-        ScheduledFuture<?> heartbeat = timer.scheduleAtFixedRate(() -> beat(id, held, stop),
-                settings.heartbeat().toMillis(), settings.heartbeat().toMillis(), TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> heartbeat = lease.keepAlive(timer, id, held, stop);
         try {
             Map<String, String> now = Map.copyOf(modelSettings.get());
             if (!QualityModelSetting.hash(now).equals(measure.settingsHash())) {
@@ -779,7 +761,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
                     continue;
                 }
                 if (settings.callLimit() > 0 && calls.get() >= settings.callLimit()) {
-                    stop.limitReached.set(true);
+                    stop.halt();
                     break;
                 }
                 slots.acquire();
@@ -799,17 +781,17 @@ public class PromptQualityMeasurements implements AutoCloseable {
             for (Future<?> one : running) {
                 one.get();
             }
-            if (closed.get() || stop.lockLost.get()) {
+            if (closed.get() || stop.lockLost()) {
                 // Left as it is: another server resumes it once the lock and the heartbeat run out.
                 log.warn("[PromptQualityMeasure] Measurement {} stopped on {} before its end; it is resumed later", id,
                         serverId);
-                return !stop.lockLost.get();
+                return !stop.lockLost();
             }
-            if (stop.cancelled.get() || CANCELLED.equals(status(id))) {
+            if (stop.cancelled() || CANCELLED.equals(lease.status(id))) {
                 log.info("[PromptQualityMeasure] Measurement {} was cancelled", id);
                 return true;
             }
-            if (stop.limitReached.get() && answered(id) < measure.plannedAnswers()) {
+            if (stop.halted() && answered(id) < measure.plannedAnswers()) {
                 finish(id, FAILED, "CALL_LIMIT_REACHED: " + calls.get() + " model calls, the limit is "
                         + settings.callLimit());
                 return true;
@@ -830,26 +812,6 @@ public class PromptQualityMeasurements implements AutoCloseable {
         }
         finally {
             heartbeat.cancel(false);
-        }
-    }
-
-    /** The heartbeat of a running measurement: the lock and the row renewed, and a cancellation read. */
-    private void beat(long id, QualityMeasureLock.Held held, Stop stop) {
-        try {
-            if (!held.extend(settings.lockFor())) {
-                stop.lockLost.set(true);
-                log.warn("[PromptQualityMeasure] The lock of measurement {} ran out on {}; it stops here", id,
-                        serverId);
-                return;
-            }
-            jdbc.get().update("update ctxa_prompt_version_measure set heartbeat_at = ? where id = ? and runner_id = ?",
-                    Timestamp.from(clock.instant()), id, serverId);
-            if (CANCELLED.equals(status(id))) {
-                stop.cancelled.set(true);
-            }
-        }
-        catch (RuntimeException failure) {
-            log.error("[PromptQualityMeasure] The heartbeat of measurement {} failed", id, failure);
         }
     }
 
@@ -880,7 +842,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
     }
 
     /** One answer: the replay, asked again while the model server gave none, kept with what it found. */
-    private void answer(Measure measure, Work work, Stop stop, AtomicInteger calls) {
+    private void answer(Measure measure, Work work, QualityRunLease.Stop stop, AtomicInteger calls) {
         QualityCase item = work.item();
         SealedEvidencePackage given = QualityCaseSealedForm.sealed(item);
         SealedDecisionReplayService.Result result = null;
@@ -926,11 +888,8 @@ public class PromptQualityMeasurements implements AutoCloseable {
         boolean answered = outcome == SealedDecisionReplayService.Outcome.ANSWERED
                 || outcome == SealedDecisionReplayService.Outcome.MODEL_ANSWER_UNUSABLE;
         SealedDecisionReplayService.SecondPass second = configuredSecondPass(result);
-        boolean secondAnswered = second != null && answeredOutcome(second.outcome());
         QualityAction first = answered ? QualityAction.parse(result.action()) : null;
-        QualityAction last = answered
-                ? closingRules.get().finalAction(result.action(), secondAnswered, second != null ? second.action() : null)
-                : null;
+        QualityAction last = finalAction(result, closingRules.get());
         SecurityDecisionCitationCheck check = result.citationCheck();
         boolean checked = check != null && check.state() == SecurityDecisionCitationCheck.State.CHECKED;
         int cited = answered && checked ? check.cited() : 0;
@@ -998,19 +957,15 @@ public class PromptQualityMeasurements implements AutoCloseable {
                 id, RUNNING);
         if (updated == 1) {
             log.info("[PromptQualityMeasure] Measurement {} done under {}", id, fingerprint);
-            try {
-                whenDone.accept(id);
-            }
-            catch (RuntimeException failure) {
-                log.error("[PromptQualityMeasure] What follows measurement {} once done failed", id, failure);
+            for (LongConsumer listener : whenDone) {
+                try {
+                    listener.accept(id);
+                }
+                catch (RuntimeException failure) {
+                    log.error("[PromptQualityMeasure] What follows measurement {} once done failed", id, failure);
+                }
             }
         }
-    }
-
-    @Nullable
-    private String status(long id) {
-        return jdbc.get().query("select status from ctxa_prompt_version_measure where id = ?",
-                (rs, row) -> rs.getString(1), id).stream().findFirst().orElse(null);
     }
 
     private int answered(long id) {
@@ -1034,6 +989,21 @@ public class PromptQualityMeasurements implements AutoCloseable {
     }
 
     // ----- reading a replay -----
+
+    /**
+     * Quality plan 3.3, 3.10: the action a replay ends in under the closing rules: the first answer's action, or after
+     * an ESCALATE the second pass asked with the server's second-layer model; null when the replay gave no usable
+     * answer or the second pass after an ESCALATE gave none. The measurements and the trials compute it alike.
+     */
+    @Nullable
+    public static QualityAction finalAction(SealedDecisionReplayService.Result result, QualityClosingRules rules) {
+        if (!answeredOutcome(result.outcome())) {
+            return null;
+        }
+        SealedDecisionReplayService.SecondPass second = configuredSecondPass(result);
+        return rules.finalAction(result.action(), second != null && answeredOutcome(second.outcome()),
+                second != null ? second.action() : null);
+    }
 
     /** The second pass asked with the server's second-layer model, the one asked under no name. */
     @Nullable
