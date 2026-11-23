@@ -167,7 +167,7 @@ class PromptQualityScreenTemplateTest {
                     "/contexa/js/admin/prompt-quality/" + screen + ".js?v=" + marks.get(screen));
         }
         assertThat(read("templates/contexa/admin/prompt-quality/measure.html"))
-                .contains("/contexa/js/admin/prompt-quality/measure-trials.js?v=20261122-s3b")
+                .contains("/contexa/js/admin/prompt-quality/measure-trials.js?v=20261123-k225")
                 .contains("/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f")
                 .contains("th:each=\"extra : ${viewScripts}\"");
         String cases = read("templates/contexa/admin/prompt-quality/cases.html");

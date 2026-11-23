@@ -247,12 +247,17 @@
     function promoteCell(change, divergent, trial) {
         const pair = divergent ? divergent.get('o:' + change.observationId) || divergent.get('r:' + change.requestId)
             : null;
-        return el('td', {class: 'pv-cell-actions pv-wide'}, pair ? el('div', {class: 'pv-row-actions'},
-            el('a', {class: 'zt-link pv-row-action', href: '#', 'data-pqa': 'promote', text: t('pqa.answer.promote'),
-                onclick: event => {
-                    event.preventDefault();
-                    promoteDialog(change, pair, trial);
-                }})) : el('span', {class: 'zt-muted', text: '—'}));
+        if (!pair) {
+            return el('td', {class: 'pv-cell-actions pv-wide'}, el('span', {class: 'zt-muted', text: '—'}));
+        }
+        // ZT.el sets every key but text and style as an attribute, so the handler is attached here.
+        const link = el('a', {class: 'zt-link pv-row-action', href: '#', 'data-pqa': 'promote',
+            text: t('pqa.answer.promote')});
+        link.addEventListener('click', event => {
+            event.preventDefault();
+            promoteDialog(change, pair, trial);
+        });
+        return el('td', {class: 'pv-cell-actions pv-wide'}, el('div', {class: 'pv-row-actions'}, link));
     }
 
     /** The right answer of a changed decision, set in the confirmation, then the case kept in the trial's scope. */
