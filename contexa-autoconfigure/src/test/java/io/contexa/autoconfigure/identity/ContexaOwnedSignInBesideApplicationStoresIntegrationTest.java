@@ -7,6 +7,7 @@ package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexacommon.annotation.EnableAISecurity;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaidentity.security.core.adapter.auth.ContexaPasswordSignIn;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -101,8 +102,9 @@ import static org.mockito.Mockito.mockingDetails;
  * <p>
  * Each case starts a real application on a real port over a throwaway PostgreSQL database and signs in over HTTP: the
  * same requests answer the same way with no store of the application's, with one, and with two of everything, with a
- * provider of the application's beside them or without. (Each application stays in the test JVM's heap, so the number of
- * cases of this class is kept to what the JVM of the module's tests holds.)
+ * provider of the application's beside them or without. (A closed application leaves nothing of it in the test JVM: the
+ * spy's entry in Mockito's registry is cleared and the application's name is unbound, so the cases of this class do not
+ * add up in the heap of the module's tests.)
  */
 @Timeout(900)
 @EnabledIfEnvironmentVariable(named = "CONTEXA_TEST_DB_URL", matches = ".+")
@@ -241,27 +243,39 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
 
         private final ConfigurableApplicationContext context;
         private final String database;
+        private final ApplicationNamespace.Scope namespace;
         private final String base;
         private HttpClient client;
         private String csrf;
         private String mfaSession;
         private int signIns;
 
-        private Running(ConfigurableApplicationContext context, String database) {
+        private Running(ConfigurableApplicationContext context, String database, ApplicationNamespace.Scope namespace) {
             this.context = context;
             this.database = database;
+            this.namespace = namespace;
             this.base = "http://127.0.0.1:" + ((ServletWebServerApplicationContext) context).getWebServer().getPort();
         }
 
+        /**
+         * Starts the application. Its name, which it binds for the whole JVM at its start and never unbinds, is bound
+         * here first, so that {@link #close} gives back the name that was bound before.
+         */
         static Running start(Class<?> application) throws Exception {
             String database = "fx8_" + UUID.randomUUID().toString().replace("-", "").toLowerCase(Locale.ROOT);
             admin("create database " + database);
             databases.add(database);
-            ConfigurableApplicationContext context = new SpringApplicationBuilder(application)
-                    .web(WebApplicationType.SERVLET)
-                    .properties(settings(database))
-                    .run();
-            return new Running(context, database);
+            ApplicationNamespace.Scope namespace = ApplicationNamespace.using(applicationName(database));
+            try {
+                ConfigurableApplicationContext context = new SpringApplicationBuilder(application)
+                        .web(WebApplicationType.SERVLET)
+                        .properties(settings(database))
+                        .run();
+                return new Running(context, database, namespace);
+            } catch (Throwable failed) {
+                namespace.close();
+                throw failed;
+            }
         }
 
         /** Wrong password, right password, an unknown name, then five wrong ones and the right one on a locked account. */
@@ -442,9 +456,23 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
             }
         }
 
+        /**
+         * Closes the application and lets the JVM go of it. Mockito keeps every inline mock in a registry of its own for
+         * as long as the JVM runs, and the spy's entry holds the provider it was made from, whose collaborators are the
+         * application's beans: cleared, the entry holds nothing of the application. Then the name the application bound
+         * is given back.
+         */
         @Override
         public void close() {
-            context.close();
+            Object spy = context.containsBean(PROVIDER) ? context.getBean(PROVIDER) : null;
+            try {
+                context.close();
+            } finally {
+                if (spy != null) {
+                    Mockito.framework().clearInlineMock(spy);
+                }
+                namespace.close();
+            }
         }
     }
 
@@ -470,7 +498,7 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
         return new String[] {
                 "spring.main.banner-mode=off",
                 "server.port=0",
-                "spring.application.name=fx8-" + database,
+                "spring.application.name=" + applicationName(database),
                 "contexa.infrastructure.mode=standalone",
                 "contexa.datasource.url=" + databaseUrl(database),
                 "contexa.datasource.username=" + System.getenv("CONTEXA_TEST_DB_USERNAME"),
@@ -483,6 +511,10 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
                 "contexa.iam.seed.admin.email=admin@contexa.test",
                 "contexa.startup.class-path-report=false"
         };
+    }
+
+    private static String applicationName(String database) {
+        return "fx8-" + database;
     }
 
     private static String databaseUrl(String database) {
