@@ -52,9 +52,20 @@ public final class SecurityDecisionPromptDocument {
     /**
      * The product releases this build ships, the latest last; the latest is the product version. A release is never
      * changed: 2026.11.18 (K66) is 2026.11.16 with the fixed part organization-blocks, drawn beside the
-     * precedence sentence, saying what a block an organization added to the user prompt is.
+     * precedence sentence, saying what a block an organization added to the user prompt is; v1.1.0 (K187) is
+     * 2026.11.18 with the precedence sentence and organization-blocks drawn in every version, worded to hold in a
+     * version no organization changed.
+     *
+     * <p>From v1.1.0 on a release is named vX.Y.Z, with its date in the head of its document. X goes up when the make-up
+     * of the prompt changes (the order of the blocks, the answer form, the response check, several parts written
+     * anew), Y when the text the model is given changes (a sentence added, changed or taken out, or the condition a
+     * part is drawn under), and Z when the prompts the model is given stay the same to the letter (a comment, a title
+     * or a description changed). A change of one character of what the model is given is no Z, as a small change of
+     * wording moves the decisions of borderline cases (K187). A release of a new X or Y is measured before it ships; a
+     * new Z is checked to draw the same prompts. The two dated releases keep their names, as installations registered
+     * them by name.</p>
      */
-    public static final List<String> RELEASES = List.of("2026.11.16", "2026.11.18");
+    public static final List<String> RELEASES = List.of("2026.11.16", "2026.11.18", "v1.1.0");
     /** The condition of the parts drawn when the host enforces the minimum action floors (K32, decision D10). */
     public static final String MINIMUM_ACTION_ENFORCE = "minimum-action-enforce";
     /** The condition of the texts an agent's request is drawn with. */

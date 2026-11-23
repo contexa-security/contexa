@@ -47,11 +47,12 @@ class PromptAssemblerTest {
     @Test
     void theProductVersionIsTheDocumentAsItIs() {
         assertThat(product.prompt()).isEqualTo("cortex.security-decision");
-        assertThat(product.release()).isEqualTo("2026.11.18-v1.0");
+        assertThat(product.release()).isEqualTo("v1.1.0");
         assertThat(product.organizationParts()).isFalse();
+        // K187: release v1.1.0 draws the precedence sentence and organization-blocks in every version.
         assertThat(keys(product.drawnParts(AssembledPrompt.JUDGMENT, Set.of()))).containsExactly("mission",
-                "evidence-reading", "more-reading", "similar-case-reading", "similar-case-limits", "how-to-judge",
-                "responses", "honesty", "honesty-more");
+                "precedence", "evidence-reading", "organization-blocks", "more-reading", "similar-case-reading",
+                "similar-case-limits", "how-to-judge", "responses", "honesty", "honesty-more");
         assertThat(keys(product.drawnParts("output", Set.of()))).containsExactly("output", "reason-codes",
                 "citation-rules");
         assertThat(product.systemPart("decision-rules").orElseThrow().prepared()).isTrue();
@@ -63,7 +64,7 @@ class PromptAssemblerTest {
     }
 
     @Test
-    void aChangeReplacesTheTextOfAChangeablePartAndBringsThePrecedenceSentence() {
+    void aChangeReplacesTheTextOfAChangeablePartAfterThePrecedenceSentence() {
         AssembledPrompt version = assembler.apply(product, organization("""
                 system:
                   - key: how-to-judge
@@ -76,10 +77,12 @@ class PromptAssemblerTest {
                 .doesNotContain("Build one story of this request");
         assertThat(version.organizationParts()).isTrue();
         assertThat(judgment).contains(product.systemPart("precedence").orElseThrow().text());
-        assertThat(judgment.indexOf("Some parts of this text were written by your organization"))
+        assertThat(judgment.indexOf("If any part of this text was written by your organization"))
                 .isGreaterThan(judgment.indexOf("You are the security analyst"))
                 .isLessThan(judgment.indexOf("How to read the evidence:"));
+        // K187: the product version draws the same sentence, so a change alters only the text it changes.
         assertThat(product.draw(AssembledPrompt.JUDGMENT, Set.of(), null))
+                .contains(product.systemPart("precedence").orElseThrow().text())
                 .doesNotContain("Some parts of this text were written by your organization");
     }
 
@@ -117,7 +120,7 @@ class PromptAssemblerTest {
                       Exports of the finance ledger are monthly.
                 """));
 
-        // K66: release 2026.11.18 draws its organization-blocks part, joined to the evidence reading, with the precedence.
+        // K66: the organization-blocks part, joined to the evidence reading, is drawn with the precedence.
         assertThat(keys(version.drawnParts(AssembledPrompt.JUDGMENT, Set.of()))).containsExactly("mission", "precedence",
                 "evidence-reading", "organization-blocks", "more-reading", "similar-case-reading", "similar-case-limits",
                 "org-context",

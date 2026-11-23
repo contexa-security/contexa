@@ -25,14 +25,17 @@ import java.util.Map;
  * contract block and the minimum action rules (2026-10-14): Layer1 first passes up to about 5,640 tokens, Layer2 second
  * passes up to about 6,130 (golden cases, counted for the showcase model). Fitted again the same way after the golden
  * inputs were taken from the P5 gate measurement (2026-10-16): Layer1 first passes up to about 6,180 tokens, Layer2 second
- * passes up to about 6,650. The budget is observed; trimming to it takes facts out and is off unless a deployment turns
- * it on.
+ * passes up to about 6,650. Layer1 given the budget of Layer2 (K233, 2026-11-23): with release v1.1.0 of the product
+ * prompt, which draws its two sentences about the text of an organization in every version (K187), Layer1 first passes
+ * take up to about 7,360 tokens (TPL-ADM-C-50; three more golden cases are over 7,000) and Layer2 second passes 7,400 to
+ * 7,880 (median about 7,510), so the observed budget is over for at least half of the second passes. The budget is
+ * observed; trimming to it takes facts out and is off unless a deployment turns it on.
  */
 public enum PromptBudgetProfile {
     CORTEX_L1_INTERACTIVE_STRICT(
             "CORTEX_L1_INTERACTIVE_STRICT",
             "Security decision layer1 interactive strict profile",
-            7000),
+            7500),
     CORTEX_L2_EXPERT_STRICT(
             "CORTEX_L2_EXPERT_STRICT",
             "Security decision layer2 expert strict profile",

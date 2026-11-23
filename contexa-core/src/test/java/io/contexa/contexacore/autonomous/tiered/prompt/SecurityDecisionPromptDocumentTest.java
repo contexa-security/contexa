@@ -47,45 +47,52 @@ class SecurityDecisionPromptDocumentTest {
             + " pre-compensate for one.";
 
     /**
-     * K66 and N1: the build ships both product releases, the latest last as the product version. They differ in the part
-     * organization-blocks, drawn under the condition of the precedence sentence, and in the reason code VERIFIED_SIGNAL
-     * with the use of the VerifiedSignal line that names it; nothing else. Without the version tables the product
-     * version is found by its release and by the name of the bundle it runs on (the earlier release's name); the start
-     * registers each release in the version tables, which find it by its release (PromptVersionServicePostgresTest).
-     * The engine still answers to the earlier release's reason codes, and to no other list.
+     * K66, N1 and K187: the build ships the three product releases, the latest last as the product version. 2026.11.18
+     * differs from 2026.11.16 in the part organization-blocks, drawn under the condition of the precedence sentence,
+     * and in the reason code VERIFIED_SIGNAL with the use of the VerifiedSignal line that names it; v1.1.0 differs from
+     * 2026.11.18 only in the precedence sentence and organization-blocks, drawn in every version and worded to hold in
+     * a version no organization changed; nothing else. Without the version tables the product version is found by its
+     * release and by the name of the bundle it runs on (the earliest release's name), and an earlier release by
+     * neither; the start registers each release in the version tables, which find it by its release
+     * (PromptVersionServicePostgresTest). The engine still answers to the earliest release's reason codes, and to no
+     * other list.
      */
     @Test
     void theBuildShipsEveryProductReleaseAndFindsEachByItsName() {
         assertThat(SecurityDecisionPromptDocument.productReleases())
                 .extracting(release -> release.release())
-                .containsExactly("2026.11.16-v1.0", "2026.11.18-v1.0");
+                .containsExactly("2026.11.16-v1.0", "2026.11.18-v1.0", "v1.1.0");
         AssembledPrompt product = SecurityDecisionPromptDocument.product();
-        assertThat(product.release()).isEqualTo("2026.11.18-v1.0");
-        AssembledPrompt earlier = new PromptAssembler().product(SecurityDecisionPromptDocument.productDocument(
-                SecurityDecisionPromptDocument.RELEASES.get(0)));
+        assertThat(product.release()).isEqualTo("v1.1.0");
+        AssembledPrompt earlier = shipped(0);
+        AssembledPrompt previous = shipped(1);
         assertThat(earlier.release()).isEqualTo("2026.11.16-v1.0");
+        assertThat(previous.release()).isEqualTo("2026.11.18-v1.0");
         assertThat(SecurityDecisionPromptDocument.productStore()
-                .find(SecurityDecisionPromptDocument.PROMPT, "2026.11.18-v1.0")).containsSame(product);
+                .find(SecurityDecisionPromptDocument.PROMPT, "v1.1.0")).containsSame(product);
         assertThat(SecurityDecisionPromptDocument.productStore().find(SecurityDecisionPromptDocument.PROMPT,
                 SecurityDecisionPromptBundles.DEFAULT.version())).containsSame(product);
         assertThat(SecurityDecisionPromptDocument.productStore()
+                .find(SecurityDecisionPromptDocument.PROMPT, "2026.11.18-v1.0")).isEmpty();
+        assertThat(SecurityDecisionPromptDocument.productStore()
                 .find(SecurityDecisionPromptDocument.PROMPT, "v2.0")).isEmpty();
-        assertThat(SecurityDecisionPromptDocument.productStore().find("PolicyGeneration", "2026.11.18-v1.0")).isEmpty();
+        assertThat(SecurityDecisionPromptDocument.productStore().find("PolicyGeneration", "v1.1.0")).isEmpty();
 
-        List<PromptVersionDocument.Part> added = product.system().stream()
+        // 2026.11.18 against 2026.11.16 (K66, N1).
+        List<PromptVersionDocument.Part> added = previous.system().stream()
                 .filter(part -> earlier.systemPart(part.key()).isEmpty()).toList();
         assertThat(added).extracting(PromptVersionDocument.Part::key).containsExactly("organization-blocks");
         List<String> changed = new ArrayList<>();
-        product.system().stream().filter(part -> !added.contains(part))
+        previous.system().stream().filter(part -> !added.contains(part))
                 .filter(part -> !part.equals(earlier.systemPart(part.key()).orElseThrow()))
                 .forEach(part -> changed.add(part.key()));
         assertThat(changed).containsExactly(SecurityDecisionPromptDocument.REASON_CODES_PART);
         List<String> earlierCodes = new ArrayList<>(SecurityDecisionPromptDocument.reasonCodes(earlier));
         earlierCodes.add(earlierCodes.indexOf("THREAT_MATCH") + 1, "VERIFIED_SIGNAL");
-        assertThat(SecurityDecisionPromptDocument.reasonCodes(product)).isEqualTo(earlierCodes)
+        assertThat(SecurityDecisionPromptDocument.reasonCodes(previous)).isEqualTo(earlierCodes)
                 .isEqualTo(SecurityDecisionOutputContractV4.codes());
         List<String> changedLines = new ArrayList<>();
-        for (PromptVersionDocument.Part block : product.user()) {
+        for (PromptVersionDocument.Part block : previous.user()) {
             PromptVersionDocument.Part before = earlier.userBlock(block.key()).orElseThrow();
             assertThat(block.items()).as(block.key()).hasSameSizeAs(before.items());
             for (int index = 0; index < block.items().size(); index++) {
@@ -100,17 +107,47 @@ class SecurityDecisionPromptDocumentTest {
         }
         assertThat(changedLines).containsExactly(
                 "DECISION_FACTS.VerifiedSignal VERIFIED_SIGNAL; under the verified signal boundary a BLOCK");
-        assertThat(earlier.corrections()).isEqualTo(product.corrections());
+        assertThat(earlier.corrections()).isEqualTo(previous.corrections());
         PromptVersionDocument.Part part = added.get(0);
         assertThat(part.isLocked()).isTrue();
         assertThat(part.when()).isEqualTo(AssembledPrompt.ORGANIZATION_PARTS);
-        assertThat(product.system()).extracting(PromptVersionDocument.Part::key)
+        assertThat(previous.system()).extracting(PromptVersionDocument.Part::key)
                 .containsSubsequence("evidence-reading", "organization-blocks", "more-reading");
+        assertThat(previous.drawnParts(AssembledPrompt.JUDGMENT, Set.of())).extracting(PromptVersionDocument.Part::key)
+                .doesNotContain("precedence", "organization-blocks");
+        assertThat(earlier.contentHash()).isNotEqualTo(previous.contentHash());
+
+        // v1.1.0 against 2026.11.18 (K187): the same parts in the same order; the two parts about the text of an
+        // organization lose their condition and say what holds when an organization wrote a part.
+        assertThat(product.system()).extracting(PromptVersionDocument.Part::key)
+                .containsExactlyElementsOf(previous.system().stream().map(PromptVersionDocument.Part::key).toList());
+        List<String> redrawn = product.system().stream()
+                .filter(now -> !now.equals(previous.systemPart(now.key()).orElseThrow()))
+                .map(PromptVersionDocument.Part::key).toList();
+        assertThat(redrawn).containsExactly("precedence", "organization-blocks");
+        for (String key : redrawn) {
+            PromptVersionDocument.Part now = product.systemPart(key).orElseThrow();
+            PromptVersionDocument.Part was = previous.systemPart(key).orElseThrow();
+            assertThat(was.when()).as(key).isEqualTo(AssembledPrompt.ORGANIZATION_PARTS);
+            assertThat(now.when()).as(key).isNull();
+            assertThat(now.isLocked()).as(key).isTrue();
+            assertThat(now.text()).as(key).isNotEqualTo(was.text()).contains("If ").contains("your organization");
+            assertThat(now).as(key).isEqualTo(new PromptVersionDocument.Part(was.key(), was.title(), was.locked(),
+                    was.join(), was.heading(), was.group(), null, was.prepared(), now.text(), was.whenText(),
+                    was.items(), was.effects(), was.action(), was.addAfter()));
+        }
+        assertThat(product.user()).isEqualTo(previous.user());
+        assertThat(product.corrections()).isEqualTo(previous.corrections());
+        assertThat(SecurityDecisionPromptDocument.reasonCodes(product))
+                .isEqualTo(SecurityDecisionPromptDocument.reasonCodes(previous));
         assertThat(product.drawnParts(AssembledPrompt.JUDGMENT, Set.of())).extracting(PromptVersionDocument.Part::key)
-                .doesNotContain("organization-blocks");
-        assertThat(earlier.contentHash()).isNotEqualTo(product.contentHash());
+                .containsSubsequence("mission", "precedence", "evidence-reading", "organization-blocks", "more-reading");
+        assertThat(previous.contentHash()).isNotEqualTo(product.contentHash());
+
         assertThat(SecurityDecisionPromptDocument.keepsInjectionGuard(earlier)).isTrue();
+        assertThat(SecurityDecisionPromptDocument.keepsInjectionGuard(previous)).isTrue();
         assertThat(SecurityDecisionPromptDocument.reasonCodesOfEngine(earlier)).isTrue();
+        assertThat(SecurityDecisionPromptDocument.reasonCodesOfEngine(previous)).isTrue();
         assertThat(SecurityDecisionPromptDocument.reasonCodesOfEngine(product)).isTrue();
         AssembledPrompt fewer = withSystemPart(SecurityDecisionPromptDocument.REASON_CODES_PART, reasonCodes -> {
             List<PromptVersionDocument.Item> items = new ArrayList<>(reasonCodes.items());
@@ -118,6 +155,12 @@ class SecurityDecisionPromptDocumentTest {
             return items;
         });
         assertThat(SecurityDecisionPromptDocument.reasonCodesOfEngine(fewer)).isFalse();
+    }
+
+    /** The product release of the build at the place of the list, as the assembler makes its product version. */
+    private static AssembledPrompt shipped(int index) {
+        return new PromptAssembler().product(SecurityDecisionPromptDocument.productDocument(
+                SecurityDecisionPromptDocument.RELEASES.get(index)));
     }
 
     @Test
