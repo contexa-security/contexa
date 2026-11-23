@@ -1,7 +1,7 @@
 {
   "promptKey" : "cortex.security-decision",
   "bundleVersion" : "2026.11.16-v1.0",
-  "bundleHash" : "4dd4ea7f22b91fb6bbb33848c7ba9912d57fa11cf195304ac96a8f6ad346d4a9",
+  "bundleHash" : "b201c9f43b0f10439f373e12990ef185a07314acfe2eb201d6134be0f71108e5",
   "elements" : [ {
     "id" : "B1",
     "state" : "PRESENT",
@@ -40,7 +40,7 @@
   }, {
     "id" : "B8",
     "state" : "PRESENT",
-    "hash" : "8e6764323de95fec652420d95f2e464138ed842e978ab619a2bce5275ac28a81",
+    "hash" : "0e9e636203ee26c6dab2766a566c09d664ce8ae4e1a6b9901eb5842838c018ff",
     "detail" : "all prompt budget profiles"
   }, {
     "id" : "B9",
