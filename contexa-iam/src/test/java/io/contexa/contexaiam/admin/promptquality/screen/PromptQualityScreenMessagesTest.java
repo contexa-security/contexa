@@ -83,9 +83,12 @@ class PromptQualityScreenMessagesTest {
     void everyWordOfTheTwoScreensIsInBothLanguagesAndTranslated() throws IOException {
         Set<String> keys = new LinkedHashSet<>();
         calls(read(SCRIPTS + "cases.js"), "pqa.cases.", keys);
+        // K200: the screen of the cases draws its answer fields with the shared script, in the words of the cases.
+        calls(read(SCRIPTS + "case-answer.js"), "pqa.cases.", keys);
         calls(read(SCRIPTS + "measure.js"), "pqa.measure.", keys);
         calls(read(SCRIPTS + "measure-trials.js"), "pqa.measure.", keys);
-        for (String script : List.of("pqa-common.js", "cases.js", "measure.js", "measure-trials.js")) {
+        for (String script : List.of("pqa-common.js", "cases.js", "case-answer.js", "measure.js",
+                "measure-trials.js")) {
             collect(WHOLE_KEY, read(SCRIPTS + script), "", keys);
         }
         for (String template : List.of("cases", "measure")) {

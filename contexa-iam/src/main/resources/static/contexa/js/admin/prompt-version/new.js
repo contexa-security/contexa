@@ -13,6 +13,11 @@
     const t = ZT.t;
     const content = document.getElementById('zt-content');
     const CHECK_DELAY_MS = 600;
+    /** The view of the wrong cases and their causes of measure and compare, which a new version is opened from. */
+    const MEASURE_API = '/contexa/admin/api/prompt-quality/measure';
+    const MEASURE_PAGES = '/contexa/admin/prompt-quality/measure';
+    /** The fix that opens the version editor beside the wrong cases (QualityCauseFix.opensVersionEditor). */
+    const EDITOR_FIX = 'PROMPT_VERSION';
 
     /** What the operator did to the base: changes and deletions by part, additions, and the prepared parts put in. */
     const state = {draft: null, edits: {}, added: [], included: new Set(), title: '', description: '', checkTimer: null,
@@ -52,6 +57,68 @@
             checkCard(),
             saveCard(draft));
         check();
+        if (params.get('causesOf')) {
+            besideCases(params.get('causesOf'));
+        }
+    }
+
+    // ----- quality plan 3.5: the wrong cases kept beside the editor -----
+
+    /** The words of the reasons an answer cited: the reason codes in the reader's words, with their facts. */
+    function reasonsOf(row) {
+        return (row.reasons || []).map(reason => {
+            const key = 'zt.console.reasonCode.' + reason.code;
+            const words = t(key) === key ? reason.code : t(key);
+            return reason.fact ? words + ' ' + reason.fact : words;
+        }).join(', ');
+    }
+
+    /**
+     * The wrong cases of the measurement that a new prompt version fixes, beside the editor so the version is written
+     * with them in view: from a desktop's width (1400px) a card beside it that stays in view, narrower above it.
+     */
+    async function besideCases(measureId) {
+        let view = null;
+        try {
+            const scope = PV.params().get('scope');
+            const response = await fetch(MEASURE_API + '/' + encodeURIComponent(measureId) + '/causes?decisions=false'
+                + (scope ? '&scope=' + encodeURIComponent(scope) : ''), {headers: {Accept: 'application/json'},
+                credentials: 'same-origin'});
+            view = response.ok ? await response.json() : null;
+        } catch (error) {
+            view = null;
+        }
+        const editorCauses = view ? view.tiles.filter(tile => tile.fix === EDITOR_FIX).map(tile => tile.cause) : [];
+        const rows = view ? view.rows.filter(row => row.source === 'MEASUREMENT' && editorCauses.includes(row.cause))
+            : [];
+        const action = name => t('zt.console.ui.action.' + name);
+        const card = ZT.card(t('pqa.causes.handoff.title'), rows.length ? t('pqa.causes.handoff.aside',
+            editorCauses.map(cause => t('pqa.causes.cause.' + cause)).join(', '), ZT.count(rows.length)) : null,
+        rows.length ? el('ul', {class: 'zt-rows', 'data-form': 'handoff-cases'}, rows.map(row => el('li', {
+            // the reasons the model cited are the row's tooltip: beside an editor the card names the cases, no more
+            class: 'zt-fact zt-item', title: reasonsOf(row) || null},
+        el('span', {text: row.run && row.run > 1 ? t('pqa.causes.caseRun', row.name, row.run) : row.name}),
+        el('span', {class: 'zt-muted', text: t('pqa.causes.handoff.line', row.given.map(action).join(', ') || '—',
+            row.allowed.map(action).join(', ') || '—')}))))
+            : el('div', {class: 'pc-empty', role: 'note'}, el('i', {class: 'fas fa-inbox', 'aria-hidden': 'true'}),
+                el('p', {text: '— ' + t(view ? 'pqa.causes.handoff.none' : 'pv.ui.loadFailed')})));
+        const scope = PV.params().get('scope');
+        card.append(el('div', {class: 'zt-card-foot'}, el('a', {class: 'zt-link',
+            href: MEASURE_PAGES + '/' + encodeURIComponent(measureId) + '?view=causes'
+                + (scope ? '&scope=' + encodeURIComponent(scope) : ''), text: t('pqa.causes.handoff.back')}),
+        el('span', {class: 'zt-muted', text: t('pqa.causes.handoff.note')})));
+        card.setAttribute('data-pv-beside', 'cases');
+        const left = el('div', {class: 'zt-stack'}, ...content.children);
+        const wide = global.matchMedia('(min-width: 1400px)');
+        const place = () => {
+            left.classList.remove('zt-span-8', 'zt-span-12');
+            card.classList.remove('zt-span-4', 'zt-span-12', 'zt-sticky', 'order-first');
+            left.classList.add(wide.matches ? 'zt-span-8' : 'zt-span-12');
+            card.classList.add(...(wide.matches ? ['zt-span-4', 'zt-sticky'] : ['zt-span-12', 'order-first']));
+        };
+        place();
+        wide.addEventListener('change', place);
+        content.replaceChildren(el('div', {class: 'zt-grid'}, left, card));
     }
 
     /** Plan 3.3: the changes of the version in use, carried onto the newer base where it can take them. */

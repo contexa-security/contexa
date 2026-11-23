@@ -496,13 +496,18 @@ class QualityGateSourcePostgresTest {
         });
         assertThat(measuredVersions()).containsExactly(1, 2, 3);
 
-        // A labelled version measured under other settings only is said to be stale, not measured again by itself.
+        // Quality plan 3.6: a labelled version measured under other settings only is measured again, once.
         jdbc.update("delete from ctxa_prompt_version_measure where version_number = 2");
         measured(cases.latestPublished(SCOPE, PROMPT).orElseThrow(), 2, BEFORE, "model-before", "admin",
                 QualityGateSourcePostgresTest::sound);
-        assertThat(startOf(cases, runner, () -> null)).isEmpty();
-        assertThat(jdbc.queryForObject("select count(*) from ctxa_prompt_version_measure where version_number = 2",
-                Integer.class)).isEqualTo(1);
+        assertThat(startOf(cases, runner, () -> null)).singleElement().satisfies(result -> {
+            assertThat(result.outcome()).isEqualTo(QualityAutoMeasurement.Outcome.QUEUED);
+            assertThat(result.detail()).isEqualTo(QualityAutoMeasurement.Reason.SETTINGS_CHANGED.name());
+        });
+        assertThat(startOf(cases, runner, () -> null)).as("the one queued is under these settings").isEmpty();
+        assertThat(jdbc.queryForList("select start_reason from ctxa_prompt_version_measure where version_number = 2"
+                + " order by id", String.class)).containsExactly(null,
+                QualityAutoMeasurement.Reason.SETTINGS_CHANGED.name());
     }
 
     @Test

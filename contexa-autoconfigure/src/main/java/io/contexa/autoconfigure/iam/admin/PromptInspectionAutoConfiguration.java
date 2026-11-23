@@ -15,6 +15,9 @@ import io.contexa.contexacore.verification.inspection.PromptInspectionScheduler;
 import io.contexa.contexacore.verification.inspection.PromptInspectionService;
 import io.contexa.contexacore.verification.inspection.PromptInspector;
 import io.contexa.contexacore.verification.inspection.SourceTruthCheck;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
+import io.contexa.contexaiam.admin.promptquality.evidence.SealedEvidenceController;
+import io.contexa.contexaiam.admin.promptquality.evidence.SealedEvidenceDetails;
 import io.contexa.contexaiam.admin.promptquality.inspection.BundleTraceCheck;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionResultStore;
@@ -44,7 +47,8 @@ import io.contexa.contexacore.verification.inspection.SealIntegrityCheck;
 /**
  * OSS prompt inspection: the inspector, the result store in the OSS schema, the automatic round that inspects every
  * sealed package once on the scheduler's thread, the operator's re-inspection on its own executor, and the inspection
- * console (its read model, API and three screens). What an inspection found plays no part in how long a sealed package
+ * console (its read model and API), and the sealed evidence screen with the addresses of the sealed prompt screens it
+ * joined. What an inspection found plays no part in how long a sealed package
  * is kept: the one retention of sealed packages is PqaSealedEvidenceAutoConfiguration's. Nothing here
  * runs on a decision thread. Enterprise keeps sealed packages in its own schema, so none of these beans are created
  * while Enterprise is enabled. The replay of sealed decisions is not wired here: switching the inspection off leaves it
@@ -173,12 +177,43 @@ public class PromptInspectionAutoConfiguration {
                 contexaPromptInspectionReinspection, Clock.systemUTC());
     }
 
+    /** The addresses of the sealed prompt screens, which open the sealed evidence. */
     @Bean(name = "contexaPromptInspectionPageController")
     @ConditionalOnMissingBean
     @ConditionalOnBean(PromptInspectionConsole.class)
-    public PromptInspectionPageController promptInspectionPageController(
-            MessageSource messageSource,
+    public PromptInspectionPageController promptInspectionPageController() {
+        return new PromptInspectionPageController();
+    }
+
+    /**
+     * Quality plan 3.7, 3.8: one sealed decision as the sealed evidence shows it, inspected again as it is read, with
+     * the replays the audit log records of it.
+     */
+    @Bean(name = "contexaSealedEvidenceDetails")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PromptInspectionConsole.class)
+    public SealedEvidenceDetails sealedEvidenceDetails(
+            SealedEvidencePackageRepository sealedEvidencePackageRepository,
+            PromptInspectionConsole contexaPromptInspectionConsole,
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations,
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
-        return new PromptInspectionPageController(messageSource, objectMapper);
+        return new SealedEvidenceDetails(sealedEvidencePackageRepository, contexaPromptInspectionConsole,
+                jdbcOperations::getIfAvailable, objectMapper);
+    }
+
+    /**
+     * Quality plan 3.7, 3.8: the sealed evidence, the two sealed prompt screens joined; a sealed decision is made a
+     * labelled case when the cases are here.
+     */
+    @Bean(name = "contexaSealedEvidenceController")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean({SealedEvidenceDetails.class, JdbcPromptInspectionQueries.class})
+    public SealedEvidenceController sealedEvidenceController(
+            JdbcPromptInspectionQueries contexaPromptInspectionQueries,
+            SealedEvidenceDetails contexaSealedEvidenceDetails,
+            ObjectProvider<QualityCasePromotions> promotions, MessageSource messageSource,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+        return new SealedEvidenceController(contexaPromptInspectionQueries, contexaSealedEvidenceDetails,
+                promotions::getIfAvailable, messageSource, objectMapper, Clock.systemUTC());
     }
 }

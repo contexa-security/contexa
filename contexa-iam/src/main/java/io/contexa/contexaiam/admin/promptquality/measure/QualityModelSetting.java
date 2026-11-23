@@ -26,7 +26,9 @@ import org.springframework.lang.Nullable;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.Objects;
@@ -131,6 +133,24 @@ public final class QualityModelSetting {
         TieredStrategyProperties strategy = tiered != null ? tiered : new TieredStrategyProperties();
         Object terminal = strategy.getLayer2().escalateTerminalAction();
         return new QualityClosingRules(terminal != null ? QualityAction.parse(String.valueOf(terminal)) : null);
+    }
+
+    /**
+     * Quality plan 3.6: the settings that differ between two, by name, each with its value before and after (null
+     * where one has none), in the order of the names.
+     */
+    public static Map<String, List<String>> changed(Map<String, String> before, Map<String, String> after) {
+        Map<String, List<String>> changed = new TreeMap<>();
+        TreeSet<String> names = new TreeSet<>(before.keySet());
+        names.addAll(after.keySet());
+        for (String name : names) {
+            String was = before.get(name);
+            String now = after.get(name);
+            if (!Objects.equals(was, now)) {
+                changed.put(name, Arrays.asList(was, now));
+            }
+        }
+        return changed;
     }
 
     /** The hash of the settings: the same settings in any order give the same hash. */

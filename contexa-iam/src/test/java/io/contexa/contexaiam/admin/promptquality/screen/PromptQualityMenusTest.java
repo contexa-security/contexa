@@ -52,8 +52,9 @@ class PromptQualityMenusTest {
 
         assertThat(seeded).extracting(AdminMenu::getUrl).containsExactlyElementsOf(PromptQualityScreens.MENUS.stream()
                 .map(PromptQualityScreens.Menu::path).toList());
-        assertThat(seeded).extracting(AdminMenu::getDataPage).containsExactly("prompt-quality-cases",
-                "prompt-quality-measure", "prompt-quality-versions", "prompt-inspection-packages");
+        assertThat(seeded).extracting(AdminMenu::getDataPage).containsExactly("prompt-quality-status",
+                "prompt-quality-cases", "prompt-quality-measure", "prompt-quality-versions", "prompt-quality-evidence");
+        assertThat(seeded).extracting(AdminMenu::getMenuOrder).containsExactly(1, 2, 3, 4, 5);
     }
 
     @Test
@@ -64,8 +65,8 @@ class PromptQualityMenusTest {
         menus.addAll(seededGroup());
 
         assertThat(tree(menus, false)).singleElement().satisfies(group -> assertThat(group.children())
-                .extracting(MenuNode::name).containsExactly("menu.pqa.cases", "menu.pqa.measure", "menu.pqa.versions",
-                        "menu.pqa.inspection.packages"));
+                .extracting(MenuNode::name).containsExactly("menu.pqa.status", "menu.pqa.cases", "menu.pqa.measure",
+                        "menu.pqa.versions", "menu.pqa.evidence"));
         assertThat(tree(menus, true)).singleElement().satisfies(group -> assertThat(group.children()).isEmpty());
     }
 

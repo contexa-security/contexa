@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{pqa.nav.evidence})}"></th:block>
+    <link rel="stylesheet" th:href="@{/contexa/css/policy-center.css?v=20261122-f0}" />
+    <link rel="stylesheet" th:href="@{/contexa/css/zero-trust-console.css?v=20261119-m1}" />
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+<div th:insert="~{contexa/fragments/header :: header}"></div>
+<div class="flex flex-1 overflow-hidden">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
+    <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
+        <!--
+          The sealed evidence (quality plan 3.7, 3.8): the list of the sealed decisions with the evidence audit, or one
+          decision (data-package-id) with what went into it and its replays. The screen's script draws both.
+        -->
+        <div class="zt-page modern-card" id="zt-console" th:data-screen="${screen}" th:data-api-base="${apiBase}"
+             th:data-pages-base="${pagesBase}" th:data-inspection-api="${inspectionApi}"
+             th:data-replay-api="${replayApi}" th:data-package-id="${packageId}"
+             th:data-csrf-token="${_csrf != null ? _csrf.token : ''}"
+             th:data-csrf-header="${_csrf != null ? _csrf.headerName : 'X-CSRF-TOKEN'}">
+            <script type="application/json" id="zt-messages" th:utext="${scriptMessagesJson}"></script>
+            <div class="zt-title-row pv-title-row mb-6">
+                <div class="min-w-0">
+                    <h1 class="text-3xl font-bold pc-header-gradient" id="pv-title" th:text="#{pqa.nav.evidence}">Sealed evidence</h1>
+                    <p class="text-dark-muted mt-1" id="pv-question" th:text="#{pqa.evidence.question}">Question</p>
+                </div>
+                <div class="zt-toolbar" id="pv-toolbar"></div>
+            </div>
+            <nav th:replace="~{contexa/admin/prompt-quality/fragments :: nav('evidence')}"></nav>
+            <div class="filter-container zt-band-box mb-6">
+                <div class="zt-period" id="zt-period" role="group" th:attr="aria-label=#{zt.console.ui.period}"></div>
+                <div class="zt-band" id="zt-band" aria-live="polite"></div>
+            </div>
+            <div class="pv-notice" id="pqa-notice" aria-live="polite"></div>
+            <div class="zt-stack" id="zt-content"></div>
+            <div class="ai-confirm-overlay hidden" id="pqa-confirm-overlay" role="dialog" aria-modal="true">
+                <div class="ai-confirm-modal pv-confirm-modal"></div>
+            </div>
+        </div>
+    </main>
+</div>
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+<script th:src="@{/contexa/js/admin/zero-trust/console-common.js?v=20261118-k119}"></script>
+<script th:src="@{/contexa/js/admin/prompt-quality/pqa-parts.js?v=20261122-s3}"></script>
+<script th:src="@{/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f}"></script>
+<script th:src="@{/contexa/js/admin/prompt-quality/evidence.js?v=20261123-k230}"></script>
+</body>
+</html>

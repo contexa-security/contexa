@@ -29,14 +29,19 @@ import java.util.Objects;
  */
 public final class PromptQualityScreens {
 
+    /** The state of quality (quality plan 3.6). */
+    public static final String STATUS = "/contexa/admin/prompt-quality/status";
     /** The labelled cases (quality plan 3.2). */
     public static final String CASES = "/contexa/admin/prompt-quality/cases";
     /** Measure and compare (quality plan 3.3). */
     public static final String MEASURE = "/contexa/admin/prompt-quality/measure";
     /** The prompt versions (plan 3.10). */
     public static final String VERSIONS = "/contexa/admin/prompt-quality/versions";
-    /** The sealed prompts, which become the sealed evidence (quality plan 3.7). */
-    public static final String EVIDENCE = "/contexa/admin/prompt-inspection/packages";
+    /**
+     * The sealed evidence (quality plan 3.7, 3.8): the two sealed prompt screens joined. Their addresses under
+     * {@code /contexa/admin/prompt-inspection} open it.
+     */
+    public static final String EVIDENCE = "/contexa/admin/prompt-quality/evidence";
 
     /** The templates of the screens of the group, and the bar they call. */
     public static final String TEMPLATES = "contexa/admin/prompt-quality/";
@@ -85,15 +90,14 @@ public final class PromptQualityScreens {
 
     /**
      * The menus of the bar, in the order of the plan (quality plan 3.8): quality status, labelled cases, measure and
-     * compare, prompt versions, sealed evidence. The quality status comes with the second bundle, which puts it first
-     * ({@code new Menu("status", <its address>, "fa-heartbeat", "pqa.nav.status", null)}) and names the last menu the
-     * sealed evidence ({@code "pqa.nav.evidence"}) when it joins the two sealed prompt screens.
+     * compare, prompt versions, sealed evidence. The quality status counts nothing beside its name.
      */
     public static final List<Menu> MENUS = List.of(
+            new Menu("status", STATUS, "fa-heartbeat", "pqa.nav.status", null),
             new Menu("cases", CASES, "fa-clipboard-check", "pqa.nav.cases", Count.CASES),
             new Menu("measure", MEASURE, "fa-balance-scale", "pqa.nav.measure", Count.MEASUREMENTS),
             new Menu("versions", VERSIONS, "fa-code-branch", "pqa.nav.versions", Count.VERSIONS),
-            new Menu("evidence", EVIDENCE, "fa-stamp", "pqa.nav.sealedPrompts", Count.SEALED));
+            new Menu("evidence", EVIDENCE, "fa-stamp", "pqa.nav.evidence", Count.SEALED));
 
     private PromptQualityScreens() {
     }

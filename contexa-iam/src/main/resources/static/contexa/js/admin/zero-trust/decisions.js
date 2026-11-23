@@ -11,7 +11,8 @@
     const PAGES = '/contexa/admin/zero-trust';
     // K84: a challenge's code request is an outcome of its own (console design 6.2)
     const OUTCOMES = ['CHALLENGE_CODE_REQUESTED', 'CHALLENGE_PASSED', 'CHALLENGE_FAILED', 'CHALLENGE_EXPIRED',
-        'UNBLOCK_REQUESTED', 'ADMIN_RELEASED', 'BLOCK_KEPT', 'EVALUATED_VALID', 'EVALUATED_INVALID'];
+        'UNBLOCK_REQUESTED', 'ADMIN_RELEASED', 'BLOCK_KEPT', 'EVALUATED_VALID', 'EVALUATED_INVALID',
+        'ALLOWED_BREACH_CONFIRMED'];
     /** The filters of the list, in the order of design 6.4; each names a parameter of /decisions. */
     const FILTERS = [
         {key: 'action', values: ['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK', 'NO_DECISION'],

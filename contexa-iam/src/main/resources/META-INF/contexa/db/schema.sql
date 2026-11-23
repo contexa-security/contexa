@@ -2722,6 +2722,12 @@ create index if not exists ctxa_idx_prompt_version_case_subject
 create index if not exists ctxa_idx_prompt_version_case_package
     on ctxa_prompt_version_case (sealed_package_id);
 
+-- Quality plan 3.6: a case promoted from a decision the second analysis decided is marked and counted apart: its
+-- package holds the second analysis's input, so the first pass replayed from it may read another input than the
+-- decision's first pass did.
+alter table ctxa_prompt_version_case
+    add column if not exists second_analysis boolean not null default false;
+
 -- Each change of a case's right answer: what it was, what it became, who changed it and when.
 create table if not exists ctxa_prompt_version_case_change (
     id bigserial primary key,
@@ -2825,6 +2831,17 @@ create index if not exists ctxa_idx_prompt_version_measure_version
 create index if not exists ctxa_idx_prompt_version_measure_status
     on ctxa_prompt_version_measure (status, created_at);
 
+-- Quality plan 3.6: why Contexa started a measurement by itself (outside the gate, the baseline, the schedule, a
+-- changed model setting; none for an administrator's), and for one measured again on schedule or after the model
+-- setting changed, its comparison with the version's measurement before: the measurement compared with, the verdict
+-- (WORSE, CHANGED, SAME, NOT_COMPARED), its figures and when it was made. A database installed before gains them here.
+alter table ctxa_prompt_version_measure
+    add column if not exists start_reason varchar(32),
+    add column if not exists compared_measure_id bigint,
+    add column if not exists comparison varchar(16),
+    add column if not exists comparison_detail text,
+    add column if not exists compared_at timestamp(6);
+
 -- Each answer of a measurement, found again by the case's content hash, the version, the model setting and the run.
 create table if not exists ctxa_prompt_version_measure_answer (
     id bigserial primary key,
@@ -2904,6 +2921,22 @@ create index if not exists ctxa_idx_prompt_version_case_cause_measure
 
 create index if not exists ctxa_idx_prompt_version_case_cause_request
     on ctxa_prompt_version_case_cause (registry_scope, request_id);
+
+-- Quality plan 3.5 (stage 6): what the classification of the causes keeps beside the columns above. A decision is named
+-- by its decision row, as the administrator's evaluation names it, since a request may have more than one; a measured
+-- answer by which of its actions is wrong (plan 3.3: the first answer, the final action, or both); a correction by the
+-- category it replaced.
+alter table ctxa_prompt_version_case_cause
+    add column if not exists observation_id varchar(64),
+    add column if not exists wrong_basis varchar(16),
+    add column if not exists previous_category varchar(32);
+
+-- One cause per answer of a measurement and one per decision, so that classifying again finds the row it wrote.
+create unique index if not exists ctxa_uq_prompt_version_case_cause_answer
+    on ctxa_prompt_version_case_cause (measure_id, case_key, run_number) where measure_id is not null;
+
+create unique index if not exists ctxa_uq_prompt_version_case_cause_decision
+    on ctxa_prompt_version_case_cause (observation_id) where observation_id is not null;
 
 -- Plan 6-5 (3.10 4): a trial decides recent sealed decisions again with a candidate and a reference version.
 create table if not exists ctxa_prompt_version_trial (

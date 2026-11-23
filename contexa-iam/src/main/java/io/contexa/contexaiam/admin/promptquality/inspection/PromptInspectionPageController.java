@@ -1,104 +1,60 @@
 package io.contexa.contexaiam.admin.promptquality.inspection;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.context.MessageSource;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityScreens;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.util.UriUtils;
 
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.stream.Stream;
-import org.springframework.beans.factory.annotation.Qualifier;
+import java.nio.charset.StandardCharsets;
 
 /**
- * The inspection screens, one purpose each: the sealed prompt list and one prompt's detail. The root address, which
- * was the overview of a period, opens the list. The pages draw their data from the inspection API; the words their
- * scripts draw come with the page.
+ * The addresses of the sealed prompt screens, which became the sealed evidence (quality plan 3.7, 3.8): the list and
+ * a prompt's detail open their place in it, so a bookmark and the links that name them (the decision detail, the
+ * trials) keep working. The root address, which was the overview of a period, opens the list. The list's filter comes
+ * along: the days of the period, the verdict and the check (the sealed evidence filters by both again), the block, the
+ * entry and the page.
  */
 @Controller
 @RequestMapping("/contexa/admin/prompt-inspection")
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptInspectionPageController {
 
-    /** The message keys the inspection scripts draw. */
-    static final List<String> SCRIPT_KEYS = Stream.of(
-            PromptInspectionScreen.VERDICTS.stream().map(verdict -> "promptInspection.verdict." + verdict),
-            Stream.concat(PromptInspectionScreen.CHECKS.stream(), PromptInspectionScreen.RETIRED_CHECKS.stream())
-                    .map(check -> "promptInspection.check." + check),
-            Stream.of("MISMATCH", "UNVERIFIABLE").map(outcome -> "promptInspection.outcome." + outcome),
-            Stream.of("AUTO", "OPERATOR").map(trigger -> "promptInspection.trigger." + trigger),
-            Stream.of("loading", "empty", "error", "notFound").map(word -> "promptInspection.common." + word),
-            Stream.of("total", "previous", "next").map(word -> "promptInspection.packages." + word),
-            Stream.of("started", "progress", "done", "failed").map(word -> "promptInspection.reinspect." + word),
-            Stream.of("selectLine", "matchedBy", "noFinding", "expected", "actual", "source", "reason",
-                            "reason.earlierBundle", "unplaced",
-                            "inspector", "stored.same", "stored.differs", "stored.other", "stored.none",
-                            "changes.compared", "changes.disappeared", "changes.appeared", "changes.none")
-                    .map(word -> "promptInspection.detail." + word),
-            // docs/agent OC-5: the replay section.
-            Stream.of("action", "reason", "codes", "model", "elapsed", "baselines", "baselines.GIVEN",
-                            "baselines.CURRENT", "integrity", "integrity.VERIFIED", "integrity.MISMATCH",
-                            "integrity.UNVERIFIABLE", "failure", "secondPass", "confirm", "running", "failed", "unavailable")
-                    .map(word -> "promptInspection.replay." + word))
-            .flatMap(keys -> keys)
-            .toList();
-
-    private final MessageSource messages;
-    private final ObjectMapper objectMapper;
-
-    public PromptInspectionPageController(MessageSource messages, @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
-        this.messages = Objects.requireNonNull(messages, "messages");
-        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
-    }
-
-    @GetMapping({"", "/"})
-    public String root() {
-        return "redirect:/contexa/admin/prompt-inspection/packages";
-    }
-
-    @GetMapping("/packages")
-    public String packages(Model model, Locale locale) {
-        return page(model, locale, "packages", "packages");
+    @GetMapping({"", "/", "/packages"})
+    public String list(@RequestParam(required = false) String from, @RequestParam(required = false) String to,
+                       @RequestParam(required = false) String verdict,
+                       @RequestParam(required = false) String checkCode,
+                       @RequestParam(required = false) String block, @RequestParam(required = false) String entry,
+                       @RequestParam(required = false) String page) {
+        UriComponentsBuilder target = UriComponentsBuilder.fromPath(PromptQualityScreens.EVIDENCE);
+        if (StringUtils.hasText(from)) {
+            target.queryParam("period", "custom").queryParam("from", from.trim());
+            if (StringUtils.hasText(to)) {
+                target.queryParam("to", to.trim());
+            }
+        }
+        keep(target, "verdict", verdict);
+        keep(target, "checkCode", checkCode);
+        keep(target, "block", block);
+        keep(target, "entry", entry);
+        keep(target, "page", page);
+        return "redirect:" + target.build().encode().toUriString();
     }
 
     @GetMapping("/packages/{packageId}")
-    public String detail(@PathVariable String packageId, Model model, Locale locale) {
-        model.addAttribute("packageId", packageId);
-        return page(model, locale, "packages", "detail");
+    public String detail(@PathVariable String packageId) {
+        return "redirect:" + PromptQualityScreens.EVIDENCE + "/"
+                + UriUtils.encodePathSegment(packageId, StandardCharsets.UTF_8);
     }
 
-    private String page(Model model, Locale locale, String activeTab, String view) {
-        model.addAttribute("activeTab", activeTab);
-        model.addAttribute("scriptMessagesJson", scriptMessages(locale));
-        model.addAttribute("verdicts", PromptInspectionScreen.VERDICTS);
-        model.addAttribute("checks", PromptInspectionScreen.CHECKS);
-        model.addAttribute("screenSettingsJson", scriptJson(PromptInspectionScreen.scriptSettings()));
-        return "contexa/admin/prompt-inspection/" + view;
-    }
-
-    /** The script words as JSON safe inside a script element. */
-    private String scriptMessages(Locale locale) {
-        ObjectNode words = objectMapper.createObjectNode();
-        for (String key : SCRIPT_KEYS) {
-            words.put(key, messages.getMessage(key, null, key, locale));
-        }
-        return scriptJson(words);
-    }
-
-    /** A value as JSON safe inside a script element. */
-    private String scriptJson(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value).replace("</", "<\\/");
-        }
-        catch (JsonProcessingException exception) {
-            throw new IllegalStateException("The inspection script words could not be written", exception);
+    private static void keep(UriComponentsBuilder target, String name, String value) {
+        if (StringUtils.hasText(value)) {
+            target.queryParam(name, value.trim());
         }
     }
 }

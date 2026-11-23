@@ -156,7 +156,7 @@
                     value: PV.tokens(result.candidate.averageAnswerTokens),
                     sub: t('pv.trial.vsSub', result.reference.name, PV.tokens(result.reference.averageAnswerTokens))})),
             distributionCard(result),
-            changedCard(result),
+            changedCard(result, view.writable && !open ? await divergentOf(trial.id) : null, trial),
             open ? null : nextActions(view));
         return wrap;
     }
@@ -221,7 +221,74 @@
             el('div', {class: 'zt-stack pv-phone'}, ...bars));
     }
 
-    function changedCard(result) {
+    /**
+     * Quality plan 3.6: the sealed decisions the two versions decided differently, which can be made cases, by their
+     * decision and by their request; null when they cannot be read (the changes are shown without the button).
+     */
+    async function divergentOf(id) {
+        try {
+            const divergent = await PQA.get('/trials/' + id + '/divergent');
+            const found = new Map();
+            divergent.forEach(pair => {
+                if (pair.observationId) {
+                    found.set('o:' + pair.observationId, pair);
+                }
+                if (pair.requestId) {
+                    found.set('r:' + pair.requestId, pair);
+                }
+            });
+            return found;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /** The cell that makes a changed decision a case, when it is a sealed decision the two versions decided apart. */
+    function promoteCell(change, divergent, trial) {
+        const pair = divergent ? divergent.get('o:' + change.observationId) || divergent.get('r:' + change.requestId)
+            : null;
+        if (!pair) {
+            return el('td', {class: 'pv-cell-actions pv-wide'}, el('span', {class: 'zt-muted', text: '—'}));
+        }
+        // ZT.el sets every key but text and style as an attribute, so the handler is attached here.
+        const link = el('a', {class: 'zt-link pv-row-action', href: '#', 'data-pqa': 'promote',
+            text: t('pqa.answer.promote')});
+        link.addEventListener('click', event => {
+            event.preventDefault();
+            promoteDialog(change, pair, trial);
+        });
+        return el('td', {class: 'pv-cell-actions pv-wide'}, el('div', {class: 'pv-row-actions'}, link));
+    }
+
+    /** The right answer of a changed decision, set in the confirmation, then the case kept in the trial's scope. */
+    async function promoteDialog(change, pair, trial) {
+        const answer = global.PQA_CASE_ANSWER.fields({});
+        const target = [change.method, change.path].filter(Boolean).join(' ') || change.requestId || pair.sealedPackageId;
+        for (;;) {
+            const asked = await PV.confirm({title: t('pqa.answer.trialTitle'),
+                rows: [[t('pv.trial.column.target'), target], [t('pqa.answer.trialActions'),
+                    PV.actionName(pair.referenceAction) + ' → ' + PV.actionName(pair.candidateAction)]],
+                content: [answer.node, PQA.muted(t('pqa.answer.trialNote'))], confirmLabel: t('pqa.answer.promote'),
+                icon: 'fa-upload'});
+            if (!asked) {
+                return;
+            }
+            if (answer.check()) {
+                break;
+            }
+            PV.notice('bad', t('pqa.answer.failed'), [t('pqa.answer.missing')]);
+        }
+        const result = await PQA.send('/trials/' + trial.id + '/cases', {packageId: pair.sealedPackageId,
+            answer: answer.read()});
+        if (result.ok) {
+            PV.notice('good', t('pqa.answer.done'), global.PQA_CASE_ANSWER.doneLines(result.body));
+        } else {
+            PV.notice('bad', t('pqa.answer.failed'), [global.PQA_CASE_ANSWER.refusal(result.body)
+                || PQA.refused('pqa.answer.refusal.', result)]);
+        }
+    }
+
+    function changedCard(result, divergent, trial) {
         if (!result.changed.length) {
             return ZT.card(t('pv.trial.changed', ZT.count(0)), null, el('div', {class: 'pc-empty', role: 'note'},
                 el('i', {class: 'fas fa-check', 'aria-hidden': 'true'}), el('p', {text: '— ' + t('pv.trial.noChange')})));
@@ -241,13 +308,15 @@
             el('td', {class: 'zt-cell-chips pv-wide'}, ZT.chip(change.referenceAction, PV.actionName(change.referenceAction))),
             el('td', {class: 'zt-cell-chips pv-wide'}, ZT.chip(change.candidateAction, PV.actionName(change.candidateAction))),
             el('td', {class: 'pv-wide'}, el('span', {class: 'pv-cut', title: change.candidateReason || '',
-                text: change.candidateReason || '—'}))));
+                text: change.candidateReason || '—'})),
+            divergent ? promoteCell(change, divergent, trial) : null));
         const card = ZT.card(t('pv.trial.changed', ZT.count(result.changed.length)), t('pv.trial.changedAside'),
             el('div', {class: 'zt-table-wrap'}, el('table', {class: 'zt-table modern-table'},
                 el('thead', {}, el('tr', {}, ...['when', 'target', 'reference', 'candidate', 'reason'].map(column =>
                     el('th', {scope: 'col', class: (column === 'reason' || column === 'reference' || column === 'candidate'
                         ? 'pv-wide ' : '') + 'pv-keep-case',
-                        text: t('pv.trial.column.' + column, result.reference.name, result.candidate.name)})))),
+                        text: t('pv.trial.column.' + column, result.reference.name, result.candidate.name)})),
+                divergent ? el('th', {scope: 'col', class: 'pv-wide', text: t('pqa.answer.column')}) : null)),
                 body)));
         return PQA.withFoot(card, foot);
     }

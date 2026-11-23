@@ -1,90 +1,55 @@
 package io.contexa.contexaiam.admin.promptquality.inspection;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityScreens;
 import org.junit.jupiter.api.Test;
-import org.springframework.context.support.StaticMessageSource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.util.Locale;
-import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 /**
- * The three inspection screens: the overview, the sealed prompt list and a prompt's detail, each with the words its
- * script draws in the reader's language.
+ * Quality plan 3.7, 3.8: the addresses of the sealed prompt screens open the sealed evidence that joined them: the
+ * root and the list open its list, with the list's filter as it was; a prompt's detail opens the decision. A
+ * bookmark and the links of the decision detail and of the trials keep working.
  */
 class PromptInspectionPageControllerTest {
 
-    private final StaticMessageSource messages = new StaticMessageSource();
-    private final MockMvc mvc;
+    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new PromptInspectionPageController()).build();
 
-    PromptInspectionPageControllerTest() {
-        messages.addMessage("promptInspection.verdict.FAIL", Locale.KOREAN, "불일치 있음");
-        messages.addMessage("promptInspection.verdict.FAIL", Locale.ENGLISH, "Mismatch found");
-        mvc = MockMvcBuilders.standaloneSetup(new PromptInspectionPageController(messages, new ObjectMapper())).build();
-    }
-
-    /** The overview went; its address, the screens' root, opens the list. */
     @Test
-    void theListAndTheDetailAreTheirOwnScreensAndTheRootOpensTheList() throws Exception {
-        mvc.perform(get("/contexa/admin/prompt-inspection")).andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/contexa/admin/prompt-inspection/packages"));
-        mvc.perform(get("/contexa/admin/prompt-inspection/")).andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/contexa/admin/prompt-inspection/packages"));
-        mvc.perform(get("/contexa/admin/prompt-inspection/packages")).andExpect(status().isOk())
-                .andExpect(view().name("contexa/admin/prompt-inspection/packages"))
-                .andExpect(model().attribute("activeTab", "packages"));
-        mvc.perform(get("/contexa/admin/prompt-inspection/packages/p-1")).andExpect(status().isOk())
-                .andExpect(view().name("contexa/admin/prompt-inspection/detail"))
-                .andExpect(model().attribute("packageId", "p-1"))
-                .andExpect(model().attribute("activeTab", "packages"));
+    void theRootAndTheListOpenTheSealedEvidence() throws Exception {
+        for (String address : new String[]{"/contexa/admin/prompt-inspection", "/contexa/admin/prompt-inspection/",
+                "/contexa/admin/prompt-inspection/packages"}) {
+            mvc.perform(get(address)).andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl(PromptQualityScreens.EVIDENCE));
+        }
     }
 
     @Test
-    void theScriptWordsAreInTheReadersLanguage() throws Exception {
-        assertThat(scriptMessages(Locale.KOREAN)).containsEntry("promptInspection.verdict.FAIL", "불일치 있음");
-        assertThat(scriptMessages(Locale.ENGLISH)).containsEntry("promptInspection.verdict.FAIL", "Mismatch found");
-        assertThat(scriptMessages(Locale.ENGLISH)).containsKeys(PromptInspectionPageController.SCRIPT_KEYS.toArray(
-                String[]::new));
+    void theListsFilterComesAlongAsItWas() throws Exception {
+        mvc.perform(get("/contexa/admin/prompt-inspection/packages").param("from", "2026-11-01")
+                        .param("to", "2026-11-07").param("verdict", "FAIL").param("block", "REQUEST")
+                        .param("entry", "Action").param("page", "2"))
+                .andExpect(redirectedUrl(PromptQualityScreens.EVIDENCE + "?period=custom&from=2026-11-01&to=2026-11-07"
+                        + "&verdict=FAIL&block=REQUEST&entry=Action&page=2"));
+        mvc.perform(get("/contexa/admin/prompt-inspection/packages").param("verdict", "INCOMPLETE")
+                        .param("checkCode", "SOURCE_TRUTH"))
+                .andExpect(redirectedUrl(PromptQualityScreens.EVIDENCE + "?verdict=INCOMPLETE&checkCode=SOURCE_TRUTH"));
+        mvc.perform(get("/contexa/admin/prompt-inspection/packages").param("checkCode", "REASON_MATCH")
+                        .param("verdict", JdbcPromptInspectionQueries.NOT_INSPECTED))
+                .andExpect(redirectedUrl(PromptQualityScreens.EVIDENCE
+                        + "?verdict=NOT_INSPECTED&checkCode=REASON_MATCH"));
+        mvc.perform(get("/contexa/admin/prompt-inspection/packages").param("block", "A B&C"))
+                .andExpect(redirectedUrl(PromptQualityScreens.EVIDENCE + "?block=A%20B%26C"));
     }
 
     @Test
-    void aWordThatClosesAScriptElementStaysInsideIt() throws Exception {
-        messages.addMessage("promptInspection.verdict.FAIL", Locale.GERMAN, "Sales </script> Ops");
-
-        assertThat(scriptMessages(Locale.GERMAN)).containsEntry("promptInspection.verdict.FAIL", "Sales </script> Ops");
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    void theScreensTakeTheirListsAndDefaultsFromOnePlace() throws Exception {
-        MvcResult result = mvc.perform(get("/contexa/admin/prompt-inspection/packages")).andReturn();
-        Map<String, Object> model = result.getModelAndView().getModel();
-        assertThat(model.get("verdicts")).isEqualTo(PromptInspectionScreen.VERDICTS);
-        assertThat(model.get("checks")).isEqualTo(PromptInspectionScreen.CHECKS);
-
-        String json = (String) model.get("screenSettingsJson");
-        assertThat(json).isNotNull().doesNotContain("</");
-        Map<String, Object> settings = new ObjectMapper().readValue(json, Map.class);
-        assertThat(settings).containsEntry("verdicts", PromptInspectionScreen.VERDICTS)
-                .containsEntry("tones", PromptInspectionScreen.TONES)
-                .containsEntry("periodDays", (int) PromptInspectionScreen.DEFAULT_PERIOD.toDays())
-                .containsEntry("pageSize", Integer.parseInt(PromptInspectionScreen.DEFAULT_PAGE_SIZE));
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, String> scriptMessages(Locale locale) throws Exception {
-        MvcResult result = mvc.perform(get("/contexa/admin/prompt-inspection/packages").locale(locale)).andReturn();
-        String json = (String) result.getModelAndView().getModel().get("scriptMessagesJson");
-        assertThat(json).doesNotContain("</");
-        return new ObjectMapper().readValue(json, Map.class);
+    void aPromptsDetailOpensTheDecision() throws Exception {
+        mvc.perform(get("/contexa/admin/prompt-inspection/packages/3f2b-91c0")).andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl(PromptQualityScreens.EVIDENCE + "/3f2b-91c0"));
+        mvc.perform(get("/contexa/admin/prompt-inspection/packages/a b"))
+                .andExpect(redirectedUrl(PromptQualityScreens.EVIDENCE + "/a%20b"));
     }
 }

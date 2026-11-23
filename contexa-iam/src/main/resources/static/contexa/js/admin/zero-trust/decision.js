@@ -9,6 +9,9 @@
 
     const {t, el} = ZT;
     const P = 'zt.console.ui.decision.';
+    /** Quality plan 3.6: the parts of the confirmation and of the answer of a case, when their scripts are here. */
+    const PARTS = window.PQA;
+    const ANSWER = window.PQA_CASE_ANSWER;
     const D = 'zt.console.ui.decisions.';
     const O = 'zt.console.ui.operations.';
     const PAGES = '/contexa/admin/zero-trust';
@@ -361,8 +364,15 @@
             el('i', {class: 'fas fa-check', 'aria-hidden': 'true'}), t(P + 'evaluation.save'));
         save.disabled = true;
         const status = el('div', {class: 'zt-item', role: 'status', 'aria-live': 'polite'});
+        // Quality plan 3.6: the evaluation can make the decision a labelled case in the same step, from its seal.
+        const promote = caseChoice(detail);
         form.append(verdict, reasons, el('label', {for: noteId, text: t(P + 'evaluation.note')}), note,
-            el('div', {class: 'zt-toolbar'}, save), status);
+            promote ? promote.node : null, el('div', {class: 'zt-toolbar'}, save), status);
+        if (promote) {
+            promote.box.addEventListener('change', () => {
+                save.lastChild.textContent = t(P + (promote.box.checked ? 'case.save' : 'evaluation.save'));
+            });
+        }
 
         const chosen = name => {
             const input = form.querySelector('input[name="' + name + '"]:checked');
@@ -383,10 +393,14 @@
             if (valid == null) {
                 return;
             }
-            save.disabled = true;
-            status.replaceChildren(muted(t(P + 'evaluation.saving')));
             const body = {valid: valid === 'true', reason: valid === 'false' ? chosen('reason') : null,
                 note: note.value.trim() || null};
+            if (promote && promote.box.checked) {
+                await evaluateAsCase(detail, body, parts, status, save, ready);
+                return;
+            }
+            save.disabled = true;
+            status.replaceChildren(muted(t(P + 'evaluation.saving')));
             let result;
             try {
                 result = await ZT.post(path + '/evaluation', body);
@@ -400,7 +414,107 @@
                 ready();
             }
         });
-        return ZT.card(t(P + 'evaluation.title'), detail.inReview ? t(P + 'evaluation.inReview') : null, form);
+        const card = ZT.card(t(P + 'evaluation.title'), detail.inReview ? t(P + 'evaluation.inReview') : null, form);
+        const breach = breachButton(detail, parts, status);
+        if (breach) {
+            card.append(el('div', {class: 'zt-card-foot'}, breach));
+        }
+        return card;
+    }
+
+    // ----- quality plan 3.6: the decision made a labelled case, and an allowed request found a breach -----
+
+    /**
+     * The choice to make the decision a case with its evaluation: only from its seal (a decision not sealed says so),
+     * and a decision the second analysis decided is said to be counted apart.
+     */
+    function caseChoice(detail) {
+        if (!PARTS || !ANSWER) {
+            return null;
+        }
+        const box = el('input', {type: 'checkbox', name: 'asCase', disabled: detail.packageId ? null : true,
+            'data-zt': 'as-case'});
+        const lines = [detail.packageId ? null : t(P + 'case.notSealed'),
+            detail.stage === 'LAYER2' ? t(P + 'case.secondAnalysis') : null].filter(Boolean);
+        return {box, node: el('div', {class: 'zt-item'}, el('label', {class: 'pv-toggle'}, box,
+            el('span', {text: t(P + 'case.choice')})), ...lines.map(line => muted(line)))};
+    }
+
+    /** The answer of the case in the confirmation, then the evaluation and the case kept together, or neither. */
+    async function evaluateAsCase(detail, evaluation, parts, status, save, ready) {
+        const answer = ANSWER.fields({action: detail.action});
+        const asked = await PARTS.dialog({title: t(P + 'case.title'),
+            rows: [[t(P + 'case.decision'), actionLabel(detail.action) + ' · ' + (detail.resource || '—')],
+                [t(P + 'case.evaluation'), evaluation.valid ? t(P + 'evaluation.valid')
+                    : t(P + 'evaluation.invalid') + ' · ' + known(P + 'evaluation.reason.' + evaluation.reason,
+                    evaluation.reason || '—')]],
+            content: [answer.node, muted(t(P + 'case.note'))], confirmLabel: t(P + 'case.save'),
+            cancelLabel: t(P + 'case.cancel'), icon: 'fa-upload', check: answer.check});
+        if (!asked) {
+            return;
+        }
+        save.disabled = true;
+        status.replaceChildren(muted(t(P + 'evaluation.saving')));
+        let result;
+        try {
+            result = await ZT.post(path + '/case', {evaluation, answer: answer.read()});
+        } catch (error) {
+            result = {ok: false, status: null, body: null};
+        }
+        if (result.ok) {
+            await saved({kind: result.body.evaluation}, parts, status);
+            status.prepend(el('div', {text: t(P + 'case.saved', ANSWER.doneLines(result.body).join(' · '))}));
+        } else {
+            const why = ANSWER.refusal(result.body);
+            status.replaceChildren(el('div', {class: 'zt-warning', role: 'alert', text: t(P + 'case.failed',
+                why || (result.status == null ? '—' : result.status))}));
+            ready();
+        }
+    }
+
+    /** An allowed request later found a breach: kept as the outcome of its decision, once. */
+    function breachButton(detail, parts, status) {
+        if (!PARTS || detail.action !== 'ALLOW') {
+            return null;
+        }
+        const already = (detail.outcomes || []).some(outcome => outcome.kind === 'ALLOWED_BREACH_CONFIRMED');
+        const button = PARTS.button(t(P + (already ? 'laterBreach.already' : 'laterBreach.button')), 'fa-exclamation-triangle',
+            'secondary', {'data-zt': 'breach', disabled: already ? true : null, title: t(P + 'laterBreach.tip')});
+        button.addEventListener('click', async () => {
+            const note = el('textarea', {class: 'modern-input zt-textarea', name: 'breachNote', rows: '3',
+                maxlength: String(NOTE_LIMIT), placeholder: t(P + 'laterBreach.noteHint'), 'aria-label': t(P + 'laterBreach.note')});
+            const asked = await PARTS.dialog({title: t(P + 'laterBreach.title'),
+                rows: [[t(P + 'case.decision'), actionLabel(detail.action) + ' · ' + (detail.resource || '—')],
+                    [t(P + 'laterBreach.request'), detail.requestId || '—']],
+                content: [PARTS.field(t(P + 'laterBreach.note'), note), muted(t(P + 'laterBreach.explain'))],
+                confirmLabel: t(P + 'laterBreach.confirm'), cancelLabel: t(P + 'case.cancel'),
+                icon: 'fa-exclamation-triangle'});
+            if (!asked) {
+                return;
+            }
+            button.disabled = true;
+            let result;
+            try {
+                result = await ZT.post(path + '/breach', {note: note.value.trim() || null});
+            } catch (error) {
+                result = {ok: false, status: null, body: null};
+            }
+            if (result.ok) {
+                status.replaceChildren(el('div', {text: t(P + (result.body.already ? 'laterBreach.kept' : 'laterBreach.saved'))}));
+                button.lastChild.textContent = t(P + 'laterBreach.already');
+                try {
+                    fillOutcomes(parts.outcomes, await ZT.load(path));
+                } catch (error) {
+                    status.append(muted(t(P + 'evaluation.reloadFailed')));
+                }
+            } else {
+                const why = result.body && result.body.detail ? result.body.detail : '';
+                status.replaceChildren(el('div', {class: 'zt-warning', role: 'alert', text: result.status === 400
+                    ? t(P + 'laterBreach.refused', why) : t(P + 'laterBreach.failed', result.status == null ? '—' : result.status)}));
+                button.disabled = false;
+            }
+        });
+        return button;
     }
 
     function problem(result) {

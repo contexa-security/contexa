@@ -67,6 +67,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -211,7 +212,8 @@ public class PromptQualityMeasurements implements AutoCloseable {
     }
 
     /**
-     * A measurement as its row keeps it, with how many answers it has.
+     * A measurement as its row keeps it, with how many answers it has and why Contexa started it by itself (null for
+     * one an administrator started).
      *
      * @param anew whether it was taken anew, with no kept answer used again (quality P32): its answers are its own
      */
@@ -221,7 +223,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
                           int plannedAnswers, int reusableAnswers, int expectedMinCalls, int expectedMaxCalls,
                           int callLimit, int modelCalls, @Nullable String runnerId, @Nullable Instant heartbeatAt,
                           String createdBy, Instant createdAt, @Nullable Instant startedAt,
-                          @Nullable Instant finishedAt, int answered) {
+                          @Nullable Instant finishedAt, int answered, @Nullable String startReason) {
 
         public String versionName() {
             return PromptVersionNames.name(versionNumber);
@@ -263,6 +265,8 @@ public class PromptQualityMeasurements implements AutoCloseable {
     private final AtomicBoolean drainWaiting = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
     private volatile ScheduledFuture<?> sweep;
+    private volatile LongConsumer whenDone = id -> {
+    };
 
     /**
      * @param line          the line of this server the trials wait in too
@@ -306,11 +310,46 @@ public class PromptQualityMeasurements implements AutoCloseable {
     }
 
     /**
+     * Quality plan 3.5: what follows a measurement once it is done, on the server that ran it, such as putting its
+     * wrong answers down to their causes. Its failure is logged and leaves the measurement done.
+     */
+    public void whenDone(@Nullable LongConsumer listener) {
+        this.whenDone = listener != null ? listener : id -> {
+        };
+    }
+
+    /**
      * Quality plan 3.4: the hash of the server settings that change an answer, as this server runs now; a measurement
      * taken under another hash is stale here.
      */
     public String settingsHash() {
         return QualityModelSetting.hash(Map.copyOf(modelSettings.get()));
+    }
+
+    /** Quality plan 3.6: the server settings that change an answer, as this server runs now. */
+    public Map<String, String> settingsNow() {
+        return Map.copyOf(modelSettings.get());
+    }
+
+    /**
+     * Quality plan 3.6: the server settings a measurement started with, as it keeps them; empty when it keeps none
+     * that can be read.
+     */
+    public Map<String, String> settingsOf(long id) {
+        String text = jdbc.get().query("select settings from ctxa_prompt_version_measure where id = ?",
+                (rs, row) -> rs.getString(1), id).stream().findFirst().orElse(null);
+        if (text == null || text.isBlank()) {
+            return Map.of();
+        }
+        try {
+            Map<String, String> settings = new LinkedHashMap<>();
+            json.readTree(text).fields().forEachRemaining(field -> settings.put(field.getKey(),
+                    field.getValue().isNull() ? null : field.getValue().asText()));
+            return settings;
+        }
+        catch (JsonProcessingException unreadable) {
+            return Map.of();
+        }
     }
 
     /**
@@ -410,7 +449,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
      */
     public long start(String scope, String prompt, int version, @Nullable Long caseSetId, @Nullable Integer repeats,
                       String actor) {
-        return start(scope, prompt, version, caseSetId, repeats, false, actor);
+        return start(scope, prompt, version, caseSetId, repeats, false, actor, null);
     }
 
     /**
@@ -422,6 +461,30 @@ public class PromptQualityMeasurements implements AutoCloseable {
      */
     public long start(String scope, String prompt, int version, @Nullable Long caseSetId, @Nullable Integer repeats,
                       boolean anew, String actor) {
+        return start(scope, prompt, version, caseSetId, repeats, anew, actor, null);
+    }
+
+    /**
+     * Starts measuring the version as {@link #start(String, String, int, Long, Integer, String)} does, keeping why
+     * Contexa started it by itself (quality plan 3.4, 3.6: outside the gate, the baseline, the schedule, a changed
+     * model setting).
+     *
+     * @param startReason why Contexa starts it, or null for an administrator's measurement
+     */
+    public long start(String scope, String prompt, int version, @Nullable Long caseSetId, @Nullable Integer repeats,
+                      String actor, @Nullable String startReason) {
+        return start(scope, prompt, version, caseSetId, repeats, false, actor, startReason);
+    }
+
+    /**
+     * Starts measuring the version, anew or not (quality P32), keeping why Contexa started it by itself; the one body
+     * the other ways to start go through.
+     *
+     * @param anew        whether to measure anew, with no kept answer used again
+     * @param startReason why Contexa starts it, or null for an administrator's measurement
+     */
+    public long start(String scope, String prompt, int version, @Nullable Long caseSetId, @Nullable Integer repeats,
+                      boolean anew, String actor, @Nullable String startReason) {
         Planned planned = plan(scope, prompt, version, caseSetId, repeats, anew);
         Estimate estimate = planned.estimate();
         if (!estimate.withinLimit()) {
@@ -439,13 +502,13 @@ public class PromptQualityMeasurements implements AutoCloseable {
         Long id = jdbc.get().queryForObject("insert into ctxa_prompt_version_measure (registry_scope, prompt_key,"
                 + " version_number, version_content_hash, case_set_id, case_set_version, repeats, measured_anew,"
                 + " settings_hash, settings, closing_rules, status, planned_answers, reusable_answers,"
-                + " expected_min_calls, expected_max_calls, call_limit, created_by, created_at) values"
-                + " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id", Long.class,
+                + " expected_min_calls, expected_max_calls, call_limit, created_by, created_at, start_reason) values"
+                + " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id", Long.class,
                 planned.scope(), prompt, version, planned.version().contentHash(), planned.set().id(),
                 planned.set().version(), planned.repeats(), anew, planned.settingsHash(), write(planned.settings()),
                 describe(rules), QUEUED,
                 estimate.answers(), estimate.reusable(), estimate.minimumCalls(), estimate.maximumCalls(),
-                estimate.callLimit(), actorOf(actor), Timestamp.from(clock.instant()));
+                estimate.callLimit(), actorOf(actor), Timestamp.from(clock.instant()), truncate(startReason, 32));
         log.info("[PromptQualityMeasure] Measurement {} of {} {} on case set {} queued{}: {} answers, {} kept already",
                 id, prompt, PromptVersionNames.name(version), planned.set().version(), anew ? " anew" : "",
                 estimate.answers(), estimate.reusable());
@@ -472,6 +535,13 @@ public class PromptQualityMeasurements implements AutoCloseable {
         return jdbc.get().query(MEASURE_SQL + " where m.registry_scope = ? and m.prompt_key = ? and m.version_number = ?"
                 + " order by m.created_at desc, m.id desc limit ?", MEASURE_ROW, scopeOf(scope), prompt, version,
                 Math.max(1, limit));
+    }
+
+    /** Quality plan 3.7: the measurements of the prompt in the scope that finished in the period, the newest first. */
+    public List<Measure> finished(String scope, String prompt, Instant from, Instant to, int limit) {
+        return jdbc.get().query(MEASURE_SQL + " where m.registry_scope = ? and m.prompt_key = ? and m.finished_at >= ?"
+                + " and m.finished_at < ? order by m.finished_at desc, m.id desc limit ?", MEASURE_ROW, scopeOf(scope),
+                prompt, Timestamp.from(from), Timestamp.from(to), Math.max(1, limit));
     }
 
     /** Quality plan 3.8: how many measurements the prompt has in the scope, of every version and state. */
@@ -928,6 +998,12 @@ public class PromptQualityMeasurements implements AutoCloseable {
                 id, RUNNING);
         if (updated == 1) {
             log.info("[PromptQualityMeasure] Measurement {} done under {}", id, fingerprint);
+            try {
+                whenDone.accept(id);
+            }
+            catch (RuntimeException failure) {
+                log.error("[PromptQualityMeasure] What follows measurement {} once done failed", id, failure);
+            }
         }
     }
 
@@ -1091,7 +1167,7 @@ public class PromptQualityMeasurements implements AutoCloseable {
             + " m.closing_rules, m.status, m.failure, m.planned_answers, m.reusable_answers, m.expected_min_calls,"
             + " m.expected_max_calls, m.call_limit, m.model_calls, m.runner_id, m.heartbeat_at, m.created_by,"
             + " m.created_at, m.started_at, m.finished_at, (select count(*) from ctxa_prompt_version_measure_answer a"
-            + " where a.measure_id = m.id) as answered from ctxa_prompt_version_measure m";
+            + " where a.measure_id = m.id) as answered, m.start_reason from ctxa_prompt_version_measure m";
 
     private static final RowMapper<Measure> MEASURE_ROW = PromptQualityMeasurements::measure;
 
@@ -1110,7 +1186,8 @@ public class PromptQualityMeasurements implements AutoCloseable {
                 rs.getInt("expected_min_calls"), rs.getInt("expected_max_calls"), rs.getInt("call_limit"),
                 rs.getInt("model_calls"), rs.getString("runner_id"), instant(rs.getTimestamp("heartbeat_at")),
                 rs.getString("created_by"), instant(rs.getTimestamp("created_at")),
-                instant(rs.getTimestamp("started_at")), instant(rs.getTimestamp("finished_at")), rs.getInt("answered"));
+                instant(rs.getTimestamp("started_at")), instant(rs.getTimestamp("finished_at")), rs.getInt("answered"),
+                rs.getString("start_reason"));
     }
 
     @Nullable

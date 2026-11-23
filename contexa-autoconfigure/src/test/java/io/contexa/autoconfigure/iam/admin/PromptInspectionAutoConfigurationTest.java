@@ -17,6 +17,8 @@ import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspection
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionApiController;
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionConsole;
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionPageController;
+import io.contexa.contexaiam.admin.promptquality.evidence.SealedEvidenceController;
+import io.contexa.contexaiam.admin.promptquality.evidence.SealedEvidenceDetails;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -64,6 +66,9 @@ class PromptInspectionAutoConfigurationTest {
             assertThat(context).hasSingleBean(PromptInspectionConsole.class);
             assertThat(context).hasSingleBean(PromptInspectionApiController.class);
             assertThat(context).hasSingleBean(PromptInspectionPageController.class);
+            // Quality plan 3.7, 3.8: the sealed evidence, which the sealed prompt screens' addresses open.
+            assertThat(context).hasSingleBean(SealedEvidenceDetails.class);
+            assertThat(context).hasSingleBean(SealedEvidenceController.class);
             assertThat(context.getBean(PromptInspector.class).checks()).extracting(PromptInspectionCheck::code)
                     .containsExactlyElementsOf(CHECKS);
             assertThat(bundleTrace(context.getBean(PromptInspector.class)).readsRegistry()).isFalse();
@@ -174,6 +179,7 @@ class PromptInspectionAutoConfigurationTest {
                     assertThat(context).doesNotHaveBean(PromptInspectionScheduler.class);
                     assertThat(context).doesNotHaveBean(PromptInspectionApiController.class);
                     assertThat(context).doesNotHaveBean(PromptInspectionPageController.class);
+                    assertThat(context).doesNotHaveBean(SealedEvidenceController.class);
                 });
     }
 }

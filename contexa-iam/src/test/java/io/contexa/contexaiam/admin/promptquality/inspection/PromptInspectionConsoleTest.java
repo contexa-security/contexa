@@ -18,10 +18,7 @@ import io.contexa.contexacore.verification.inspection.PromptInspectionVerdict;
 import io.contexa.contexacore.verification.inspection.PromptInspector;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.RecordComponent;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -171,36 +168,8 @@ class PromptInspectionConsoleTest {
         assertThat(components(PromptInspectionConsole.HistoryView.class)).doesNotContain("resultId");
     }
 
-    /** R1b-9: the detail screen shows why an inspection failed. */
-    @Test
-    void theDetailScreenShowsWhyAnInspectionFailed() throws IOException {
-        assertThat(resource("templates/contexa/admin/prompt-inspection/detail.html"))
-                .contains("data-pi-fact=\"errorReason\"").contains("#{promptInspection.column.errorReason}");
-        assertThat(resource("static/contexa/js/admin/prompt-inspection/detail-page.js")).contains("detail.errorReason");
-    }
-
-    /**
-     * Plan 3.12 D7: a package of an earlier bundle is not inspected again; the detail screen says so in the reader's
-     * language instead of the engine's sentence (which the core tests hold to "cannot be inspected again (decision
-     * D7)"), and the message is one the scripts are given.
-     */
-    @Test
-    void theDetailScreenSaysAnEarlierBundleIsNotInspectedAgainInTheReadersLanguage() throws IOException {
-        assertThat(resource("static/contexa/js/admin/prompt-inspection/detail-page.js"))
-                .contains("'(decision D7)'").contains("t('promptInspection.detail.reason.earlierBundle')")
-                .contains("reasonText(finding.reason)");
-        assertThat(PromptInspectionPageController.SCRIPT_KEYS).contains("promptInspection.detail.reason.earlierBundle");
-    }
-
     private static List<String> components(Class<?> type) {
         return Arrays.stream(type.getRecordComponents()).map(RecordComponent::getName).toList();
-    }
-
-    private static String resource(String name) throws IOException {
-        try (InputStream input = PromptInspectionConsoleTest.class.getClassLoader().getResourceAsStream(name)) {
-            assertThat(input).as(name).isNotNull();
-            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        }
     }
 
     @Test

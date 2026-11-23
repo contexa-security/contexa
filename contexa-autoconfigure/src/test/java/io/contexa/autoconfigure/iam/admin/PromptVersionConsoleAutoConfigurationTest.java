@@ -16,14 +16,21 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.cases.PromptQualityCases;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseDecisionController;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotionController;
+import io.contexa.contexaiam.admin.promptquality.cases.QualityCasePromotions;
 import io.contexa.contexaiam.admin.promptquality.cases.QualityCaseUserDeletionListener;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
+import io.contexa.contexaiam.admin.promptquality.causes.PromptQualityCauses;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityMeasurements;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityResourceClasses;
 import io.contexa.contexaiam.admin.promptquality.measure.PromptQualityRunLine;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseApiController;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCaseScreen;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCauseApiController;
+import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityCauseScreen;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureApiController;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityMeasureScreen;
 import io.contexa.contexaiam.admin.promptquality.screen.PromptQualityNavAdvice;
@@ -38,6 +45,11 @@ import io.contexa.contexacore.std.components.prompt.quality.QualityMeasurementSt
 import io.contexa.contexacore.std.components.prompt.quality.QualityShippedMeasurements;
 import io.contexa.contexaiam.admin.promptquality.measure.MeasuredQualityGateSource;
 import io.contexa.contexaiam.admin.promptquality.measure.QualityAutoMeasurement;
+import io.contexa.contexaiam.admin.promptquality.measure.QualityScheduledMeasurement;
+import io.contexa.contexaiam.admin.promptquality.report.PromptQualityReportController;
+import io.contexa.contexaiam.admin.promptquality.report.PromptQualityReports;
+import io.contexa.contexaiam.admin.promptquality.status.PromptQualityStatus;
+import io.contexa.contexaiam.admin.promptquality.status.PromptQualityStatusController;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -85,6 +97,8 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).hasSingleBean(QualityAutoMeasurement.class);
                     assertThat(context).hasBean("contexaQualityAutoMeasurementStart");
                     assertThat(context).hasSingleBean(QualityShippedMeasurements.class);
+                    // Quality plan 3.5: the causes of the wrong answers.
+                    assertThat(context).hasSingleBean(PromptQualityCauses.class);
                     // Quality P46: the cases and the metrics by resource class.
                     assertThat(context).hasSingleBean(PromptQualityResourceClasses.class);
                     // Quality plan 3.8: the menu bar of the group with its counts, and the two new screens.
@@ -96,9 +110,44 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).hasSingleBean(PromptQualityCaseApiController.class);
                     assertThat(context).hasSingleBean(PromptQualityMeasureScreen.class);
                     assertThat(context).hasSingleBean(PromptQualityMeasureApiController.class);
+                    // Quality plan 3.5: the view of the wrong cases and their causes, and its JSON.
+                    assertThat(context).hasSingleBean(PromptQualityCauseScreen.class);
+                    assertThat(context).hasSingleBean(PromptQualityCauseApiController.class);
+                    // Quality plan 3.6: the decisions of a trial made cases, refused when there are no seals.
+                    assertThat(context).hasSingleBean(QualityCasePromotionController.class);
+                    // Quality plan 3.6: a decision of the Zero Trust console evaluated and made a case in one step.
+                    assertThat(context).hasSingleBean(QualityCaseDecisionController.class);
                     assertThat(context.getBean(PromptQualityMeasureScreen.class).band().model()).isNull();
                     assertThat(context.getBean(PromptQualityNavCounts.class)
                             .count(PromptQualityScreens.Count.SEALED, null)).isNull();
+                });
+    }
+
+    /**
+     * Quality plan 3.6: the decisions are made cases with the store of sealed packages, and the version in use is
+     * measured again on schedule, which an installation turns off with "-".
+     */
+    @Test
+    void theOperationsOfTheQualityStandOnTheCasesTheSealsAndTheMeasurer() {
+        runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
+                .withBean(SealedDecisionReplays.class, () -> mock(SealedDecisionReplays.class))
+                .withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
+                .run(context -> {
+                    assertThat(context).hasSingleBean(QualityCasePromotions.class);
+                    assertThat(context).hasSingleBean(QualityScheduledMeasurement.class);
+                    assertThat(context.getBean(QualityScheduledMeasurement.class).nextScheduled()).isNotNull();
+                    assertThat(context).hasSingleBean(PromptQualityStatus.class);
+                    // Quality plan 3.7: the quality report, on the state of quality and the quality gate's source.
+                    assertThat(context).hasSingleBean(PromptQualityReports.class);
+                    // Quality plan 3.6 to 3.8: the screen of the state of quality and the report it exports.
+                    assertThat(context).hasSingleBean(PromptQualityStatusController.class);
+                    assertThat(context).hasSingleBean(PromptQualityReportController.class);
+                });
+        runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
+                .withPropertyValues("contexa.pqa.oss.quality.remeasure.cron=-")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(QualityCasePromotions.class);
+                    assertThat(context.getBean(QualityScheduledMeasurement.class).nextScheduled()).isNull();
                 });
     }
 
@@ -133,6 +182,8 @@ class PromptVersionConsoleAutoConfigurationTest {
                     assertThat(context).doesNotHaveBean(PromptVersionTrials.class);
                     assertThat(context).doesNotHaveBean(PromptQualityMeasurements.class);
                     assertThat(context).hasSingleBean(PromptQualityCases.class);
+                    // The decisions rated inadequate are put down to their causes without the replay too.
+                    assertThat(context).hasSingleBean(PromptQualityCauses.class);
                     assertThat(context).hasSingleBean(PromptQualityResourceClasses.class);
                     // Quality plan 3.4: without the replay nothing can be measured, which the gate warns of only.
                     assertThat(context.getBean(MeasuredQualityGateSource.class)
@@ -151,11 +202,17 @@ class PromptVersionConsoleAutoConfigurationTest {
             assertThat(context).doesNotHaveBean(PromptVersionConsole.class);
             assertThat(context).doesNotHaveBean(PromptVersionConsoleController.class);
             assertThat(context).doesNotHaveBean(PromptQualityCases.class);
+            assertThat(context).doesNotHaveBean(PromptQualityCauses.class);
             assertThat(context).doesNotHaveBean(PromptQualityResourceClasses.class);
             assertThat(context).doesNotHaveBean(PromptQualityNavAdvice.class);
             assertThat(context).doesNotHaveBean(PromptQualityPageController.class);
+            assertThat(context).doesNotHaveBean(PromptQualityStatusController.class);
+            assertThat(context).doesNotHaveBean(PromptQualityReportController.class);
             assertThat(context).doesNotHaveBean(PromptQualityCaseScreen.class);
             assertThat(context).doesNotHaveBean(PromptQualityMeasureApiController.class);
+            assertThat(context).doesNotHaveBean(PromptQualityCauseScreen.class);
+            assertThat(context).doesNotHaveBean(QualityCasePromotionController.class);
+            assertThat(context).doesNotHaveBean(QualityCaseDecisionController.class);
         });
         runner.withBean(PromptVersionService.class, () -> mock(PromptVersionService.class))
                 .withPropertyValues("contexa.prompt.governance.enabled=false")

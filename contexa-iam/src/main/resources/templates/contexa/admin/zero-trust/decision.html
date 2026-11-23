@@ -11,11 +11,17 @@
     <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
         <div th:replace="~{contexa/admin/zero-trust/fragments :: console(title=#{zt.console.ui.title.decision}, question=#{zt.console.ui.question.decision}, periods=false)}"></div>
+        <!-- Quality plan 3.6: the policy center's confirmation, for the answer of a case and a breach found. -->
+        <div class="ai-confirm-overlay hidden" id="pqa-confirm-overlay" role="dialog" aria-modal="true">
+            <div class="ai-confirm-modal pv-confirm-modal"></div>
+        </div>
     </main>
 </div>
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
 <script th:src="@{/contexa/js/vendor/chart.umd.min.js}"></script>
 <script th:src="@{/contexa/js/admin/zero-trust/console-common.js?v=20261118-k119}"></script>
-<script th:src="@{/contexa/js/admin/zero-trust/decision.js?v=20261118-b3}"></script>
+<script th:src="@{/contexa/js/admin/prompt-quality/pqa-parts.js?v=20261122-s3}"></script>
+<script th:src="@{/contexa/js/admin/prompt-quality/case-answer.js?v=20261123-b2f}"></script>
+<script th:src="@{/contexa/js/admin/zero-trust/decision.js?v=20261122-s3b}"></script>
 </body>
 </html>
