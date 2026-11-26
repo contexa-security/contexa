@@ -15,79 +15,43 @@
  */
 package io.contexa.contexacommon.security.bridge.resolver;
 
-import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
-import io.contexa.contexacommon.security.bridge.BridgeProperties;
-import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
+import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationToken;
+import io.contexa.contexacommon.security.bridge.authentication.BridgePrincipal;
+import io.contexa.contexacommon.security.bridge.identity.BridgeObjectExtractor;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 final class SecurityContextStampSupport {
-
-    private static final List<String> PRINCIPAL_ID_KEYS = List.of("principalId", "externalSubjectId", "subjectId", "userId", "username", "loginId", "email", "sub", "subject", "id");
 
     private SecurityContextStampSupport() {
     }
 
+    /**
+     * The application's subject of an authentication, by the one rule Zero Trust keys its decisions by
+     * ({@link ContexaIdentity#subjectId}, R-10): a key of the principal or its details named some other user ID, and the
+     * stamp and the copy of the user were then another subject than the decisions (analysis L-05). An authentication
+     * Contexa made from a bridge stamp is read back as the application's subject it was made from: its name is the
+     * account of the copy where Contexa signs the users in, and a stamp of that name made a copy of the copy.
+     */
     static String extractPrincipalId(Authentication authentication) {
-        String oauth2PrincipalName = OAuth2AuthenticationSupport.principalName(authentication);
-        if (oauth2PrincipalName != null) {
-            return oauth2PrincipalName;
-        }
-        String fromDetails = BridgeObjectExtractor.extractString(authentication != null ? authentication.getDetails() : null, PRINCIPAL_ID_KEYS);
-        if (fromDetails != null) {
-            return fromDetails;
-        }
-        String fromPrincipal = BridgeObjectExtractor.extractString(authentication != null ? authentication.getPrincipal() : null, PRINCIPAL_ID_KEYS);
-        if (fromPrincipal != null) {
-            return fromPrincipal;
-        }
-        if (authentication == null) {
-            return null;
-        }
-        return text(authentication.getName());
-    }
-
-    static String resolveSubjectIdFromRequestAttributes(HttpServletRequest request, BridgeProperties properties) {
-        if (request != null && properties != null && properties.getAuthentication() != null && properties.getAuthentication().getRequestAttributes() != null) {
-            String principalId = text(request.getAttribute(properties.getAuthentication().getRequestAttributes().getFlatPrincipalId()));
-            if (principalId != null) {
-                return principalId;
+        if (authentication instanceof BridgeAuthenticationToken bridged) {
+            String madeFrom = bridged.getPrincipal() instanceof BridgePrincipal principal
+                    ? text(principal.principalId())
+                    : null;
+            if (madeFrom == null && bridged.getDetails() != null) {
+                madeFrom = text(bridged.getDetails().externalSubjectId());
+            }
+            if (madeFrom != null) {
+                return madeFrom;
             }
         }
-        return resolveCurrentPrincipalId(request);
-    }
-
-    static String resolveSubjectIdFromHeaders(HttpServletRequest request, BridgeProperties properties) {
-        if (request != null && properties != null && properties.getAuthentication() != null && properties.getAuthentication().getHeaders() != null) {
-            String principalId = text(request.getHeader(properties.getAuthentication().getHeaders().getPrincipalId()));
-            if (principalId != null) {
-                return principalId;
-            }
-        }
-        return resolveCurrentPrincipalId(request);
-    }
-
-    static String resolveCurrentPrincipalId(HttpServletRequest request) {
-        if (request != null && request.getUserPrincipal() != null) {
-            String principalId = text(request.getUserPrincipal().getName());
-            if (principalId != null) {
-                return principalId;
-            }
-        }
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
-            return null;
-        }
-        return extractPrincipalId(authentication);
+        return ContexaIdentity.subjectId(authentication);
     }
 
     static String extractString(Authentication authentication, List<String> keys) {
@@ -98,20 +62,12 @@ final class SecurityContextStampSupport {
         return BridgeObjectExtractor.extractString(authentication != null ? authentication.getPrincipal() : null, keys);
     }
 
-    static String extractString(Object source, List<String> keys) {
-        return BridgeObjectExtractor.extractString(source, keys);
-    }
-
     static Boolean extractBoolean(Authentication authentication, List<String> keys) {
         Boolean fromDetails = BridgeObjectExtractor.extractBoolean(authentication != null ? authentication.getDetails() : null, keys);
         if (fromDetails != null) {
             return fromDetails;
         }
         return BridgeObjectExtractor.extractBoolean(authentication != null ? authentication.getPrincipal() : null, keys);
-    }
-
-    static Boolean extractBoolean(Object source, List<String> keys) {
-        return BridgeObjectExtractor.extractBoolean(source, keys);
     }
 
     static Instant extractInstant(Authentication authentication, List<String> keys) {
@@ -122,19 +78,11 @@ final class SecurityContextStampSupport {
         return BridgeObjectExtractor.extractInstant(authentication != null ? authentication.getPrincipal() : null, keys);
     }
 
-    static Instant extractInstant(Object source, List<String> keys) {
-        return BridgeObjectExtractor.extractInstant(source, keys);
-    }
-
     static List<String> extractStringList(Authentication authentication, List<String> keys) {
         LinkedHashSet<String> values = new LinkedHashSet<>();
         values.addAll(BridgeObjectExtractor.extractStringSet(authentication != null ? authentication.getDetails() : null, keys));
         values.addAll(BridgeObjectExtractor.extractStringSet(authentication != null ? authentication.getPrincipal() : null, keys));
         return List.copyOf(values);
-    }
-
-    static Set<String> extractStringSet(Object source, List<String> keys) {
-        return BridgeObjectExtractor.extractStringSet(source, keys);
     }
 
     static Map<String, Object> extractAttributes(Object source, List<String> keys) {

@@ -45,6 +45,8 @@ import io.contexa.contexaiam.admin.web.center.service.AccessCenterService;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterCommandService;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationStore;
 import io.contexa.contexacore.autonomous.agent.AgentRegistry;
+import io.contexa.contexacommon.security.bridge.identity.IdentityDiagnostics;
+import io.contexa.contexaiam.admin.web.bridge.BridgeStatusController;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleController;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleService;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustDecisionRecords;
@@ -159,6 +161,14 @@ public class IamAdminMonitoringAutoConfiguration {
                                                                  ObjectProvider<ObjectMapper> objectMapper) {
         return new ZeroTrustConsoleController(contexaZeroTrustConsoleService, contexaZeroTrustDecisionRecords,
                 messageSource, objectMapper.getIfAvailable(ObjectMapper::new));
+    }
+
+    /** The user bridge status screen of the Zero Trust group: the bridge diagnostics' counts, read only. */
+    @Bean(name = "contexaBridgeStatusController")
+    @ConditionalOnMissingBean
+    public BridgeStatusController bridgeStatusController(ObjectProvider<IdentityDiagnostics> contexaIdentityDiagnostics,
+                                                         ObjectProvider<UserRepository> userRepository) {
+        return new BridgeStatusController(contexaIdentityDiagnostics, userRepository);
     }
 
     @Bean(name = "contexaCsvExportService")

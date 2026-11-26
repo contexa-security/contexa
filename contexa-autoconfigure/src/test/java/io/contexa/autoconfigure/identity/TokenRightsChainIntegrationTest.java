@@ -291,22 +291,16 @@ class TokenRightsChainIntegrationTest {
         }
 
         @Bean
-        TokenValidator contexaOauth2TokenValidator(IdentityOAuth2AutoConfiguration contexaOAuth2, BeanFactory beans,
-                                                   OAuth2AuthorizationService authorizations) {
-            return contexaOAuth2.oauth2TokenValidator(beans.getBean("contexaJwtDecoder", JwtDecoder.class), authorizations);
+        TokenValidator contexaOauth2TokenValidator(IdentityOAuth2AutoConfiguration contexaOAuth2, BeanFactory beans) {
+            return contexaOAuth2.oauth2TokenValidator(beans);
         }
 
         @Bean
-        OAuth2TokenService contexaOauth2TokenService(IdentityOAuth2AutoConfiguration contexaOAuth2,
-                                                     OAuth2AuthorizedClientManager manager,
-                                                     ClientRegistrationRepository registrations,
-                                                     OAuth2AuthorizationService authorizations,
+        OAuth2TokenService contexaOauth2TokenService(IdentityOAuth2AutoConfiguration contexaOAuth2, BeanFactory beans,
                                                      TokenValidator validator, ObjectMapper objectMapper,
                                                      ObjectProvider<ZeroTrustActionRepository> actions,
-                                                     ObjectProvider<AccountTokenGuard> accountGuard,
-                                                     RegisteredClientRepository clients) {
-            TokenService service = contexaOAuth2.oauth2TokenService(manager, registrations, authorizations, validator,
-                    objectMapper, actions, accountGuard, clients);
+                                                     ObjectProvider<AccountTokenGuard> accountGuard) {
+            TokenService service = contexaOAuth2.oauth2TokenService(beans, validator, objectMapper, actions, accountGuard);
             return (OAuth2TokenService) service;
         }
     }

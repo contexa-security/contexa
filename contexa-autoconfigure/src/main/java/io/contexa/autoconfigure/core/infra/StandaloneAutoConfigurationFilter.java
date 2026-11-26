@@ -30,6 +30,8 @@ import org.springframework.context.EnvironmentAware;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.MethodMetadata;
 import org.springframework.util.ClassUtils;
@@ -38,7 +40,6 @@ import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -46,21 +47,23 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 /**
- * Filters Redis/Kafka/Redisson auto-configurations in standalone mode.
- * Uses pattern-based matching instead of hardcoded FQCNs,
- * so Spring Boot version changes or new auto-configurations are handled automatically.
+ * Keeps out of an application the auto-configurations that are Contexa's own in standalone mode, and the third-party ones
+ * only Contexa's dependencies bring to an application that does not use them.
  *
- * <p>Contexa-owned ({@code io.contexa.*}) infrastructure auto-configurations are always excluded in
- * standalone mode. Third-party Redis auto-configurations (Spring Boot, Redisson) are excluded only when the
- * host application has not configured Redis itself, so a host application that uses its own Redis keeps its
- * auto-configuration. It says so with a connection property, or in its code: a class it registered or scanned
- * names Spring's support for Redis. Third-party Kafka auto-configurations are never excluded: Contexa's Kafka is
- * the distributed mode's only and nothing of the standalone mode takes a Kafka bean, so leaving them out took
- * from the application the beans it has without Contexa and kept nothing of Contexa's apart.</p>
+ * <p>Contexa-owned ({@code io.contexa.*}) Redis and Kafka auto-configurations are excluded in standalone mode. Third-party
+ * Redis and Kafka auto-configurations (Spring Boot, Redisson, Spring Kafka) are never excluded (R-9): Contexa brings none
+ * of their libraries, so they are on the class path because the application put them there, and an application uses them
+ * in more ways than its settings or its code can show (a session store, a cache). Contexa's own Redis branches stand on
+ * the mode, not on the application's beans.</p>
  *
  * <p>Spring Boot's data source auto-configuration and Spring AI's pgvector store auto-configuration are excluded,
  * in every mode and whether Contexa is switched on or not, for an application that has no database of its own:
  * Contexa's dependencies bring them to its class path, and without a database they fail its startup.</p>
+ *
+ * <p>Spring Boot's Thymeleaf auto-configuration is excluded, in every mode and whether Contexa is switched on or not, for
+ * an application that does not use Thymeleaf itself (R-9, F-04): Contexa's screens bring Thymeleaf to its class path, and
+ * the view resolver Spring Boot then configures takes every view name before JSP. Contexa's screens have a template engine
+ * of their own.</p>
  */
 public class StandaloneAutoConfigurationFilter implements AutoConfigurationImportFilter, EnvironmentAware, BeanFactoryAware {
 
@@ -73,31 +76,27 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
     private static final String CONTEXA_OWNED_DATASOURCE_AUTO_CONFIGURATION =
             "io.contexa.autoconfigure.core.ContexaOwnedDataSourceAutoConfiguration";
 
-    /**
-     * Connection keys that show the host application configured its own Redis. Redisson keys are included
-     * because the Redisson starter also provides the Redis connection factory used by Spring Data Redis.
-     */
-    private static final List<String> APPLICATION_REDIS_PROPERTIES = List.of(
-            "spring.data.redis.host",
-            "spring.data.redis.port",
-            "spring.data.redis.url",
-            "spring.data.redis.cluster.nodes",
-            "spring.data.redis.sentinel.nodes",
-            "spring.redis.host",
-            "spring.redis.port",
-            "spring.redis.url",
-            "spring.redis.cluster.nodes",
-            "spring.redis.sentinel.nodes",
-            "spring.data.redis.redisson.config",
-            "spring.data.redis.redisson.file",
-            "spring.redis.redisson.config",
-            "spring.redis.redisson.file");
+    /** Spring Boot's Thymeleaf auto-configuration, which Contexa's screens bring to an application's class path. */
+    private static final Set<String> THYMELEAF_AUTO_CONFIGURATIONS = Set.of(
+            "org.springframework.boot.autoconfigure.thymeleaf.ThymeleafAutoConfiguration",
+            "org.springframework.boot.thymeleaf.autoconfigure.ThymeleafAutoConfiguration");
 
-    /** The packages of Spring's support for Redis, the Redisson starter's included, as a class file names them. */
-    private static final List<String> REDIS_SUPPORT = List.of("org/springframework/data/redis/", "org/redisson/");
+    /** Property names under which an application configures its own Thymeleaf. */
+    private static final List<ConfigurationPropertyName> THYMELEAF_PROPERTIES =
+            List.of(ConfigurationPropertyName.of("spring.thymeleaf"));
 
-    /** What the Redis auto-configurations stand on: where it is not on the class path they keep out by themselves. */
-    private static final String REDIS_OPERATIONS = "org/springframework/data/redis/core/RedisOperations.class";
+    /** What a class of an application that uses Thymeleaf names, as a class file names it: Thymeleaf, its layout dialect. */
+    private static final List<String> THYMELEAF_SUPPORT = List.of("org/thymeleaf/", "nz/net/ultraq/thymeleaf/");
+
+    /** A library only an application that uses Thymeleaf adds: Contexa does not bring it. */
+    private static final String LAYOUT_DIALECT = "nz/net/ultraq/thymeleaf/layoutdialect/LayoutDialect.class";
+
+    /** The templates Spring Boot's Thymeleaf reads by default: {@code spring.thymeleaf.prefix} and suffix, unset. */
+    private static final String TEMPLATES = "classpath*:templates/**/*.html";
+    private static final String TEMPLATES_DIRECTORY = "/templates/";
+    /** Contexa's views: its screens under {@code contexa/}, and the name {@code contexa} itself. */
+    private static final String CONTEXA_VIEWS = "contexa/";
+    private static final String CONTEXA_VIEW = "contexa.html";
 
     /** Property names under which an application says it has a database (the host's own, not Contexa's). */
     private static final List<ConfigurationPropertyName> DATABASE_PROPERTIES = Stream.of(
@@ -112,7 +111,6 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
 
     private Environment environment;
     private BeanFactory beanFactory;
-    private Set<String> supportNamedInCode;
 
     @Override
     public boolean[] match(String[] autoConfigurationClasses, AutoConfigurationMetadata metadata) {
@@ -120,7 +118,7 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
                 environment.getProperty(MODE_PROPERTY, "standalone"));
         boolean contexaPlatformActive = isContexaPlatformActive();
         Boolean hasDatabase = null;
-        supportNamedInCode = null;
+        Boolean usesThymeleaf = null;
 
         boolean[] result = new boolean[autoConfigurationClasses.length];
         for (int i = 0; i < autoConfigurationClasses.length; i++) {
@@ -139,6 +137,16 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
                     hasDatabase = applicationHasDatabase();
                 }
                 result[i] = hasDatabase;
+                continue;
+            }
+
+            if (THYMELEAF_AUTO_CONFIGURATIONS.contains(autoConfigurationClass)) {
+                // Contexa's screens put Thymeleaf on the class path, and Spring Boot's Thymeleaf view resolver then takes every view name
+                // before JSP. It is left out, whether Contexa is switched on or not, only for an application that does not use Thymeleaf.
+                if (usesThymeleaf == null) {
+                    usesThymeleaf = applicationUsesThymeleaf();
+                }
+                result[i] = usesThymeleaf;
                 continue;
             }
 
@@ -162,52 +170,67 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
         return result;
     }
 
+    /**
+     * Contexa's own Redis and Kafka auto-configurations, which the standalone mode does without. The third-party ones are the
+     * application's: Contexa brings none of their libraries (R-9). Spring Boot's Kafka support stays as the application has it
+     * without Contexa (RC grid start-host-redisson: 19 beans of the application gone), and so does its Redis support (F-06: an
+     * application that used Redis without a connection key, through a session store or a cache, lost it).
+     */
     private boolean isExcludedInStandalone(String autoConfigurationClass) {
         String lowerName = autoConfigurationClass.toLowerCase(Locale.ROOT);
         boolean redisRelated = lowerName.contains(REDIS_PATTERN);
         boolean kafkaRelated = lowerName.contains(KAFKA_PATTERN);
-        if (!redisRelated && !kafkaRelated) {
+        return (redisRelated || kafkaRelated) && isContexaAutoConfiguration(autoConfigurationClass);
+    }
+
+    /**
+     * Whether the application uses Thymeleaf itself: it configures it ({@code spring.thymeleaf}), it carries the layout dialect, it has
+     * a template of its own where Spring Boot's Thymeleaf reads them (any but Contexa's views), or a class it registered or scanned names
+     * Thymeleaf. Where the templates cannot be read, it is taken to use Thymeleaf: leaving its pages without their engine is worse than
+     * leaving a JSP application as Contexa found it.
+     */
+    private boolean applicationUsesThymeleaf() {
+        ClassLoader classLoader = applicationClassLoader();
+        return hasAnyPropertyUnder(THYMELEAF_PROPERTIES)
+                || classLoader.getResource(LAYOUT_DIALECT) != null
+                || applicationTemplatePresent(classLoader)
+                || !namedInCode(THYMELEAF_SUPPORT).isEmpty();
+    }
+
+    private static boolean applicationTemplatePresent(ClassLoader classLoader) {
+        try {
+            for (Resource template : new PathMatchingResourcePatternResolver(classLoader).getResources(TEMPLATES)) {
+                String location = template.getURL().toString();
+                int directory = location.lastIndexOf(TEMPLATES_DIRECTORY);
+                String view = directory >= 0 ? location.substring(directory + TEMPLATES_DIRECTORY.length()) : location;
+                if (!view.startsWith(CONTEXA_VIEWS) && !view.equals(CONTEXA_VIEW)) {
+                    return true;
+                }
+            }
             return false;
-        }
-        if (isContexaAutoConfiguration(autoConfigurationClass)) {
+        } catch (IOException | RuntimeException ex) {
             return true;
         }
-        // Spring Boot's Kafka support stays as the application has it without Contexa: Contexa's own Kafka beans are the distributed
-        // mode's only and none of the standalone mode takes one of the application's, while leaving it out took the application's
-        // kafkaTemplate, factories and listener support (RC grid start-host-redisson: 19 beans of the application gone)
-        return redisRelated && !applicationUses(APPLICATION_REDIS_PROPERTIES, REDIS_SUPPORT);
+    }
+
+    private ClassLoader applicationClassLoader() {
+        if (beanFactory instanceof ConfigurableListableBeanFactory listable && listable.getBeanClassLoader() != null) {
+            return listable.getBeanClassLoader();
+        }
+        return getClass().getClassLoader();
     }
 
     /**
-     * Whether the application uses that infrastructure itself: it gives a connection property, or its code names Spring's support for
-     * it. An application that builds its connection factories in code, or takes Spring Boot's template with the default address, gives
-     * no property.
+     * Which of the sought packages the classes the application registered or scanned name. Spring asks this filter before it reads
+     * the beans of any configuration, so each class file is read as it stands, without loading the class: a type the class takes,
+     * returns, builds or annotates with is named there by its package.
      */
-    private boolean applicationUses(List<String> connectionProperties, List<String> support) {
-        if (hasAnyApplicationProperty(connectionProperties)) {
-            return true;
-        }
-        if (supportNamedInCode == null) {
-            supportNamedInCode = supportNamedInCode();
-        }
-        return support.stream().anyMatch(supportNamedInCode::contains);
-    }
-
-    /**
-     * Which of Spring's Redis support the classes the application registered or scanned name. Spring asks this filter before it
-     * reads the beans of any configuration, so each class file is read as it stands, without loading the class: a type the class takes,
-     * returns, builds or annotates with is named there by its package. Nothing is read where the support is not on the class path.
-     */
-    private Set<String> supportNamedInCode() {
+    private Set<String> namedInCode(List<String> sought) {
         Set<String> named = new HashSet<>();
         if (!(beanFactory instanceof ConfigurableListableBeanFactory listable) || listable.getBeanClassLoader() == null) {
             return named;
         }
         ClassLoader classLoader = listable.getBeanClassLoader();
-        List<String> sought = new ArrayList<>();
-        if (classLoader.getResource(REDIS_OPERATIONS) != null) {
-            sought.addAll(REDIS_SUPPORT);
-        }
         for (String beanName : listable.getBeanDefinitionNames()) {
             if (named.size() == sought.size()) {
                 break;
@@ -315,16 +338,6 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
             // a type that is not on the class path is not one this application builds
             return false;
         }
-    }
-
-    private boolean hasAnyApplicationProperty(List<String> propertyNames) {
-        for (String propertyName : propertyNames) {
-            if (environment.containsProperty(propertyName)
-                    || environment.containsProperty(propertyName + "[0]")) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private boolean isContexaPlatformActive() {

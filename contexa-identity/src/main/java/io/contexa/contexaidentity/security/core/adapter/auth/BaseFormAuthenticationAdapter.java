@@ -62,7 +62,7 @@ public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfig
         http.with(configurer, config -> {
             configureFormAuthentication(config, opts, successHandler, failureHandler);
             configureSecurityContext(config, opts, http, stateType);
-            useContexaSignIn(config, applicationContext);
+            useContexaSignIn(config, http, applicationContext);
         });
     }
 
@@ -70,7 +70,7 @@ public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfig
      * Gives the configurer's filter Contexa's own password sign-in ({@link ContexaPasswordSignIn}) where its filter would
      * take the chain's manager. A configurer of Contexa's that already asks for it does nothing here.
      */
-    protected void useContexaSignIn(T configurer, ApplicationContext applicationContext) {
+    protected void useContexaSignIn(T configurer, HttpSecurity http, ApplicationContext applicationContext) {
     }
 
     protected abstract T createConfigurer();

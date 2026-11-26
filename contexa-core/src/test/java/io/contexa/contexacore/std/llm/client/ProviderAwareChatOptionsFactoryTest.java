@@ -15,9 +15,16 @@
  */
 package io.contexa.contexacore.std.llm.client;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import io.contexa.contexacore.std.llm.client.vertexai.VertexLikeChatModel;
+import io.contexa.contexacore.std.llm.model.ChatModelVariants;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.anthropic.AnthropicChatOptions;
 import org.springframework.ai.anthropic.api.AnthropicApi;
@@ -284,8 +291,13 @@ class ProviderAwareChatOptionsFactoryTest {
         clearOpenAiCapabilities();
     }
 
+    /**
+     * R-9: the default options of a chat model Contexa did not make (the application's, as the application has it) are
+     * the application's: Contexa sets nothing in them, though its own calls on the model would leave them out.
+     */
     @Test
-    void normalizeModelDefaultOptionsInPlaceShouldMutateActualOpenAiDefaultOptions() {
+    @DisplayName("Contexa가 만들지 않은 채팅 모델의 실제 기본 옵션은 제자리에서 바뀌지 않는다")
+    void anApplicationsModelKeepsItsActualOpenAiDefaultOptions() {
         configureOpenAiCapabilities(CAPABILITY_MODEL);
         try {
             CopyingOpenAiDefaultOptionsChatModel chatModel = new CopyingOpenAiDefaultOptionsChatModel(
@@ -298,12 +310,70 @@ class ProviderAwareChatOptionsFactoryTest {
 
             ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(chatModel);
 
+            assertThat(chatModel.actualDefaultOptions.getTemperature()).isEqualTo(0.7d);
+            assertThat(chatModel.actualDefaultOptions.getTopP()).isEqualTo(0.9d);
+            assertThat(chatModel.actualDefaultOptions.getMaxTokens()).isEqualTo(256);
+            assertThat(chatModel.actualDefaultOptions.getMaxCompletionTokens()).isNull();
+        } finally {
+            clearOpenAiCapabilities();
+        }
+    }
+
+    /**
+     * The defaults of a chat model Contexa made for its own calls are set in place, where Spring AI reads them: a request
+     * cannot take a default out, so a reasoning model's sampling and max_tokens leave the defaults themselves.
+     */
+    @Test
+    @DisplayName("Contexa가 만든 채팅 모델 인스턴스의 실제 기본 옵션은 제자리에서 그 모델이 받는 값으로 맞춘다")
+    void contexasOwnModelHasItsActualOpenAiDefaultOptionsSetInPlace() {
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            CopyingOpenAiDefaultOptionsChatModel chatModel = ContexaChatModelInstances.add(
+                    new CopyingOpenAiDefaultOptionsChatModel(OpenAiChatOptions.builder()
+                            .model(CAPABILITY_MODEL)
+                            .maxTokens(256)
+                            .temperature(0.7d)
+                            .topP(0.9d)
+                            .build()));
+
+            ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(chatModel);
+
             assertThat(chatModel.actualDefaultOptions.getTemperature()).isNull();
             assertThat(chatModel.actualDefaultOptions.getTopP()).isNull();
             assertThat(chatModel.actualDefaultOptions.getMaxTokens()).isNull();
             assertThat(chatModel.actualDefaultOptions.getMaxCompletionTokens()).isEqualTo(256);
         } finally {
             clearOpenAiCapabilities();
+        }
+    }
+
+    /**
+     * The first Contexa call on an application's model whose defaults hold what Contexa leaves out of its own instances'
+     * defaults is reported once, with the fields, and the defaults stay; a model with none of them is not reported.
+     */
+    @Test
+    @DisplayName("앱 채팅 모델의 기본 옵션에 Contexa가 뺄 값이 있으면 한 번만 error 로그로 알리고 옵션은 그대로 둔다")
+    void anApplicationsDefaultsContexaWouldLeaveOutAreReportedOnce() {
+        Logger logger = (Logger) LoggerFactory.getLogger(ProviderAwareChatOptionsFactory.class);
+        ListAppender<ILoggingEvent> logged = new ListAppender<>();
+        logged.start();
+        logger.addAppender(logged);
+        try {
+            AnthropicChatModel refusing = anthropicModel("claude-haiku-5-5");
+            AnthropicChatModel older = anthropicModel("claude-haiku-4-5");
+
+            ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(refusing);
+            ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(refusing);
+            ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(older);
+
+            List<String> errors = logged.list.stream().filter(event -> event.getLevel() == Level.ERROR)
+                    .map(ILoggingEvent::getFormattedMessage).toList();
+            assertThat(errors).hasSize(1);
+            assertThat(errors.get(0)).contains(AnthropicChatModel.class.getName()).contains("claude-haiku-5-5")
+                    .contains("[temperature, top_k]");
+            assertThat(((AnthropicChatOptions) refusing.getDefaultOptions()).getTemperature()).isEqualTo(0.8d);
+        } finally {
+            logger.detachAppender(logged);
         }
     }
 
@@ -575,14 +645,32 @@ class ProviderAwareChatOptionsFactoryTest {
     }
 
     /**
-     * A Claude model whose bean was created before the post-processors still has Spring AI's default temperature (0.8),
-     * which Claude Haiku 5.5 refuses; its defaults lose the refused sampling in place before a call, and an older
-     * Claude model keeps them.
+     * R-9: the application's Claude model keeps Spring AI's default temperature (0.8), which Claude Haiku 5.5 refuses:
+     * the application set it, and Contexa sets nothing in a model it did not make.
      */
     @Test
-    void aClaudeModelsRefusedDefaultSamplingIsTakenOutInPlaceBeforeACall() {
+    @DisplayName("앱의 Claude 모델은 그 모델이 거절하는 기본 샘플링도 앱이 준 그대로 둔다")
+    void anApplicationsClaudeModelKeepsItsDefaultSampling() {
         AnthropicChatModel newer = anthropicModel("claude-haiku-5-5");
-        AnthropicChatModel older = anthropicModel("claude-haiku-4-5");
+
+        ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(newer);
+
+        AnthropicChatOptions newerDefaults = (AnthropicChatOptions) newer.getDefaultOptions();
+        assertThat(newerDefaults.getTemperature()).isEqualTo(0.8d);
+        assertThat(newerDefaults.getTopK()).isEqualTo(5);
+        assertThat(newerDefaults.getMaxTokens()).isEqualTo(500);
+    }
+
+    /**
+     * Contexa's own instance of a Claude model loses the sampling the model refuses (Spring AI's 0.8 included) from its
+     * defaults before a call, and an older Claude model keeps it; the application's model it was made from keeps its own.
+     */
+    @Test
+    @DisplayName("Contexa 인스턴스의 Claude 모델만 그 모델이 거절하는 기본 샘플링을 호출 전에 뺀다")
+    void contexasClaudeInstanceLosesTheRefusedDefaultSamplingBeforeACall() {
+        AnthropicChatModel application = anthropicModel("claude-haiku-5-5");
+        ChatModel newer = ChatModelVariants.copyOf(application).orElseThrow();
+        ChatModel older = ChatModelVariants.copyOf(anthropicModel("claude-haiku-4-5")).orElseThrow();
 
         ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(newer);
         ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(older);
@@ -592,6 +680,8 @@ class ProviderAwareChatOptionsFactoryTest {
         assertThat(newerDefaults.getTopK()).isNull();
         assertThat(newerDefaults.getMaxTokens()).isEqualTo(500);
         assertThat(((AnthropicChatOptions) older.getDefaultOptions()).getTemperature()).isEqualTo(0.8d);
+        assertThat(((AnthropicChatOptions) application.getDefaultOptions()).getTemperature()).isEqualTo(0.8d);
+        assertThat(((AnthropicChatOptions) application.getDefaultOptions()).getTopK()).isEqualTo(5);
     }
 
     /**

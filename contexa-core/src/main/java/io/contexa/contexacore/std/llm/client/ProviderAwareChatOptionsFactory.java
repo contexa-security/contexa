@@ -25,8 +25,13 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -108,6 +113,9 @@ public final class ProviderAwareChatOptionsFactory {
             new AtomicInteger(DEFAULT_OLLAMA_MAX_CONTEXT_LENGTH);
     private static final AtomicInteger CONFIGURED_OLLAMA_CONTEXT_LENGTH =
             new AtomicInteger(DEFAULT_OLLAMA_CONTEXT_LENGTH);
+    /** R-9: the application's chat models whose default options were checked at Contexa's first call on them. */
+    private static final Map<ChatModel, Boolean> REPORTED_APPLICATION_MODELS =
+            Collections.synchronizedMap(new WeakHashMap<>());
 
     private ProviderAwareChatOptionsFactory() {
     }
@@ -278,24 +286,44 @@ public final class ProviderAwareChatOptionsFactory {
         return (ChatOptions) copy;
     }
 
+    /**
+     * R-9: sets in the default options of a chat model Contexa made for its own calls ({@link ContexaChatModelInstances})
+     * what the model it runs takes. Spring AI merges a model's defaults into every request it sends, and a request cannot
+     * take a default out, so this is set in the defaults: no sampling value for a model that takes none but the default,
+     * the completion token field of an OpenAI reasoning model, no field the provider refused for the model. A chat model
+     * Contexa did not make is the application's and keeps the options the application gave it; Contexa's requests on it
+     * carry what Contexa asks for, and a default of the application's that Contexa would leave out is reported once.
+     */
     public static void normalizeModelDefaultOptionsInPlace(ChatModel selectedModel) {
         if (selectedModel == null) {
             return;
         }
         ChatOptions options = mutableDefaultOptions(selectedModel);
-        if (isAnthropicOptions(options)) {
-            // Spring AI sends the default temperature it sets (0.8) on every request; a Claude model that refuses any
-            // sampling value but the default loses it, whenever its bean was created.
-            if (anthropicUsesDefaultSamplingOnly(readString(options, "getModel")) && hasSamplingValues(options)) {
-                withoutSamplingValues(options);
-            }
-            // Design 4.5-C: what the provider refused for the model is left out of its defaults as well, since Spring AI
-            // 1.1 merges the defaults back into a request that leaves a field out.
-            AnthropicThinkingOptions.removeRefusedInPlace(options);
+        if (options != null) {
+            normalizeDefaults(options);
             return;
         }
+        reportApplicationDefaults(selectedModel);
+    }
+
+    /**
+     * Sets in the default options what the model they name takes, and returns the fields it took out. A Claude model:
+     * no sampling value when it refuses any but the default (Spring AI's own default temperature, 0.8, included), and
+     * none the provider refused for it (design 4.5-C). An OpenAI model, as its configured capabilities say: the model
+     * named, the completion token field in place of max_tokens, no sampling value.
+     */
+    private static Set<String> normalizeDefaults(ChatOptions options) {
+        Set<String> takenOut = new LinkedHashSet<>();
+        if (isAnthropicOptions(options)) {
+            if (anthropicUsesDefaultSamplingOnly(readString(options, "getModel")) && hasSamplingValues(options)) {
+                takenOut.addAll(samplingFieldNames(options));
+                withoutSamplingValues(options);
+            }
+            takenOut.addAll(AnthropicThinkingOptions.removeRefusedInPlace(options).keySet());
+            return takenOut;
+        }
         if (!isOpenAiOptions(options)) {
-            return;
+            return takenOut;
         }
         String modelName = firstNonBlank(
                 readString(options, "getModel"),
@@ -303,7 +331,7 @@ public final class ProviderAwareChatOptionsFactory {
         boolean requiresMaxCompletion = requiresMaxCompletionTokens(modelName);
         boolean usesDefaultSamplingOnly = usesDefaultSamplingOnly(modelName);
         if (!requiresMaxCompletion && !usesDefaultSamplingOnly) {
-            return;
+            return takenOut;
         }
         if (modelName != null && !modelName.isBlank()) {
             try {
@@ -312,6 +340,12 @@ public final class ProviderAwareChatOptionsFactory {
             }
         }
         if (usesDefaultSamplingOnly) {
+            if (options.getTemperature() != null) {
+                takenOut.add("temperature");
+            }
+            if (options.getTopP() != null) {
+                takenOut.add("top_p");
+            }
             try {
                 invokeSetter(options, "setTemperature", Double.class, null);
             } catch (Exception ignored) {
@@ -330,16 +364,62 @@ public final class ProviderAwareChatOptionsFactory {
                 } catch (Exception ignored) {
                 }
             }
+            if (maxTokens != null) {
+                takenOut.add("max_tokens");
+            }
             try {
                 invokeSetter(options, "setMaxTokens", Integer.class, null);
             } catch (Exception ignored) {
             }
         }
+        return takenOut;
     }
 
-    /** The model's own default options (Spring AI keeps them in a field it hands out only as copies). */
+    /**
+     * The first Contexa call on an application's chat model: when its defaults hold what Contexa leaves out of the
+     * defaults of its own instances, Contexa's requests send that too (Spring AI merges it back), and the provider may
+     * refuse them. Logged once for the model; its options stay as the application set them.
+     */
+    private static void reportApplicationDefaults(ChatModel model) {
+        if (REPORTED_APPLICATION_MODELS.putIfAbsent(model, Boolean.TRUE) != null) {
+            return;
+        }
+        ChatOptions defaults = model.getDefaultOptions();
+        if (!isAnthropicOptions(defaults) && !isOpenAiOptions(defaults)) {
+            return;
+        }
+        ChatOptions copy = defaults.copy();
+        Set<String> kept = normalizeDefaults(copy);
+        if (!kept.isEmpty()) {
+            log.error("[ProviderAwareChatOptionsFactory] The chat model {} is the application's and Contexa has no"
+                            + " instance of its own of it, so its default options stay as the application set them:"
+                            + " Contexa's requests to model {} send its default {} as well, which that model does not"
+                            + " take or its provider refused. A bean of the provider's own chat model class gets an"
+                            + " instance of Contexa's own.",
+                    model.getClass().getName(), readString(copy, "getModel"), kept);
+        }
+    }
+
+    private static List<String> samplingFieldNames(ChatOptions options) {
+        List<String> fields = new ArrayList<>();
+        if (options.getTemperature() != null) {
+            fields.add("temperature");
+        }
+        if (options.getTopP() != null) {
+            fields.add("top_p");
+        }
+        if (options.getTopK() != null) {
+            fields.add("top_k");
+        }
+        return fields;
+    }
+
+    /**
+     * The default options of a chat model Contexa made for its own calls, which Contexa sets in place (Spring AI keeps
+     * them in a field it hands out only as copies); null for any other chat model, whose options are the application's.
+     */
     static ChatOptions mutableDefaultOptions(ChatModel selectedModel) {
-        if (selectedModel == null) {
+        if (selectedModel == null || !ContexaChatModelInstances.isContexas(selectedModel)) {
             return null;
         }
         Field defaultOptionsField = findField(selectedModel.getClass(), "defaultOptions");

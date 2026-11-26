@@ -26,6 +26,7 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -172,8 +173,13 @@ class SecurityContextJwtStampResolversTest {
         assertThat(authenticationStamp.principalId()).isEqualTo("oidc-sub-1");
     }
 
+    /**
+     * R-10 (analysis L-05): a UserDetails principal whose user ID key differs from its username is keyed by the name, as
+     * Zero Trust keys its decisions; the key had made the stamp and the copy of the user another subject.
+     */
     @Test
-    void userDetailsPrincipalKeepsTheExistingExtractionEvenWhenItIsAnOAuth2Principal() {
+    @DisplayName("UserDetails 주체도 판정 키와 같은 getName()으로 도장을 찍는다")
+    void userDetailsPrincipalIsKeyedByItsNameAsTheDecisionsAre() {
         UserDetailsOAuth2Principal principal = new UserDetailsOAuth2Principal();
         UsernamePasswordAuthenticationToken authentication = UsernamePasswordAuthenticationToken.authenticated(
                 principal, null, principal.getAuthorities());
@@ -182,7 +188,7 @@ class SecurityContextJwtStampResolversTest {
         AuthenticationStamp authenticationStamp = authenticationStampResolver.resolve(null, requestContext(), new BridgeProperties()).orElseThrow();
 
         assertThat(authentication.getName()).isEqualTo("alice");
-        assertThat(authenticationStamp.principalId()).isEqualTo("u-77");
+        assertThat(authenticationStamp.principalId()).isEqualTo("alice");
     }
 
     @Test

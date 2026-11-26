@@ -24,6 +24,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseCookie;
+import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
@@ -34,23 +35,26 @@ import java.util.List;
 /**
  * LogoutHandler responsible for executing logout strategies and clearing token cookies.
  * Does NOT write response body - that is the responsibility of LogoutSuccessHandler.
+ * Where Contexa's OAuth2 plane is not there, it has no token service and no authorization service: a sign-out then runs
+ * its strategies on the session alone, and a forced sign-out ends the sessions only.
  */
 @Slf4j
 public class CompositeLogoutHandler implements LogoutHandler, IForceLogoutService {
 
     private final List<LogoutStrategy> strategies;
+    @Nullable
     private final TokenService tokenService;
     private final ZeroTrustSecurityService zeroTrustSecurityService;
+    @Nullable
     private final DeviceAwareOAuth2AuthorizationService authorizationService;
 
     public CompositeLogoutHandler(
             List<LogoutStrategy> strategies,
-            TokenService tokenService,
+            @Nullable TokenService tokenService,
             ZeroTrustSecurityService zeroTrustSecurityService,
-            DeviceAwareOAuth2AuthorizationService authorizationService) {
+            @Nullable DeviceAwareOAuth2AuthorizationService authorizationService) {
 
         Assert.notEmpty(strategies, "strategies cannot be empty");
-        Assert.notNull(tokenService, "tokenService cannot be null");
         this.strategies = strategies;
         this.tokenService = tokenService;
         this.zeroTrustSecurityService = zeroTrustSecurityService;
@@ -95,6 +99,9 @@ public class CompositeLogoutHandler implements LogoutHandler, IForceLogoutServic
             }
         }
 
+        if (authorizationService == null) {
+            return;
+        }
         try {
             authorizationService.invalidateAllByPrincipalName(userId);
         } catch (Exception e) {
@@ -103,6 +110,9 @@ public class CompositeLogoutHandler implements LogoutHandler, IForceLogoutServic
     }
 
     private void clearTokenCookies(HttpServletResponse response) {
+        if (tokenService == null) {
+            return;
+        }
         try {
             TokenTransportResult clearResult = tokenService.prepareClearTokens();
             if (clearResult.getCookiesToRemove() != null) {

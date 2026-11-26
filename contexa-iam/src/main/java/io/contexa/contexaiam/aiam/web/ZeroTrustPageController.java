@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.aiam.web;
 
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.SameAppPath;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
@@ -60,8 +61,10 @@ public class ZeroTrustPageController {
         boolean mfaFailed = false;
         boolean blockListOpen = false;
         int mfaFailCount = 0;
-        if (principal != null) {
-            String userId = ZeroTrustUserKey.person(principal.getName());
+        String userId = principal != null
+                ? ZeroTrustUserKey.person(ContexaIdentity.userId(request, principal))
+                : null;
+        if (userId != null) {
 
             mfaFailed = blockedUserService.hasLatestStatus(userId, BlockedUserStatus.MFA_FAILED);
 

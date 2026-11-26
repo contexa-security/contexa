@@ -19,6 +19,7 @@ import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDenied
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexacommon.security.context.OfficialContextRequestAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -52,7 +53,7 @@ public class ProtectableRapidReentryGuard {
         if (!tryAcquire(authentication, methodInvocation)) {
             String scopeKey = buildRequestScopeKey(resolveCurrentRequest(), methodInvocation, "UNSPECIFIED");
             log.warn("[ProtectableRapidReentryGuard] Rapid protected re-entry denied: userId={}, scope={}",
-                    authentication != null ? authentication.getName() : null,
+                    ContexaIdentity.userId(resolveCurrentRequest(), authentication),
                     scopeKey);
             throw new RapidProtectableReentryDeniedException(scopeKey, Math.max(0L, window.toSeconds()));
         }
@@ -79,7 +80,7 @@ public class ProtectableRapidReentryGuard {
             return true;
         }
 
-        String userId = authentication.getName();
+        String userId = ContexaIdentity.userId(request, authentication);
         if (userId == null || userId.isBlank()) {
             return true;
         }

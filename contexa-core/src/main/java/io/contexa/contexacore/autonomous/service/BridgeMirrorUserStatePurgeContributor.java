@@ -19,10 +19,16 @@ import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Deletes the bridge mirror users of a deleted account. The security bridge mirrors an authenticated principal into a
@@ -66,7 +72,7 @@ public class BridgeMirrorUserStatePurgeContributor implements UserStatePurgeCont
         TransactionTemplate template = new TransactionTemplate(transactions);
         template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         template.executeWithoutResult(status -> {
-            for (Users mirror : userRepository.findByExternalSubjectIdAndBridgeManagedTrue(userId)) {
+            for (Users mirror : mirrorsOf(userRepository, userId)) {
                 Long id = mirror.getId();
                 if (rolePermissionRepository != null) {
                     rolePermissionRepository.deleteByUserId(id);
@@ -77,5 +83,23 @@ public class BridgeMirrorUserStatePurgeContributor implements UserStatePurgeCont
                 userRepository.deleteById(id);
             }
         });
+    }
+
+    /**
+     * The mirrors of the principal: those kept under its decision key (bridge v2 B5-1, decision 7), then those an older
+     * version kept under the name as given; a mirror found both ways is one.
+     */
+    private static List<Users> mirrorsOf(UserRepository userRepository, String userId) {
+        String decisionKey = ZeroTrustUserKey.of(userId);
+        Map<Long, Users> mirrors = new LinkedHashMap<>();
+        for (Users mirror : userRepository.findByExternalSubjectIdAndBridgeManagedTrue(decisionKey)) {
+            mirrors.putIfAbsent(mirror.getId(), mirror);
+        }
+        if (!decisionKey.equals(userId)) {
+            for (Users mirror : userRepository.findByExternalSubjectIdAndBridgeManagedTrue(userId)) {
+                mirrors.putIfAbsent(mirror.getId(), mirror);
+            }
+        }
+        return new ArrayList<>(mirrors.values());
     }
 }

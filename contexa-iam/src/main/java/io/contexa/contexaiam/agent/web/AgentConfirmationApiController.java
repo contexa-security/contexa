@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.agent.web;
 
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.agent.AgentCallGuard;
@@ -166,7 +167,7 @@ public class AgentConfirmationApiController {
             return null;
         }
         // The gate binds the request with the same tenant (RequestInfoExtractor), so the hashes meet.
-        ZeroTrustSubject subject = ZeroTrustSubject.of(authentication.getName(), stamp,
+        ZeroTrustSubject subject = ZeroTrustSubject.of(ContexaIdentity.userId(request, authentication), stamp,
                 RequestInfoExtractor.extractTenantId(request));
         return subject != null && subject.agentId() != null ? subject : null;
     }

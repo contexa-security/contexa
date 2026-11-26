@@ -89,9 +89,12 @@ class AdminMenuServiceTest {
         verify(menuQueryCache, atLeastOnce()).invalidate();
     }
 
-    /** Console plan 5-1: a new installation gets the console's six screens and none of the AI monitor's pages. */
+    /**
+     * Console plan 5-1: a new installation gets the console's six screens and the user bridge status, and none of the AI
+     * monitor's pages.
+     */
     @Test
-    @DisplayName("a new installation seeds the Zero Trust console's six screens under the Zero Trust group")
+    @DisplayName("a new installation seeds the Zero Trust console's six screens and the user bridge status under the Zero Trust group")
     void aNewInstallationSeedsTheConsoleScreens() {
         AdminMenuService service = new AdminMenuService(menuRepository, menuQueryCache, false, false);
         List<AdminMenu> saved = new ArrayList<>();
@@ -119,7 +122,8 @@ class AdminMenuServiceTest {
                 "3 menu.zerotrust.trust /contexa/admin/zero-trust/trust zero-trust-trust",
                 "4 menu.zerotrust.decisions /contexa/admin/zero-trust/decisions zero-trust-decisions",
                 "5 menu.zerotrust.adoption /contexa/admin/zero-trust/adoption zero-trust-adoption",
-                "6 menu.zerotrust.operations /contexa/admin/zero-trust/operations zero-trust-operations");
+                "6 menu.zerotrust.operations /contexa/admin/zero-trust/operations zero-trust-operations",
+                "7 menu.zerotrust.bridge /contexa/admin/zero-trust/bridge zero-trust-bridge");
         assertThat(saved).noneMatch(menu -> menu.getDataPage() != null && menu.getDataPage().startsWith("ai-monitor-"));
         assertThat(saved).filteredOn(menu -> "security-monitor".equals(menu.getDataPage()))
                 .extracting(AdminMenu::getName).containsOnly("menu.security.events");

@@ -177,7 +177,8 @@ class CodeAndPasskeySignInAccountStateTest {
         UserDetailsService contexaAccounts = new InMemoryUserDetailsManager(
                 User.withUsername("administrator").password("{noop}x").roles("ADMIN").build());
         when(context.containsBean(ContexaUserStore.BEAN_NAME)).thenReturn(true);
-        when(context.getBean(ContexaUserStore.BEAN_NAME, UserDetailsService.class)).thenReturn(contexaAccounts);
+        // Contexa's store is taken by its name, a bean of the type or held (R-17)
+        when(context.getBean(ContexaUserStore.BEAN_NAME)).thenReturn(contexaAccounts);
     }
 
     /** The provider the adapter gives Spring's one-time token login, which reads the code of the user named by "user". */

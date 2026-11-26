@@ -21,7 +21,7 @@ import io.contexa.contexaiam.domain.dto.ResourceSearchCriteria;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.QManagedResource;
 import io.contexa.contexacommon.entity.QPermission;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -31,10 +31,14 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 @Repository
-@RequiredArgsConstructor
 public class ManagedResourceRepositoryCustomImpl implements ManagedResourceRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
+
+    /** Contexa's query factory, over Contexa's own database, taken by its name: the application may have one of its own (F-02). */
+    public ManagedResourceRepositoryCustomImpl(@Qualifier("contexaJpaQueryFactory") JPAQueryFactory queryFactory) {
+        this.queryFactory = queryFactory;
+    }
 
     @Override
     public Page<ManagedResource> findByCriteria(ResourceSearchCriteria criteria, Pageable pageable) {

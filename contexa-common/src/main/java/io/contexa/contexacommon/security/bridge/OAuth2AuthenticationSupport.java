@@ -33,14 +33,16 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Resolves the bridge principal id of OAuth2/JWT authentications.
+ * Reads OAuth2/JWT authentications: their token's claims, the login session a token carries, and whether a request is
+ * token traffic.
  * <p>
  * Zero Trust keys its decisions by {@link Authentication#getName()} (the JWT principal claim, {@code sub} by
- * default, or the OAuth2 user name attribute), so the bridge uses the same value for these authentications.
+ * default, or the OAuth2 user name attribute); the bridge names every authentication's subject by the same rule
+ * ({@link ContexaIdentity#subjectId}, R-10), so {@link #principalName} is that name for these authentications.
  * An authentication counts as OAuth2 when it is an {@code AbstractOAuth2TokenAuthenticationToken} or an
  * {@code OAuth2AuthenticationToken}, or when a re-wrapped token (for example the Zero Trust token) still carries
- * an {@code OAuth2AuthenticatedPrincipal}. {@link UserDetails} principals and {@link BridgeAuthenticationToken}
- * keep the existing extraction.
+ * an {@code OAuth2AuthenticatedPrincipal}; {@link UserDetails} principals and {@link BridgeAuthenticationToken} do not
+ * count as OAuth2.
  * <p>
  * The Spring Security OAuth2 modules are optional at runtime, so their types are only referenced from holder
  * classes that are loaded after a class-presence check.
@@ -91,6 +93,20 @@ public final class OAuth2AuthenticationSupport {
         }
         Map<String, Object> claims = ResourceServerTypes.tokenAttributes(authentication);
         return claims == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(claims));
+    }
+
+    /**
+     * bridge v2: the claims of the user an authentication names: the token's claims for an OAuth2 resource server
+     * authentication, else the attributes of an OAuth2 principal (the user of an OAuth2 or OpenID Connect login, the
+     * principal of an introspected token); empty for any other authentication.
+     */
+    public static Map<String, Object> userClaims(@Nullable Authentication authentication) {
+        Map<String, Object> claims = tokenClaims(authentication);
+        if (!claims.isEmpty() || !OAUTH2_CORE_PRESENT || authentication == null) {
+            return claims;
+        }
+        Map<String, Object> attributes = OAuth2CoreTypes.principalAttributes(authentication.getPrincipal());
+        return attributes == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(attributes));
     }
 
     /**
@@ -191,6 +207,11 @@ public final class OAuth2AuthenticationSupport {
 
         static boolean isOAuth2Principal(@Nullable Object principal) {
             return principal instanceof OAuth2AuthenticatedPrincipal;
+        }
+
+        @Nullable
+        static Map<String, Object> principalAttributes(@Nullable Object principal) {
+            return principal instanceof OAuth2AuthenticatedPrincipal oauth2 ? oauth2.getAttributes() : null;
         }
     }
 }

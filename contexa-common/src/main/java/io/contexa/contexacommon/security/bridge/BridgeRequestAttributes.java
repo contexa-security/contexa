@@ -24,6 +24,17 @@ public final class BridgeRequestAttributes {
     public static final String COVERAGE_REPORT = "ctxa.bridge.coverage.report";
     public static final String USER_SYNC_RESULT = "ctxa.bridge.user.sync.result";
     public static final String HOST_PRINCIPAL_SNAPSHOT = "ctxa.bridge.host.principal.snapshot";
+    /**
+     * R-10: the user the bridge resolved for a request the application's Spring Security signed nobody in to, as an
+     * authentication of Contexa's alone; set only where Contexa does not write the application's security context
+     * (SANDBOX). Contexa's decisions read it through {@link ContexaIdentity}.
+     */
+    public static final String IDENTITY = "ctxa.bridge.identity";
+    /**
+     * bridge v2: the identity Contexa resolved for the request ({@link ContexaIdentity}), whether resolved or not, with
+     * its source, its outcome and what broke the standard. Read it through {@link ContexaIdentity#current}.
+     */
+    public static final String SUBJECT_IDENTITY = "ctxa.bridge.subject-identity";
     /** Whether the person a delegated agent acts for may make the request (A1-8): an outcome name. */
     public static final String DELEGATOR_AUTHORITY = "ctxa.bridge.delegation.delegator-authority";
     /**

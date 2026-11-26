@@ -211,6 +211,18 @@ public class SessionManagementService {
     }
 
     /**
+     * bridge v2 B5-2, ContexaBridge.signedOut: the user signed out of the session, and its tracking ends. The row goes
+     * rather than being marked expired, since an expired row of a living session forces it out, and a legacy application
+     * that keeps the session at the next sign-in would see its user forced out of it.
+     */
+    @Transactional(transactionManager = "contexaTransactionManager")
+    public void endTracking(String sessionId) {
+        if (sessionId != null && !sessionId.isBlank()) {
+            activeSessionRepository.deleteById(RequestFactRedaction.sessionReference(sessionId));
+        }
+    }
+
+    /**
      * K73: the sessions no request reached for longer than the idle limit are no longer active: they ended without a
      * word, as the sessions of a node that stopped do. A limit of zero or less (sessions that never time out) ends none.
      *

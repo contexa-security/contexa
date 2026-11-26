@@ -100,7 +100,7 @@ class EnableAiSecurityPlacementTest {
     void aBeanOfTheApplicationDeclaredWithTheSwitchTakesThePlaceOfContexas() {
         DefaultListableBeanFactory beans = parse(new StandardEnvironment(), SwitchWithOwnBridgeBean.class);
 
-        assertThat(beans.getBeanNamesForType(HostOwnedSecurityChainDiagnostics.class)).containsExactly("applicationDiagnostics");
+        assertThat(beans.getBeanNamesForType(SandboxSecurityChainDiagnostics.class)).containsExactly("applicationDiagnostics");
     }
 
     /** What auto-configurations evaluate reads what the selector publishes: Contexa's filter of them, its properties. */
@@ -150,7 +150,7 @@ class EnableAiSecurityPlacementTest {
 
         assertThatThrownBy(() -> parse(environment, Switch.class))
                 .isInstanceOf(ContexaOperatingProfileException.class)
-                .satisfies(refusal -> assertThat(new ContexaOperatingProfileFailureAnalyzer().analyze(refusal))
+                .satisfies(refusal -> assertThat(new ContexaOperatingProfileFailureAnalyzer(environment).analyze(refusal))
                         .as("the failure analyzer still says what to do").isNotNull());
     }
 
@@ -239,7 +239,7 @@ class EnableAiSecurityPlacementTest {
     static class SwitchWithOwnBridgeBean {
 
         @Bean
-        HostOwnedSecurityChainDiagnostics applicationDiagnostics() {
+        SandboxSecurityChainDiagnostics applicationDiagnostics() {
             return null;
         }
     }

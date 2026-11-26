@@ -25,7 +25,7 @@ import org.springframework.web.servlet.LocaleResolver;
 import java.util.Locale;
 
 /**
- * The language resolver of an application that owns its sign-in (HOST_OWNED): Contexa's own screens, which live under
+ * The language resolver of an application whose own components win (HOST_OWNED, in either mode): Contexa's own screens, which live under
  * {@code /contexa/}, resolve their language the way they always did (a session resolver, Korean by default, switched
  * by {@code ?lang=}); every other request of the application is resolved by what the application would have without
  * Contexa. Contexa must not change the language of the application's own pages.

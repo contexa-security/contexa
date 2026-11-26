@@ -58,15 +58,16 @@ class StandaloneAutoConfigurationFilterTest {
     @DisplayName("Standalone mode filtering")
     class StandaloneModeFiltering {
 
+        /** R-9: the application's third-party auto-configuration is the application's; only Contexa's own stays out. */
         @Test
-        @DisplayName("Should exclude Redis auto-configuration in standalone mode")
-        void shouldExcludeRedis() {
+        @DisplayName("standalone에서도 Spring Boot의 Redis 자동 구성은 빼지 않는다(앱의 것)")
+        void shouldKeepSpringBootsRedis() {
             StandaloneAutoConfigurationFilter filter = createActiveFilter("standalone");
             String[] classes = {"org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration"};
 
             boolean[] result = filter.match(classes, metadata);
 
-            assertThat(result[0]).isFalse();
+            assertThat(result[0]).isTrue();
         }
 
         @Test
@@ -84,14 +85,14 @@ class StandaloneAutoConfigurationFilterTest {
         }
 
         @Test
-        @DisplayName("Should exclude Redisson auto-configuration in standalone mode")
-        void shouldExcludeRedisson() {
+        @DisplayName("standalone에서도 Redisson의 자동 구성은 빼지 않는다(앱의 것)")
+        void shouldKeepRedisson() {
             StandaloneAutoConfigurationFilter filter = createActiveFilter("standalone");
             String[] classes = {"org.redisson.spring.starter.RedissonAutoConfiguration"};
 
             boolean[] result = filter.match(classes, metadata);
 
-            assertThat(result[0]).isFalse();
+            assertThat(result[0]).isTrue();
         }
 
         @Test
@@ -110,14 +111,17 @@ class StandaloneAutoConfigurationFilterTest {
         }
 
         @Test
-        @DisplayName("Should default to standalone when mode property is not set")
+        @DisplayName("모드를 적지 않으면 standalone으로 보고 Contexa 자체 Redis 자동 구성만 뺀다")
         void shouldDefaultToStandalone() {
             StandaloneAutoConfigurationFilter filter = createActiveFilter(null);
-            String[] classes = {"org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration"};
+            String[] classes = {
+                    "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration",
+                    "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration"
+            };
 
             boolean[] result = filter.match(classes, metadata);
 
-            assertThat(result[0]).isFalse();
+            assertThat(result).containsExactly(false, true);
         }
     }
 
@@ -160,15 +164,15 @@ class StandaloneAutoConfigurationFilterTest {
         }
 
         @Test
-        @DisplayName("Should handle case-insensitive pattern matching")
+        @DisplayName("대소문자와 상관없이 Contexa 자체 Redis·Kafka 자동 구성만 빼고 제3자 것은 남긴다")
         void shouldMatchCaseInsensitive() {
             StandaloneAutoConfigurationFilter filter = createActiveFilter("standalone");
-            String[] classes = {"com.example.REDIS_Configuration", "io.contexa.example.KAFKAProducer"};
+            String[] classes = {"com.example.REDIS_Configuration", "io.contexa.example.KAFKAProducer",
+                    "io.contexa.example.REDISStore"};
 
             boolean[] result = filter.match(classes, metadata);
 
-            assertThat(result[0]).isFalse();
-            assertThat(result[1]).isFalse();
+            assertThat(result).containsExactly(true, false, false);
         }
     }
 
@@ -329,14 +333,14 @@ class StandaloneAutoConfigurationFilterTest {
         }
 
         @Test
-        @DisplayName("Should keep host Kafka auto-configuration when the host configured bootstrap servers")
+        @DisplayName("Kafka만 설정한 앱도 제3자 Redis·Kafka 자동 구성을 그대로 두고 Contexa 것만 뺀다")
         void shouldKeepHostKafkaWhenHostConfiguredKafka() {
             StandaloneAutoConfigurationFilter filter = createActiveStandaloneFilter(
                     "spring.kafka.bootstrap-servers", "kafka.host.internal:9092");
 
             boolean[] result = filter.match(infrastructureClasses, metadata);
 
-            assertThat(result).containsExactly(false, false, false, true, false, false);
+            assertThat(result).containsExactly(true, true, true, true, false, false);
         }
 
         @Test
@@ -362,14 +366,19 @@ class StandaloneAutoConfigurationFilterTest {
             assertThat(result).containsExactly(true, true, true, true, false, false);
         }
 
+        /**
+         * F-06: an application that uses Redis without a connection key (a password only, Spring Session, a cache type) lost
+         * Spring Boot's Redis support. Contexa brings no Redis library, so what is on the class path is the application's.
+         */
         @Test
-        @DisplayName("Should exclude Redis auto-configurations and keep Spring Boot's Kafka when the host configured neither")
-        void shouldExcludeInfrastructureWithoutHostConfiguration() {
-            StandaloneAutoConfigurationFilter filter = createActiveStandaloneFilter();
+        @DisplayName("연결 설정이 없어도 제3자 Redis 자동 구성은 앱의 것이므로 남기고 Contexa 것만 뺀다")
+        void shouldKeepThirdPartyInfrastructureWithoutHostConfiguration() {
+            StandaloneAutoConfigurationFilter filter = createActiveStandaloneFilter(
+                    "spring.data.redis.password", "secret", "spring.session.redis.namespace", "app");
 
             boolean[] result = filter.match(infrastructureClasses, metadata);
 
-            assertThat(result).containsExactly(false, false, false, true, false, false);
+            assertThat(result).containsExactly(true, true, true, true, false, false);
         }
 
         /**

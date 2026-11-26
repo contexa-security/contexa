@@ -21,6 +21,7 @@ import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManage
 import io.contexa.contexaidentity.security.core.context.OrderedSecurityFilterChain;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.Timeout;
@@ -36,6 +37,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
@@ -58,9 +60,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The application owns the sign-in (SANDBOX): it keeps Spring Boot's default chain, and Contexa builds no chain of its
- * own, so its URL policies decide no request of the application. The decision for paths no URL policy names changes no
- * answer there, whatever it is.
+ * The application owns the sign-in (SANDBOX): it keeps Spring Boot's default chain, and Contexa builds no main chain; its
+ * one chain is that of its administrators under /contexa/admin, which authorizes them by its own rule. So no chain of
+ * Contexa's decides a request of the application: the URL policies that name one are enforced behind the application's
+ * chain, and a request no policy names keeps the application's decision (R-7 of docs/agent/운영모드-정상화-구현계획.md).
+ * The decision for paths no URL policy names changes no answer there, whatever it is.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIfEnvironmentVariable(named = "CONTEXA_TEST_DB_URL", matches = ".+")
@@ -103,10 +107,24 @@ class HostOwnedUnnamedPathsPostgresTest {
         admin.execute("drop database if exists " + database);
     }
 
+    /**
+     * SANDBOX builds no main chain (R-15). Contexa's one chain is the MFA flow of its administrators (R-13), narrowed to
+     * /contexa/admin: no request of the application goes through a chain of Contexa's.
+     */
     @Test
-    void contexaBuildsNoChainThatAsksItsUrlPolicies() {
-        assertThat(context.getBean(FilterChainProxy.class).getFilterChains())
-                .noneMatch(chain -> chain instanceof OrderedSecurityFilterChain);
+    @DisplayName("SANDBOX에서 Contexa 체인은 /contexa/admin 관리자 흐름 하나뿐이고, 앱의 경로는 받지 않는다")
+    void contexaBuildsNoChainThatTakesTheApplicationsPaths() {
+        List<OrderedSecurityFilterChain> contexas = context.getBean(FilterChainProxy.class).getFilterChains().stream()
+                .filter(OrderedSecurityFilterChain.class::isInstance)
+                .map(OrderedSecurityFilterChain.class::cast)
+                .toList();
+
+        assertThat(contexas).as("the chain of Contexa's administrators, and no main chain").hasSize(1);
+        OrderedSecurityFilterChain administrators = contexas.get(0);
+        assertThat(administrators.matches(new MockHttpServletRequest("GET", "/contexa/admin"))).isTrue();
+        for (String path : List.of("/", "/h/secured/data", "/h/not-there", "/error", "/login")) {
+            assertThat(administrators.matches(new MockHttpServletRequest("GET", path))).as(path).isFalse();
+        }
     }
 
     @Test

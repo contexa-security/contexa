@@ -19,6 +19,7 @@ import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -67,11 +68,24 @@ public final class LoginFailureRecording {
     }
 
     public static void recordOnce(SecurityContextDataStore store, String userId, String clientIp, long failedAtMs) {
+        recordOnce(store, currentRequest(), userId, clientIp, failedAtMs);
+    }
+
+    /**
+     * bridge v2 B5-2, ContexaBridge.signInFailed: a failure the application tells on the request it passes, which a filter
+     * of the application may call before Spring has bound the request to the thread.
+     */
+    public static void recordOnce(SecurityContextDataStore store, HttpServletRequest request, String userId,
+                                  String clientIp) {
+        recordOnce(store, request, userId, clientIp, requestTimeMillis(request));
+    }
+
+    private static void recordOnce(SecurityContextDataStore store, @Nullable HttpServletRequest request, String userId,
+                                   String clientIp, long failedAtMs) {
         if (store == null) {
             return;
         }
         String name = userId != null && userId.length() <= MAX_NAME_LENGTH ? userId : null;
-        HttpServletRequest request = currentRequest();
         if (request != null && StringUtils.hasText(name)) {
             String user = name.trim();
             if (user.equals(request.getAttribute(RECORDED_USER_ATTRIBUTE))) {
@@ -101,7 +115,10 @@ public final class LoginFailureRecording {
     }
 
     private static long requestTimeMillis() {
-        HttpServletRequest request = currentRequest();
+        return requestTimeMillis(currentRequest());
+    }
+
+    private static long requestTimeMillis(@Nullable HttpServletRequest request) {
         Instant observedAt = request != null ? RequestInfoExtractor.extractObservedAt(request) : null;
         return observedAt != null ? observedAt.toEpochMilli() : System.currentTimeMillis();
     }

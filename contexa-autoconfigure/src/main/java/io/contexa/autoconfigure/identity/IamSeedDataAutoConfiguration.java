@@ -285,10 +285,14 @@ public class IamSeedDataAutoConfiguration {
                                 + "Rebuild the Contexa database or run the canonical "
                                 + "META-INF/contexa/db/schema.sql manually before starting the application.");
             }
+            ContexaUserEmailScope.apply(dataSource);
         } else if (schemaInstallState == SchemaInstallState.COMPLETE) {
             log.info("[IamSeedData] Contexa schema already installed, skipping schema initialization");
             if (shouldApplyCanonicalSchemaMaintenance(schemaInstallState, enterpriseManaged)) {
                 applyCanonicalSchemaMaintenance(dataSource, deferTo, deferTo != null);
+                if (deferTo == null) {
+                    ContexaUserEmailScope.apply(dataSource);
+                }
             } else {
                 log.info("[IamSeedData] Enterprise provenance is present; OSS canonical DDL maintenance is skipped");
                 createMissingOssTables(dataSource);

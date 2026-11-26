@@ -22,8 +22,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 
 /**
- * Stands before the provider of the HOST_OWNED console and holds its sign-ins to the address throttle of the login
- * policy. It decides nothing about the credentials: it refuses a blocked address, and any other sign-in goes on.
+ * Stands before the provider of the flow of Contexa's administrators ({@code contexa-admin}, in every combination of
+ * mode and ownership but FULL with CONTEXA_OWNED) and holds its sign-ins to the address throttle of the login policy. It
+ * decides nothing about the credentials: it refuses a blocked address, and any other sign-in goes on.
  */
 final class ConsoleAddressGate implements AuthenticationProvider {
 

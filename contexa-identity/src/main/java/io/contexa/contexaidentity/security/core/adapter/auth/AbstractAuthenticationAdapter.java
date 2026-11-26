@@ -37,6 +37,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.WebAuthnConfigurer;
 import org.springframework.security.config.annotation.web.configurers.ott.OneTimeTokenLoginConfigurer;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
+import io.contexa.contexacommon.security.HeldBean;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -49,6 +50,18 @@ import java.util.List;
 public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProcessingOptions> implements AuthenticationAdapter {
 
     private static final SecurityContextRepository SESSION_CONTEXT_REPOSITORY = new HttpSessionSecurityContextRepository();
+    /** The flow of Contexa's administrators keeps every step of its sign-in under a key of its own, apart from the application's. */
+    private static final SecurityContextRepository ADMIN_SESSION_CONTEXT_REPOSITORY = adminSessionContextRepository();
+
+    private static SecurityContextRepository adminSessionContextRepository() {
+        HttpSessionSecurityContextRepository repository = new HttpSessionSecurityContextRepository();
+        repository.setSpringSecurityContextKey(ContexaAdminRealm.CONTEXT_KEY);
+        return repository;
+    }
+
+    private static SecurityContextRepository sessionContextRepository(@Nullable AuthenticationFlowConfig flow) {
+        return ContexaSignInRealm.isAdminFlow(flow) ? ADMIN_SESSION_CONTEXT_REPOSITORY : SESSION_CONTEXT_REPOSITORY;
+    }
 
     protected abstract void configureHttpSecurity(HttpSecurity http, O options,
                                                   AuthenticationFlowConfig currentFlow,
@@ -262,28 +275,29 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                 boolean isFinalStepInMfaFlow = (currentStepIndex == allSteps.size() - 1);
 
                 if (isFinalStepInMfaFlow) {
-                    return getSecurityContextRepository(stateType, options);
+                    return getSecurityContextRepository(stateType, options, currentFlow);
                 } else {
                     if (options.getSecurityContextRepository() != null) {
                         return options.getSecurityContextRepository();
                     }
-                    return SESSION_CONTEXT_REPOSITORY;
+                    return sessionContextRepository(currentFlow);
                 }
             }
 
             log.error("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, using HttpSessionSecurityContextRepository as fallback", getId());
-            return SESSION_CONTEXT_REPOSITORY;
+            return sessionContextRepository(currentFlow);
         } else {
-            return getSecurityContextRepository(stateType, options);
+            return getSecurityContextRepository(stateType, options, currentFlow);
         }
     }
 
-    private static <O extends AuthenticationProcessingOptions> @NonNull SecurityContextRepository getSecurityContextRepository(StateType stateType, O options) {
+    private static <O extends AuthenticationProcessingOptions> @NonNull SecurityContextRepository getSecurityContextRepository(StateType stateType, O options,
+                                                                                                                        @Nullable AuthenticationFlowConfig flow) {
         if (options.getSecurityContextRepository() != null) {
             return options.getSecurityContextRepository();
         }
         if (stateType == StateType.SESSION) {
-            return SESSION_CONTEXT_REPOSITORY;
+            return sessionContextRepository(flow);
         } else {
             return new NullSecurityContextRepository();
         }
@@ -291,7 +305,12 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
 
     protected OneTimeTokenGenerationSuccessHandler determineDefaultOttGenerationSuccessHandler(ApplicationContext appContext) {
         try {
-            return appContext.getBean("contexaOneTimeTokenCreationSuccessHandler", OneTimeTokenGenerationSuccessHandler.class);
+            // held where Spring's one-time token login of the application must not find it by type (R-17)
+            Object handler = appContext.getBean("contexaOneTimeTokenCreationSuccessHandler");
+            if (handler instanceof HeldBean<?> holder && holder.get() instanceof OneTimeTokenGenerationSuccessHandler held) {
+                return held;
+            }
+            return (OneTimeTokenGenerationSuccessHandler) handler;
         } catch (Exception e) {
             String errorMessage = String.format("Default OneTimeTokenGenerationSuccessHandler bean ('contexaOneTimeTokenCreationSuccessHandler' or specific OTT handler) not found for OTT feature: %s. This is a critical configuration error.", getId());
             log.error(errorMessage, e);

@@ -40,6 +40,23 @@ class LoginFailureRecordingTest {
         verify(store).recordLoginFailure("alice", "203.0.113.10", 1_000L);
     }
 
+    /** bridge v2 B5-2, ContexaBridge.signInFailed: an application's filter may tell it before the request is bound. */
+    @Test
+    @DisplayName("레거시가 넘긴 요청으로 실패를 기록하면 스레드에 요청이 없어도 요청당 한 번, 요청 시각으로 기록한다")
+    void aFailureOnTheRequestPassedIsStoredOnceOnItsClock() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        Instant observedAt = Instant.parse("2026-09-30T03:14:00Z");
+        RequestSecurityContextAttributes.write(request, RequestSecurityContextAttributes.Field.OBSERVED_AT,
+                observedAt.toString(), true);
+        SecurityContextDataStore store = mock(SecurityContextDataStore.class);
+
+        LoginFailureRecording.recordOnce(store, request, "kim01", null);
+        LoginFailureRecording.recordOnce(store, request, " kim01 ", null);
+
+        verify(store, times(1)).recordLoginFailure(anyString(), any(), anyLong());
+        verify(store).recordLoginFailure("kim01", null, observedAt.toEpochMilli());
+    }
+
     @Test
     @DisplayName("a name spelled as an internal key is kept off that key")
     void aNameIsStoredUnderThePersonsKey() {

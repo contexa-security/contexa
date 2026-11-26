@@ -26,8 +26,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Sends a person's completed sign-in on where Contexa owns the sign-in, as {@link HostOwnedSignInListener} sends the
- * application's own where the application owns it: the bridge meets the person, and the agent registry sees an agent that
+ * Sends a person's completed sign-in on where a flow of Contexa's signs the person in (the main flow of mode FULL, the
+ * flow of Contexa's administrators), as {@link SandboxSignInListener} sends the application's own in mode SANDBOX: the
+ * bridge meets the person, and the agent registry sees an agent that
  * signs in. The model is not asked about a sign-in; the first call to a protected resource is decided. A request's sign-in
  * is sent once, and a failure to send it never stops it.
  */

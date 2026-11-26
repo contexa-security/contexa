@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 
+import io.contexa.contexacommon.security.ConsoleSession;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaSignInRealm;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -78,6 +80,11 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return MfaDecision.challenged("Policy evaluation error - MFA required for safety");
     }
 
+    /**
+     * The flow of this name, else the first MFA flow. The flow of Contexa's administrators is that first flow for a
+     * request of the console only (R-13 of docs/agent/운영모드-정상화-구현계획.md): it joins the application's own flows,
+     * and a policy of the application's users never reads it in place of theirs.
+     */
     @Nullable
     protected AuthenticationFlowConfig findMfaFlowConfigFromContext(@Nullable String flowTypeName) {
         if (applicationContext == null) {
@@ -98,8 +105,10 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
                 }
             }
 
+            boolean console = ConsoleSession.current();
             return platformConfig.getFlows().stream()
-                    .filter(flow -> isMfaFlowType(flow.getTypeName()))
+                    .filter(flow -> isMfaFlowType(flow.getTypeName())
+                            && (console || !ContexaSignInRealm.isAdminFlow(flow)))
                     .findFirst()
                     .orElseGet(() -> {
                         log.error("No MFA AuthenticationFlowConfig found in PlatformConfig");

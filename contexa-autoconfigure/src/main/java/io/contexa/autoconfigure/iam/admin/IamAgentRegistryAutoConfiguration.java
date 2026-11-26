@@ -62,7 +62,9 @@ import java.time.Duration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.agent.AgentNoticeChannel;
 import io.contexa.contexacore.autonomous.agent.AgentNoticeStore;
@@ -88,6 +90,7 @@ import io.contexa.contexacore.autonomous.agent.InMemoryAgentScopeStore;
 import io.contexa.contexaiam.agent.web.AgentConfirmationApiController;
 import io.contexa.contexaiam.agent.web.AgentConfirmationController;
 import io.contexa.contexaidentity.security.agent.OAuth2AgentConfirmationAuthorizer;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateAdapter;
 import io.contexa.contexacore.autonomous.agent.AgentContainmentService;
 import io.contexa.contexaiam.admin.web.agent.controller.AgentStopApiController;
 import io.contexa.contexaiam.admin.web.agent.controller.AgentStopController;
@@ -351,8 +354,22 @@ public class IamAgentRegistryAutoConfiguration {
             UserRepository users = userRepository.getIfAvailable();
             return new RiskSignalReceiver(actionRepository, zeroTrustSecurityService.getIfAvailable(),
                     subjectId -> RiskSignalReceiver.userOf(subjectId, email -> users == null ? null
-                            : users.findFirstByEmailIgnoreCase(email).map(Users::getUsername).orElse(null)),
+                            : decisionKeyOfAddress(users, email)),
                     auditFacade.getIfAvailable(), forceLogoutService.getIfAvailable());
+        }
+
+        /**
+         * The decision key of the user a risk signal names by an address (bridge v2 B5-1): one of Contexa's own accounts
+         * is its name; otherwise the one copy of an application's user with the address is that user's decision key (the
+         * copy's own name is a hash no decision is kept under). An address copies share names no one.
+         */
+        static String decisionKeyOfAddress(UserRepository users, String email) {
+            Optional<Users> account = users.findFirstByEmailIgnoreCaseAndBridgeManagedFalse(email);
+            if (account.isPresent()) {
+                return account.get().getUsername();
+            }
+            List<Users> copies = users.findByEmailIgnoreCase(email).stream().filter(Users::isBridgeManaged).toList();
+            return copies.size() == 1 ? copies.get(0).getExternalSubjectId() : null;
         }
 
         @Bean(name = "contexaRiskSignalReceiverController")
@@ -381,30 +398,35 @@ public class IamAgentRegistryAutoConfiguration {
 
         /**
          * docs/agent A5-2: an approval is recorded as an authorization of Contexa's authorization server when it runs
-         * here and registers the agent's client; otherwise as a keyed signature.
+         * here and registers the agent's client; otherwise as a keyed signature. Contexa's store and clients are taken by
+         * their names: wherever the application could take them they are held (R-17 of docs/agent/운영모드-정상화-구현계획.md),
+         * and by type this would find the application's.
          */
         @Bean(name = "contexaAgentConfirmationAuthorizer")
         @ConditionalOnMissingBean(AgentConfirmationAuthorizer.class)
-        AgentConfirmationAuthorizer agentConfirmationAuthorizer(ObjectProvider<OAuth2AuthorizationService> authorizations,
-                                                                ObjectProvider<RegisteredClientRepository> clients,
+        AgentConfirmationAuthorizer agentConfirmationAuthorizer(BeanFactory beanFactory,
                                                                 ObjectProvider<AgentRegistry> agentRegistry,
                                                                 ObjectProvider<EvidenceSigner> evidenceSigner) {
             AgentConfirmationAuthorizer signed = new SignedAgentConfirmationAuthorizer(
                     evidenceSigner.getIfAvailable(() -> HmacEvidenceSigner.of(Map.of(), null)));
-            OAuth2AuthorizationService service = authorizations.getIfAvailable();
-            RegisteredClientRepository repository = clients.getIfAvailable();
+            OAuth2AuthorizationService service = ContexaOwnBeans.ownIfPresent(beanFactory,
+                    OAuth2StateAdapter.CONTEXA_AUTHORIZATION_SERVICE, OAuth2AuthorizationService.class);
+            RegisteredClientRepository repository = ContexaOwnBeans.ownIfPresent(beanFactory,
+                    OAuth2StateAdapter.CONTEXA_REGISTERED_CLIENTS, RegisteredClientRepository.class);
             return service != null && repository != null
                     ? new OAuth2AgentConfirmationAuthorizer(service, repository, agentRegistry.getIfAvailable(), signed)
                     : signed;
         }
 
+        /** Ends the tokens of Contexa's authorization server; its store and clients are taken by their names (R-17). */
         @Bean(name = "contexaAgentTokenRevoker")
         @ConditionalOnMissingBean(AgentTokenRevoker.class)
-        AgentTokenRevoker agentTokenRevoker(ObjectProvider<OAuth2AuthorizationService> authorizations,
-                                            ObjectProvider<RegisteredClientRepository> clients) {
-            RegisteredClientRepository repository = clients.getIfAvailable();
-            if (authorizations.getIfAvailable() instanceof DeviceAwareOAuth2AuthorizationService service
-                    && repository != null) {
+        AgentTokenRevoker agentTokenRevoker(BeanFactory beanFactory) {
+            DeviceAwareOAuth2AuthorizationService service = ContexaOwnBeans.ownIfPresent(beanFactory,
+                    OAuth2StateAdapter.CONTEXA_AUTHORIZATION_SERVICE, DeviceAwareOAuth2AuthorizationService.class);
+            RegisteredClientRepository repository = ContexaOwnBeans.ownIfPresent(beanFactory,
+                    OAuth2StateAdapter.CONTEXA_REGISTERED_CLIENTS, RegisteredClientRepository.class);
+            if (service != null && repository != null) {
                 return new OAuth2AgentTokenRevoker(service, repository);
             }
             return AgentTokenRevoker.NONE;
@@ -419,10 +441,10 @@ public class IamAgentRegistryAutoConfiguration {
     @ConditionalOnClass(name = "org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository")
     static class AgentProvisioningConfiguration {
 
+        /** Contexa's clients are taken by their name: wherever the application could take them they are held (R-17). */
         @Bean(name = "contexaAgentProvisioning")
         @ConditionalOnMissingBean(AgentProvisioning.class)
         AgentProvisioning agentProvisioning(AgentRegistry contexaAgentRegistry,
-                                            ObjectProvider<RegisteredClientRepository> clients,
                                             BeanFactory beanFactory,
                                             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbc,
                                             ObjectProvider<UserManagementService> users,
@@ -432,7 +454,8 @@ public class IamAgentRegistryAutoConfiguration {
                                             ObjectProvider<SecurityZeroTrustProperties> properties,
                                             ObjectProvider<UserEngineStatePurger> engineStatePurger,
                                             ObjectProvider<MessageSource> messageSource) {
-            RegisteredClientRepository repository = clients.getIfAvailable();
+            RegisteredClientRepository repository = ContexaOwnBeans.ownIfPresent(beanFactory,
+                    OAuth2StateAdapter.CONTEXA_REGISTERED_CLIENTS, RegisteredClientRepository.class);
             PasswordEncoder encoder = ContexaOwnBeans.passwordEncoder(beanFactory);
             if (repository == null) {
                 return AgentProvisioning.unavailable();

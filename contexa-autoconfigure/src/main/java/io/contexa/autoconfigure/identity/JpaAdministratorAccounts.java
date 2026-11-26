@@ -37,7 +37,8 @@ final class JpaAdministratorAccounts implements AdministratorAccounts {
 
     @Override
     public boolean exists(String username, String email) {
-        return users.findByUsername(username).isPresent() || users.findFirstByEmailIgnoreCase(email).isPresent();
+        return users.findByUsername(username).isPresent()
+                || users.findFirstByEmailIgnoreCaseAndBridgeManagedFalse(email).isPresent();
     }
 
     @Override

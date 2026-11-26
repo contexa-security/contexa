@@ -59,7 +59,7 @@ public class DefaultContextHandler implements ContextHandler {
     }
 
     /**
-     * @param bridgeProperties      who owns the sign-in, which tells a token of one of Contexa's own accounts
+     * @param bridgeProperties      the way of running Contexa, whose mode tells a token of one of Contexa's own accounts
      * @param contexaAccountsSignIn whether Contexa's user store is the one that signs the users in
      */
     public DefaultContextHandler(UserRepository userRepository, ContexaCacheService cacheService,

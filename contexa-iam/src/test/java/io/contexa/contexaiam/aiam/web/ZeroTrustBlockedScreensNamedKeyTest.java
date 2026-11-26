@@ -60,7 +60,7 @@ class ZeroTrustBlockedScreensNamedKeyTest {
     @Test
     @DisplayName("starting the MFA of a block marks the user's own key, not the console's")
     void theMfaOfABlockStartsForTheUser() {
-        new ZeroTrustUnblockController(blocks, blockMfa, properties).initiateBlockMfa(user);
+        new ZeroTrustUnblockController(blocks, blockMfa, properties).initiateBlockMfa(user, new MockHttpServletRequest());
 
         verify(blockMfa).setPending(OWN);
         verify(blockMfa, never()).setPending(NAME);
@@ -73,7 +73,7 @@ class ZeroTrustBlockedScreensNamedKeyTest {
         UnblockRequest request = new UnblockRequest();
         request.setReason("it was me");
 
-        new ZeroTrustUnblockController(blocks, blockMfa, properties).requestUnblock(user, request);
+        new ZeroTrustUnblockController(blocks, blockMfa, properties).requestUnblock(user, request, new MockHttpServletRequest());
 
         verify(blocks).requestUnblockWithMfa(OWN, "it was me", true);
     }

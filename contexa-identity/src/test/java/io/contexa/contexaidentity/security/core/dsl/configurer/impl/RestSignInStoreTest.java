@@ -77,7 +77,8 @@ class RestSignInStoreTest {
         when(context.getBeanProvider(UserDetailsService.class)).thenReturn(stores);
         if (contexaOwnsTheSignIn) {
             when(context.containsBean(ContexaUserStore.BEAN_NAME)).thenReturn(true);
-            when(context.getBean(ContexaUserStore.BEAN_NAME, UserDetailsService.class)).thenReturn(contexaStore);
+            // Contexa's store is taken by its name, a bean of the type or held (R-17)
+            when(context.getBean(ContexaUserStore.BEAN_NAME)).thenReturn(contexaStore);
         }
         when(context.getBean(PasswordEncoder.class)).thenReturn(NoOpPasswordEncoder.getInstance());
         when(context.getBean(LoginPolicyHandler.class)).thenThrow(new NoSuchBeanDefinitionException(LoginPolicyHandler.class));

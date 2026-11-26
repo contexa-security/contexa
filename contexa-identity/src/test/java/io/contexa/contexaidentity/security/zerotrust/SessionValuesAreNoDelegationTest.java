@@ -16,13 +16,8 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacommon.security.bridge.BridgeProperties;
-import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
-import io.contexa.contexacommon.security.bridge.resolver.SessionDelegationStampResolver;
-import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationService;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
@@ -52,8 +47,9 @@ import static org.mockito.Mockito.when;
 
 /**
  * What an application keeps in the session for its own pages is no delegation: a person under a CHALLENGE stays under
- * it whatever the session holds, and only the attribute the application names as its delegation moves a request to an
- * agent's decision.
+ * it whatever the session holds. bridge v2 B6: no session value is read as a delegation at all (the session delegation
+ * resolver is gone); a delegation comes from an access token, an approved agent's own account or the
+ * {@code ContexaSubject} an application hands Contexa.
  */
 class SessionValuesAreNoDelegationTest {
 
@@ -66,7 +62,6 @@ class SessionValuesAreNoDelegationTest {
 
     private final InMemoryZeroTrustActionRepository actions = new InMemoryZeroTrustActionRepository();
     private final AgentConfirmationService confirmations = mock(AgentConfirmationService.class);
-    private final BridgeProperties properties = new BridgeProperties();
     private ZeroTrustChallengeFilter filter;
     private MockHttpSession session;
 
@@ -75,9 +70,9 @@ class SessionValuesAreNoDelegationTest {
         filter = new ZeroTrustChallengeFilter(mock(ChallengeMfaInitializer.class), mock(AuthResponseWriter.class),
                 mock(AuthUrlProvider.class), mock(MfaSessionRepository.class), mock(MfaStateMachineIntegrator.class),
                 mock(DistributedLockService.class), null, actions);
-        HostOwnedStepUp stepUp = mock(HostOwnedStepUp.class);
+        SandboxStepUp stepUp = mock(SandboxStepUp.class);
         when(stepUp.stepUpUrl(any())).thenReturn("/contexa/step-up");
-        filter.setHostOwnedStepUp(stepUp);
+        filter.setSandboxStepUp(stepUp);
         when(confirmations.request(any())).thenReturn(Optional.empty());
         filter.setAgentConfirmationGate(new AgentConfirmationGate(confirmations, actions, mock(AuthResponseWriter.class),
                 1024, null, null));
@@ -91,17 +86,9 @@ class SessionValuesAreNoDelegationTest {
         SecurityContextHolder.clearContext();
     }
 
-    private Optional<DelegationStamp> stamp() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
-        request.setSession(session);
-        return new SessionDelegationStampResolver().resolve(request, null, properties);
-    }
-
     private boolean reachesTheApplication() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
         request.setSession(session);
-        new SessionDelegationStampResolver().resolve(request, null, properties)
-                .ifPresent(stamp -> request.setAttribute(BridgeRequestAttributes.DELEGATION_STAMP, stamp));
         MockFilterChain chain = new MockFilterChain();
         filter.doFilter(request, new MockHttpServletResponse(), chain);
         return chain.getRequest() != null;
@@ -122,7 +109,6 @@ class SessionValuesAreNoDelegationTest {
         params.put("delegated", "true");
         session.setAttribute("lastSearch", params);
 
-        assertThat(stamp()).isEmpty();
         assertThat(reachesTheApplication()).isFalse();
     }
 
@@ -134,7 +120,6 @@ class SessionValuesAreNoDelegationTest {
         params.put("delegated", new String[]{"true"});
         session.setAttribute("lastSearch", params);
 
-        assertThat(stamp()).isEmpty();
         assertThat(reachesTheApplication()).isFalse();
     }
 
@@ -146,7 +131,6 @@ class SessionValuesAreNoDelegationTest {
 
         session.setAttribute("wizard", new HashMap<>(Map.of("agentId", "y", "delegated", true)));
 
-        assertThat(stamp()).isEmpty();
         assertThat(reachesTheApplication()).isFalse();
     }
 
@@ -155,22 +139,16 @@ class SessionValuesAreNoDelegationTest {
     void aBeanWithAnAgentIdOnly() throws Exception {
         session.setAttribute("policyForm", new PolicyForm());
 
-        assertThat(stamp()).isEmpty();
         assertThat(reachesTheApplication()).isFalse();
         verify(confirmations, never()).request(any());
     }
 
     @Test
-    @DisplayName("the attribute the application names as its delegation moves the request to the agent's decision")
-    void theNamedAttribute() {
-        properties.getDelegation().getSession().setAttribute("agentDelegation");
+    @DisplayName("bridge v2: 세션에 앱이 이름을 붙여 둔 위임 객체도 위임으로 읽지 않아, 사람의 CHALLENGE가 그대로 남는다")
+    void aDelegationObjectTheApplicationNamedInTheSessionIsNoDelegation() throws Exception {
         session.setAttribute("agentDelegation", new HashMap<>(Map.of("agentId", "x", "delegated", true)));
-        session.setAttribute("lastSearch", new HashMap<>(Map.of("agentId", "y", "delegated", true)));
 
-        DelegationStamp stamp = stamp().orElseThrow();
-
-        assertThat(stamp.agentId()).isEqualTo("x");
-        assertThat(stamp.delegated()).isTrue();
-        assertThat(ZeroTrustSubject.of("alice", stamp).storageKey()).isEqualTo("alice::agent::x");
+        assertThat(reachesTheApplication()).isFalse();
+        verify(confirmations, never()).request(any());
     }
 }

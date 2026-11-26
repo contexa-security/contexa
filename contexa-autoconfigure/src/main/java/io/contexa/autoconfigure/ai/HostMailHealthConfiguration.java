@@ -26,7 +26,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.mail.MailSender;
 
 /**
- * Under either ownership: with its mail gone Contexa answers a code as not sent and the application serves as before, so a mail
+ * In every way of running Contexa: with its mail gone Contexa answers a code as not sent and the application serves as before, so a mail
  * server only Contexa uses is no reason for that application's health to fail or to wait.
  */
 @Configuration(proxyBeanMethods = false)

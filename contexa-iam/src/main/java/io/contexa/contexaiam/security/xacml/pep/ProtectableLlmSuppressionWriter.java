@@ -17,6 +17,7 @@ package io.contexa.contexaiam.security.xacml.pep;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
@@ -110,7 +111,7 @@ public class ProtectableLlmSuppressionWriter {
         if (jdbcOperations == null || authentication == null || invocation == null) {
             return;
         }
-        write(jdbcOperations, authentication.getName(), invocation, suppressionReason, zeroTrustMode, Map.of());
+        write(jdbcOperations, ContexaIdentity.userId(currentRequest(), authentication), invocation, suppressionReason, zeroTrustMode, Map.of());
     }
 
     private void write(JdbcOperations jdbcOperations, String userId, MethodInvocation invocation, String suppressionReason,

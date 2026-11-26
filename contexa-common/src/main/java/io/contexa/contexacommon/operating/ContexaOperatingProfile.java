@@ -30,12 +30,21 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 /**
- * How an application runs Contexa, read once and in one place. There are two ways: SANDBOX, where an existing application
- * keeps its sign-in (HOST_OWNED), and FULL, where Contexa owns the sign-in of a new one (CONTEXA_OWNED). The two settings
- * name the same choice, so settings that disagree describe no way of running Contexa and are refused.
+ * How an application runs Contexa, read once and in one place. Two settings make it, and every pair of them is a way of
+ * running Contexa with all of its features.
+ * <ul>
+ *   <li>The mode says what Contexa's security configuration does to the application. SANDBOX keeps Contexa apart from an
+ *   existing application: none of Contexa's settings (CSRF, CORS, headers, the decision for URLs no policy names) apply to
+ *   the application's own requests; of Contexa's URL policies only the refusals of those an operator names for its paths
+ *   reach them, behind the application's chain. FULL makes Contexa the application's main security configuration.</li>
+ *   <li>The ownership says how Contexa settles with components the application brings itself, such as its own
+ *   UserDetailsService or JwtDecoder. HOST_OWNED leaves every such component to the application and keeps Contexa's own
+ *   for Contexa; CONTEXA_OWNED lets Contexa's serve the application too. It never turns a feature of Contexa off.</li>
+ * </ul>
+ * An application that sets no ownership gets the one that goes with its mode: HOST_OWNED with SANDBOX, CONTEXA_OWNED with FULL.
  *
  * @param mode                       the way of running Contexa
- * @param ownership                  who owns the sign-in
+ * @param ownership                  how Contexa settles with the application's own components
  * @param contexaOwnsApplicationData whether Contexa's database is the application's database as well
  * @param declaredDatabaseUnused     whether the application names a database of its own and Contexa's serves instead
  */
@@ -71,15 +80,15 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
         return of(read(environment, PROP_MODE, SecurityMode.class), environment);
     }
 
-    /** The profile of an application that declares this mode; without a mode, its ownership stands alone. */
+    /**
+     * The profile of an application that declares this mode. The mode and the ownership are separate settings: one that is
+     * not set takes the default that goes with the other.
+     */
     public static ContexaOperatingProfile of(@Nullable SecurityMode declaredMode, Environment environment) {
         SecurityOwnershipMode declaredOwnership = read(environment, PROP_OWNERSHIP, SecurityOwnershipMode.class);
-        if (declaredMode != null && declaredOwnership != null && ownershipOf(declaredMode) != declaredOwnership) {
-            throw disagreement(declaredMode, declaredOwnership);
-        }
         SecurityOwnershipMode ownership = declaredOwnership != null ? declaredOwnership : ownershipOf(declaredMode);
         SecurityMode mode = declaredMode != null ? declaredMode : modeOf(ownership);
-        boolean applicationData = applicationData(ownership, environment);
+        boolean applicationData = applicationData(mode, environment);
         return new ContexaOperatingProfile(mode, ownership, applicationData, applicationData && !sameDatabaseOrNone(environment));
     }
 
@@ -183,30 +192,17 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
         return ownership == SecurityOwnershipMode.CONTEXA_OWNED ? SecurityMode.FULL : SecurityMode.SANDBOX;
     }
 
-    private static ContexaOperatingProfileException disagreement(SecurityMode mode, SecurityOwnershipMode ownership) {
-        if (mode == SecurityMode.FULL) {
-            return new ContexaOperatingProfileException(
-                    "@EnableAISecurity(mode = FULL) means Contexa owns the sign-in, but " + PROP_OWNERSHIP + "=" + ownership
-                            + " says the application keeps it.",
-                    "Remove " + PROP_OWNERSHIP + ", or, for an application that keeps its sign-in, use @EnableAISecurity without mode = FULL.");
-        }
-        return new ContexaOperatingProfileException(
-                "@EnableAISecurity in mode SANDBOX means the application keeps its sign-in, but " + PROP_OWNERSHIP + "=" + ownership
-                        + " says Contexa owns it.",
-                "Remove " + PROP_OWNERSHIP + ", or, for a new application whose sign-in Contexa owns, use @EnableAISecurity(mode = FULL).");
-    }
-
     /**
      * What the application declares always stands: an application without a database of its own may say so in any mode. Left
-     * alone, an application whose sign-in Contexa owns uses Contexa's database unless it has one of its own, which is never
-     * replaced behind its back.
+     * alone, an application that Contexa runs in FULL mode uses Contexa's database unless it has one of its own, which is
+     * never replaced behind its back. An application kept apart in SANDBOX mode keeps its data to itself.
      */
-    private static boolean applicationData(SecurityOwnershipMode ownership, Environment environment) {
+    private static boolean applicationData(SecurityMode mode, Environment environment) {
         String declared = environment.getProperty(PROP_APPLICATION_DATA);
         if (StringUtils.hasText(declared)) {
             return Boolean.parseBoolean(declared.trim());
         }
-        if (ownership != SecurityOwnershipMode.CONTEXA_OWNED) {
+        if (mode != SecurityMode.FULL) {
             return false;
         }
         return sameDatabaseOrNone(environment);

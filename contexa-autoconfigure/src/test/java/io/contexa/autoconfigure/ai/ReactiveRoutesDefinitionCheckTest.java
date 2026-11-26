@@ -191,7 +191,7 @@ class ReactiveRoutesDefinitionCheckTest {
 
     private static ApplicationContextRunner installation(Class<?> host) {
         return new ApplicationContextRunner()
-                .withUserConfiguration(AiSecurityConfiguration.class, host)
+                .withUserConfiguration(AiSecurityConfiguration.class, ContexaAdminFlowBeans.class, host)
                 .withBean(PlatformConfig.class, () -> PlatformConfig.builder().build());
     }
 

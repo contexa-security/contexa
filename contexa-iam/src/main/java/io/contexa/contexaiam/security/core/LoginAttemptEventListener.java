@@ -17,12 +17,13 @@ package io.contexa.contexaiam.security.core;
 
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.security.authentication.event.AbstractAuthenticationEvent;
 import org.springframework.security.authentication.event.AbstractAuthenticationFailureEvent;
 import org.springframework.security.authentication.event.AuthenticationSuccessEvent;
+
+import java.util.function.BooleanSupplier;
 
 /**
  * Records login outcomes from Spring Security's authentication events.
@@ -36,18 +37,37 @@ import org.springframework.security.authentication.event.AuthenticationSuccessEv
  * <p>Locked / disabled / expired accounts produce specific failure events (e.g.
  * {@code AuthenticationFailureLockedEvent}); we record them all uniformly so per-IP
  * throttling reflects the real attack surface.</p>
+ *
+ * <p>The events of the application's own sign-ins arrive here as well. Only a sign-in of an account of Contexa's goes to
+ * the account policy; a failed sign-in of the application's own users is kept for the decisions and counted against its
+ * address, and touches no account of Contexa's of the same name (the fourth solution of
+ * docs/agent/운영모드-정상화-구현계획.md).</p>
  */
 @Slf4j
-@RequiredArgsConstructor
 public class LoginAttemptEventListener {
 
     private final LoginPolicyHandler loginPolicyHandler;
+    private final BooleanSupplier contexaAccounts;
+
+    /** Every sign-in it hears is one of Contexa's accounts. */
+    public LoginAttemptEventListener(LoginPolicyHandler loginPolicyHandler) {
+        this(loginPolicyHandler, () -> true);
+    }
+
+    /**
+     * @param contexaAccounts whether the sign-in of the current request is that of an account of Contexa's, asked at each
+     *                        event
+     */
+    public LoginAttemptEventListener(LoginPolicyHandler loginPolicyHandler, BooleanSupplier contexaAccounts) {
+        this.loginPolicyHandler = loginPolicyHandler;
+        this.contexaAccounts = contexaAccounts;
+    }
 
     @EventListener
     public void onSuccess(AuthenticationSuccessEvent event) {
         if (OAuth2AuthenticationSupport.isTokenTraffic(event.getAuthentication())) return;
         String username = safeName(event);
-        if (username == null) return;
+        if (username == null || !contexaAccounts.getAsBoolean()) return;
         loginPolicyHandler.onLoginSuccess(username, currentIp(), "EVENT");
     }
 
@@ -58,7 +78,11 @@ public class LoginAttemptEventListener {
         String type = event.getException() == null
                 ? "UNKNOWN"
                 : event.getException().getClass().getSimpleName();
-        loginPolicyHandler.onLoginFailure(username, currentIp(), type, "EVENT");
+        if (contexaAccounts.getAsBoolean()) {
+            loginPolicyHandler.onLoginFailure(username, currentIp(), type, "EVENT");
+        } else {
+            loginPolicyHandler.onHostSignInFailure(username, currentIp(), type, "EVENT");
+        }
     }
 
     private static String safeName(AbstractAuthenticationEvent e) {

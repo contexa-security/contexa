@@ -46,10 +46,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
- * Which mail sender the e-mail service holds. Where the application signs its users in (SANDBOX, HOST_OWNED) it is the
- * application's one sender, as before. Where Contexa signs them in (FULL, CONTEXA_OWNED) it is the same sender when the
- * application has one, and otherwise a sender Contexa builds from spring.mail.*, held by the service alone: the
- * application's beans, and what it injects by type, are as they were.
+ * Which mail sender the e-mail service holds, in every way of running Contexa (its administrators reach the console by the
+ * code it mails wherever they sign in): the application's one sender when it has one, and otherwise a sender Contexa builds
+ * from spring.mail.*, held by the service alone: the application's beans, and what it injects by type, are as they were.
  */
 class EmailServiceSenderChoiceTest {
 
@@ -110,38 +109,55 @@ class EmailServiceSenderChoiceTest {
         }
     }
 
+    /**
+     * Contexa's administrators reach the console by the code it mails in every way of running Contexa (R-13, R-17), so the
+     * rule of FULL holds where the application signs its own users in as well: its one sender is used, and with none or
+     * several of them Contexa mails with a sender it builds from spring.mail.*, which only the service holds.
+     */
     @Test
-    @DisplayName("SANDBOX: the application's one sender is used, and several or none is no sender, with spring.mail.host set or not")
-    void whereTheApplicationSignsInNothingChanged() throws Exception {
+    @DisplayName("SANDBOX와 모드를 적지 않은 앱도 FULL과 같다: 앱의 발송기가 하나면 그것, 없거나 여럿이면 spring.mail.*로 Contexa가 만든 발송기")
+    void whereTheApplicationSignsInContexaMailsAsInFull() throws Exception {
         int dead = deadPort();
         String[] host = {"spring.mail.host=127.0.0.1", "spring.mail.port=" + dead};
-        for (String mode : List.of(SANDBOX, "contexa.bridge.ownership=HOST_OWNED")) {
+        for (String[] mode : List.<String[]>of(new String[] {SANDBOX}, new String[] {"contexa.bridge.ownership=HOST_OWNED"},
+                new String[] {SANDBOX, "contexa.bridge.ownership=CONTEXA_OWNED"}, new String[] {})) {
+            String named = mode.length == 0 ? "no mode at all" : String.join(", ", mode);
             Mailbox one = new Mailbox();
             contexts.withBean("applicationMail", JavaMailSender.class, one::sender).withPropertyValues(mode).withPropertyValues(host)
                     .run(context -> {
                         context.getBean(EmailService.class).sendHtmlMessage("user@app.test", "subject", "<p>body</p>");
-                        assertThat(one.sent()).isEqualTo(1);
+                        assertThat(one.sent()).as("the application's one sender, in " + named).isEqualTo(1);
                     });
 
             Mailbox first = new Mailbox();
             Mailbox second = new Mailbox();
-            for (String[] settings : new String[][] {{mode}, {mode, host[0], host[1]}}) {
-                contexts.withBean("mailA", JavaMailSender.class, first::sender)
-                        .withBean("mailB", JavaMailSender.class, second::sender)
-                        .withPropertyValues(settings)
-                        .run(context -> assertThat(context.getBean(EmailService.class).isMailSenderConfigured())
-                                .as("several senders of the application: Contexa does not choose, and builds none, in " + mode).isFalse());
-            }
+            contexts.withBean("mailA", JavaMailSender.class, first::sender)
+                    .withBean("mailB", JavaMailSender.class, second::sender)
+                    .withPropertyValues(mode)
+                    .run(context -> assertThat(context.getBean(EmailService.class).isMailSenderConfigured())
+                            .as("several senders of the application and no spring.mail.host: nothing to build from, in " + named).isFalse());
+            contexts.withBean("mailA", JavaMailSender.class, first::sender)
+                    .withBean("mailB", JavaMailSender.class, second::sender)
+                    .withPropertyValues(mode).withPropertyValues(host)
+                    .run(context -> {
+                        EmailService email = context.getBean(EmailService.class);
+
+                        assertThat(email.isMailSenderConfigured()).as("several senders and spring.mail.host, in " + named).isTrue();
+                        assertThatThrownBy(() -> email.sendHtmlMessage("admin@app.test", "subject", "<p>body</p>"))
+                                .as("the sender Contexa made reached for spring.mail.host, a port nothing listens on, in " + named)
+                                .isInstanceOf(MailSendException.class);
+                        assertThat(context.getBeansOfType(JavaMailSender.class).keySet())
+                                .as("Contexa's sender is held by the service, in " + named)
+                                .containsExactlyInAnyOrder("mailA", "mailB");
+                    });
             contexts.withPropertyValues(mode).withPropertyValues(host)
                     .run(context -> assertThat(context.getBean(EmailService.class).isMailSenderConfigured())
-                            .as("no sender of the application, none made, in " + mode).isFalse());
-            assertThat(first.sent() + second.sent()).isZero();
+                            .as("no sender of the application and spring.mail.host: Contexa's own, in " + named).isTrue());
+            contexts.withPropertyValues(mode)
+                    .run(context -> assertThat(context.getBean(EmailService.class).isMailSenderConfigured())
+                            .as("no sender of the application and no spring.mail.host: none, in " + named).isFalse());
+            assertThat(first.sent() + second.sent()).as("none of the application's senders was asked, in " + named).isZero();
         }
-        // no mode at all: Contexa is not told it owns the sign-in
-        contexts.withBean("mailA", JavaMailSender.class, new Mailbox()::sender)
-                .withBean("mailB", JavaMailSender.class, new Mailbox()::sender)
-                .withPropertyValues(host)
-                .run(context -> assertThat(context.getBean(EmailService.class).isMailSenderConfigured()).isFalse());
     }
 
     @Test

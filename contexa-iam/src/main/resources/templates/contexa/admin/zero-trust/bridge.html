@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+    <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.bridge.status.title})}"></th:block>
+    <link rel="stylesheet" th:href="@{/contexa/css/policy-center.css}" />
+    <link rel="stylesheet" th:href="@{/contexa/css/bridge-status.css?v=20261126-b4}" />
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+<div th:insert="~{contexa/fragments/header :: header}"></div>
+<div class="flex flex-1 overflow-hidden">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
+    <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
+        <!--/* The user bridge status: the counts of this node since the application started, read only. */-->
+        <div class="bs-page" th:with="b=${bridge}">
+            <div class="bs-head">
+                <div class="bs-head-text">
+                    <h1 class="bs-title pc-header-gradient" th:text="#{admin.bridge.status.title}">User bridge status</h1>
+                    <p class="bs-question" th:text="#{admin.bridge.status.question}">How Contexa resolved the users.</p>
+                </div>
+                <a class="modern-btn-secondary bs-refresh" th:href="@{/contexa/admin/zero-trust/bridge}">
+                    <i class="fas fa-rotate-right" aria-hidden="true"></i>
+                    <span th:text="#{admin.bridge.status.refresh}">Refresh</span>
+                </a>
+            </div>
+
+            <ul class="bs-notes">
+                <li>
+                    <i class="fas fa-server" aria-hidden="true"></i>
+                    <span th:text="#{admin.bridge.status.scope}">The counts of this node since the start.</span>
+                </li>
+                <li>
+                    <i class="fas fa-calculator" aria-hidden="true"></i>
+                    <span th:text="#{admin.bridge.status.counting}">One resolution counts once.</span>
+                </li>
+            </ul>
+
+            <section class="bs-off" th:unless="${b.available()}" role="status">
+                <i class="fas fa-plug-circle-xmark" aria-hidden="true"></i>
+                <h2 th:text="#{admin.bridge.status.off.title}">The user bridge is off</h2>
+                <p th:text="#{admin.bridge.status.off.body}">This application has no bridge diagnostics.</p>
+            </section>
+
+            <th:block th:if="${b.available()}">
+                <p class="bs-attention" th:if="${b.attention()}" role="alert">
+                    <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                    <strong th:text="#{admin.bridge.status.attention(${b.invalid()}, ${b.failed()})}">Rule breaks and failures.</strong>
+                </p>
+
+                <section class="bs-section" aria-labelledby="bs-outcomes-title">
+                    <div class="bs-section-head">
+                        <span class="bs-step" aria-hidden="true">1</span>
+                        <h2 id="bs-outcomes-title" th:text="#{admin.bridge.status.outcomes.title}">Outcomes</h2>
+                        <span class="bs-total" th:text="#{admin.bridge.status.outcomes.total(${b.checks()})}">0 in all</span>
+                    </div>
+                    <p class="bs-section-desc" th:text="#{admin.bridge.status.outcomes.desc}">What each resolution came to.</p>
+                    <p class="bs-empty" th:unless="${b.counted()}" th:text="#{admin.bridge.status.outcomes.empty}">None yet.</p>
+                    <div class="bs-stacked" th:if="${b.counted()}" role="img"
+                         th:attr="aria-label=#{admin.bridge.status.outcomes.chart}">
+                        <span th:each="row : ${b.outcomes()}" class="bs-stacked-part"
+                              th:data-code="${row.code()}" th:data-share="${row.share()}"></span>
+                    </div>
+                    <ul class="bs-rows">
+                        <li th:each="row : ${b.outcomes()}" class="bs-row" th:data-code="${row.code()}"
+                            th:classappend="${row.alert()} ? ' bs-row-alert' : ''">
+                            <div class="bs-row-label">
+                                <span class="bs-dot" aria-hidden="true"></span>
+                                <strong th:text="#{${row.nameKey()}}">Outcome</strong>
+                                <code class="bs-code" th:text="${row.code()}">CODE</code>
+                            </div>
+                            <div class="bs-row-figures">
+                                <span class="bs-count" th:text="#{admin.bridge.status.count(${row.count()})}">0</span>
+                                <span class="bs-percent" th:text="${#numbers.formatPercent(row.share(), 1, 1)}">0%</span>
+                            </div>
+                            <div class="bs-bar" aria-hidden="true">
+                                <span class="bs-bar-fill" th:data-share="${row.share()}"></span>
+                            </div>
+                            <p class="bs-row-desc" th:text="${#messages.msgWithParams(row.descriptionKey(), row.args())}">What the outcome means.</p>
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="bs-section" aria-labelledby="bs-email-title">
+                    <div class="bs-section-head">
+                        <span class="bs-step" aria-hidden="true">2</span>
+                        <h2 id="bs-email-title" th:text="#{admin.bridge.status.email.title}">Mail addresses</h2>
+                    </div>
+                    <p class="bs-section-desc" th:text="#{admin.bridge.status.email.desc}">Users without a mail address.</p>
+                    <div class="bs-email" th:classappend="${b.emailProblems() gt 0} ? ' bs-email-warn' : ' bs-email-ok'">
+                        <i th:class="${b.emailProblems() gt 0} ? 'fas fa-envelope-open-text' : 'fas fa-envelope-circle-check'"
+                           aria-hidden="true"></i>
+                        <strong class="bs-email-figure" th:text="#{admin.bridge.status.count(${b.emailProblems()})}">0</strong>
+                        <span class="bs-email-label"
+                              th:text="${b.emailProblems() gt 0} ? #{admin.bridge.status.email.some} : #{admin.bridge.status.email.none}">No mail address problem.</span>
+                    </div>
+                    <ul class="bs-pills">
+                        <li th:each="problem : ${b.emailBreakdown()}" class="bs-pill"
+                            th:classappend="${problem.count() gt 0} ? ' bs-pill-warn' : ''">
+                            <span th:text="${#messages.msgWithParams(problem.nameKey(), problem.args())}">No mail address</span>
+                            <strong th:text="#{admin.bridge.status.count(${problem.count()})}">0</strong>
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="bs-section" aria-labelledby="bs-sources-title">
+                    <div class="bs-section-head">
+                        <span class="bs-step" aria-hidden="true">3</span>
+                        <h2 id="bs-sources-title" th:text="#{admin.bridge.status.sources.title}">Sources</h2>
+                        <span class="bs-total" th:text="#{admin.bridge.status.sources.total(${b.resolved()})}">Of the 0 resolved</span>
+                    </div>
+                    <p class="bs-section-desc" th:text="#{admin.bridge.status.sources.desc}">Where the resolved users came from.</p>
+                    <p class="bs-empty" th:if="${b.resolved() == 0}" th:text="#{admin.bridge.status.sources.empty}">None yet.</p>
+                    <ul class="bs-rows">
+                        <li th:each="row : ${b.sources()}" class="bs-row bs-row-source" th:data-code="${row.code()}">
+                            <div class="bs-row-label">
+                                <span class="bs-dot" aria-hidden="true"></span>
+                                <strong th:text="#{${row.nameKey()}}">Source</strong>
+                                <code class="bs-code" th:text="${row.code()}">CODE</code>
+                            </div>
+                            <div class="bs-row-figures">
+                                <span class="bs-count" th:text="#{admin.bridge.status.count(${row.count()})}">0</span>
+                                <span class="bs-percent" th:text="${#numbers.formatPercent(row.share(), 1, 1)}">0%</span>
+                            </div>
+                            <div class="bs-bar" aria-hidden="true">
+                                <span class="bs-bar-fill" th:data-share="${row.share()}"></span>
+                            </div>
+                            <p class="bs-row-desc" th:text="${#messages.msgWithParams(row.descriptionKey(), row.args())}">What the source is.</p>
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="bs-section" aria-labelledby="bs-problems-title">
+                    <div class="bs-section-head">
+                        <span class="bs-step" aria-hidden="true">4</span>
+                        <h2 id="bs-problems-title" th:text="#{admin.bridge.status.problems.title}">Problems met</h2>
+                        <span class="bs-total" th:unless="${b.problems().isEmpty()}"
+                              th:text="#{admin.bridge.status.problems.total(${b.problems().size()})}">0 kinds</span>
+                    </div>
+                    <p class="bs-section-desc" th:text="#{admin.bridge.status.problems.desc}">A problem never fails the request.</p>
+                    <p class="bs-empty bs-empty-good" th:if="${b.problems().isEmpty()}">
+                        <i class="fas fa-circle-check" aria-hidden="true"></i>
+                        <span th:text="#{admin.bridge.status.problems.none}">No problem recorded.</span>
+                    </p>
+                    <ol class="bs-problems" th:unless="${b.problems().isEmpty()}">
+                        <li th:each="problem : ${b.problems()}" class="bs-problem" th:data-effect="${problem.effect().name()}">
+                            <div class="bs-problem-head">
+                                <span class="bs-dot" aria-hidden="true"></span>
+                                <strong class="bs-problem-name" th:text="${#messages.msgWithParams(problem.nameKey(), problem.args())}">Problem</strong>
+                                <code class="bs-code" th:text="${problem.code()}">CODE</code>
+                                <span class="bs-effect" th:text="#{${problem.effect().key()}}">Effect</span>
+                                <span class="bs-count bs-problem-count" th:text="#{admin.bridge.status.count(${problem.count()})}">0</span>
+                            </div>
+                            <dl class="bs-problem-body">
+                                <dt th:text="#{admin.bridge.status.problems.meaning}">What it means</dt>
+                                <dd class="bs-meaning" th:text="${#messages.msgWithParams(problem.meaningKey(), problem.args())}">Meaning.</dd>
+                                <dt th:text="#{admin.bridge.status.problems.action}">What to do</dt>
+                                <dd class="bs-action" th:text="${#messages.msgWithParams(problem.actionKey(), problem.args())}">Action.</dd>
+                            </dl>
+                        </li>
+                    </ol>
+                    <details class="bs-quiet" th:unless="${b.quietProblems().isEmpty()}">
+                        <summary th:text="#{admin.bridge.status.problems.quiet(${b.quietProblems().size()})}">The kinds not met</summary>
+                        <ol class="bs-problems bs-problems-quiet">
+                            <li th:each="problem : ${b.quietProblems()}" class="bs-problem" th:data-effect="${problem.effect().name()}">
+                                <div class="bs-problem-head">
+                                    <span class="bs-dot" aria-hidden="true"></span>
+                                    <strong class="bs-problem-name" th:text="${#messages.msgWithParams(problem.nameKey(), problem.args())}">Problem</strong>
+                                    <code class="bs-code" th:text="${problem.code()}">CODE</code>
+                                    <span class="bs-effect" th:text="#{${problem.effect().key()}}">Effect</span>
+                                </div>
+                                <dl class="bs-problem-body">
+                                    <dt th:text="#{admin.bridge.status.problems.meaning}">What it means</dt>
+                                    <dd class="bs-meaning" th:text="${#messages.msgWithParams(problem.meaningKey(), problem.args())}">Meaning.</dd>
+                                    <dt th:text="#{admin.bridge.status.problems.action}">What to do</dt>
+                                    <dd class="bs-action" th:text="${#messages.msgWithParams(problem.actionKey(), problem.args())}">Action.</dd>
+                                </dl>
+                            </li>
+                        </ol>
+                    </details>
+                </section>
+
+                <section class="bs-section" aria-labelledby="bs-split-title">
+                    <div class="bs-section-head">
+                        <span class="bs-step" aria-hidden="true">5</span>
+                        <h2 id="bs-split-title" th:text="#{admin.bridge.status.split.title}">Users whose copies are not merged</h2>
+                        <span class="bs-total" th:unless="${splitCopies.isEmpty()}"
+                              th:text="#{admin.bridge.status.split.total(${splitCopies.size()})}">0 users</span>
+                    </div>
+                    <p class="bs-section-desc" th:text="#{admin.bridge.status.split.desc}">Older versions may have kept one person in several rows.</p>
+                    <p class="bs-empty bs-empty-good" th:if="${splitCopies.isEmpty()}">
+                        <i class="fas fa-circle-check" aria-hidden="true"></i>
+                        <span th:text="#{admin.bridge.status.split.none}">No user has copies left to merge.</span>
+                    </p>
+                    <ul class="bs-rows bs-split" th:unless="${splitCopies.isEmpty()}">
+                        <li th:each="row : ${splitCopies}" class="bs-row bs-row-split">
+                            <div class="bs-row-label">
+                                <span class="bs-dot" aria-hidden="true"></span>
+                                <strong th:text="${row.subject}">user id</strong>
+                                <code class="bs-code" th:if="${row.organization != null}" th:text="${row.organization}">organization</code>
+                            </div>
+                            <div class="bs-row-figures">
+                                <span class="bs-count" th:text="#{admin.bridge.status.split.copies(${row.copies})}">2 copies</span>
+                            </div>
+                        </li>
+                    </ul>
+                    <p class="bs-section-desc" th:if="${splitCopiesMore}"
+                       th:text="#{admin.bridge.status.split.more(${splitCopies.size()})}">Only the first users are shown.</p>
+                    <p class="bs-row-desc" th:unless="${splitCopies.isEmpty()}" th:text="#{admin.bridge.status.split.reason}">Why they are kept apart.</p>
+                </section>
+            </th:block>
+        </div>
+    </main>
+</div>
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+<script th:src="@{/contexa/js/admin/zero-trust/bridge-status.js?v=20261126-b4}"></script>
+</body>
+</html>

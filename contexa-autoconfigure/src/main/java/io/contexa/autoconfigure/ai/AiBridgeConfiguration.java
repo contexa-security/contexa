@@ -15,14 +15,34 @@
  */
 package io.contexa.autoconfigure.ai;
 
-import java.util.Locale;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.BooleanSupplier;
+import java.util.stream.Stream;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
-import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
 import io.contexa.contexacommon.security.bridge.*;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
-import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridge;
-import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridgeHandler;
-import io.contexa.contexacommon.security.bridge.handoff.DefaultContexaAuthBridgeHandler;
+import io.contexa.contexacommon.security.bridge.identity.IdentityDiagnostics;
+import io.contexa.contexacommon.security.bridge.identity.IdentityResolution;
+import io.contexa.contexacommon.security.bridge.subject.ContexaBridge;
+import io.contexa.contexacommon.security.bridge.subject.ContexaSubjectMapper;
+import io.contexa.contexacommon.security.bridge.subject.ContexaSubjectResolver;
+import io.contexa.contexacommon.security.bridge.subject.ContexaUsers;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.event.support.HostSignInEvents;
+import io.contexa.contexacore.autonomous.service.UserEngineStatePurger;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
+import io.contexa.contexacore.security.session.SessionIdResolver;
+import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
+import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserEmailProvider;
+import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.lang.Nullable;
 import io.contexa.contexacommon.security.bridge.resolver.*;
 import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
 import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard;
@@ -31,33 +51,51 @@ import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
-import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexacore.security.ContexaUserStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.DisposableBean;
-import io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.context.properties.source.ConfigurationPropertyName;
+import org.springframework.boot.context.properties.source.ConfigurationPropertySource;
+import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
+import org.springframework.boot.context.properties.source.IterableConfigurationPropertySource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
 import org.springframework.security.web.SecurityFilterChain;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Slf4j
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(SecurityFilterChain.class)
 @EnableConfigurationProperties(BridgeProperties.class)
 public class AiBridgeConfiguration {
+
+    /**
+     * bridge v2 B6: the settings of the bridge's old channels, which no code reads any more: a session attribute, the
+     * flat request attributes and the headers, for the user, for its authorization and for its delegation, and the hint
+     * {@code @EnableAISecurity} once published for where the legacy object lay. The {@code security-context} keys and
+     * {@code contexa.bridge.delegation.token.*} are still read and are not among them.
+     */
+    static final List<ConfigurationPropertyName> REMOVED_SETTINGS = Stream.of(
+                    "contexa.ai.security.auth-object",
+                    "contexa.bridge.authentication.session",
+                    "contexa.bridge.authentication.request-attributes",
+                    "contexa.bridge.authentication.headers",
+                    "contexa.bridge.authorization.session",
+                    "contexa.bridge.authorization.request-attributes",
+                    "contexa.bridge.authorization.headers",
+                    "contexa.bridge.delegation.session",
+                    "contexa.bridge.delegation.request-attributes",
+                    "contexa.bridge.delegation.headers")
+            .map(ConfigurationPropertyName::of)
+            .toList();
 
     @Bean(name = "contexaRequestContextCollector")
     @ConditionalOnMissingBean
@@ -75,35 +113,6 @@ public class AiBridgeConfiguration {
         return new BridgeCoverageEvaluator();
     }
 
-    @Bean(name = "contexaAuthBridge")
-    @ConditionalOnMissingBean(AuthBridge.class)
-    public AuthBridge authBridge(BridgeProperties properties, Environment environment) {
-        BridgeProperties.Session sessionProperties = properties.getAuthentication().getSession();
-        BridgeProperties.RequestAttributes requestAttributes = properties.getAuthentication().getRequestAttributes();
-        applyAuthObjectHints(sessionProperties, requestAttributes, environment);
-
-        SessionAuthBridge sessionAuthBridge = new SessionAuthBridge(sessionProperties);
-        RequestAttributeAuthBridge requestAttributeAuthBridge = new RequestAttributeAuthBridge(requestAttributes);
-        HeaderAuthBridge headerAuthBridge = new HeaderAuthBridge(properties);
-
-        List<AuthBridge> bridges = new ArrayList<>();
-        AuthObjectLocation location = resolveAuthObjectLocation(environment);
-        if (location == AuthObjectLocation.REQUEST_ATTRIBUTE) {
-            bridges.add(requestAttributeAuthBridge);
-            bridges.add(sessionAuthBridge);
-            bridges.add(headerAuthBridge);
-        } else if (location == AuthObjectLocation.HEADER) {
-            bridges.add(headerAuthBridge);
-            bridges.add(sessionAuthBridge);
-            bridges.add(requestAttributeAuthBridge);
-        } else {
-            bridges.add(sessionAuthBridge);
-            bridges.add(requestAttributeAuthBridge);
-            bridges.add(headerAuthBridge);
-        }
-        return new CompositeAuthBridge(bridges);
-    }
-
     @Bean(name = "contexaSecurityOnAuthenticationStampResolver")
     @Order(0)
     @ConditionalOnMissingBean(SecurityContextAuthenticationStampResolver.class)
@@ -113,13 +122,6 @@ public class AiBridgeConfiguration {
                 agentClientDirectory.getIfAvailable(() -> AgentClientDirectory.NONE));
     }
 
-    @Bean(name = "contexaSecurityOffBridgeAuthenticationStampResolver")
-    @Order(5)
-    @ConditionalOnMissingBean(AuthBridgeAuthenticationStampResolver.class)
-    public AuthenticationStampResolver securityOffBridgeAuthenticationStampResolver(AuthBridge contexaAuthBridge) {
-        return new AuthBridgeAuthenticationStampResolver(contexaAuthBridge);
-    }
-
     @Bean(name = "contexaSecurityOnAuthorizationStampResolver")
     @Order(0)
     @ConditionalOnMissingBean(SecurityContextAuthorizationStampResolver.class)
@@ -127,67 +129,16 @@ public class AiBridgeConfiguration {
         return new SecurityContextAuthorizationStampResolver();
     }
 
-    @Bean(name = "contexaSecurityOffSessionAuthorizationStampResolver")
-    @Order(5)
-    @ConditionalOnMissingBean(SessionAuthorizationStampResolver.class)
-    public AuthorizationStampResolver securityOffSessionAuthorizationStampResolver(BridgeProperties properties) {
-        if (properties.getAuthorization().getSession().isEnabled() && properties.getAuthorization().getSession().isAutoDiscover()) {
-            log.info("[Bridge] contexa.bridge.authorization.session.auto-discover=true: any session attribute that names "
-                    + "roles, authorities, a privilege or a verdict is read as the user's authorization, and the decisions "
-                    + "read it as such.");
-        }
-        return new SessionAuthorizationStampResolver();
-    }
-
-    @Bean(name = "contexaSecurityOffRequestAttributeAuthorizationStampResolver")
-    @Order(10)
-    @ConditionalOnMissingBean(RequestAttributeAuthorizationStampResolver.class)
-    public AuthorizationStampResolver securityOffRequestAttributeAuthorizationStampResolver() {
-        return new RequestAttributeAuthorizationStampResolver();
-    }
-
-    @Bean(name = "contexaSecurityOffHeaderAuthorizationStampResolver")
-    @Order(20)
-    @ConditionalOnMissingBean(HeaderAuthorizationStampResolver.class)
-    public AuthorizationStampResolver securityOffHeaderAuthorizationStampResolver() {
-        return new HeaderAuthorizationStampResolver();
-    }
-
     /**
      * A1-1: the delegation an access token states comes first, since the authorization server signed it; a token that
-     * names no agent yields no stamp and the session, request attribute and header channels decide as before.
+     * names no agent yields no stamp, and an approved agent's own account is asked last. A1-2: a client the agent
+     * registry approves is read as that agent even when its token carries no agent claim.
      */
     @Bean(name = "contexaTokenDelegationStampResolver")
     @Order(1)
     @ConditionalOnMissingBean(TokenDelegationStampResolver.class)
     public DelegationStampResolver tokenDelegationStampResolver(ObjectProvider<AgentClientDirectory> agentClientDirectory) {
-        // A1-2: a client the agent registry approves is read as that agent even when its token carries no agent claim.
         return new TokenDelegationStampResolver(agentClientDirectory.getIfAvailable(() -> AgentClientDirectory.NONE));
-    }
-
-    @Bean(name = "contexaSecurityOffSessionDelegationStampResolver")
-    @Order(5)
-    @ConditionalOnMissingBean(SessionDelegationStampResolver.class)
-    public DelegationStampResolver securityOffSessionDelegationStampResolver(BridgeProperties properties) {
-        if (properties.getDelegation().getSession().isEnabled() && properties.getDelegation().getSession().isAutoDiscover()) {
-            log.info("[Bridge] contexa.bridge.delegation.session.auto-discover=true: any session attribute that names an "
-                    + "agent is read as a delegation, and a request of a session holding one is decided as that agent's.");
-        }
-        return new SessionDelegationStampResolver();
-    }
-
-    @Bean(name = "contexaSecurityOffRequestAttributeDelegationStampResolver")
-    @Order(10)
-    @ConditionalOnMissingBean(RequestAttributeDelegationStampResolver.class)
-    public DelegationStampResolver securityOffRequestAttributeDelegationStampResolver() {
-        return new RequestAttributeDelegationStampResolver();
-    }
-
-    @Bean(name = "contexaSecurityOffHeaderDelegationStampResolver")
-    @Order(20)
-    @ConditionalOnMissingBean(HeaderDelegationStampResolver.class)
-    public DelegationStampResolver securityOffHeaderDelegationStampResolver() {
-        return new HeaderDelegationStampResolver();
     }
 
     /** A1-11: the token claim names the agent session key reads, registered for every filter of a request. */
@@ -208,8 +159,10 @@ public class AiBridgeConfiguration {
         return new AgentAccountDelegationStampResolver(agentClientDirectory.getIfAvailable(() -> AgentClientDirectory.NONE));
     }
 
-    // BridgeUserMirrorSyncService is provided by AiBridgeUserMirrorSyncAutoConfiguration, which is evaluated
-    // after the Contexa repositories are registered. It is resolved through ObjectProvider at instantiation time.
+    /**
+     * BridgeUserMirrorSyncService is provided by AiBridgeUserMirrorSyncAutoConfiguration, which is evaluated after the
+     * Contexa repositories are registered. It is resolved through ObjectProvider at instantiation time.
+     */
     @Bean(name = "contexaBridgeRuntimeSupport")
     @ConditionalOnMissingBean
     public BridgeRuntimeSupport bridgeRuntimeSupport(
@@ -217,8 +170,10 @@ public class AiBridgeConfiguration {
             ObjectProvider<BridgeUserMirrorSyncService> bridgeUserMirrorSyncService,
             RequestPathDatabaseGuard contexaRequestPathDatabaseGuard,
             BeanFactory beanFactory) {
-        return new BridgeRuntimeSupport(properties, bridgeUserMirrorSyncService.getIfAvailable(), contexaRequestPathDatabaseGuard,
-                ContexaUserStore.signsInWithContexaAccounts(beanFactory));
+        BridgeRuntimeSupport support = new BridgeRuntimeSupport(properties, bridgeUserMirrorSyncService.getIfAvailable(),
+                contexaRequestPathDatabaseGuard, ContexaUserStore.signsInWithContexaAccounts(beanFactory));
+        support.setUserKey(ZeroTrustUserKey::of);
+        return support;
     }
 
     /** An outage of Contexa's database must not hold the application's request threads. */
@@ -229,29 +184,117 @@ public class AiBridgeConfiguration {
         return new RequestPathDatabaseGuard(stores != null ? stores.database() : null);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public ContexaAuthBridgeHandler contexaAuthBridgeHandler(
+    /**
+     * bridge v2 B5-2: the optional calls of a legacy application ({@link ContexaBridge}, {@link ContexaUsers}), bound to
+     * what Contexa does for its own sign-ins, sign-outs and deleted accounts, and unbound when the context closes.
+     */
+    @Bean("contexaBridgeApiBinding")
+    @ConditionalOnMissingBean(name = "contexaBridgeApiBinding")
+    public DisposableBean contexaBridgeApiBinding(
             BridgeProperties properties,
-            RequestContextCollector contexaRequestContextCollector,
-            BridgeCoverageEvaluator contexaBridgeCoverageEvaluator,
-            BridgeRuntimeSupport contexaBridgeRuntimeSupport,
-            @Qualifier(IamSecurityCoreAutoConfiguration.SESSION_CONTEXT_REPOSITORY)
-            ObjectProvider<AISessionSecurityContextRepository> aiSessionSecurityContextRepository) {
-        return new DefaultContexaAuthBridgeHandler(
-                properties,
-                contexaRequestContextCollector,
-                contexaBridgeCoverageEvaluator,
-                contexaBridgeRuntimeSupport,
-                aiSessionSecurityContextRepository.getIfAvailable()
-        );
+            ObjectProvider<BridgeResolutionFilter> bridgeResolutionFilter,
+            ObjectProvider<ZeroTrustEventPublisher> zeroTrustEventPublisher,
+            ObjectProvider<SecurityContextDataStore> securityContextDataStore,
+            ObjectProvider<HostSignInEvents> hostSignInEvents,
+            ObjectProvider<SessionManagementService> sessionManagementService,
+            ObjectProvider<ZeroTrustSecurityService> zeroTrustSecurityService,
+            ObjectProvider<SessionIdResolver> sessionIdResolver,
+            ObjectProvider<UserEngineStatePurger> userEngineStatePurger,
+            ObjectProvider<BridgeRuntimeSupport> bridgeRuntimeSupport) {
+        ContexaBridgeApiHandler handler = new ContexaBridgeApiHandler(properties, bridgeResolutionFilter,
+                zeroTrustEventPublisher, securityContextDataStore, hostSignInEvents, sessionManagementService,
+                zeroTrustSecurityService, sessionIdResolver, userEngineStatePurger, bridgeRuntimeSupport);
+        ContexaBridge.registerHandler(handler);
+        ContexaUsers.registerHandler(handler);
+        return () -> {
+            ContexaBridge.clearHandler();
+            ContexaUsers.clearHandler();
+        };
     }
 
-    @Bean("contexaAuthBridgeBinding")
-    @ConditionalOnMissingBean(name = "contexaAuthBridgeBinding")
-    public DisposableBean contexaAuthBridgeBinding(ContexaAuthBridgeHandler contexaAuthBridgeHandler) {
-        ContexaAuthBridge.registerHandler(contexaAuthBridgeHandler);
-        return ContexaAuthBridge::clearHandler;
+    /** bridge v2: what resolving the identities of requests came to, counted for the console and the start report. */
+    @Bean(name = "contexaIdentityDiagnostics")
+    @ConditionalOnMissingBean
+    public IdentityDiagnostics identityDiagnostics() {
+        return new IdentityDiagnostics();
+    }
+
+    /**
+     * bridge v2: the one function that makes the identity of a request, from the application's declarations: its
+     * {@link ContexaSubjectResolver}, its {@link ContexaSubjectMapper} and its {@link BridgeUserEmailProvider}, each at
+     * most one. Two resolvers or two mappers stop the start, since Contexa would not know which one names the user.
+     */
+    @Bean(name = "contexaIdentityResolution")
+    @ConditionalOnMissingBean
+    public IdentityResolution identityResolution(
+            BridgeProperties properties,
+            ListableBeanFactory beanFactory,
+            IdentityDiagnostics contexaIdentityDiagnostics) {
+        BooleanSupplier contexaAccountsSignIn = ContexaUserStore.signsInWithContexaAccounts(beanFactory);
+        IdentityResolution.Accounts accounts = authentication -> ConsoleSession.current()
+                ? ContexaIdentity.subjectId(authentication)
+                : ContexaAccountAuthentication.accountName(authentication, properties, contexaAccountsSignIn);
+        return new IdentityResolution(
+                IdentityResolution.Settings.of(properties),
+                single(beanFactory, ContexaSubjectResolver.class),
+                single(beanFactory, ContexaSubjectMapper.class),
+                beanFactory.getBeanProvider(BridgeUserEmailProvider.class).getIfUnique(),
+                accounts,
+                contexaIdentityDiagnostics);
+    }
+
+    @Nullable
+    private static <T> T single(ListableBeanFactory beanFactory, Class<T> type) {
+        String[] names = beanFactory.getBeanNamesForType(type, true, false);
+        if (names.length > 1) {
+            throw new IllegalStateException("[Contexa] Bridge: the application has " + names.length + " beans of "
+                    + type.getSimpleName() + " " + Arrays.toString(names) + ", and Contexa would not know which one names"
+                    + " the user of a request. Keep one " + type.getSimpleName() + " bean.");
+        }
+        return names.length == 1 ? beanFactory.getBean(names[0], type) : null;
+    }
+
+    /**
+     * bridge v2 B6 (plan 3.5, upgrade path): an installation that still sets one of the {@link #REMOVED_SETTINGS} is told
+     * once at start which keys are no longer read and what names the user of a request instead. The start goes on, and
+     * only the names of the keys are written, never their values.
+     */
+    @Bean(name = "contexaRemovedBridgeSettingsReport")
+    @ConditionalOnMissingBean(name = "contexaRemovedBridgeSettingsReport")
+    public SmartInitializingSingleton removedBridgeSettingsReport(Environment environment) {
+        return () -> {
+            List<String> removed = removedBridgeSettings(environment);
+            if (!removed.isEmpty()) {
+                log.error("[Contexa] Bridge: Contexa no longer reads the settings {}. Name the user of a request with a "
+                        + "ContexaSubjectResolver bean, or put a ContexaSubject in the request attribute ctxa.subject "
+                        + "(ContexaSubject.REQUEST_ATTRIBUTE), and remove these settings.", removed);
+            }
+        };
+    }
+
+    /** The keys the environment sets under one of the {@link #REMOVED_SETTINGS}, by name in order; no value is read. */
+    static List<String> removedBridgeSettings(Environment environment) {
+        if (!(environment instanceof ConfigurableEnvironment)) {
+            return List.of();
+        }
+        Set<String> found = new TreeSet<>();
+        try {
+            for (ConfigurationPropertySource source : ConfigurationPropertySources.get(environment)) {
+                if (source instanceof IterableConfigurationPropertySource names) {
+                    names.stream()
+                            .filter(AiBridgeConfiguration::isRemovedSetting)
+                            .map(ConfigurationPropertyName::toString)
+                            .forEach(found::add);
+                }
+            }
+        } catch (RuntimeException e) {
+            log.error("[Contexa] Bridge: could not look for the settings Contexa no longer reads", e);
+        }
+        return List.copyOf(found);
+    }
+
+    private static boolean isRemovedSetting(ConfigurationPropertyName name) {
+        return REMOVED_SETTINGS.stream().anyMatch(removed -> removed.equals(name) || removed.isAncestorOf(name));
     }
 
     @Bean(name = "contexaBridgeResolutionFilter")
@@ -264,7 +307,8 @@ public class AiBridgeConfiguration {
             ObjectProvider<DelegationStampResolver> delegationStampResolvers,
             BridgeCoverageEvaluator contexaBridgeCoverageEvaluator,
             ObjectProvider<BridgeUserMirrorSyncService> bridgeUserMirrorSyncService,
-            BridgeRuntimeSupport contexaBridgeRuntimeSupport) {
+            BridgeRuntimeSupport contexaBridgeRuntimeSupport,
+            IdentityResolution contexaIdentityResolution) {
         return new BridgeResolutionFilter(
                 properties,
                 contexaRequestContextCollector,
@@ -274,80 +318,23 @@ public class AiBridgeConfiguration {
                 contexaBridgeCoverageEvaluator,
                 bridgeUserMirrorSyncService.getIfAvailable(),
                 contexaBridgeRuntimeSupport,
-                null
+                null,
+                contexaIdentityResolution
         );
     }
 
     /**
-     * The bridge's servlet registration. Under HOST_OWNED it runs right after the application's Spring Security chain,
-     * before Contexa's enforcement filters, which read the delegation it stamps; under CONTEXA_OWNED it keeps the order
-     * it always had (it also runs first inside Contexa's chain).
+     * The bridge's place in Contexa's filter slot (R-10 of docs/agent/운영모드-정상화-구현계획.md), whatever the mode: first,
+     * right after the Spring Security filter chain, before Contexa's other filters, which read what it stamps. Under mode
+     * FULL it also runs first inside Contexa's own chain; being a once-per-request filter under one name, it resolves a
+     * request that chain took once.
      */
     @Bean(name = "contexaBridgeResolutionFilterRegistration")
     @ConditionalOnMissingBean(name = "contexaBridgeResolutionFilterRegistration")
-    public FilterRegistrationBean<BridgeResolutionFilter> bridgeResolutionFilterRegistration(
+    public ContexaSlotFilterRegistration<BridgeResolutionFilter> bridgeResolutionFilterRegistration(
             BridgeResolutionFilter contexaBridgeResolutionFilter,
-            BridgeProperties properties,
             ObjectProvider<SecurityProperties> securityProperties) {
-        FilterRegistrationBean<BridgeResolutionFilter> registration = new FilterRegistrationBean<>(contexaBridgeResolutionFilter);
-        registration.setName("contexaBridgeResolutionFilter");
-        return HostOwnedEnforcementOrder.bridge(registration, properties.ownershipBehaviour().enforcesFromServletFilters(),
-                HostOwnedEnforcementOrder.securityFilterOrder(securityProperties));
-    }
-
-    private void applyAuthObjectHints(
-            BridgeProperties.Session sessionProperties,
-            BridgeProperties.RequestAttributes requestAttributes,
-            Environment environment) {
-        String authObjectType = resolveAuthObjectType(environment);
-        if (authObjectType != null) {
-            sessionProperties.setObjectTypeName(authObjectType);
-            requestAttributes.setObjectTypeName(authObjectType);
-        }
-
-        String authObjectAttribute = resolveAuthObjectAttribute(environment);
-        if (authObjectAttribute == null) {
-            return;
-        }
-
-        AuthObjectLocation location = resolveAuthObjectLocation(environment);
-        if (location == AuthObjectLocation.SESSION) {
-            sessionProperties.setAttribute(authObjectAttribute);
-        } else if (location == AuthObjectLocation.REQUEST_ATTRIBUTE) {
-            requestAttributes.setAttribute(authObjectAttribute);
-        }
-    }
-
-    private AuthObjectLocation resolveAuthObjectLocation(Environment environment) {
-        String configured = environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_LOCATION);
-        if (configured == null || configured.isBlank()) {
-            return AuthObjectLocation.AUTO;
-        }
-        try {
-            return AuthObjectLocation.valueOf(configured.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ignored) {
-            return AuthObjectLocation.AUTO;
-        }
-    }
-
-    private String resolveAuthObjectAttribute(Environment environment) {
-        String configured = environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_ATTRIBUTE);
-        if (configured == null) {
-            return null;
-        }
-        String normalized = configured.trim();
-        return normalized.isBlank() ? null : normalized;
-    }
-
-    private String resolveAuthObjectType(Environment environment) {
-        String configured = environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_TYPE);
-        if (configured == null) {
-            return null;
-        }
-        String normalized = configured.trim();
-        if (normalized.isBlank() || Object.class.getName().equals(normalized)) {
-            return null;
-        }
-        return normalized;
+        return ContexaServletFilterOrder.member(contexaBridgeResolutionFilter, "contexaBridgeResolutionFilter",
+                ContexaServletFilterOrder.securityFilterOrder(securityProperties), ContexaServletFilterOrder.BRIDGE);
     }
 }

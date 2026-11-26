@@ -30,7 +30,8 @@ import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionS
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustCoverageCounter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
-import io.contexa.contexacommon.security.HostOwnedIdentityNotice;
+import io.contexa.contexacommon.security.SandboxIdentityNotice;
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.aop.Advice;
@@ -55,9 +56,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.lang.Nullable;
 
 import java.lang.reflect.Method;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 public class AuthorizationManagerMethodInterceptor
@@ -85,6 +89,13 @@ public class AuthorizationManagerMethodInterceptor
     private ContexaStores contexaStores = new ContexaStores();
     private ZeroTrustCoverageCounter coverageCounter;
     private AuthenticationTrustResolver authenticationTrustResolver = new AuthenticationTrustResolverImpl();
+    private final AtomicLong lastWithoutUserReport = new AtomicLong();
+
+    /** Why a call without a user is refused where Contexa decides on users (SHADOW, ENFORCE). */
+    private static final String NO_USER = "the request has no signed-in user: neither the application's Spring Security nor the"
+            + " bridge (a ContexaSubjectResolver bean, or a ContexaSubject in the request attribute ctxa.subject) made one known";
+    private static final long WITHOUT_USER_REPORT_INTERVAL_MILLIS = 60_000L;
+    private Consumer<HttpServletRequest> identityResolution;
 
     public AuthorizationManagerMethodInterceptor(
             Pointcut pointcut,
@@ -127,9 +138,9 @@ public class AuthorizationManagerMethodInterceptor
             recordRanWithoutUser(mi);
             return proceed(mi);
         }
-        Authentication authentication = getAuthentication();
+        Authentication authentication = getAuthentication(currentRequest());
         // Ownership design S-7: report once an application that signs users in after Contexa's request filters.
-        HostOwnedIdentityNotice.reportAtProtectedMethod(currentRequest(), authentication);
+        SandboxIdentityNotice.reportAtProtectedMethod(currentRequest(), authentication);
         boolean granted = false;
         boolean publishEvent = true;
         String denialReason = null;
@@ -413,15 +424,38 @@ public class AuthorizationManagerMethodInterceptor
      * handling answers it as the denial it is, not as an unknown failure. A mode that decides on nobody (OBSERVE,
      * DISABLED) leaves the call as the application made it: it goes on as a signed-in user's call does there, and the
      * method policies decide on what the context holds, a visitor or nobody.
+     * <p>
+     * R-10: the user is the one Contexa decides for ({@link ContexaIdentity}): the application's signed-in user, else the
+     * user the bridge resolved for Contexa alone, resolved here when the application made it known after Contexa's
+     * request filters. The application's security context is read, never written.
      */
-    private Authentication getAuthentication() {
-        Authentication authentication = this.securityContextHolderStrategy.get().getContext().getAuthentication();
+    private Authentication getAuthentication(HttpServletRequest request) {
+        if (request != null && identityResolution != null) {
+            identityResolution.accept(request);
+        }
+        Authentication authentication = request != null
+                ? ContexaIdentity.of(request)
+                : this.securityContextHolderStrategy.get().getContext().getAuthentication();
         boolean isAnonymous = this.authenticationTrustResolver.isAnonymous(authentication);
         if ((authentication == null || isAnonymous) && isLlmAnalysisAllowed()) {
-            throw ProtectableRefusalFilter.markRefusal(currentRequest(), ProtectableRefusalFilter.withoutUser(
-                    "Authentication is anonymousUser or was not found in the SecurityContext"));
+            reportWithoutUser(request);
+            throw ProtectableRefusalFilter.markRefusal(currentRequest(), ProtectableRefusalFilter.withoutUser(NO_USER));
         }
         return authentication;
+    }
+
+    /**
+     * Says, at most once a minute, that a call was refused for want of a user, since nothing else shows an operator a
+     * request whose user neither the application's Spring Security nor the bridge made known.
+     */
+    private void reportWithoutUser(@Nullable HttpServletRequest request) {
+        long now = System.currentTimeMillis();
+        long last = lastWithoutUserReport.get();
+        if (now - last < WITHOUT_USER_REPORT_INTERVAL_MILLIS || !lastWithoutUserReport.compareAndSet(last, now)) {
+            return;
+        }
+        log.error("[Contexa] A @Protectable call ({}) was refused: {}", request != null ? request.getRequestURI() : "no request",
+                NO_USER);
     }
 
     private Protectable resolveProtectable(MethodInvocation mi) {
@@ -550,6 +584,14 @@ public class AuthorizationManagerMethodInterceptor
 
     public void setAuthorizationManager(ProtectableMethodAuthorizationManager authorizationManager) {
         this.authorizationManager = authorizationManager;
+    }
+
+    /**
+     * R-10: resolves, at the decision, the user of a request the application made known after Contexa's request filters
+     * (the bridge's resolution of the request); none set leaves the request as those filters left it.
+     */
+    public void setIdentityResolution(Consumer<HttpServletRequest> identityResolution) {
+        this.identityResolution = identityResolution;
     }
 
     public void setRapidReentryGuard(ProtectableRapidReentryGuard rapidReentryGuard) {

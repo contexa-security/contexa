@@ -33,8 +33,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
  * The store of what a step-up hands out and of the claims on what may happen only once in a while, in memory or in Redis
- * in a distributed deployment. It stands under either ownership: the step-up of an application that owns its sign-in
- * keeps its options there, and the mail of a one-time code is claimed there when Contexa owns sign-in too.
+ * in a distributed deployment. It stands in either mode and with either ownership: the step-up of mode SANDBOX keeps its
+ * options there, and the mail of a one-time code of Contexa's own sign-in is claimed there in every way of running Contexa.
  */
 @AutoConfiguration
 @AutoConfigureAfter(IdentitySecurityCoreAutoConfiguration.class)

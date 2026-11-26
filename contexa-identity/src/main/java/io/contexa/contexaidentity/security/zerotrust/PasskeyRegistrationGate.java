@@ -24,9 +24,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.Authentication;
 
 import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 
 /**
- * Who may register a passkey in a sign-in Contexa owns (Q-13). A passkey answers a CHALLENGE, so it is no matter for the
+ * Who may register a passkey in a sign-in flow of Contexa's (Q-13). A passkey answers a CHALLENGE, so it is no matter for the
  * first factor: whoever holds a stolen password would register one and answer with it. A session registers once it has
  * completed MFA, in its login or by a step-up; a session without one verifies first, and a session under a CHALLENGE
  * answers it first. A BLOCK or an ESCALATE refuses it.
@@ -48,17 +49,27 @@ public class PasskeyRegistrationGate {
 
     private final ZeroTrustActionRepository actions;
     private final BooleanSupplier enforcing;
-    private final BooleanSupplier verificationAvailable;
+    private final Predicate<HttpServletRequest> verificationAvailable;
 
+    /** A gate whose one answer about an MFA flow to verify in holds for every request. */
     public PasskeyRegistrationGate(ZeroTrustActionRepository actions, BooleanSupplier enforcing,
                                    BooleanSupplier verificationAvailable) {
+        this(actions, enforcing, request -> verificationAvailable.getAsBoolean());
+    }
+
+    /**
+     * A gate that asks, for each request, whether its realm has an MFA flow to verify in (R-13 of
+     * docs/agent/운영모드-정상화-구현계획.md): the console's realm and the application's are told apart.
+     */
+    public PasskeyRegistrationGate(ZeroTrustActionRepository actions, BooleanSupplier enforcing,
+                                   Predicate<HttpServletRequest> verificationAvailable) {
         this.actions = actions;
         this.enforcing = enforcing;
         this.verificationAvailable = verificationAvailable;
     }
 
     public Verdict verdict(HttpServletRequest request, Authentication authentication) {
-        boolean canVerify = verificationAvailable.getAsBoolean();
+        boolean canVerify = verificationAvailable.test(request);
         if (enforcing.getAsBoolean()) {
             ZeroTrustAction action = actions.getCurrentAction(ZeroTrustUserKey.person(authentication.getName()),
                     SessionFingerprintUtil.generateContextBindingHash(request));

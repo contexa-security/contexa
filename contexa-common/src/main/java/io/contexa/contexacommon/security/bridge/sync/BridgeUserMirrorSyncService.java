@@ -29,6 +29,21 @@ public interface BridgeUserMirrorSyncService {
     );
 
     /**
+     * The copy of the user, for a request that is a sign-in or not. Only a sign-in writes when and from where the user
+     * last signed in; any other request writes the copy only when a value the copy keeps changed.
+     *
+     * @param signIn whether the request signs the user in
+     */
+    default BridgeUserMirrorSyncResult sync(
+            AuthenticationStamp authenticationStamp,
+            AuthorizationStamp authorizationStamp,
+            RequestContextSnapshot requestContext,
+            boolean signIn
+    ) {
+        return sync(authenticationStamp, authorizationStamp, requestContext);
+    }
+
+    /**
      * The address the application showed for the user since the copy took a real one, which waits until the user
      * proves it; the step-up mails it a code of its own.
      *

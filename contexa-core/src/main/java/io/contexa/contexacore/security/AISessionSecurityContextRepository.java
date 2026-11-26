@@ -46,6 +46,9 @@ import java.util.concurrent.TimeUnit;
 public class AISessionSecurityContextRepository extends HttpSessionSecurityContextRepository
         implements AISecurityContextRepository {
 
+    /** The bean of the repository of the application's users' flows; Contexa's code takes it by this name. */
+    public static final String BEAN_NAME = "contexaAiSessionSecurityContextRepository";
+
     private static final String CONTEXT_KEY = "SPRING_SECURITY_CONTEXT";
 
     private final AISecurityContextSupport support;
@@ -56,6 +59,8 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
     private final Cache<String, Instant> lastRedisUpdateCache;
     private final Cache<String, String> previousAuthCache;
     private SessionAccountRefresher accountRefresher;
+    /** The session attribute this repository keeps its context in, read where it is written again. */
+    private String contextKey = CONTEXT_KEY;
 
     public AISessionSecurityContextRepository(
             AISecurityContextSupport support,
@@ -87,6 +92,13 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
     }
 
     /** Q-14: keeps open sessions in step with their accounts; without it a session keeps what it signed in with. */
+    /** A repository of Contexa's administrators keeps its context under a key of its own, apart from the application's. */
+    @Override
+    public void setSpringSecurityContextKey(String springSecurityContextKey) {
+        super.setSpringSecurityContextKey(springSecurityContextKey);
+        this.contextKey = springSecurityContextKey;
+    }
+
     public void setAccountRefresher(SessionAccountRefresher accountRefresher) {
         this.accountRefresher = accountRefresher;
     }
@@ -237,7 +249,7 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
                 }
 
                 if (auth != null && support.getTrustResolver().isAuthenticated(auth)) {
-                    if (accountRefresher != null && accountRefresher.refresh(context, request, CONTEXT_KEY)
+                    if (accountRefresher != null && accountRefresher.refresh(context, request, contextKey)
                             == SessionAccountRefresher.Outcome.ACCOUNT_ENDED) {
                         return endedSession(identifier, auth);
                     }

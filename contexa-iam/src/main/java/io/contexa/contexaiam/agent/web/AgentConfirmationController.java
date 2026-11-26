@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.agent.web;
 
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
@@ -235,7 +236,11 @@ public class AgentConfirmationController {
                 && StringUtils.hasText(stamp.agentId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "An agent cannot confirm a request");
         }
-        return authentication.getName();
+        String person = ContexaIdentity.userId(request, authentication);
+        if (person == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+        return person;
     }
 
     /** The delegation the request named, else the person's delegation to the agent at the time it was asked. */

@@ -42,8 +42,8 @@ public final class MfaFormAuthenticationConfigurer<H extends HttpSecurityBuilder
 
         Assert.notNull(this.mfaInitiateUrl, "mfaInitiateUrl must be configured or have a default value.");
 
-        // Where Contexa owns the sign-in the password is checked by Contexa's provider alone, not by the chain's manager
-        AuthenticationManager contexaSignIn = ContexaPasswordSignIn.manager(applicationContext);
+        // A flow of Contexa's accounts checks the password with Contexa's provider alone, not with the chain's manager
+        AuthenticationManager contexaSignIn = ContexaPasswordSignIn.manager(http, applicationContext);
         MfaFormAuthenticationFilter filter = new MfaFormAuthenticationFilter(
                 contexaSignIn != null ? contexaSignIn : authenticationManager,
                 applicationContext,

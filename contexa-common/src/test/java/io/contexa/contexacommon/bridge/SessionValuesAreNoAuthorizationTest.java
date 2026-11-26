@@ -18,11 +18,8 @@ package io.contexa.contexacommon.bridge;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
-import io.contexa.contexacommon.security.bridge.resolver.HeaderAuthorizationStampResolver;
-import io.contexa.contexacommon.security.bridge.resolver.RequestAttributeAuthorizationStampResolver;
 import io.contexa.contexacommon.security.bridge.resolver.SecurityContextAuthenticationStampResolver;
 import io.contexa.contexacommon.security.bridge.resolver.SecurityContextAuthorizationStampResolver;
-import io.contexa.contexacommon.security.bridge.resolver.SessionAuthorizationStampResolver;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
@@ -50,7 +47,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * What an application keeps in the session for its own pages is no authorization: the values of a search form say
  * nothing of what the user may do. The authorization stamp is the evidence a decision reads of the user's roles,
  * authorities, privilege and the application's verdict, so a session value that only looks like one must add nothing
- * to it. Only the attribute the application names as its authorization is read.
+ * to it. bridge v2 B6: no session value is read as authorization at all; an application states authorities only in the
+ * {@code ContexaSubject} it hands Contexa.
  */
 class SessionValuesAreNoAuthorizationTest {
 
@@ -69,17 +67,13 @@ class SessionValuesAreNoAuthorizationTest {
         SecurityContextHolder.clearContext();
     }
 
-    /** The authorization resolvers in the order the auto-configuration registers them. */
+    /** The authorization resolvers the auto-configuration registers (bridge v2: the Spring Security one only). */
     private AuthorizationStamp stamp() throws Exception {
         BridgeResolutionFilter filter = new BridgeResolutionFilter(
                 properties,
                 new RequestContextCollector(),
                 List.of(new SecurityContextAuthenticationStampResolver()),
-                List.of(
-                        new SecurityContextAuthorizationStampResolver(),
-                        new SessionAuthorizationStampResolver(),
-                        new RequestAttributeAuthorizationStampResolver(),
-                        new HeaderAuthorizationStampResolver()),
+                List.of(new SecurityContextAuthorizationStampResolver()),
                 List.of(),
                 new BridgeCoverageEvaluator());
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
@@ -138,27 +132,5 @@ class SessionValuesAreNoAuthorizationTest {
         session.setAttribute("user", new HashMap<>(Map.of("roles", "ROLE_ADMIN")));
 
         assertThat(stamp().effectiveRoles()).doesNotContain("ROLE_ADMIN");
-    }
-
-    @Test
-    @DisplayName("the attribute the application names as its authorization is read")
-    void theNamedAttribute() throws Exception {
-        properties.getAuthorization().getSession().setAttribute("LOGIN_AUTHZ");
-        session.setAttribute("LOGIN_AUTHZ", new HashMap<>(Map.of("roles", "ROLE_FINANCE", "effect", "ALLOW")));
-        session.setAttribute("lastSearch", new HashMap<>(Map.of("roles", "ROLE_ADMIN")));
-
-        AuthorizationStamp stamp = stamp();
-
-        assertThat(stamp.effectiveRoles()).contains("ROLE_FINANCE").doesNotContain("ROLE_ADMIN");
-        assertThat(stamp.attributes().get("authorizationEvidenceSources")).asList().contains("SESSION");
-    }
-
-    @Test
-    @DisplayName("an application that turns discovery on reads every attribute, as before")
-    void discoveryTurnedOn() throws Exception {
-        properties.getAuthorization().getSession().setAutoDiscover(true);
-        session.setAttribute("lastSearch", new HashMap<>(Map.of("roles", "ROLE_ADMIN")));
-
-        assertThat(stamp().effectiveRoles()).contains("ROLE_ADMIN");
     }
 }

@@ -39,7 +39,11 @@ public class Users {
     @Column(length = 100, unique = true, nullable = false)
     private String username;
 
-    @Column(length = 255, unique = true)
+    /**
+     * Unique among Contexa's own accounts only, whatever its case (the partial unique index ctxa_ux_users_account_email);
+     * copies of applications' users may share one, and a copy whose application shows none has none.
+     */
+    @Column(length = 255)
     private String email;
 
     /** Stays out of JSON: copies of a user go to the caches and to Redis, and nothing reads the hash from a copy (PR-87). */

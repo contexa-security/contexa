@@ -46,7 +46,7 @@ class AdminMenuSeedPostgresTest {
     }
 
     @Test
-    @DisplayName("the seed puts the console's six screens under the Zero Trust group and renames the event log")
+    @DisplayName("the seed puts the console's six screens and the user bridge status under the Zero Trust group and renames the event log")
     void theSeedPutsTheConsoleScreens() {
         assertThat(screens()).containsExactly(
                 "1 menu.zerotrust.overview /contexa/admin/zero-trust zero-trust-overview",
@@ -54,7 +54,8 @@ class AdminMenuSeedPostgresTest {
                 "3 menu.zerotrust.trust /contexa/admin/zero-trust/trust zero-trust-trust",
                 "4 menu.zerotrust.decisions /contexa/admin/zero-trust/decisions zero-trust-decisions",
                 "5 menu.zerotrust.adoption /contexa/admin/zero-trust/adoption zero-trust-adoption",
-                "6 menu.zerotrust.operations /contexa/admin/zero-trust/operations zero-trust-operations");
+                "6 menu.zerotrust.operations /contexa/admin/zero-trust/operations zero-trust-operations",
+                "7 menu.zerotrust.bridge /contexa/admin/zero-trust/bridge zero-trust-bridge");
         assertThat(jdbc.queryForObject("SELECT name FROM ctxa_admin_menu WHERE data_page = 'security-monitor'",
                 String.class)).isEqualTo("menu.security.events");
     }

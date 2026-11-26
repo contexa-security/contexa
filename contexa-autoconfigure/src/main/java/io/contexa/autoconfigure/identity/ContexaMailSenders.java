@@ -30,7 +30,7 @@ import org.springframework.util.StringUtils;
 import java.util.Properties;
 
 /**
- * The mail sender Contexa builds for itself where it owns the sign-in and the application has no single sender to take
+ * The mail sender Contexa builds for itself, in every way of running Contexa, where the application has no single sender to take
  * (none, or several of them): made of the application's {@code spring.mail.*} settings the way Spring Boot makes the
  * sender it builds from them, so a limit or a login the application sets there applies to it as it applies to Boot's own.
  * A limit the settings do not set is Contexa's: without one a mail server that takes the connection and says nothing

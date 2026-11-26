@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.token.validator;
 import io.contexa.contexacommon.enums.OAuth2ServerMode;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2JwtAuthenticationConverter;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateAdapter;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.GenericApplicationContext;
@@ -64,7 +65,7 @@ class OAuth2AuthorizationValidatorTest {
         GenericApplicationContext context = new GenericApplicationContext();
         AuthContextProperties properties = new AuthContextProperties(); properties.setOauth2ServerMode(mode);
         context.registerBean(AuthContextProperties.class, () -> properties);
-        context.registerBean(OAuth2AuthorizationService.class, () -> authorizations);
+        context.registerBean(OAuth2StateAdapter.CONTEXA_AUTHORIZATION_SERVICE, OAuth2AuthorizationService.class, () -> authorizations);
         context.registerBean(UserDetailsService.class, () -> name -> User.withUsername(name).password("unused").roles("USER").build());
         context.refresh(); return context;
     }

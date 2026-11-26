@@ -17,6 +17,9 @@ package io.contexa.contexacore.autonomous.utils;
 
 import org.springframework.mock.web.MockHttpSession;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
+import io.contexa.contexacommon.security.bridge.subject.ContexaSubject;
+import io.contexa.contexacommon.security.bridge.subject.SubjectProblem;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageReport;
 import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
@@ -462,5 +465,82 @@ class RequestInfoExtractorTest {
                 .isEqualTo("10.0.0.10");
         assertThat(RequestInfoExtractor.extractUserAgent(request)).isEqualTo("RealBrowser/1.0");
         assertThat(RequestInfoExtractor.extractObservedAt(request)).isNull();
+    }
+
+    @Test
+    @DisplayName("bridge v2: 성립한 신원의 테넌트·조직이 인증 도장 속성보다 앞선다")
+    void theResolvedSubjectsTenantAndOrganizationComeBeforeTheStamps() {
+        MockHttpServletRequest request = stampedRequest("tenant-a", "org-a");
+        ContexaIdentity identity = identify(request, "tenant-subject", "org-subject");
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getTenantId()).isEqualTo("tenant-subject");
+        assertThat(requestInfo.getOrganizationId()).isEqualTo("org-subject");
+        assertThat(RequestInfoExtractor.extractTenantId(request)).isEqualTo("tenant-subject");
+        assertThat(requestInfo.getIdentity()).isSameAs(identity);
+    }
+
+    @Test
+    @DisplayName("bridge v2: 신원에 테넌트·조직이 없으면 인증 도장 속성을 그대로 쓴다")
+    void aSubjectWithoutTenantOrOrganizationLeavesTheStamps() {
+        MockHttpServletRequest request = stampedRequest("tenant-a", "org-a");
+        identify(request, null, null);
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getTenantId()).isEqualTo("tenant-a");
+        assertThat(requestInfo.getOrganizationId()).isEqualTo("org-a");
+    }
+
+    @Test
+    @DisplayName("bridge v2: 공식 맥락의 테넌트·조직은 신원보다 앞선 그대로다")
+    void theOfficialContextStillComesFirst() {
+        MockHttpServletRequest request = stampedRequest("tenant-a", "org-a");
+        OfficialContextRequestAttributes.applySnapshot(request, Map.of(
+                "tenantId", "tenant-canonical",
+                "organizationId", "org-canonical"), true);
+        identify(request, "tenant-subject", "org-subject");
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getTenantId()).isEqualTo("tenant-canonical");
+        assertThat(requestInfo.getOrganizationId()).isEqualTo("org-canonical");
+    }
+
+    @Test
+    @DisplayName("bridge v2: 성립하지 않은 신원은 테넌트·조직을 주지 않고 요청 정보에 그대로 실린다")
+    void anUnresolvedIdentityNamesNoTenantAndIsCarried() {
+        MockHttpServletRequest request = stampedRequest("tenant-a", "org-a");
+        ContexaIdentity failed = ContexaIdentity.unresolved(ContexaIdentity.Outcome.FAILED,
+                Set.of(SubjectProblem.RESOLVER_FAILED));
+        request.setAttribute(BridgeRequestAttributes.SUBJECT_IDENTITY, failed);
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getTenantId()).isEqualTo("tenant-a");
+        assertThat(requestInfo.getOrganizationId()).isEqualTo("org-a");
+        assertThat(requestInfo.getIdentity()).isSameAs(failed);
+    }
+
+    private static MockHttpServletRequest stampedRequest(String tenantId, String organizationId) {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
+        request.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP,
+                new AuthenticationStamp("kim01", "Kim", "USER", true, "PASSWORD", "RESOLVER", null, null, null,
+                        null, List.of(), Map.of("tenantId", tenantId, "organizationId", organizationId)));
+        return request;
+    }
+
+    private static ContexaIdentity identify(MockHttpServletRequest request, String tenantId, String organizationId) {
+        ContexaIdentity identity = ContexaIdentity.resolved(
+                ContexaSubject.of("kim01", "kim01@seum.example").tenantId(tenantId).organizationId(organizationId)
+                        .build(),
+                ContexaIdentity.Source.SPRING_SECURITY, Set.of(), null);
+        request.setAttribute(BridgeRequestAttributes.SUBJECT_IDENTITY, identity);
+        return identity;
     }
 }

@@ -20,7 +20,6 @@ import org.springframework.security.core.Authentication;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -152,23 +151,7 @@ public record CredentialFacts(String kind, @Nullable String grant, @Nullable Str
 
     @Nullable
     private static Instant instant(@Nullable Object value) {
-        if (value instanceof Instant instant) {
-            return instant;
-        }
-        if (value instanceof Date date) {
-            return date.toInstant();
-        }
-        if (value instanceof Number seconds) {
-            return Instant.ofEpochSecond(seconds.longValue());
-        }
-        if (value != null) {
-            try {
-                return Instant.parse(value.toString().trim());
-            } catch (RuntimeException notAnInstant) {
-                return null;
-            }
-        }
-        return null;
+        return BridgeInstants.parse(value);
     }
 
     private static void put(Map<String, Object> payload, String key, @Nullable String value) {

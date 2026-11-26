@@ -15,7 +15,7 @@
  */
 package io.contexa.autoconfigure.ai;
 
-import io.contexa.autoconfigure.identity.IdentitySecurityCoreContexaOwnedConfiguration;
+import io.contexa.autoconfigure.identity.IdentitySignInConfiguration;
 import io.contexa.contexacommon.operating.ContexaOperatingProfileException;
 import io.contexa.contexaidentity.security.core.context.OrderedSecurityFilterChain;
 import org.junit.jupiter.api.Test;
@@ -104,7 +104,7 @@ class ContexaOwnedChainDefinitionCheckTest {
     @Test
     void contexasPlaceholderIsNotTheApplications() throws Exception {
         DefaultListableBeanFactory beans = contexaOwned(true);
-        chain(beans, IdentitySecurityCoreContexaOwnedConfiguration.PLACEHOLDER_CHAIN, "fluent");
+        chain(beans, IdentitySignInConfiguration.PLACEHOLDER_CHAIN, "fluent");
 
         assertThat(ContexaOwnedChainDefinitionCheck.certainApplicationChains(beans)).isEmpty();
     }

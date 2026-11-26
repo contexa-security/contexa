@@ -190,7 +190,7 @@ class ZeroTrustAccessControlFilterTest {
 
     /**
      * Ownership browser check 2026-11-03: a signed-in user under a BLOCK got the screen's own script answered with the
-     * redirect to the screen, so the release request of the block screen never ran (FULL and HOST_OWNED alike).
+     * redirect to the screen, so the release request of the block screen never ran (FULL and SANDBOX alike).
      */
     @Test
     void shouldNotFilter_theScreensOwnFiles() throws Exception {
@@ -341,10 +341,10 @@ class ZeroTrustAccessControlFilterTest {
 
     /** "/api/mfa/" let a user under a BLOCK through to the application's own path of that name. */
     @Test
-    void hostOwnedApplicationPathThatLooksLikeMfaStaysBlocked() throws Exception {
+    void sandboxApplicationPathThatLooksLikeMfaStaysBlocked() throws Exception {
         when(request.getRequestURI()).thenReturn("/api/mfa/transfer");
         setUpAuthentication();
-        filter.setHostOwnedStepUp((req, auth, key) -> false);
+        filter.setSandboxStepUp((req, auth, key) -> false);
 
         try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
             fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
@@ -361,14 +361,14 @@ class ZeroTrustAccessControlFilterTest {
     }
 
     /**
-     * Ownership design S-1/S-2 (HOST_OWNED): a BLOCK an administrator let the user release by MFA goes to Contexa's
+     * Ownership design S-1/S-2 (mode SANDBOX): a BLOCK an administrator let the user release by MFA goes to Contexa's
      * verification-only step-up; no Contexa MFA flow starts.
      */
     @Test
-    void hostOwnedBlockReleasedByMfaGoesToTheStepUp() throws Exception {
+    void sandboxBlockReleasedByMfaGoesToTheStepUp() throws Exception {
         when(request.getRequestURI()).thenReturn("/some/path");
         setUpAuthentication();
-        filter.setHostOwnedStepUp((req, auth, key) -> false);
+        filter.setSandboxStepUp((req, auth, key) -> false);
 
         try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
             fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))

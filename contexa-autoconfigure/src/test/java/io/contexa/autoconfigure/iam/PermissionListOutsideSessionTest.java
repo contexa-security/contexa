@@ -235,7 +235,8 @@ class PermissionListOutsideSessionTest {
             return new JpaTransactionManager(entityManagerFactory);
         }
 
-        @Bean
+        /** Contexa's query factory as the start declares it: by its name, and no autowire candidate (F-02). */
+        @Bean(name = "contexaJpaQueryFactory", defaultCandidate = false)
         JPAQueryFactory jpaQueryFactory(EntityManager entityManager) {
             return new JPAQueryFactory(entityManager);
         }

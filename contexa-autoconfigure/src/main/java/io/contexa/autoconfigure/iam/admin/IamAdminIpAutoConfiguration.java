@@ -15,24 +15,26 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.autoconfigure.ai.ContexaServletFilterOrder;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
-import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexaiam.admin.web.auth.controller.IpManagementController;
 import io.contexa.contexaiam.admin.web.auth.filter.IpAccessFilter;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
+import io.contexa.contexaiam.properties.IamAdminProperties;
 import io.contexa.contexaiam.repository.IpAccessRuleRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
-@EnableConfigurationProperties(TieredStrategyProperties.class)
+@EnableConfigurationProperties({TieredStrategyProperties.class, IamAdminProperties.class})
 public class IamAdminIpAutoConfiguration {
 
     @Bean(name = "contexaIpAccessRuleService")
@@ -56,16 +58,22 @@ public class IamAdminIpAutoConfiguration {
                 tieredStrategyProperties.getSecurity());
     }
 
+    /**
+     * The address control (M4 of docs/agent/운영모드-정상화-구현계획.md): on the paths its setting names, every path by
+     * default, whatever the mode and the ownership; ahead of the Spring Security filter chain, so that an address its rules
+     * shut out reaches no chain. Without rules it lets every request through as it came.
+     */
     @Bean(name = "contexaIpAccessFilter")
     @ConditionalOnMissingBean(IpAccessFilter.class)
     public FilterRegistrationBean<IpAccessFilter> ipAccessFilter(IpAccessRuleService contexaIpAccessRuleService,
                                                                  TieredStrategyProperties tieredStrategyProperties,
-                                                                 BridgeProperties bridgeProperties) {
+                                                                 IamAdminProperties iamAdminProperties,
+                                                                 ObjectProvider<SecurityProperties> securityProperties) {
         FilterRegistrationBean<IpAccessFilter> reg = new FilterRegistrationBean<>();
         reg.setFilter(new IpAccessFilter(contexaIpAccessRuleService, tieredStrategyProperties.getSecurity()));
-        reg.addUrlPatterns(bridgeProperties.ownershipBehaviour().adminIpFilterPattern());
+        reg.setUrlPatterns(iamAdminProperties.getIpAccess().getUrlPatterns());
         reg.setName("contexaIpAccessFilter");
-        reg.setOrder(50);
+        reg.setOrder(ContexaServletFilterOrder.securityFilterOrder(securityProperties) + ContexaServletFilterOrder.ADDRESS_CONTROL);
         return reg;
     }
 }

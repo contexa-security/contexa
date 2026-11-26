@@ -4,6 +4,7 @@ import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -60,6 +61,18 @@ class BridgeMirrorUserStatePurgeContributorTest {
         contributor.purge(" ");
 
         assertThat(calls).containsExactly("begin", "find v0123456789ab-eng-k", "commit");
+    }
+
+    @Test
+    @DisplayName("대문자로 들어온 아이디의 정리는 판정 키 사본과 옛 원래 아이디 사본을 함께 지운다")
+    void theCopiesUnderTheDecisionKeyAndUnderTheIdAsGivenAreRemoved() {
+        BridgeMirrorUserStatePurgeContributor contributor = contributor(Map.of("kim01", List.of(mirror(8L)),
+                "Kim01", List.of(mirror(9L), mirror(8L))));
+
+        contributor.purge("Kim01");
+
+        assertThat(calls).containsExactly("begin", "find kim01", "find Kim01",
+                "permissions 8", "profile 8", "user 8", "permissions 9", "profile 9", "user 9", "commit");
     }
 
     private BridgeMirrorUserStatePurgeContributor contributor(Map<String, List<Users>> mirrors) {

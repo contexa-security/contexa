@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.core.infra;
 import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
 import io.lettuce.core.RedisClient;
 import org.apache.kafka.clients.producer.KafkaProducer;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.BeanFactory;
@@ -49,11 +50,11 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * An application says in two ways that it uses Redis or Kafka itself: with a connection property, or in its code. One that builds its
- * factories in code, or takes Spring Boot's template with the default address, gives no property. Switched on in Contexa's default
- * standalone mode it keeps the auto-configuration its beans come from (PR-185: such an application did not start, or started and
- * received none of its messages), and an application that uses no Redis still gets none of Spring Boot's Redis support. Spring Boot's
- * Kafka support stays in every case: nothing of Contexa's standalone mode uses Kafka.
+ * An application uses Redis or Kafka in many ways: with a connection property, in its code, or through a library of its own (a
+ * session store, a cache) that names neither. Contexa brings neither library to an application, so Spring Boot's Redis and Kafka
+ * support on its class path is the application's: switched on in Contexa's default standalone mode, it keeps them whatever its code
+ * names (PR-185: one that set them up in code did not start; R-9: one that named them nowhere lost them). Only Contexa's own Redis
+ * and Kafka auto-configurations stay out of the standalone mode.
  */
 class StandaloneAutoConfigurationFilterInfrastructureInCodeTest {
 
@@ -67,13 +68,13 @@ class StandaloneAutoConfigurationFilterInfrastructureInCodeTest {
     };
 
     /**
-     * The application keeps its Redis, Contexa's own Redis stays out of the standalone mode. Spring Boot's Kafka support (the fourth) stays
-     * whatever the code says: nothing of Contexa's standalone mode uses Kafka, so leaving it out only took the application's beans.
+     * The application keeps Spring Boot's and Redisson's support whatever its code says; Contexa's own Redis stays out of the
+     * standalone mode.
      */
     private static final boolean[] ITS_REDIS = {true, true, true, true, false, false};
-    private static final boolean[] ITS_KAFKA = {false, false, false, true, false, false};
-    private static final boolean[] BOTH = {true, true, true, true, false, false};
-    private static final boolean[] NONE = {false, false, false, true, false, false};
+    private static final boolean[] ITS_KAFKA = ITS_REDIS;
+    private static final boolean[] BOTH = ITS_REDIS;
+    private static final boolean[] NONE = ITS_REDIS;
 
     @Test
     void anApplicationThatBuildsItsKafkaFactoryInCodeKeepsSpringBootsKafkaSupport() {
@@ -112,9 +113,13 @@ class StandaloneAutoConfigurationFilterInfrastructureInCodeTest {
         assertThat(kept(applicationWith(KafkaTemplateTaken.class, RedisTemplateTaken.class))).containsExactly(BOTH);
     }
 
-    /** The client libraries alone need nothing of Spring Boot's Redis support, and a name in a string is not a use. */
+    /**
+     * R-9: an application whose code names none of Spring's support may still use it through a library of its own (a session
+     * store, a cache); what Contexa did not bring is not Contexa's to leave out.
+     */
     @Test
-    void anApplicationThatUsesNoneOfSpringsSupportStillGetsNoneOfIt() {
+    @DisplayName("코드가 Spring의 Redis 지원을 부르지 않는 앱도 그 자동 구성을 그대로 갖는다")
+    void anApplicationThatNamesNoneOfSpringsSupportKeepsItToo() {
         assertThat(kept(applicationWith(NoInfrastructure.class))).containsExactly(NONE);
         assertThat(kept(applicationWith(ClientLibrariesOnly.class))).containsExactly(NONE);
         assertThat(kept(applicationWith(LibrariesNamedInAStringOnly.class))).containsExactly(NONE);

@@ -15,7 +15,9 @@
  */
 package io.contexa.contexaidentity.security.zerotrust;
 
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaSignInRealm;
 import io.contexa.contexaidentity.security.utils.UrlPrefixes;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
@@ -75,8 +77,9 @@ public class ChallengeMfaInitializer {
             Authentication authentication) {
 
         String mfaSessionId = generateSecureSessionId();
+        boolean console = ConsoleSession.of(request);
 
-        String flowTypeName = resolveFlowTypeName(request);
+        String flowTypeName = resolveFlowTypeName(request, console);
 
         FactorContext context = new FactorContext(
                 mfaSessionId,
@@ -123,14 +126,14 @@ public class ChallengeMfaInitializer {
                 context = updatedContext;
             } else {
                 log.error("Could not load updated context from state machine, setting availableFactors manually for session: {}", mfaSessionId);
-                AuthenticationFlowConfig mfaFlow = getMfaFlowConfig(context.getFlowTypeName());
+                AuthenticationFlowConfig mfaFlow = getMfaFlowConfig(context.getFlowTypeName(), console);
                 if (mfaFlow != null) {
                     Set<AuthType> availableFactors = new LinkedHashSet<>(mfaFlow.getRegisteredFactorOptions().keySet());
                     context.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS, availableFactors);
                 }
             }
 
-            sendNextMfaEvent(decision, context, request);
+            sendNextMfaEvent(decision, context, request, console);
 
             FactorContext refreshedContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
             if (refreshedContext == null) {
@@ -167,8 +170,9 @@ public class ChallengeMfaInitializer {
                 .build();
     }
 
-    private void sendNextMfaEvent(MfaDecision decision, FactorContext context, HttpServletRequest request) {
-        AuthType autoSelectedFactor = determineAutoFactor(context, decision);
+    private void sendNextMfaEvent(MfaDecision decision, FactorContext context, HttpServletRequest request,
+                                  boolean console) {
+        AuthType autoSelectedFactor = determineAutoFactor(context, decision, console);
         if (autoSelectedFactor == null) {
             log.error("Failed to determine auto factor for challenge session: {}", context.getMfaSessionId());
             boolean sent = stateMachineIntegrator.sendEvent(MfaEvent.MFA_REQUIRED_SELECT_FACTOR, context, request);
@@ -179,7 +183,7 @@ public class ChallengeMfaInitializer {
         }
 
         context.setCurrentProcessingFactor(autoSelectedFactor);
-        setCurrentStepId(context, autoSelectedFactor);
+        setCurrentStepId(context, autoSelectedFactor, console);
 
         boolean sent = stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE_AUTO, context, request);
         if (!sent) {
@@ -188,7 +192,7 @@ public class ChallengeMfaInitializer {
         }
     }
 
-    private AuthType determineAutoFactor(FactorContext context, MfaDecision decision) {
+    private AuthType determineAutoFactor(FactorContext context, MfaDecision decision, boolean console) {
         Set<AuthType> remaining = context.getRemainingFactors();
 
         if (decision.getRequiredFactors() != null && !decision.getRequiredFactors().isEmpty()) {
@@ -203,7 +207,7 @@ public class ChallengeMfaInitializer {
             return remaining.iterator().next();
         }
 
-        AuthenticationFlowConfig mfaFlow = getMfaFlowConfig(context.getFlowTypeName());
+        AuthenticationFlowConfig mfaFlow = getMfaFlowConfig(context.getFlowTypeName(), console);
         if (mfaFlow != null) {
             Set<AuthType> configuredFactors = new LinkedHashSet<>(mfaFlow.getRegisteredFactorOptions().keySet());
             if (!configuredFactors.isEmpty()) {
@@ -216,8 +220,8 @@ public class ChallengeMfaInitializer {
         return null;
     }
 
-    private void setCurrentStepId(FactorContext context, AuthType factorType) {
-        AuthenticationFlowConfig mfaFlow = getMfaFlowConfig(context.getFlowTypeName());
+    private void setCurrentStepId(FactorContext context, AuthType factorType, boolean console) {
+        AuthenticationFlowConfig mfaFlow = getMfaFlowConfig(context.getFlowTypeName(), console);
         if (mfaFlow == null) {
             log.error("MFA FlowConfig not found, stepId will not be set for session: {}", context.getMfaSessionId());
             return;
@@ -236,7 +240,13 @@ public class ChallengeMfaInitializer {
         }
     }
 
-    private String resolveFlowTypeName(HttpServletRequest request) {
+    /**
+     * The MFA flow the request's step-up runs in: one whose prefix the path lies under, else one without a prefix, else
+     * the first one. The flow of Contexa's administrators is a choice for a request of the console only (R-13 of
+     * docs/agent/운영모드-정상화-구현계획.md): it joins the application's own flows, and its prefix also holds paths of the
+     * application's users.
+     */
+    private String resolveFlowTypeName(HttpServletRequest request, boolean console) {
         AuthenticationFlowConfig flowConfig =
                 (AuthenticationFlowConfig) request.getAttribute("io.contexa.currentFlowConfig");
         if (flowConfig != null && MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName())) {
@@ -248,7 +258,7 @@ public class ChallengeMfaInitializer {
         String path = contextPath.isEmpty() ? requestUri : requestUri.substring(contextPath.length());
 
         for (AuthenticationFlowConfig flow : platformConfig.getFlows()) {
-            if (!MfaFlowTypeUtils.isMfaFlow(flow.getTypeName())) {
+            if (!MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()) || !servesTheRealm(flow, console)) {
                 continue;
             }
             String urlPrefix = flow.getUrlPrefix();
@@ -258,19 +268,21 @@ public class ChallengeMfaInitializer {
         }
 
         for (AuthenticationFlowConfig flow : platformConfig.getFlows()) {
-            if (MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()) && flow.getUrlPrefix() == null) {
+            if (MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()) && flow.getUrlPrefix() == null
+                    && servesTheRealm(flow, console)) {
                 return flow.getTypeName();
             }
         }
 
         return platformConfig.getFlows().stream()
-                .filter(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()))
+                .filter(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()) && servesTheRealm(flow, console))
                 .map(AuthenticationFlowConfig::getTypeName)
                 .findFirst()
                 .orElse(MfaFlowTypeUtils.getBaseMfaTypeName());
     }
 
-    private AuthenticationFlowConfig getMfaFlowConfig(String flowTypeName) {
+    /** The flow of this name, else the first MFA flow the realm of the request may step up in. */
+    private AuthenticationFlowConfig getMfaFlowConfig(String flowTypeName, boolean console) {
         if (flowTypeName != null) {
             AuthenticationFlowConfig specificFlow = platformConfig.getFlows().stream()
                     .filter(flow -> flow.getTypeName().equalsIgnoreCase(flowTypeName))
@@ -281,9 +293,14 @@ public class ChallengeMfaInitializer {
             }
         }
         return platformConfig.getFlows().stream()
-                .filter(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()))
+                .filter(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()) && servesTheRealm(flow, console))
                 .findFirst()
                 .orElse(null);
+    }
+
+    /** Whether the flow may serve a step-up of this realm: the flow of Contexa's administrators serves the console's. */
+    private static boolean servesTheRealm(AuthenticationFlowConfig flow, boolean console) {
+        return console || !ContexaSignInRealm.isAdminFlow(flow);
     }
 
     private void enhanceFactorContextWithSecurityInfo(FactorContext context, HttpServletRequest request) {

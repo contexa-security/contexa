@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaSignInRealm;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
@@ -31,7 +32,8 @@ public class GlobalConfigurer implements SecurityConfigurer {
     @Override
     public void configure(FlowContext ctx) {
         SafeHttpCustomizer<HttpSecurity> customizer = ctx.config().getGlobalCustomizer();
-        if (customizer == null) {
+        // The chain of Contexa's administrators has rules of its own (AdminRealmConfigurer): the application's do not reach it
+        if (customizer == null || ContexaSignInRealm.isAdminFlow(ctx.flow())) {
             return;
         }
         try {

@@ -21,13 +21,12 @@ import io.contexa.contexacommon.security.bridge.authentication.HostPrincipalSnap
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
 import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
-import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthHandoff;
-import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthHandoffResult;
-import io.contexa.contexacommon.security.bridge.handoff.DefaultContexaAuthBridgeHandler;
 import io.contexa.contexacommon.security.bridge.resolver.*;
 import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
+import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
+import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
@@ -35,14 +34,15 @@ import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
@@ -50,6 +50,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+/**
+ * The stamps the bridge filter makes for a signed-in Spring Security user, from the resolvers the auto-configuration
+ * registers and the ones an application adds. bridge v2 B6: the session, request attribute and header channels and the
+ * explicit handoff are gone, so their cases left this test; what they shared with the remaining resolvers (the derived
+ * authorization, the token's delegation, the merging of authorization evidence, the copy of the user) stays.
+ */
 class BridgeResolutionFilterTest {
 
     @AfterEach
@@ -58,72 +64,18 @@ class BridgeResolutionFilterTest {
     }
 
     @Test
-    void shouldResolveHeaderContextWithoutReplacingHostAuthentication() throws Exception {
-        BridgeResolutionFilter filter = createExternalContextFilter();
-        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
-
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
-        populateHeaderBridgeContext(request);
-
-        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
-
-        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
-        assertThat(result).isNotNull();
-        assertThat(result.coverageReport().level()).isEqualTo(BridgeCoverageLevel.DELEGATION_CONTEXT);
-        assertThat(result.coverageReport().summary()).contains("Bridge completeness reached authentication, authorization, and delegated execution context");
-        assertThat(result.authenticationStamp()).isNotNull();
-        assertThat(result.authorizationStamp()).isNotNull();
-        assertThat(result.authorizationStamp().subjectId()).isEqualTo("alice");
-        assertThat(result.authorizationStamp().policyVersion()).isEqualTo("2026.03");
-        assertThat(result.delegationStamp()).isNotNull();
-        assertThat(result.delegationStamp().subjectId()).isEqualTo("alice");
-        assertThat(result.delegationStamp().expiresAt()).isEqualTo(Instant.parse("2026-03-24T00:00:00Z"));
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
-    }
-
-    @Test
-    void shouldResolveAuthenticationAuthorizationAndDelegationFromSessionOnly() throws Exception {
-        BridgeProperties properties = new BridgeProperties();
-        enableTrustedHeaders(properties);
-        // The session's authorization and delegation are read from the attribute the application names.
-        properties.getAuthorization().getSession().setAttribute("LOGIN_USER");
-        properties.getDelegation().getSession().setAttribute("LOGIN_USER");
-        BridgeResolutionFilter filter = createExternalContextFilter(properties);
-        Authentication hostAuthentication = authenticateHost("host-user", "ROLE_HOST");
-
-        MockHttpSession session = new MockHttpSession();
-        session.setAttribute("LOGIN_USER", sessionUser("alice", List.of("ROLE_USER", "REPORT_EXPORT")));
-
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        request.setSession(session);
-
-        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
-
-        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
-        assertThat(result).isNotNull();
-        assertThat(result.authenticationStamp()).isNotNull();
-        assertThat(result.authenticationStamp().authenticationSource()).isEqualTo("SESSION");
-        assertThat(result.authorizationStamp()).isNotNull();
-        assertThat(result.authorizationStamp().decisionSource()).isEqualTo("SESSION");
-        assertThat(result.authorizationStamp().effectiveRoles()).contains("ROLE_USER");
-        assertThat(result.authorizationStamp().effectiveAuthorities()).contains("ROLE_USER", "REPORT_EXPORT");
-        assertThat(result.delegationStamp()).isNotNull();
-        assertThat(result.delegationStamp().agentId()).isEqualTo("agent-1");
-        assertThat(result.delegationStamp().objectiveId()).isEqualTo("objective-1");
-        assertThat(result.coverageReport().level()).isEqualTo(BridgeCoverageLevel.DELEGATION_CONTEXT);
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
-    }
-
-    @Test
+    @DisplayName("명시적 인가 사실이 없으면 인증의 권한에서 인가 도장을 유도하고, 앱 보안 문맥은 그대로 둔다")
     void shouldDeriveAuthorizationStampFromAuthenticationAuthoritiesWhenExplicitAuthorizationIsMissing() throws Exception {
-        BridgeResolutionFilter filter = createExternalContextFilter();
-        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
+        BridgeResolutionFilter filter = new BridgeResolutionFilter(
+                new BridgeProperties(),
+                new RequestContextCollector(),
+                List.of(new SecurityContextAuthenticationStampResolver()),
+                List.of(),
+                List.of(),
+                new BridgeCoverageEvaluator());
+        Authentication hostAuthentication = authenticateHost("alice", "ROLE_USER", "REPORT_EXPORT");
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        request.addHeader("X-Contexa-Principal-Id", "alice");
-        request.addHeader("X-Contexa-Authorities", "ROLE_USER,REPORT_EXPORT");
-        request.addHeader("X-Contexa-Authenticated", "true");
-        request.addHeader("X-Contexa-Authentication-Type", "JWT");
 
         filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
 
@@ -145,11 +97,18 @@ class BridgeResolutionFilterTest {
 
     /**
      * A1-1: a host's own resource server validated the token (Contexa does not own the chain); the delegation the
-     * token states is taken before the one a session object states, since the authorization server signed it.
+     * token states is taken, since the authorization server signed it.
      */
     @Test
-    void shouldTakeTheDelegationAHostValidatedTokenStatesBeforeTheSessionOne() throws Exception {
-        BridgeResolutionFilter filter = createTokenFirstFilter(new BridgeProperties());
+    @DisplayName("호스트가 검증한 토큰이 밝힌 위임을 위임 도장으로 쓴다")
+    void shouldTakeTheDelegationAHostValidatedTokenStates() throws Exception {
+        BridgeResolutionFilter filter = new BridgeResolutionFilter(
+                new BridgeProperties(),
+                new RequestContextCollector(),
+                List.of(new SecurityContextAuthenticationStampResolver()),
+                List.of(new SecurityContextAuthorizationStampResolver()),
+                List.of(new TokenDelegationStampResolver()),
+                new BridgeCoverageEvaluator());
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
                 Jwt.withTokenValue("header.payload.signature")
                         .header("alg", "RS256")
@@ -159,10 +118,7 @@ class BridgeResolutionFilterTest {
                         .expiresAt(Instant.parse("2026-10-21T10:00:00Z"))
                         .build(),
                 AuthorityUtils.createAuthorityList("SCOPE_reports.read")));
-        MockHttpSession session = new MockHttpSession();
-        session.setAttribute("LOGIN_USER", sessionUser("alice", List.of("ROLE_USER")));
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        request.setSession(session);
 
         filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
 
@@ -174,148 +130,40 @@ class BridgeResolutionFilterTest {
         assertThat(result.delegationStamp().attributes()).containsEntry("delegationResolver", "TOKEN");
     }
 
-    /** A1-1: a token that names no agent leaves the delegation to the session object, as before. */
     @Test
-    void shouldLeaveTheDelegationToTheSessionWhenTheTokenNamesNoAgent() throws Exception {
-        BridgeProperties properties = new BridgeProperties();
-        properties.getDelegation().getSession().setAttribute("LOGIN_USER");
-        BridgeResolutionFilter filter = createTokenFirstFilter(properties);
-        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
-                Jwt.withTokenValue("header.payload.signature")
-                        .header("alg", "RS256")
-                        .claim("sub", "alice")
-                        .claim("azp", "web-app")
-                        .build(),
-                AuthorityUtils.createAuthorityList("SCOPE_reports.read")));
-        MockHttpSession session = new MockHttpSession();
-        session.setAttribute("LOGIN_USER", sessionUser("alice", List.of("ROLE_USER")));
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        request.setSession(session);
-
-        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
-
-        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
-        assertThat(result.delegationStamp()).isNotNull();
-        assertThat(result.delegationStamp().agentId()).isEqualTo("agent-1");
-        assertThat(result.delegationStamp().attributes()).containsEntry("delegationResolver", "SESSION");
-    }
-
-    @Test
-    void shouldIgnoreHeaderContextByDefault() throws Exception {
-        BridgeProperties properties = new BridgeProperties();
-        BridgeResolutionFilter filter = createExternalContextFilter(properties);
+    @DisplayName("앱이 더한 인가 해석기의 명시적 DENY가 보안 문맥의 UNKNOWN보다 먼저 쓰이고 근거 출처가 함께 남는다")
+    void shouldPreferAnExplicitDenyOfAnotherResolverOverTheSecurityContextsUnknown() throws Exception {
+        BridgeResolutionFilter filter = createSecurityContextAndApplicationFilter("app-deny-policy");
         Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        populateHeaderBridgeContext(request);
-
-        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
-
-        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
-        assertThat(result.authenticationStamp()).isNull();
-        assertThat(result.authorizationStamp()).isNull();
-        assertThat(result.delegationStamp()).isNull();
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
-    }
-
-    @Test
-    void shouldRejectTrustedHeaderWhenSubjectDoesNotMatchHostPrincipal() throws Exception {
-        BridgeResolutionFilter filter = createExternalContextFilter();
-        Authentication hostAuthentication = authenticateHost("host-user", "ROLE_HOST");
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        populateHeaderBridgeContext(request);
-
-        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
-
-        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
-        assertThat(result.authenticationStamp()).isNull();
-        assertThat(result.authorizationStamp()).isNull();
-        assertThat(result.delegationStamp()).isNull();
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
-    }
-
-    @Test
-    void shouldRejectHeaderContextFromUntrustedSource() throws Exception {
-        BridgeResolutionFilter filter = createExternalContextFilter();
-        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        request.setRemoteAddr("203.0.113.10");
-        populateHeaderBridgeContext(request);
-
-        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
-
-        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
-        assertThat(result.authenticationStamp()).isNull();
-        assertThat(result.authorizationStamp()).isNull();
-        assertThat(result.delegationStamp()).isNull();
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
-    }
-
-    @Test
-    void shouldRejectHeaderTenantThatDoesNotMatchHostPrincipalSnapshot() throws Exception {
-        BridgeResolutionFilter filter = createExternalContextFilter();
-        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
-        ((UsernamePasswordAuthenticationToken) hostAuthentication).setDetails(Map.of("tenantId", "tenant-a"));
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        populateHeaderBridgeContext(request);
-        request.addHeader("X-Contexa-Tenant-Id", "tenant-b");
-
-        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
-
-        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
-        assertThat(result.authenticationStamp()).isNull();
-        assertThat(result.authorizationStamp()).isNull();
-        assertThat(result.delegationStamp()).isNull();
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
-    }
-
-    @Test
-    void shouldPreferExplicitSessionDenyOverSecurityContextUnknown() throws Exception {
-        BridgeProperties properties = new BridgeProperties();
-        properties.getAuthorization().getSession().setAttribute("LOGIN_USER");
-        BridgeResolutionFilter filter = createSecurityContextAndSessionFilter(properties);
-        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
-        SessionUser user = sessionUser("alice", List.of("REPORT_EXPORT"));
-        user.setAuthorizationEffect("DENY");
-        user.setPolicyId("session-deny-policy");
-        MockHttpSession session = new MockHttpSession();
-        session.setAttribute("LOGIN_USER", user);
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        request.setSession(session);
 
         filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
 
         BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
         assertThat(result.authorizationStamp().effect().name()).isEqualTo("DENY");
-        assertThat(result.authorizationStamp().decisionSource()).isEqualTo("SESSION");
-        assertThat(result.authorizationStamp().policyId()).isEqualTo("session-deny-policy");
+        assertThat(result.authorizationStamp().decisionSource()).isEqualTo("APPLICATION");
+        assertThat(result.authorizationStamp().policyId()).isEqualTo("app-deny-policy");
         assertThat(result.authorizationStamp().attributes().get("authorizationEvidenceSources"))
-                .isEqualTo(List.of("SECURITY_CONTEXT", "SESSION"));
+                .isEqualTo(List.of("SECURITY_CONTEXT", "APPLICATION"));
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
     }
 
     @Test
+    @DisplayName("두 인가 근거의 명시적 효과가 부딪히면 DENY로 안전하게 정하고 충돌을 기록한다")
     void shouldFailSafeToDenyWhenExplicitAuthorizationEffectsConflict() throws Exception {
-        BridgeProperties properties = new BridgeProperties();
-        properties.getAuthorization().getSession().setAttribute("LOGIN_USER");
-        BridgeResolutionFilter filter = createSecurityContextAndSessionFilter(properties);
+        BridgeResolutionFilter filter = createSecurityContextAndApplicationFilter("app-deny-policy");
         Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
         ((UsernamePasswordAuthenticationToken) hostAuthentication).setDetails(Map.of(
                 "authorizationEffect", "ALLOW",
                 "policyId", "host-allow-policy"));
-        SessionUser user = sessionUser("alice", List.of("REPORT_EXPORT"));
-        user.setAuthorizationEffect("DENY");
-        user.setPolicyId("session-deny-policy");
-        MockHttpSession session = new MockHttpSession();
-        session.setAttribute("LOGIN_USER", user);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        request.setSession(session);
 
         filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
 
         BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
         assertThat(result.authorizationStamp().effect().name()).isEqualTo("DENY");
         assertThat(result.authorizationStamp().decisionSource()).isEqualTo("CONFLICT_FAIL_SAFE");
-        assertThat(result.authorizationStamp().policyId()).isEqualTo("session-deny-policy");
+        assertThat(result.authorizationStamp().policyId()).isEqualTo("app-deny-policy");
         assertThat(result.authorizationStamp().attributes())
                 .containsEntry("authorizationConflict", true)
                 .containsEntry("authorizationConflictResolution", "DENY_FAIL_SAFE");
@@ -351,24 +199,15 @@ class BridgeResolutionFilterTest {
     }
 
     @Test
-    void shouldProjectShadowUserSyncResultIntoSecurityContext() throws Exception {
+    @DisplayName("로그인이 만든 사용자 사본의 동기화 결과가 그 뒤 요청에 실리고, 앱 보안 문맥은 그대로다")
+    void shouldProjectTheUserSyncResultOfTheSignInIntoTheRequestAfterIt() throws Exception {
         BridgeProperties properties = new BridgeProperties();
-        enableTrustedHeaders(properties);
         BridgeResolutionFilter filter = new BridgeResolutionFilter(
                 properties,
                 new RequestContextCollector(),
-                List.of(new AuthBridgeAuthenticationStampResolver(new CompositeAuthBridge(List.of(
-                        new SessionAuthBridge(properties.getAuthentication().getSession()),
-                        new HeaderAuthBridge(properties)
-                )))),
-                List.of(
-                        new SessionAuthorizationStampResolver(),
-                        new HeaderAuthorizationStampResolver()
-                ),
-                List.of(
-                        new SessionDelegationStampResolver(),
-                        new HeaderDelegationStampResolver()
-                ),
+                List.of(new SecurityContextAuthenticationStampResolver()),
+                List.of(new SecurityContextAuthorizationStampResolver()),
+                List.of(),
                 new BridgeCoverageEvaluator(),
                 (authenticationStamp, authorizationStamp, requestContext) -> new BridgeUserMirrorSyncResult(
                         77L,
@@ -383,12 +222,9 @@ class BridgeResolutionFilterTest {
         );
 
         Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
-        // The sign-in makes the copy and waits for it; the requests after it find the copy kept for the same facts.
         MockHttpServletRequest signIn = new MockHttpServletRequest("POST", "/reports/export");
-        populateHeaderBridgeContext(signIn);
         filter.resolveSignIn(signIn, hostAuthentication);
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
-        populateHeaderBridgeContext(request);
 
         filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
 
@@ -403,82 +239,8 @@ class BridgeResolutionFilterTest {
     }
 
     @Test
-    void shouldKeepExplicitHandoffWhenSecurityContextResolvesTheSamePrincipal() throws Exception {
-        BridgeProperties properties = new BridgeProperties();
-        AtomicInteger filterSyncCalls = new AtomicInteger();
-        BridgeResolutionFilter filter = createSecurityContextFilter(properties, countingMirrorSync(filterSyncCalls));
-        authenticateJwt("u-100", "a@corp.com");
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        ContexaAuthHandoffResult handoffResult = handoffHandler(properties)
-                .handoff(request, response, oauth2JwtHandoff("u-100"));
-
-        filter.doFilter(request, response, new MockFilterChain());
-
-        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
-        assertThat(result).isSameAs(handoffResult.resolutionResult());
-        assertThat(result.authenticationStamp().principalId()).isEqualTo("u-100");
-        assertThat(result.authenticationStamp().authenticationSource()).isEqualTo("EXPLICIT_HANDOFF");
-        assertThat(result.authenticationStamp().mfaCompleted()).isTrue();
-        assertThat(result.authenticationStamp().authenticationType()).isEqualTo("OAUTH2_JWT");
-        assertThat(request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP)).isSameAs(result.authenticationStamp());
-        BridgeProperties.RequestAttributes requestAttributes = properties.getAuthentication().getRequestAttributes();
-        assertThat(request.getAttribute(requestAttributes.getFlatMfaCompleted())).isEqualTo(true);
-        assertThat(request.getAttribute(requestAttributes.getFlatAuthenticationType())).isEqualTo("OAUTH2_JWT");
-        assertThat(filterSyncCalls).hasValue(0);
-    }
-
-    @Test
-    void shouldKeepHandoffOfTheSecurityContextJwtWithoutExplicitPrincipalId() throws Exception {
-        BridgeProperties properties = new BridgeProperties();
-        AtomicInteger filterSyncCalls = new AtomicInteger();
-        BridgeResolutionFilter filter = createSecurityContextFilter(properties, countingMirrorSync(filterSyncCalls));
-        Authentication jwtAuthentication = authenticateJwt("u-100", "a@corp.com");
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        ContexaAuthHandoffResult handoffResult = handoffHandler(properties).handoff(
-                request,
-                response,
-                ContexaAuthHandoff.of(jwtAuthentication).withAuthenticationType("OAUTH2_JWT").withMfaVerified(true));
-
-        filter.doFilter(request, response, new MockFilterChain());
-
-        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
-        assertThat(result).isSameAs(handoffResult.resolutionResult());
-        assertThat(result.authenticationStamp().principalId()).isEqualTo("u-100");
-        assertThat(result.authenticationStamp().authenticationSource()).isEqualTo("EXPLICIT_HANDOFF");
-        assertThat(result.authenticationStamp().mfaCompleted()).isTrue();
-        assertThat(result.authenticationStamp().attributes()).doesNotContainKey("bridgeHandoffConflict");
-        assertThat(filterSyncCalls).hasValue(0);
-    }
-
-    @Test
-    void shouldUseSecurityContextAndRecordConflictWhenHandoffPrincipalDiffers() throws Exception {
-        BridgeProperties properties = new BridgeProperties();
-        AtomicInteger filterSyncCalls = new AtomicInteger();
-        BridgeResolutionFilter filter = createSecurityContextFilter(properties, countingMirrorSync(filterSyncCalls));
-        authenticateJwt("u-100", "a@corp.com");
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        handoffHandler(properties).handoff(request, response, oauth2JwtHandoff("u-200"));
-
-        filter.doFilter(request, response, new MockFilterChain());
-
-        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
-        AuthenticationStamp stamp = result.authenticationStamp();
-        assertThat(stamp.principalId()).isEqualTo("u-100");
-        assertThat(stamp.authenticationSource()).isEqualTo("SECURITY_CONTEXT");
-        assertThat(stamp.authenticationType()).isEqualTo("JwtAuthenticationToken");
-        assertThat(stamp.mfaCompleted()).isNull();
-        assertThat(stamp.attributes())
-                .containsEntry("bridgeHandoffConflict", true)
-                .containsEntry("bridgeHandoffPrincipalId", "u-200");
-        assertThat(request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP)).isSameAs(stamp);
-        awaitSyncCalls(filterSyncCalls, 1);
-    }
-
-    @Test
-    void shouldResolveSecurityContextWithoutConflictAttributesWhenNoHandoffHappened() throws Exception {
+    @DisplayName("보안 문맥의 JWT 사용자를 그 이름으로 도장 찍고, 사본 동기화는 요청 밖에서 한 번 한다")
+    void shouldResolveTheSecurityContextJwtAndSynchroniseItsUserOnce() throws Exception {
         BridgeProperties properties = new BridgeProperties();
         AtomicInteger filterSyncCalls = new AtomicInteger();
         BridgeResolutionFilter filter = createSecurityContextFilter(properties, countingMirrorSync(filterSyncCalls));
@@ -491,73 +253,36 @@ class BridgeResolutionFilterTest {
         AuthenticationStamp stamp = result.authenticationStamp();
         assertThat(stamp.principalId()).isEqualTo("u-100");
         assertThat(stamp.authenticationSource()).isEqualTo("SECURITY_CONTEXT");
-        assertThat(stamp.attributes()).doesNotContainKeys("bridgeHandoffConflict", "bridgeHandoffPrincipalId");
         awaitSyncCalls(filterSyncCalls, 1);
     }
 
-    private BridgeResolutionFilter createExternalContextFilter() {
-        BridgeProperties properties = new BridgeProperties();
-        enableTrustedHeaders(properties);
-        return createExternalContextFilter(properties);
-    }
-
-    private BridgeResolutionFilter createExternalContextFilter(BridgeProperties properties) {
+    /**
+     * The Spring Security resolvers, and after them an authorization resolver the application registers, which states
+     * an explicit DENY under a policy of its own.
+     */
+    private BridgeResolutionFilter createSecurityContextAndApplicationFilter(String policyId) {
+        AuthorizationStampResolver application = (request, requestContext, properties) -> Optional.of(new AuthorizationStamp(
+                "alice",
+                requestContext.requestUri(),
+                requestContext.method(),
+                AuthorizationEffect.DENY,
+                false,
+                List.of(),
+                policyId,
+                "1",
+                "APPLICATION",
+                Instant.now(),
+                List.of("ROLE_USER"),
+                List.of("REPORT_EXPORT"),
+                Map.of()));
         return new BridgeResolutionFilter(
-                properties,
-                new RequestContextCollector(),
-                List.of(new AuthBridgeAuthenticationStampResolver(new CompositeAuthBridge(List.of(
-                        new SessionAuthBridge(properties.getAuthentication().getSession()),
-                        new HeaderAuthBridge(properties)
-                )))),
-                List.of(
-                        new SessionAuthorizationStampResolver(),
-                        new HeaderAuthorizationStampResolver()
-                ),
-                List.of(
-                        new SessionDelegationStampResolver(),
-                        new HeaderDelegationStampResolver()
-                ),
-                new BridgeCoverageEvaluator()
-        );
-    }
-
-    /** The delegation resolvers in the order the auto-configuration registers them (token first, A1-1). */
-    private BridgeResolutionFilter createTokenFirstFilter(BridgeProperties properties) {
-        return new BridgeResolutionFilter(
-                properties,
+                new BridgeProperties(),
                 new RequestContextCollector(),
                 List.of(new SecurityContextAuthenticationStampResolver()),
-                List.of(new SecurityContextAuthorizationStampResolver()),
-                List.of(
-                        new TokenDelegationStampResolver(),
-                        new SessionDelegationStampResolver(),
-                        new RequestAttributeDelegationStampResolver(),
-                        new HeaderDelegationStampResolver()),
-                new BridgeCoverageEvaluator()
-        );
-    }
-
-    private BridgeResolutionFilter createSecurityContextAndSessionFilter(BridgeProperties properties) {
-        return new BridgeResolutionFilter(
-                properties,
-                new RequestContextCollector(),
-                List.of(
-                        new SecurityContextAuthenticationStampResolver(),
-                        new AuthBridgeAuthenticationStampResolver(
-                                new SessionAuthBridge(properties.getAuthentication().getSession()))),
-                List.of(
-                        new SecurityContextAuthorizationStampResolver(),
-                        new SessionAuthorizationStampResolver()),
+                List.of(new SecurityContextAuthorizationStampResolver(), application),
                 List.of(),
                 new BridgeCoverageEvaluator()
         );
-    }
-
-    private void enableTrustedHeaders(BridgeProperties properties) {
-        properties.getAuthentication().getHeaders().setEnabled(true);
-        properties.getAuthorization().getHeaders().setEnabled(true);
-        properties.getDelegation().getHeaders().setEnabled(true);
-        properties.getNetwork().setTrustedProxies(List.of("127.0.0.1"));
     }
 
     private BridgeResolutionFilter createSecurityContextFilter() {
@@ -605,24 +330,6 @@ class BridgeResolutionFilterTest {
         };
     }
 
-    private DefaultContexaAuthBridgeHandler handoffHandler(BridgeProperties properties) {
-        return new DefaultContexaAuthBridgeHandler(
-                properties,
-                new RequestContextCollector(),
-                new BridgeCoverageEvaluator(),
-                new BridgeRuntimeSupport(properties, null),
-                null);
-    }
-
-    private ContexaAuthHandoff oauth2JwtHandoff(String principalId) {
-        return ContexaAuthHandoff.of(
-                        principalId,
-                        List.of("ROLE_USER"),
-                        Map.of("principalId", principalId))
-                .withAuthenticationType("OAUTH2_JWT")
-                .withMfaVerified(true);
-    }
-
     private Authentication authenticateJwt(String subject, String email) {
         Jwt jwt = Jwt.withTokenValue("header.payload.signature")
                 .header("alg", "RS256")
@@ -643,213 +350,4 @@ class BridgeResolutionFilterTest {
         SecurityContextHolder.getContext().setAuthentication(authentication);
         return authentication;
     }
-
-    private void populateHeaderBridgeContext(MockHttpServletRequest request) {
-        request.addHeader("X-Contexa-Principal-Id", "alice");
-        request.addHeader("X-Contexa-Authorities", "ROLE_USER,REPORT_EXPORT");
-        request.addHeader("X-Contexa-Authenticated", "true");
-        request.addHeader("X-Contexa-Authentication-Type", "JWT");
-        request.addHeader("X-Contexa-Authentication-Assurance", "HIGH");
-        request.addHeader("X-Contexa-Mfa-Completed", "true");
-        request.addHeader("X-Contexa-Authz-Effect", "ALLOW");
-        request.addHeader("X-Contexa-Authz-Roles", "ROLE_USER");
-        request.addHeader("X-Contexa-Authz-Authorities", "REPORT_EXPORT");
-        request.addHeader("X-Contexa-Authz-Privileged", "true");
-        request.addHeader("X-Contexa-Authz-Policy-Version", "2026.03");
-        request.addHeader("X-Contexa-Delegated", "true");
-        request.addHeader("X-Contexa-Agent-Id", "agent-1");
-        request.addHeader("X-Contexa-Objective-Id", "objective-1");
-        request.addHeader("X-Contexa-Allowed-Operations", "EXPORT");
-        request.addHeader("X-Contexa-Allowed-Resources", "report:monthly");
-        request.addHeader("X-Contexa-Delegation-Expires-At", "2026-03-24T00:00:00Z");
-    }
-
-    private SessionUser sessionUser(String userId, List<String> permissions) {
-        SessionUser sessionUser = new SessionUser();
-        sessionUser.setUserId(userId);
-        sessionUser.setDisplayName("Alice");
-        sessionUser.setRoles(List.of("ROLE_USER"));
-        sessionUser.setPermissions(permissions);
-        sessionUser.setAuthorizationEffect("ALLOW");
-        sessionUser.setPolicyId("session-policy");
-        sessionUser.setPolicyVersion("1");
-        sessionUser.setPrivileged(false);
-        sessionUser.setScopeTags(List.of("customer_data"));
-        sessionUser.setDelegated(true);
-        sessionUser.setAgentId("agent-1");
-        sessionUser.setObjectiveId("objective-1");
-        sessionUser.setObjectiveSummary("Export monthly report");
-        sessionUser.setAllowedOperations(List.of("EXPORT"));
-        sessionUser.setAllowedResources(List.of("report:monthly"));
-        sessionUser.setApprovalRequired(true);
-        sessionUser.setContainmentOnly(false);
-        sessionUser.setExpiresAt(Instant.parse("2026-03-24T00:00:00Z"));
-        return sessionUser;
-    }
-
-    public static class SessionUser {
-        private String userId;
-        private String displayName;
-        private List<String> roles = List.of();
-        private List<String> permissions = List.of();
-        private List<String> scopeTags = List.of();
-        private String authorizationEffect;
-        private String policyId;
-        private String policyVersion;
-        private boolean privileged;
-        private boolean delegated;
-        private String agentId;
-        private String objectiveId;
-        private String objectiveSummary;
-        private List<String> allowedOperations = List.of();
-        private List<String> allowedResources = List.of();
-        private boolean approvalRequired;
-        private boolean containmentOnly;
-        private Instant expiresAt;
-
-        public String getUserId() {
-            return userId;
-        }
-
-        public void setUserId(String userId) {
-            this.userId = userId;
-        }
-
-        public String getDisplayName() {
-            return displayName;
-        }
-
-        public void setDisplayName(String displayName) {
-            this.displayName = displayName;
-        }
-
-        public List<String> getRoles() {
-            return roles;
-        }
-
-        public void setRoles(List<String> roles) {
-            this.roles = roles;
-        }
-
-        public List<String> getPermissions() {
-            return permissions;
-        }
-
-        public void setPermissions(List<String> permissions) {
-            this.permissions = permissions;
-        }
-
-        public List<String> getScopeTags() {
-            return scopeTags;
-        }
-
-        public void setScopeTags(List<String> scopeTags) {
-            this.scopeTags = scopeTags;
-        }
-
-        public String getAuthorizationEffect() {
-            return authorizationEffect;
-        }
-
-        public void setAuthorizationEffect(String authorizationEffect) {
-            this.authorizationEffect = authorizationEffect;
-        }
-
-        public String getPolicyId() {
-            return policyId;
-        }
-
-        public void setPolicyId(String policyId) {
-            this.policyId = policyId;
-        }
-
-        public String getPolicyVersion() {
-            return policyVersion;
-        }
-
-        public void setPolicyVersion(String policyVersion) {
-            this.policyVersion = policyVersion;
-        }
-
-        public boolean isPrivileged() {
-            return privileged;
-        }
-
-        public void setPrivileged(boolean privileged) {
-            this.privileged = privileged;
-        }
-
-        public boolean isDelegated() {
-            return delegated;
-        }
-
-        public void setDelegated(boolean delegated) {
-            this.delegated = delegated;
-        }
-
-        public String getAgentId() {
-            return agentId;
-        }
-
-        public void setAgentId(String agentId) {
-            this.agentId = agentId;
-        }
-
-        public String getObjectiveId() {
-            return objectiveId;
-        }
-
-        public void setObjectiveId(String objectiveId) {
-            this.objectiveId = objectiveId;
-        }
-
-        public String getObjectiveSummary() {
-            return objectiveSummary;
-        }
-
-        public void setObjectiveSummary(String objectiveSummary) {
-            this.objectiveSummary = objectiveSummary;
-        }
-
-        public List<String> getAllowedOperations() {
-            return allowedOperations;
-        }
-
-        public void setAllowedOperations(List<String> allowedOperations) {
-            this.allowedOperations = allowedOperations;
-        }
-
-        public List<String> getAllowedResources() {
-            return allowedResources;
-        }
-
-        public void setAllowedResources(List<String> allowedResources) {
-            this.allowedResources = allowedResources;
-        }
-
-        public boolean isApprovalRequired() {
-            return approvalRequired;
-        }
-
-        public void setApprovalRequired(boolean approvalRequired) {
-            this.approvalRequired = approvalRequired;
-        }
-
-        public boolean isContainmentOnly() {
-            return containmentOnly;
-        }
-
-        public void setContainmentOnly(boolean containmentOnly) {
-            this.containmentOnly = containmentOnly;
-        }
-
-        public Instant getExpiresAt() {
-            return expiresAt;
-        }
-
-        public void setExpiresAt(Instant expiresAt) {
-            this.expiresAt = expiresAt;
-        }
-    }
 }
-

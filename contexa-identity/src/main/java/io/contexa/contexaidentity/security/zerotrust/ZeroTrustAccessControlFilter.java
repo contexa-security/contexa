@@ -23,6 +23,7 @@ import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.blocking.BlockableResponseWrapper;
@@ -85,7 +86,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     /** The folders of Contexa's own decision screens and of the release of a decision. */
     private static final List<String> DECISION_FOLDERS = List.of(
             "/contexa/zero-trust",
-            HostOwnedStepUp.STEP_UP_PATH,
+            SandboxStepUp.STEP_UP_PATH,
             "/contexa/api/aiam/sse/zero-trust",
             "/contexa/api/aiam/zero-trust",
             "/contexa/admin/api/aiam/sse/zero-trust",
@@ -101,7 +102,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
     private BooleanSupplier enforcing = () -> true;
-    private HostOwnedStepUp hostOwnedStepUp;
+    private SandboxStepUp sandboxStepUp;
     private BlockMfaStateStore blockMfaStateStore;
     private boolean monitoringHeaders = true;
     private ZeroTrustAction escalateTerminalAction;
@@ -151,15 +152,15 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Ownership HOST_OWNED: a BLOCK an administrator lets the user release by MFA goes to Contexa's verification-only
-     * step-up instead of a Contexa MFA flow. Null under CONTEXA_OWNED.
+     * Mode SANDBOX: a BLOCK an administrator lets the user release by MFA goes to Contexa's verification-only
+     * step-up instead of a Contexa MFA flow. Null in mode FULL.
      */
     public void setMonitoringHeaders(boolean monitoringHeaders) {
         this.monitoringHeaders = monitoringHeaders;
     }
 
-    public void setHostOwnedStepUp(HostOwnedStepUp hostOwnedStepUp) {
-        this.hostOwnedStepUp = hostOwnedStepUp;
+    public void setSandboxStepUp(SandboxStepUp sandboxStepUp) {
+        this.sandboxStepUp = sandboxStepUp;
     }
 
     /** Where the verification of an administrator under a BLOCK is read; null keeps the block list shut. */
@@ -190,7 +191,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Authentication auth = ContexaIdentity.of(request);
 
         // An anonymous visitor is nobody's user: all of them would share one decision, and one BLOCK would shut them all out.
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken || !enforcing.getAsBoolean()) {
@@ -202,7 +203,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         long responseStartNanos = System.nanoTime();
         // docs/agent A5-1: an agent acting for the user reads and keeps its own decisions under its own key; the
         // user's own requests keep the user ID.
-        String principal = extractUserId(auth);
+        String principal = extractUserId(request);
         ZeroTrustSubject subject = ZeroTrustSubject.of(principal, delegationStamp(request));
         boolean delegatedAgent = subject != null && subject.delegatedAgent();
         String userId = subject != null ? subject.storageKey() : principal;
@@ -266,9 +267,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 return;
             }
 
-            if (hostOwnedStepUp != null) {
+            if (sandboxStepUp != null) {
                 recordStopped(auth, ZeroTrustAction.BLOCK);
-                sendToHostOwnedStepUp(request, response);
+                sendToSandboxStepUp(request, response);
                 return;
             }
 
@@ -284,12 +285,13 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Where the console and the application share one account, the only administrator under a BLOCK has nobody to lift
-     * it. An administrator who passed MFA in this very session reaches the people of the block list, and no other page of
-     * the console or the application. Where the application owns sign-in the console has a chain of its own.
+     * Where the console and the application share one account (FULL with CONTEXA_OWNED), the only administrator under a
+     * BLOCK has nobody to lift it. An administrator who passed MFA in this very session reaches the people of the block
+     * list, and no other page of the console or the application. It holds in mode FULL; in mode SANDBOX a BLOCK is
+     * released through the step-up and the console signs in on the flow of Contexa's administrators.
      */
     private boolean blockListOpenedByMfa(HttpServletRequest request, Authentication auth, String userId, String requestUri) {
-        return hostOwnedStepUp == null && blockMfaStateStore != null && ConsoleSession.isBlockList(requestUri)
+        return sandboxStepUp == null && blockMfaStateStore != null && ConsoleSession.isBlockList(requestUri)
                 && ConsoleSession.administrator(auth)
                 && blockMfaStateStore.isVerified(userId, SessionFingerprintUtil.verificationContext(request));
     }
@@ -341,9 +343,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         if (RequestPaths.isWithin(requestUri, ADMIN_MFA_API)) {
             return true;
         }
-        // Under HOST_OWNED Contexa's sign-in does not run and the release goes through the step-up: the paths below are
+        // In mode SANDBOX the sign-in of Contexa's main chain does not run and the release goes through the step-up: the paths below are
         // the application's, and a user under a BLOCK does not reach them.
-        if (hostOwnedStepUp != null) {
+        if (sandboxStepUp != null) {
             return false;
         }
         if (mfaFlowUrlRegistry != null) {
@@ -373,9 +375,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         return false;
     }
 
-    /** HOST_OWNED: the release of a BLOCK by MFA continues on Contexa's step-up, with its purpose. */
-    private void sendToHostOwnedStepUp(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        String stepUpUrl = hostOwnedStepUp.stepUpUrl(request) + "?purpose=block";
+    /** Where the application signs its users in (SANDBOX): the release of a BLOCK by MFA continues on Contexa's step-up, with its purpose. */
+    private void sendToSandboxStepUp(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String stepUpUrl = sandboxStepUp.stepUpUrl(request) + "?purpose=block";
         if (WebUtil.isApiOrAjaxRequest(request)) {
             Map<String, Object> body = new HashMap<>();
             body.put("error", "BLOCK_MFA_REQUIRED");
@@ -566,12 +568,12 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             actionRedisRepository.saveAction(userId, ZeroTrustAction.BLOCK, fields);
             actionRedisRepository.setBlockedFlag(userId);
 
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            String username = (auth != null) ? auth.getName() : null;
+            Authentication auth = ContexaIdentity.of(request);
+            String username = ContexaIdentity.userId(request);
 
             // docs/agent A5-1, A5-3: an agent is no blocked person; the agent itself is stopped.
             if (agent && agentContainment != null) {
-                agentContainment.onBlock(subject, clientIdOf(SecurityContextHolder.getContext().getAuthentication()),
+                agentContainment.onBlock(subject, clientIdOf(auth),
                         null, "Auto-promoted from ESCALATE: TTL expired without resolution", requestId);
             }
             if (blockedUserRecorder != null && !agent) {
@@ -693,10 +695,13 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         return "/contexa/zero-trust/blocked";
     }
 
-    private String extractUserId(Authentication auth) {
-        if (auth == null || auth.getName() == null) {
-            return "unknown";
-        }
-        return auth.getName();
+    /**
+     * The subject the decision is keyed by: the user Contexa names the request for (bridge v2,
+     * {@link ContexaIdentity#userId}), so a user the application's {@code ContexaSubjectMapper} or resolver named is the
+     * one keyed, never the text of the application's own principal object.
+     */
+    private String extractUserId(HttpServletRequest request) {
+        String subject = ContexaIdentity.userId(request);
+        return subject != null ? subject : "unknown";
     }
 }

@@ -142,7 +142,8 @@ class OAuth2StateRequestScopeTest {
         ObjectProvider<JwtDecoder> noDecoderOfTheApplication = mock(ObjectProvider.class);
         when(applicationContext.getBeanProvider(JwtDecoder.class)).thenReturn(noDecoderOfTheApplication);
         JwtDecoder contexaDecoder = mock(JwtDecoder.class);
-        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class)).thenReturn(contexaDecoder);
+        when(applicationContext.containsBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER)).thenReturn(true);
+        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER)).thenReturn(contexaDecoder);
         Customizer<OAuth2StateConfigurer> customizer = oauth2 -> oauth2.requestScope(OAuth2RequestScope.TOKEN_REQUESTS);
         AuthenticationFlowConfig flow = restFlow("/api/agent/login").withStateConfig(
                 new StateConfig("oauth2", StateType.OAUTH2), customizer);

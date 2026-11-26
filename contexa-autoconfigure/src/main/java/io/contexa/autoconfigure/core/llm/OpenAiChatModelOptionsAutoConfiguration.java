@@ -25,6 +25,10 @@ import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.env.Environment;
 
+/**
+ * The OpenAI model capabilities the options factory reads. R-9: the default options of the chat models are set on
+ * Contexa's own instances ({@link ContexaChatModelCopies}), not on the application's beans.
+ */
 @AutoConfiguration(beforeName = "org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration")
 @ConditionalOnClass(name = "org.springframework.ai.openai.OpenAiChatModel")
 public class OpenAiChatModelOptionsAutoConfiguration {
@@ -43,10 +47,5 @@ public class OpenAiChatModelOptionsAutoConfiguration {
                     capabilities.getDefaultSamplingOnlyPatterns(),
                     environment.getProperty("contexa.llm.model-capabilities.ollama.disable-thinking-patterns"));
         };
-    }
-
-    @Bean(name = "contexaOpenAiChatModelPostProcessor")
-    public static OpenAiChatModelPostProcessor openAiChatModelPostProcessor() {
-        return new OpenAiChatModelPostProcessor();
     }
 }

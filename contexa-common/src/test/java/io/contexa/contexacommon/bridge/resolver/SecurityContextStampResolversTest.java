@@ -35,11 +35,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-
+
 class SecurityContextStampResolversTest {
 
     private final SecurityContextAuthenticationStampResolver authenticationStampResolver = new SecurityContextAuthenticationStampResolver();
@@ -329,7 +330,9 @@ class SecurityContextStampResolversTest {
         assertThat(authorizationStamp.effectiveRoles()).contains("ROLE_FINANCE", "ROLE_USER");
     }
 
+    /** The principal names its user by {@link Principal#getName()}, the one subject rule (R-10); the rest is private. */
     @Test
+    @DisplayName("사용자 객체의 비공개 접근자로 인증·인가 사실을 읽고, 주체는 getName()이다")
     void resolversShouldSupportPrivateAccessorsOnCustomSecurityContextObjects() {
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 new PrivatePrincipal("alice", "Alice Private", "WORKFORCE"),
@@ -371,7 +374,7 @@ class SecurityContextStampResolversTest {
         assertThat(authorizationStamp.effectiveAuthorities()).contains("REPORT_APPROVE", "REPORT_EXPORT", "ROLE_USER");
     }
 
-    private static final class PrivatePrincipal {
+    private static final class PrivatePrincipal implements Principal {
         private final String userId;
         private final String displayName;
         private final String principalType;
@@ -382,7 +385,8 @@ class SecurityContextStampResolversTest {
             this.principalType = principalType;
         }
 
-        private String userId() {
+        @Override
+        public String getName() {
             return userId;
         }
 

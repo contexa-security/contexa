@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaSignInRealm;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
@@ -26,10 +27,22 @@ public class SessionSecurityContextRepositoryConfigurer implements SecurityConfi
     private static final int ORDER = SecurityConfigurer.HIGHEST_PRECEDENCE + 105;
 
     private final AISessionSecurityContextRepository aiSessionSecurityContextRepository;
+    private final AISessionSecurityContextRepository adminSessionSecurityContextRepository;
 
     public SessionSecurityContextRepositoryConfigurer(
             AISessionSecurityContextRepository aiSessionSecurityContextRepository) {
+        this(aiSessionSecurityContextRepository, null);
+    }
+
+    /**
+     * @param adminSessionSecurityContextRepository the repository of the flow of Contexa's administrators, which keeps its
+     *                                              context under a key of its own; without it that flow takes the other
+     */
+    public SessionSecurityContextRepositoryConfigurer(
+            AISessionSecurityContextRepository aiSessionSecurityContextRepository,
+            AISessionSecurityContextRepository adminSessionSecurityContextRepository) {
         this.aiSessionSecurityContextRepository = aiSessionSecurityContextRepository;
+        this.adminSessionSecurityContextRepository = adminSessionSecurityContextRepository;
     }
 
     @Override
@@ -38,11 +51,14 @@ public class SessionSecurityContextRepositoryConfigurer implements SecurityConfi
 
     @Override
     public void configure(FlowContext fc) throws Exception {
-        if (aiSessionSecurityContextRepository == null) {
+        AISessionSecurityContextRepository repository = ContexaSignInRealm.isAdminFlow(fc.flow()) && adminSessionSecurityContextRepository != null
+                ? adminSessionSecurityContextRepository
+                : aiSessionSecurityContextRepository;
+        if (repository == null) {
             return;
         }
-        fc.http().securityContext(sc -> sc.securityContextRepository(aiSessionSecurityContextRepository));
-        fc.http().setSharedObject(SecurityContextRepository.class, aiSessionSecurityContextRepository);
+        fc.http().securityContext(sc -> sc.securityContextRepository(repository));
+        fc.http().setSharedObject(SecurityContextRepository.class, repository);
     }
 
     @Override

@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The language of Contexa's screens in an application that owns its sign-in (HOST_OWNED). Contexa adds no language
+ * The language of Contexa's screens in an application whose own components win (HOST_OWNED, in either mode). Contexa adds no language
  * resolver there: the application keeps the one it has (Spring Boot's, by default), under Spring MVC's name, for every
  * request. A request for one of Contexa's screens, which live under {@code /contexa/}, is given the screens' resolver
  * for its own duration instead (the language a person chose with {@code ?lang=} for the session; before a choice, the

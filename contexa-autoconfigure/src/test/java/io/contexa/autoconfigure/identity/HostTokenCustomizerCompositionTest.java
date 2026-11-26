@@ -274,28 +274,28 @@ class HostTokenCustomizerCompositionTest {
             return mock(JwtDecoder.class);
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_JWT_ENCODER)
         JwtEncoder jwtEncoder() {
             return mock(JwtEncoder.class);
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_JWK_SOURCE)
         @SuppressWarnings("unchecked")
         JWKSource<SecurityContext> jwkSource() {
             return mock(JWKSource.class);
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_AUTHORIZATION_SERVICE)
         OAuth2AuthorizationService authorizationService() {
             return mock(OAuth2AuthorizationService.class);
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_REGISTERED_CLIENTS)
         RegisteredClientRepository registeredClientRepository() {
             return mock(RegisteredClientRepository.class);
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_SERVER_SETTINGS)
         AuthorizationServerSettings authorizationServerSettings() {
             return AuthorizationServerSettings.builder().build();
         }

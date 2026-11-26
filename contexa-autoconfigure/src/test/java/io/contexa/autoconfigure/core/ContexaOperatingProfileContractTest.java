@@ -191,7 +191,7 @@ class ContexaOperatingProfileContractTest {
         List<String> askers = new ArrayList<>();
         for (Path source : mainSources()) {
             String name = source.getFileName().toString();
-            if (!name.equals("OwnershipBehaviour.java") && !name.equals("BridgeProperties.java") && read(source).contains("getOwnership()")) {
+            if (!name.equals("OperatingBehaviour.java") && !name.equals("BridgeProperties.java") && read(source).contains("getOwnership()")) {
                 askers.add(name);
             }
         }

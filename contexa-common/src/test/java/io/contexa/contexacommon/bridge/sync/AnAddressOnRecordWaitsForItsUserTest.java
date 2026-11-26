@@ -105,10 +105,10 @@ class AnAddressOnRecordWaitsForItsUserTest {
     }
 
     @Test
-    @DisplayName("a made-up address gives way to the first real one at once")
+    @DisplayName("메일이 없던 사본은 가짜 메일 없이 비어 있다가, 레거시가 처음 보여 주는 실제 메일을 바로 받는다")
     void aMadeUpAddressGivesWay() {
         shows(null);
-        assertThat(address()).endsWith("@shadow.contexa.local");
+        assertThat(address()).isNull();
 
         shows("alice@corp.example");
 
@@ -216,14 +216,14 @@ class AnAddressOnRecordWaitsForItsUserTest {
     }
 
     @Test
-    @DisplayName("an address another user holds is not taken, and it goes on waiting")
+    @DisplayName("Contexa 계정이 가진 메일은 사본 메일로 확정하지 않고 계속 기다린다")
     void anAddressAnotherUserHolds() {
         shows("alice@corp.example");
         shows("bob@corp.example");
         Users bob = new Users();
         bob.setId(7L);
         bob.setEmail("bob@corp.example");
-        when(users.findFirstByEmailIgnoreCase("bob@corp.example")).thenReturn(Optional.of(bob));
+        when(users.findFirstByEmailIgnoreCaseAndBridgeManagedFalse("bob@corp.example")).thenReturn(Optional.of(bob));
 
         assertThat(sync.confirmPendingEmail(100L, "bob@corp.example")).isFalse();
 

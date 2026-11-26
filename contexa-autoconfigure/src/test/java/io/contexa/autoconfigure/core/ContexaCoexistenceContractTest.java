@@ -15,16 +15,27 @@
  */
 package io.contexa.autoconfigure.core;
 
+import org.assertj.core.api.SoftAssertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.core.type.MethodMetadata;
+import org.springframework.core.type.classreading.MetadataReader;
+import org.springframework.core.type.classreading.SimpleMetadataReaderFactory;
+import org.springframework.security.core.userdetails.UserDetailsService;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -60,9 +71,6 @@ class ContexaCoexistenceContractTest {
             "CoreDataAutoConfiguration#transactionTemplate",            // the same
             "IamI18nAutoConfiguration#localeResolver",                  // Spring MVC's name; the language of the application (CONTEXA_OWNED only)
             "IamI18nAutoConfiguration#messageSource",                   // the application context's name for its messages
-            "IdentityOAuth2AutoConfiguration#authorizationServerSettings",
-            "IdentityOAuth2AutoConfiguration#jwkSource",
-            "IdentityOAuth2AutoConfiguration#registeredClientRepository",
             "CommonRedisAutoConfiguration#stringRedisTemplate",
             "WebSocketConfig#clientInboundChannelExecutor",             // overrides of the message broker's own beans
             "WebSocketConfig#clientOutboundChannelExecutor",
@@ -542,6 +550,312 @@ class ContexaCoexistenceContractTest {
             result.add(matcher.group(1));
         }
         return result;
+    }
+
+    // ------------------------------------------------------------------ M0 of the operating-mode plan: the security types
+
+    /**
+     * M0 of the operating-mode plan (docs/agent/운영모드-정상화-구현계획.md, R-6 and R-9): the list of the types the frameworks
+     * look up by type for the application ({@link #TYPES_THE_FRAMEWORKS_LOOK_UP}), widened to the security types an
+     * application has of its own. Spring Security and Spring Boot take one of these for the application's own sign-in and
+     * authorization when it is the only one of its type, and take none when there are several (a global authentication
+     * manager left without a provider); a bean of Contexa's that is visible by type is in that count. The check reads the
+     * compiled bean methods, so that a subtype counts (Contexa's store, provider and evaluators implement these types). It
+     * is a static check of the definitions; what an application gets while it runs is HostComponentCoexistencePostgresTest.
+     */
+    private static final List<String> SECURITY_TYPES_THE_FRAMEWORKS_LOOK_UP = List.of(
+            "org.springframework.security.core.userdetails.UserDetailsService",
+            "org.springframework.security.authentication.AuthenticationProvider",
+            "org.springframework.security.authentication.AuthenticationManager",
+            "org.springframework.security.web.context.SecurityContextRepository",
+            "org.springframework.security.access.PermissionEvaluator",
+            "org.springframework.security.oauth2.client.registration.ClientRegistrationRepository",
+            "org.springframework.security.oauth2.jwt.JwtDecoder",
+            "net.javacrumbs.shedlock.core.LockProvider",
+            "com.querydsl.jpa.impl.JPAQueryFactory");
+
+    /**
+     * The watched types no framework counts or picks for the application: only the application's own code asks for them by
+     * type, and such an injection passes over a bean that is no default candidate. A bean of Contexa's of one of these types
+     * that is no default candidate is out of the application's way (F-02 of docs/agent/운영모드-정상화-구현계획.md). The types
+     * Spring Security counts with the beans that are no default candidates (F-8) are not among them.
+     */
+    private static final Set<String> TYPES_ONLY_THE_APPLICATIONS_CODE_INJECTS = Set.of("com.querydsl.jpa.impl.JPAQueryFactory");
+
+    /**
+     * The same security types at Contexa's own injection points (R-6): asked for by type, Contexa's code is given the
+     * application's bean when the application has one, or fails when there are several. The types already listed in
+     * {@link #SHARED_TYPES} (the decoder, the entity manager, the Redis template) are checked there.
+     */
+    private static final List<String> SECURITY_TYPES_ASKED_FOR_BY_NAME = List.of("UserDetailsService", "AuthenticationProvider",
+            "AuthenticationManager", "SecurityContextRepository", "PermissionEvaluator", "ClientRegistrationRepository",
+            "JPAQueryFactory", "LockProvider");
+
+    /** The key Spring Security reads to apply a configurer to every {@code HttpSecurity}, the application's chains included. */
+    private static final String EVERY_HTTP_SECURITY = "org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer=";
+
+    @Test
+    @DisplayName("보안 구성요소 타입의 Contexa 빈은 호스트가 타입으로 찾을 때 보이지 않는다(정적 검사: 컴파일된 빈 정의)")
+    void noBeanOfContexaIsOfASecurityTypeTheFrameworksLookUpForTheApplication() throws IOException {
+        ClassLoader loader = getClass().getClassLoader();
+        List<Class<?>> watched = new ArrayList<>();
+        for (String name : SECURITY_TYPES_THE_FRAMEWORKS_LOOK_UP) {
+            watched.add(GuardTypes.load(name, loader));
+        }
+        SimpleMetadataReaderFactory readers = new SimpleMetadataReaderFactory(loader);
+        List<String> violations = new ArrayList<>();
+        List<String> unread = new ArrayList<>();
+        for (SourceFile file : sources()) {
+            String className = compiledName(file);
+            if (className == null) {
+                continue;
+            }
+            Deque<String> classes = new ArrayDeque<>(List.of(className));
+            while (!classes.isEmpty()) {
+                String current = classes.pop();
+                MetadataReader reader;
+                try {
+                    reader = readers.getMetadataReader(current);
+                } catch (IOException notCompiled) {
+                    unread.add(current);
+                    continue;
+                }
+                classes.addAll(List.of(reader.getClassMetadata().getMemberClassNames()));
+                for (MethodMetadata method : reader.getAnnotationMetadata().getAnnotatedMethods(Bean.class.getName())) {
+                    Class<?> returned;
+                    try {
+                        returned = Class.forName(method.getReturnTypeName(), false, loader);
+                    } catch (ClassNotFoundException | LinkageError notLoadable) {
+                        // a library type of the distributed mode (Redisson, Spring Statemachine's Redis repositories) is on the
+                        // class path of the distributed tests only; it is said here and not checked. A type of Contexa's is
+                        // always loadable, so one that is not is a failure of this check.
+                        if (method.getReturnTypeName().startsWith("io.contexa.")) {
+                            unread.add(current + "#" + method.getMethodName() + " returns " + method.getReturnTypeName());
+                        } else {
+                            System.out.println("NOT CHECKED (not on this class path): " + current + "#" + method.getMethodName()
+                                    + " returns " + method.getReturnTypeName());
+                        }
+                        continue;
+                    }
+                    for (Class<?> lookedUp : watched) {
+                        if (lookedUp.isAssignableFrom(returned) && !givesWayTo(method, returned, lookedUp, loader)
+                                && !keptOutOfTheApplicationsInjection(method, lookedUp)) {
+                            violations.add(file.path() + " : bean method " + method.getMethodName() + " returns "
+                                    + returned.getSimpleName() + ", seen by the application's lookups of " + lookedUp.getSimpleName());
+                        }
+                    }
+                }
+            }
+        }
+        SoftAssertions.assertSoftly(softly -> {
+            softly.assertThat(violations)
+                    .as("hold it in a HeldBean (or another bean of no shared type), as the PasswordEncoder is: a bean of the type is"
+                            + " counted, and taken, by the frameworks when the application asks for its own")
+                    .isEmpty();
+            softly.assertThat(unread).as("bean methods this check could not read").isEmpty();
+        });
+    }
+
+    @Test
+    @DisplayName("Contexa 코드는 보안 구성요소 타입을 Contexa 이름으로만 주입받는다(정적 검사: 소스의 주입 지점)")
+    void contexaAsksForTheSecurityTypesByItsOwnName() throws IOException {
+        List<String> violations = new ArrayList<>();
+        for (SourceFile file : sources()) {
+            String source = file.source();
+            for (BeanMethod bean : beanMethods(source)) {
+                checkSecurityTypes(file, "bean method " + bean.method(), bean.parameters(), violations);
+            }
+            if (STEREOTYPE.matcher(source).find()) {
+                for (String parameters : constructorParameters(file.name(), source)) {
+                    checkSecurityTypes(file, "constructor", parameters, violations);
+                }
+                for (String field : autowiredFields(source)) {
+                    checkSecurityTypes(file, "autowired field", field, violations);
+                }
+                if (source.contains("@RequiredArgsConstructor") || source.contains("@AllArgsConstructor")) {
+                    for (String type : finalFieldTypes(source)) {
+                        if (securityTypeOf(type) != null) {
+                            violations.add(file.path() + " : a generated (Lombok) constructor takes " + type
+                                    + ", which cannot carry the qualifier; write the constructor");
+                        }
+                    }
+                }
+            }
+        }
+        assertThat(violations)
+                .as("an injection point of a security type without Contexa's name gets the application's bean of the type when it has one")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("라이브러리는 앱 전체에 ShedLock 잠금을 켜지 않는다(정적 검사: 소스)")
+    void noLibraryTurnsOnSchedulerLocksForTheWholeApplication() throws IOException {
+        List<String> violations = new ArrayList<>();
+        Pattern global = Pattern.compile("(?m)^\\s*@EnableSchedulerLock\\b");
+        for (SourceFile file : sources()) {
+            if (global.matcher(file.source()).find() && !file.source().contains("@SpringBootApplication")) {
+                violations.add(file.path() + " : @EnableSchedulerLock locks every @SchedulerLock method of the application, with the"
+                        + " lock provider the application's lookups find");
+            }
+        }
+        assertThat(violations).isEmpty();
+    }
+
+    @Test
+    @DisplayName("라이브러리는 호스트 체인까지 모든 HttpSecurity에 붙는 구성기를 등록하지 않는다(정적 검사: spring.factories)")
+    void noLibraryRegistersAConfigurerForEveryHttpSecurity() throws IOException {
+        Path root = repositoryRoot();
+        List<String> violations = new ArrayList<>();
+        for (String library : LIBRARIES) {
+            Path factories = root.resolve(library).resolve("src").resolve("main").resolve("resources")
+                    .resolve("META-INF").resolve("spring.factories");
+            if (Files.exists(factories) && Files.readString(factories, StandardCharsets.UTF_8).contains(EVERY_HTTP_SECURITY)) {
+                violations.add(root.relativize(factories).toString().replace('\\', '/') + " : a configurer under "
+                        + EVERY_HTTP_SECURITY.replace("=", "") + " is applied to the application's own chains as well");
+            }
+        }
+        assertThat(violations).isEmpty();
+    }
+
+    @Test
+    @DisplayName("보안 구성요소 검사가 하위 타입과 양보 조건을 그대로 읽는다")
+    void theSecurityTypeGuardReadsSubtypesAndGivingWay() throws IOException {
+        ClassLoader loader = getClass().getClassLoader();
+        SimpleMetadataReaderFactory readers = new SimpleMetadataReaderFactory(loader);
+        MetadataReader reader = readers.getMetadataReader(GuardSample.class.getName());
+        Class<?> store = GuardTypes.load("org.springframework.security.core.userdetails.UserDetailsService", loader);
+        Map<String, Boolean> givesWay = new TreeMap<>();
+        for (MethodMetadata method : reader.getAnnotationMetadata().getAnnotatedMethods(Bean.class.getName())) {
+            Class<?> returned = GuardTypes.load(method.getReturnTypeName(), loader);
+            givesWay.put(method.getMethodName(), store.isAssignableFrom(returned) && givesWayTo(method, returned, store, loader));
+        }
+
+        assertThat(givesWay).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "byTheType", true, "byASubtype", false, "byName", false, "noCondition", false));
+        assertThat(securityTypeOf("ObjectProvider<UserDetailsService>")).isEqualTo("UserDetailsService");
+        assertThat(securityTypeOf("UnifiedUserDetailsService")).as("a type of Contexa's own is no shared type").isNull();
+    }
+
+    /** What the guard reads: four bean methods of a store, one of which gives way to the application's store. */
+    static class GuardSample {
+
+        @Bean
+        @ConditionalOnMissingBean(type = "org.springframework.security.core.userdetails.UserDetailsService")
+        SampleStore byTheType() {
+            return null;
+        }
+
+        @Bean
+        @ConditionalOnMissingBean
+        SampleStore byASubtype() {
+            return null;
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(name = "contexaSampleStore")
+        SampleStore byName() {
+            return null;
+        }
+
+        @Bean
+        SampleStore noCondition() {
+            return null;
+        }
+    }
+
+    /** A store of the sample's own, as Contexa's store is a type of its own that implements the shared one. */
+    abstract static class SampleStore implements UserDetailsService {
+    }
+
+    /**
+     * Whether a bean method stands back when the application has a bean of the looked-up type: its
+     * {@code @ConditionalOnMissingBean} names that type or a supertype of it, or names nothing and returns such a type. A
+     * condition on a name or an annotation does not see the application's bean of the type.
+     */
+    /** Whether the bean is no default candidate and of a type only the application's own code injects. */
+    private static boolean keptOutOfTheApplicationsInjection(MethodMetadata method, Class<?> lookedUp) {
+        if (!TYPES_ONLY_THE_APPLICATIONS_CODE_INJECTS.contains(lookedUp.getName())) {
+            return false;
+        }
+        Map<String, Object> bean = method.getAnnotationAttributes(Bean.class.getName());
+        return bean != null && Boolean.FALSE.equals(bean.get("defaultCandidate"));
+    }
+
+    private static boolean givesWayTo(MethodMetadata method, Class<?> returned, Class<?> lookedUp, ClassLoader loader) {
+        Map<String, Object> missing = method.getAnnotationAttributes(ConditionalOnMissingBean.class.getName(), true);
+        if (missing == null) {
+            return false;
+        }
+        List<String> types = new ArrayList<>(List.of((String[]) missing.get("value")));
+        types.addAll(List.of((String[]) missing.get("type")));
+        if (types.isEmpty()) {
+            return ((String[]) missing.get("name")).length == 0 && ((String[]) missing.get("annotation")).length == 0
+                    && returned.isAssignableFrom(lookedUp);
+        }
+        for (String type : types) {
+            try {
+                if (Class.forName(type, false, loader).isAssignableFrom(lookedUp)) {
+                    return true;
+                }
+            } catch (ClassNotFoundException | LinkageError notLoadable) {
+                // a condition on a type that is not on the class path does not see the application's bean of the looked-up type
+            }
+        }
+        return false;
+    }
+
+    private static void checkSecurityTypes(SourceFile file, String where, String parameters, List<String> violations) {
+        for (String parameter : split(parameters)) {
+            String stripped = parameter.replaceAll("@\\w+(?:\\([^)]*\\))?", " ").replaceAll("\\bfinal\\b", " ").trim().replaceAll("\\s+", " ");
+            int space = stripped.lastIndexOf(' ');
+            String type = space < 0 ? stripped : stripped.substring(0, space);
+            if (securityTypeOf(type) == null) {
+                continue;
+            }
+            Matcher qualifier = Pattern.compile("@Qualifier\\(\\s*(?:\"([^\"]+)\"|([A-Za-z_][A-Za-z0-9_]*))\\s*\\)").matcher(parameter);
+            String value = null;
+            if (qualifier.find()) {
+                value = qualifier.group(1) != null ? qualifier.group(1) : constant(file.source(), qualifier.group(2));
+            }
+            if (value == null || !value.startsWith("contexa")) {
+                violations.add(file.path() + " : " + where + " takes \"" + parameter.trim().replaceAll("\\s+", " ")
+                        + "\" without @Qualifier(\"contexa...\")");
+            }
+        }
+    }
+
+    private static String securityTypeOf(String type) {
+        for (String security : SECURITY_TYPES_ASKED_FOR_BY_NAME) {
+            if (Pattern.compile("(?<![\\w.])" + security + "(?![\\w])").matcher(type).find()) {
+                return security;
+            }
+        }
+        return null;
+    }
+
+    /** The binary name of the top-level class a source file compiles to, or null for a package or module descriptor. */
+    private static String compiledName(SourceFile file) {
+        String path = file.path();
+        int sources = path.indexOf("src/main/java/");
+        if (sources < 0 || path.endsWith("package-info.java") || path.endsWith("module-info.java")) {
+            return null;
+        }
+        return path.substring(sources + "src/main/java/".length(), path.length() - ".java".length()).replace('/', '.');
+    }
+
+    /** Loads the types the guard compares against; each of them is on the class path of these tests. */
+    private static final class GuardTypes {
+
+        private GuardTypes() {
+        }
+
+        static Class<?> load(String name, ClassLoader loader) {
+            try {
+                return Class.forName(name, false, loader);
+            } catch (ClassNotFoundException missing) {
+                throw new IllegalStateException(name + " is not on the class path of this test", missing);
+            }
+        }
     }
 
     // ------------------------------------------------------------------ reading the sources

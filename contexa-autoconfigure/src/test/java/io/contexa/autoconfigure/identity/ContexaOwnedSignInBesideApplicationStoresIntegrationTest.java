@@ -6,6 +6,8 @@
 package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexacommon.annotation.EnableAISecurity;
+import io.contexa.contexacommon.security.ConsoleSession;
+import io.contexa.contexacommon.security.HeldBean;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
 import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.security.ContexaUserStore;
@@ -45,6 +47,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
@@ -58,6 +61,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.IOException;
 import java.lang.reflect.Proxy;
@@ -139,20 +144,24 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
     }
 
     /**
-     * Where the application keeps its sign-in (SANDBOX) there is no provider of Contexa's: Contexa's form filter keeps the
-     * chain's manager, as before, and the application's own sign-in answers as it did.
+     * Where the application keeps its sign-in (SANDBOX) Contexa's provider is held, out of reach of the application's sign-in
+     * (R-17): a flow of the application's users keeps the chain's manager, as before, and the application's own sign-in
+     * answers as it did. The code service names its recipients by the realm of the request: a request of the chain of
+     * Contexa's administrators from Contexa's own store, any other from the application's (HOST_OWNED).
      */
     @Test
     void whereTheApplicationKeepsItsSignInNothingOfThisApplies() throws Exception {
         try (Running app = Running.start(ApplicationKeepsItsSignIn.class)) {
-            assertThat(app.context.containsBean(PROVIDER)).isFalse();
-            assertThat(ContexaPasswordSignIn.manager(app.context)).isNull();
+            assertThat(app.context.getBean(PROVIDER)).isInstanceOf(HeldBean.class);
+            assertThat(ContexaPasswordSignIn.manager(null, app.context)).isNull();
             assertThat(app.formSignIn("alice", "alice-pw-1")).isEqualTo("302 /");
             assertThat(app.formSignIn("alice", "not-the-password-1")).isEqualTo("302 /login?error");
             assertThat(app.formSignIn(ADMIN, ADMIN_PASSWORD)).as("Contexa's administrator is not the application's user")
                     .isEqualTo("302 /login?error");
             assertThat(app.codeServiceStore()).as("the store the code service reads where the application keeps its sign-in")
                     .isSameAs(app.context.getBean("usersA"));
+            assertThat(app.codeServiceStoreOnTheConsole()).as("the store it reads on a request of Contexa's administrators")
+                    .isSameAs(ContexaUserStore.own(app.context));
         }
     }
 
@@ -305,7 +314,7 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
             Map<String, String> answers = passwordSignIns();
             answers.put("the code step", attempt(this::completesTheCodeStep));
             answers.put("the console", attempt(() -> String.valueOf(console())));
-            answers.put("the store of the code service", codeServiceStore() == context.getBean(ContexaUserStore.BEAN_NAME)
+            answers.put("the store of the code service", codeServiceStore() == ContexaUserStore.own(context)
                     ? "Contexa's own" : "another");
             answers.put("the application's alice", signIn("alice", "alice-pw-1"));
             answers.put("the application's bob", signIn("bob", "bob-pw-1"));
@@ -327,6 +336,18 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
         Object codeServiceStore() {
             Object service = context.getBean("contexaOneTimeTokenService", ContexaOneTimeTokens.class).service();
             return ((Supplier<Object>) ReflectionTestUtils.getField(service, "userStore")).get();
+        }
+
+        /** The user store the code service reads while it serves a request the chain of Contexa's administrators took. */
+        Object codeServiceStoreOnTheConsole() {
+            MockHttpServletRequest console = new MockHttpServletRequest("POST", "/contexa/admin/mfa/ott/generate-code");
+            ConsoleSession.mark(console);
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(console));
+            try {
+                return codeServiceStore();
+            } finally {
+                RequestContextHolder.resetRequestAttributes();
+            }
         }
 
         /** Contexa's administrator, then the names of the application's store. */
@@ -380,8 +401,7 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
         }
 
         long providerCalls() {
-            Object provider = context.getBean(PROVIDER);
-            return mockingDetails(provider).getInvocations().stream()
+            return mockingDetails(provider(context)).getInvocations().stream()
                     .filter(invocation -> invocation.getMethod().getName().equals("authenticate"))
                     .count();
         }
@@ -464,7 +484,7 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
          */
         @Override
         public void close() {
-            Object spy = context.containsBean(PROVIDER) ? context.getBean(PROVIDER) : null;
+            Object spy = context.containsBean(PROVIDER) ? provider(context) : null;
             try {
                 context.close();
             } finally {
@@ -480,6 +500,15 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
         float[] vector = new float[DIMENSIONS];
         vector[0] = 1f;
         return vector;
+    }
+
+    /**
+     * Contexa's password provider in the running application: the bean itself, or the provider it holds where it is held
+     * beside the application's stores or providers (R-17). It is the spy either way.
+     */
+    private static Object provider(ApplicationContext context) {
+        Object bean = context.getBean(PROVIDER);
+        return bean instanceof HeldBean<?> held ? held.get() : bean;
     }
 
     /** The code and the words of a refusal; the rest of its body is the time and the path. */
@@ -686,7 +715,9 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
 
     /**
      * What every case has: a chat model and an embedding model that never leave the machine, a mail sender that keeps
-     * the mail, a page to land on, and a spy on Contexa's provider that counts its calls and calls it as it is.
+     * the mail, a page to land on, and a spy on Contexa's provider that counts its calls and calls it as it is. Where the
+     * provider is held (R-17: beside stores or providers of the application's, or in SANDBOX), the spy is made of the
+     * provider it holds, and a holder of the spy takes the holder's place: Contexa's code unwraps it and calls the spy.
      */
     abstract static class ModelsAndMail {
 
@@ -749,7 +780,10 @@ class ContexaOwnedSignInBesideApplicationStoresIntegrationTest {
             return new BeanPostProcessor() {
                 @Override
                 public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
-                    return PROVIDER.equals(beanName) ? Mockito.spy(bean) : bean;
+                    if (!PROVIDER.equals(beanName)) {
+                        return bean;
+                    }
+                    return bean instanceof HeldBean<?> held ? new HeldBean<>(Mockito.spy(held.get())) : Mockito.spy(bean);
                 }
             };
         }

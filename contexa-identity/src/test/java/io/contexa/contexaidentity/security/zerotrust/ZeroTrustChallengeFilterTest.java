@@ -426,7 +426,7 @@ class ZeroTrustChallengeFilterTest {
     }
 
     /**
-     * Ownership design S-1/S-2 (HOST_OWNED): the application owns sign-in, so a CHALLENGE starts no Contexa MFA flow
+     * Ownership design S-1/S-2 (mode SANDBOX): the application signs its users in itself, so a CHALLENGE starts no Contexa MFA flow
      * (no flow state, no session) and a browser goes to the notice that leads to the verification-only step-up.
      */
     @Test
@@ -442,22 +442,22 @@ class ZeroTrustChallengeFilterTest {
 
     /** These prefixes let a signed-in user under a CHALLENGE through to the application's own paths of the same name. */
     @Test
-    @DisplayName("an application's path that only looks like Contexa's sign-in meets the decision, under both ownerships")
+    @DisplayName("an application's path that only looks like Contexa's sign-in meets the decision, in either mode")
     void applicationPathsMeetTheDecision() {
         for (String path : List.of("/api/mfa/transfer", "/webauthn/devices", "/mfa/challenge/1", "/login/webauthn-help")) {
             when(request.getRequestURI()).thenReturn(path);
-            assertThat(filter.shouldNotFilter(request)).as("CONTEXA_OWNED, %s", path).isFalse();
+            assertThat(filter.shouldNotFilter(request)).as("FULL, %s", path).isFalse();
         }
 
-        filter.setHostOwnedStepUp((req, auth, key) -> false);
+        filter.setSandboxStepUp((req, auth, key) -> false);
 
         for (String path : List.of("/api/mfa/transfer", "/webauthn/devices", "/mfa/challenge/1", "/login/webauthn-help")) {
             when(request.getRequestURI()).thenReturn(path);
-            assertThat(filter.shouldNotFilter(request)).as("HOST_OWNED, %s", path).isFalse();
+            assertThat(filter.shouldNotFilter(request)).as("SANDBOX, %s", path).isFalse();
         }
         for (String path : List.of("/contexa/step-up/passkey/options", "/contexa/zero-trust/blocked", "/logout")) {
             when(request.getRequestURI()).thenReturn(path);
-            assertThat(filter.shouldNotFilter(request)).as("HOST_OWNED, %s", path).isTrue();
+            assertThat(filter.shouldNotFilter(request)).as("SANDBOX, %s", path).isTrue();
         }
     }
 
@@ -518,9 +518,9 @@ class ZeroTrustChallengeFilterTest {
     }
 
     @Test
-    @DisplayName("HOST_OWNED: a browser goes to the notice of Contexa's step-up and no MFA flow starts")
-    void hostOwnedBrowserGoesToTheStepUpNotice() throws Exception {
-        filter.setHostOwnedStepUp((req, auth, key) -> false);
+    @DisplayName("SANDBOX: a browser goes to the notice of Contexa's step-up and no MFA flow starts")
+    void sandboxBrowserGoesToTheStepUpNotice() throws Exception {
+        filter.setSandboxStepUp((req, auth, key) -> false);
         when(request.getRequestURI()).thenReturn("/dashboard");
         setUpChallengeAuthentication();
         when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
@@ -533,9 +533,9 @@ class ZeroTrustChallengeFilterTest {
     }
 
     @Test
-    @DisplayName("HOST_OWNED: an API client gets 401 with the notice and the step-up, as under FULL")
-    void hostOwnedApiClientGets401WithTheStepUp() throws Exception {
-        filter.setHostOwnedStepUp((req, auth, key) -> false);
+    @DisplayName("SANDBOX: an API client gets 401 with the notice and the step-up, as under FULL")
+    void sandboxApiClientGets401WithTheStepUp() throws Exception {
+        filter.setSandboxStepUp((req, auth, key) -> false);
         when(request.getRequestURI()).thenReturn("/api/reports/export");
         setUpChallengeAuthentication();
         when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
@@ -579,9 +579,9 @@ class ZeroTrustChallengeFilterTest {
     }
 
     @Test
-    @DisplayName("HOST_OWNED: the application's own re-authentication after the CHALLENGE lets the request on")
-    void hostOwnedReauthenticationResolvesTheChallenge() throws Exception {
-        filter.setHostOwnedStepUp((req, auth, key) -> "testUser".equals(key));
+    @DisplayName("SANDBOX: the application's own re-authentication after the CHALLENGE lets the request on")
+    void sandboxReauthenticationResolvesTheChallenge() throws Exception {
+        filter.setSandboxStepUp((req, auth, key) -> "testUser".equals(key));
         when(request.getRequestURI()).thenReturn("/dashboard");
         setUpChallengeAuthentication();
         when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
@@ -593,9 +593,9 @@ class ZeroTrustChallengeFilterTest {
     }
 
     @Test
-    @DisplayName("HOST_OWNED: a CHALLENGE decided in the request is answered with the step-up, without a flow")
-    void hostOwnedStartAnswersWithTheStepUp() {
-        filter.setHostOwnedStepUp((req, auth, key) -> false);
+    @DisplayName("SANDBOX: a CHALLENGE decided in the request is answered with the step-up, without a flow")
+    void sandboxStartAnswersWithTheStepUp() {
+        filter.setSandboxStepUp((req, auth, key) -> false);
         setUpChallengeAuthentication();
 
         assertThat(filter.start(request, response)).contains("/contexa/step-up");

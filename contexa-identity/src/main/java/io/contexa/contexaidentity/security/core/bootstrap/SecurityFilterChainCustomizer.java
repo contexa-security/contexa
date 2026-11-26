@@ -70,7 +70,7 @@ public class SecurityFilterChainCustomizer {
         AuthenticationStepConfig passkeyStep = findStep(flowConfig, AuthType.PASSKEY, AuthType.MFA_PASSKEY);
         if (passkeyStep != null) {
             passkeyCustomizer.replaceHandlers(builtChain, flowConfig, appContext, isMfaFlow, sessionStrategy);
-            passkeyCustomizer.replaceRegistrationPage(builtChain, appContext);
+            passkeyCustomizer.replaceRegistrationPage(builtChain, flowConfig, appContext);
         }
 
         if (isMfaFlow && flowUrlProvider != null) {

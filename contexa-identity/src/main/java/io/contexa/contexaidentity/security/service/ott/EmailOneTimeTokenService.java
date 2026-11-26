@@ -125,9 +125,10 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
     }
 
     /**
-     * The store the sign-in reads, which is the application's where the application keeps its sign-in: its users are in no
-     * table of Contexa's, and their name is the address they are mailed at. Where Contexa owns the sign-in it is Contexa's
-     * own. Read when a code is asked for.
+     * The store the sign-in reads, read when a code is asked for. For a request of the console, and for any request where
+     * Contexa's main chain signs the application's users in with Contexa's own store (mode FULL with CONTEXA_OWNED), it is
+     * Contexa's own. For any other request it is the application's: its users are in no table of Contexa's, and their name
+     * is the address they are mailed at.
      */
     public void setCodeMailed(Consumer<String> codeMailed) {
         this.codeMailed = codeMailed != null ? codeMailed : username -> {

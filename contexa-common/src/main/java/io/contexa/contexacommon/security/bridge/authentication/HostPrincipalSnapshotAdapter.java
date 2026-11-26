@@ -1,6 +1,7 @@
 package io.contexa.contexacommon.security.bridge.authentication;
 
-import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
+import io.contexa.contexacommon.security.bridge.identity.BridgeObjectExtractor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 
@@ -26,8 +27,8 @@ public final class HostPrincipalSnapshotAdapter {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new IllegalArgumentException("authenticated host principal is required");
         }
-        String principalId = authentication.getName();
-        if (principalId == null || principalId.isBlank()) {
+        String principalId = ContexaIdentity.subjectId(authentication);
+        if (principalId == null) {
             throw new IllegalArgumentException("host authentication name is required");
         }
         Set<String> authorities = new LinkedHashSet<>();

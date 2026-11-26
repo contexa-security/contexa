@@ -180,7 +180,7 @@ public class OrderService {
 }
 ```
 
-A signed-in user (a Spring `Authentication`) is needed when the method is called under `SHADOW` and `ENFORCE`; without one the call is refused with an `AccessDeniedException`. Run the application, call the method as a signed-in user, and look for `[IamSeedData] OSS schema provenance verified.` in the startup log. With Spring Boot Actuator, `GET /actuator/contexacapabilities` shows which parts are ready. Details: [Getting started](https://docs.ctxa.ai/en/get-started.html).
+A signed-in user is needed when the method is called under `SHADOW` and `ENFORCE`: a Spring Security `Authentication`, or, for an application that signs in without Spring Security, a `ContexaSubjectResolver` bean or a `ContexaSubject` in the request attribute `ctxa.subject`; without one the call is refused with an `AccessDeniedException`. Run the application, call the method as a signed-in user, and look for `[IamSeedData] OSS schema provenance verified.` in the startup log. With Spring Boot Actuator, `GET /actuator/contexacapabilities` shows which parts are ready. Details: [Getting started](https://docs.ctxa.ai/en/get-started.html).
 
 ### First sign-in and one-time codes (where Contexa provides the sign-in)
 

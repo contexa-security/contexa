@@ -29,15 +29,14 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserEmailProvider;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
 import io.contexa.contexacommon.security.bridge.sync.DefaultBridgeUserMirrorSyncService;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -50,6 +49,7 @@ import static org.mockito.Mockito.*;
 class DefaultBridgeUserMirrorSyncServiceTest {
 
     @Test
+    @DisplayName("레거시 사용자의 사본과 프로필을 만들고, 메일이 없으면 비워 두며 속성 전체는 저장하지 않는다")
     void shouldProvisionBridgeManagedShadowUserAndProfile() {
         UserRepository userRepository = mock(UserRepository.class);
         BridgeUserProfileRepository bridgeUserProfileRepository = mock(BridgeUserProfileRepository.class);
@@ -89,7 +89,7 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         assertThat(savedUser.getOrganizationId()).isEqualTo("org-a");
         assertThat(savedUser.getDepartment()).isEqualTo("finance");
         assertThat(savedUser.getPosition()).isEqualTo("manager");
-        assertThat(savedUser.getEmail()).endsWith("@shadow.contexa.local");
+        assertThat(savedUser.getEmail()).isNull();
         assertThat(savedUser.getLastLoginIp()).isEqualTo("10.0.0.10");
 
         ArgumentCaptor<BridgeUserProfile> profileCaptor = ArgumentCaptor.forClass(BridgeUserProfile.class);
@@ -99,7 +99,8 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         assertThat(profile.getAuthenticationType()).isEqualTo("SESSION");
         assertThat(profile.getAuthenticationAssurance()).isEqualTo("HIGH");
         assertThat(profile.getLastAuthoritiesJson()).contains("ROLE_ADMIN");
-        assertThat(profile.getLastAttributesJson()).contains("tenant-a");
+        assertThat(profile.getLastAttributesJson()).isNull();
+        assertThat(profile.getSessionId()).isNull();
         // A new profile keeps a null id so that JPA persists it; @MapsId derives the id from the user.
         assertThat(profile.getUserId()).isNull();
         assertThat(profile.getUser()).isSameAs(userCaptor.getValue());
@@ -145,7 +146,8 @@ class DefaultBridgeUserMirrorSyncServiceTest {
     }
 
     @Test
-    void q1_anApplicationWithNoAddressLeavesAMadeUpOne() {
+    @DisplayName("레거시도 메일 공급자도 메일을 주지 않으면 가짜 메일을 만들지 않고 비워 둔다")
+    void q1_anApplicationWithNoAddressLeavesNone() {
         UserRepository users = mock(UserRepository.class);
         DefaultBridgeUserMirrorSyncService service = syncing(users, mock(BridgeUserProfileRepository.class), principal -> null);
 
@@ -153,7 +155,7 @@ class DefaultBridgeUserMirrorSyncServiceTest {
 
         ArgumentCaptor<Users> saved = ArgumentCaptor.forClass(Users.class);
         verify(users).save(saved.capture());
-        assertThat(saved.getValue().getEmail()).endsWith("@shadow.contexa.local");
+        assertThat(saved.getValue().getEmail()).isNull();
     }
 
     @Test
@@ -188,7 +190,8 @@ class DefaultBridgeUserMirrorSyncServiceTest {
     }
 
     @Test
-    void shouldSkipWriteWhenPayloadIsUnchangedWithinRefreshInterval() throws Exception {
+    @DisplayName("저장하는 값이 그대로인 동기화는 사본도 프로필도 쓰지 않고 사본 키로 한 번만 찾는다")
+    void shouldSkipWriteWhenPayloadIsUnchangedWithinRefreshInterval() {
         UserRepository userRepository = mock(UserRepository.class);
         BridgeUserProfileRepository bridgeUserProfileRepository = mock(BridgeUserProfileRepository.class);
         BridgeProperties properties = new BridgeProperties();
@@ -201,50 +204,26 @@ class DefaultBridgeUserMirrorSyncServiceTest {
                 new ObjectMapper(),
                 null
         );
+        String bridgeSubjectKey = "brg_" + sha256("SUBJECT|org-a|USR001");
+        AtomicReference<Users> stored = new AtomicReference<>();
+        AtomicReference<BridgeUserProfile> storedProfile = new AtomicReference<>();
+        when(userRepository.findByBridgeSubjectKey(anyString())).thenAnswer(invocation -> Optional.ofNullable(stored.get()));
+        when(bridgeUserProfileRepository.findById(anyLong()))
+                .thenAnswer(invocation -> Optional.ofNullable(storedProfile.get()));
+        when(userRepository.save(any(Users.class))).thenAnswer(invocation -> {
+            Users user = invocation.getArgument(0);
+            user.setId(100L);
+            stored.set(user);
+            return user;
+        });
+        when(bridgeUserProfileRepository.save(any(BridgeUserProfile.class))).thenAnswer(invocation -> {
+            storedProfile.set(invocation.getArgument(0));
+            return invocation.getArgument(0);
+        });
+        service.sync(authenticationStamp(), authorizationStamp(), requestContext());
+        clearInvocations(userRepository, bridgeUserProfileRepository);
 
-        AuthenticationStamp authenticationStamp = authenticationStamp();
-        AuthorizationStamp authorizationStamp = authorizationStamp();
-        RequestContextSnapshot requestContext = requestContext();
-        String bridgeSubjectKey = "brg_" + sha256("SESSION|org-a|USR001");
-
-        Users existingUser = Users.builder()
-                .id(100L)
-                .username(bridgeSubjectKey)
-                .password("{noop}BRIDGE_EXTERNAL_ONLY::seed")
-                .name("Alice Kim")
-                .email(bridgeSubjectKey + "@shadow.contexa.local")
-                .department("finance")
-                .position("manager")
-                .enabled(true)
-                .bridgeManaged(true)
-                .externalAuthOnly(true)
-                .externalSubjectId("USR001")
-                .authenticationSource("SESSION")
-                .principalType("USER")
-                .organizationId("org-a")
-                .bridgeSubjectKey(bridgeSubjectKey)
-                .lastLoginIp("10.0.0.10")
-                .lastBridgedAt(LocalDateTime.now())
-                .build();
-
-        BridgeUserProfile profile = BridgeUserProfile.builder()
-                .userId(existingUser.getId())
-                .user(existingUser)
-                .sourceSystem("SESSION")
-                .authenticationType("SESSION")
-                .authenticationAssurance("HIGH")
-                .mfaCompletedFromCustomer(true)
-                .sessionId("session-1")
-                .lastAuthoritiesJson("{}")
-                .lastAttributesJson("{}")
-                .lastSyncHash(extractSyncHash(service, authenticationStamp, authorizationStamp, requestContext))
-                .lastSyncedAt(LocalDateTime.now())
-                .build();
-
-        when(userRepository.findByBridgeSubjectKey(anyString())).thenReturn(Optional.of(existingUser));
-        when(bridgeUserProfileRepository.findById(existingUser.getId())).thenReturn(Optional.of(profile));
-
-        BridgeUserMirrorSyncResult result = service.sync(authenticationStamp, authorizationStamp, requestContext);
+        BridgeUserMirrorSyncResult result = service.sync(authenticationStamp(), authorizationStamp(), requestContext());
 
         assertThat(result).isNotNull();
         assertThat(result.internalUserId()).isEqualTo(100L);
@@ -303,9 +282,7 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         assertThat(second.updated()).isFalse();
         verify(userRepository, times(1)).save(any(Users.class));
         verify(bridgeUserProfileRepository, times(1)).save(any(BridgeUserProfile.class));
-        assertThat(storedProfile.get().getLastAttributesJson())
-                .contains("tenant-a")
-                .doesNotContain("/reports/export");
+        assertThat(storedProfile.get().getLastAttributesJson()).isNull();
     }
 
     @Test
@@ -356,8 +333,8 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         verify(userRepository).save(userCaptor.capture());
         Users savedUser = userCaptor.getValue();
         assertThat(savedUser.getOrganizationId()).isNull();
-        assertThat(savedUser.getBridgeSubjectKey()).isEqualTo("brg_" + sha256("SESSION|GLOBAL|USR002"));
-        verify(userRepository).findByExternalSubjectIdAndAuthenticationSourceAndOrganizationIdIsNull("USR002", "SESSION");
+        assertThat(savedUser.getBridgeSubjectKey()).isEqualTo("brg_" + sha256("SUBJECT|GLOBAL|USR002"));
+        verify(userRepository).findByExternalSubjectIdAndBridgeManagedTrue("USR002");
         verify(userRepository, never()).findByExternalSubjectIdAndAuthenticationSourceAndOrganizationId(anyString(), anyString(), eq("tenant-only"));
     }
 
@@ -421,25 +398,6 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         });
     }
 
-    private String extractSyncHash(
-            DefaultBridgeUserMirrorSyncService service,
-            AuthenticationStamp authenticationStamp,
-            AuthorizationStamp authorizationStamp,
-            RequestContextSnapshot requestContext
-    ) throws Exception {
-        Method buildSyncSnapshot = DefaultBridgeUserMirrorSyncService.class.getDeclaredMethod(
-                "buildSyncSnapshot",
-                AuthenticationStamp.class,
-                AuthorizationStamp.class,
-                RequestContextSnapshot.class
-        );
-        buildSyncSnapshot.setAccessible(true);
-        Object syncSnapshot = buildSyncSnapshot.invoke(service, authenticationStamp, authorizationStamp, requestContext);
-        Method syncHash = syncSnapshot.getClass().getDeclaredMethod("syncHash");
-        syncHash.setAccessible(true);
-        return (String) syncHash.invoke(syncSnapshot);
-    }
-
     /**
      * Exception tests 2026-11-03 (ownership harness): a value from the host longer than its column (a distinguished
      * name as the department, a phone number with an extension, a signed avatar URL, a long subject as the name)
@@ -486,8 +444,7 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         assertThat(user.getTimezone()).hasSizeLessThanOrEqualTo(50);
         assertThat(user.getAuthenticationSource()).hasSizeLessThanOrEqualTo(100);
         assertThat(user.getPrincipalType()).hasSizeLessThanOrEqualTo(50);
-        assertThat(user.getEmail()).as("an address longer than the column is not kept, a made-up one stands in")
-                .hasSizeLessThanOrEqualTo(255).endsWith("@shadow.contexa.local");
+        assertThat(user.getEmail()).as("an address longer than the column is not kept, and none is made up").isNull();
         assertThat(user.getExternalSubjectId()).isEqualTo(subject);
     }
 

@@ -70,12 +70,14 @@ import io.contexa.contexaiam.admin.promptquality.version.PromptVersionFolderScan
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionLengthLimits;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionService;
 import io.contexa.contexaiam.admin.promptquality.version.PromptVersionTrials;
+import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.autoconfigure.core.infra.CoreSchedulerLockAutoConfiguration;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustConsoleService;
 import io.contexa.contexaiam.admin.web.zerotrust.ZeroTrustDecisionRecords;
 import net.javacrumbs.shedlock.core.LockProvider;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -147,8 +149,7 @@ public class PromptVersionConsoleAutoConfiguration {
                                                    PromptVersionService versions, SealedDecisionReplays replays,
                                                    PromptQualityRunLine contexaPromptQualityRunLine,
                                                    ObjectProvider<PromptVersionAudit> audit,
-                                                   PqaOssQualityProperties properties,
-                                                   ObjectProvider<LockProvider> lockProviders,
+                                                   PqaOssQualityProperties properties, BeanFactory beanFactory,
                                                    ObjectProvider<TieredStrategyProperties> tiered) {
         PromptVersionTrials trials = new PromptVersionTrials(() -> jdbcTemplate, versions,
                 (actor, packageId, version) -> replays.replayPackage(actor, packageId,
@@ -156,7 +157,8 @@ public class PromptVersionConsoleAutoConfiguration {
                         .map(replayed -> PromptVersionTrials.replayed(replayed.result(),
                                 QualityModelSetting.closingRules(tiered.getIfAvailable()))),
                 contexaPromptQualityRunLine.executor(), audit.getIfAvailable(PromptVersionAudit::none),
-                Clock.systemUTC(), qualityRunLock(lockProviders), properties.getMeasurement().toSettings().heartbeat(),
+                Clock.systemUTC(), contexaLock(beanFactory, PromptQualityMeasurements.LOCK_NAME),
+                properties.getMeasurement().toSettings().heartbeat(),
                 serverId);
         trials.closeInterrupted();
         trials.startLookingForWork();
@@ -196,11 +198,11 @@ public class PromptVersionConsoleAutoConfiguration {
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate, PromptVersionService versions,
             PromptQualityCases contexaPromptQualityCases, SealedDecisionReplays replays,
             PromptQualityRunLine contexaPromptQualityRunLine, PqaOssQualityProperties properties,
-            ObjectProvider<LockProvider> lockProviders, ObjectProvider<TieredStrategyProperties> tiered,
+            BeanFactory beanFactory, ObjectProvider<TieredStrategyProperties> tiered,
             ObjectProvider<TieredLLMProperties> models, ObjectProvider<SecurityZeroTrustProperties> zeroTrust,
             @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel,
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
-        QualityMeasureLock lock = qualityRunLock(lockProviders);
+        QualityMeasureLock lock = contexaLock(beanFactory, PromptQualityMeasurements.LOCK_NAME);
         PromptQualityMeasurements measurements = new PromptQualityMeasurements(() -> jdbcTemplate, versions,
                 contexaPromptQualityCases,
                 (actor, given, contextFormat, version, userBaseline, organizationBaseline, scope, timeZone) ->
@@ -217,13 +219,15 @@ public class PromptVersionConsoleAutoConfiguration {
     }
 
     /**
-     * Quality plan 3.3: the lock the measurements and the trials take, of the lock store of the scheduled work of
-     * Contexa (ShedLock) the servers of one database share; without it the lock of this server alone.
+     * Quality plan 3.3, 3.4: a lock of that name in the lock store of the scheduled work of Contexa (ShedLock), which
+     * the servers of one database share, taken by the name of Contexa's lock provider and never the application's (R-9
+     * of docs/agent/운영모드-정상화-구현계획.md); without Contexa's provider the lock of this server alone.
      */
-    private static QualityMeasureLock qualityRunLock(ObjectProvider<LockProvider> lockProviders) {
-        LockProvider lockProvider = lockProviders.getIfUnique();
+    private static QualityMeasureLock contexaLock(BeanFactory beanFactory, String name) {
+        LockProvider lockProvider = ContexaOwnBeans.ownIfPresent(beanFactory, CoreSchedulerLockAutoConfiguration.LOCK_PROVIDER,
+                LockProvider.class);
         return lockProvider != null
-                ? QualityMeasureLock.shedLock(lockProvider, PromptQualityMeasurements.LOCK_NAME, Clock.systemUTC())
+                ? QualityMeasureLock.shedLock(lockProvider, name, Clock.systemUTC())
                 : QualityMeasureLock.local();
     }
 
@@ -329,13 +333,11 @@ public class PromptVersionConsoleAutoConfiguration {
                                                          ObjectProvider<PromptQualityMeasurements> measurements,
                                                          ObjectProvider<PromptBundleSelector> selector,
                                                          QualityShippedMeasurements contexaQualityShippedMeasurements,
-                                                         ObjectProvider<LockProvider> lockProviders) {
-        LockProvider lockProvider = lockProviders.getIfUnique();
+                                                         BeanFactory beanFactory) {
         return new QualityAutoMeasurement(() -> jdbcTemplate, versions, contexaPromptQualityCases,
                 measurements::getIfAvailable, new JdbcPromptVersionCatalog(versions, () -> jdbcTemplate,
                 selector::getIfUnique), contexaQualityShippedMeasurements,
-                lockProvider != null ? QualityMeasureLock.shedLock(lockProvider, QualityAutoMeasurement.LOCK_NAME,
-                        Clock.systemUTC()) : QualityMeasureLock.local());
+                contexaLock(beanFactory, QualityAutoMeasurement.LOCK_NAME));
     }
 
     /**

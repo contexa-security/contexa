@@ -26,11 +26,14 @@ import java.util.function.Supplier;
 @Controller
 public class LoginController {
 
-    /** Where the console's sign-in form posts: Contexa's sign-in chain under CONTEXA_OWNED. */
+    /** Where the console's sign-in form posts: Contexa's main flow, under FULL with CONTEXA_OWNED. */
     public static final String DEFAULT_LOGIN_PROCESSING_URL = "/login";
 
-    /** Where it posts when the application owns sign-in (HOST_OWNED): the console's own chain. */
-    public static final String HOST_OWNED_LOGIN_PROCESSING_URL = "/contexa/admin/login";
+    /**
+     * Where it posts when Contexa's administrators sign in apart from the application's users (every combination of mode
+     * and ownership but FULL with CONTEXA_OWNED): the flow of Contexa's administrators.
+     */
+    public static final String ADMIN_FLOW_LOGIN_PROCESSING_URL = "/contexa/admin/login";
 
     /** The flag a changed password comes with, so the sign-in it leads to says the password was changed. */
     public static final String PASSWORD_CHANGED_PARAMETER = "passwordChanged";

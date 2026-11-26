@@ -17,11 +17,16 @@ package io.contexa.autoconfigure.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
+import io.contexa.contexacommon.operating.OperatingBehaviour;
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.sync.DefaultBridgeUserMirrorSyncService;
+import io.contexa.contexacommon.security.bridge.sync.UserCopyMergeContributor;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
+import io.contexa.contexacore.security.ContexaUserStore;
 import org.springframework.beans.factory.BeanFactory;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserEmailProvider;
 import org.springframework.beans.factory.ObjectProvider;
@@ -33,6 +38,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.web.SecurityFilterChain;
+
+import java.util.function.BooleanSupplier;
 
 /**
  * Bridge user mirror synchronization for {@code @EnableAISecurity}.
@@ -56,7 +63,9 @@ public class AiBridgeUserMirrorSyncAutoConfiguration {
             BridgeProperties properties,
             @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapperProvider,
             BeanFactory beanFactory,
-            ObjectProvider<BridgeUserEmailProvider> emailProvider) {
+            ObjectProvider<BridgeUserEmailProvider> emailProvider,
+            ObjectProvider<UserRolePermissionRepository> rolePermissions,
+            ObjectProvider<UserCopyMergeContributor> mergeContributors) {
         DefaultBridgeUserMirrorSyncService service = new DefaultBridgeUserMirrorSyncService(
                 userRepository,
                 bridgeUserProfileRepository,
@@ -65,6 +74,24 @@ public class AiBridgeUserMirrorSyncAutoConfiguration {
                 beanFactory.containsBean("contexaCacheManager") ? beanFactory.getBean("contexaCacheManager", CacheManager.class) : null
         );
         service.setEmailProvider(emailProvider.getIfUnique());
+        service.setApplicationsUsersAreContexaAccounts(applicationsUsersAreContexaAccounts(properties, beanFactory));
+        service.setUserKey(ZeroTrustUserKey::of);
+        service.setRolePermissions(rolePermissions.getIfAvailable());
+        service.setMergeContributors(mergeContributors.orderedStream().toList());
         return service;
+    }
+
+    /**
+     * Whether the application's users sign in as Contexa's own accounts (R-12, R-17): Contexa's main chain signs them in
+     * (FULL), with CONTEXA_OWNED from Contexa's own store, and with HOST_OWNED from the application's store, which is
+     * Contexa's own only while the application declares none. Asked when a copy is made, once the stores exist.
+     */
+    static BooleanSupplier applicationsUsersAreContexaAccounts(BridgeProperties properties, BeanFactory beanFactory) {
+        BooleanSupplier contexasStoreSignsIn = ContexaUserStore.signsInWithContexaAccounts(beanFactory);
+        return () -> {
+            OperatingBehaviour behaviour = properties.operatingBehaviour();
+            return behaviour.signsInTheApplicationsUsers()
+                    && (!behaviour.hostComponentsWin() || contexasStoreSignsIn.getAsBoolean());
+        };
     }
 }

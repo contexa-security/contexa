@@ -18,7 +18,7 @@ package io.contexa.autoconfigure.iam;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexaiam.admin.web.auth.controller.SessionManagementController;
 import io.contexa.contexaiam.admin.web.auth.filter.ActiveSessionEndListener;
-import io.contexa.contexaiam.admin.web.auth.filter.SessionTrackingFilter;
+import io.contexa.contexaiam.admin.web.auth.filter.TrackedSessionMarks;
 import io.contexa.contexaiam.admin.web.auth.service.ActiveSessionCleanupScheduler;
 import io.contexa.contexaiam.admin.web.auth.service.ActiveSessionReferences;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
@@ -30,6 +30,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.HttpSessionEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -224,8 +225,7 @@ class RawSessionRowsPostgresTest {
 
         SessionManagementService service = console.getBean(SessionManagementService.class);
         MockHttpSession loggedOut = new MockHttpSession(null, "LOGGED-OUT");
-        loggedOut.setAttribute(SessionTrackingFilter.TRACKED_AT, System.currentTimeMillis());
-        new ActiveSessionEndListener(service).sessionDestroyed(new HttpSessionEvent(loggedOut));
+        new ActiveSessionEndListener(service, new TrackedSessionMarks()).sessionDestroyed(new HttpSessionEvent(loggedOut));
         new ActiveSessionCleanupScheduler(service, Duration.ofMinutes(30)).cleanup();
 
         ConcurrentModel after = new ConcurrentModel();
@@ -237,6 +237,29 @@ class RawSessionRowsPostgresTest {
         assertThat(jdbc.queryForList("select session_id from ctxa_active_sessions", String.class))
                 .as("the sessions of the stopped node and the one ended last week went")
                 .containsExactlyInAnyOrder(ref("LIVE"), ref("LOGGED-OUT"), ref("ENDED-YESTERDAY"));
+    }
+
+    /**
+     * R-8 and the distributed mode: a session another node tracked ends on this one, which has no mark of it. Its end is
+     * recorded by its row, and the end of a session that has no row changes nothing.
+     */
+    @Test
+    @DisplayName("세션 끝 기록은 이 노드의 표시가 아니라 DB 행으로 정한다: 다른 노드가 추적한 행은 끝나고, 행 없는 세션은 아무것도 바꾸지 않는다")
+    void theEndOfASessionIsRecordedByItsRowNotByWhatThisNodeRemembers() {
+        LocalDateTime now = LocalDateTime.now();
+        row(ref("TRACKED-ELSEWHERE"), "alice", false, now.minusMinutes(10), now.minusMinutes(1));
+        row(ref("STILL-ON"), "bob", false, now.minusMinutes(10), now.minusMinutes(1));
+        List<Map<String, Object>> before = jdbc.queryForList("select * from ctxa_active_sessions order by session_id");
+        ActiveSessionEndListener listener = new ActiveSessionEndListener(console.getBean(SessionManagementService.class),
+                new TrackedSessionMarks());
+
+        listener.sessionDestroyed(new HttpSessionEvent(new MockHttpSession(null, "NEVER-TRACKED")));
+        assertThat(jdbc.queryForList("select * from ctxa_active_sessions order by session_id"))
+                .as("a session without a row adds and changes nothing").isEqualTo(before);
+
+        listener.sessionDestroyed(new HttpSessionEvent(new MockHttpSession(null, "TRACKED-ELSEWHERE")));
+        assertThat(expired(ref("TRACKED-ELSEWHERE"))).as("tracked by another node, ended on this one").isTrue();
+        assertThat(expired(ref("STILL-ON"))).isFalse();
     }
 
     private void row(String sessionId, String user, boolean expired, LocalDateTime created, LocalDateTime accessed) {

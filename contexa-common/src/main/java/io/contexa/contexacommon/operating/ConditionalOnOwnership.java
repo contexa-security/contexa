@@ -24,7 +24,10 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/** Who owns the sign-in, read as {@link ContexaOperatingProfile} reads it, so that no spelling turns on half of a plane. */
+/**
+ * How Contexa settles with the application's own components, read as {@link ContexaOperatingProfile} reads it, so that no
+ * spelling turns on half of a plane. Who signs the application's users in is the mode's: see {@link ConditionalOnMode}.
+ */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented

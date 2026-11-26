@@ -31,7 +31,7 @@ class LoginAttemptCleanupOrderTest {
     @Test
     @DisplayName("the cleanup of the login policy surrounds the security chain")
     void theCleanupSurroundsTheSecurityChain() {
-        int order = new IamSecurityCoreContexaOwnedConfiguration().loginAttemptCleanupFilterRegistration().getOrder();
+        int order = new IamSignInAttemptConfiguration().loginAttemptCleanupFilterRegistration().getOrder();
 
         assertThat(order).isLessThan(SecurityProperties.DEFAULT_FILTER_ORDER);
     }

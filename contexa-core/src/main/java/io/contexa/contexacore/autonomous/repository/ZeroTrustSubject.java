@@ -34,8 +34,9 @@ import java.util.Map;
  * its decisions are kept under a key of its own ({@code <user>::agent::<agent id>}, the shape of the agent's learning
  * key, A3-1): an agent's CHALLENGE or BLOCK never stops the person's own work, and the person's never answers the
  * agent's request. The delegation and the tenant are carried but not keyed: a token may name no delegation before its
- * record is looked up, and a person's key names no tenant either. A session of the HOST_OWNED console is keyed apart as
- * well ({@code console::<user>}): its administrator and the application's user of that name are two people (Q-17). A
+ * record is looked up, and a person's key names no tenant either. A session of the console on the flow of Contexa's
+ * administrators (every combination but FULL with CONTEXA_OWNED) is keyed apart as well ({@code console::<user>}): its
+ * administrator and the application's user of that name are two people (Q-17). A
  * name spelled as one of these keys is kept off it by {@link ZeroTrustUserKey#person}.
  *
  * @param tenantId     the request's tenant, or null

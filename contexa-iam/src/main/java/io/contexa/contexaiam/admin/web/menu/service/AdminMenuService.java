@@ -42,14 +42,18 @@ import java.util.stream.Collectors;
 
 public class AdminMenuService {
 
-    /** Console plan 5-1: the Zero Trust console's screens under the Zero Trust group, as [name, url, data page]. */
+    /**
+     * Console plan 5-1: the Zero Trust console's screens under the Zero Trust group, then the user bridge status, as
+     * [name, url, data page].
+     */
     static final List<String[]> ZERO_TRUST_MENUS = List.of(
             new String[] {"menu.zerotrust.overview", "/contexa/admin/zero-trust", "zero-trust-overview"},
             new String[] {"menu.zerotrust.impact", "/contexa/admin/zero-trust/impact", "zero-trust-impact"},
             new String[] {"menu.zerotrust.trust", "/contexa/admin/zero-trust/trust", "zero-trust-trust"},
             new String[] {"menu.zerotrust.decisions", "/contexa/admin/zero-trust/decisions", "zero-trust-decisions"},
             new String[] {"menu.zerotrust.adoption", "/contexa/admin/zero-trust/adoption", "zero-trust-adoption"},
-            new String[] {"menu.zerotrust.operations", "/contexa/admin/zero-trust/operations", "zero-trust-operations"});
+            new String[] {"menu.zerotrust.operations", "/contexa/admin/zero-trust/operations", "zero-trust-operations"},
+            new String[] {"menu.zerotrust.bridge", "/contexa/admin/zero-trust/bridge", "zero-trust-bridge"});
 
     private final AdminMenuRepository menuRepository;
     private final AdminMenuQueryCache menuQueryCache;

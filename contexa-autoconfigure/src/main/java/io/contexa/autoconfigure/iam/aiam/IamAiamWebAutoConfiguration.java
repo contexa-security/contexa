@@ -75,9 +75,9 @@ public class IamAiamWebAutoConfiguration {
                                                             ObjectProvider<BridgeProperties> bridgeProperties) {
         ZeroTrustPageController controller = new ZeroTrustPageController(blockMfaStateStore, contexaBlockedUserService,
                 securityZeroTrustProperties);
-        // Where the application owns sign-in the block list lies behind the console's own sign-in.
+        // In mode SANDBOX the block list lies behind the sign-in of the flow of Contexa's administrators.
         BridgeProperties bridge = bridgeProperties.getIfAvailable();
-        controller.setBlockListOffered(bridge == null || !bridge.ownershipBehaviour().enforcesFromServletFilters());
+        controller.setBlockListOffered(bridge == null || !bridge.operatingBehaviour().enforcesFromServletFilters());
         return controller;
     }
 

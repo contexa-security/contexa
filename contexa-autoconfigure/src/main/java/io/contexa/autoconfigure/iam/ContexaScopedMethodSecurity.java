@@ -39,7 +39,7 @@ import java.util.function.Supplier;
 /**
  * {@code @PreAuthorize} for Contexa's own classes, without {@code @EnableMethodSecurity} for the application.
  * <p>
- * Contexa used to switch method security on for the whole application when it owns sign-in, which made the application's dormant
+ * Contexa used to switch method security on for the whole application, which made the application's dormant
  * {@code @PreAuthorize} annotations start to deny calls, and gave every {@code @PreAuthorize} of the application Contexa's expression
  * handler. The advisor built here is Spring Security's own pre-authorization interceptor, narrowed to the classes of the Contexa libraries
  * and fitted with Contexa's handler only.
