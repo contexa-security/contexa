@@ -6,6 +6,241 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ## [Unreleased]
 
+### Upgrade notes: how the application names its user
+
+- **One contract names the user: `ContexaSubject`.** An application that signs in with Spring Security needs nothing:
+  Contexa reads the standard `Authentication` (its name as the user ID; the `email` claim, or a
+  `BridgeUserEmailProvider` bean, for the mail; a type of the application's own through a `ContexaSubjectMapper` bean).
+  An application that signs in without Spring Security implements one `ContexaSubjectResolver` bean, or puts a
+  `ContexaSubject` in the request attribute `ctxa.subject` (`ContexaSubject.REQUEST_ATTRIBUTE`) from a filter of its own.
+  `contexa.bridge.identity-sources` orders the sources (default `spring-security, resolver, request-attribute`).
+- **Removed: the channels that guessed the user.** The session, request-attribute and header bridges (`AuthBridge`,
+  `SessionAuthBridge`, `RequestAttributeAuthBridge`, `HeaderAuthBridge`, `CompositeAuthBridge`), their authorization and
+  delegation resolvers, `ContexaAuthBridge.handoff(...)` with `ContexaAuthHandoff`, and
+  `@EnableAISecurity(authObjectLocation, authObjectAttribute, authObjectType)` are gone; code that used them no longer
+  compiles. The flat request attributes `ctxa.auth.*`, `ctxa.authz.*` and `ctxa.delegation.*` are no longer read: an
+  agent's delegation goes in `ContexaSubject.delegation`, and an authorization verdict of the application (effect,
+  policy, scope tags, privilege) has no channel any more. **Check:** name the user with a resolver or `ctxa.subject`.
+- **Removed settings are reported.** A start that still sets `contexa.bridge.authentication.*`,
+  `contexa.bridge.authorization.*` or `contexa.bridge.delegation.*` under `session`, `request-attributes` or `headers`,
+  or `contexa.ai.security.auth-object.*`, writes their names once at ERROR (never their values) and goes on. The Spring
+  Security keys `contexa.bridge.authentication.security-context.*` and `contexa.bridge.authorization.security-context.*`,
+  and the token delegation `contexa.bridge.delegation.token.*`, stay.
+- **An authority's name no longer states an MFA.** An authority whose name holds `MFA` no longer makes `mfaVerified` or
+  a login method for the decision; the login method still comes from the login facts the application states.
+- **Optional calls at sign-in, sign-out and leaving.** `ContexaBridge.signedIn(request, subject)` writes the user's copy
+  and the sign-in time before it returns (waiting at most one second), `ContexaBridge.signInFailed` and
+  `ContexaBridge.signedOut` record the failure and end the session's tracking, and `ContexaUsers.delete(userId)` removes
+  the user's copy and decision state. Each answers a `ContexaBridgeResult` and throws nothing. With Spring Security the
+  standard sign-in, failure and logout events do the same.
+- **The user's copy** (the `ctxa_users` row Contexa keeps for the step-up) no longer gets an invented mail address (a
+  missing mail stays empty), its mail is unique among Contexa's own accounts only, a copy turned off in the console stays
+  off, and the copies an earlier version split for one person are merged at that person's next synchronisation; two
+  copies that both hold passkeys stay apart and are listed on the console's user bridge status screen.
+
+### Upgrade notes: modes and ownership
+
+These notes describe how Contexa now runs beside the application.
+
+- **The mode and the ownership are two settings, and every pair of them starts with all of Contexa's features.** The
+  mode (`@EnableAISecurity(mode = ...)`, or `contexa.ai.security.mode`) says what Contexa's security configuration does
+  to the application: `SANDBOX` keeps the application's sign-in, authorization and security settings (CSRF, CORS,
+  headers) as they are and enforces Contexa's decisions from servlet filters behind the application's chain; `FULL`
+  makes Contexa's main chain the application's security (sign-in, authorization, security settings). The ownership
+  (`contexa.bridge.ownership`) only settles which component serves the application where the application and Contexa
+  each bring one of the same kind, such as a `UserDetailsService` or a `JwtDecoder`: with `HOST_OWNED` the
+  application's wins, with `CONTEXA_OWNED` Contexa's serves the application too. Left unset, the ownership follows the
+  mode (`SANDBOX` gives `HOST_OWNED`, `FULL` gives `CONTEXA_OWNED`). `SANDBOX` with `CONTEXA_OWNED` and `FULL` with
+  `HOST_OWNED` no longer stop the start, and neither setting turns a feature of Contexa off. **Check:** a
+  `contexa.bridge.ownership` kept only to agree with the mode can be removed; one set on purpose now decides only which
+  component wins.
+- **Mode `FULL` runs beside an application chain narrowed to its own paths.** Contexa's main chain takes every request
+  and stands last; a chain of the application with `http.securityMatcher(...)` runs ahead of it on its own paths. An
+  application chain that takes every request still stops the start, now with `With mode FULL Contexa's main chain takes
+  every request, and the application declares its own security chain(s) [...] for every request as well.` and what to
+  change, also where Spring Security refuses the chains first. A start refused this way can leave Contexa's tables in
+  Contexa's database. On the paths a narrowed application chain takes, Contexa's CHALLENGE, BLOCK and ESCALATE filters
+  do not run (in mode `FULL` they run inside Contexa's main chain only); the bridge, the URL policies and the session
+  tracking do. **Check:** narrow the application's chain, or use `SANDBOX` for an application whose own chain stays its
+  main one.
+- **Mode `SANDBOX` no longer stops an application that has neither a security chain nor users of its own.** Spring
+  Boot's default chain would ask every request for a sign-in nobody can complete; Contexa puts the chain
+  `contexaSandboxIsolationChain` in its place (last, every request let through, and none of what Spring Security's default
+  configuration adds: no CSRF, CORS, headers, request cache, logout, servlet API wrapper or session management), so the
+  application answers as it did before Contexa came: its own `/logout` reaches it, its container's sign-in
+  (`getRemoteUser()`, `getUserPrincipal()`, `isUserInRole()`) stays readable, and its sessions are still rewritten into
+  URLs. An application with users of its own and no
+  chain keeps Spring Boot's default chain, which asks every request for a sign-in, and the start says so at WARN. Its
+  users are its beans (a `UserDetailsService`, an `AuthenticationProvider`, an `AuthenticationManager`) or Spring
+  Boot's user named by its own settings (`spring.security.user.name` or `spring.security.user.password`). **Check:** an
+  application that relied on Spring Boot's default sign-in with the password Boot generates at each start, and has no
+  such setting, is let through by the isolation chain: name that user in its settings, or declare its chain.
+- **Contexa's administrators sign in on a flow of their own, with a second step, in every combination but `FULL` with
+  `CONTEXA_OWNED`.** The flow `contexa-admin` under `/contexa/admin`, ahead of the application's chains, signs Contexa's
+  accounts in from Contexa's store: the password at `/contexa/admin/login`, then a passkey or a code by mail. It is
+  added to Contexa's default configuration and to a `PlatformConfig` the application declares itself. It keeps what it
+  stores in the HTTP session under keys of its own (`CONTEXA_ADMIN_SECURITY_CONTEXT`, `CONTEXA_ADMIN_CSRF_TOKEN`,
+  `CONTEXA_ADMIN_SAVED_REQUEST`), and `/contexa/admin/logout` does not end the application's session. Under `FULL` with
+  `CONTEXA_OWNED` the main flow signs the administrators in with the application's users, as before. The bean
+  `contexaAdminConsoleSecurityFilterChain` no longer exists. **Check:** before the upgrade give every administrator a
+  mail address that receives mail (with `spring.mail.*` set) or a passkey; administrators sign in again after it.
+- **Under `FULL` with `HOST_OWNED` Contexa's main chain signs the application's users in from the application's own
+  user store.** It signed them in with Contexa's accounts. Without a store of the application's, Contexa's own store
+  serves. Contexa's administrators sign in on their own flow.
+- **Contexa's beans of the types Spring Boot and Spring Security take by type no longer stand in for the
+  application's.** Contexa's `UserDetailsService`, `AuthenticationProvider`, `PasswordEncoder`, `RoleHierarchy`,
+  `PermissionEvaluator`, its two session security context repositories, its `OneTimeTokenGenerationSuccessHandler`, its
+  OAuth2 components (the decoder and encoder of tokens, the keys, the authorization service and settings, the registered
+  clients, the client registrations and the authorized clients), its `LockProvider` and its `JPAQueryFactory` are held
+  under their names (`HeldBean`) or are no autowire candidates, and Contexa's code takes them by name. Some of them are
+  still beans of their type in mode `FULL` where the application has none of its own. Contexa's one-time token service is no
+  `OneTimeTokenService` bean. **Check:** application code that injected one of them by type now gets the application's
+  or Spring Boot's bean, or fails with `NoSuchBeanDefinitionException`.
+- **Contexa's OAuth2 plane is there in mode `FULL`, with either ownership.** Its authorization server, resource server
+  and in-process token client now exist under `FULL` with `HOST_OWNED` too, and no longer under `SANDBOX` with
+  `CONTEXA_OWNED`. In mode `SANDBOX` Contexa issues no tokens: an agent's requests are judged from the claims of the
+  application's own tokens, and the console offers no registration of agents. Where the application sets
+  `spring.security.oauth2.*`, Spring Boot builds those components from the application's settings.
+- **Contexa no longer configures the application's `HttpSecurity`.** A configurer registered for every `HttpSecurity`
+  in `spring.factories` added `oauth2ResourceServer(jwt())` to any chain that switched the resource server on without
+  naming JWT, opaque tokens or a resolver, where a `JwtDecoder` bean existed. **Check:** such an application chain
+  calls `.oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))` itself.
+- **Contexa locks its own scheduled work only.** Every `@SchedulerLock` method of Contexa's classes takes its lock in
+  `ctxa_shedlock` on Contexa's data source, through Contexa's lock provider, held as `contexaShedLockProvider` so that
+  the application's lookups of a `LockProvider` by type never find it. Contexa no longer turns ShedLock on for the
+  application: an `@SchedulerLock` method of the application is locked only where the application enables ShedLock
+  itself, and an application with `@EnableSchedulerLock` alone does not get Contexa's provider. Where the application
+  enables ShedLock itself, Contexa's lock is taken first, in Contexa's table, and ShedLock does not take a lock its
+  thread already holds again. `contexa.scheduler.lock.default-lock-at-most-for` is not read: a lock whose annotation
+  names no bound is held at most five minutes. **Check:** a deployment whose Contexa locks were in the application's
+  lock table finds them in `ctxa_shedlock` after the upgrade, so during a rolling upgrade one run of the same task can
+  overlap; Contexa's provider is replaced with a bean named `contexaShedLockProvider` (a `LockProvider` or a `HeldBean`
+  of one).
+- **Contexa no longer changes the options of the application's OpenAI and Anthropic chat models.** It sets the
+  default options its calls need on instances of its own, copied from the application's beans; the beans keep the
+  options the application gave them (an earlier version took the sampling values, Spring AI's default temperature among
+  them, out of an Anthropic model's defaults for the Claude models that refuse them). A chat model Contexa cannot copy is
+  called as it is, its default options untouched, and an ERROR names, once, the defaults of it the model does not take.
+- **Standalone mode keeps Spring Boot's, Redisson's and Spring Kafka's Redis and Kafka auto-configurations.** Only
+  Contexa's own (`io.contexa.*`) Redis and Kafka auto-configurations are left out in standalone mode. **Check:** an
+  application that relied on Contexa to leave Spring Boot's Redis or Kafka configuration out excludes it itself.
+- **Contexa's screens are written by a Thymeleaf engine of their own.** Spring Boot's Thymeleaf auto-configuration is
+  left out of an application that does not use Thymeleaf itself: Contexa brought Thymeleaf to its class path, and the
+  view resolver Spring Boot then configured took every view name before JSP. Contexa's engine is no bean, reads
+  Contexa's `contexa/...` views only, always caches its templates and does not follow the application's
+  `spring.thymeleaf.*`. The bean `contexaSeedTextDialect` no longer exists, and the console's dialects are no longer
+  added to the application's Thymeleaf.
+- **The bridge writes what it resolved under `ctxa.bridge.*` only.** It no longer writes into request attributes the
+  application reads. **Check:** code that read Contexa's resolution reads the `ctxa.bridge.*` attributes
+  (`BridgeRequestAttributes`).
+- **The bridge keys a person's copy by the person's subject alone.** The key is `brg_` and the SHA-256 of
+  `SUBJECT|<organization>|<subject>`; the way the bridge read the person is no longer part of it. A copy made under the
+  former key is found by its subject and kept, so no further copy is made. Copies an earlier version split for one
+  person are merged into the oldest at that person's next synchronisation (see the notes on how the application names
+  its user).
+- **The bridge reads the times the application states in one way.** A number or a text of digits is seconds since the
+  epoch below 100,000,000,000 and milliseconds from it; ISO-8601 instants are read as well; the same for the security
+  context and a token claim. An authentication time more than 60
+  seconds ahead of the server's clock is left out of the decision and kept apart in the stamp
+  (`ignoredFutureAuthenticationTime`). **Check:** an application that states times as `yyyyMMddHHmmss` digits converts
+  them: read as milliseconds they lie in the 27th century, so such an authentication time is left out and such a
+  delegation expiry never comes.
+- **URL policies reach the application's paths in every combination.** A servlet filter behind the application's
+  chain applies the URL policies to the requests a chain of the application takes, or no chain takes: a request no
+  policy decides keeps the decision of the chain that took it, and a refusal answers 401 without a signed-in user and 403
+  with one. The application's chain no longer needs `.access(customDynamicAuthorizationManager)`; a request that manager
+  already decided is not decided again. The "Decision when no URL policy applies" of the system settings decides only
+  the requests Contexa's own chains take, such as its main chain in mode `FULL`. **Check:** under `SANDBOX`, URL policies that refuse application paths now
+  answer those paths with 401 or 403.
+- **The address control covers every path by default.** The new setting `contexa.iam.admin.ip-access.url-patterns`
+  (default `/*`) names its paths in every combination, and the control runs ahead of every security chain. Without rules
+  it lets every request through; with an ALLOW rule in force only the addresses the allow list holds reach the paths it
+  covers. Under `HOST_OWNED` it covered `/contexa/*` only. **Check:** set
+  `contexa.iam.admin.ip-access.url-patterns=/contexa/*` to keep the former range.
+- **Session tracking runs in every combination and writes nothing into the application's session.** The sessions of
+  the application's users under `SANDBOX` are listed in the console and can be ended there. A request of a session the
+  console ended: the console's own goes to `/contexa/admin/login`, a page of the application (a GET or HEAD that is no
+  API call) is asked again at the same address, and anything else gets 401. The session attributes
+  `_sessionExpireCheck` and `_sessionTrackTime` are no longer written.
+- **The application's failed sign-ins no longer count against Contexa's accounts.** In every combination the sign-in
+  attempt policy hears the application's sign-ins: a failed one is kept for the decisions and counted against its
+  address, and touches no account of Contexa's of the same name, so an application user of an administrator's name no
+  longer locks the administrator out. The sign-ins of Contexa's accounts (the console, and every sign-in under `FULL`
+  with `CONTEXA_OWNED`) follow the account policy.
+- **What the mode now decides, where the ownership decided it.** The verification-only step-up (`/contexa/step-up`) is
+  there in `SANDBOX` only, with either ownership: it is gone from `FULL` with `HOST_OWNED` and new in `SANDBOX` with
+  `CONTEXA_OWNED`. Contexa's `@PreAuthorize` on its own classes is evaluated in every combination, and the
+  application's method security is not touched. Static resources stay outside every security chain in `FULL` only. With
+  Contexa's database or Redis unreachable at the start, or `contexa.autonomous.enabled` not `true`, `SANDBOX` starts
+  without Contexa and says why at ERROR, and `FULL` refuses to start. Contexa's database stays out of the application's
+  health unless it is the application's database too, as `contexa.datasource.isolation.contexa-owned-application`
+  says; left unset, that setting is `true` only in `FULL` where the application names no database of its own or the same
+  one as Contexa.
+- **Mail and one-time codes follow one rule in every combination.** Contexa mails through the application's
+  `JavaMailSender` where it has exactly one, else through a sender it builds from `spring.mail.*` for itself, which is no
+  bean. The magic-link handler exists in `FULL` only. A code goes to the address of a Contexa account for a request of
+  the console and for every request under `FULL` with `CONTEXA_OWNED`, and to the application's user otherwise.
+- **Contexa's servlet filters behind the security chain run in one slot.** One registration,
+  `contexaFilterSlotRegistration` (filter name `contexaFilterSlot`), is mapped after every other filter of the servlet
+  context, whatever their order (the servlet API's "match after"; its order is `Ordered.LOWEST_PRECEDENCE`), and runs
+  them in a fixed order: the bridge, the CHALLENGE, the BLOCK and ESCALATE, the guard of Contexa's pages for the
+  signed-in user, the URL policies, the session tracking. The application's filters, its own sign-in among them, have
+  all run when Contexa decides, so a user the application makes known in a filter of its own is seen on every path,
+  whatever order that filter has. The CHALLENGE, BLOCK and ESCALATE filters and the guard run there in `SANDBOX` only;
+  the others in every combination. Each keeps a registration bean of its own, which the servlet container does not map;
+  `setEnabled(false)` on it still switches the filter off. Ahead of the security chain stay the address control (order
+  − 2), the answer to a refused `@Protectable` call (order − 1) and the clean-up of the sign-in attempts
+  (`Ordered.HIGHEST_PRECEDENCE`). **Check:** a servlet filter of the application that ran after Contexa's former
+  filters now runs before all of them; a filter of the application that answers a request itself without calling the
+  rest of the chain answers it before Contexa decides on it. A filter of the application mapped with "match after" too
+  runs before or after the slot in the order of registration.
+- **Start-up and runtime messages changed.** `[Contexa] HOST_OWNED mode: no SecurityFilterChain is declared by the
+  application, ...` is now `[Contexa] SANDBOX mode: the application declares users of its own and no
+  SecurityFilterChain, ...`. `[Contexa] CONTEXA_OWNED: the application declares the user store(s) ...` is now
+  `[Contexa] FULL mode with CONTEXA_OWNED: ...` and appears in that combination only. `[Contexa] HOST_OWNED: the
+  application sets the signed-in user after Spring Security's filters ...` is now `[Contexa] SANDBOX mode: ...`. The
+  refusal of a mode and an ownership that disagree is gone, and the refusal of an application chain under `FULL` reads
+  as above. **Check:** update log alerts that match the former texts.
+- **Classes and beans named after the former meaning of the ownership are renamed.** Only
+  `HostOwnedSecurityChainDiagnostics` (bean `hostOwnedSecurityChainDiagnostics`) was in 0.1.1; the other former names
+  were in development builds of `main` only. `ContexaOwnedDataSourceAutoConfiguration` keeps its name, as does the
+  setting `contexa-owned-application` it goes with. **Check:** replace the former names in `spring.autoconfigure.exclude`,
+  in beans that replace Contexa's by name, and in code that refers to the classes.
+
+  | Former name | New name |
+  |---|---|
+  | `io.contexa.autoconfigure.identity.HostOwnedStepUpAutoConfiguration` (auto-configuration) | `io.contexa.autoconfigure.identity.SandboxStepUpAutoConfiguration` |
+  | `io.contexa.autoconfigure.iam.admin.HostOwnedAdminConsoleAutoConfiguration` (auto-configuration) | `io.contexa.autoconfigure.iam.admin.IamAdminRealmAutoConfiguration` |
+  | `io.contexa.autoconfigure.ai.HostOwnedDiagnosticsConfiguration` | `io.contexa.autoconfigure.ai.SandboxDiagnosticsConfiguration` |
+  | `io.contexa.autoconfigure.ai.HostOwnedHealthConfiguration` | `io.contexa.autoconfigure.ai.HostHealthConfiguration` |
+  | `io.contexa.autoconfigure.ai.HostOwnedEnforcementOrder` | `io.contexa.autoconfigure.ai.ContexaServletFilterOrder` |
+  | `io.contexa.autoconfigure.ai.HostOwnedSecurityChainDiagnostics` | `io.contexa.autoconfigure.ai.SandboxSecurityChainDiagnostics` |
+  | `io.contexa.autoconfigure.iam.IamInfrastructureContexaOwnedConfiguration` | `io.contexa.autoconfigure.iam.IamFullModeInfrastructureConfiguration` |
+  | `io.contexa.autoconfigure.iam.IamSecurityCoreContexaOwnedConfiguration` | `io.contexa.autoconfigure.iam.IamSignInAttemptConfiguration` |
+  | `io.contexa.autoconfigure.iam.IamSecurityAutoConfiguration.ContexaOwnedMethodSecurityConfiguration` | `io.contexa.autoconfigure.iam.IamSecurityAutoConfiguration.ContexaScopedMethodSecurityConfiguration` |
+  | `io.contexa.autoconfigure.iam.admin.IamAdminSessionContexaOwnedConfiguration` | `io.contexa.autoconfigure.iam.admin.IamAdminSessionTrackingConfiguration` |
+  | `io.contexa.autoconfigure.iam.admin.HostOwnedConsoleModelAdvice` | `io.contexa.autoconfigure.iam.admin.ConsoleLogoutModelAdvice` |
+  | `io.contexa.autoconfigure.identity.IdentitySecurityCoreContexaOwnedConfiguration` | `io.contexa.autoconfigure.identity.IdentitySignInConfiguration` |
+  | `io.contexa.autoconfigure.identity.IdentityServiceContexaOwnedConfiguration` | `io.contexa.autoconfigure.identity.IdentityMfaServiceConfiguration` |
+  | `io.contexa.contexacommon.security.HostOwnedIdentityNotice` | `io.contexa.contexacommon.security.SandboxIdentityNotice` |
+  | `io.contexa.contexaidentity.security.zerotrust.HostOwnedStepUp` | `io.contexa.contexaidentity.security.zerotrust.SandboxStepUp` |
+  | `io.contexa.contexaidentity.security.zerotrust.HostOwnedUserPathGuard` | `io.contexa.contexaidentity.security.zerotrust.SandboxUserPathGuard` |
+  | `io.contexa.contexaidentity.security.zerotrust.HostOwnedSignInListener` | `io.contexa.contexaidentity.security.zerotrust.SandboxSignInListener` |
+  | `io.contexa.contexaidentity.security.zerotrust.HostOwnedSignInFailureListener` | `io.contexa.contexaidentity.security.zerotrust.SandboxSignInFailureListener` |
+  | `io.contexa.contexaidentity.security.zerotrust.ContexaOwnedSignInListener` | `io.contexa.contexaidentity.security.zerotrust.MainChainSignInListener` |
+  | `io.contexa.contexaidentity.security.zerotrust.stepup.HostOwnedStepUpService` | `io.contexa.contexaidentity.security.zerotrust.stepup.SandboxStepUpService` |
+  | `io.contexa.contexaidentity.security.zerotrust.stepup.HostOwnedStepUpController` | `io.contexa.contexaidentity.security.zerotrust.stepup.SandboxStepUpController` |
+  | `LoginController.HOST_OWNED_LOGIN_PROCESSING_URL` | `LoginController.ADMIN_FLOW_LOGIN_PROCESSING_URL` |
+  | `ZeroTrustChallengeFilter.setHostOwnedStepUp`, `ZeroTrustAccessControlFilter.setHostOwnedStepUp` | `setSandboxStepUp` |
+  | bean `hostOwnedSecurityChainDiagnostics` (0.1.1), `contexaHostOwnedSecurityChainDiagnostics` | bean `contexaSandboxSecurityChainDiagnostics` |
+  | bean `contexaHostOwnedStepUpService` | bean `contexaSandboxStepUpService` |
+  | bean `contexaHostOwnedStepUpController` | bean `contexaSandboxStepUpController` |
+  | bean `contexaHostOwnedSignInListener` | bean `contexaSandboxSignInListener` |
+  | bean `contexaHostOwnedSignInFailureListener` | bean `contexaSandboxSignInFailureListener` |
+  | bean `contexaHostOwnedUserPathGuardRegistration`, filter `contexaHostOwnedUserPathGuard` | bean `contexaSandboxUserPathGuardRegistration`, filter `contexaSandboxUserPathGuard` |
+  | bean `contexaHostOwnedConsoleModelAdvice` | bean `contexaConsoleLogoutModelAdvice` |
+  | bean `contexaOwnedSignInListener` | bean `contexaMainChainSignInListener` |
+
 ### Security
 
 - **An answered CHALLENGE no longer shortens what a model's CHALLENGE holds for the other sessions.** When one session
@@ -352,26 +587,6 @@ The format is based on Keep a Changelog and the project follows semantic version
 - The mail of a confirmation an agent asks for itself (`POST /contexa/api/agent-confirmations`) now links to `contexa.security.zerotrust.agent.confirmation-link-base-url` and the application's context path, as the mail of a request Contexa stopped does; it was a bare path. Neither link ever takes the host the agent sent, so without that setting the link stays a path: set it for the mail to open.
 - The admin API of delegations no longer lists delegations to an agent holding an administrator's token (403), as the person's own delegation API lists none to it.
 - **An agent holding an administrator's token no longer writes or takes back a person's delegation.** The admin API of delegations (`/contexa/admin/api/agent-delegations`) and the console's revocation (`/contexa/admin/agents/delegations/revoke`) now answer 403 to a request the bridge reads as an agent's, as the person's own delegation API already did. An administrator's own requests, and an integration whose client is no agent, work as before.
-- **A value an application keeps in the session no longer moves a person's request to an agent.** The session channel of
-  the delegation read every session attribute and took any that named an agent: a map of request values with `agentId`
-  and `delegated` moved a person's request to `<user>::agent::<agent id>`, past a CHALLENGE on the person, and a bean of
-  the domain that only names an agent sent the person to an agent's confirmation instead of the step-up. The channel now
-  reads `contexa.bridge.delegation.session.attribute` and the names in
-  `contexa.bridge.delegation.session.attribute-candidates`, which is empty by default, and `auto-discover` is off by
-  default. **Check:** an application that keeps its agents' delegation in the session names that attribute in
-  `contexa.bridge.delegation.session.attribute`. Setting `auto-discover` to `true` reads every attribute again, and the
-  start says so at INFO.
-- **A value an application keeps in the session no longer adds to what the decisions read of a user's authorization.**
-  The session channel of the authorization read every session attribute and took the one that looked most like an
-  authorization: a map of request values with `roles=ROLE_ADMIN`, `privileged=true` or `effect=ALLOW` added that role,
-  privilege or verdict to the authorization evidence of the request, which the decisions read. The channel now reads
-  `contexa.bridge.authorization.session.attribute` and the names in
-  `contexa.bridge.authorization.session.attribute-candidates`, which is empty by default, and `auto-discover` is off by
-  default, as for the delegation. **Check:** an application that keeps the user's roles or its authorization verdicts in
-  the session, under a name of its own or one of the former candidate names (`currentUser`, `authenticatedUser`,
-  `sessionUser`, `userSession`, `principal`, `user`, `securityUser`, `authenticatedPrincipal`), names that attribute in
-  `contexa.bridge.authorization.session.attribute`. Setting `auto-discover` to `true` reads every attribute again, and the
-  start says so at INFO.
 - **A first passkey is no longer registered on the strength of an MFA the application's principal only states.** Before
   a first passkey the step-up confirms the user, with a code mailed to the address on record or the application's own MFA
   sign-in moments before. That sign-in was read from the principal by the name of a value (`mfa`, `mfaVerified`, ...) and
@@ -777,9 +992,6 @@ The format is based on Keep a Changelog and the project follows semantic version
   providers of the application's.** It leaned on Spring's global manager, which has no password provider when the
   application declares several, so nobody could sign in; Contexa's own provider now checks the password, alone and once.
 
-- **A start refused for a chain of the application where Contexa owns the sign-in (`mode = FULL`) leaves no table behind.**
-  It is refused from the bean definitions, before Contexa touches its database, and names the chain's bean.
-
 - **Asking for a sign-in code while the mail server cannot take it is answered with 503, not 500.** Under FULL, a mail server
   that is down, cuts the connection, keeps silent past the application's mail timeout or refuses the sender now answers
   `503 OTT_CODE_NOT_SENT` ("The code could not be sent. Please try again in a moment."); the flow stays where it was, so the
@@ -1062,15 +1274,6 @@ The format is based on Keep a Changelog and the project follows semantic version
   `mxbai-embed-large`), and a model id the application's bean and Contexa's both run is no ambiguity: Contexa's bean
   answers to it, the application's to its own name. Two beans of the application that answer to one model id still stop
   the start.
-
-- **A repeated name or an empty element in the authorities of a header or a request attribute no longer loses the request's
-  bridge.** `HeaderAuthBridge` and `RequestAttributeAuthBridge` read the comma-separated authorities with
-  `Set.of(value.split(...))`, which throws on a repeated element: `ROLE_USER, ROLE_USER` and `ROLE_A,,,ROLE_B` raised an
-  `IllegalArgumentException`, and `BridgeResolutionFilter` then dropped every stamp of that request (the request itself went
-  on). A single empty element (`A,,B`) did not throw but became an authority named `""`. Each name is now read once, in the order
-  it came, with the spaces around it trimmed, and an empty element is skipped. These two readers are reached only when the
-  header or request-attribute bridge is turned on and the SecurityContext does not name the principal first, so a default
-  setup was not affected.
 
 - **An identical strategy request that is already running is refused, as the documentation says.** `AINativeProcessor` took the
   lock of a strategy under the node name as its owner, and the lock lets its own owner in again. The node name is
@@ -1452,26 +1655,22 @@ The format is based on Keep a Changelog and the project follows semantic version
   on its class path, so adding the dependency alone changed the application. It now carries the OAuth2 libraries without
   `spring-security-config`, adding it changes nothing in an application, and the build checks that it stays so.
   `@EnableAISecurity` without Spring Security on the class path stops the start with
-  `Add org.springframework.boot:spring-boot-starter-security to this application.` Under `HOST_OWNED` an application
-  with neither a `SecurityFilterChain` nor users of its own (a `UserDetailsService`, an `AuthenticationProvider` or an
-  `AuthenticationManager`) now stops the start too, where it was told at ERROR: Spring Boot's default chain would ask
-  every request for a sign-in nobody can complete. **Check:** an application that had Spring Security only through the
+  `Add org.springframework.boot:spring-boot-starter-security to this application.` **Check:** an application that had Spring Security only through the
   starter adds `org.springframework.boot:spring-boot-starter-security` to its build before the upgrade.
-- **Only `@EnableAISecurity` turns Contexa on, and a mode and an ownership that disagree stop the start.** Contexa was
+- **Only `@EnableAISecurity` turns Contexa on.** Contexa was
   taken as on whenever `contexa.ai.security.mode` had a value, which the application's own settings can give too: with
   the annotation missing, switched off with `contexa.enabled=false`, or staying off because Contexa's database was down,
   every auto-configuration of Contexa took part and the start ended on a missing bean (`contexaIpAccessFilter`).
   Contexa is now on only where the annotation switched it on, and a mode an operator sets in `contexa.ai.security.mode`
-  outranks the one the annotation declares. `SANDBOX` goes with `HOST_OWNED` and `FULL` with `CONTEXA_OWNED`: a
-  `contexa.bridge.ownership` that says the other, or a value that is none of the choices, stops the start with the
-  reason, and a value is read as Spring binds it (`contexa-owned` no longer starts half configured). Where Contexa owns
-  the sign-in, an application that declares a security chain of its own is refused at the start; it was warned, and its
-  chains never ran, so what they protected was open. Where Contexa owns the sign-in, an application whose
-  `spring.datasource.url` names a database of its own keeps it: Contexa's database no longer takes its place by an
-  implicit default. `SecurityZeroTrustProperties.SecurityMode` is now `EnforcementMode`; the setting keys are unchanged.
-  **Check:** remove `contexa.bridge.ownership` where it only repeated the mode, or make it agree; an application under
-  `mode = FULL` with chains of its own uses `@EnableAISecurity` without `mode = FULL` to keep its sign-in, or removes
-  those chains.
+  outranks the one the annotation declares. A `contexa.bridge.ownership` that is none of the choices stops the start
+  with the reason, and a value is read as Spring binds it (`contexa-owned` no longer starts half configured); every
+  pair of a mode and an ownership starts (see the upgrade notes above). Under `mode = FULL`, an application chain that
+  takes every request is refused at the start; it was warned, and its chains never ran, so what they protected was
+  open. Under `mode = FULL`, an application whose `spring.datasource.url` names a database of its own keeps it:
+  Contexa's database no longer takes its place by an implicit default. `SecurityZeroTrustProperties.SecurityMode` is
+  now `EnforcementMode`; the setting keys are unchanged. **Check:** an application under `mode = FULL` with a chain of
+  its own for every request narrows it to its own paths, uses `@EnableAISecurity` without `mode = FULL` to keep its
+  sign-in, or removes it.
 - **Settings under Contexa's former names are no longer read.** An earlier version still took a key under the name it
   had before `contexa.*`, with an ERROR at the start (`Contexa legacy property ...`). Those names are the application's
   now and Contexa no longer takes them as its own: `spring.auth.*` (now `contexa.auth.*`); `security.router.*`,
