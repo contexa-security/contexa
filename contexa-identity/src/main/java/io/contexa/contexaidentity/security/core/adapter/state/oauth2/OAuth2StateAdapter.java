@@ -15,6 +15,7 @@ import io.contexa.contexacommon.enums.TokenTransportType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaidentity.security.core.adapter.StateAdapter;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaOwnObjects;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutSuccessHandler;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
@@ -26,9 +27,12 @@ import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ApplicationContext;
-import org.springframework.core.ResolvableType;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.http.HttpMethod;
+import org.springframework.lang.Nullable;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -55,6 +59,23 @@ public final class OAuth2StateAdapter implements StateAdapter {
 
     /** The decoder of the tokens Contexa issues. */
     public static final String CONTEXA_JWT_DECODER = "contexaJwtDecoder";
+    /** The encoder Contexa signs its tokens with, with its keys. */
+    public static final String CONTEXA_JWT_ENCODER = "contexaJwtEncoder";
+    /** The keys of Contexa's authorization server, the ones its JWK set publishes. */
+    public static final String CONTEXA_JWK_SOURCE = "contexaJwkSource";
+    /** The store of the authorizations (the tokens) Contexa's authorization server issued. */
+    public static final String CONTEXA_AUTHORIZATION_SERVICE = "contexaAuthorizationService";
+    /** The clients of Contexa's authorization server: its internal client and the agents' clients. */
+    public static final String CONTEXA_REGISTERED_CLIENTS = "contexaRegisteredClientRepository";
+    /** The endpoints and the issuer of Contexa's authorization server. */
+    public static final String CONTEXA_SERVER_SETTINGS = "contexaAuthorizationServerSettings";
+
+    /**
+     * The configuration of Spring Boot that makes a JWK source of a key it generates at every start and a decoder of it, wherever
+     * no bean of those types is offered by type.
+     */
+    private static final String BOOT_GENERATED_KEYS =
+            "org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerJwtAutoConfiguration";
 
     private static final String ID = "oauth2";
     private static final String OAUTH2_LOGOUT_SUCCESS_HANDLER = "contexaOauth2LogoutSuccessHandler";
@@ -152,26 +173,59 @@ public final class OAuth2StateAdapter implements StateAdapter {
     }
 
     /**
-     * What Contexa issues it checks with its own keys. A resource server only checks another issuer's tokens, so there the
+     * What Contexa issues it checks with its own keys, taken by its name (R-17 of docs/agent/운영모드-정상화-구현계획.md: it is a
+     * held bean wherever the application could take it). A resource server only checks another issuer's tokens, so there the
      * application's decoder (Boot's for an issuer-uri, or its own) serves when it has exactly one.
      */
     private JwtDecoder resourceServerDecoder(ApplicationContext appContext) {
         if (resolveMode(appContext) == OAuth2ServerMode.RESOURCE_SERVER) {
-            JwtDecoder application = appContext.getBeanProvider(JwtDecoder.class).getIfUnique();
+            JwtDecoder application = applicationDecoder(appContext);
             if (application != null) {
                 return application;
             }
         }
-        return appContext.getBean(CONTEXA_JWT_DECODER, JwtDecoder.class);
+        return ContexaOwnObjects.own(appContext, CONTEXA_JWT_DECODER, JwtDecoder.class);
     }
 
+    /**
+     * The application's decoder, when it has exactly one. Where Contexa's keys and decoder are held (every way of running
+     * Contexa but FULL), Spring Boot's authorization server configuration makes a decoder of a key it generates at the start;
+     * that one verifies the tokens of no issuer, so it is not the application's decoder and Contexa's own serves instead.
+     */
+    @Nullable
+    private static JwtDecoder applicationDecoder(ApplicationContext appContext) {
+        JwtDecoder application = appContext.getBeanProvider(JwtDecoder.class).getIfUnique();
+        if (application == null || !(appContext instanceof ConfigurableApplicationContext configurable)) {
+            return application;
+        }
+        ConfigurableListableBeanFactory beanFactory = configurable.getBeanFactory();
+        for (String name : beanFactory.getBeanNamesForType(JwtDecoder.class)) {
+            if (beanFactory.containsBeanDefinition(name) && madeOfBootsGeneratedKey(beanFactory.getBeanDefinition(name))
+                    && beanFactory.getBean(name) == application) {
+                return null;
+            }
+        }
+        return application;
+    }
+
+    private static boolean madeOfBootsGeneratedKey(BeanDefinition definition) {
+        String factory = definition.getFactoryBeanName();
+        return factory != null && factory.startsWith(BOOT_GENERATED_KEYS);
+    }
+
+    /**
+     * Gives the authorization server of this chain Contexa's own encoder, keys, stores and settings, each by its name: wherever
+     * the application could take them they are held beans (R-17 of docs/agent/운영모드-정상화-구현계획.md), and asked for by type
+     * the server would find the application's or Spring Boot's.
+     */
     private void configureAuthorizationServer(HttpSecurity http, ApplicationContext appContext) {
         try {
-            http.setSharedObject(JwtEncoder.class, appContext.getBean(JwtEncoder.class));
+            http.setSharedObject(JwtEncoder.class, ContexaOwnObjects.own(appContext, CONTEXA_JWT_ENCODER, JwtEncoder.class));
+            http.setSharedObject(JWKSource.class, contexaKeys(appContext));
             http.setSharedObject(OAuth2AuthorizationService.class,
-                    appContext.getBean(OAuth2AuthorizationService.class));
+                    ContexaOwnObjects.own(appContext, CONTEXA_AUTHORIZATION_SERVICE, OAuth2AuthorizationService.class));
             http.setSharedObject(RegisteredClientRepository.class,
-                    appContext.getBean(RegisteredClientRepository.class));
+                    ContexaOwnObjects.own(appContext, CONTEXA_REGISTERED_CLIENTS, RegisteredClientRepository.class));
             http.setSharedObject(AuthorizationServerSettings.class, chainSettings(appContext));
             // An application's own generator issues the tokens, with Contexa's token checks in front of it; without one
             // the authorization server builds Spring's, which adds Spring's default claims (act, cnf) before Contexa's
@@ -208,15 +262,27 @@ public final class OAuth2StateAdapter implements StateAdapter {
         log.info("[OAuth2] The application declares its own token generator ({}): Contexa's token checks (agent suspension, "
                 + "renewal, token exchange) run before it, and the claims they write are added to the tokens it issues.",
                 generator);
-        ObjectProvider<JWKSource<SecurityContext>> serverKeys = appContext.getBeanProvider(
-                ResolvableType.forClassWithGenerics(JWKSource.class, SecurityContext.class));
-        return new CheckedTokenGenerator(applicationGenerator, checks, appContext.getBean(JwtEncoder.class),
-                serverKeys.getObject());
+        return new CheckedTokenGenerator(applicationGenerator, checks,
+                ContexaOwnObjects.own(appContext, CONTEXA_JWT_ENCODER, JwtEncoder.class), contexaKeys(appContext));
     }
 
-    /** What this chain issues under: the bean itself stays as it is, an authorization server of the application may use it. */
+    /**
+     * The keys of Contexa's authorization server, by their name. The chain publishes them in its JWK set: asked for by type,
+     * the authorization server would publish Spring Boot's generated key wherever Contexa's keys are held (R-17 of
+     * docs/agent/운영모드-정상화-구현계획.md), and no token the chain signs would verify against it.
+     */
+    @SuppressWarnings("unchecked")
+    private static JWKSource<SecurityContext> contexaKeys(ApplicationContext appContext) {
+        return ContexaOwnObjects.own(appContext, CONTEXA_JWK_SOURCE, JWKSource.class);
+    }
+
+    /**
+     * What this chain issues under: Contexa's settings by their name, with the issuer of {@link AuthorizationServerIssuer}; the
+     * bean itself stays as it is.
+     */
     private AuthorizationServerSettings chainSettings(ApplicationContext appContext) {
-        AuthorizationServerSettings settings = appContext.getBean(AuthorizationServerSettings.class);
+        AuthorizationServerSettings settings = ContexaOwnObjects.own(appContext, CONTEXA_SERVER_SETTINGS,
+                AuthorizationServerSettings.class);
         AuthContextProperties properties = appContext.getBean(AuthContextProperties.class);
         return properties != null ? AuthorizationServerIssuer.applyTo(settings, properties.getOauth2()) : settings;
     }

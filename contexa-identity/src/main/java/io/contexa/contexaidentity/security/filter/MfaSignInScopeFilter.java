@@ -20,7 +20,7 @@ import io.contexa.contexaidentity.security.handler.login.LoginFactClaims;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsDetails;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsRecorder;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
-import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
+import io.contexa.contexacommon.security.bridge.identity.BridgeObjectExtractor;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

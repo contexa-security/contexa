@@ -19,11 +19,14 @@ import io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.SessionSecurityContextRepositoryConfigurer;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -47,7 +50,7 @@ class AiSecurityConfigurationTest {
     @Test
     void q14_theChainsGetTheRepositoryAsItIsDeclared() {
         new ApplicationContextRunner()
-                .withUserConfiguration(AiSecurityConfiguration.class, DeclaredRepository.class)
+                .withUserConfiguration(AiSecurityConfiguration.class, ContexaAdminFlowBeans.class, DeclaredRepository.class)
                 .withBean(PlatformConfig.class, () -> PlatformConfig.builder().build())
                 .run(context -> {
                     SessionSecurityContextRepositoryConfigurer configurer =
@@ -63,7 +66,7 @@ class AiSecurityConfigurationTest {
     @Test
     void shouldRegisterSessionSecurityContextRepositoryConfigurerWhenUserProvidesPlatformConfig() {
         new ApplicationContextRunner()
-                .withUserConfiguration(AiSecurityConfiguration.class)
+                .withUserConfiguration(AiSecurityConfiguration.class, ContexaAdminFlowBeans.class)
                 .withBean(PlatformConfig.class, () -> PlatformConfig.builder().build())
                 .withBean(AISessionSecurityContextRepository.class,
                         () -> mock(AISessionSecurityContextRepository.class))
@@ -77,7 +80,7 @@ class AiSecurityConfigurationTest {
     @Test
     void shouldStillRegisterSessionSecurityContextRepositoryConfigurerWhenRepositoryBeanIsNotYetPresent() {
         new ApplicationContextRunner()
-                .withUserConfiguration(AiSecurityConfiguration.class)
+                .withUserConfiguration(AiSecurityConfiguration.class, ContexaAdminFlowBeans.class)
                 .withBean(PlatformConfig.class, () -> PlatformConfig.builder().build())
                 .run(context -> {
                     assertThat(context).hasSingleBean(PlatformConfig.class);
@@ -86,15 +89,30 @@ class AiSecurityConfigurationTest {
                 });
     }
 
+    /**
+     * The diagnostics speak of the application's own chain, which stays the main one in SANDBOX whatever the ownership (R-1,
+     * R-15): the mode decides, an ownership set alone stands for the mode that goes with it, and nothing set is SANDBOX.
+     */
     @Test
-    void shouldRegisterHostOwnedChainDiagnosticsOnlyInHostOwnedMode() {
+    @DisplayName("체인 진단은 SANDBOX에서만 있다: 소유권과 무관하게 모드가 정하고, 아무것도 적지 않으면 SANDBOX로 본다")
+    void shouldRegisterSandboxChainDiagnosticsOnlyInSandboxMode() {
         ApplicationContextRunner runner = new ApplicationContextRunner()
-                .withUserConfiguration(AiSecurityConfiguration.class)
+                .withUserConfiguration(AiSecurityConfiguration.class, ContexaAdminFlowBeans.class)
                 .withBean(PlatformConfig.class, () -> PlatformConfig.builder().build());
-        runner.withPropertyValues("contexa.bridge.ownership=HOST_OWNED")
-                .run(context -> assertThat(context).hasSingleBean(HostOwnedSecurityChainDiagnostics.class));
-        runner.run(context -> assertThat(context).hasSingleBean(HostOwnedSecurityChainDiagnostics.class));
-        runner.withPropertyValues("contexa.bridge.ownership=CONTEXA_OWNED")
-                .run(context -> assertThat(context).doesNotHaveBean(HostOwnedSecurityChainDiagnostics.class));
+        for (String[] sandbox : List.of(
+                new String[] {"contexa.ai.security.mode=SANDBOX", "contexa.bridge.ownership=HOST_OWNED"},
+                new String[] {"contexa.ai.security.mode=SANDBOX", "contexa.bridge.ownership=CONTEXA_OWNED"},
+                new String[] {"contexa.bridge.ownership=HOST_OWNED"},
+                new String[] {})) {
+            runner.withPropertyValues(sandbox).run(context -> assertThat(context.getBeanNamesForType(SandboxSecurityChainDiagnostics.class))
+                    .as(String.join(", ", sandbox)).hasSize(1));
+        }
+        for (String[] full : List.of(
+                new String[] {"contexa.ai.security.mode=FULL", "contexa.bridge.ownership=CONTEXA_OWNED"},
+                new String[] {"contexa.ai.security.mode=FULL", "contexa.bridge.ownership=HOST_OWNED"},
+                new String[] {"contexa.bridge.ownership=CONTEXA_OWNED"})) {
+            runner.withPropertyValues(full).run(context -> assertThat(context.getBeanNamesForType(SandboxSecurityChainDiagnostics.class))
+                    .as(String.join(", ", full)).isEmpty());
+        }
     }
 }

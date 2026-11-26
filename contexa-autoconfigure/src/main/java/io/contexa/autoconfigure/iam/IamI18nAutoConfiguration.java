@@ -43,9 +43,10 @@ import org.springframework.web.servlet.i18n.SessionLocaleResolver;
 /**
  * The language of Contexa's screens and their texts.
  * <p>
- * When Contexa owns sign-in (CONTEXA_OWNED) it resolves the language of the whole application. When the application
- * owns sign-in (HOST_OWNED) Contexa adds no language resolver: the application keeps the one it has (Spring Boot's, by
- * default) for all its requests, and only the requests of the screens under {@code /contexa/} are given the screens'
+ * The ownership settles which language resolver the application gets, in either mode. With CONTEXA_OWNED, where
+ * Contexa's components serve the application too, Contexa resolves the language of the whole application. With
+ * HOST_OWNED, where the application's own components win, Contexa adds no language resolver: the application keeps the
+ * one it has (Spring Boot's, by default) for all its requests, and only the requests of the screens under {@code /contexa/} are given the screens'
  * resolver and its {@code ?lang=} switch, one request at a time. In both, the texts of Contexa's screens are found even
  * when the application has a message bundle of its own (the application's source keeps its texts first, Contexa's
  * bundle stands behind it).

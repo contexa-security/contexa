@@ -41,9 +41,11 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerAutoConfiguration;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
@@ -227,7 +229,28 @@ class OAuth2IssuerAgreementTest {
                 .anySatisfy(message -> assertThat(message).contains("contexa.auth.oauth2.issuer-uri").doesNotContain("spring.auth"));
     }
 
+    // R-17 of docs/agent/운영모드-정상화-구현계획.md: the chain issues under the settings of Contexa's name, never under the
+    // application's own settings bean, which Spring's lookups by type would find
+    @Test
+    @DisplayName("앱의 인가 서버 설정 빈은 Contexa 체인의 발급자를 바꾸지 않는다")
+    void theApplicationsOwnSettingsBeanDoesNotChangeTheIssuerOfContexasChain() throws Exception {
+        AuthorizationServerSettings applications = AuthorizationServerSettings.builder()
+                .issuer("https://application.example.test").build();
+        start(AuthorizationServerSettings.builder().build(), CONFIGURED_ISSUER, applications);
+
+        String token = signIn();
+
+        assertThat(issuerOf(token)).isEqualTo(CONFIGURED_ISSUER);
+        assertThat(callWith(token)).isEqualTo(200);
+        assertThat(context.getBean("applicationServerSettings")).isSameAs(applications);
+    }
+
     private void start(AuthorizationServerSettings settings, String issuerUri) {
+        start(settings, issuerUri, null);
+    }
+
+    /** Contexa's settings stand under Contexa's name; the application's own, when given, under a name of its own. */
+    private void start(AuthorizationServerSettings settings, String issuerUri, AuthorizationServerSettings applications) {
         AuthContextProperties properties = new AuthContextProperties();
         properties.getOauth2().setClientSecret(INTERNAL_SECRET);
         properties.getOauth2().setIssuerUri(issuerUri);
@@ -235,7 +258,10 @@ class OAuth2IssuerAgreementTest {
         context.setServletContext(new MockServletContext());
         context.addBeanFactoryPostProcessor(beans -> {
             beans.registerSingleton("authContextProperties", properties);
-            beans.registerSingleton("authorizationServerSettings", settings);
+            beans.registerSingleton(OAuth2StateAdapter.CONTEXA_SERVER_SETTINGS, settings);
+            if (applications != null) {
+                beans.registerSingleton("applicationServerSettings", applications);
+            }
         });
         context.register(ChainConfig.class);
         context.refresh();
@@ -268,18 +294,19 @@ class OAuth2IssuerAgreementTest {
             return new IdentityOAuth2AutoConfiguration(transactionTemplate, properties);
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_JWK_SOURCE)
         JWKSource<SecurityContext> jwkSource(IdentityOAuth2AutoConfiguration contexaOAuth2) {
             return contexaOAuth2.jwkSource();
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_JWT_ENCODER)
         JwtEncoder jwtEncoder(IdentityOAuth2AutoConfiguration contexaOAuth2, JWKSource<SecurityContext> keys) {
             return contexaOAuth2.jwtEncoder(keys);
         }
 
         @Bean(name = OAuth2StateAdapter.CONTEXA_JWT_DECODER)
         JwtDecoder contexaJwtDecoder(IdentityOAuth2AutoConfiguration contexaOAuth2, JWKSource<SecurityContext> keys,
+                                     @Qualifier(OAuth2StateAdapter.CONTEXA_SERVER_SETTINGS)
                                      ObjectProvider<AuthorizationServerSettings> settings) {
             return contexaOAuth2.jwtDecoder(keys, settings);
         }
@@ -302,7 +329,7 @@ class OAuth2IssuerAgreementTest {
             return transactionTemplate;
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_REGISTERED_CLIENTS)
         RegisteredClientRepository registeredClientRepository() {
             return new InMemoryRegisteredClientRepository(RegisteredClient.withId("internal")
                     .clientId(INTERNAL_CLIENT)
@@ -314,7 +341,7 @@ class OAuth2IssuerAgreementTest {
                     .build());
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_AUTHORIZATION_SERVICE)
         OAuth2AuthorizationService authorizationService() {
             return new InMemoryOAuth2AuthorizationService();
         }

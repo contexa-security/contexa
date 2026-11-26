@@ -15,12 +15,16 @@
  */
 package io.contexa.autoconfigure.compat;
 
+import io.contexa.autoconfigure.core.ContexaAccountRequests;
 import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
+import io.contexa.contexacommon.operating.OperatingBehaviour;
+import io.contexa.contexacommon.security.bridge.SecurityMode;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.EnumerablePropertySource;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertySource;
+import org.springframework.lang.Nullable;
 import org.springframework.util.ClassUtils;
 
 import java.util.List;
@@ -36,18 +40,19 @@ import java.util.function.Predicate;
  * names it. This source names it, with the name Boot itself defaults to: the password stays generated and Boot's line at
  * the start stays the same.</p>
  *
- * <p>It stays silent where the user is not the application's way of signing in: when Contexa owns the sign-in, when SAML is
- * on the class path (Contexa brings none, so the SAML classes are the application's, and Boot alone makes no user there,
- * B-24), and when the application's settings configure OAuth2 or SAML, which is what Boot's class check stands for. An
+ * <p>It stays silent where the user is not the application's way of signing in: when Contexa signs the application's users in
+ * with Contexa's own accounts (mode FULL with CONTEXA_OWNED), when SAML is on the class path (Contexa brings none, so the
+ * SAML classes are the application's, and Boot alone makes no user there, B-24), and when the application's settings configure OAuth2 or SAML, which is what Boot's class check stands for. An
  * application that signs in through OAuth2 with beans of its own, and no such settings, keeps Boot's user, whose generated
  * password Boot writes at the start.</p>
  *
  * <p>The answer is read at each lookup, because environment post-processors run before {@code @EnableAISecurity} is
  * processed. Only the one name is answered, so a lookup of anything else costs nothing and a lookup cannot recurse.</p>
  */
-final class BootDefaultUserPropertySource extends PropertySource<Object> {
+public final class BootDefaultUserPropertySource extends PropertySource<Object> {
 
-    static final String SOURCE_NAME = "contexaBootDefaultUser";
+    /** The name of this source among the environment's, which a reader of the application's own settings passes over. */
+    public static final String SOURCE_NAME = "contexaBootDefaultUser";
 
     private static final String USER_NAME = "spring.security.user.name";
     private static final String BOOT_DEFAULT_NAME = "user";
@@ -83,14 +88,39 @@ final class BootDefaultUserPropertySource extends PropertySource<Object> {
         return classPresent.test(HTTP_SECURITY)
                 && !classPresent.test(SAML_REGISTRATIONS)
                 && environment instanceof ConfigurableEnvironment configurable
-                && !contexaOwnsTheSignIn(configurable)
+                && !contexaSignsTheApplicationsUsersIn(configurable)
                 && !applicationNamesItsOwnSignIn(configurable);
     }
 
-    private static boolean contexaOwnsTheSignIn(ConfigurableEnvironment environment) {
+    /**
+     * Whether Contexa signs the application's users in with Contexa's own accounts: mode FULL with CONTEXA_OWNED, read from
+     * what {@code @EnableAISecurity} published once it switched Contexa on, and from nothing else, so that a setting of a
+     * dormant Contexa changes nothing. The ownership alone decides no feature (R-2): kept apart (SANDBOX), the application
+     * signs its users in itself with either ownership, and in mode FULL with HOST_OWNED Contexa's chain signs them in from
+     * the application's own store.
+     */
+    private static boolean contexaSignsTheApplicationsUsersIn(ConfigurableEnvironment environment) {
         PropertySource<?> activation = environment.getPropertySources().get(AiSecurityImportSelector.ACTIVATION_SOURCE);
-        return activation != null && SecurityOwnershipMode.CONTEXA_OWNED.name()
-                .equals(activation.getProperty(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP));
+        if (activation == null) {
+            return false;
+        }
+        SecurityMode mode = published(activation, AiSecurityImportSelector.PROP_MODE, SecurityMode.class);
+        SecurityOwnershipMode ownership = published(activation, AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP,
+                SecurityOwnershipMode.class);
+        return mode != null && ownership != null
+                && ContexaAccountRequests.applicationsUsersAreContexas(OperatingBehaviour.of(mode, ownership));
+    }
+
+    /** A value of the activation, which publishes the name of the constant itself. */
+    @Nullable
+    private static <E extends Enum<E>> E published(PropertySource<?> activation, String name, Class<E> type) {
+        Object value = activation.getProperty(name);
+        for (E constant : type.getEnumConstants()) {
+            if (constant.name().equals(value)) {
+                return constant;
+            }
+        }
+        return null;
     }
 
     private static boolean applicationNamesItsOwnSignIn(ConfigurableEnvironment environment) {

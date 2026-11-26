@@ -39,7 +39,6 @@ import org.mockito.quality.Strictness;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
-import org.springframework.core.ResolvableType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.LogoutConfigurer;
@@ -55,7 +54,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -91,6 +89,9 @@ class OAuth2StateAdapterTest {
 
     @Mock
     private JwtEncoder jwtEncoder;
+
+    @Mock
+    private JWKSource<SecurityContext> jwkSource;
 
     @Mock
     private OAuth2AuthorizationService authorizationService;
@@ -160,8 +161,7 @@ class OAuth2StateAdapterTest {
     void applyWhenJwtDecoderMissingThrowsException() {
         when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(jsonAuthResponseWriter);
-        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class))
-                .thenThrow(new NoSuchBeanDefinitionException(JwtDecoder.class));
+        when(applicationContext.containsBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER)).thenReturn(false);
 
         assertThatThrownBy(() -> adapter.apply(httpSecurity, platformContext))
                 .isInstanceOf(IllegalStateException.class)
@@ -173,9 +173,8 @@ class OAuth2StateAdapterTest {
     void applyWhenAuthServerBeansMissingThrowsException() {
         when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(jsonAuthResponseWriter);
-        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class)).thenReturn(jwtDecoder);
-        when(applicationContext.getBean(JwtEncoder.class))
-                .thenThrow(new NoSuchBeanDefinitionException(JwtEncoder.class));
+        contexaBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, jwtDecoder);
+        when(applicationContext.containsBean(OAuth2StateAdapter.CONTEXA_JWT_ENCODER)).thenReturn(false);
 
         assertThatThrownBy(() -> adapter.apply(httpSecurity, platformContext))
                 .isInstanceOf(IllegalStateException.class)
@@ -188,11 +187,7 @@ class OAuth2StateAdapterTest {
     void applyWithAllBeansSucceeds() throws Exception {
         when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(jsonAuthResponseWriter);
-        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class)).thenReturn(jwtDecoder);
-        when(applicationContext.getBean(JwtEncoder.class)).thenReturn(jwtEncoder);
-        when(applicationContext.getBean(OAuth2AuthorizationService.class)).thenReturn(authorizationService);
-        when(applicationContext.getBean(RegisteredClientRepository.class)).thenReturn(registeredClientRepository);
-        when(applicationContext.getBean(AuthorizationServerSettings.class)).thenReturn(authorizationServerSettings);
+        contexasAuthorizationServerBeans();
         ObjectProvider<OAuth2TokenGenerator> applicationGenerators = mock(ObjectProvider.class);
         when(applicationGenerators.getIfUnique()).thenReturn(tokenGenerator);
         when(applicationContext.getBeanProvider(OAuth2TokenGenerator.class)).thenReturn(applicationGenerators);
@@ -220,6 +215,7 @@ class OAuth2StateAdapterTest {
         verify(httpSecurity).setSharedObject(JsonAuthResponseWriter.class, jsonAuthResponseWriter);
         verify(httpSecurity).setSharedObject(JwtDecoder.class, jwtDecoder);
         verify(httpSecurity).setSharedObject(JwtEncoder.class, jwtEncoder);
+        verify(httpSecurity).setSharedObject(JWKSource.class, jwkSource);
         verify(httpSecurity).setSharedObject(OAuth2AuthorizationService.class, authorizationService);
         verify(httpSecurity).setSharedObject(RegisteredClientRepository.class, registeredClientRepository);
         verify(httpSecurity).setSharedObject(AuthorizationServerSettings.class, authorizationServerSettings);
@@ -268,22 +264,33 @@ class OAuth2StateAdapterTest {
                         .contains("token generator", "Contexa's token checks are not part of this application"));
     }
 
+    /**
+     * Contexa's own beans of the authorization server, under their names: wherever the application could take them they are
+     * held (R-17 of docs/agent/운영모드-정상화-구현계획.md), so the adapter asks for each by its name and never by its type.
+     */
+    private void contexasAuthorizationServerBeans() {
+        contexaBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, jwtDecoder);
+        contexaBean(OAuth2StateAdapter.CONTEXA_JWT_ENCODER, jwtEncoder);
+        contexaBean(OAuth2StateAdapter.CONTEXA_JWK_SOURCE, jwkSource);
+        contexaBean(OAuth2StateAdapter.CONTEXA_AUTHORIZATION_SERVICE, authorizationService);
+        contexaBean(OAuth2StateAdapter.CONTEXA_REGISTERED_CLIENTS, registeredClientRepository);
+        contexaBean(OAuth2StateAdapter.CONTEXA_SERVER_SETTINGS, authorizationServerSettings);
+    }
+
+    private void contexaBean(String name, Object bean) {
+        when(applicationContext.containsBean(name)).thenReturn(true);
+        when(applicationContext.getBean(name)).thenReturn(bean);
+    }
+
     /** What an authorization server chain needs from the application context, with the application's own token generator. */
     @SuppressWarnings("unchecked")
     private void stubAuthorizationServerBeans(ContexaTokenChecks checks) throws Exception {
         when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(jsonAuthResponseWriter);
-        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class)).thenReturn(jwtDecoder);
-        when(applicationContext.getBean(JwtEncoder.class)).thenReturn(jwtEncoder);
-        when(applicationContext.getBean(OAuth2AuthorizationService.class)).thenReturn(authorizationService);
-        when(applicationContext.getBean(RegisteredClientRepository.class)).thenReturn(registeredClientRepository);
-        when(applicationContext.getBean(AuthorizationServerSettings.class)).thenReturn(authorizationServerSettings);
+        contexasAuthorizationServerBeans();
         ObjectProvider<OAuth2TokenGenerator> applicationGenerators = mock(ObjectProvider.class);
         when(applicationGenerators.getIfUnique()).thenReturn(tokenGenerator);
         when(applicationContext.getBeanProvider(OAuth2TokenGenerator.class)).thenReturn(applicationGenerators);
-        ObjectProvider<JWKSource<SecurityContext>> serverKeys = mock(ObjectProvider.class);
-        when(serverKeys.getObject()).thenReturn(mock(JWKSource.class));
-        doReturn(serverKeys).when(applicationContext).getBeanProvider(any(ResolvableType.class));
         ObjectProvider<ContexaTokenChecks> contexasChecks = mock(ObjectProvider.class);
         when(contexasChecks.getIfUnique()).thenReturn(checks);
         when(applicationContext.getBeanProvider(ContexaTokenChecks.class)).thenReturn(contexasChecks);

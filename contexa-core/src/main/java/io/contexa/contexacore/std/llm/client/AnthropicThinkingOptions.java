@@ -115,7 +115,8 @@ final class AnthropicThinkingOptions {
     /**
      * The options with the thinking the layer asks for as far as the model takes it and Spring AI can send it, the
      * provider's refusals for the model left out, and the output limit raised by the thinking budget or allowance; the
-     * options are a copy the caller made for this call.
+     * options are a copy the caller made for this call. The sampling an older model refuses with thinking on leaves the
+     * defaults only of a model Contexa made for its own calls; an application's chat model keeps them (R-9).
      */
     static ChatOptions apply(ChatOptions options, ExecutionContext context, ChatModel selectedModel, String modelName) {
         if (options == null || context == null) {
@@ -321,7 +322,8 @@ final class AnthropicThinkingOptions {
 
     /**
      * Starts the one resend without the refused groups: they count as refused for the model while it is in flight and
-     * leave the model's default options in place (so the request carries none of them), and the call notes them.
+     * leave the default options in place of a model Contexa made for its own calls (so the request carries none of
+     * them), and the call notes them. An application's chat model keeps its defaults (R-9).
      */
     static Resend beginResend(ExecutionContext context, ChatModel selectedModel, Set<String> groups) {
         String model = context != null ? text(context.getMetadata().get(REQUEST_MODEL)) : null;
@@ -394,7 +396,8 @@ final class AnthropicThinkingOptions {
 
     /**
      * Takes the fields the provider refused for the defaults' model out of the default options in place, returning
-     * what it took out; other models' defaults stay as they are.
+     * what it took out; other models' defaults stay as they are. The caller hands it only the defaults of a model
+     * Contexa made for its own calls, or a copy (R-9).
      */
     static Map<String, Object> removeRefusedInPlace(ChatOptions defaults) {
         String model = readString(defaults, "getModel");

@@ -16,8 +16,10 @@
 package io.contexa.autoconfigure.core.autonomous;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacommon.security.HeldBean;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventObserver;
 import io.contexa.contexacore.autonomous.handler.handler.SaasForwardingHandler;
@@ -33,6 +35,7 @@ import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationSe
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import io.contexa.contexacore.repository.*;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -57,9 +60,18 @@ import java.util.concurrent.Executor;
 @EnableConfigurationProperties(ContexaProperties.class)
 public class CoreSaasForwardingAutoConfiguration {
 
+    private static final String SAAS_CLIENT_REGISTRATIONS = "contexaSaasClientRegistrationRepository";
+    private static final String SAAS_AUTHORIZED_CLIENTS = "contexaSaasOAuth2AuthorizedClientService";
+    private static final String SAAS_AUTHORIZED_CLIENT_MANAGER = "contexaSaasOAuth2AuthorizedClientManager";
+
+    /**
+     * The registration of Contexa's own client of the SaaS endpoint. It is held in every way of running Contexa (R-17 of
+     * docs/agent/운영모드-정상화-구현계획.md): it never signs the application's users in, and seen by type Spring Boot's OAuth2 client
+     * would stand back from the registrations of the application's properties. Contexa takes it by its name.
+     */
     @Bean(name = "contexaSaasClientRegistrationRepository")
     @ConditionalOnMissingBean(name = "contexaSaasClientRegistrationRepository")
-    public ClientRegistrationRepository saasClientRegistrationRepository(ContexaProperties properties) {
+    public HeldBean<ClientRegistrationRepository> saasClientRegistrationRepository(ContexaProperties properties) {
         ContexaProperties.Saas.Oauth2 oauth2 = properties.getSaas().getOauth2();
         properties.getSaas().validate();
         ClientRegistration registration = ClientRegistration.withRegistrationId(oauth2.getRegistrationId())
@@ -70,28 +82,35 @@ public class CoreSaasForwardingAutoConfiguration {
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .build();
-        return new InMemoryClientRegistrationRepository(registration);
+        return new HeldBean<>(new InMemoryClientRegistrationRepository(registration));
     }
 
+    /**
+     * The store of the SaaS client's tokens, held as the registration is: seen by type, Spring Boot would build the
+     * application's OAuth2 client repository, and with it an OAuth2 sign-in chain, over Contexa's SaaS client.
+     */
     @Bean(name = "contexaSaasOAuth2AuthorizedClientService")
     @ConditionalOnMissingBean(name = "contexaSaasOAuth2AuthorizedClientService")
-    public OAuth2AuthorizedClientService saasOAuth2AuthorizedClientService(
-            @Qualifier("contexaSaasClientRegistrationRepository") ClientRegistrationRepository registrationRepository) {
-        return new InMemoryOAuth2AuthorizedClientService(registrationRepository);
+    public HeldBean<OAuth2AuthorizedClientService> saasOAuth2AuthorizedClientService(BeanFactory beanFactory) {
+        return new HeldBean<>(new InMemoryOAuth2AuthorizedClientService(
+                ContexaOwnBeans.own(beanFactory, SAAS_CLIENT_REGISTRATIONS, ClientRegistrationRepository.class)));
     }
 
+    /**
+     * The client credentials client of the SaaS endpoint, held as the registration is: Spring Security's resolver of
+     * {@code @RegisteredOAuth2AuthorizedClient} takes a sole manager it finds for the application.
+     */
     @Bean(name = "contexaSaasOAuth2AuthorizedClientManager")
     @ConditionalOnMissingBean(name = "contexaSaasOAuth2AuthorizedClientManager")
-    public OAuth2AuthorizedClientManager saasOAuth2AuthorizedClientManager(
-            @Qualifier("contexaSaasClientRegistrationRepository") ClientRegistrationRepository registrationRepository,
-            @Qualifier("contexaSaasOAuth2AuthorizedClientService") OAuth2AuthorizedClientService authorizedClientService) {
-        AuthorizedClientServiceOAuth2AuthorizedClientManager manager =
-                new AuthorizedClientServiceOAuth2AuthorizedClientManager(registrationRepository, authorizedClientService);
+    public HeldBean<OAuth2AuthorizedClientManager> saasOAuth2AuthorizedClientManager(BeanFactory beanFactory) {
+        AuthorizedClientServiceOAuth2AuthorizedClientManager manager = new AuthorizedClientServiceOAuth2AuthorizedClientManager(
+                ContexaOwnBeans.own(beanFactory, SAAS_CLIENT_REGISTRATIONS, ClientRegistrationRepository.class),
+                ContexaOwnBeans.own(beanFactory, SAAS_AUTHORIZED_CLIENTS, OAuth2AuthorizedClientService.class));
         OAuth2AuthorizedClientProvider provider = OAuth2AuthorizedClientProviderBuilder.builder()
                 .clientCredentials()
                 .build();
         manager.setAuthorizedClientProvider(provider);
-        return manager;
+        return new HeldBean<>(manager);
     }
 
     @Bean(name = "contexaSaasForwardingProperties")
@@ -177,12 +196,14 @@ public class CoreSaasForwardingAutoConfiguration {
                 .build();
     }
 
+    /** The tokens of the SaaS client, from its manager taken by its name (it is held, R-17). */
     @Bean(name = "contexaSaasDecisionAccessTokenProvider")
     @ConditionalOnMissingBean
     public SaasDecisionAccessTokenProvider saasDecisionAccessTokenProvider(
             SaasForwardingProperties properties,
-            @Qualifier("contexaSaasOAuth2AuthorizedClientManager") OAuth2AuthorizedClientManager contexaAuthorizedClientManager) {
-        return new SaasDecisionAccessTokenProvider(properties, contexaAuthorizedClientManager);
+            BeanFactory beanFactory) {
+        return new SaasDecisionAccessTokenProvider(properties,
+                ContexaOwnBeans.own(beanFactory, SAAS_AUTHORIZED_CLIENT_MANAGER, OAuth2AuthorizedClientManager.class));
     }
 
     @Bean(name = "contexaTenantScopedPseudonymizationService")

@@ -25,9 +25,11 @@ import org.springframework.security.core.AuthenticationException;
 
 /**
  * Feeds Contexa's login policy (the count of failed sign-ins, the lock, the address throttle) from the sign-ins of
- * the HOST_OWNED console. The policy listens to Spring Security's events only when Contexa owns sign-in, so that the
- * application's own sign-ins never count against Contexa's accounts; the console chain, whose accounts are Contexa's,
- * hands its outcomes to the policy itself.
+ * the flow of Contexa's administrators ({@code contexa-admin}, in every combination of mode and ownership but FULL with
+ * CONTEXA_OWNED): the console chain, whose accounts are Contexa's, hands its outcomes to the policy itself. The policy's
+ * listener of Spring Security's events hears every sign-in as well, in every way of running Contexa, and tells the
+ * sign-ins of Contexa's accounts apart ({@code ContexaAccountRequests}), so that the application's own sign-ins never
+ * count against Contexa's accounts.
  * <p>
  * The policy never makes a sign-in fail: whatever it throws is logged and the sign-in goes on as the credentials say.
  */
@@ -67,7 +69,7 @@ final class ConsoleLoginPolicyEvents implements AuthenticationEventPublisher {
         } catch (RuntimeException e) {
             log.error("[Console] The login policy could not record a sign-in: {}", e.getMessage());
         } finally {
-            // Cleared at the end of each request by a filter that is registered only when Contexa owns sign-in.
+            // Cleared at the end of each request as well, by the clean-up filter every way of running Contexa registers.
             LoginPolicyService.clearRequestState();
         }
     }

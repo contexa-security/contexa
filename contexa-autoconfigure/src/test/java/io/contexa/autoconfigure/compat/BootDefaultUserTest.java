@@ -54,9 +54,11 @@ class BootDefaultUserTest {
         new ContexaDefaultPropertiesPostProcessor().postProcessEnvironment(context.getEnvironment(), new SpringApplication());
     }
 
-    private static void activated(ConfigurableApplicationContext context, String ownership) {
+    /** What {@code @EnableAISecurity} publishes once it switched Contexa on: the mode and the ownership, always both. */
+    private static void activated(ConfigurableApplicationContext context, String mode, String ownership) {
         context.getEnvironment().getPropertySources().addFirst(new MapPropertySource(
-                AiSecurityImportSelector.ACTIVATION_SOURCE, Map.of(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP, ownership)));
+                AiSecurityImportSelector.ACTIVATION_SOURCE, Map.of(AiSecurityImportSelector.PROP_MODE, mode,
+                        AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP, ownership)));
     }
 
     @Test
@@ -96,7 +98,26 @@ class BootDefaultUserTest {
     @Test
     @DisplayName("where the application keeps its sign-in with Contexa on, Boot's user stays")
     void anApplicationThatKeepsItsSignInKeepsTheUser() {
-        withContexa.withInitializer(context -> activated(context, "HOST_OWNED"))
+        withContexa.withInitializer(context -> activated(context, "SANDBOX", "HOST_OWNED"))
+                .run(context -> assertThat(context.getBean(UserDetailsService.class).loadUserByUsername("user")).isNotNull());
+    }
+
+    /**
+     * R-2 of docs/agent/운영모드-정상화-구현계획.md: the ownership decides no feature. Kept apart (SANDBOX), the application
+     * signs its users in itself with either ownership, so Boot's user stays its way of signing in.
+     */
+    @Test
+    @DisplayName("SANDBOX + CONTEXA_OWNED에서도 앱이 자기 사용자를 로그인시키므로 Boot 기본 계정이 남는다(R-2)")
+    void keptApartWithContexaOwnedTheApplicationKeepsBootsUser() {
+        withContexa.withInitializer(context -> activated(context, "SANDBOX", "CONTEXA_OWNED"))
+                .run(context -> assertThat(context.getBean(UserDetailsService.class).loadUserByUsername("user")).isNotNull());
+    }
+
+    /** In mode FULL with HOST_OWNED Contexa's chain signs the application's users in from the application's store. */
+    @Test
+    @DisplayName("FULL + HOST_OWNED는 앱 사용자를 앱 저장소로 로그인시키므로 Boot 기본 계정 안내가 그대로다")
+    void fullWithHostOwnedKeepsBootsUser() {
+        withContexa.withInitializer(context -> activated(context, "FULL", "HOST_OWNED"))
                 .run(context -> assertThat(context.getBean(UserDetailsService.class).loadUserByUsername("user")).isNotNull());
     }
 
@@ -113,9 +134,9 @@ class BootDefaultUserTest {
     }
 
     @Test
-    @DisplayName("where Contexa owns the sign-in, Boot's user is not made")
+    @DisplayName("where Contexa signs the application's users in with its own accounts (FULL + CONTEXA_OWNED), Boot's user is not made")
     void whereContexaOwnsTheSignInBootMakesNoUser() {
-        withContexa.withInitializer(context -> activated(context, "CONTEXA_OWNED"))
+        withContexa.withInitializer(context -> activated(context, "FULL", "CONTEXA_OWNED"))
                 .run(context -> assertThat(context).doesNotHaveBean(UserDetailsService.class));
     }
 }

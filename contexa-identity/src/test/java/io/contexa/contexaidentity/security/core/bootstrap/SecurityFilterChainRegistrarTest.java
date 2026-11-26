@@ -294,6 +294,20 @@ class SecurityFilterChainRegistrarTest {
             // the chain's own filters, in their order, between the two that open and close Contexa's work
             List<Filter> filters = result.getFilters();
             assertThat(filters.subList(1, filters.size() - 1)).containsExactly(firstFilter, secondFilter);
+            // R-14: a flow that takes every request stands last, after every chain narrowed to its own paths
+            assertThat(result.getOrder()).isEqualTo(Ordered.LOWEST_PRECEDENCE);
+        }
+
+        @Test
+        @DisplayName("좁힌 흐름은 자기 순서대로 앞에 서고, 모든 요청을 받는 흐름은 맨 끝에 선다(R-14)")
+        void aNarrowedFlowKeepsItsOrderAheadOfTheOneThatTakesEveryRequest() throws Exception {
+            FlowContext fc = createMockFlowContext("FORM", 10, List.of());
+            RequestMatcher narrowed = request -> false;
+            when(fc.http().build()).thenReturn(new DefaultSecurityFilterChain(narrowed, List.of(mock(Filter.class))));
+            when(fc.flow().getStepConfigs()).thenReturn(Collections.emptyList());
+
+            OrderedSecurityFilterChain result = registrar.buildAndRegisterFilters(fc, applicationContext);
+
             assertThat(result.getOrder()).isEqualTo(Ordered.HIGHEST_PRECEDENCE + 10);
         }
     }

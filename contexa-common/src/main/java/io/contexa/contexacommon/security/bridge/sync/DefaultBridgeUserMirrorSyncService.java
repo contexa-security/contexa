@@ -18,10 +18,14 @@ package io.contexa.contexacommon.security.bridge.sync;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.entity.BridgeUserProfile;
+import io.contexa.contexacommon.entity.UserGroup;
+import io.contexa.contexacommon.entity.UserRole;
+import io.contexa.contexacommon.entity.UserRolePermission;
 import io.contexa.contexacommon.entity.Users;
+import io.contexa.contexacommon.operating.OperatingBehaviour;
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
-import io.contexa.contexacommon.operating.OwnershipBehaviour;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
@@ -40,6 +44,8 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -49,8 +55,17 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
+/**
+ * The copy Contexa keeps of an application's user (bridge v2, B5-1). It keeps the values {@link BridgeUserCopyFacts} lists
+ * and is written only when one of them changes; a sign-in also writes when and from where the user signed in. It never
+ * makes up an address, never turns a copy an administrator turned off back on, and keeps neither the session nor the
+ * application's attributes. The copy is found by the user's decision key, the key Contexa's decisions about the user
+ * are kept under.
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncService {
@@ -86,11 +101,55 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
     private static final int PRINCIPAL_TYPE_MAX = 50;
 
     private final Set<String> tooLongSubjects = ConcurrentHashMap.newKeySet();
+    private final Set<String> keptApart = ConcurrentHashMap.newKeySet();
     private BridgeUserEmailProvider emailProvider;
+    @Nullable
+    private UserRolePermissionRepository rolePermissions;
+    private List<UserCopyMergeContributor> mergeContributors = List.of();
+    @Nullable
+    private BooleanSupplier applicationsUsersAreContexaAccounts;
+    private UnaryOperator<String> userKey = UnaryOperator.identity();
 
     /** Q-1: where the application tells the address of a user who carries none. */
     public void setEmailProvider(BridgeUserEmailProvider emailProvider) {
         this.emailProvider = emailProvider;
+    }
+
+    /**
+     * Whether the application's users sign in as Contexa's own accounts, as the running application tells it: Contexa's main
+     * chain signs them in (FULL) from Contexa's own store, which is so with CONTEXA_OWNED, and with HOST_OWNED only while
+     * the application has no store of its own. Without it the way of running answers alone: FULL with CONTEXA_OWNED.
+     */
+    public void setApplicationsUsersAreContexaAccounts(BooleanSupplier applicationsUsersAreContexaAccounts) {
+        this.applicationsUsersAreContexaAccounts = applicationsUsersAreContexaAccounts;
+    }
+
+    /**
+     * The decision key of a user id (decision 7 of the bridge v2 standard): the key Contexa's decisions about the user are
+     * kept under, so that the copy, the step-up and the decisions name one user the same way. Without it a user id is its
+     * own key.
+     */
+    public void setUserKey(UnaryOperator<String> userKey) {
+        this.userKey = userKey != null ? userKey : UnaryOperator.identity();
+    }
+
+    /** bridge v2 B5-3: the grants a merged copy holds, which go to the copy of the same person it is merged into. */
+    public void setRolePermissions(@Nullable UserRolePermissionRepository rolePermissions) {
+        this.rolePermissions = rolePermissions;
+    }
+
+    /** bridge v2 B5-3: the modules that keep a state under a copy's name, asked when two copies of a person become one. */
+    public void setMergeContributors(@Nullable List<UserCopyMergeContributor> mergeContributors) {
+        this.mergeContributors = mergeContributors != null ? List.copyOf(mergeContributors) : List.of();
+    }
+
+    @Override
+    public BridgeUserMirrorSyncResult sync(
+            AuthenticationStamp authenticationStamp,
+            AuthorizationStamp authorizationStamp,
+            RequestContextSnapshot requestContext
+    ) {
+        return sync(authenticationStamp, authorizationStamp, requestContext, false);
     }
 
     @Override
@@ -98,53 +157,65 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
     public BridgeUserMirrorSyncResult sync(
             AuthenticationStamp authenticationStamp,
             AuthorizationStamp authorizationStamp,
-            RequestContextSnapshot requestContext
+            RequestContextSnapshot requestContext,
+            boolean signIn
     ) {
         if (!bridgeProperties.getSync().isEnabled() || authenticationStamp == null || !authenticationStamp.authenticated()) {
             return null;
         }
 
-        String externalSubjectId = normalize(authenticationStamp.principalId());
-        if (externalSubjectId == null) {
+        String givenSubjectId = normalize(authenticationStamp.principalId());
+        if (givenSubjectId == null) {
             return null;
         }
-        if (externalSubjectId.length() > LONG_TEXT_MAX) {
+        if (givenSubjectId.length() > LONG_TEXT_MAX) {
             // The subject is the key the copy is found by: cut, it would be another user's. No copy is made (the
             // user has no step-up factor of its own then); said once, not on every request.
-            if (tooLongSubjects.size() < 1000 && tooLongSubjects.add(Integer.toHexString(externalSubjectId.hashCode()))) {
-                log.warn("[Bridge] No user copy for a subject longer than {} characters ({} characters)", LONG_TEXT_MAX,
-                        externalSubjectId.length());
+            if (tooLongSubjects.size() < 1000 && tooLongSubjects.add(Integer.toHexString(givenSubjectId.hashCode()))) {
+                log.error("[Bridge] No user copy for a subject longer than {} characters ({} characters)", LONG_TEXT_MAX,
+                        givenSubjectId.length());
             }
             return null;
         }
 
-        Optional<Long> ownAccount = ownAccount(externalSubjectId);
+        Optional<Long> ownAccount = ownAccount(givenSubjectId);
         if (ownAccount.isPresent()) {
-            return new BridgeUserMirrorSyncResult(ownAccount.get(), externalSubjectId, externalSubjectId, null, false, false, false, false);
+            return new BridgeUserMirrorSyncResult(ownAccount.get(), givenSubjectId, givenSubjectId, null, false, false, false, false);
         }
 
+        String externalSubjectId = decisionKey(givenSubjectId);
         String authenticationSource = fit(firstText(
                 authenticationStamp.authenticationSource(),
-                attribute(authenticationStamp.attributes(), "authenticationSource", "authSource", "sourceSystem"),
+                BridgeUserCopyFacts.attribute(authenticationStamp.attributes(), "authenticationSource", "authSource", "sourceSystem"),
                 "BRIDGE"
         ), TEXT_MAX);
-        String organizationId = fit(attribute(authenticationStamp.attributes(), "organizationId", "orgId"), LONG_TEXT_MAX);
-        String bridgeSubjectKey = generateBridgeSubjectKey(authenticationSource, organizationId, externalSubjectId);
+        String organizationId = fit(BridgeUserCopyFacts.attribute(authenticationStamp.attributes(),
+                BridgeUserCopyFacts.ORGANIZATION), LONG_TEXT_MAX);
+        String bridgeSubjectKey = generateBridgeSubjectKey(organizationId, externalSubjectId);
+        String keyOfTheGivenId = givenSubjectId.equals(externalSubjectId)
+                ? null : generateBridgeSubjectKey(organizationId, givenSubjectId);
         LocalDateTime now = LocalDateTime.now();
 
-        Optional<Users> existingUser = resolveUser(bridgeSubjectKey, externalSubjectId, authenticationSource, organizationId);
+        Optional<Users> existingUser = resolveUser(bridgeSubjectKey, keyOfTheGivenId, externalSubjectId, givenSubjectId,
+                organizationId);
+        String copyKey = bridgeSubjectKey;
+        if (existingUser.isPresent() && !bridgeSubjectKey.equals(existingUser.get().getBridgeSubjectKey())
+                && !mergeTheOtherCopies(existingUser.get(), externalSubjectId, givenSubjectId, organizationId)) {
+            copyKey = existingUser.get().getBridgeSubjectKey();
+        }
         BridgeUserProfile existingProfile = existingUser
                 .flatMap(user -> user.getId() != null ? bridgeUserProfileRepository.findById(user.getId()) : Optional.empty())
                 .orElse(null);
 
-        SyncSnapshot syncSnapshot = buildSyncSnapshot(authenticationStamp, authorizationStamp, requestContext);
-        if (shouldSkipSync(existingUser.orElse(null), existingProfile, authenticationStamp, requestContext, syncSnapshot, bridgeSubjectKey, externalSubjectId, authenticationSource, organizationId, now)) {
+        SyncSnapshot syncSnapshot = buildSyncSnapshot(authenticationStamp);
+        if (shouldSkipSync(existingUser.orElse(null), existingProfile, authenticationStamp, requestContext, syncSnapshot,
+                copyKey, externalSubjectId, givenSubjectId, authenticationSource, organizationId, signIn)) {
             Users user = existingUser.orElseThrow();
             return new BridgeUserMirrorSyncResult(
                     user.getId(),
                     user.getUsername(),
                     externalSubjectId,
-                    bridgeSubjectKey,
+                    copyKey,
                     user.isBridgeManaged(),
                     user.isExternalAuthOnly(),
                     false,
@@ -154,8 +225,9 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
 
         Users user = existingUser.orElseGet(Users::new);
         boolean created = user.getId() == null;
-        EmailChange email = resolveEmail(user, existingProfile, authenticationStamp, bridgeSubjectKey);
-        boolean updated = applyUser(user, authenticationStamp, requestContext, bridgeSubjectKey, externalSubjectId, authenticationSource, organizationId, email, now);
+        EmailChange email = resolveEmail(user, existingProfile, authenticationStamp);
+        boolean updated = applyUser(user, authenticationStamp, requestContext, copyKey, externalSubjectId,
+                givenSubjectId, authenticationSource, organizationId, email, now, created || signIn);
 
         Users savedUser = userRepository.save(user);
         boolean profileUpdated = syncProfile(savedUser, existingProfile, syncSnapshot, email.pending(), now);
@@ -165,7 +237,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
                 savedUser.getId(),
                 savedUser.getUsername(),
                 externalSubjectId,
-                bridgeSubjectKey,
+                copyKey,
                 savedUser.isBridgeManaged(),
                 savedUser.isExternalAuthOnly(),
                 created,
@@ -173,40 +245,172 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         );
     }
 
+    /** The decision key of the given user id, never longer than its column; the given id when the key would be. */
+    private String decisionKey(String givenSubjectId) {
+        String key = normalize(userKey.apply(givenSubjectId));
+        return key != null && key.length() <= LONG_TEXT_MAX ? key : givenSubjectId;
+    }
+
     /**
-     * PR-27: where Contexa owns the sign-in the user signed in with one of Contexa's accounts, which is the record of the
-     * user. A copy made a second row of the same person. Where the application owns the sign-in a name says nothing: the
-     * application's user is matched to its copy only, never to a Contexa account of the same name.
+     * PR-27: where the application's users sign in as Contexa's accounts, the user signed in with one of them, which is
+     * the record of the user; a copy made a second row of the same person. Elsewhere a name says nothing: the
+     * application's user is matched to its copy only, never to a Contexa account of the same name. That is so where the
+     * application signs its users in (SANDBOX), and where Contexa's main chain signs them in from the application's own
+     * store (FULL with HOST_OWNED, R-17).
      */
     private Optional<Long> ownAccount(String subject) {
-        return bridgeProperties.ownershipBehaviour() == OwnershipBehaviour.CONTEXA_OWNED
+        return applicationsUsersAreContexaAccounts()
                 ? userRepository.findOwnAccountId(subject)
                 : Optional.empty();
     }
 
+    private boolean applicationsUsersAreContexaAccounts() {
+        if (applicationsUsersAreContexaAccounts != null) {
+            return applicationsUsersAreContexaAccounts.getAsBoolean();
+        }
+        OperatingBehaviour behaviour = bridgeProperties.operatingBehaviour();
+        return behaviour.signsInTheApplicationsUsers() && !behaviour.hostComponentsWin();
+    }
+
+    /**
+     * The copy of the person: the one under the key, else the one kept under the key of the id as the application gave
+     * it (a copy made before copies were keyed by the decision key), else the one a synchronisation made before the key
+     * left out the way the person was read (the security context, an explicit handoff, the session). A person those
+     * older synchronisations split into a copy per way or per spelling of the id finds the first of them, so no further
+     * copy is made, and the copies made after it are merged into it ({@link #mergeTheOtherCopies}).
+     */
     private Optional<Users> resolveUser(
             String bridgeSubjectKey,
+            @Nullable String keyOfTheGivenId,
             String externalSubjectId,
-            String authenticationSource,
-            String organizationId
+            String givenSubjectId,
+            @Nullable String organizationId
     ) {
         Optional<Users> byBridgeSubjectKey = userRepository.findByBridgeSubjectKey(bridgeSubjectKey);
         if (byBridgeSubjectKey.isPresent()) {
             return byBridgeSubjectKey;
         }
-        if (organizationId != null) {
-            return userRepository.findByExternalSubjectIdAndAuthenticationSourceAndOrganizationId(
-                    externalSubjectId,
-                    authenticationSource,
-                    organizationId
-            );
+        if (keyOfTheGivenId != null) {
+            Optional<Users> byKeyOfTheGivenId = userRepository.findByBridgeSubjectKey(keyOfTheGivenId);
+            if (byKeyOfTheGivenId.isPresent()) {
+                return byKeyOfTheGivenId;
+            }
         }
-        return userRepository.findByExternalSubjectIdAndAuthenticationSourceAndOrganizationIdIsNull(
-                externalSubjectId,
-                authenticationSource
-        );
+        Optional<Users> byDecisionKey = firstCopyOf(externalSubjectId, organizationId);
+        if (byDecisionKey.isPresent() || givenSubjectId.equals(externalSubjectId)) {
+            return byDecisionKey;
+        }
+        return firstCopyOf(givenSubjectId, organizationId);
     }
 
+    private Optional<Users> firstCopyOf(String externalSubjectId, @Nullable String organizationId) {
+        return copiesOf(externalSubjectId, organizationId).stream()
+                .min(Comparator.comparing(Users::getId, Comparator.nullsLast(Comparator.naturalOrder())));
+    }
+
+    private List<Users> copiesOf(String externalSubjectId, @Nullable String organizationId) {
+        return userRepository.findByExternalSubjectIdAndBridgeManagedTrue(externalSubjectId).stream()
+                .filter(copy -> Objects.equals(normalize(copy.getOrganizationId()), organizationId))
+                .toList();
+    }
+
+    /**
+     * bridge v2 B5-3: the other copies of the person, which older versions made per way the person was read or per
+     * spelling of the id, become the kept copy in this transaction, found as {@link #resolveUser} finds the kept one: under
+     * the decision key and under the id as given, in the same organization. A copy a contributor refuses to merge stays,
+     * and the kept copy keeps its key until then, so a later synchronisation tries again.
+     *
+     * @return whether every other copy of the person was merged
+     */
+    private boolean mergeTheOtherCopies(Users kept, String externalSubjectId, String givenSubjectId,
+                                        @Nullable String organizationId) {
+        Map<Long, Users> others = new LinkedHashMap<>();
+        copiesOf(externalSubjectId, organizationId).forEach(copy -> others.putIfAbsent(copy.getId(), copy));
+        if (!givenSubjectId.equals(externalSubjectId)) {
+            copiesOf(givenSubjectId, organizationId).forEach(copy -> others.putIfAbsent(copy.getId(), copy));
+        }
+        others.remove(kept.getId());
+        boolean merged = true;
+        for (Users other : others.values()) {
+            String refusal = mergeRefusal(kept, other);
+            if (refusal != null) {
+                merged = false;
+                if (keptApart.size() < 1000 && keptApart.add(externalSubjectId)) {
+                    log.error("[Bridge] Two copies of one user are kept apart ({}); a later synchronisation merges them "
+                            + "once that is resolved: userId={}", refusal, kept.getId());
+                }
+                continue;
+            }
+            mergeInto(kept, other);
+        }
+        return merged;
+    }
+
+    @Nullable
+    private String mergeRefusal(Users kept, Users other) {
+        for (UserCopyMergeContributor contributor : mergeContributors) {
+            String refusal = contributor.refusal(kept.getUsername(), other.getUsername());
+            if (refusal != null) {
+                return refusal;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The other copy's groups, roles and grants become the kept copy's (one of each, as their keys allow), a copy an
+     * administrator turned off or locked keeps the person off or locked, the contributors move their own states, and the
+     * other copy goes with its profile.
+     */
+    private void mergeInto(Users kept, Users other) {
+        Set<Long> groups = new HashSet<>();
+        kept.getUserGroups().forEach(link -> groups.add(link.getGroup().getId()));
+        for (UserGroup link : other.getUserGroups()) {
+            if (groups.add(link.getGroup().getId())) {
+                kept.getUserGroups().add(UserGroup.builder().user(kept).group(link.getGroup())
+                        .assignedAt(link.getAssignedAt()).assignedBy(link.getAssignedBy()).build());
+            }
+        }
+        Set<Long> roles = new HashSet<>();
+        kept.getUserRoles().forEach(link -> roles.add(link.getRole().getId()));
+        for (UserRole link : other.getUserRoles()) {
+            if (roles.add(link.getRole().getId())) {
+                kept.getUserRoles().add(UserRole.builder().user(kept).role(link.getRole())
+                        .assignedAt(link.getAssignedAt()).assignedBy(link.getAssignedBy()).build());
+            }
+        }
+        if (rolePermissions != null) {
+            Set<List<Long>> grants = new HashSet<>();
+            rolePermissions.findByUserId(kept.getId())
+                    .forEach(grant -> grants.add(List.of(grant.getRole().getId(), grant.getPermission().getId())));
+            List<UserRolePermission> moved = rolePermissions.findByUserId(other.getId());
+            for (UserRolePermission grant : moved) {
+                if (grants.add(List.of(grant.getRole().getId(), grant.getPermission().getId()))) {
+                    rolePermissions.save(new UserRolePermission(kept, grant.getRole(), grant.getPermission(),
+                            grant.getAssignedAt(), grant.getAssignedBy()));
+                }
+            }
+            rolePermissions.deleteAll(moved);
+        }
+        kept.setEnabled(kept.isEnabled() && other.isEnabled());
+        kept.setAccountLocked(kept.isAccountLocked() || other.isAccountLocked());
+        for (UserCopyMergeContributor contributor : mergeContributors) {
+            contributor.merge(kept.getUsername(), other.getUsername());
+        }
+        if (bridgeUserProfileRepository.existsById(other.getId())) {
+            bridgeUserProfileRepository.deleteById(other.getId());
+        }
+        userRepository.save(kept);
+        userRepository.delete(other);
+        evictUserCaches(kept);
+        evictUserCaches(other);
+    }
+
+    /**
+     * Whether the copy already holds everything: no value it keeps changed, nothing it no longer keeps is left in it, and
+     * a sign-in finds the same time and address of the last sign-in. Neither the request's address nor a refreshed token
+     * writes the copy, and an unchanged copy is not rewritten after a while.
+     */
     private boolean shouldSkipSync(
             @Nullable Users existingUser,
             @Nullable BridgeUserProfile existingProfile,
@@ -215,39 +419,46 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             SyncSnapshot syncSnapshot,
             String bridgeSubjectKey,
             String externalSubjectId,
+            String givenSubjectId,
             String authenticationSource,
             String organizationId,
-            LocalDateTime now
+            boolean signIn
     ) {
         if (existingUser == null || existingProfile == null) {
-            return false;
-        }
-        long minRefreshIntervalSeconds = bridgeProperties.getSync().getMinRefreshIntervalSeconds();
-        if (minRefreshIntervalSeconds <= 0 || existingUser.getLastBridgedAt() == null) {
-            return false;
-        }
-        if (existingUser.getLastBridgedAt().isBefore(now.minusSeconds(minRefreshIntervalSeconds))) {
             return false;
         }
         if (!syncSnapshot.syncHash().equals(existingProfile.getLastSyncHash())) {
             return false;
         }
-        if (hasUserFieldChanges(existingUser, existingProfile, authenticationStamp, requestContext, bridgeSubjectKey, externalSubjectId, authenticationSource, organizationId)) {
+        if (existingProfile.getSessionId() != null || existingProfile.getLastAttributesJson() != null) {
             return false;
         }
-        return true;
+        if (signIn && lastSignInChanges(existingUser, authenticationStamp, requestContext)) {
+            return false;
+        }
+        return !hasUserFieldChanges(existingUser, existingProfile, authenticationStamp, bridgeSubjectKey,
+                externalSubjectId, givenSubjectId, authenticationSource, organizationId);
+    }
+
+    private boolean lastSignInChanges(Users user, AuthenticationStamp authenticationStamp,
+                                      @Nullable RequestContextSnapshot requestContext) {
+        LocalDateTime lastLoginAt = lastLoginAt(authenticationStamp, requestContext);
+        String lastLoginIp = requestContext != null ? normalize(requestContext.clientIp()) : null;
+        return (lastLoginAt != null && !lastLoginAt.equals(user.getLastLoginAt()))
+                || wouldChangeString(user.getLastLoginIp(), lastLoginIp);
     }
 
     private boolean hasUserFieldChanges(
             Users user,
             BridgeUserProfile profile,
             AuthenticationStamp authenticationStamp,
-            RequestContextSnapshot requestContext,
             String bridgeSubjectKey,
             String externalSubjectId,
+            String givenSubjectId,
             String authenticationSource,
             String organizationId
     ) {
+        Map<String, Object> attributes = authenticationStamp.attributes();
         if (!user.isBridgeManaged() || !user.isExternalAuthOnly()) {
             return true;
         }
@@ -266,49 +477,51 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         if (wouldChangeString(user.getOrganizationId(), organizationId)) {
             return true;
         }
-        EmailChange email = resolveEmail(user, profile, authenticationStamp, bridgeSubjectKey);
-        if (wouldChangeString(user.getEmail(), email.email())
+        EmailChange email = resolveEmail(user, profile, authenticationStamp);
+        if (!Objects.equals(normalize(user.getEmail()), email.email())
                 || !Objects.equals(normalize(profile.getPendingEmail()), email.pending())) {
             return true;
         }
-        if (wouldChangeString(user.getName(), fit(firstText(authenticationStamp.displayName(), externalSubjectId), TEXT_MAX))) {
+        if (wouldChangeString(user.getName(), fit(firstText(authenticationStamp.displayName(), givenSubjectId), TEXT_MAX))) {
             return true;
         }
-        if (wouldChangeString(user.getPhone(), fit(attribute(authenticationStamp.attributes(), "phone", "mobile", "mobileNumber"), PHONE_MAX))) {
+        if (wouldChangeString(user.getPhone(), fit(BridgeUserCopyFacts.attribute(attributes, BridgeUserCopyFacts.PHONE), PHONE_MAX))) {
             return true;
         }
-        if (wouldChangeString(user.getDepartment(), fit(attribute(authenticationStamp.attributes(), "department", "team", "division"), TEXT_MAX))) {
+        if (wouldChangeString(user.getDepartment(), fit(BridgeUserCopyFacts.attribute(attributes, BridgeUserCopyFacts.DEPARTMENT), TEXT_MAX))) {
             return true;
         }
-        if (wouldChangeString(user.getPosition(), fit(attribute(authenticationStamp.attributes(), "position", "jobTitle", "title"), TEXT_MAX))) {
+        if (wouldChangeString(user.getPosition(), fit(BridgeUserCopyFacts.attribute(attributes, BridgeUserCopyFacts.POSITION), TEXT_MAX))) {
             return true;
         }
-        if (wouldChangeString(user.getProfileImageUrl(), fit(attribute(authenticationStamp.attributes(), "profileImageUrl", "profile_image_url", "avatarUrl"), PROFILE_IMAGE_MAX))) {
+        if (wouldChangeString(user.getProfileImageUrl(), fit(BridgeUserCopyFacts.attribute(attributes, BridgeUserCopyFacts.PROFILE_IMAGE), PROFILE_IMAGE_MAX))) {
             return true;
         }
-        if (wouldChangeString(user.getLocale(), fit(attribute(authenticationStamp.attributes(), "locale", "language", "lang"), LOCALE_MAX))) {
+        if (wouldChangeString(user.getLocale(), fit(BridgeUserCopyFacts.attribute(attributes, BridgeUserCopyFacts.LOCALE), LOCALE_MAX))) {
             return true;
         }
-        if (wouldChangeString(user.getTimezone(), fit(attribute(authenticationStamp.attributes(), "timezone", "timeZone"), TIMEZONE_MAX))) {
-            return true;
-        }
-        if (wouldChangeString(user.getLastLoginIp(), requestContext != null ? requestContext.clientIp() : null)) {
-            return true;
-        }
-        return false;
+        return wouldChangeString(user.getTimezone(), fit(BridgeUserCopyFacts.attribute(attributes, BridgeUserCopyFacts.TIMEZONE), TIMEZONE_MAX));
     }
 
+    /**
+     * Writes the values the copy keeps. Whether the copy is turned on is left as it is: a new copy is on, and a copy an
+     * administrator turned off stays off. When and from where the user signed in is written by a sign-in and when the
+     * copy is made, never by any other request.
+     */
     private boolean applyUser(
             Users user,
             AuthenticationStamp authenticationStamp,
             RequestContextSnapshot requestContext,
             String bridgeSubjectKey,
             String externalSubjectId,
+            String givenSubjectId,
             String authenticationSource,
             String organizationId,
             EmailChange email,
-            LocalDateTime now
+            LocalDateTime now,
+            boolean writeTheSignIn
     ) {
+        Map<String, Object> attributes = authenticationStamp.attributes();
         boolean changed = false;
         if (user.getUsername() == null || user.getUsername().isBlank()) {
             user.setUsername(bridgeSubjectKey);
@@ -319,14 +532,17 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             changed = true;
         }
 
-        changed |= setIfChanged(user.getEmail(), email.email(), user::setEmail);
-        changed |= setIfChanged(user.getName(), fit(firstText(authenticationStamp.displayName(), externalSubjectId), TEXT_MAX), user::setName);
-        changed |= setIfChanged(user.getPhone(), fit(attribute(authenticationStamp.attributes(), "phone", "mobile", "mobileNumber"), PHONE_MAX), user::setPhone);
-        changed |= setIfChanged(user.getDepartment(), fit(attribute(authenticationStamp.attributes(), "department", "team", "division"), TEXT_MAX), user::setDepartment);
-        changed |= setIfChanged(user.getPosition(), fit(attribute(authenticationStamp.attributes(), "position", "jobTitle", "title"), TEXT_MAX), user::setPosition);
-        changed |= setIfChanged(user.getProfileImageUrl(), fit(attribute(authenticationStamp.attributes(), "profileImageUrl", "profile_image_url", "avatarUrl"), PROFILE_IMAGE_MAX), user::setProfileImageUrl);
-        changed |= setIfChanged(user.getLocale(), fit(attribute(authenticationStamp.attributes(), "locale", "language", "lang"), LOCALE_MAX), user::setLocale);
-        changed |= setIfChanged(user.getTimezone(), fit(attribute(authenticationStamp.attributes(), "timezone", "timeZone"), TIMEZONE_MAX), user::setTimezone);
+        if (!Objects.equals(user.getEmail(), email.email())) {
+            user.setEmail(email.email());
+            changed = true;
+        }
+        changed |= setIfChanged(user.getName(), fit(firstText(authenticationStamp.displayName(), givenSubjectId), TEXT_MAX), user::setName);
+        changed |= setIfChanged(user.getPhone(), fit(BridgeUserCopyFacts.attribute(attributes, BridgeUserCopyFacts.PHONE), PHONE_MAX), user::setPhone);
+        changed |= setIfChanged(user.getDepartment(), fit(BridgeUserCopyFacts.attribute(attributes, BridgeUserCopyFacts.DEPARTMENT), TEXT_MAX), user::setDepartment);
+        changed |= setIfChanged(user.getPosition(), fit(BridgeUserCopyFacts.attribute(attributes, BridgeUserCopyFacts.POSITION), TEXT_MAX), user::setPosition);
+        changed |= setIfChanged(user.getProfileImageUrl(), fit(BridgeUserCopyFacts.attribute(attributes, BridgeUserCopyFacts.PROFILE_IMAGE), PROFILE_IMAGE_MAX), user::setProfileImageUrl);
+        changed |= setIfChanged(user.getLocale(), fit(BridgeUserCopyFacts.attribute(attributes, BridgeUserCopyFacts.LOCALE), LOCALE_MAX), user::setLocale);
+        changed |= setIfChanged(user.getTimezone(), fit(BridgeUserCopyFacts.attribute(attributes, BridgeUserCopyFacts.TIMEZONE), TIMEZONE_MAX), user::setTimezone);
         changed |= setIfChanged(user.getExternalSubjectId(), externalSubjectId, user::setExternalSubjectId);
         changed |= setIfChanged(user.getAuthenticationSource(), authenticationSource, user::setAuthenticationSource);
         changed |= setIfChanged(user.getPrincipalType(), fit(normalize(authenticationStamp.principalType()), PRINCIPAL_TYPE_MAX), user::setPrincipalType);
@@ -341,18 +557,16 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             user.setExternalAuthOnly(true);
             changed = true;
         }
-        if (!user.isEnabled()) {
-            user.setEnabled(true);
-            changed = true;
-        }
 
-        LocalDateTime lastLoginAt = toLocalDateTime(firstInstant(authenticationStamp.authenticationTime(), requestContext != null ? requestContext.collectedAt() : null));
-        if (lastLoginAt != null && !lastLoginAt.equals(user.getLastLoginAt())) {
-            user.setLastLoginAt(lastLoginAt);
-            changed = true;
+        if (writeTheSignIn) {
+            LocalDateTime lastLoginAt = lastLoginAt(authenticationStamp, requestContext);
+            if (lastLoginAt != null && !lastLoginAt.equals(user.getLastLoginAt())) {
+                user.setLastLoginAt(lastLoginAt);
+                changed = true;
+            }
+            String lastLoginIp = requestContext != null ? normalize(requestContext.clientIp()) : null;
+            changed |= setIfChanged(user.getLastLoginIp(), lastLoginIp, user::setLastLoginIp);
         }
-        String lastLoginIp = requestContext != null ? normalize(requestContext.clientIp()) : null;
-        changed |= setIfChanged(user.getLastLoginIp(), lastLoginIp, user::setLastLoginIp);
 
         if (!now.equals(user.getLastBridgedAt())) {
             user.setLastBridgedAt(now);
@@ -361,34 +575,24 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         return changed;
     }
 
-    private SyncSnapshot buildSyncSnapshot(
-            AuthenticationStamp authenticationStamp,
-            AuthorizationStamp authorizationStamp,
-            RequestContextSnapshot requestContext
-    ) {
-        String authoritiesJson = toJson(Map.of(
-                "authenticationAuthorities", authenticationStamp.authorities(),
-                "effectiveRoles", authorizationStamp != null ? authorizationStamp.effectiveRoles() : List.of(),
-                "effectiveAuthorities", authorizationStamp != null ? authorizationStamp.effectiveAuthorities() : List.of()
-        ));
+    @Nullable
+    private LocalDateTime lastLoginAt(AuthenticationStamp authenticationStamp, @Nullable RequestContextSnapshot requestContext) {
+        return toLocalDateTime(firstInstant(authenticationStamp.authenticationTime(),
+                requestContext != null ? requestContext.collectedAt() : null));
+    }
 
-        LinkedHashMap<String, Object> attributePayload = new LinkedHashMap<>();
-        attributePayload.put("authenticationAttributes", authenticationStamp.attributes());
-        attributePayload.put("authorizationAttributes", authorizationStamp != null ? authorizationStamp.attributes() : Map.of());
-        attributePayload.put("authorizationEffect", authorizationStamp != null ? authorizationStamp.effect().name() : null);
-        attributePayload.put("policyId", authorizationStamp != null ? authorizationStamp.policyId() : null);
-        attributePayload.put("policyVersion", authorizationStamp != null ? authorizationStamp.policyVersion() : null);
-        String attributesJson = toJson(attributePayload);
-
+    /**
+     * The profile values of the copy and the hash of everything the copy keeps ({@link BridgeUserCopyFacts}). The
+     * authorities are the application's own; what an authorization made of them is not kept.
+     */
+    private SyncSnapshot buildSyncSnapshot(AuthenticationStamp authenticationStamp) {
         return new SyncSnapshot(
                 normalize(authenticationStamp.authenticationSource()),
                 normalize(authenticationStamp.authenticationType()),
                 normalize(authenticationStamp.authenticationAssurance()),
                 authenticationStamp.mfaCompleted(),
-                firstText(authenticationStamp.sessionId(), requestContext != null ? requestContext.sessionId() : null),
-                authoritiesJson,
-                attributesJson,
-                hash(authoritiesJson + "|" + attributesJson)
+                toJson(BridgeUserCopyFacts.authorities(authenticationStamp.authorities())),
+                hash(toJson(BridgeUserCopyFacts.of(authenticationStamp)))
         );
     }
 
@@ -409,13 +613,16 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         changed |= setIfChanged(profile.getAuthenticationType(), syncSnapshot.authenticationType(), profile::setAuthenticationType);
         changed |= setIfChanged(profile.getAuthenticationAssurance(), syncSnapshot.authenticationAssurance(), profile::setAuthenticationAssurance);
         changed |= setIfChanged(profile.getMfaCompletedFromCustomer(), syncSnapshot.mfaCompletedFromCustomer(), profile::setMfaCompletedFromCustomer);
-        changed |= setIfChanged(profile.getSessionId(), syncSnapshot.sessionId(), profile::setSessionId);
         changed |= setIfChanged(profile.getLastAuthoritiesJson(), syncSnapshot.authoritiesJson(), profile::setLastAuthoritiesJson);
-        changed |= setIfChanged(profile.getLastAttributesJson(), syncSnapshot.attributesJson(), profile::setLastAttributesJson);
         changed |= setIfChanged(profile.getLastSyncHash(), syncSnapshot.syncHash(), profile::setLastSyncHash);
+        if (profile.getSessionId() != null || profile.getLastAttributesJson() != null) {
+            profile.setSessionId(null);
+            profile.setLastAttributesJson(null);
+            changed = true;
+        }
         if (!Objects.equals(profile.getPendingEmail(), pendingEmail)) {
             if (pendingEmail != null) {
-                log.warn("[Bridge] The application shows another address for a user whose copy has one; it waits until "
+                log.error("[Bridge] The application shows another address for a user whose copy has one; it waits until "
                         + "the user proves the address on record and then this address: userId={}", user.getId());
             }
             profile.setPendingEmail(pendingEmail);
@@ -440,15 +647,16 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
      * whoever holds a session can change the application's profile. So the first real address the application shows
      * goes in at once, and once the copy holds one, another address the application shows waits until the user proves
      * the address on record and then that address ({@link #confirmPendingEmail(Long, String)}), or an administrator
-     * enters an address.
+     * enters an address. No address is made up for a user the application shows none for: the copy keeps a real address
+     * it has, and none otherwise (one made up by an older version goes).
      */
     private EmailChange resolveEmail(Users user, @Nullable BridgeUserProfile profile,
-                                     AuthenticationStamp authenticationStamp, String bridgeSubjectKey) {
+                                     AuthenticationStamp authenticationStamp) {
         String current = normalize(user.getEmail());
         String waiting = profile != null ? normalize(profile.getPendingEmail()) : null;
-        String shown = applicationEmail(user, authenticationStamp, bridgeSubjectKey);
+        String shown = applicationEmail(user, authenticationStamp);
         if (shown == null) {
-            return new EmailChange(firstText(current, syntheticEmail(bridgeSubjectKey)), waiting);
+            return new EmailChange(isRealAddress(current) ? current : null, waiting);
         }
         if (!isRealAddress(current)) {
             return new EmailChange(shown, null);
@@ -461,10 +669,10 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
 
     /** The address the application shows for the user now, or null for none that fits the column. */
     @Nullable
-    private String applicationEmail(Users user, AuthenticationStamp authenticationStamp, String bridgeSubjectKey) {
-        String email = normalize(attribute(authenticationStamp.attributes(), "email", "mail", "userEmail"));
+    private String applicationEmail(Users user, AuthenticationStamp authenticationStamp) {
+        String email = normalize(BridgeUserCopyFacts.attribute(authenticationStamp.attributes(), BridgeUserCopyFacts.EMAIL));
         if (email == null) {
-            email = providedEmail(user, authenticationStamp, bridgeSubjectKey);
+            email = providedEmail(user, authenticationStamp);
         }
         if (email == null || email.length() > LONG_TEXT_MAX) {
             return null;
@@ -472,7 +680,10 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         return email.toLowerCase(Locale.ROOT);
     }
 
-    /** An address a code can go to: not none, and not the one made up for a user who showed none. */
+    /**
+     * An address a code can go to: not none, and not one an older version made up for a user who showed none (those end
+     * in {@code contexa.bridge.sync.synthetic-email-domain}).
+     */
     private boolean isRealAddress(@Nullable String address) {
         String domain = bridgeProperties.getSync().getSyntheticEmailDomain();
         return address != null && address.contains("@")
@@ -490,6 +701,10 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
                 .map(this::normalize).orElse(null);
     }
 
+    /**
+     * The address waiting becomes the copy's. Copies may share an address (decision 5: the step-up then mails no code to
+     * any of them); only an address one of Contexa's own accounts has is never taken, since accounts are told apart by it.
+     */
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
     public boolean confirmPendingEmail(Long userId, String address) {
@@ -503,7 +718,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             return false;
         }
         if (!waiting.equalsIgnoreCase(proven)) {
-            log.warn("[Bridge] The address the user proved no longer waits; the copy keeps the address on record: "
+            log.error("[Bridge] The address the user proved no longer waits; the copy keeps the address on record: "
                     + "userId={}", userId);
             return false;
         }
@@ -511,10 +726,10 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         if (user == null) {
             return false;
         }
-        Optional<Users> holder = userRepository.findFirstByEmailIgnoreCase(waiting);
-        if (holder.isPresent() && !userId.equals(holder.get().getId())) {
-            log.warn("[Bridge] The address waiting for a user is another user's; the copy keeps the address on record: "
-                    + "userId={}", userId);
+        Optional<Users> account = userRepository.findFirstByEmailIgnoreCaseAndBridgeManagedFalse(waiting);
+        if (account.isPresent() && !userId.equals(account.get().getId())) {
+            log.error("[Bridge] The address waiting for a user is one of Contexa's accounts; the copy keeps the address on "
+                    + "record: userId={}", userId);
             return false;
         }
         user.setEmail(waiting);
@@ -522,8 +737,6 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         userRepository.save(user);
         bridgeUserProfileRepository.save(profile);
         evictUserCaches(user);
-        log.info("[Bridge] The user proved the address on record and the address waiting; the copy takes the address "
-                + "waiting: userId={}", userId);
         return true;
     }
 
@@ -531,9 +744,9 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
      * Q-1: the address the application tells, asked only while the copy has no real one: an address an administrator
      * entered stands. An application that fails to answer stops nothing.
      */
-    private String providedEmail(Users user, AuthenticationStamp authenticationStamp, String bridgeSubjectKey) {
+    private String providedEmail(Users user, AuthenticationStamp authenticationStamp) {
         String current = normalize(user.getEmail());
-        if (emailProvider == null || (current != null && !current.equals(syntheticEmail(bridgeSubjectKey)))) {
+        if (emailProvider == null || isRealAddress(current)) {
             return null;
         }
         try {
@@ -542,10 +755,6 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             log.error("[Bridge] The application's BridgeUserEmailProvider failed: {}", e.toString());
             return null;
         }
-    }
-
-    private String syntheticEmail(String bridgeSubjectKey) {
-        return bridgeSubjectKey + "@" + bridgeProperties.getSync().getSyntheticEmailDomain();
     }
 
     private void evictUserCaches(Users user) {
@@ -562,20 +771,6 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         if (user.getId() != null) {
             cache.evict(user.getId());
         }
-    }
-
-    private String attribute(Map<String, Object> attributes, String... keys) {
-        if (attributes == null || attributes.isEmpty()) {
-            return null;
-        }
-        for (String key : keys) {
-            Object value = attributes.get(key);
-            String normalized = normalize(value != null ? value.toString() : null);
-            if (normalized != null) {
-                return normalized;
-            }
-        }
-        return null;
     }
 
     private LocalDateTime toLocalDateTime(Instant instant) {
@@ -664,9 +859,15 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         }
     }
 
-    private String generateBridgeSubjectKey(String authenticationSource, String organizationId, String externalSubjectId) {
+    /**
+     * The key of the copy: the person's decision key within its organization. The way the bridge read the person (the
+     * security context, an explicit handoff, the session) is not part of it: with it, one person became a copy per way,
+     * and the step-up offers no factor to a person with more than one copy. The canonical text is prefixed, so it is not
+     * the text of a key that named one of the bridge's ways.
+     */
+    private String generateBridgeSubjectKey(String organizationId, String externalSubjectId) {
         String canonical = String.join("|",
-                normalize(authenticationSource) != null ? normalize(authenticationSource) : "BRIDGE",
+                "SUBJECT",
                 normalize(organizationId) != null ? normalize(organizationId) : "GLOBAL",
                 externalSubjectId
         );
@@ -688,7 +889,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
     }
 
     /** The copy's address, and the address that waits for the user to prove the one on record (null for none). */
-    private record EmailChange(String email, @Nullable String pending) {
+    private record EmailChange(@Nullable String email, @Nullable String pending) {
     }
 
     private record SyncSnapshot(
@@ -696,12 +897,8 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             String authenticationType,
             String authenticationAssurance,
             Boolean mfaCompletedFromCustomer,
-            String sessionId,
             String authoritiesJson,
-            String attributesJson,
             String syncHash
     ) {
     }
 }
-
-

@@ -45,6 +45,8 @@ dependencies {
     testImplementation project(':contexa-identity')
     testImplementation project(':contexa-iam')
     testImplementation(testFixtures(project(':contexa-iam')))
+    // the tests find their Redis and database through TestStores, as every module's do (TestStoreFallbackGuardTest)
+    testImplementation(testFixtures(project(':contexa-core')))
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.ai:spring-ai-anthropic'
     testImplementation 'org.springframework.boot:spring-boot-actuator'

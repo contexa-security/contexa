@@ -21,6 +21,7 @@ import io.contexa.contexacommon.security.bridge.AgentTokenClaims;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaOwnObjects;
 import io.contexa.contexaidentity.security.token.service.AccountTokenGuard;
 import io.contexa.contexaidentity.security.token.validator.OAuth2AuthorizationValidator;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
@@ -75,7 +76,8 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
                 .getIfAvailable();
         this.authorizationValidator = properties != null
                 && properties.getOauth2ServerMode().includesAuthorizationServer()
-                ? new OAuth2AuthorizationValidator(applicationContext.getBean(OAuth2AuthorizationService.class))
+                ? new OAuth2AuthorizationValidator(ContexaOwnObjects.own(applicationContext,
+                        OAuth2StateAdapter.CONTEXA_AUTHORIZATION_SERVICE, OAuth2AuthorizationService.class))
                 : null;
         this.properties = properties;
         // Resolved per token: the directory is built after the security chains.

@@ -15,7 +15,6 @@
  */
 package io.contexa.contexacommon.annotation;
 
-import io.contexa.contexacommon.security.bridge.AuthObjectLocation;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
 import org.springframework.context.annotation.Import;
 
@@ -47,22 +46,8 @@ import java.lang.annotation.*;
 @Import(AiSecurityImportSelector.class)
 public @interface EnableAISecurity {
     /**
-     * Security mode. SANDBOX is the default for legacy integration.
+     * Security mode. SANDBOX is the default for legacy integration. The ownership is set apart from it, with
+     * {@code contexa.bridge.ownership}; an application that does not set it gets the one that goes with this mode.
      */
     SecurityMode mode() default SecurityMode.SANDBOX;
-
-    /**
-     * Optional hint for authenticated object lookup in SANDBOX mode.
-     */
-    AuthObjectLocation authObjectLocation() default AuthObjectLocation.AUTO;
-
-    /**
-     * Optional attribute name for session/request attribute based handoff.
-     */
-    String authObjectAttribute() default "";
-
-    /**
-     * Optional authenticated object type hint for reflective extraction.
-     */
-    Class<?> authObjectType() default Object.class;
 }

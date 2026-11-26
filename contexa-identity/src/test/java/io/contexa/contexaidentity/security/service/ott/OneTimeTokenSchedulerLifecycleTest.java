@@ -16,7 +16,7 @@
 package io.contexa.contexaidentity.security.service.ott;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexaidentity.security.zerotrust.stepup.HostOwnedStepUpService;
+import io.contexa.contexaidentity.security.zerotrust.stepup.SandboxStepUpService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -92,7 +92,7 @@ class OneTimeTokenSchedulerLifecycleTest {
     void theStepUpServiceStopsItsCodeServiceWithTheContext() throws Exception {
         long before = schedulerThreads();
         AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
-        context.registerBean("stepUp", HostOwnedStepUpService.class, () -> new HostOwnedStepUpService(
+        context.registerBean("stepUp", SandboxStepUpService.class, () -> new SandboxStepUpService(
                 null, null, null, "contexa.invalid", null, new JdbcOneTimeTokenService(mock(JdbcOperations.class)),
                 null, null, null, null, null, null, 5));
         context.refresh();
@@ -108,7 +108,7 @@ class OneTimeTokenSchedulerLifecycleTest {
     @DisplayName("a step-up service without a code service closes without error")
     void aStepUpServiceWithoutCodesClosesCleanly() {
         AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
-        context.registerBean("stepUp", HostOwnedStepUpService.class, () -> new HostOwnedStepUpService(
+        context.registerBean("stepUp", SandboxStepUpService.class, () -> new SandboxStepUpService(
                 null, null, null, "contexa.invalid", null, null, null, null, null, null, null, null, 5));
         context.refresh();
         context.close();

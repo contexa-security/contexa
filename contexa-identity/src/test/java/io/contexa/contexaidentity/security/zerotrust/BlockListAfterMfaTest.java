@@ -55,7 +55,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
- * Under CONTEXA_OWNED the console and the application share one account, so the only administrator under a BLOCK
+ * Under FULL with CONTEXA_OWNED the console and the application share one account, so the only administrator under a BLOCK
  * had nobody to lift it. An administrator who passed MFA in this session reaches the block list, and nothing else.
  */
 class BlockListAfterMfaTest {
@@ -240,9 +240,9 @@ class BlockListAfterMfaTest {
     }
 
     @Test
-    @DisplayName("where the application owns sign-in the application's chain opens nothing: the console has its own")
-    void hostOwnedOpensNothingHere() throws Exception {
-        filter.setHostOwnedStepUp(mock(HostOwnedStepUp.class));
+    @DisplayName("in mode SANDBOX the application's chain opens nothing: the console signs in on a flow of its own")
+    void sandboxOpensNothingHere() throws Exception {
+        filter.setSandboxStepUp(mock(SandboxStepUp.class));
         passedMfa("rcboss");
 
         get(BLOCK_LIST);

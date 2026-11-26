@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.core;
 
 import io.contexa.contexacommon.security.HeldBean;
 import org.springframework.beans.factory.BeanFactory;
+import org.springframework.lang.Nullable;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
@@ -50,6 +51,26 @@ public final class ContexaOwnBeans {
     /** The encoder of Contexa's own accounts (the console administrator, agent client secrets): always the delegating encoder, never the application's. */
     public static PasswordEncoder passwordEncoder(BeanFactory beanFactory) {
         return held(beanFactory, PASSWORD_ENCODER, PasswordEncoder.class, PasswordEncoderFactories::createDelegatingPasswordEncoder);
+    }
+
+    /**
+     * Contexa's own bean of that name, held or a bean of the type (R-17 of docs/agent/운영모드-정상화-구현계획.md), for the code of
+     * Contexa's that takes it by its name; there is no fallback, as the bean is always there.
+     */
+    public static <T> T own(BeanFactory beanFactory, String name, Class<T> type) {
+        return held(beanFactory, name, type, () -> {
+            throw new IllegalStateException("Contexa's bean '" + name + "' of " + type.getSimpleName() + " is not there");
+        });
+    }
+
+    /**
+     * Contexa's own bean of that name, held or a bean of the type (R-17 of docs/agent/운영모드-정상화-구현계획.md), or {@code null} where
+     * Contexa has none, for the code of Contexa's that works without it: Contexa's OAuth2 plane, for one, is not there in an
+     * application without the authorization server library.
+     */
+    @Nullable
+    public static <T> T ownIfPresent(BeanFactory beanFactory, String name, Class<T> type) {
+        return held(beanFactory, name, type, () -> null);
     }
 
     /**

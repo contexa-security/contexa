@@ -168,6 +168,7 @@ WITH seed(name, url, icon, parent_data_page, menu_order, enabled, menu_type, dat
     ('menu.zerotrust.decisions',     '/contexa/admin/zero-trust/decisions',   '',                'ai-monitor', 4,  TRUE, 'CORE',       'zero-trust-decisions'),
     ('menu.zerotrust.adoption',      '/contexa/admin/zero-trust/adoption',    '',                'ai-monitor', 5,  TRUE, 'CORE',       'zero-trust-adoption'),
     ('menu.zerotrust.operations',    '/contexa/admin/zero-trust/operations',  '',                'ai-monitor', 6,  TRUE, 'CORE',       'zero-trust-operations'),
+    ('menu.zerotrust.bridge',        '/contexa/admin/zero-trust/bridge',      '',                'ai-monitor', 7,  TRUE, 'CORE',       'zero-trust-bridge'),
     ('menu.pqa.status',              '/contexa/admin/prompt-quality/status',           '',       'prompt-quality', 1, TRUE, 'CORE',       'prompt-quality-status'),
     ('menu.pqa.cases',               '/contexa/admin/prompt-quality/cases',            '',       'prompt-quality', 2, TRUE, 'CORE',       'prompt-quality-cases'),
     ('menu.pqa.measure',             '/contexa/admin/prompt-quality/measure',          '',       'prompt-quality', 3, TRUE, 'CORE',       'prompt-quality-measure'),

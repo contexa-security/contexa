@@ -90,7 +90,7 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
     private final WebAuthnRelyingPartyOperations relyingParty = mock(WebAuthnRelyingPartyOperations.class);
     private final PublicKeyCredentialUserEntityRepository entities = mock(PublicKeyCredentialUserEntityRepository.class);
     private final UserCredentialRepository credentials = mock(UserCredentialRepository.class);
-    private final HostOwnedStepUpService service = new HostOwnedStepUpService(actions, resolution, users,
+    private final SandboxStepUpService service = new SandboxStepUpService(actions, resolution, users,
             "shadow.contexa.local", new InMemoryStepUpOptionsStore(), codes, mail, relyingParty, entities, credentials,
             null, null, 5);
     private final MockHttpServletRequest request = new MockHttpServletRequest("POST", "/contexa/step-up/code");
@@ -116,7 +116,8 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
             copy.set(user);
             return user;
         });
-        when(users.findByExternalSubjectIdAndBridgeManagedTrue("alice")).thenAnswer(call -> List.of(copy.get()));
+        when(users.findByExternalSubjectIdAndBridgeManagedTrue("alice"))
+                .thenAnswer(call -> Optional.ofNullable(copy.get()).stream().toList());
         when(profiles.findById(anyLong())).thenAnswer(call -> Optional.ofNullable(profile.get()));
         when(profiles.save(any(BridgeUserProfile.class))).thenAnswer(call -> {
             profile.set(call.getArgument(0));
@@ -166,7 +167,7 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
     /** The owner answers the CHALLENGE with the code mailed to the address on record. */
     private void provesTheAddressOnRecord(String onRecord) {
         actions.saveAction("alice", ZeroTrustAction.CHALLENGE, Map.of());
-        assertThat(service.sendCode(request, alice)).isEqualTo(HostOwnedStepUpService.CodeSending.SENT);
+        assertThat(service.sendCode(request, alice)).isEqualTo(SandboxStepUpService.CodeSending.SENT);
         assertThat(service.verifyCode(request, alice, lastCodeTo(onRecord))).isTrue();
         assertThat(decision()).isNotEqualTo(ZeroTrustAction.CHALLENGE);
     }
@@ -195,7 +196,7 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
         shows("alice@corp.example");
         actions.saveAction("alice", ZeroTrustAction.CHALLENGE, Map.of());
 
-        assertThat(service.sendCode(request, alice)).isEqualTo(HostOwnedStepUpService.CodeSending.SENT);
+        assertThat(service.sendCode(request, alice)).isEqualTo(SandboxStepUpService.CodeSending.SENT);
 
         assertThat(mails).extracting(Mail::to).containsExactly("alice@corp.example");
     }
@@ -207,7 +208,7 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
         shows("thief@evil.example");
         actions.saveAction("alice", ZeroTrustAction.CHALLENGE, Map.of());
 
-        assertThat(service.sendCode(request, alice)).isEqualTo(HostOwnedStepUpService.CodeSending.SENT);
+        assertThat(service.sendCode(request, alice)).isEqualTo(SandboxStepUpService.CodeSending.SENT);
 
         assertThat(mails).extracting(Mail::to).containsExactly("alice@corp.example");
         assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
@@ -355,7 +356,7 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
         shows("alice@home.example");
         provesTheAddressOnRecord("alice@corp.example");
 
-        assertThat(service.sendAddressCode(request, alice)).isEqualTo(HostOwnedStepUpService.CodeSending.TOO_SOON);
+        assertThat(service.sendAddressCode(request, alice)).isEqualTo(SandboxStepUpService.CodeSending.TOO_SOON);
 
         assertThat(mailsTo("alice@home.example")).hasSize(1);
     }
@@ -369,7 +370,7 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
 
         assertThat(mails).extracting(Mail::to).containsExactly("alice@corp.example");
         assertThat(service.situation(request, alice).addressConfirmable()).isFalse();
-        assertThat(service.sendAddressCode(request, alice)).isEqualTo(HostOwnedStepUpService.CodeSending.UNAVAILABLE);
+        assertThat(service.sendAddressCode(request, alice)).isEqualTo(SandboxStepUpService.CodeSending.UNAVAILABLE);
     }
 
     @Test

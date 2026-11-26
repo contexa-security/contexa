@@ -83,7 +83,7 @@ public class PasswordChangeService {
         try {
             change(verifiedAccount(username, currentPassword, clientIp), newPassword, confirmPassword);
         } finally {
-            // Cleared at the end of each request by a filter that is registered only when Contexa owns sign-in.
+            // Cleared at the end of each request as well, by the clean-up filter every way of running Contexa registers.
             LoginPolicyService.clearRequestState();
         }
     }

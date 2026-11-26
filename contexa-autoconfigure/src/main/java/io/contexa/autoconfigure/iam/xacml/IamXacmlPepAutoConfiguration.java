@@ -19,6 +19,8 @@ import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.security.xacml.pep.DelegatorAuthority;
 import io.contexa.contexaiam.security.xacml.pep.DelegatorAuthoritySource;
 import io.contexa.contexaiam.security.xacml.pep.UserDetailsDelegatorAuthoritySource;
+import io.contexa.contexacore.security.ContexaUserStore;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
@@ -34,14 +36,19 @@ import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningPropert
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.pep.ExpressionAuthorizationManagerResolver;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
+import io.contexa.contexaiam.security.xacml.pep.UrlPolicyEnforcementFilter;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import io.contexa.contexaidentity.security.filter.MfaPendingAccessControlFilter;
+import io.contexa.autoconfigure.ai.ContexaSlotFilterRegistration;
+import io.contexa.autoconfigure.ai.ContexaServletFilterOrder;
+import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -119,15 +126,16 @@ public class IamXacmlPepAutoConfiguration {
 
     /**
      * A1-8: the authority of the person a delegated agent acts for comes from a {@link DelegatorAuthoritySource} bean,
-     * else from the {@code UserDetailsService}; without either, delegators cannot be checked.
+     * else from the store that names the people of tokens ({@link ContexaUserStore#of}: the application's when it has
+     * one, else Contexa's, taken by its name, R-6 of docs/agent/운영모드-정상화-구현계획.md).
      */
     @Bean(name = "contexaDelegatorAuthority")
     @ConditionalOnMissingBean
     public DelegatorAuthority delegatorAuthority(ObjectProvider<DelegatorAuthoritySource> delegatorAuthoritySource,
-                                                 ObjectProvider<UserDetailsService> userDetailsService) {
+                                                 BeanFactory beanFactory) {
         DelegatorAuthoritySource source = delegatorAuthoritySource.getIfAvailable();
         if (source == null) {
-            UserDetailsService people = userDetailsService.getIfUnique();
+            UserDetailsService people = ContexaUserStore.of(beanFactory);
             source = people != null ? new UserDetailsDelegatorAuthoritySource(people) : null;
         }
         return new DelegatorAuthority(source);
@@ -140,6 +148,25 @@ public class IamXacmlPepAutoConfiguration {
             PolicyCombiningEvaluator contexaPolicyCombiningEvaluator) {
         return new ProtectableMethodAuthorizationManager(
                 expressionHandlerFactory.getHandler(), contexaPolicyCombiningEvaluator);
+    }
+
+    /**
+     * R-7 of docs/agent/운영모드-정상화-구현계획.md: the URL policies on the application's requests, in every way of running
+     * Contexa, in Contexa's filter slot behind the Spring Security filter chain and after Contexa's other enforcement there
+     * (R-10), with the manager of Contexa's own chain. A request no policy decides keeps the application's decision; a
+     * request one of Contexa's own chains takes (in mode FULL its main chain takes what the application's narrowed chains
+     * leave) is that chain's.
+     */
+    @Bean(name = "contexaUrlPolicyEnforcementFilterRegistration")
+    @ConditionalOnMissingBean(name = "contexaUrlPolicyEnforcementFilterRegistration")
+    public ContexaSlotFilterRegistration<UrlPolicyEnforcementFilter> urlPolicyEnforcementFilterRegistration(
+            CustomDynamicAuthorizationManager contexaCustomDynamicAuthorizationManager,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
+            ObjectProvider<SecurityProperties> securityProperties,
+            ListableBeanFactory beanFactory) {
+        return ContexaServletFilterOrder.member(new UrlPolicyEnforcementFilter(contexaCustomDynamicAuthorizationManager,
+                        new ApplicationChainRequests(beanFactory), objectMapper), "contexaUrlPolicyEnforcementFilter",
+                ContexaServletFilterOrder.securityFilterOrder(securityProperties), ContexaServletFilterOrder.URL_POLICY);
     }
 }
 

@@ -33,7 +33,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcOperations;
 
 @AutoConfiguration
-@Import(IamAdminSessionContexaOwnedConfiguration.class)
+@Import(IamAdminSessionTrackingConfiguration.class)
 public class IamAdminSessionAutoConfiguration {
 
     @Bean(name = "contexaSessionManagementService")

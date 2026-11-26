@@ -15,22 +15,41 @@
  */
 package io.contexa.contexacommon.security.bridge;
 
-import io.contexa.contexacommon.operating.OwnershipBehaviour;
+import io.contexa.contexacommon.operating.ContexaOperatingProfile;
+import io.contexa.contexacommon.operating.OperatingBehaviour;
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
+import org.springframework.context.EnvironmentAware;
+import org.springframework.core.env.Environment;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 @Data
 @ConfigurationProperties(prefix = "contexa.bridge")
-public class BridgeProperties {
+public class BridgeProperties implements EnvironmentAware {
 
     private boolean enabled = true;
 
     private SecurityOwnershipMode ownership = SecurityOwnershipMode.HOST_OWNED;
+
+    /**
+     * The mode the application runs Contexa in, read from what {@code @EnableAISecurity} published; not a setting of the
+     * bridge. Without an environment it is the mode that goes with the ownership.
+     */
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    private transient SecurityMode operatingMode;
 
     private boolean populateSecurityContext = true;
 
@@ -52,12 +71,37 @@ public class BridgeProperties {
     @NestedConfigurationProperty
     private StepUp stepUp = new StepUp();
 
+    /**
+     * bridge v2: where the identity of a request comes from, tried in this order; a source that has nothing for the
+     * request is skipped. {@code spring-security} reads the signed-in user of the application's Spring Security,
+     * {@code resolver} asks the application's {@code ContexaSubjectResolver} bean, {@code request-attribute} reads the
+     * {@code ContexaSubject} the application put under {@code ctxa.subject}.
+     */
+    private List<String> identitySources = List.of("spring-security", "resolver", "request-attribute");
+
+    /**
+     * bridge v2: where the mail address of a Spring Security user comes from, tried in this order: {@code claim:<name>}
+     * reads a claim of the user's token or OAuth2 login, {@code provider} asks the application's
+     * {@code BridgeUserEmailProvider} bean.
+     */
+    private List<String> emailSources = List.of("claim:email", "provider");
+
+    @NestedConfigurationProperty
+    private Resolver resolver = new Resolver();
+
     public boolean isEnabled() {
         return enabled;
     }
 
-    public OwnershipBehaviour ownershipBehaviour() {
-        return OwnershipBehaviour.of(ownership);
+    @Override
+    public void setEnvironment(Environment environment) {
+        this.operatingMode = ContexaOperatingProfile.resolve(environment).mode();
+    }
+
+    public OperatingBehaviour operatingBehaviour() {
+        SecurityMode mode = operatingMode != null ? operatingMode
+                : ownership == SecurityOwnershipMode.CONTEXA_OWNED ? SecurityMode.FULL : SecurityMode.SANDBOX;
+        return OperatingBehaviour.of(mode, ownership);
     }
 
     @Data
@@ -67,15 +111,6 @@ public class BridgeProperties {
         @NestedConfigurationProperty
         private SecurityContext securityContext = new SecurityContext();
 
-        @NestedConfigurationProperty
-        private Session session = new Session();
-
-        @NestedConfigurationProperty
-        private RequestAttributes requestAttributes = new RequestAttributes();
-
-        @NestedConfigurationProperty
-        private Headers headers = new Headers();
-
         @Data
         public static class SecurityContext {
             private boolean enabled = true;
@@ -84,7 +119,7 @@ public class BridgeProperties {
             private List<String> authenticationTypeKeys = List.of("authenticationType", "authMethod", "loginMethod", "method", "factorType");
             private List<String> authenticationAssuranceKeys = List.of("authenticationAssurance", "authLevel", "loa", "acr");
             private List<String> mfaKeys = List.of("mfa", "mfaVerified", "mfaCompleted", "secondFactorVerified");
-            // Token issue time (iat, issuedAt) is not the authentication time: a refreshed token carries a new one.
+            /** Token issue time (iat, issuedAt) is not the authentication time: a refreshed token carries a new one. */
             private List<String> authTimeKeys = List.of("authenticationTime", "authenticatedAt", "loginTime", "auth_time");
             private List<String> amrKeys = List.of("amr");
             private List<String> attributeKeys = List.of(
@@ -98,15 +133,6 @@ public class BridgeProperties {
     public static class Authorization {
         @NestedConfigurationProperty
         private SecurityContext securityContext = new SecurityContext();
-
-        @NestedConfigurationProperty
-        private Session session = new Session();
-
-        @NestedConfigurationProperty
-        private RequestAttributes requestAttributes = new RequestAttributes();
-
-        @NestedConfigurationProperty
-        private Headers headers = new Headers();
 
         @Data
         public static class SecurityContext {
@@ -122,48 +148,10 @@ public class BridgeProperties {
                     "authorizationEffect", "effect", "privileged", "policyId", "policyVersion",
                     "scopeTags", "scopes", "scope", "scp", "roles", "effectiveRoles", "permissions", "effectiveAuthorities");
         }
-
-        /**
-         * The authorization an application keeps in the session. Only the attribute the application names is read, and
-         * the names it lists: a session also holds what the application keeps for its own pages, such as the values of
-         * a search form, and a value there named like a role, an authority, a privilege or a verdict would become the
-         * evidence of what the user may do that the decisions read.
-         */
-        @Data
-        public static class Session {
-            private boolean enabled = true;
-            private String attribute = "";
-            /** Further attribute names read for the authorization; none by default. */
-            private List<String> attributeCandidates = List.of();
-            /** Reads every other session attribute too; an application turns it on only if no attribute it keeps holds such names. */
-            private boolean autoDiscover = false;
-            private String objectTypeName = "";
-            private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
-            private List<String> authorizationEffectKeys = List.of("authorizationEffect", "effect", "decision", "decisionEffect");
-            private List<String> privilegedKeys = List.of("privileged", "isPrivileged", "privilegedFlow");
-            private List<String> policyIdKeys = List.of("policyId", "policy", "decisionPolicy");
-            private List<String> policyVersionKeys = List.of("policyVersion", "version");
-            private List<String> scopeTagKeys = List.of("scopeTags", "scopes", "scope", "permissionScopes");
-            private List<String> roleKeys = List.of("effectiveRoles", "roles", "roleSet");
-            private List<String> authorityKeys = List.of("effectiveAuthorities", "authorities", "permissions", "grantedAuthorities");
-            private List<String> attributeKeys = List.of(
-                    "authorizationEffect", "effect", "privileged", "policyId", "policyVersion",
-                    "scopeTags", "scopes", "roles", "effectiveRoles", "permissions", "effectiveAuthorities",
-                    "organizationId", "orgId", "tenantId", "department", "team");
-        }
     }
 
     @Data
     public static class Delegation {
-        @NestedConfigurationProperty
-        private Session session = new Session();
-
-        @NestedConfigurationProperty
-        private RequestAttributes requestAttributes = new RequestAttributes();
-
-        @NestedConfigurationProperty
-        private Headers headers = new Headers();
-
         @NestedConfigurationProperty
         private Token token = new Token();
 
@@ -171,8 +159,9 @@ public class BridgeProperties {
          * The delegation an OAuth2 access token states (A1-1, AG-11a). An agent arrives in one of several token forms:
          * an RFC 8693 actor claim; the agent as the authorized party ({@code client_id}/{@code azp}) and the user as
          * {@code sub} (IETF WIMSE AIMS, Microsoft Entra Agent ID); snake_case delegation claims. RFC 9396
-         * {@code authorization_details} carry the delegated operations and resources. A token that names no agent
-         * leaves the stamp to the session, request attribute and header channels.
+         * {@code authorization_details} carry the delegated operations and resources. A token that names no agent states
+         * no delegation; an approved agent signed in with its own account, or the delegation of a {@code ContexaSubject},
+         * may still state one (bridge v2).
          */
         @Data
         public static class Token {
@@ -222,143 +211,10 @@ public class BridgeProperties {
             /** Claims stating when the delegation ends; without one, a delegation ends no later than the token. */
             private List<String> expiresAtClaims = List.of("delegation_expires_at", "execution_expires_at", "delegationExpiresAt");
         }
-
-        /**
-         * The delegation an application keeps in the session. Only the attribute the application names is read, and
-         * the names it lists: a session also holds what the application keeps for its own pages, such as a search form
-         * or a bean of a domain with agents, and a value there that names an agent would move a person's request to
-         * that agent's decision, away from a restriction on the person.
-         */
-        @Data
-        public static class Session {
-            private boolean enabled = true;
-            private String attribute = "";
-            /** Further attribute names read for the delegation; none by default. */
-            private List<String> attributeCandidates = List.of();
-            /** Reads every other session attribute too; an application turns it on only if no attribute it keeps names an agent. */
-            private boolean autoDiscover = false;
-            private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
-            private List<String> delegatedKeys = List.of("delegated", "delegationEnabled", "agentDelegated");
-            private List<String> agentIdKeys = List.of("agentId", "delegateAgentId");
-            private List<String> objectiveIdKeys = List.of("objectiveId", "taskPurpose", "delegationObjectiveId");
-            private List<String> objectiveFamilyKeys = List.of("objectiveFamily", "objectiveType", "delegationObjectiveFamily");
-            private List<String> objectiveSummaryKeys = List.of("objectiveSummary", "taskSummary", "delegationObjectiveSummary");
-            private List<String> allowedOperationsKeys = List.of("allowedOperations", "delegatedOperations", "permittedOperations");
-            private List<String> allowedResourcesKeys = List.of("allowedResources", "delegatedResources", "permittedResources");
-            private List<String> approvalRequiredKeys = List.of("approvalRequired", "requiresApproval");
-            private List<String> privilegedExportAllowedKeys = List.of("privilegedExportAllowed", "allowPrivilegedExport");
-            private List<String> containmentOnlyKeys = List.of("containmentOnly", "restrictedContainment");
-            private List<String> expiresAtKeys = List.of("expiresAt", "delegationExpiresAt");
-            private List<String> attributeKeys = List.of(
-                    "delegated", "agentId", "objectiveId", "objectiveFamily", "objectiveSummary", "allowedOperations", "allowedResources",
-                    "approvalRequired", "privilegedExportAllowed", "containmentOnly", "expiresAt", "organizationId", "orgId", "tenantId", "department", "team");
-        }
-    }
-
-    @Data
-    public static class Session {
-        private boolean enabled = true;
-        private String attribute = "";
-        private List<String> attributeCandidates = List.of("currentUser", "authenticatedUser", "sessionUser", "userSession", "principal", "user", "securityUser", "authenticatedPrincipal");
-        private boolean autoDiscover = true;
-        private String objectTypeName = "";
-        private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
-        private List<String> displayNameKeys = List.of("displayName", "name", "fullName", "userName", "preferred_username");
-        private List<String> authoritiesKeys = List.of("roles", "authorities", "permissions", "scopes");
-        private List<String> authenticationTypeKeys = List.of("authenticationType", "authMethod", "loginMethod");
-        private List<String> authenticationAssuranceKeys = List.of("authenticationAssurance", "authLevel", "loa");
-        private List<String> mfaKeys = List.of("mfa", "mfaVerified", "mfa_verified");
-        private List<String> authTimeKeys = List.of("authenticationTime", "authenticatedAt", "loginTime");
-        private List<String> attributeKeys = List.of("department", "tenantId", "organizationId", "orgId", "authMethod", "loginIp", "loginTime");
-    }
-
-    @Data
-    public static class RequestAttributes {
-        private boolean enabled = true;
-        private String attribute = "";
-        private List<String> attributeCandidates = List.of("currentUser", "authenticatedUser", "requestUser", "principal", "user", "authenticatedPrincipal", "authUser");
-        private boolean autoDiscover = true;
-        private String objectTypeName = "";
-        private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
-        private List<String> displayNameKeys = List.of("displayName", "name", "fullName", "userName", "preferred_username");
-        private List<String> authoritiesKeys = List.of("roles", "authorities", "permissions", "scopes");
-        private List<String> authenticationTypeKeys = List.of("authenticationType", "authMethod", "loginMethod");
-        private List<String> authenticationAssuranceKeys = List.of("authenticationAssurance", "authLevel", "loa");
-        private List<String> mfaKeys = List.of("mfa", "mfaVerified", "mfa_verified");
-        private List<String> authTimeKeys = List.of("authenticationTime", "authenticatedAt", "loginTime");
-        private List<String> attributeKeys = List.of("department", "tenantId", "organizationId", "orgId", "authMethod", "loginIp", "loginTime");
-
-        private String flatPrincipalId = "ctxa.auth.principalId";
-        private String flatDisplayName = "ctxa.auth.displayName";
-        private String flatAuthenticated = "ctxa.auth.authenticated";
-        private String flatAuthorities = "ctxa.auth.authorities";
-        private String flatTenantId = "ctxa.auth.tenantId";
-        private String flatOrganizationId = "ctxa.auth.organizationId";
-        private String flatOrgId = "ctxa.auth.orgId";
-        private String flatAuthenticationType = "ctxa.auth.type";
-        private String flatAuthenticationAssurance = "ctxa.auth.assurance";
-        private String flatMfaCompleted = "ctxa.auth.mfaCompleted";
-        private String flatAuthenticationTime = "ctxa.auth.time";
-
-        private String authorizationEffect = "ctxa.authz.effect";
-        private String privileged = "ctxa.authz.privileged";
-        private String policyId = "ctxa.authz.policyId";
-        private String policyVersion = "ctxa.authz.policyVersion";
-        private String scopeTags = "ctxa.authz.scopeTags";
-        private String effectiveRoles = "ctxa.authz.roles";
-        private String effectiveAuthorities = "ctxa.authz.authorities";
-
-        private String delegated = "ctxa.delegation.enabled";
-        private String agentId = "ctxa.delegation.agentId";
-        private String objectiveId = "ctxa.delegation.objectiveId";
-        private String objectiveFamily = "ctxa.delegation.objectiveFamily";
-        private String objectiveSummary = "ctxa.delegation.objectiveSummary";
-        private String allowedOperations = "ctxa.delegation.allowedOperations";
-        private String allowedResources = "ctxa.delegation.allowedResources";
-        private String approvalRequired = "ctxa.delegation.approvalRequired";
-        private String privilegedExportAllowed = "ctxa.delegation.privilegedExportAllowed";
-        private String containmentOnly = "ctxa.delegation.containmentOnly";
-        private String expiresAt = "ctxa.delegation.expiresAt";
-    }
-
-    @Data
-    public static class Headers {
-        private boolean enabled = false;
-        private String principalId = "X-Contexa-Principal-Id";
-        private String displayName = "X-Contexa-Principal-Name";
-        private String authenticated = "X-Contexa-Authenticated";
-        private String authorities = "X-Contexa-Authorities";
-        private String tenantId = "X-Contexa-Tenant-Id";
-        private String organizationId = "X-Contexa-Organization-Id";
-        private String orgId = "X-Contexa-Org-Id";
-        private String authenticationType = "X-Contexa-Authentication-Type";
-        private String authenticationAssurance = "X-Contexa-Authentication-Assurance";
-        private String mfaCompleted = "X-Contexa-Mfa-Completed";
-        private String authenticationTime = "X-Contexa-Authenticated-At";
-
-        private String authorizationEffect = "X-Contexa-Authz-Effect";
-        private String privileged = "X-Contexa-Authz-Privileged";
-        private String policyId = "X-Contexa-Authz-Policy";
-        private String policyVersion = "X-Contexa-Authz-Policy-Version";
-        private String scopeTags = "X-Contexa-Authz-Scope";
-        private String effectiveRoles = "X-Contexa-Authz-Roles";
-        private String effectiveAuthorities = "X-Contexa-Authz-Authorities";
-
-        private String delegated = "X-Contexa-Delegated";
-        private String agentId = "X-Contexa-Agent-Id";
-        private String objectiveId = "X-Contexa-Objective-Id";
-        private String objectiveFamily = "X-Contexa-Objective-Family";
-        private String objectiveSummary = "X-Contexa-Objective-Summary";
-        private String allowedOperations = "X-Contexa-Allowed-Operations";
-        private String allowedResources = "X-Contexa-Allowed-Resources";
-        private String approvalRequired = "X-Contexa-Approval-Required";
-        private String privilegedExportAllowed = "X-Contexa-Privileged-Export-Allowed";
-        private String containmentOnly = "X-Contexa-Containment-Only";
-        private String expiresAt = "X-Contexa-Delegation-Expires-At";
     }
 
     /**
-     * The step-up of a CHALLENGE when the application owns sign-in (HOST_OWNED). Besides Contexa's verification-only
+     * The step-up of a CHALLENGE in mode SANDBOX, where the application signs its users in itself. Besides Contexa's verification-only
      * factors, the application's own re-authentication answers a CHALLENGE when the bridge sees a completed MFA newer
      * than the CHALLENGE and the application said where it re-authenticates; this is where the step-up page sends the
      * user for it.
@@ -390,5 +246,14 @@ public class BridgeProperties {
     public static class Network {
         private boolean trustedProxyValidationEnabled = true;
         private List<String> trustedProxies = List.of();
+    }
+
+    /** bridge v2: how Contexa calls the application's {@code ContexaSubjectResolver}. */
+    @Data
+    public static class Resolver {
+        /** Paths the resolver is not called for (Ant patterns on the servlet path), such as static resources. */
+        private List<String> excludePaths = List.of();
+        /** A call taking longer than this is reported; the call is never cut short. */
+        private Duration slowThreshold = Duration.ofMillis(100);
     }
 }

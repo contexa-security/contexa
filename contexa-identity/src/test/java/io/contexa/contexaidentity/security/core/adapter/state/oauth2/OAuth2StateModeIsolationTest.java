@@ -5,6 +5,8 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2;
 
+import com.nimbusds.jose.jwk.source.JWKSource;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.enums.OAuth2ServerMode;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -66,12 +68,12 @@ class OAuth2StateModeIsolationTest {
         ObjectProvider<JwtDecoder> noneOrSeveral = applicationDecoders(null);
         when(applicationContext.getBean(AuthContextProperties.class)).thenReturn(properties);
         when(applicationContext.getBeanProvider(JwtDecoder.class)).thenReturn(noneOrSeveral);
-        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class)).thenReturn(decoder);
+        contexaBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, decoder);
 
         new OAuth2StateAdapter().apply(http, platformContext);
 
         verify(http).setSharedObject(JwtDecoder.class, decoder);
-        verify(applicationContext, never()).getBean(JwtEncoder.class);
+        verify(applicationContext, never()).containsBean(OAuth2StateAdapter.CONTEXA_JWT_ENCODER);
         verify(http).with(any(OAuth2StateConfigurer.class), any(Customizer.class));
     }
 
@@ -87,7 +89,27 @@ class OAuth2StateModeIsolationTest {
         new OAuth2StateAdapter().apply(http, platformContext);
 
         verify(http).setSharedObject(JwtDecoder.class, application);
-        verify(applicationContext, never()).getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class);
+        verify(applicationContext, never()).containsBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER);
+    }
+
+    /**
+     * Contexa's own beans of the authorization server under their names: wherever the application could take them they are
+     * held (R-17 of docs/agent/운영모드-정상화-구현계획.md), so the adapter asks for each by its name.
+     */
+    @SuppressWarnings("unchecked")
+    private void contexasAuthorizationServerBeans(JwtEncoder encoder, OAuth2AuthorizationService authorizationService,
+                                                  RegisteredClientRepository clientRepository,
+                                                  AuthorizationServerSettings settings) {
+        contexaBean(OAuth2StateAdapter.CONTEXA_JWT_ENCODER, encoder);
+        contexaBean(OAuth2StateAdapter.CONTEXA_JWK_SOURCE, mock(JWKSource.class));
+        contexaBean(OAuth2StateAdapter.CONTEXA_AUTHORIZATION_SERVICE, authorizationService);
+        contexaBean(OAuth2StateAdapter.CONTEXA_REGISTERED_CLIENTS, clientRepository);
+        contexaBean(OAuth2StateAdapter.CONTEXA_SERVER_SETTINGS, settings);
+    }
+
+    private void contexaBean(String name, Object bean) {
+        when(applicationContext.containsBean(name)).thenReturn(true);
+        when(applicationContext.getBean(name)).thenReturn(bean);
     }
 
     @SuppressWarnings("unchecked")
@@ -109,10 +131,7 @@ class OAuth2StateModeIsolationTest {
         OAuth2TokenGenerator<?> tokenGenerator = mock(OAuth2TokenGenerator.class);
         UserRepository userRepository = mock(UserRepository.class);
         when(applicationContext.getBean(AuthContextProperties.class)).thenReturn(properties);
-        when(applicationContext.getBean(JwtEncoder.class)).thenReturn(encoder);
-        when(applicationContext.getBean(OAuth2AuthorizationService.class)).thenReturn(authorizationService);
-        when(applicationContext.getBean(RegisteredClientRepository.class)).thenReturn(clientRepository);
-        when(applicationContext.getBean(AuthorizationServerSettings.class)).thenReturn(settings);
+        contexasAuthorizationServerBeans(encoder, authorizationService, clientRepository, settings);
         ObjectProvider<OAuth2TokenGenerator> applicationGenerators = mock(ObjectProvider.class);
         when(applicationGenerators.getIfUnique()).thenReturn(tokenGenerator);
         when(applicationContext.getBeanProvider(OAuth2TokenGenerator.class)).thenReturn(applicationGenerators);
@@ -120,7 +139,7 @@ class OAuth2StateModeIsolationTest {
 
         new OAuth2StateAdapter().apply(http, platformContext);
 
-        verify(applicationContext, never()).getBean(JwtDecoder.class);
+        verify(applicationContext, never()).containsBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER);
         verify(http).setSharedObject(JwtEncoder.class, encoder);
         verify(http).with(any(OAuth2StateConfigurer.class), any(Customizer.class));
     }
@@ -133,10 +152,8 @@ class OAuth2StateModeIsolationTest {
         properties.setOauth2ServerMode(OAuth2ServerMode.AUTHORIZATION_SERVER);
         ObjectProvider<OAuth2TokenGenerator> noApplicationGenerator = mock(ObjectProvider.class);
         when(applicationContext.getBean(AuthContextProperties.class)).thenReturn(properties);
-        when(applicationContext.getBean(JwtEncoder.class)).thenReturn(mock(JwtEncoder.class));
-        when(applicationContext.getBean(OAuth2AuthorizationService.class)).thenReturn(mock(OAuth2AuthorizationService.class));
-        when(applicationContext.getBean(RegisteredClientRepository.class)).thenReturn(mock(RegisteredClientRepository.class));
-        when(applicationContext.getBean(AuthorizationServerSettings.class)).thenReturn(AuthorizationServerSettings.builder().build());
+        contexasAuthorizationServerBeans(mock(JwtEncoder.class), mock(OAuth2AuthorizationService.class),
+                mock(RegisteredClientRepository.class), AuthorizationServerSettings.builder().build());
         when(applicationContext.getBean(UserRepository.class)).thenReturn(mock(UserRepository.class));
         when(applicationContext.getBeanProvider(OAuth2TokenGenerator.class)).thenReturn(noApplicationGenerator);
 

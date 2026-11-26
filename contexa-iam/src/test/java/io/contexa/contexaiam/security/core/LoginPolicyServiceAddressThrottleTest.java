@@ -63,6 +63,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /** PR-69: the address throttle was written and never read at sign-in. */
@@ -111,6 +112,18 @@ class LoginPolicyServiceAddressThrottleTest {
                 .windowStartAt(LocalDateTime.now().minusMinutes(1))
                 .blockedUntil(blockedUntil)
                 .build();
+    }
+
+    @Test
+    @DisplayName("고객 로그인 실패는 주소 집계에 들어가고 Contexa 계정의 실패 횟수와 잠금은 건드리지 않는다")
+    void aFailedSignInOfTheApplicationsOwnUserCountsAgainstTheAddressAndTouchesNoAccount() {
+        when(addresses.findByIpAddress(ADDRESS)).thenReturn(Optional.of(row(1, null)));
+        when(addresses.incrementFailedAttempts(eq(ADDRESS), any(), anyString())).thenReturn(1);
+
+        service.onHostSignInFailure("admin", ADDRESS, "BadCredentialsException", "EVENT");
+
+        verify(addresses).incrementFailedAttempts(eq(ADDRESS), any(), anyString());
+        verifyNoInteractions(users);
     }
 
     @Test

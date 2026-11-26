@@ -18,7 +18,7 @@ package io.contexa.autoconfigure.iam.admin;
 import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexacommon.operating.ContexaOperatingProfile;
-import io.contexa.contexacommon.operating.OwnershipBehaviour;
+import io.contexa.contexacommon.operating.OperatingBehaviour;
 import org.springframework.beans.factory.BeanFactory;
 import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
@@ -69,17 +69,19 @@ import org.springframework.web.servlet.handler.MappedInterceptor;
 public class IamAdminAuthAutoConfiguration {
 
     /**
-     * Under HOST_OWNED the console signs its administrators in on its own chain (ownership design S-3), so the form
-     * posts there. Under CONTEXA_OWNED the multi-step sign-in has its own page, whose answers only that page can follow, so
+     * Where Contexa runs and its administrators sign in apart from the application's users (every combination of mode
+     * and ownership but FULL with CONTEXA_OWNED), the console signs them in on the flow of Contexa's administrators
+     * ({@code contexa-admin}, ownership design S-3), so the form posts there. Under FULL with CONTEXA_OWNED the main flow
+     * signs the administrators in: its multi-step sign-in has its own page, whose answers only that page can follow, so
      * the console's address leads there; a single form sign-in takes the console's form as before.
      */
     @Bean(name = "contexaLoginController")
     @ConditionalOnMissingBean
     public LoginController loginController(Environment environment, ObjectProvider<MfaFlowUrlRegistry> mfaFlowUrls) {
         boolean ownChain = !ContexaOperatingProfile.ownershipUndeclared(environment)
-                && OwnershipBehaviour.of(ContexaOperatingProfile.resolve(environment).ownership()).consoleSignsInOnItsOwnChain();
+                && OperatingBehaviour.of(ContexaOperatingProfile.resolve(environment)).adminRealmOnItsOwnChain();
         if (ownChain) {
-            return new LoginController(LoginController.HOST_OWNED_LOGIN_PROCESSING_URL);
+            return new LoginController(LoginController.ADMIN_FLOW_LOGIN_PROCESSING_URL);
         }
         return new LoginController(LoginController.DEFAULT_LOGIN_PROCESSING_URL, () -> {
             MfaFlowUrlRegistry flows = mfaFlowUrls.getIfAvailable();

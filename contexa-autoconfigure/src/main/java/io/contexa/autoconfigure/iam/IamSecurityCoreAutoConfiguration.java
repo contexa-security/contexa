@@ -23,6 +23,8 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.security.AISecurityContextSupport;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexacore.security.AIOAuth2SecurityContextRepository;
+import io.contexa.contexacore.security.ContexaUserStore;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaAdminRealm;
 import io.contexa.contexacore.security.SessionAccountRefresher;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.security.session.InMemorySessionIdResolver;
@@ -38,6 +40,7 @@ import io.contexa.contexaiam.security.core.LoginPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexacommon.repository.LoginAttemptIpRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.HeldBean;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.lang.Nullable;
@@ -53,6 +56,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -65,14 +69,18 @@ import java.time.Clock;
         "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"
 })
 @EnableConfigurationProperties({ SecurityZeroTrustProperties.class, SecuritySessionProperties.class })
-@Import(IamSecurityCoreContexaOwnedConfiguration.class)
+@Import({IamSignInAttemptConfiguration.class, IamPasswordSignInConfiguration.class})
 public class IamSecurityCoreAutoConfiguration {
 
     /**
-     * The session repository is no default candidate, so that an application asking for a SecurityContextRepository by
-     * type never meets it: Contexa's own chains take it by this name, or they get nothing and no session is checked.
+     * The session repository is held (R-17 of docs/agent/운영모드-정상화-구현계획.md), so that an application asking for a
+     * SecurityContextRepository by type never meets it: Contexa's own chains take it by this name, or they get nothing and
+     * no session is checked.
      */
     public static final String SESSION_CONTEXT_REPOSITORY = "contexaAiSessionSecurityContextRepository";
+
+    /** The repository of the flow of Contexa's administrators, under a session key of its own (ContexaAdminRealm). */
+    public static final String ADMIN_SESSION_CONTEXT_REPOSITORY = "contexaAdminSessionSecurityContextRepository";
 
     @Bean(name = "contexaLoginAttemptIpUpserter")
     @ConditionalOnMissingBean
@@ -100,22 +108,45 @@ public class IamSecurityCoreAutoConfiguration {
         return new AISecurityContextSupport(securityZeroTrustProperties, contexaZeroTrustSecurityService, sessionIdResolver);
     }
 
-    @Bean(name = SESSION_CONTEXT_REPOSITORY, defaultCandidate = false)
-    @ConditionalOnMissingBean
-    public AISessionSecurityContextRepository aiSessionSecurityContextRepository(
+    @Bean(name = SESSION_CONTEXT_REPOSITORY)
+    @ConditionalOnMissingBean(name = SESSION_CONTEXT_REPOSITORY)
+    public HeldBean<AISessionSecurityContextRepository> aiSessionSecurityContextRepository(
             AISecurityContextSupport contexaAiSecurityContextSupport,
             @Nullable SecurityContextDataStore securityContextDataStore,
             @Nullable AsyncSecurityContextProvider contexaAsyncSecurityContextProvider,
-            @Qualifier("contexaUnifiedUserDetailsService") ObjectProvider<UserDetailsService> contexaAccounts) {
+            BeanFactory beanFactory) {
         AISessionSecurityContextRepository repository = new AISessionSecurityContextRepository(
                 contexaAiSecurityContextSupport,
                 securityContextDataStore,
                 contexaAsyncSecurityContextProvider);
-        UserDetailsService accounts = contexaAccounts.getIfAvailable();
+        UserDetailsService accounts = ContexaUserStore.own(beanFactory);
         if (securityContextDataStore != null && accounts != null) {
             repository.setAccountRefresher(new SessionAccountRefresher(securityContextDataStore, accounts));
         }
-        return repository;
+        return new HeldBean<>(repository);
+    }
+
+    /**
+     * The context of Contexa's administrators, kept under a key of its own in the session the application may share, so that
+     * an administrator and an application user in one browser do not take each other's place. It is held as the other one is.
+     */
+    @Bean(name = ADMIN_SESSION_CONTEXT_REPOSITORY)
+    @ConditionalOnMissingBean(name = ADMIN_SESSION_CONTEXT_REPOSITORY)
+    public HeldBean<AISessionSecurityContextRepository> adminSessionSecurityContextRepository(
+            AISecurityContextSupport contexaAiSecurityContextSupport,
+            @Nullable SecurityContextDataStore securityContextDataStore,
+            @Nullable AsyncSecurityContextProvider contexaAsyncSecurityContextProvider,
+            BeanFactory beanFactory) {
+        AISessionSecurityContextRepository repository = new AISessionSecurityContextRepository(
+                contexaAiSecurityContextSupport,
+                securityContextDataStore,
+                contexaAsyncSecurityContextProvider);
+        repository.setSpringSecurityContextKey(ContexaAdminRealm.CONTEXT_KEY);
+        UserDetailsService accounts = ContexaUserStore.own(beanFactory);
+        if (securityContextDataStore != null && accounts != null) {
+            repository.setAccountRefresher(new SessionAccountRefresher(securityContextDataStore, accounts));
+        }
+        return new HeldBean<>(repository);
     }
 
     @Bean(name = "contexaAiOAuth2SecurityContextRepository")

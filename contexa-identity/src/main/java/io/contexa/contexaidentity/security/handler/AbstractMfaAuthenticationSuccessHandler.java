@@ -35,6 +35,8 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaOwnObjects;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaAdminRealm;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustAuthenticationToken;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
@@ -72,6 +74,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
@@ -203,7 +206,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             }
 
             if (!isChallengeFlow(factorContext)) {
-                // A completed sign-in is decided as the application's own is where it owns the sign-in, and sent before
+                // A completed sign-in is decided as the application's own is in mode SANDBOX, and sent before
                 // the response leaves so the next request meets what it brings. A step-up that answers a CHALLENGE or
                 // releases a BLOCK is no sign-in.
                 successStage = "sendSignIn";
@@ -310,8 +313,12 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         try {
-            AISessionSecurityContextRepository repository =
-                    applicationContext.getBeanProvider(AISessionSecurityContextRepository.class).getIfAvailable();
+            // The chain of Contexa's administrators names its own repository, which keeps their context apart from the
+            // application's; every other flow keeps it in the repository of the application's users' flows.
+            SecurityContextRepository repository = request.getAttribute(ContexaAdminRealm.CONTEXT_REPOSITORY_ATTRIBUTE)
+                    instanceof SecurityContextRepository chainRepository ? chainRepository
+                    : ContexaOwnObjects.find(applicationContext, AISessionSecurityContextRepository.BEAN_NAME,
+                    SecurityContextRepository.class);
 
             if (repository != null) {
                 repository.saveContext(context, request, response);
@@ -707,7 +714,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         challengeResolution().markMfaVerified(userId, RequestInfoExtractor.extractObservedAt(request));
     }
 
-    /** The decision part of a completed step-up, shared with the verification-only step-up of HOST_OWNED. */
+    /** The decision part of a completed step-up, shared with the verification-only step-up of mode SANDBOX. */
     private ChallengeResolution challengeResolution() {
         ChallengeResolution resolution = new ChallengeResolution(actionRedisRepository, securityLearningService,
                 this::verificationLearningService, () -> applicationContext.getBean(SecurityContextDataStore.class),

@@ -15,7 +15,6 @@
  */
 package io.contexa.contexacommon.security.bridge;
 
-import io.contexa.contexacommon.operating.OwnershipBehaviour;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -27,8 +26,9 @@ import java.util.Map;
 import java.util.function.BooleanSupplier;
 
 /**
- * Whether an authentication is one of Contexa's own accounts, told from the authentication alone. Where Contexa owns the
- * sign-in, Contexa's user store signs its accounts in with {@link UnifiedCustomUserDetails}, and an access token naming a
+ * Whether an authentication is one of Contexa's own accounts, told from the authentication alone. Where Contexa's main
+ * chain signs the application's users in (mode FULL), Contexa's user store signs its accounts in with
+ * {@link UnifiedCustomUserDetails}, and an access token naming a
  * user (not a client's own token) is accepted only for an account the user store holds, which is Contexa's store when no
  * store of the application's signs the users in. Such a user is the account itself: it has no copy, and nothing needs to
  * be read to know who it is.
@@ -52,7 +52,7 @@ public final class ContexaAccountAuthentication {
     public static String accountName(@Nullable Authentication authentication, @Nullable BridgeProperties properties,
                                      BooleanSupplier contexaAccountsSignIn) {
         if (authentication == null || properties == null
-                || properties.ownershipBehaviour() != OwnershipBehaviour.CONTEXA_OWNED
+                || !properties.operatingBehaviour().signsInTheApplicationsUsers()
                 || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
             return null;
         }

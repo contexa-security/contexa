@@ -15,7 +15,7 @@
  */
 package io.contexa.contexacommon.bridge;
 
-import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
+import io.contexa.contexacommon.security.bridge.identity.BridgeObjectExtractor;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

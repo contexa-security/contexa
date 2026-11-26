@@ -53,11 +53,7 @@ public class PlatformBootstrap implements InitializingBean {
             throw e;
         }
 
-        if (bridgeProperties != null && !bridgeProperties.ownershipBehaviour().buildsSecurityChain()) {
-            log.info("Skipping Contexa-owned authentication chain bootstrap in HOST_OWNED mode");
-            return;
-        }
-
+        // Every way of running Contexa has a flow to build: the main one (FULL), the one of Contexa's administrators, or both.
         List<AuthenticationFlowConfig> flows = config.getFlows();
         List<AuthenticationAdapter> adapters = registry.getAuthAdaptersFor(flows);
         platform.prepareGlobal(config, adapters);

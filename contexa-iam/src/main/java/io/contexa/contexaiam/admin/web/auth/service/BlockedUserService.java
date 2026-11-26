@@ -159,7 +159,8 @@ public class BlockedUserService implements IBlockedUserRecorder {
      * A session's own record and decision take another administrator, or a verification passed in this session, and
      * someone else's stay out of reach of a session under a BLOCK ({@link #refuseUnderOwnBlock}). Both sides are compared
      * as the decisions are enforced, so no spelling of the name, in the record, in the typed name or in the sign-in, makes
-     * the key someone else's. Under HOST_OWNED the application's user of the name is someone else.
+     * the key someone else's. Where the console signs in on the flow of Contexa's administrators (every combination of
+     * mode and ownership but FULL with CONTEXA_OWNED) the application's user of the name is someone else.
      */
     private void refuseRelease(String subjectKey, String adminId, String action) {
         String ownKey = ownKey(adminId);

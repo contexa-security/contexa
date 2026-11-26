@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.identity;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.zerotrust.stepup.ContexaPasskeyStores;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -26,6 +27,8 @@ import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -50,7 +53,7 @@ class HostOwnedPasskeyStoresTest {
         }
         BridgeProperties properties = new BridgeProperties();
         properties.getStepUp().setShareApplicationPasskeys(share);
-        return HostOwnedStepUpAutoConfiguration.passkeyStores(properties, beans.getBeanProvider(ContexaPasskeyStores.class),
+        return SandboxStepUpAutoConfiguration.passkeyStores(properties, beans.getBeanProvider(ContexaPasskeyStores.class),
                 beans.getBeanProvider(PublicKeyCredentialUserEntityRepository.class), beans.getBeanProvider(UserCredentialRepository.class));
     }
 
@@ -73,8 +76,12 @@ class HostOwnedPasskeyStoresTest {
     }
 
     private ApplicationContextRunner webAuthnConfiguration(String ownership) {
+        return webAuthnConfigurationWith("contexa.bridge.ownership=" + ownership);
+    }
+
+    private ApplicationContextRunner webAuthnConfigurationWith(String... settings) {
         return new ApplicationContextRunner()
-                .withPropertyValues("contexa.bridge.ownership=" + ownership)
+                .withPropertyValues(settings)
                 .withBean("contexaJdbcTemplate", JdbcOperations.class, () -> mock(JdbcTemplate.class))
                 .withBean(PlatformConfig.class, () -> mock(PlatformConfig.class))
                 .withConfiguration(AutoConfigurations.of(IdentityWebAuthnAutoConfiguration.class));
@@ -89,13 +96,27 @@ class HostOwnedPasskeyStoresTest {
         });
     }
 
-    /** Contexa's own chain calls webAuthn() here, and Spring Security finds repositories only as beans. */
+    /**
+     * Contexa's main chain calls webAuthn() in FULL, and Spring Security finds repositories only as beans, so there they stay
+     * beans of their types; Contexa's own stores are held in every way of running Contexa, for the flows that sign Contexa's
+     * accounts in (R-17). The ownership changes neither.
+     */
     @Test
-    void underContexaOwnedTheRepositoriesStayBeansForContexasOwnChain() {
-        webAuthnConfiguration("CONTEXA_OWNED").run(context -> {
-            assertThat(context).hasSingleBean(PublicKeyCredentialUserEntityRepository.class);
-            assertThat(context).hasSingleBean(UserCredentialRepository.class);
-            assertThat(context).doesNotHaveBean(ContexaPasskeyStores.class);
-        });
+    @DisplayName("패스키 저장소는 FULL에서만 타입 빈이고, Contexa의 보유 객체 contexaPasskeyStores는 네 조합 모두에 있다")
+    void inFullTheRepositoriesAreBeansAndContexasStoresAreHeldInEveryMode() {
+        for (String mode : List.of("FULL", "SANDBOX")) {
+            for (String ownership : List.of("HOST_OWNED", "CONTEXA_OWNED")) {
+                String combination = mode + " + " + ownership;
+                boolean full = "FULL".equals(mode);
+                webAuthnConfigurationWith("contexa.ai.security.mode=" + mode, "contexa.bridge.ownership=" + ownership).run(context -> {
+                    assertThat(context.getBeanNamesForType(ContexaPasskeyStores.class)).as(combination)
+                            .containsExactly("contexaPasskeyStores");
+                    assertThat(context.getBeanNamesForType(PublicKeyCredentialUserEntityRepository.class)).as(combination)
+                            .hasSize(full ? 1 : 0);
+                    assertThat(context.getBeanNamesForType(UserCredentialRepository.class)).as(combination)
+                            .hasSize(full ? 1 : 0);
+                });
+            }
+        }
     }
 }

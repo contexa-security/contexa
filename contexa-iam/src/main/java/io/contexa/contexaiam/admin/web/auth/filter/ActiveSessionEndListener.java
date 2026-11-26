@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.auth.filter;
 
 import io.contexa.contexacommon.store.RequestPathScope;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import jakarta.servlet.http.HttpSession;
 import jakarta.servlet.http.HttpSessionEvent;
@@ -27,41 +28,48 @@ import lombok.extern.slf4j.Slf4j;
  * K73: a tracked session that ends is no longer active. The servlet container destroys an HTTP session at a logout, at
  * its idle limit and when the application invalidates it, and replaces its id when the person signs in again; the row
  * the session was tracked under is marked expired then, so the console counts and lists only the sessions that are.
- * Only a session that was tracked ({@link SessionTrackingFilter#TRACKED_AT}) is read for: an anonymous session ends
- * without a write. A session whose id was replaced is tracked again under its new id at its next request.
+ * Whether the session has such a row is the database's answer, not this node's: where nodes share their sessions, the
+ * node a session ends on may not be the one that tracked it. The end is one update of the row by the session's
+ * reference, which changes nothing for a session that has none. A session whose id was replaced is tracked again under
+ * its new id at its next request. Only the session's id is read, and nothing is written into the session.
  */
 @Slf4j
 public class ActiveSessionEndListener implements HttpSessionListener, HttpSessionIdListener {
 
     private final SessionManagementService sessionManagementService;
+    /** The marks {@link SessionTrackingFilter} keeps of the sessions it tracks; they go with the session. */
+    private final TrackedSessionMarks marks;
 
-    public ActiveSessionEndListener(SessionManagementService sessionManagementService) {
+    public ActiveSessionEndListener(SessionManagementService sessionManagementService, TrackedSessionMarks marks) {
         this.sessionManagementService = sessionManagementService;
+        this.marks = marks;
     }
 
     @Override
     public void sessionDestroyed(HttpSessionEvent event) {
-        HttpSession session = event.getSession();
-        if (tracked(session)) {
-            end(session.getId());
-        }
+        String sessionId = idOf(event.getSession());
+        forget(sessionId);
+        end(sessionId);
     }
 
     @Override
     public void sessionIdChanged(HttpSessionEvent event, String oldSessionId) {
-        HttpSession session = event.getSession();
-        if (tracked(session)) {
-            end(oldSessionId);
-            // the next request tracks the session under its new id at once
-            session.removeAttribute(SessionTrackingFilter.TRACKED_AT);
+        forget(oldSessionId);
+        end(oldSessionId);
+    }
+
+    private void forget(String sessionId) {
+        String reference = RequestFactRedaction.sessionReference(sessionId);
+        if (reference != null) {
+            marks.forget(reference);
         }
     }
 
-    private static boolean tracked(HttpSession session) {
+    private static String idOf(HttpSession session) {
         try {
-            return session != null && session.getAttribute(SessionTrackingFilter.TRACKED_AT) != null;
+            return session != null ? session.getId() : null;
         } catch (IllegalStateException invalidated) {
-            return false;
+            return null;
         }
     }
 

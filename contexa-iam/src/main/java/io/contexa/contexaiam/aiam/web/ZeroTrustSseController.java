@@ -15,8 +15,10 @@
  */
 package io.contexa.contexaiam.aiam.web;
 
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexaiam.aiam.web.dto.ZeroTrustDtos.ZeroTrustSseStatusResponse;
 import io.contexa.contexaiam.aiam.event.ZeroTrustSsePublisher;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -42,8 +44,8 @@ public class ZeroTrustSseController {
     private final ZeroTrustSsePublisher ssePublisher;
 
     @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter subscribe(Principal principal) {
-        String userId = principal != null ? principal.getName() : "anonymous";
+    public SseEmitter subscribe(Principal principal, HttpServletRequest request) {
+        String userId = subscriber(principal, request);
         return ssePublisher.addEmitter(userId);
     }
 
@@ -58,10 +60,19 @@ public class ZeroTrustSseController {
     }
 
     @GetMapping("/status")
-    public ResponseEntity<ZeroTrustSseStatusResponse> status(Principal principal) {
-        String userId = principal != null ? principal.getName() : "anonymous";
+    public ResponseEntity<ZeroTrustSseStatusResponse> status(Principal principal, HttpServletRequest request) {
+        String userId = subscriber(principal, request);
         return ResponseEntity.ok(new ZeroTrustSseStatusResponse(
                 userId,
                 ssePublisher.getSubscriberCount(userId)));
+    }
+
+    /**
+     * The user a stream is for, by the rule Contexa names the user of a request with: the decisions are sent under that
+     * user ({@code ContexaIdentity#userId}), so a user the application's mapper or resolver named gets them.
+     */
+    private static String subscriber(Principal principal, HttpServletRequest request) {
+        String userId = ContexaIdentity.userId(request, principal);
+        return userId != null ? userId : "anonymous";
     }
 }

@@ -15,8 +15,6 @@
  */
 package io.contexa.autoconfigure.identity;
 
-import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
-import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
@@ -28,25 +26,35 @@ import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import io.contexa.contexacommon.operating.ConditionalOnMode;
+import io.contexa.contexacommon.security.HeldBean;
+import io.contexa.contexacommon.security.bridge.SecurityMode;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-
+
 @AutoConfiguration
 @ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnProperty(prefix = "contexa.identity.handler", name = "enabled", havingValue = "true", matchIfMissing = true)
-@ConditionalOnOwnership(SecurityOwnershipMode.CONTEXA_OWNED)
 public class IdentityHandlerAutoConfiguration {
 
     public IdentityHandlerAutoConfiguration() {
     }
 
+    /**
+     * Spring Security's one-time token login of the application takes a {@link OneTimeTokenGenerationSuccessHandler} by type, a sole
+     * one even when it is no autowire candidate, and does not start with two. Contexa's is offered by type only where its main
+     * chain signs the application's users in and the application has none (R-17 of docs/agent/운영모드-정상화-구현계획.md); elsewhere
+     * it is held, and Contexa's flows take it by its name.
+     */
     @Bean(name = "contexaOneTimeTokenCreationSuccessHandler")
-    @ConditionalOnMissingBean
+    @ConditionalOnMode(SecurityMode.FULL)
+    @ConditionalOnMissingBean(OneTimeTokenGenerationSuccessHandler.class)
     public OneTimeTokenCreationSuccessHandler oneTimeTokenCreationSuccessHandler(
             MfaStateMachineIntegrator contexaMfaStateMachineIntegrator,
             AuthUrlProvider contexaAuthUrlProvider,
@@ -57,6 +65,20 @@ public class IdentityHandlerAutoConfiguration {
                 contexaAuthUrlProvider,
                 contexaMfaFlowUrlRegistry,
                 sessionRepository);
+    }
+
+    @Bean(name = "contexaOneTimeTokenCreationSuccessHandler")
+    @ConditionalOnMissingBean(name = "contexaOneTimeTokenCreationSuccessHandler")
+    public HeldBean<OneTimeTokenGenerationSuccessHandler> heldOneTimeTokenCreationSuccessHandler(
+            MfaStateMachineIntegrator contexaMfaStateMachineIntegrator,
+            AuthUrlProvider contexaAuthUrlProvider,
+            MfaFlowUrlRegistry contexaMfaFlowUrlRegistry,
+            MfaSessionRepository sessionRepository) {
+        return new HeldBean<>(new OneTimeTokenCreationSuccessHandler(
+                contexaMfaStateMachineIntegrator,
+                contexaAuthUrlProvider,
+                contexaMfaFlowUrlRegistry,
+                sessionRepository));
     }
 
     @Bean(name = "contexaSessionSingleAuthFailureHandler")
@@ -77,7 +99,7 @@ public class IdentityHandlerAutoConfiguration {
             ObjectProvider<ZeroTrustEventPublisher> zeroTrustEventPublisher) {
         SessionSingleAuthSuccessHandler handler =
                 new SessionSingleAuthSuccessHandler(responseWriter, authContextProperties, contexaLoginPolicyHandler);
-        // The completed sign-in goes to the engine, as a sign-in the application owns does.
+        // The completed sign-in goes to the engine, as the application's own sign-in does in mode SANDBOX.
         handler.setZeroTrustEventPublisher(zeroTrustEventPublisher.getIfAvailable());
         return handler;
     }
@@ -85,14 +107,15 @@ public class IdentityHandlerAutoConfiguration {
     @Bean(name = "contexaOauth2SingleAuthSuccessHandler")
     @ConditionalOnMissingBean
     public OAuth2SingleAuthSuccessHandler oauth2SingleAuthSuccessHandler(
-            TokenService tokenService,
+            ObjectProvider<TokenService> tokenService,
             AuthResponseWriter responseWriter,
             AuthContextProperties authContextProperties,
             @Autowired(required = false) LoginPolicyHandler contexaLoginPolicyHandler,
             ObjectProvider<ZeroTrustEventPublisher> zeroTrustEventPublisher) {
-        OAuth2SingleAuthSuccessHandler handler = new OAuth2SingleAuthSuccessHandler(tokenService, responseWriter,
+        // The token service belongs to Contexa's OAuth2 plane, which only a flow on OAuth2 state uses this handler with
+        OAuth2SingleAuthSuccessHandler handler = new OAuth2SingleAuthSuccessHandler(tokenService.getIfAvailable(), responseWriter,
                 authContextProperties, contexaLoginPolicyHandler);
-        // The completed sign-in goes to the engine, as a sign-in the application owns does.
+        // The completed sign-in goes to the engine, as the application's own sign-in does in mode SANDBOX.
         handler.setZeroTrustEventPublisher(zeroTrustEventPublisher.getIfAvailable());
         return handler;
     }

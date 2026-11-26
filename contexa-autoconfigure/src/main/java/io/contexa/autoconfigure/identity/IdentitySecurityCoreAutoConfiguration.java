@@ -20,8 +20,9 @@ import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
-import io.contexa.autoconfigure.ai.HostOwnedEnforcementOrder;
-import io.contexa.contexaidentity.security.zerotrust.HostOwnedStepUp;
+import io.contexa.autoconfigure.ai.ContexaSlotFilterRegistration;
+import io.contexa.autoconfigure.ai.ContexaServletFilterOrder;
+import io.contexa.contexaidentity.security.zerotrust.SandboxStepUp;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -96,7 +97,7 @@ import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenti
 @EnableConfigurationProperties({AuthContextProperties.class })
 @ConditionalOnProperty(prefix = "contexa.identity.security-core", name = "enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnBean(PlatformConfig.class)
-@Import(IdentitySecurityCoreContexaOwnedConfiguration.class)
+@Import(IdentitySignInConfiguration.class)
 public class IdentitySecurityCoreAutoConfiguration {
 
     public IdentitySecurityCoreAutoConfiguration() {
@@ -303,7 +304,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             ObjectProvider<AgentScopeService> agentScopes,
             ObjectProvider<AgentCallGuard> agentCallGuard,
             ObjectProvider<BridgeProperties> bridgeProperties,
-            ObjectProvider<HostOwnedStepUp> hostOwnedStepUp) {
+            ObjectProvider<SandboxStepUp> sandboxStepUp) {
 
         ZeroTrustChallengeFilter filter = new ZeroTrustChallengeFilter(
                 contexaChallengeMfaInitializer, responseWriter, contexaAuthUrlProvider,
@@ -312,9 +313,9 @@ public class IdentitySecurityCoreAutoConfiguration {
         filter.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
         // Ownership design Q-5: a stored CHALLENGE is enforced under ENFORCE only.
         filter.setEnforcing(securityZeroTrustProperties::isEnforcementEnabled);
-        // Ownership design S-1/S-2: when the application owns sign-in, a CHALLENGE goes to Contexa's step-up.
-        if (hostOwned(bridgeProperties)) {
-            filter.setHostOwnedStepUp(hostOwnedStepUp.getIfAvailable());
+        // Ownership design S-1/S-2: in mode SANDBOX, where the application signs its users in, a CHALLENGE goes to Contexa's step-up.
+        if (enforcesFromFilterSlot(bridgeProperties)) {
+            filter.setSandboxStepUp(sandboxStepUp.getIfAvailable());
         }
         // docs/agent A5-2, A5-9, F-2: agents' requests meet their accountable person's confirmation.
         AgentConfirmationService confirmations = agentConfirmations.getIfAvailable();
@@ -335,26 +336,27 @@ public class IdentitySecurityCoreAutoConfiguration {
     }
 
     /**
-     * Under CONTEXA_OWNED the filter runs inside Contexa's chain only. Under HOST_OWNED Contexa builds no chain, so it
-     * runs as a servlet filter right after the application's Spring Security chain (ownership design S-1).
+     * Under mode SANDBOX Contexa builds no main chain, so the filter runs in Contexa's filter slot right after the
+     * application's Spring Security chain (ownership design S-1, R-10 of docs/agent/운영모드-정상화-구현계획.md). Under mode
+     * FULL it runs inside Contexa's chain only and stays out of the slot.
      */
     @Bean(name = "contexaZeroTrustChallengeFilterRegistrationBean")
     @ConditionalOnBean(ZeroTrustChallengeFilter.class)
-    public FilterRegistrationBean<ZeroTrustChallengeFilter> zeroTrustChallengeFilterRegistrationBean(
+    public ContexaSlotFilterRegistration<ZeroTrustChallengeFilter> zeroTrustChallengeFilterRegistrationBean(
             ZeroTrustChallengeFilter contexaZeroTrustChallengeFilter,
             ObjectProvider<BridgeProperties> bridgeProperties,
             ObjectProvider<SecurityProperties> securityProperties) {
-        FilterRegistrationBean<ZeroTrustChallengeFilter> registrationBean =
-                new FilterRegistrationBean<>(contexaZeroTrustChallengeFilter);
-        registrationBean.setName("contexaZeroTrustChallengeFilter");
-        return HostOwnedEnforcementOrder.enforcement(registrationBean, hostOwned(bridgeProperties),
-                HostOwnedEnforcementOrder.securityFilterOrder(securityProperties), HostOwnedEnforcementOrder.CHALLENGE);
+        ContexaSlotFilterRegistration<ZeroTrustChallengeFilter> registration = ContexaServletFilterOrder.member(
+                contexaZeroTrustChallengeFilter, "contexaZeroTrustChallengeFilter",
+                ContexaServletFilterOrder.securityFilterOrder(securityProperties), ContexaServletFilterOrder.CHALLENGE);
+        registration.setEnabled(enforcesFromFilterSlot(bridgeProperties));
+        return registration;
     }
 
-    /** Whether the application owns sign-in (HOST_OWNED); Contexa then builds no chain. */
-    private static boolean hostOwned(ObjectProvider<BridgeProperties> bridgeProperties) {
+    /** Whether Contexa enforces from its filter slot (mode SANDBOX, no main chain of Contexa's); the mode decides it. */
+    private static boolean enforcesFromFilterSlot(ObjectProvider<BridgeProperties> bridgeProperties) {
         BridgeProperties properties = bridgeProperties != null ? bridgeProperties.getIfAvailable() : null;
-        return properties != null && properties.ownershipBehaviour().enforcesFromServletFilters();
+        return properties != null && properties.operatingBehaviour().enforcesFromServletFilters();
     }
 
     @Bean(name = "contexaZeroTrustChallengeConfigurer")
@@ -378,7 +380,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
             ObjectProvider<AgentContainmentService> agentContainment,
             ObjectProvider<BridgeProperties> bridgeProperties,
-            ObjectProvider<HostOwnedStepUp> hostOwnedStepUp,
+            ObjectProvider<SandboxStepUp> sandboxStepUp,
             ObjectProvider<TieredStrategyProperties> tieredStrategyProperties,
             ObjectProvider<BlockMfaStateStore> blockMfaStateStore) {
         ZeroTrustAccessControlFilter filter = new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter,
@@ -395,25 +397,25 @@ public class IdentitySecurityCoreAutoConfiguration {
         // With allow-escalate-final-action off an ESCALATE is never held or promoted here.
         filter.setEscalateTerminalAction(tieredStrategyProperties.getIfAvailable(TieredStrategyProperties::new)
                 .getLayer2().escalateTerminalAction());
-        // Ownership design S-1/S-2: when the application owns sign-in, a BLOCK's release by MFA goes to the step-up.
-        if (hostOwned(bridgeProperties)) {
-            filter.setHostOwnedStepUp(hostOwnedStepUp.getIfAvailable());
+        // Ownership design S-1/S-2: in mode SANDBOX, where the application signs its users in, a BLOCK's release by MFA goes to the step-up.
+        if (enforcesFromFilterSlot(bridgeProperties)) {
+            filter.setSandboxStepUp(sandboxStepUp.getIfAvailable());
         }
         return filter;
     }
 
+    /** As the CHALLENGE filter: in Contexa's filter slot under mode SANDBOX, inside Contexa's chain only under mode FULL. */
     @Bean(name = "contexaZeroTrustAccessControlFilterRegistrationBean")
     @ConditionalOnBean(ZeroTrustAccessControlFilter.class)
-    public FilterRegistrationBean<ZeroTrustAccessControlFilter> zeroTrustAccessControlFilterRegistrationBean(
+    public ContexaSlotFilterRegistration<ZeroTrustAccessControlFilter> zeroTrustAccessControlFilterRegistrationBean(
             ZeroTrustAccessControlFilter contexaZeroTrustAccessControlFilter,
             ObjectProvider<BridgeProperties> bridgeProperties,
             ObjectProvider<SecurityProperties> securityProperties) {
-        FilterRegistrationBean<ZeroTrustAccessControlFilter> registrationBean =
-                new FilterRegistrationBean<>(contexaZeroTrustAccessControlFilter);
-        registrationBean.setName("contexaZeroTrustAccessControlFilter");
-        return HostOwnedEnforcementOrder.enforcement(registrationBean, hostOwned(bridgeProperties),
-                HostOwnedEnforcementOrder.securityFilterOrder(securityProperties),
-                HostOwnedEnforcementOrder.ACCESS_CONTROL);
+        ContexaSlotFilterRegistration<ZeroTrustAccessControlFilter> registration = ContexaServletFilterOrder.member(
+                contexaZeroTrustAccessControlFilter, "contexaZeroTrustAccessControlFilter",
+                ContexaServletFilterOrder.securityFilterOrder(securityProperties), ContexaServletFilterOrder.ACCESS_CONTROL);
+        registration.setEnabled(enforcesFromFilterSlot(bridgeProperties));
+        return registration;
     }
 
     @Bean(name = "contexaZeroTrustAccessControlConfigurer")
@@ -440,7 +442,8 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     /**
      * Q-13: holds the passkey registration of Contexa's own sign-in to the gate. The flow is looked up when a request
-     * comes, as the chains that say whether one exists are built after this bean.
+     * comes, as the chains that say whether one exists are built after this bean, and for the realm of that request
+     * (R-13): the console's administrators verify in their own flow, the application's users in one of the application's.
      */
     @Bean(name = "contexaPasskeyRegistrationGate")
     @Lazy(false)
@@ -452,9 +455,9 @@ public class IdentitySecurityCoreAutoConfiguration {
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ObjectProvider<ZeroTrustChallengeFilter> challengeFilter) {
         PasskeyRegistrationGate gate = new PasskeyRegistrationGate(actionRepository,
-                securityZeroTrustProperties::isEnforcementEnabled, () -> {
+                securityZeroTrustProperties::isEnforcementEnabled, request -> {
                     ZeroTrustChallengeFilter challenge = challengeFilter.getIfAvailable();
-                    return challenge != null && challenge.challengeProcedureAvailable();
+                    return challenge != null && challenge.challengeProcedureAvailable(request);
                 });
         contexaMfaPendingAccessControlFilter.setPasskeyRegistrationGate(gate, challengeFilter::getIfAvailable);
         return gate;

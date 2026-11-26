@@ -30,7 +30,11 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
+import io.contexa.contexacommon.operating.ConditionalOnMode;
+import io.contexa.contexacommon.security.HeldBean;
+import io.contexa.contexacommon.security.bridge.SecurityMode;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 
 import java.util.List;
@@ -140,11 +144,25 @@ public class IamXacmlPdpAutoConfiguration {
         return new RoleHierarchyPermissionEvaluator(ctx);
     }
 
+    /**
+     * Contexa's permission evaluator, for {@code hasPermission} in Contexa's own expressions. A PermissionEvaluator is taken by
+     * type by the application's method security and by its injection points: it is offered by type only where Contexa's
+     * main chain signs the application's users in and the application has none (R-17 of docs/agent/운영모드-정상화-구현계획.md),
+     * held elsewhere.
+     */
     @Bean(name = "contexaCompositePermissionEvaluator")
-    @ConditionalOnMissingBean
+    @ConditionalOnMode(SecurityMode.FULL)
+    @ConditionalOnMissingBean(PermissionEvaluator.class)
     public CompositePermissionEvaluator compositePermissionEvaluator(
             List<DomainPermissionEvaluator> evaluators) {
         return new CompositePermissionEvaluator(evaluators);
+    }
+
+    @Bean(name = "contexaCompositePermissionEvaluator")
+    @ConditionalOnMissingBean(name = "contexaCompositePermissionEvaluator")
+    public HeldBean<CompositePermissionEvaluator> heldCompositePermissionEvaluator(
+            List<DomainPermissionEvaluator> evaluators) {
+        return new HeldBean<>(new CompositePermissionEvaluator(evaluators));
     }
 }
 

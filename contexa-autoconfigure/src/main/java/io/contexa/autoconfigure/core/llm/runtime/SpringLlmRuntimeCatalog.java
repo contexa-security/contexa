@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.core.llm.runtime;
 
 import io.contexa.autoconfigure.compat.EmbeddingDimensionResolver;
+import io.contexa.autoconfigure.core.llm.ContexaChatModelCopies;
 import io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaLlmBindingProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
@@ -48,6 +49,9 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
     private static final Set<String> CONTEXA_MODEL_BEANS = Set.of(
             "contexaOllamaChatModel", "contexaDedicatedOllamaEmbeddingModel", "contexaSharedOllamaEmbeddingModel");
 
+    /** R-9: the chat models Contexa calls are its own instances of the application's beans. */
+    private final ContexaChatModelCopies chatModelCopies;
+
     private volatile Snapshot snapshot;
 
     public SpringLlmRuntimeCatalog(
@@ -58,6 +62,7 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
         this.beanFactory = applicationContext.getBeanFactory();
         this.contexaProperties = contexaProperties;
         this.bindingProperties = bindingProperties;
+        this.chatModelCopies = new ContexaChatModelCopies(applicationContext.getEnvironment());
     }
 
     @Override
@@ -84,7 +89,8 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
     public ChatModel resolveChatModel(String selector) {
         LlmRuntimeBinding binding = findChatBinding(selector)
                 .orElseThrow(() -> new IllegalStateException("No chat runtime binding found for selector: " + selector));
-        return applicationContext.getBean(binding.getBeanName(), ChatModel.class);
+        return contexas(binding.getBeanName(), applicationContext.getBean(binding.getBeanName(), ChatModel.class),
+                ChatModel.class);
     }
 
     @Override
@@ -147,7 +153,8 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
                     .toList();
             for (LlmRuntimeBinding binding : providerBindings) {
                 try {
-                    return Optional.of(applicationContext.getBean(binding.getBeanName(), beanType));
+                    return Optional.of(contexas(binding.getBeanName(),
+                            applicationContext.getBean(binding.getBeanName(), beanType), beanType));
                 }
                 catch (RuntimeException ex) {
                     if (firstFailure == null) {
@@ -164,7 +171,8 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
         }
         for (LlmRuntimeBinding binding : bindings.stream().sorted(bindingComparator()).toList()) {
             try {
-                return Optional.of(applicationContext.getBean(binding.getBeanName(), beanType));
+                return Optional.of(contexas(binding.getBeanName(),
+                        applicationContext.getBean(binding.getBeanName(), beanType), beanType));
             }
             catch (RuntimeException ex) {
                 if (firstFailure == null) {
@@ -201,16 +209,29 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
                     + modeProperty + "=dynamic-priority.");
         }
         if (primaryBindings.size() == 1) {
-            return Optional.of(applicationContext.getBean(primaryBindings.get(0).getBeanName(), beanType));
+            String beanName = primaryBindings.get(0).getBeanName();
+            return Optional.of(contexas(beanName, applicationContext.getBean(beanName, beanType), beanType));
         }
         if (bindings.size() == 1) {
-            return Optional.of(applicationContext.getBean(bindings.get(0).getBeanName(), beanType));
+            String beanName = bindings.get(0).getBeanName();
+            return Optional.of(contexas(beanName, applicationContext.getBean(beanName, beanType), beanType));
         }
 
         throw new IllegalStateException("Multiple " + runtimeType + " runtime bindings are available but none is marked primary: "
                 + describeBindings(bindings)
                 + ". Mark one Spring AI bean as @Primary or configure "
                 + modeProperty + "=dynamic-priority with an explicit priority list.");
+    }
+
+    /**
+     * What Contexa calls for a model bean: its own instance of an application's chat model (R-9), or the bean as it is
+     * (Contexa's own model beans, embedding models).
+     */
+    private <T> T contexas(String beanName, T bean, Class<T> beanType) {
+        if (beanType == ChatModel.class && bean instanceof ChatModel chat && !CONTEXA_MODEL_BEANS.contains(beanName)) {
+            return beanType.cast(chatModelCopies.of(chat));
+        }
+        return bean;
     }
 
     private String describeBindings(List<LlmRuntimeBinding> bindings) {

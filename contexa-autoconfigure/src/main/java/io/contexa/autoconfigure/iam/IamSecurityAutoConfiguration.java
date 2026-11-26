@@ -15,8 +15,6 @@
  */
 package io.contexa.autoconfigure.iam;
 
-import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
-import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import org.springframework.beans.factory.BeanFactory;
 import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexacommon.repository.AuditLogRepository;
@@ -42,7 +40,7 @@ import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 
 /**
  * Provides Contexa's method-policy expression handler without publishing it as host
- * Spring Security infrastructure. When Contexa owns authentication, {@code @PreAuthorize}
+ * Spring Security infrastructure. In every way of running Contexa, {@code @PreAuthorize}
  * is applied to Contexa's own classes only.
  */
 @AutoConfiguration
@@ -58,7 +56,6 @@ public class IamSecurityAutoConfiguration {
     @ConditionalOnMissingBean
     public CustomMethodSecurityExpressionHandlerFactory customMethodSecurityExpressionHandlerFactory(
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            CompositePermissionEvaluator contexaCompositePermissionEvaluator,
             BeanFactory beanFactory,
             PolicyRetrievalPoint policyRetrievalPoint,
             ContextHandler contextHandler,
@@ -68,7 +65,7 @@ public class IamSecurityAutoConfiguration {
 
         return new CustomMethodSecurityExpressionHandlerFactory(
                 securityZeroTrustProperties,
-                contexaCompositePermissionEvaluator,
+                ContexaOwnBeans.own(beanFactory, "contexaCompositePermissionEvaluator", CompositePermissionEvaluator.class),
                 ContexaOwnBeans.roleHierarchy(beanFactory),
                 policyRetrievalPoint,
                 contextHandler,
@@ -78,12 +75,12 @@ public class IamSecurityAutoConfiguration {
     }
 
     /**
-     * {@code @PreAuthorize} for Contexa's own classes, with Contexa's handler. The application's own annotations are not touched, and
-     * when the application turned method security on itself, its interceptor (and its handler) already serves Contexa's classes.
+     * {@code @PreAuthorize} for Contexa's own classes, with Contexa's handler, in every way of running Contexa. The application's own
+     * annotations are not touched, and when the application turned method security on itself, its interceptor (and its handler)
+     * already serves Contexa's classes.
      */
     @Configuration(proxyBeanMethods = false)
-    @ConditionalOnOwnership(SecurityOwnershipMode.CONTEXA_OWNED)
-    static class ContexaOwnedMethodSecurityConfiguration {
+    static class ContexaScopedMethodSecurityConfiguration {
 
         @Bean(name = "contexaPreAuthorizeAdvisor")
         @Role(BeanDefinition.ROLE_INFRASTRUCTURE)

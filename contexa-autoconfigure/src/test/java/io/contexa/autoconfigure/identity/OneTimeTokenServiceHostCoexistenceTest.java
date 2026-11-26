@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
@@ -67,6 +68,12 @@ class OneTimeTokenServiceHostCoexistenceTest {
         @Bean
         AuthContextProperties authContextProperties() {
             return new AuthContextProperties();
+        }
+
+        /** What Contexa's MFA endpoint, there in every way of running Contexa, is built on: every Contexa application has one. */
+        @Bean
+        MfaStateMachineIntegrator mfaStateMachineIntegrator() {
+            return mock(MfaStateMachineIntegrator.class);
         }
 
         @Bean("contexaJdbcTemplate")

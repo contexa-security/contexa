@@ -45,7 +45,9 @@ import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexacommon.security.HeldBean;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaAdminRealm;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaPasskeyRegistrationIntent;
@@ -68,6 +70,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.context.ApplicationContext;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -111,12 +114,12 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
         CentralAuditFacade centralAuditFacade = mock(CentralAuditFacade.class);
         BlockingSignalBroadcaster blockingSignalBroadcaster = mock(BlockingSignalBroadcaster.class);
         AISessionSecurityContextRepository aiRepository = mock(AISessionSecurityContextRepository.class);
-        @SuppressWarnings("unchecked")
-        ObjectProvider<AISessionSecurityContextRepository> provider = mock(ObjectProvider.class);
         ApplicationContext applicationContext = mock(ApplicationContext.class);
 
-        when(applicationContext.getBeanProvider(AISessionSecurityContextRepository.class)).thenReturn(provider);
-        when(provider.getIfAvailable()).thenReturn(aiRepository);
+        // the repository of the application's users' flows, held under its name as the auto-configuration holds it: one of
+        // Contexa's administrators stands beside it
+        when(applicationContext.containsBean(AISessionSecurityContextRepository.BEAN_NAME)).thenReturn(true);
+        when(applicationContext.getBean(AISessionSecurityContextRepository.BEAN_NAME)).thenReturn(new HeldBean<>(aiRepository));
 
         TestHandler handler = new TestHandler(
                 null,
@@ -147,6 +150,18 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
         ArgumentCaptor<SecurityContext> contextCaptor = ArgumentCaptor.forClass(SecurityContext.class);
         verify(aiRepository).saveContext(contextCaptor.capture(), eq(request), eq(response));
         assertThat(contextCaptor.getValue().getAuthentication().getName()).isEqualTo("admin");
+
+        // R-13: the chain of Contexa's administrators names its own repository on the request, and that one keeps the context
+        SecurityContextRepository adminRepository = mock(SecurityContextRepository.class);
+        MockHttpServletRequest adminRequest = new MockHttpServletRequest("POST", "/contexa/admin/login/mfa-ott");
+        adminRequest.addHeader("Accept", "application/json");
+        adminRequest.setAttribute(ContexaAdminRealm.CONTEXT_REPOSITORY_ATTRIBUTE, adminRepository);
+        MockHttpServletResponse adminResponse = new MockHttpServletResponse();
+
+        handler.complete(adminRequest, adminResponse, authentication);
+
+        verify(adminRepository).saveContext(any(SecurityContext.class), eq(adminRequest), eq(adminResponse));
+        verify(aiRepository, never()).saveContext(any(SecurityContext.class), eq(adminRequest), eq(adminResponse));
     }
 
     @Test

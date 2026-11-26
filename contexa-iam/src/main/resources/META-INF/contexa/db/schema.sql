@@ -6,8 +6,10 @@ create table ctxa_users
         primary key,
     username              varchar(100)                           not null
         unique,
-    email                 varchar(255)                           not null
-        unique,
+    -- unique among Contexa's own accounts only, whatever its case: the partial unique index ctxa_ux_users_account_email,
+    -- which ContexaUserEmailScope makes once it checked the accounts share none (bridge v2 B5-1). Copies of applications'
+    -- users may share an address, and a copy whose application shows none has none.
+    email                 varchar(255),
     password              varchar(255)                           not null,
     name                  varchar(100)                           not null,
     phone                 varchar(20),
@@ -1466,6 +1468,8 @@ alter table ctxa_blocked_user add column if not exists tenant_id varchar(255);
 -- Another address the application shows for a user whose copy holds a real one; it waits for the user's proof of
 -- the address on record. A database installed before it gains the column here at the next start.
 alter table ctxa_bridge_user_profile add column if not exists pending_email varchar(255);
+-- Bridge v2 B5-1 (DB-8): a copy whose application shows no address has none; no address is made up any more.
+alter table ctxa_users alter column email drop not null;
 -- docs/agent A5-5: the decision record of an agent request (AG-8): who it acted as and for, the operation, the
 -- risk facts the decision cited, what was enforced and why, and the hash of the request context.
 alter table ctxa_audit_log

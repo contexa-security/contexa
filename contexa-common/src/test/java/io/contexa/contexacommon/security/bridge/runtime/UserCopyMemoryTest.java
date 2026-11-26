@@ -19,11 +19,10 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
-import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
-import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
 import io.contexa.contexacommon.store.ContexaStores;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLTransientConnectionException;
@@ -66,6 +65,19 @@ class UserCopyMemoryTest {
         assertThat(kept.result().updated()).isFalse();
     }
 
+    /** bridge v2 B5-2, ContexaUsers.delete: the deleted user's copy is not given again, another user's stays kept. */
+    @Test
+    @DisplayName("삭제한 사용자의 기억만 비우고 다른 사용자의 기억은 남긴다")
+    void forgettingAUserLeavesTheOtherUsersKept() {
+        memory.remember(facts("alice", "203.0.113.5", "s-1", null), ALICE_COPY);
+        memory.remember(facts("bob", "203.0.113.6", "s-2", null), ALICE_COPY);
+
+        memory.forget("alice"::equals);
+
+        assertThat(memory.recall(facts("alice", "203.0.113.5", "s-1", null))).isNull();
+        assertThat(memory.recall(facts("bob", "203.0.113.6", "s-2", null))).isNotNull();
+    }
+
     /** The synchronisation compares neither the session nor the time of the sign-in before it writes, and neither does this. */
     @Test
     void aNewSessionOfTheSameUserFindsTheCopyKept() {
@@ -75,10 +87,12 @@ class UserCopyMemoryTest {
     }
 
     @Test
+    @DisplayName("다른 이름이나 다른 권한은 다른 사실이고, 요청 IP만 다르면 같은 사실이다")
     void anotherAddressAnotherNameOrOtherAuthoritiesAreNotTheSameFacts() {
         memory.remember(facts("alice", "203.0.113.5", "s-1", null), ALICE_COPY);
 
-        assertThat(memory.recall(facts("alice", "198.51.100.7", "s-1", null))).isNull();
+        assertThat(memory.recall(facts("alice", "198.51.100.7", "s-1", null)))
+                .as("the request's address is no fact of the copy (bridge v2 B5-1, DB-4)").isNotNull();
         assertThat(memory.recall(withAuthorities("alice", "ROLE_USER", "ROLE_ADMIN"))).isNull();
         assertThat(memory.recall(facts("bob", "203.0.113.5", "s-1", null))).as("another user").isNull();
     }
@@ -116,10 +130,11 @@ class UserCopyMemoryTest {
     }
 
     @Test
+    @DisplayName("사본이 저장하지 않는 속성은 비교하지 않으므로 비교할 수 없는 값이 있어도 실패 없이 기억한 사본을 준다")
     void aValueThatCannotBeComparedKeepsNothingAndFailsNothing() {
-        memory.remember(UserCopyMemory.Facts.of(hostile(), null, request("203.0.113.5", "s-1")), ALICE_COPY);
+        memory.remember(UserCopyMemory.Facts.of(hostile()), ALICE_COPY);
 
-        assertThat(memory.recall(UserCopyMemory.Facts.of(hostile(), null, request("203.0.113.5", "s-1")))).isNull();
+        assertThat(memory.recall(UserCopyMemory.Facts.of(hostile()))).isNotNull();
     }
 
     @Test
@@ -127,7 +142,7 @@ class UserCopyMemoryTest {
         AuthenticationStamp nameless = new AuthenticationStamp("  ", null, null, true, null, null, null, null, null, null,
                 List.of(), Map.of());
 
-        assertThat(UserCopyMemory.Facts.of(nameless, null, null)).isNull();
+        assertThat(UserCopyMemory.Facts.of(nameless)).isNull();
     }
 
     @Test
@@ -225,19 +240,13 @@ class UserCopyMemoryTest {
     private static UserCopyMemory.Facts facts(String subject, String address, String session, Instant signedInAt) {
         AuthenticationStamp authentication = new AuthenticationStamp(subject, subject, "USER", true, "FORM",
                 "SECURITY_CONTEXT", null, null, signedInAt, session, List.of("ROLE_USER"), Map.of("department", "sales"));
-        return UserCopyMemory.Facts.of(authentication, authorization(subject), request(address, session));
+        return UserCopyMemory.Facts.of(authentication);
     }
 
     private static UserCopyMemory.Facts withAuthorities(String subject, String... authorities) {
         AuthenticationStamp authentication = new AuthenticationStamp(subject, subject, "USER", true, "FORM",
                 "SECURITY_CONTEXT", null, null, null, "s-1", List.of(authorities), Map.of("department", "sales"));
-        return UserCopyMemory.Facts.of(authentication, authorization(subject), request("203.0.113.5", "s-1"));
-    }
-
-    private static AuthorizationStamp authorization(String subject) {
-        return new AuthorizationStamp(subject, "/orders", "GET", AuthorizationEffect.UNKNOWN, null, List.of(), null, null,
-                "AUTHENTICATION_DERIVED", Instant.now(), List.of("ROLE_USER"), List.of("ROLE_USER"),
-                Map.of("authorizationResolver", "AUTHENTICATION_DERIVED"));
+        return UserCopyMemory.Facts.of(authentication);
     }
 
     private static RequestContextSnapshot request(String address, String session) {

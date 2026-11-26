@@ -166,8 +166,45 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         return complete(authentication, request, delegatorDecision(authentication, request, decision), startedAt);
     }
 
+    /**
+     * The decision of the URL policies that name the request, for an enforcement point beside a chain that is not
+     * Contexa's (R-7 of docs/agent/운영모드-정상화-구현계획.md); null where no policy decides it: no policy names the request,
+     * or none of those that name it applies. The no-matching-policy decision is the default of Contexa's own chain only,
+     * so it is not taken here: a request no policy decides stays with the decision of the chain that took it. A decision
+     * is completed as {@link #check} completes it (the delegator's authority, the audit, the decision kept on the
+     * request); an abstention leaves no trace.
+     */
+    public AuthorizationDecision checkNamedPolicies(Supplier<Authentication> authenticationSupplier,
+                                                    HttpServletRequest request) {
+        long startedAt = System.nanoTime();
+        Authentication authentication = authenticationSupplier.get();
+        Evaluation evaluation = evaluate(authenticationSupplier, request);
+        if (evaluation.noPolicyDecided()) {
+            return null;
+        }
+        return complete(authentication, request, delegatorDecision(authentication, request, evaluation.decision()), startedAt);
+    }
+
+    /** Whether this manager has decided the request already, on a chain that asks it. */
+    public static boolean decided(HttpServletRequest request) {
+        return request.getAttribute(DECISION_ATTRIBUTE) instanceof AuthorizationDecision;
+    }
+
     /** The URL policies' decision for the request as the given principal. */
     private AuthorizationDecision decide(Supplier<Authentication> authenticationSupplier, HttpServletRequest request) {
+        return evaluate(authenticationSupplier, request).decision();
+    }
+
+    /**
+     * The decision of the URL policies, and whether it is the no-matching-policy decision rather than one of a policy.
+     *
+     * @param decision         the decision
+     * @param noPolicyDecided  whether no policy decided the request and the decision is the no-matching-policy one
+     */
+    private record Evaluation(AuthorizationDecision decision, boolean noPolicyDecided) {
+    }
+
+    private Evaluation evaluate(Supplier<Authentication> authenticationSupplier, HttpServletRequest request) {
         CombiningAlgorithm currentAlgorithm = combiningAlgorithm;
         NoPolicyDecision currentNoPolicyDecision = noMatchingUrlPolicyDecision;
         boolean firstApplicable = currentAlgorithm == CombiningAlgorithm.FIRST_APPLICABLE;
@@ -183,7 +220,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
             AuthorizationDecision decision = mapping.getEntry().check(authenticationSupplier,
                     new RequestAuthorizationContext(request, matchResult.getVariables()));
             if (decision != null && firstApplicable) {
-                return decision;
+                return new Evaluation(decision, false);
             }
             matchedDecisions.add(decision);
         }
@@ -192,9 +229,9 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 currentNoPolicyDecision, authenticationSupplier.get());
         if (combined.noPolicyDecisionApplied() && !combined.decision().isGranted()
                 && currentNoPolicyDecision == NoPolicyDecision.AUTHENTICATED && isSignInRequest(request)) {
-            return new AuthorizationDecision(true);
+            return new Evaluation(new AuthorizationDecision(true), true);
         }
-        return combined.decision();
+        return new Evaluation(combined.decision(), combined.noPolicyDecisionApplied());
     }
 
     private boolean isSignInRequest(HttpServletRequest request) {

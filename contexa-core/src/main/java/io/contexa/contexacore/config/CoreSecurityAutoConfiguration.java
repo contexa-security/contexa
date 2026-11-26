@@ -38,7 +38,7 @@ import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
         havingValue = "true",
         matchIfMissing = true
 )
-@Import(CoreSecurityContexaOwnedConfiguration.class)
+@Import(CoreSecurityUserStoreConfiguration.class)
 public class CoreSecurityAutoConfiguration {
 
     public CoreSecurityAutoConfiguration() {}

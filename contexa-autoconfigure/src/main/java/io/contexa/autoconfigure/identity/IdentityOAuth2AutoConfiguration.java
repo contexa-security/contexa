@@ -15,10 +15,13 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.AuthorizationServerIssuer;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateAdapter;
-import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
-import io.contexa.contexacommon.operating.ConditionalOnOwnership;
+import io.contexa.contexacommon.operating.ConditionalOnMode;
+import io.contexa.contexacommon.operating.ConditionalOnNoApplicationSetting;
+import io.contexa.contexacommon.security.HeldBean;
+import io.contexa.contexacommon.security.bridge.SecurityMode;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
 import io.contexa.contexacore.autonomous.agent.AgentDelegations;
@@ -101,7 +104,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
@@ -161,12 +163,26 @@ import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexacommon.jdbc.LibraryTableNames;
 
+/**
+ * Contexa's OAuth2 plane: its authorization server (the internal client, the agents' clients and their tokens), its resource
+ * server and its in-process token client, where Contexa is the main security configuration of the application (mode FULL).
+ * The mode decides whether it is there, not the ownership (R-11 of docs/agent/운영모드-정상화-구현계획.md). In mode SANDBOX
+ * the application keeps its own sign-in and Contexa issues no tokens: an agent's requests are judged from the claims of the
+ * application's own tokens, and the console offers no registration of agents. An application without the authorization
+ * server library starts without it.
+ * <p>
+ * The components of types Spring Boot and Spring Security pick by type for the application (the decoder and encoder of tokens,
+ * the keys, the stores and settings of the authorization server, the client registrations and the authorized client manager)
+ * are beans of their type only where the application has none of the type; elsewhere they are held beans of the same name
+ * (R-17). Seen by type, Spring Boot's resource server, client and authorization server configurations would stand back from
+ * them, and the application's own configuration of its properties would be gone. Contexa's code takes them by their names.
+ */
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter({IdentitySecurityCoreAutoConfiguration.class, CoreDataAutoConfiguration.class})
 @ConditionalOnClass(name = "org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository")
 @ConditionalOnBean(value = PlatformConfig.class, name = {"contexaJdbcTemplate", "contexaTransactionTemplate"})
-@ConditionalOnOwnership(SecurityOwnershipMode.CONTEXA_OWNED)
+@ConditionalOnMode(SecurityMode.FULL)
 public class IdentityOAuth2AutoConfiguration {
 
     private final TransactionTemplate transactionTemplate;
@@ -174,6 +190,11 @@ public class IdentityOAuth2AutoConfiguration {
     private final ObjectProvider<PlatformConfig> platformConfigProvider;
     private final ObjectProvider<SecurityZeroTrustProperties> zeroTrustProperties;
     private volatile String unusedInternalClientSecret;
+
+    /** The registration of Contexa's internal client, held or a bean of the type. */
+    private static final String CLIENT_REGISTRATIONS = "contexaClientRegistrationRepository";
+    /** The in-process token client of Contexa's internal client, held or a bean of the type. */
+    private static final String AUTHORIZED_CLIENT_MANAGER = "contexaAuthorizedClientManager";
 
     private static final String NOOP_SECRET_PREFIX = "{noop}";
     private static final String LEGACY_DEFAULT_CLIENT_SECRET = "173f8245-5f7d-4623-a612-aa0c68f6da4a";
@@ -211,23 +232,39 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     /**
-     * Contexa's own: what Contexa issues is checked with its keys, whatever decoders the application has for its own purposes.
-     * An application that verifies another issuer's tokens on Contexa's chain gives a bean of this name. Where the application
-     * has no decoder, whatever asks for a JwtDecoder gets this one.
+     * Contexa's own decoder: what Contexa issues is checked with its keys, whatever decoders the application has for its own
+     * purposes. In mode FULL, where the application has no decoder, whatever asks for a JwtDecoder gets this one (R-17 of
+     * docs/agent/운영모드-정상화-구현계획.md). An application that verifies another issuer's tokens on Contexa's chain gives a bean
+     * of this name.
      */
     @Bean(name = "contexaJwtDecoder")
+    @ConditionalOnMode(SecurityMode.FULL)
+    @ConditionalOnNoApplicationSetting(prefix = "spring.security.oauth2.resourceserver.jwt")
     @ConditionalOnMissingBean(JwtDecoder.class)
+    public JwtDecoder offeredJwtDecoder(BeanFactory beanFactory) {
+        return contexaJwtDecoder(beanFactory);
+    }
+
+    /**
+     * Elsewhere it is held: Spring Boot's resource server stands back from a decoder it sees by type, and the application's
+     * chains would take a sole one for the tokens they check.
+     */
+    @Bean(name = "contexaJwtDecoder")
+    @ConditionalOnMissingBean(name = "contexaJwtDecoder")
+    public HeldBean<JwtDecoder> heldJwtDecoder(BeanFactory beanFactory) {
+        return new HeldBean<>(contexaJwtDecoder(beanFactory));
+    }
+
+    /** The decoder of Contexa's own keys, under the issuer of Contexa's own settings, both taken by their names. */
+    private JwtDecoder contexaJwtDecoder(BeanFactory beanFactory) {
+        return jwtDecoder(contexaKeys(beanFactory), ContexaOwnBeans.own(beanFactory, OAuth2StateAdapter.CONTEXA_SERVER_SETTINGS,
+                AuthorizationServerSettings.class));
+    }
+
+    /** The decoder for tokens of these keys, checked under the issuer of the settings given, or of the configuration. */
     public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource,
                                  ObjectProvider<AuthorizationServerSettings> authorizationServerSettings) {
         return jwtDecoder(jwkSource, authorizationServerSettings.getIfAvailable());
-    }
-
-    /** Beside the application's own decoders it stays out of their way. */
-    @Bean(name = "contexaJwtDecoder", defaultCandidate = false)
-    @ConditionalOnMissingBean(name = "contexaJwtDecoder")
-    public JwtDecoder standbyJwtDecoder(JWKSource<SecurityContext> jwkSource,
-                                        ObjectProvider<AuthorizationServerSettings> authorizationServerSettings) {
-        return jwtDecoder(jwkSource, authorizationServerSettings);
     }
 
     /** The decoder for tokens of this authorization server, which issues them under its settings' issuer. */
@@ -249,13 +286,37 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
 
+    /**
+     * The encoder Contexa signs its tokens with, of its own keys taken by their name. In mode FULL, where the application has
+     * no encoder, it is offered by type (R-17 of docs/agent/운영모드-정상화-구현계획.md).
+     */
     @Bean(name = "contexaJwtEncoder")
+    @ConditionalOnMode(SecurityMode.FULL)
+    @ConditionalOnNoApplicationSetting(prefix = "spring.security.oauth2.authorizationserver")
     @ConditionalOnMissingBean(JwtEncoder.class)
+    public JwtEncoder offeredJwtEncoder(BeanFactory beanFactory) {
+        return jwtEncoder(contexaKeys(beanFactory));
+    }
+
+    /** Elsewhere it is held: an authorization server of the application would sign its tokens with a sole encoder it finds. */
+    @Bean(name = "contexaJwtEncoder")
+    @ConditionalOnMissingBean(name = "contexaJwtEncoder")
+    public HeldBean<JwtEncoder> heldJwtEncoder(BeanFactory beanFactory) {
+        return new HeldBean<>(jwtEncoder(contexaKeys(beanFactory)));
+    }
+
+    /** The encoder that signs with these keys. */
     public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
         return new NimbusJwtEncoder(jwkSource);
     }
 
-    @Bean
+    /**
+     * Contexa's keys, from the configured key store or generated for the run. In mode FULL, where the application has no key
+     * source, they are offered by type (R-17 of docs/agent/운영모드-정상화-구현계획.md), and Spring Boot generates no keys of its own.
+     */
+    @Bean(name = "contexaJwkSource")
+    @ConditionalOnMode(SecurityMode.FULL)
+    @ConditionalOnNoApplicationSetting(prefix = "spring.security.oauth2.authorizationserver")
     @ConditionalOnMissingBean(JWKSource.class)
     public JWKSource<SecurityContext> jwkSource() {
         OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
@@ -280,6 +341,22 @@ public class IdentityOAuth2AutoConfiguration {
 
         JWKSet jwkSet = new JWKSet(rsaKey);
         return new ImmutableJWKSet<>(jwkSet);
+    }
+
+    /**
+     * Elsewhere they are held: an authorization server or a resource server of the application would take a sole key source it
+     * finds, and publish or trust Contexa's keys as its own.
+     */
+    @Bean(name = "contexaJwkSource")
+    @ConditionalOnMissingBean(name = "contexaJwkSource")
+    public HeldBean<JWKSource<SecurityContext>> heldJwkSource() {
+        return new HeldBean<>(jwkSource());
+    }
+
+    /** Contexa's keys, held or a bean of the type, by their name. */
+    @SuppressWarnings("unchecked")
+    private static JWKSource<SecurityContext> contexaKeys(BeanFactory beanFactory) {
+        return ContexaOwnBeans.own(beanFactory, OAuth2StateAdapter.CONTEXA_JWK_SOURCE, JWKSource.class);
     }
 
     private JWKSource<SecurityContext> loadJwkFromKeyStore(OAuth2TokenSettings oauth2) {
@@ -327,11 +404,36 @@ public class IdentityOAuth2AutoConfiguration {
         }
     }
 
+    /**
+     * The store of the authorizations (the tokens) Contexa's authorization server issued, over Contexa's tables and its own
+     * clients. In mode FULL, where the application has no such store, it is offered by type (R-17 of
+     * docs/agent/운영모드-정상화-구현계획.md).
+     */
     @Bean(name = "contexaAuthorizationService")
+    @ConditionalOnMode(SecurityMode.FULL)
+    @ConditionalOnNoApplicationSetting(prefix = "spring.security.oauth2.authorizationserver")
     @ConditionalOnMissingBean(OAuth2AuthorizationService.class)
-    public OAuth2AuthorizationService authorizationService(
-            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            RegisteredClientRepository registeredClientRepository) {
+    public OAuth2AuthorizationService offeredAuthorizationService(@Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                                                  BeanFactory beanFactory) {
+        return authorizationService(jdbcTemplate, contexaClients(beanFactory));
+    }
+
+    /** Elsewhere it is held: an authorization server of the application would keep its tokens in a sole store it finds. */
+    @Bean(name = "contexaAuthorizationService")
+    @ConditionalOnMissingBean(name = "contexaAuthorizationService")
+    public HeldBean<OAuth2AuthorizationService> heldAuthorizationService(
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate, BeanFactory beanFactory) {
+        return new HeldBean<>(authorizationService(jdbcTemplate, contexaClients(beanFactory)));
+    }
+
+    /** Contexa's store of authorizations, held or a bean of the type, by its name. */
+    private static OAuth2AuthorizationService contexaAuthorizations(BeanFactory beanFactory) {
+        return ContexaOwnBeans.own(beanFactory, OAuth2StateAdapter.CONTEXA_AUTHORIZATION_SERVICE, OAuth2AuthorizationService.class);
+    }
+
+    /** The store over Contexa's tables, which reads the clients of the authorizations from the given repository. */
+    public OAuth2AuthorizationService authorizationService(JdbcTemplate jdbcTemplate,
+                                                           RegisteredClientRepository registeredClientRepository) {
 
         JdbcOAuth2AuthorizationService jdbcService =
                 new JdbcOAuth2AuthorizationService(LibraryTableNames.wrap(jdbcTemplate), registeredClientRepository);
@@ -361,7 +463,14 @@ public class IdentityOAuth2AutoConfiguration {
         return authorizationObjectMapper;
     }
 
-    @Bean
+    /**
+     * The clients of Contexa's authorization server in Contexa's tables: the internal client, stored at the first start and
+     * kept in step with the settings, and the agents' clients. In mode FULL, where the application has no client repository,
+     * it is offered by type (R-17 of docs/agent/운영모드-정상화-구현계획.md).
+     */
+    @Bean(name = "contexaRegisteredClientRepository")
+    @ConditionalOnMode(SecurityMode.FULL)
+    @ConditionalOnNoApplicationSetting(prefix = "spring.security.oauth2.authorizationserver")
     @ConditionalOnMissingBean(RegisteredClientRepository.class)
     public RegisteredClientRepository registeredClientRepository(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
@@ -424,6 +533,22 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     /**
+     * Elsewhere it is held: Spring Boot's authorization server stands back from the clients of the application's properties
+     * when it sees a repository by type, and starts a chain of its own over a repository it sees.
+     */
+    @Bean(name = "contexaRegisteredClientRepository")
+    @ConditionalOnMissingBean(name = "contexaRegisteredClientRepository")
+    public HeldBean<RegisteredClientRepository> heldRegisteredClientRepository(
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
+        return new HeldBean<>(registeredClientRepository(jdbcTemplate));
+    }
+
+    /** Contexa's clients, held or a bean of the type, by their name. */
+    private static RegisteredClientRepository contexaClients(BeanFactory beanFactory) {
+        return ContexaOwnBeans.own(beanFactory, OAuth2StateAdapter.CONTEXA_REGISTERED_CLIENTS, RegisteredClientRepository.class);
+    }
+
+    /**
      * The internal client is stored once, so its token lifetimes would otherwise keep the values of the first
      * start while the token cookies follow the current settings. Only the token settings derived from the
      * configuration are updated; the secret, grant types and scopes of the stored client stay as they are.
@@ -466,7 +591,13 @@ public class IdentityOAuth2AutoConfiguration {
         populator.execute(dataSource);
     }
 
-    @Bean
+    /**
+     * The endpoints and the issuer of Contexa's authorization server. In mode FULL, where the application has no settings, they
+     * are offered by type (R-17 of docs/agent/운영모드-정상화-구현계획.md).
+     */
+    @Bean(name = "contexaAuthorizationServerSettings")
+    @ConditionalOnMode(SecurityMode.FULL)
+    @ConditionalOnNoApplicationSetting(prefix = "spring.security.oauth2.authorizationserver")
     @ConditionalOnMissingBean(AuthorizationServerSettings.class)
     public AuthorizationServerSettings authorizationServerSettings() {
         OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
@@ -491,6 +622,16 @@ public class IdentityOAuth2AutoConfiguration {
         return builder.build();
     }
 
+    /**
+     * Elsewhere they are held: Spring Boot's authorization server stands back from settings it sees by type, and an
+     * authorization server of the application would issue under Contexa's issuer.
+     */
+    @Bean(name = "contexaAuthorizationServerSettings")
+    @ConditionalOnMissingBean(name = "contexaAuthorizationServerSettings")
+    public HeldBean<AuthorizationServerSettings> heldAuthorizationServerSettings() {
+        return new HeldBean<>(authorizationServerSettings());
+    }
+
     /*
      * No OAuth2TokenGenerator bean: the authorization server chain then builds Spring's generator, which applies Spring's
      * default claims (act for token exchange, cnf for DPoP and mutual TLS bound tokens) before the token customizer below.
@@ -511,9 +652,11 @@ public class IdentityOAuth2AutoConfiguration {
      * The token customizer the authorization server finds: Contexa's own checks first, then the application's customizers
      * (any number, in their order) that {@link HostTokenCustomizerDemotion} took out of the bean type the server looks for.
      * The server takes one customizer bean; before, a customizer of the application replaced Contexa's and its checks
-     * with it.
+     * with it. The server finds it by type only, so it is there only where Contexa's main chain signs the application's
+     * users in (FULL): with SANDBOX an authorization server of the application's keeps its tokens as they were.
      */
     @Bean(name = "contexaTokenCustomizer")
+    @ConditionalOnMode(SecurityMode.FULL)
     @ConditionalOnMissingBean(name = "contexaTokenCustomizer")
     public ComposedTokenCustomizer composedTokenCustomizer(
             ObjectProvider<DelegationRegistry> delegationRegistry,
@@ -524,8 +667,9 @@ public class IdentityOAuth2AutoConfiguration {
                 applicationCustomizers.orderedStream().toList());
     }
 
-    /** Takes the application's token customizers out of the type the authorization server takes only one of. */
+    /** Takes the application's token customizers out of the type the authorization server takes only one of (FULL only, see above). */
     @Bean(name = "contexaTokenCustomizerComposition")
+    @ConditionalOnMode(SecurityMode.FULL)
     public static BeanFactoryPostProcessor tokenCustomizerComposition() {
         return new HostTokenCustomizerDemotion();
     }
@@ -839,45 +983,48 @@ public class IdentityOAuth2AutoConfiguration {
     /** The most of a person's delegations to one agent read when a token is exchanged. */
     private static final int DELEGATION_CANDIDATES = 50;
 
+    /**
+     * Checks the tokens Contexa issued with Contexa's decoder and store, taken by their names: wherever the application could
+     * take them they are held beans (R-17 of docs/agent/운영모드-정상화-구현계획.md), and a qualifier does not unwrap a holder.
+     */
     @Bean(name = "contexaOauth2TokenValidator")
     @ConditionalOnMissingBean(TokenValidator.class)
-    public TokenValidator oauth2TokenValidator(
-            @Qualifier("contexaJwtDecoder") JwtDecoder jwtDecoder,
-            OAuth2AuthorizationService contexaAuthorizationService) {
+    public TokenValidator oauth2TokenValidator(BeanFactory beanFactory) {
 
         long rotateThresholdMillis = authContextProperties.getRefreshTokenValidity() / 2;
 
         return new OAuth2TokenValidator(
-                jwtDecoder,
-                contexaAuthorizationService,
+                ContexaOwnBeans.own(beanFactory, OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class),
+                contexaAuthorizations(beanFactory),
                 rotateThresholdMillis);
     }
 
+    /**
+     * Contexa's token service, of Contexa's own type; the client manager, registrations, store and clients of Contexa's OAuth2
+     * plane it works with are taken by their names (R-17 of docs/agent/운영모드-정상화-구현계획.md).
+     */
     @Bean(name = "contexaOauth2TokenService")
     @ConditionalOnMissingBean(TokenService.class)
     public TokenService oauth2TokenService(
-            OAuth2AuthorizedClientManager contexaAuthorizedClientManager,
-            ClientRegistrationRepository contexaClientRegistrationRepository,
-            OAuth2AuthorizationService contexaAuthorizationService,
+            BeanFactory beanFactory,
             TokenValidator contexaOauth2TokenValidator,
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             ObjectProvider<ZeroTrustActionRepository> zeroTrustActionRepositoryProvider,
-            ObjectProvider<AccountTokenGuard> accountGuard,
-            RegisteredClientRepository registeredClientRepository) {
+            ObjectProvider<AccountTokenGuard> accountGuard) {
 
         TokenTransportStrategy transport = TokenTransportStrategyFactory.create(authContextProperties);
 
         OAuth2TokenService tokenService = new OAuth2TokenService(
-                contexaAuthorizedClientManager,
-                contexaClientRegistrationRepository,
-                contexaAuthorizationService,
+                ContexaOwnBeans.own(beanFactory, AUTHORIZED_CLIENT_MANAGER, OAuth2AuthorizedClientManager.class),
+                ContexaOwnBeans.own(beanFactory, CLIENT_REGISTRATIONS, ClientRegistrationRepository.class),
+                contexaAuthorizations(beanFactory),
                 contexaOauth2TokenValidator,
                 authContextProperties,
                 objectMapper,
                 transport);
         tokenService.setZeroTrustActionRepository(zeroTrustActionRepositoryProvider.getIfAvailable());
         tokenService.setAccountGuard(accountGuard.getIfAvailable());
-        tokenService.setRegisteredClients(registeredClientRepository);
+        tokenService.setRegisteredClients(contexaClients(beanFactory));
         return tokenService;
     }
 
@@ -887,8 +1034,31 @@ public class IdentityOAuth2AutoConfiguration {
         return new OAuth2TokenSuccessHandler();
     }
 
+    /**
+     * The sign-out of Contexa's flows with the tokens: besides the MFA flow, the session and Zero Trust, it ends the person's
+     * tokens in Contexa's authorization server and those agents got by exchanging them. Contexa's store and clients are taken
+     * by their names (R-17 of docs/agent/운영모드-정상화-구현계획.md).
+     */
     @Bean("contexaCompositeLogoutHandler")
     @ConditionalOnMissingBean(name = "contexaCompositeLogoutHandler")
+    public CompositeLogoutHandler tokenCompositeLogoutHandler(
+            TokenService tokenService,
+            AuthContextProperties authContextProperties,
+            ObjectProvider<ZeroTrustSecurityService> zeroTrustSecurityServiceProvider,
+            SessionIdResolver sessionIdResolver,
+            BeanFactory beanFactory,
+            ObjectProvider<MfaSessionRepository> mfaSessionRepository,
+            ObjectProvider<MfaStateMachineService> mfaStateMachineService,
+            ObjectProvider<AgentClientDirectory> agentClientDirectory,
+            ObjectProvider<DelegationRegistry> delegationRegistry) {
+        return compositeLogoutHandler(tokenService, authContextProperties, zeroTrustSecurityServiceProvider, sessionIdResolver,
+                ContexaOwnBeans.own(beanFactory, OAuth2StateAdapter.CONTEXA_AUTHORIZATION_SERVICE,
+                        DeviceAwareOAuth2AuthorizationService.class),
+                mfaSessionRepository, mfaStateMachineService, contexaClients(beanFactory), agentClientDirectory,
+                delegationRegistry);
+    }
+
+    /** The sign-out with the tokens over the given store and clients. */
     public CompositeLogoutHandler compositeLogoutHandler(
             TokenService tokenService,
             AuthContextProperties authContextProperties,
@@ -927,9 +1097,30 @@ public class IdentityOAuth2AutoConfiguration {
         return new OAuth2LogoutSuccessHandler(responseWriter);
     }
 
-    @Primary
+    /**
+     * The registration of Contexa's internal client, with which the in-process token client asks Contexa's authorization server
+     * for a person's tokens. In mode FULL, where the application has no registrations, it is offered by type (R-17 of
+     * docs/agent/운영모드-정상화-구현계획.md).
+     */
+    @Bean(name = "contexaClientRegistrationRepository")
+    @ConditionalOnMode(SecurityMode.FULL)
+    @ConditionalOnNoApplicationSetting(prefix = "spring.security.oauth2.client.registration")
+    @ConditionalOnMissingBean(ClientRegistrationRepository.class)
+    public ClientRegistrationRepository offeredClientRegistrationRepository(BeanFactory beanFactory) {
+        return clientRegistrationRepository(contexaClients(beanFactory));
+    }
+
+    /**
+     * Elsewhere it is held: Spring Boot's OAuth2 client stands back from registrations it sees by type, so the registrations of
+     * the application's properties would be gone and the application's OAuth2 sign-in would offer Contexa's internal client.
+     */
     @Bean(name = "contexaClientRegistrationRepository")
     @ConditionalOnMissingBean(name = "contexaClientRegistrationRepository")
+    public HeldBean<ClientRegistrationRepository> heldClientRegistrationRepository(BeanFactory beanFactory) {
+        return new HeldBean<>(clientRegistrationRepository(contexaClients(beanFactory)));
+    }
+
+    /** The registration of the internal client, with the secret the stored client accepts. */
     public ClientRegistrationRepository clientRegistrationRepository(
             RegisteredClientRepository registeredClientRepository) {
         OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
@@ -1072,16 +1263,60 @@ public class IdentityOAuth2AutoConfiguration {
         return scopes.isEmpty() ? Set.of(DEFAULT_SCOPE) : scopes;
     }
 
-    @Primary
+    /**
+     * The repository of authorized clients in the session. In mode FULL, where the application has none, it is offered by type
+     * (R-17 of docs/agent/운영모드-정상화-구현계획.md).
+     */
     @Bean(name = "contexaAuthorizedClientRepository")
-    @ConditionalOnMissingBean(name = "contexaAuthorizedClientRepository")
+    @ConditionalOnMode(SecurityMode.FULL)
+    @ConditionalOnNoApplicationSetting(prefix = "spring.security.oauth2.client.registration")
+    @ConditionalOnMissingBean(OAuth2AuthorizedClientRepository.class)
     public OAuth2AuthorizedClientRepository authorizedClientRepository() {
         return new HttpSessionOAuth2AuthorizedClientRepository();
     }
 
-    @Primary
+    /**
+     * Elsewhere it is held: Spring Boot's OAuth2 client stands back from a repository it sees by type, and the application's
+     * OAuth2 sign-in would keep its authorized clients in Contexa's.
+     */
+    @Bean(name = "contexaAuthorizedClientRepository")
+    @ConditionalOnMissingBean(name = "contexaAuthorizedClientRepository")
+    public HeldBean<OAuth2AuthorizedClientRepository> heldAuthorizedClientRepository() {
+        return new HeldBean<>(new HttpSessionOAuth2AuthorizedClientRepository());
+    }
+
+    /**
+     * The in-process token client of Contexa's internal client, over Contexa's registrations, clients and store taken by their
+     * names. In mode FULL, where the application has no manager, it is offered by type (R-17 of
+     * docs/agent/운영모드-정상화-구현계획.md).
+     */
+    @Bean(name = "contexaAuthorizedClientManager")
+    @ConditionalOnMode(SecurityMode.FULL)
+    @ConditionalOnNoApplicationSetting(prefix = "spring.security.oauth2.client.registration")
+    @ConditionalOnMissingBean(OAuth2AuthorizedClientManager.class)
+    public OAuth2AuthorizedClientManager offeredAuthorizedClientManager(BeanFactory beanFactory,
+                                                                        ObjectProvider<FilterChainProxy> filterChainProxyProvider) {
+        return contexaAuthorizedClientManager(beanFactory, filterChainProxyProvider);
+    }
+
+    /**
+     * Elsewhere it is held: Spring Security's resolver of {@code @RegisteredOAuth2AuthorizedClient} takes a sole manager it finds,
+     * and the application's clients would be asked for through Contexa's internal client.
+     */
     @Bean(name = "contexaAuthorizedClientManager")
     @ConditionalOnMissingBean(name = "contexaAuthorizedClientManager")
+    public HeldBean<OAuth2AuthorizedClientManager> heldAuthorizedClientManager(BeanFactory beanFactory,
+                                                                               ObjectProvider<FilterChainProxy> filterChainProxyProvider) {
+        return new HeldBean<>(contexaAuthorizedClientManager(beanFactory, filterChainProxyProvider));
+    }
+
+    private OAuth2AuthorizedClientManager contexaAuthorizedClientManager(BeanFactory beanFactory,
+                                                                        ObjectProvider<FilterChainProxy> filterChainProxyProvider) {
+        return authorizedClientManager(ContexaOwnBeans.own(beanFactory, CLIENT_REGISTRATIONS, ClientRegistrationRepository.class),
+                filterChainProxyProvider, contexaClients(beanFactory), contexaAuthorizations(beanFactory));
+    }
+
+    /** The in-process token client over the given registrations, clients and store. */
     public OAuth2AuthorizedClientManager authorizedClientManager(
             ClientRegistrationRepository contexaClientRegistrationRepository,
             ObjectProvider<FilterChainProxy> filterChainProxyProvider,

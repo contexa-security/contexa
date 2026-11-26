@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaSignInRealm;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
@@ -29,6 +30,8 @@ import io.contexa.contexaidentity.security.core.config.StateConfig;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
+import java.util.List;
+
 public class ZeroTrustChallengeConfigurer implements SecurityConfigurer {
 
     private static final int ORDER = 50;
@@ -39,14 +42,24 @@ public class ZeroTrustChallengeConfigurer implements SecurityConfigurer {
         this.zeroTrustChallengeFilter = zeroTrustChallengeFilter;
     }
 
+    /**
+     * Tells the filter, for each realm, whether a challenged user can step up in an MFA flow (R-13 of
+     * docs/agent/운영모드-정상화-구현계획.md). The application's users step up in a flow of the application's; the flow of
+     * Contexa's administrators ({@link ContexaSignInRealm#ADMIN_FLOW_NAME}) joins the application's flows too, and it is
+     * the console's procedure only.
+     */
     @Override
     public void init(PlatformContext ctx, PlatformConfig config) {
         if (zeroTrustChallengeFilter == null) {
             return;
         }
-        boolean mfaFlowExists = config != null && config.getFlows() != null && config.getFlows().stream()
-                .anyMatch(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()));
-        zeroTrustChallengeFilter.setChallengeProcedureAvailable(mfaFlowExists);
+        List<AuthenticationFlowConfig> flows = config != null && config.getFlows() != null
+                ? config.getFlows() : List.of();
+        boolean applicationUsers = flows.stream()
+                .anyMatch(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName())
+                        && !ContexaSignInRealm.isAdminFlow(flow));
+        boolean console = flows.stream().anyMatch(ContexaSignInRealm::isAdminFlow);
+        zeroTrustChallengeFilter.setChallengeProcedures(applicationUsers, console);
     }
 
     @Override

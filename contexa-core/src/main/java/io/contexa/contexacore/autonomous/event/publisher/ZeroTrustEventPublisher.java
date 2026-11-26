@@ -20,6 +20,7 @@ import io.contexa.contexacommon.security.bridge.AgentConfirmationFacts;
 import io.contexa.contexacommon.security.bridge.ArgumentOrigins;
 import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexacommon.security.bridge.CredentialFacts;
 import io.contexa.contexacore.autonomous.event.support.HostSignInEvents;
 import io.contexa.contexacore.autonomous.event.support.InvocationArguments;
@@ -29,6 +30,7 @@ import io.contexa.contexacore.autonomous.context.support.ResourceImportanceResol
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
+import io.contexa.contexacommon.security.bridge.identity.IdentityResolution;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
@@ -93,6 +95,21 @@ public class ZeroTrustEventPublisher {
     /** The request attribute that says the request's sign-in went to the engine: one sign-in is one decision. */
     public static final String SIGN_IN_PUBLISHED = ZeroTrustEventPublisher.class.getName() + ".SIGN_IN_PUBLISHED";
 
+    /**
+     * bridge v2: the payload key of the source the request's identity came from, by its name in
+     * {@code contexa.bridge.identity-sources} ({@link IdentityResolution#name}); absent when the identity did not resolve.
+     */
+    public static final String BRIDGE_IDENTITY_SOURCE = "bridgeIdentitySource";
+
+    /** bridge v2: the payload key of what resolving the request's identity came to ({@link ContexaIdentity.Outcome}). */
+    public static final String BRIDGE_IDENTITY_OUTCOME = "bridgeIdentityOutcome";
+
+    /**
+     * bridge v2: the payload key of what broke the legacy integration standard on the way, by problem name
+     * ({@code SubjectProblem}); absent when nothing did.
+     */
+    public static final String BRIDGE_IDENTITY_PROBLEMS = "bridgeIdentityProblems";
+
     private final ApplicationEventPublisher eventPublisher;
     private final TieredStrategyProperties properties;
     private final SecurityContextDataStore securityContextDataStore;
@@ -122,7 +139,7 @@ public class ZeroTrustEventPublisher {
     @Autowired(required = false)
     private BridgeProperties bridgeProperties;
 
-    /** Whether the application's sign-ins reach Contexa; absent when Contexa owns the sign-in. */
+    /** Whether the application's sign-ins reach Contexa; absent in mode FULL, where Contexa's main chain signs them in. */
     @Autowired(required = false)
     private HostSignInEvents hostSignInEvents;
 
@@ -171,6 +188,19 @@ public class ZeroTrustEventPublisher {
      */
     public void publishAuthenticationSuccess(Authentication authentication, @Nullable HttpServletRequest request,
                                              Map<String, Object> signIn) {
+        publishSignIn(authentication, request, signIn, true);
+    }
+
+    /**
+     * bridge v2 B5-2, ContexaBridge.signedIn: the application told Contexa of a sign-in of the user it named, and that user
+     * is the identity of the request already, so the bridge is not asked again. Decided as any sign-in, once a request.
+     */
+    public void publishNamedSignIn(HttpServletRequest request, Map<String, Object> signIn) {
+        publishSignIn(null, request, signIn, false);
+    }
+
+    private void publishSignIn(@Nullable Authentication authentication, @Nullable HttpServletRequest request,
+                               Map<String, Object> signIn, boolean resolveTheBridge) {
         if (request != null) {
             if (request.getAttribute(SIGN_IN_PUBLISHED) != null) {
                 log.debug("[ZeroTrust] The sign-in of this request went to the engine already: userId={}",
@@ -179,7 +209,9 @@ public class ZeroTrustEventPublisher {
             }
             request.setAttribute(SIGN_IN_PUBLISHED, Boolean.TRUE);
         }
-        resolveBridgeOfSignIn(request, authentication);
+        if (resolveTheBridge) {
+            resolveBridgeOfSignIn(request, authentication);
+        }
         RequestInfo requestInfo = requestInfoOf(request);
         Map<String, Object> payload = new HashMap<>();
         if (requestInfo != null) {
@@ -196,7 +228,7 @@ public class ZeroTrustEventPublisher {
         putIfPresent(payload, "contextBindingHash", SessionFingerprintUtil.generateNextRequestContextBindingHash(request,
                 tokenSession != null ? tokenSession.toString() : null));
         populateAuthenticationFallback(authentication, payload);
-        String userId = authentication.getName();
+        String userId = ContexaIdentity.userId(request, authentication);
         populateStoredSecurityContext(userId, requestInfo, payload);
         putIfAbsent(payload, "decisionBoundaryMode", securityZeroTrustMode());
         eventPublisher.publishEvent(build(
@@ -534,6 +566,7 @@ public class ZeroTrustEventPublisher {
             payload.put("queryString", requestInfo.getQueryString());
         }
         populateBridgePayload(requestInfo, payload);
+        populateBridgeIdentity(requestInfo, payload);
         populateRequestContextHints(requestInfo, payload);
         populateTestRunMarker(payload);
 
@@ -679,7 +712,7 @@ public class ZeroTrustEventPublisher {
         } catch (Exception e) {
             log.error("Failed to resolve effective user id from request context", e);
         }
-        return authentication != null ? authentication.getName() : null;
+        return ContexaIdentity.subjectId(authentication);
     }
     private TieredStrategyProperties.Security getSecurity() {
         return properties != null ? properties.getSecurity() : null;
@@ -857,6 +890,28 @@ public class ZeroTrustEventPublisher {
         }
     }
 
+    /**
+     * bridge v2: how the bridge identified the request's user, beside the bridge's stamps and their coverage, which stay
+     * as they are: the source's name, the outcome, and the problems by name in their order. A request the bridge has not
+     * seen carries none of these keys, an identity that did not resolve carries no source, and an identity that broke
+     * nothing carries no problems.
+     */
+    private void populateBridgeIdentity(RequestInfo requestInfo, Map<String, Object> payload) {
+        ContexaIdentity identity = requestInfo.getIdentity();
+        if (identity == null) {
+            return;
+        }
+        if (identity.getSource() != null) {
+            payload.put(BRIDGE_IDENTITY_SOURCE, IdentityResolution.name(identity.getSource()));
+        }
+        payload.put(BRIDGE_IDENTITY_OUTCOME, identity.getOutcome().name());
+        if (!identity.getProblems().isEmpty()) {
+            payload.put(BRIDGE_IDENTITY_PROBLEMS, identity.getProblems().stream()
+                    .map(Enum::name)
+                    .collect(Collectors.toList()));
+        }
+    }
+
     private static Object currentRequestAttribute(String name) {
         return RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
                 ? attributes.getRequest().getAttribute(name)
@@ -954,23 +1009,6 @@ public class ZeroTrustEventPublisher {
             return;
         }
 
-        if (!hasNonNullPayload(payload, "authMethod")) {
-            // An MFA authority states the method; without one the method is unknown, not a password login.
-            boolean hasMfaAuthority = authorities.stream()
-                    .anyMatch(authority -> authority.toUpperCase(Locale.ROOT).contains("MFA"));
-            if (hasMfaAuthority) {
-                payload.put("authMethod", "mfa");
-            }
-        }
-
-        if (!hasNonNullPayload(payload, "mfaVerified")) {
-            boolean hasMfaAuthority = authorities.stream()
-                    .anyMatch(authority -> authority.toUpperCase(Locale.ROOT).contains("MFA"));
-            if (hasMfaAuthority) {
-                payload.put("mfaVerified", true);
-            }
-        }
-
         if (!hasNonNullPayload(payload, "effectiveRoles")) {
             List<String> effectiveRoles = authorities.stream()
                     .filter(authority -> authority.startsWith("ROLE_"))
@@ -1007,8 +1045,8 @@ public class ZeroTrustEventPublisher {
             return;
         }
         try {
-            // Q-16: a step-up passed in this context is this session's MFA, whoever owns the sign-in: under HOST_OWNED
-            // the application's authentication stays as it was, so nothing else tells the next decision of it.
+            // Q-16: a step-up passed in this context is this session's MFA in either mode: in mode SANDBOX the
+            // application's authentication stays as it was, so nothing else tells the next decision of it.
             Instant stepUpPassedAt = securityContextDataStore.getChallengeVerifiedAt(ZeroTrustUserKey.person(userId),
                     textValue(payload.get("contextBindingHash")));
             if (stepUpPassedAt != null) {

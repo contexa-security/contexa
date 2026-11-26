@@ -31,6 +31,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -53,6 +55,9 @@ class CoreDataAutoConfigurationTest {
             "jakarta.persistence.database-product-name",
             "hibernate.jdbc.use_scrollable_resultset"
     };
+
+    /** Contexa's query factory as the start declares it: by its name, and no autowire candidate (F-02). */
+    private static final String CONTEXA_QUERY_FACTORY = "contexaJpaQueryFactory";
 
     private static PostgresTestDatabase applicationDatabase;
     private static PostgresTestDatabase contexaDatabase;
@@ -201,7 +206,8 @@ class CoreDataAutoConfigurationTest {
                         CoreDataAutoConfiguration.class))
                 .withBean(PlatformConfig.class,
                         () -> PlatformConfig.builder().build())
-                .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
+                .withBean(CONTEXA_QUERY_FACTORY, JPAQueryFactory.class, () -> mock(JPAQueryFactory.class),
+                        CoreDataAutoConfigurationTest::noDefaultCandidate)
                 .withPropertyValues(
                         "spring.datasource.url=" + applicationDatabase.dataSource().getJdbcUrl(),
                         "spring.datasource.username=" + applicationDatabase.dataSource().getUsername(),
@@ -243,7 +249,8 @@ class CoreDataAutoConfigurationTest {
                         CoreDataAutoConfiguration.class))
                 .withBean(PlatformConfig.class,
                         () -> PlatformConfig.builder().build())
-                .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
+                .withBean(CONTEXA_QUERY_FACTORY, JPAQueryFactory.class, () -> mock(JPAQueryFactory.class),
+                        CoreDataAutoConfigurationTest::noDefaultCandidate)
                 .withPropertyValues(
                         "spring.datasource.url=" + applicationDatabase.dataSource().getJdbcUrl(),
                         "spring.datasource.username=" + applicationDatabase.dataSource().getUsername(),
@@ -276,7 +283,8 @@ class CoreDataAutoConfigurationTest {
                         CoreDataAutoConfiguration.class))
                 .withBean(PlatformConfig.class,
                         () -> PlatformConfig.builder().build())
-                .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
+                .withBean(CONTEXA_QUERY_FACTORY, JPAQueryFactory.class, () -> mock(JPAQueryFactory.class),
+                        CoreDataAutoConfigurationTest::noDefaultCandidate)
                 .withPropertyValues(
                         "spring.datasource.url=" + applicationDatabase.dataSource().getJdbcUrl(),
                         "spring.datasource.username=" + applicationDatabase.dataSource().getUsername(),
@@ -321,7 +329,8 @@ class CoreDataAutoConfigurationTest {
                         CoreDataAutoConfiguration.class))
                 .withBean(PlatformConfig.class,
                         () -> PlatformConfig.builder().build())
-                .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
+                .withBean(CONTEXA_QUERY_FACTORY, JPAQueryFactory.class, () -> mock(JPAQueryFactory.class),
+                        CoreDataAutoConfigurationTest::noDefaultCandidate)
                 .withPropertyValues(
                         "spring.datasource.url=" + applicationDatabase.dataSource().getJdbcUrl(),
                         "spring.datasource.username=" + applicationDatabase.dataSource().getUsername(),
@@ -353,7 +362,8 @@ class CoreDataAutoConfigurationTest {
                         CoreDataAutoConfiguration.class))
                 .withBean(PlatformConfig.class,
                         () -> PlatformConfig.builder().build())
-                .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
+                .withBean(CONTEXA_QUERY_FACTORY, JPAQueryFactory.class, () -> mock(JPAQueryFactory.class),
+                        CoreDataAutoConfigurationTest::noDefaultCandidate)
                 .withPropertyValues(
                         "spring.jpa.hibernate.ddl-auto=none",
                         "spring.sql.init.mode=never",
@@ -370,6 +380,11 @@ class CoreDataAutoConfigurationTest {
                     assertThat(context.getBean("dataSource", DataSource.class))
                             .isSameAs(context.getBean("contexaDataSource", DataSource.class));
                 });
+    }
+
+    /** As {@code @Bean(defaultCandidate = false)} declares it: taken by its name only, never by its type alone. */
+    private static void noDefaultCandidate(BeanDefinition definition) {
+        ((AbstractBeanDefinition) definition).setDefaultCandidate(false);
     }
 
     private static String readAutoConfigurationImports() throws IOException {

@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
+import io.contexa.contexacore.std.llm.model.ChatModelVariants;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -458,12 +459,16 @@ class AnthropicThinkingRequestBodyTest {
         return context;
     }
 
-    /** Spring AI 1.1.8's Anthropic model over a mock HTTP server that keeps every request body. */
+    /**
+     * Spring AI 1.1.8's Anthropic model over a mock HTTP server that keeps every request body. The orchestrator calls
+     * Contexa's own instance of it, as the runtime catalog gives Contexa (R-9): an application's model keeps its
+     * defaults (ApplicationChatModelDefaultsTest).
+     */
     private static final class AnthropicServer {
 
         private final List<String> bodies = new ArrayList<>();
         private final MockRestServiceServer server;
-        private final AnthropicChatModel model;
+        private final ChatModel model;
 
         private AnthropicServer(String modelId) {
             this(AnthropicChatOptions.builder().model(modelId).maxTokens(500).temperature(0.8d).build());
@@ -473,11 +478,12 @@ class AnthropicThinkingRequestBodyTest {
             RestClient.Builder builder = RestClient.builder();
             this.server = MockRestServiceServer.bindTo(builder).build();
             AnthropicApi api = AnthropicApi.builder().apiKey("test").restClientBuilder(builder).build();
-            this.model = AnthropicChatModel.builder()
+            AnthropicChatModel application = AnthropicChatModel.builder()
                     .anthropicApi(api)
                     .defaultOptions(defaults)
                     .retryTemplate(RetryUtils.SHORT_RETRY_TEMPLATE)
                     .build();
+            this.model = ChatModelVariants.copyOf(application).orElseThrow();
         }
 
         private void answer() {

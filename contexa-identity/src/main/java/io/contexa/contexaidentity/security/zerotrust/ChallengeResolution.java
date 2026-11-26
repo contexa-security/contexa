@@ -40,9 +40,10 @@ import java.util.function.Supplier;
 /**
  * What a completed step-up changes in the decision store: a CHALLENGE becomes ALLOW for the session that answered it and
  * stays in force for the user's other sessions (Q-12), the challenged request is learned as normal behaviour, the user
- * is marked as verified, a BLOCK an administrator let the user release by MFA is released. It is the same under both
- * ownerships: Contexa's MFA completion (CONTEXA_OWNED) and the verification-only step-up (HOST_OWNED) call it, and only
- * CONTEXA_OWNED also stores a new authentication for the user.
+ * is marked as verified, a BLOCK an administrator let the user release by MFA is released. It is the same in every way of
+ * running Contexa: the MFA completion of Contexa's own flows (the main flow of mode FULL, the flow of Contexa's
+ * administrators) and the verification-only step-up of mode SANDBOX call it, and only Contexa's MFA completion also
+ * stores a new authentication for the user.
  */
 @Slf4j
 public class ChallengeResolution {

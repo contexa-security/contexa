@@ -363,12 +363,27 @@ class UserManagementServiceImplTest {
             UserDto dto = buildUserDto(null, "dave", "Dave");
             dto.setEmail("shared@example.com");
             dto.setPassword("a password of the policy");
-            when(userRepository.existsByEmail("shared@example.com")).thenReturn(true);
+            when(userRepository.existsByEmailIgnoreCaseAndBridgeManagedFalse("shared@example.com")).thenReturn(true);
 
             assertThatThrownBy(() -> service.createUser(dto))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("shared@example.com is already used by another user");
             verify(userRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("레거시 사용자 사본만 쓰는 메일로는 Contexa 계정을 만들 수 있다")
+        void anAddressOnlyCopiesHaveIsFree() {
+            UserDto dto = buildUserDto(null, "frank", "Frank");
+            dto.setEmail("team@example.com");
+            dto.setPassword("a password of the policy");
+            when(passwordEncoder.encode(any())).thenReturn("encoded");
+            when(userRepository.existsByEmail("team@example.com")).thenReturn(true);
+            when(userRepository.existsByEmailIgnoreCaseAndBridgeManagedFalse("team@example.com")).thenReturn(false);
+
+            service.createUser(dto);
+
+            verify(userRepository).save(any(Users.class));
         }
     }
 
@@ -383,12 +398,29 @@ class UserManagementServiceImplTest {
             when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
             UserDto dto = buildUserDto(1L, "alice", "Alice");
             dto.setEmail("bob@example.com");
-            when(userRepository.existsByEmailAndIdNot("bob@example.com", 1L)).thenReturn(true);
+            when(userRepository.existsByEmailIgnoreCaseAndBridgeManagedFalseAndIdNot("bob@example.com", 1L)).thenReturn(true);
 
             assertThatThrownBy(() -> service.modifyUser(dto))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("bob@example.com is already used by another user");
             verify(userRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("레거시 사용자 사본의 메일은 다른 사용자와 같아도 고칠 수 있다")
+        void aCopysAddressMayBeShared() {
+            Users copy = buildUser(1L, "brg_alice", "Alice");
+            copy.setBridgeManaged(true);
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(copy));
+            UserDto dto = buildUserDto(1L, "brg_alice", "Alice");
+            dto.setEmail("team@example.com");
+            when(userRepository.existsByEmailAndIdNot("team@example.com", 1L)).thenReturn(true);
+            when(userRepository.existsByEmailIgnoreCaseAndBridgeManagedFalseAndIdNot("team@example.com", 1L))
+                    .thenReturn(false);
+
+            service.modifyUser(dto);
+
+            assertThat(copy.getEmail()).isEqualTo("team@example.com");
         }
 
         @Test
@@ -675,6 +707,36 @@ class UserManagementServiceImplTest {
             order.verify(bridgeUserProfileRepository).deleteById(1L);
             order.verify(userRepository).deleteById(1L);
             order.verify(eventPublisher).publishEvent(new UserAccountDeletedEvent(1L, "alice"));
+        }
+
+        /**
+         * docs/agent/bridge-v2-B5-2-B5-3-설계안.md R-4: a copy of an application's user is named by a hash, but its engine
+         * state is kept under the application's user id, the copy's external subject id.
+         */
+        @Test
+        @DisplayName("레거시 사용자의 사본을 지우면 삭제 알림이 사본의 해시 이름이 아니라 그 사람의 판정 키를 담는다")
+        void deletingACopyAnnouncesTheApplicationsUserId() {
+            Users copy = buildUser(2L, "brg_3f9a", "kim01");
+            copy.setBridgeManaged(true);
+            copy.setExternalSubjectId("kim01");
+            when(userRepository.findById(2L)).thenReturn(Optional.of(copy));
+
+            service.deleteUser(2L);
+
+            verify(eventPublisher).publishEvent(new UserAccountDeletedEvent(2L, "kim01"));
+            verify(eventPublisher, never()).publishEvent(new UserAccountDeletedEvent(2L, "brg_3f9a"));
+        }
+
+        @Test
+        @DisplayName("판정 키가 비어 있는 사본은 지금처럼 계정 이름으로 삭제를 알린다")
+        void aCopyWithoutAnExternalSubjectIdAnnouncesItsName() {
+            Users copy = buildUser(3L, "brg_77c1", "kim02");
+            copy.setBridgeManaged(true);
+            when(userRepository.findById(3L)).thenReturn(Optional.of(copy));
+
+            service.deleteUser(3L);
+
+            verify(eventPublisher).publishEvent(new UserAccountDeletedEvent(3L, "brg_77c1"));
         }
 
         @Test

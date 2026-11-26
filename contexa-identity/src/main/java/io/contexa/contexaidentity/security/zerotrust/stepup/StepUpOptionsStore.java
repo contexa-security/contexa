@@ -22,9 +22,9 @@ import java.time.Duration;
 
 /**
  * Keeps what a step-up hands out until the user answers it (the passkey challenge, the options of a passkey
- * registration), under the user's decision key instead of the application's HTTP session: when the application owns
- * sign-in Contexa does not write into its session (ownership design S-2). An entry is read once. Its claims serve
- * either ownership: the mail of a one-time code is claimed here when Contexa owns sign-in too.
+ * registration), under the user's decision key instead of the application's HTTP session: in mode SANDBOX, where the
+ * application signs its users in, Contexa does not write into its session (ownership design S-2). An entry is read once.
+ * Its claims serve every way of running Contexa: the mail of a one-time code of Contexa's own sign-in is claimed here too.
  */
 public interface StepUpOptionsStore {
 

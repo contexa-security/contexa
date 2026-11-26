@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.iam;
 import com.legacyshop.security.LegacySecurityApplication;
 import io.contexa.autoconfigure.core.ContexaProxyModeAutoConfiguration;
 import io.contexa.autoconfigure.iam.sample.ContexaSecuredSample;
+import io.contexa.contexacommon.operating.ContexaOperatingProfile;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -27,7 +28,10 @@ import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomMethodSe
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.aop.PointcutAdvisor;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.support.RootBeanDefinition;
@@ -52,7 +56,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
- * When Contexa owns sign-in it guards its own classes with {@code @PreAuthorize}; the application's annotations of the same kind stay as
+ * In every way of running Contexa it guards its own classes with {@code @PreAuthorize}; the application's annotations of the same kind stay as
  * dormant as the application left them, and an application that turned method security on itself keeps its own handler for its own
  * annotations.
  */
@@ -63,7 +67,34 @@ class ContexaScopedMethodSecurityTest {
                 .withPropertyValues("contexa.bridge.ownership=CONTEXA_OWNED")
                 .withUserConfiguration(application, ContexaSecuredSample.Definition.class, HandlerFactory.class)
                 .withConfiguration(AutoConfigurations.of(AopAutoConfiguration.class, ContexaProxyModeAutoConfiguration.class,
-                        IamSecurityAutoConfiguration.ContexaOwnedMethodSecurityConfiguration.class));
+                        IamSecurityAutoConfiguration.ContexaScopedMethodSecurityConfiguration.class));
+    }
+
+    private ApplicationContextRunner runner(Class<?> application, String mode, String ownership) {
+        return new ApplicationContextRunner()
+                .withPropertyValues(ContexaOperatingProfile.PROP_MODE + "=" + mode, ContexaOperatingProfile.PROP_OWNERSHIP + "=" + ownership)
+                .withUserConfiguration(application, ContexaSecuredSample.Definition.class, HandlerFactory.class)
+                .withConfiguration(AutoConfigurations.of(AopAutoConfiguration.class, ContexaProxyModeAutoConfiguration.class,
+                        IamSecurityAutoConfiguration.ContexaScopedMethodSecurityConfiguration.class));
+    }
+
+    /** M4 of docs/agent/운영모드-정상화-구현계획.md: Contexa's classes are guarded in every way of running Contexa, and only they are. */
+    @ParameterizedTest(name = "{0} + {1}")
+    @CsvSource({"SANDBOX, HOST_OWNED", "SANDBOX, CONTEXA_OWNED", "FULL, HOST_OWNED", "FULL, CONTEXA_OWNED"})
+    @DisplayName("어느 조합이든 Contexa 클래스의 @PreAuthorize만 집행하고 앱의 잠든 @PreAuthorize는 그대로 둔다")
+    void contexasOwnClassesAreGuardedInEveryWayOfRunningAndTheApplicationsAreNot(String mode, String ownership) {
+        runner(LegacySecurityApplication.Dormant.class, mode, ownership).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasBean("contexaPreAuthorizeAdvisor");
+            ContexaSecuredSample sample = context.getBean(ContexaSecuredSample.class);
+
+            SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("user", "x", "ROLE_USER"));
+            assertThatThrownBy(sample::adminOnly).as("Contexa's class, a user without the role").isInstanceOf(AuthorizationDeniedException.class);
+            assertThat(context.getBean(LegacySecurityApplication.AppService.class).locked())
+                    .as("the application's @PreAuthorize(\"denyAll()\") stays as dormant as the application left it").isEqualTo("reached");
+            assertThat(context.getBeansOfType(MethodSecurityExpressionHandler.class))
+                    .as("no application-wide MethodSecurityExpressionHandler appears because of Contexa").isEmpty();
+        });
     }
 
     /** With prePostEnabled the application's interceptor evaluates Contexa's annotations too; a second evaluation only repeats it. */
@@ -156,7 +187,7 @@ class ContexaScopedMethodSecurityTest {
     }
 
     /** Comes after Contexa's configuration and switches method security on, as a library's auto-configuration might. */
-    @AutoConfiguration(after = IamSecurityAutoConfiguration.ContexaOwnedMethodSecurityConfiguration.class)
+    @AutoConfiguration(after = IamSecurityAutoConfiguration.ContexaScopedMethodSecurityConfiguration.class)
     @EnableMethodSecurity
     static class LaterMethodSecurity {
     }

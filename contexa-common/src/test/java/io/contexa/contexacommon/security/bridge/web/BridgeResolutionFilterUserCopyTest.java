@@ -31,6 +31,7 @@ import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -95,6 +96,7 @@ class BridgeResolutionFilterUserCopyTest {
     }
 
     @Test
+    @DisplayName("저장하는 값이 바뀌면 요청 밖에서 다시 동기화하고, 요청 IP만 바뀌면 기억한 사본을 그대로 준다")
     void changedFactsAreSynchronisedAgainAwayFromTheRequest() throws Exception {
         BridgeResolutionFilter filter = filter(SecurityOwnershipMode.HOST_OWNED);
         signedInAt(filter, hostUser("alice", "ROLE_USER"));
@@ -112,8 +114,9 @@ class BridgeResolutionFilterUserCopyTest {
 
         MockHttpServletRequest otherAddress = request("/orders", "198.51.100.7");
         filter.doFilter(otherAddress, new MockHttpServletResponse(), new MockFilterChain());
-        assertThat(copyOf(otherAddress)).as("the address is a fact of the copy").isNull();
-        copies.awaitCalls("alice", 3);
+        assertThat(copyOf(otherAddress)).as("the request's address is no fact of the copy (bridge v2 B5-1, DB-4)")
+                .isNotNull();
+        assertThat(copies.calls("alice")).isEqualTo(2);
     }
 
     @Test

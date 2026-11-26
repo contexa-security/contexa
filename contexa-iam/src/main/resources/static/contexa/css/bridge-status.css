@@ -1,0 +1,511 @@
+/*
+ * The user bridge status screen (/contexa/admin/zero-trust/bridge). Sections sit on the page itself: a numbered round
+ * mark, a heading and a thin colour band divide them, never a box. Single values are pills, shares are bars, and the
+ * colours are the Zero Trust console's.
+ */
+.bs-page {
+    --bs-text: #e2e8f0;
+    --bs-strong: #ffffff;
+    --bs-soft: #cbd5e1;
+    --bs-accent: #818cf8;
+    --bs-good: #4ade80;
+    --bs-warn: #fbbf24;
+    --bs-bad: #f87171;
+    --bs-neutral: #94a3b8;
+    --bs-track: rgba(71, 85, 105, 0.35);
+    --bs-band: linear-gradient(90deg, rgba(99, 102, 241, 0.7), rgba(129, 140, 248, 0.35), rgba(129, 140, 248, 0));
+
+    max-width: 72rem;
+    color: var(--bs-text);
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.bs-page *, .bs-page *::before, .bs-page *::after {
+    box-sizing: border-box;
+}
+
+/* ----- the title, its question and the notes on the counts ----- */
+
+.bs-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem 1.5rem;
+}
+
+.bs-head-text {
+    min-width: 0;
+}
+
+.bs-title {
+    margin: 0;
+    font-size: 1.9rem;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.bs-question {
+    margin: 0.8rem 0 0;
+    color: var(--bs-soft);
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.bs-refresh {
+    font-weight: 700;
+}
+
+.bs-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 1.4rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bs-notes li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.65rem;
+    color: var(--bs-soft);
+    font-weight: 600;
+}
+
+.bs-notes i {
+    flex: 0 0 1.1rem;
+    color: var(--bs-accent);
+    text-align: center;
+}
+
+/* ----- the bridge is off ----- */
+
+.bs-off {
+    margin-top: 3rem;
+    text-align: center;
+}
+
+.bs-off i {
+    display: block;
+    margin-bottom: 1rem;
+    color: var(--bs-neutral);
+    font-size: 2.5rem;
+}
+
+.bs-off h2 {
+    margin: 0;
+    color: var(--bs-strong);
+    font-size: 1.3rem;
+    font-weight: 800;
+}
+
+.bs-off p {
+    max-width: 40rem;
+    margin: 0.8rem auto 0;
+    color: var(--bs-soft);
+    font-weight: 600;
+}
+
+/* ----- a resolution that broke the standard or failed ----- */
+
+.bs-attention {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin: 1.8rem 0 0;
+    padding-left: 0.9rem;
+    color: var(--bs-bad);
+    font-size: 1.02rem;
+    border-left: 3px solid var(--bs-bad);
+}
+
+.bs-attention strong {
+    font-weight: 800;
+}
+
+/* ----- sections: a numbered mark, a heading and a colour band ----- */
+
+.bs-section {
+    margin-top: 2.4rem;
+}
+
+.bs-section-head {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 0.85rem;
+    padding-bottom: 0.75rem;
+}
+
+.bs-section-head::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    border-radius: 9999px;
+    background: var(--bs-band);
+}
+
+.bs-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 50%;
+    color: var(--bs-strong);
+    font-size: 0.9rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+}
+
+.bs-section-head h2 {
+    margin: 0;
+    color: var(--bs-strong);
+    font-size: 1.2rem;
+    font-weight: 800;
+}
+
+.bs-total {
+    padding: 0.15rem 0.7rem;
+    border-radius: 9999px;
+    color: #c7d2fe;
+    font-size: 0.85rem;
+    font-weight: 700;
+    background: rgba(99, 102, 241, 0.22);
+}
+
+.bs-section-desc {
+    margin: 0.9rem 0 1.1rem;
+    color: var(--bs-soft);
+    font-weight: 600;
+}
+
+.bs-empty {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin: 0 0 1.1rem;
+    color: var(--bs-soft);
+    font-weight: 700;
+}
+
+.bs-empty-good {
+    color: var(--bs-good);
+}
+
+/* ----- shares: the stacked bar of the outcomes and the rows of the outcomes and the sources ----- */
+
+.bs-stacked {
+    display: flex;
+    width: 100%;
+    height: 0.75rem;
+    margin-bottom: 1.4rem;
+    border-radius: 9999px;
+    overflow: hidden;
+    background: var(--bs-track);
+}
+
+.bs-stacked-part {
+    display: block;
+    flex: 0 0 auto;
+    width: 0;
+    height: 100%;
+}
+
+.bs-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bs-row {
+    display: grid;
+    grid-template-columns: minmax(12rem, 1.2fr) minmax(8rem, auto) minmax(8rem, 1fr);
+    grid-template-areas:
+        "label figures bar"
+        "desc desc desc";
+    align-items: center;
+    gap: 0.4rem 1.25rem;
+    --bs-tone: var(--bs-accent);
+}
+
+.bs-row-label {
+    grid-area: label;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.bs-row-label strong {
+    color: var(--bs-strong);
+    font-weight: 800;
+}
+
+.bs-row-figures {
+    grid-area: figures;
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    white-space: nowrap;
+}
+
+.bs-count {
+    color: var(--bs-strong);
+    font-size: 1.05rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.bs-percent {
+    color: var(--bs-soft);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.bs-bar {
+    grid-area: bar;
+    position: relative;
+    height: 0.55rem;
+    border-radius: 9999px;
+    overflow: hidden;
+    background: var(--bs-track);
+}
+
+.bs-bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 0;
+    border-radius: 9999px;
+    background: var(--bs-tone);
+}
+
+.bs-row-desc {
+    grid-area: desc;
+    margin: 0;
+    color: var(--bs-soft);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.bs-dot {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: var(--bs-tone, var(--bs-accent));
+}
+
+.bs-code {
+    padding: 0.05rem 0.5rem;
+    border-radius: 9999px;
+    color: var(--bs-soft);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: rgba(71, 85, 105, 0.35);
+}
+
+/* The tone of an outcome: resolved is good, nobody signed in is plain, a rule break or a failure is bad. */
+.bs-row[data-code="RESOLVED"], .bs-stacked-part[data-code="RESOLVED"] { --bs-tone: var(--bs-good); }
+.bs-row[data-code="ABSENT"], .bs-stacked-part[data-code="ABSENT"] { --bs-tone: var(--bs-neutral); }
+.bs-row[data-code="INVALID"], .bs-stacked-part[data-code="INVALID"] { --bs-tone: var(--bs-warn); }
+.bs-row[data-code="FAILED"], .bs-stacked-part[data-code="FAILED"] { --bs-tone: var(--bs-bad); }
+
+.bs-stacked-part { background: var(--bs-tone, var(--bs-accent)); }
+
+.bs-row-source { --bs-tone: var(--bs-accent); }
+
+.bs-row-alert .bs-row-label strong,
+.bs-row-alert .bs-count {
+    color: var(--bs-tone);
+}
+
+/* ----- the mail addresses ----- */
+
+.bs-email {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 0.9rem;
+    margin-bottom: 1.1rem;
+}
+
+.bs-email i {
+    font-size: 1.3rem;
+}
+
+.bs-email-figure {
+    font-size: 1.9rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.bs-email-label {
+    font-weight: 700;
+}
+
+.bs-email-ok i, .bs-email-ok .bs-email-figure, .bs-email-ok .bs-email-label { color: var(--bs-good); }
+.bs-email-warn i, .bs-email-warn .bs-email-figure, .bs-email-warn .bs-email-label { color: var(--bs-warn); }
+
+.bs-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bs-pill {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.55rem;
+    padding: 0.3rem 0.9rem;
+    border-radius: 9999px;
+    color: var(--bs-soft);
+    font-size: 0.88rem;
+    font-weight: 700;
+    background: rgba(71, 85, 105, 0.3);
+}
+
+.bs-pill strong {
+    color: var(--bs-strong);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.bs-pill-warn {
+    color: #fde68a;
+    background: rgba(251, 191, 36, 0.18);
+}
+
+/* ----- the problems: what each means and what the application can do ----- */
+
+.bs-problems {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bs-problem {
+    --bs-tone: var(--bs-neutral);
+}
+
+.bs-problem[data-effect="USER_NOT_RESOLVED"] { --bs-tone: var(--bs-bad); }
+.bs-problem[data-effect="NO_EMAIL"] { --bs-tone: var(--bs-warn); }
+.bs-problem[data-effect="VALUE_LEFT_OUT"] { --bs-tone: var(--bs-accent); }
+.bs-problem[data-effect="NOTICE"] { --bs-tone: var(--bs-neutral); }
+
+.bs-problem-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.65rem;
+}
+
+.bs-problem-name {
+    color: var(--bs-strong);
+    font-size: 1.02rem;
+    font-weight: 800;
+}
+
+.bs-effect {
+    padding: 0.1rem 0.65rem;
+    border-radius: 9999px;
+    color: var(--bs-tone);
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: rgba(71, 85, 105, 0.3);
+}
+
+.bs-problem-count {
+    margin-left: auto;
+    color: var(--bs-tone);
+}
+
+.bs-problem-body {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.55rem 1rem;
+    margin: 0.85rem 0 0 1.2rem;
+}
+
+.bs-problem-body dt {
+    color: var(--bs-soft);
+    font-size: 0.85rem;
+    font-weight: 800;
+}
+
+.bs-problem-body dd {
+    margin: 0;
+    font-weight: 600;
+}
+
+.bs-meaning {
+    padding-left: 0.8rem;
+    color: var(--bs-text);
+    border-left: 3px solid var(--bs-tone);
+}
+
+.bs-action {
+    padding-left: 0.8rem;
+    color: var(--bs-strong);
+    border-left: 3px solid var(--bs-accent);
+}
+
+.bs-quiet {
+    margin-top: 1.8rem;
+}
+
+.bs-quiet summary {
+    color: var(--bs-accent);
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.bs-quiet summary:focus-visible {
+    outline: 2px solid var(--bs-accent);
+    outline-offset: 3px;
+    border-radius: 0.25rem;
+}
+
+.bs-problems-quiet {
+    margin-top: 1.4rem;
+}
+
+@media (max-width: 860px) {
+    .bs-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "label figures"
+            "bar bar"
+            "desc desc";
+    }
+
+    .bs-problem-body {
+        grid-template-columns: minmax(0, 1fr);
+        margin-left: 0;
+    }
+
+    .bs-problem-count {
+        margin-left: 0;
+    }
+}

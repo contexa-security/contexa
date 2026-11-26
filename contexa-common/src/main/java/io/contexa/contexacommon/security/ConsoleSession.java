@@ -26,16 +26,17 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * A request of the HOST_OWNED console, signed in with Contexa's own accounts (Q-17). The console's administrator and the
- * application's user of the same name are two people, so nothing decided about one may reach the other: a BLOCK of the
- * application's user would lock out the administrator who is to lift it. The console's chain marks its requests here,
- * and they read and write decisions under a key of their own.
+ * A request of the console on the flow of Contexa's administrators ({@code contexa-admin}), signed in with Contexa's own
+ * accounts apart from the application's users: in every combination of mode and ownership but FULL with CONTEXA_OWNED
+ * (Q-17). The console's administrator and the application's user of the same name are two people, so nothing decided
+ * about one may reach the other: a BLOCK of the application's user would lock out the administrator who is to lift it.
+ * The console's chain marks its requests here, and they read and write decisions under a key of their own.
  * <p>
  * The block list stays open to a console session whatever is decided about it: it is where a BLOCK is lifted, and
  * without it an administrator could lock the console for good. A session under a BLOCK only reads it, though. Its own
  * BLOCK takes another administrator or a verification passed in that session, and it changes nothing else until then.
  * <p>
- * Where the console and the application share one account (CONTEXA_OWNED) no request is marked here. An administrator
+ * Where the console and the application share one account (FULL with CONTEXA_OWNED) no request is marked here. An administrator
  * under a BLOCK who passed MFA in the session reaches the people of the block list and nothing else: the access
  * filter says so on the request, for what stands behind it.
  */

@@ -17,8 +17,11 @@ package io.contexa.contexacommon.security.bridge.web;
 
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexacommon.security.bridge.authentication.HostPrincipalSnapshotAdapter;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
+import io.contexa.contexacommon.security.bridge.identity.IdentityResolution;
+import io.contexa.contexacommon.security.bridge.identity.SubjectStamps;
 import io.contexa.contexacommon.security.bridge.resolver.AuthenticationStampResolver;
 import io.contexa.contexacommon.security.bridge.resolver.AuthorizationStampResolver;
 import io.contexa.contexacommon.security.bridge.resolver.DelegationStampResolver;
@@ -29,6 +32,7 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.bridge.subject.ContexaSubject;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import jakarta.servlet.FilterChain;
@@ -36,7 +40,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.lang.Nullable;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -48,16 +51,12 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class BridgeResolutionFilter extends OncePerRequestFilter {
 
     private static final long REPORT_INTERVAL_MILLIS = 60_000L;
-    private static final String EXPLICIT_HANDOFF_SOURCE = "EXPLICIT_HANDOFF";
-    private static final String HANDOFF_CONFLICT_ATTRIBUTE = "bridgeHandoffConflict";
-    private static final String HANDOFF_PRINCIPAL_ID_ATTRIBUTE = "bridgeHandoffPrincipalId";
 
     private final BridgeProperties properties;
     private final RequestContextCollector requestContextCollector;
@@ -70,6 +69,7 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
     private final AtomicLong lastReport = new AtomicLong();
     @Nullable
     private final SecurityContextRepository securityContextRepository;
+    private final IdentityResolution identityResolution;
 
     public BridgeResolutionFilter(
             BridgeProperties properties,
@@ -122,6 +122,36 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
             @Nullable BridgeUserMirrorSyncService bridgeUserMirrorSyncService,
             @Nullable BridgeRuntimeSupport bridgeRuntimeSupport,
             @Nullable SecurityContextRepository securityContextRepository) {
+        this(
+                properties,
+                requestContextCollector,
+                authenticationStampResolvers,
+                authorizationStampResolvers,
+                delegationStampResolvers,
+                bridgeCoverageEvaluator,
+                bridgeUserMirrorSyncService,
+                bridgeRuntimeSupport,
+                securityContextRepository,
+                null
+        );
+    }
+
+    /**
+     * @param identityResolution how the identity of a request is made (bridge v2); without one, the resolution of an
+     *                           application that declared nothing for the bridge
+     */
+    public BridgeResolutionFilter(
+            BridgeProperties properties,
+            RequestContextCollector requestContextCollector,
+            List<AuthenticationStampResolver> authenticationStampResolvers,
+            List<AuthorizationStampResolver> authorizationStampResolvers,
+            List<DelegationStampResolver> delegationStampResolvers,
+            BridgeCoverageEvaluator bridgeCoverageEvaluator,
+            @Nullable BridgeUserMirrorSyncService bridgeUserMirrorSyncService,
+            @Nullable BridgeRuntimeSupport bridgeRuntimeSupport,
+            @Nullable SecurityContextRepository securityContextRepository,
+            @Nullable IdentityResolution identityResolution) {
+        this.identityResolution = identityResolution != null ? identityResolution : IdentityResolution.standard();
         this.properties = properties != null ? properties : new BridgeProperties();
         this.requestContextCollector = requestContextCollector;
         this.authenticationStampResolvers = authenticationStampResolvers != null ? List.copyOf(authenticationStampResolvers) : List.of();
@@ -139,25 +169,119 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         return !properties.isEnabled();
     }
 
+    /**
+     * Makes the identity of the request (bridge v2, {@link IdentityResolution}) and keeps it under
+     * {@link BridgeRequestAttributes#SUBJECT_IDENTITY}. A request of the application's signed-in Spring Security user is
+     * then resolved for that user as before; where Contexa keeps an identity of its own (SANDBOX, R-10), a request the
+     * application's Spring Security signed nobody in to is resolved for the user the application named for Contexa alone
+     * (its resolver or the request attribute), and the security context stays empty.
+     * <p>
+     * This filter only observes the application's request. Whatever goes wrong while the principal, the request and the
+     * stamps are read (an authentication without a name, a resolver that fails, a mirror that cannot be written) must
+     * never become the application's error: the request goes on. The application's own exceptions in the chain are not
+     * caught here.
+     */
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        // This filter only observes the application's request. Whatever goes wrong while the principal, the request and the stamps are read
-        // (an authentication without a name, a principal object that fails when it is walked, a mirror that cannot be written) must never
-        // become the application's error: the request goes on. The application's own exceptions in the chain are not caught here.
         try {
-            resolveForTheRequest(request, response, auth, false);
+            ContexaIdentity identity = identityResolution.resolve(request, auth);
+            request.setAttribute(BridgeRequestAttributes.SUBJECT_IDENTITY, identity);
+            if (ContexaIdentity.signedIn(auth)) {
+                resolveForTheRequest(request, response, auth, false);
+            } else if (keepsAnIdentityOfItsOwn()) {
+                resolveForContexaAlone(request, identity);
+            }
         } catch (Exception | LinkageError | StackOverflowError e) {
             reportFailure(e);
         }
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * R-10: the user a protected method is decided for, made known after this filter ran (an application that signs the
+     * user in to Spring Security, or puts the user in the request attribute, in an MVC interceptor or a controller).
+     * Called at the decision; a request resolved for its user already is left as it is, and the application's resolver,
+     * called once a request, is not called again. Only where Contexa keeps an identity of its own (SANDBOX): under FULL,
+     * Contexa's chain signs the users in. Nothing of it may fail the call.
+     */
+    public void resolveAtDecision(@Nullable HttpServletRequest request) {
+        if (request == null || shouldNotFilter(request) || !keepsAnIdentityOfItsOwn()) {
+            return;
+        }
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (ContexaIdentity.signedIn(auth)) {
+                if (request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT) != null
+                        && request.getAttribute(BridgeRequestAttributes.IDENTITY) == null) {
+                    return;
+                }
+                request.removeAttribute(BridgeRequestAttributes.IDENTITY);
+                request.setAttribute(BridgeRequestAttributes.SUBJECT_IDENTITY,
+                        identityResolution.resolveAgainWithoutTheResolver(request, auth));
+                resolveForTheRequest(request, null, auth, false);
+            } else if (!(request.getAttribute(BridgeRequestAttributes.IDENTITY) instanceof Authentication)) {
+                ContexaIdentity identity = identityResolution.resolveAgainWithoutTheResolver(request, auth);
+                if (identity.isResolved()) {
+                    request.setAttribute(BridgeRequestAttributes.SUBJECT_IDENTITY, identity);
+                    resolveForContexaAlone(request, identity);
+                }
+            }
+        } catch (Exception | LinkageError | StackOverflowError e) {
+            reportFailure(e);
+        }
+    }
+
+    /** Where Contexa does not write the application's security context, its decisions read an identity of its own. */
+    private boolean keepsAnIdentityOfItsOwn() {
+        return !properties.operatingBehaviour().writesSecurityContext();
+    }
+
+    /**
+     * A request without a signed-in user of the application's Spring Security: the user the application named for
+     * Contexa alone (its resolver or the request attribute) becomes Contexa's identity of the request, with the
+     * authorization its authorities state and the delegation it states. Nothing the application did not name is read: a
+     * request whose identity did not resolve is left exactly as it came.
+     */
+    private void resolveForContexaAlone(HttpServletRequest request, ContexaIdentity identity) {
+        if (!identity.isResolved()
+                || (identity.getSource() != ContexaIdentity.Source.RESOLVER
+                && identity.getSource() != ContexaIdentity.Source.REQUEST_ATTRIBUTE)) {
+            return;
+        }
+        recordNamed(request, identity, false);
+    }
+
+    /**
+     * bridge v2 B5-2, ContexaBridge.signedIn: the application tells Contexa that the user it names signed in on this
+     * request. The user becomes Contexa's identity of the request, as one the application names in the request attribute
+     * does, and the sign-in waits for the copy of the user (within the guard's bound), which writes when and from where the
+     * user signed in. A request on Contexa's own paths is left alone, as at any sign-in.
+     *
+     * @return the identity the subject made; unresolved when its user id breaks the rules, and nothing else is done then
+     */
+    public ContexaIdentity signedIn(HttpServletRequest request, ContexaSubject subject) {
+        ContexaIdentity identity = identityResolution.named(subject);
+        if (shouldNotFilter(request)) {
+            return identity;
+        }
+        request.setAttribute(BridgeRequestAttributes.SUBJECT_IDENTITY, identity);
+        if (identity.isResolved()) {
+            recordNamed(request, identity, true);
+        }
+        return identity;
+    }
+
+    private void recordNamed(HttpServletRequest request, ContexaIdentity identity, boolean signIn) {
+        RequestContextSnapshot requestContext = requestContextCollector.collect(request);
+        AuthenticationStamp authenticationStamp = SubjectStamps.authenticationStamp(identity, requestContext);
+        AuthorizationStamp authorizationStamp = bridgeRuntimeSupport.deriveAuthorizationStamp(
+                authenticationStamp, requestContext.requestUri(), requestContext.method()).orElse(null);
+        DelegationStamp delegationStamp = SubjectStamps.delegationStamp(identity).orElse(null);
+        Resolution resolution = record(request, null, null, requestContext, authenticationStamp, authorizationStamp,
+                delegationStamp, signIn);
+        bridgeRuntimeSupport.bindRequestIdentity(request, resolution.result(), resolution.userSync());
     }
 
     /**
@@ -172,6 +296,8 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
             return;
         }
         try {
+            request.setAttribute(BridgeRequestAttributes.SUBJECT_IDENTITY,
+                    identityResolution.resolveAgainWithoutTheResolver(request, authentication));
             resolveForTheRequest(request, null, authentication, true);
         } catch (Exception | LinkageError | StackOverflowError e) {
             reportFailure(e);
@@ -194,21 +320,29 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
                 BridgeRequestAttributes.HOST_PRINCIPAL_SNAPSHOT,
                 HostPrincipalSnapshotAdapter.INSTANCE.snapshot(auth));
         RequestContextSnapshot requestContext = requestContextCollector.collect(request);
-        AuthenticationStamp resolvedAuthenticationStamp = resolveAuthenticationStamp(request, requestContext).orElse(null);
-        AuthenticationStamp handoffStamp = explicitHandoffStamp(request);
-        if (handoffStamp != null && resolvedAuthenticationStamp != null
-                && Objects.equals(handoffStamp.principalId(), resolvedAuthenticationStamp.principalId())) {
-            // An explicit handoff earlier in this request already resolved the same principal; keep it as is.
-            return;
-        }
-        AuthenticationStamp authenticationStamp = handoffStamp != null
-                ? withHandoffConflict(resolvedAuthenticationStamp, handoffStamp)
-                : resolvedAuthenticationStamp;
+        AuthenticationStamp authenticationStamp = resolveAuthenticationStamp(request, requestContext).orElse(null);
+        record(request, response, auth, requestContext, authenticationStamp, signIn);
+    }
+
+    /**
+     * The stamps of the request beside its authentication stamp, and the copy of its user, written to the request. The
+     * application's request never waits for Contexa's database for the copy of its user; a sign-in does.
+     */
+    private Resolution record(HttpServletRequest request, @Nullable HttpServletResponse response, @Nullable Authentication auth,
+                              RequestContextSnapshot requestContext, @Nullable AuthenticationStamp authenticationStamp,
+                              boolean signIn) {
         AuthorizationStamp authorizationStamp = resolveAuthorizationStamp(request, requestContext)
                 .or(() -> bridgeRuntimeSupport.deriveAuthorizationStamp(authenticationStamp, requestContext.requestUri(), requestContext.method()))
                 .orElse(null);
         DelegationStamp delegationStamp = resolveDelegationStamp(request, requestContext).orElse(null);
-        // the application's request never waits for Contexa's database for the copy of its user; a sign-in does
+        return record(request, response, auth, requestContext, authenticationStamp, authorizationStamp, delegationStamp,
+                signIn);
+    }
+
+    private Resolution record(HttpServletRequest request, @Nullable HttpServletResponse response, @Nullable Authentication auth,
+                              RequestContextSnapshot requestContext, @Nullable AuthenticationStamp authenticationStamp,
+                              @Nullable AuthorizationStamp authorizationStamp, @Nullable DelegationStamp delegationStamp,
+                              boolean signIn) {
         BridgeUserMirrorSyncResult userSyncResult = bridgeRuntimeSupport.synchronizeUser(
                 auth, authenticationStamp, authorizationStamp, requestContext, signIn);
 
@@ -225,40 +359,10 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         if (authenticationStamp != null && authenticationStamp.authenticated()) {
             bridgeRuntimeSupport.persistSecurityContext(securityContextRepository, request, response);
         }
+        return new Resolution(result, userSyncResult);
     }
 
-    @Nullable
-    private AuthenticationStamp explicitHandoffStamp(HttpServletRequest request) {
-        if (request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT) instanceof BridgeResolutionResult result
-                && result.authenticationStamp() != null
-                && EXPLICIT_HANDOFF_SOURCE.equals(result.authenticationStamp().authenticationSource())) {
-            return result.authenticationStamp();
-        }
-        return null;
-    }
-
-    @Nullable
-    private AuthenticationStamp withHandoffConflict(@Nullable AuthenticationStamp stamp, AuthenticationStamp handoffStamp) {
-        if (stamp == null) {
-            return null;
-        }
-        Map<String, Object> attributes = new LinkedHashMap<>(stamp.attributes());
-        attributes.put(HANDOFF_CONFLICT_ATTRIBUTE, true);
-        attributes.put(HANDOFF_PRINCIPAL_ID_ATTRIBUTE, handoffStamp.principalId());
-        return new AuthenticationStamp(
-                stamp.principalId(),
-                stamp.displayName(),
-                stamp.principalType(),
-                stamp.authenticated(),
-                stamp.authenticationType(),
-                stamp.authenticationSource(),
-                stamp.authenticationAssurance(),
-                stamp.mfaCompleted(),
-                stamp.authenticationTime(),
-                stamp.sessionId(),
-                stamp.authorities(),
-                attributes
-        );
+    private record Resolution(BridgeResolutionResult result, @Nullable BridgeUserMirrorSyncResult userSync) {
     }
 
     private Optional<AuthenticationStamp> resolveAuthenticationStamp(HttpServletRequest request, RequestContextSnapshot requestContext) {

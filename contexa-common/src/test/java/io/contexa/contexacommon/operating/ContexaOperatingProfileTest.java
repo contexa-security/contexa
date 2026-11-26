@@ -17,6 +17,7 @@ package io.contexa.contexacommon.operating;
 
 import io.contexa.contexacommon.security.bridge.SecurityMode;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -69,22 +70,24 @@ class ContexaOperatingProfileTest {
                 .hasMessageContaining("CONTEXA_OWNED");
     }
 
+    /** R-11: whether Contexa's database serves the application follows the mode, not the ownership. */
     @Test
-    void aFullApplicationThatKeepsItsSignInIsRefusedWithWhatToChange() {
-        assertThatThrownBy(() -> ContexaOperatingProfile.of(SecurityMode.FULL, environment().withProperty(PROP_OWNERSHIP, "HOST_OWNED")))
-                .isInstanceOfSatisfying(ContexaOperatingProfileException.class, refused -> {
-                    assertThat(refused.getMessage()).contains("mode = FULL").contains("HOST_OWNED");
-                    assertThat(refused.action()).contains("contexa.bridge.ownership").contains("@EnableAISecurity");
-                });
+    @DisplayName("FULL에서 자기 DB가 없는 앱은 소유권이 HOST_OWNED여도 Contexa DB를 쓴다")
+    void aFullApplicationThatKeepsItsComponentsStillUsesContexasDatabaseWithoutOneOfItsOwn() {
+        ContexaOperatingProfile profile = ContexaOperatingProfile.of(SecurityMode.FULL, environment().withProperty(PROP_OWNERSHIP, "HOST_OWNED"));
+
+        assertThat(profile.ownership()).isEqualTo(SecurityOwnershipMode.HOST_OWNED);
+        assertThat(profile.contexaOwnsApplicationData()).isTrue();
     }
 
+    /** R-11: an application kept apart in SANDBOX mode keeps its data to itself, whatever the ownership. */
     @Test
-    void aSandboxApplicationThatGivesContexaItsSignInIsRefusedWithWhatToChange() {
-        assertThatThrownBy(() -> ContexaOperatingProfile.of(SecurityMode.SANDBOX, environment().withProperty(PROP_OWNERSHIP, "contexa-owned")))
-                .isInstanceOfSatisfying(ContexaOperatingProfileException.class, refused -> {
-                    assertThat(refused.getMessage()).contains("SANDBOX").contains("CONTEXA_OWNED");
-                    assertThat(refused.action()).contains("mode = FULL");
-                });
+    @DisplayName("SANDBOX 앱은 소유권이 CONTEXA_OWNED여도 자기 데이터를 Contexa에 넘기지 않는다")
+    void aSandboxApplicationThatLetsContexasComponentsServeItKeepsItsData() {
+        ContexaOperatingProfile profile = ContexaOperatingProfile.of(SecurityMode.SANDBOX, environment().withProperty(PROP_OWNERSHIP, "contexa-owned"));
+
+        assertThat(profile.ownership()).isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED);
+        assertThat(profile.contexaOwnsApplicationData()).isFalse();
     }
 
     @Test

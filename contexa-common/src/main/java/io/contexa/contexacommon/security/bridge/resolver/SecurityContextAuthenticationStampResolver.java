@@ -19,6 +19,7 @@ import java.time.ZoneId;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacommon.security.bridge.AgentTokenClaims;
 import io.contexa.contexacommon.security.bridge.AuthenticationMethodReferences;
+import io.contexa.contexacommon.security.bridge.BridgeInstants;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
@@ -92,7 +93,8 @@ public class SecurityContextAuthenticationStampResolver implements Authenticatio
             mfaCompleted = AuthenticationMethodReferences.multiFactor(methodReferences);
             mfaCompletedEvidenceState = BridgeSemanticBoundaryPolicy.DERIVED_FROM_AMR;
         }
-        Instant authenticationTime = SecurityContextStampSupport.extractInstant(authentication, config.getAuthTimeKeys());
+        Instant authenticationTime = BridgeInstants.authenticationTime(
+                SecurityContextStampSupport.extractInstant(authentication, config.getAuthTimeKeys()), attributes);
         String authenticationType = SecurityContextStampSupport.extractString(authentication, config.getAuthenticationTypeKeys());
         String authenticationTypeEvidenceState = BridgeSemanticBoundaryPolicy.EXPLICIT_CUSTOMER_SIGNAL;
         if (authenticationType == null) {

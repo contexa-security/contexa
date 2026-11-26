@@ -137,8 +137,9 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
      * before the filter is added. The post-processor is typed, so it touches the form filter and nothing else.
      */
     @Override
-    protected void useContexaSignIn(FormLoginConfigurer<HttpSecurity> configurer, ApplicationContext applicationContext) {
-        AuthenticationManager contexaSignIn = ContexaPasswordSignIn.manager(applicationContext);
+    protected void useContexaSignIn(FormLoginConfigurer<HttpSecurity> configurer, HttpSecurity http,
+                                    ApplicationContext applicationContext) {
+        AuthenticationManager contexaSignIn = ContexaPasswordSignIn.manager(http, applicationContext);
         if (contexaSignIn == null) {
             return;
         }

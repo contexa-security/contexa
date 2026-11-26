@@ -28,7 +28,8 @@ import java.util.Map;
 /**
  * Boot's {@code db} health gathers every DataSource it finds, so Contexa's own database would decide the health of an
  * application that merely hosts Contexa, and a platform restarting on that health would restart a working application over
- * an outage of Contexa's. An application that keeps its own sign-in answers {@code /actuator/health} as it does alone.
+ * an outage of Contexa's. An application whose data Contexa's database does not hold answers {@code /actuator/health} as it
+ * does alone.
  */
 final class HostHealthWithoutContexaDatabase implements SmartInitializingSingleton {
 

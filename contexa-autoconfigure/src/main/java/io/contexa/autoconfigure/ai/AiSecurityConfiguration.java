@@ -17,10 +17,12 @@ package io.contexa.autoconfigure.ai;
 
 import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.operating.ContexaOperatingProfile;
-import io.contexa.contexacommon.security.bridge.SecurityMode;
+import io.contexa.contexacommon.operating.OperatingBehaviour;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
+import io.contexa.contexaidentity.security.core.bootstrap.configurer.AdminRealmConfigurer;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.BridgeResolutionConfigurer;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.SessionSecurityContextRepositoryConfigurer;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -28,7 +30,6 @@ import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpCustomizer;
 import io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -40,10 +41,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
-
-import java.util.UUID;
 
 /**
  * Core configuration for {@code @EnableAISecurity} legacy integration.
@@ -56,8 +54,8 @@ import java.util.UUID;
  * @see io.contexa.contexacommon.annotation.EnableAISecurity
  */
 @Configuration
-@Import({AiBridgeConfiguration.class, HostOwnedHealthConfiguration.class, HostMailHealthConfiguration.class,
-        HostOwnedDiagnosticsConfiguration.class, ContexaOwnedDiagnosticsConfiguration.class})
+@Import({AiBridgeConfiguration.class, ContexaFilterSlotConfiguration.class, HostHealthConfiguration.class,
+        HostMailHealthConfiguration.class, SandboxDiagnosticsConfiguration.class})
 @ConditionalOnClass(SecurityFilterChain.class)
 public class AiSecurityConfiguration {
 
@@ -78,70 +76,65 @@ public class AiSecurityConfiguration {
      * Once this bean exists, the existing configurer mechanism handles everything:
      * {@code GlobalConfigurer}, {@code ZeroTrustAccessControlConfigurer},
      * {@code ZeroTrustChallengeConfigurer}, and {@code SecurityFilterChainRegistrar}.
+     * <p>
+     * Wherever Contexa's administrators sign in apart from the application's users, it carries their flow
+     * ({@link ContexaAdminFlow}), as a configuration the application declares itself does.
      */
     @Bean(name = "contexaPlatformDslConfig")
     @ConditionalOnMissingBean(PlatformConfig.class)
     public PlatformConfig platformDslConfig(ApplicationContext applicationContext,
                                                CustomDynamicAuthorizationManager contexaCustomDynamicAuthorizationManager) throws Exception {
         IdentityDslRegistry<HttpSecurity> registry = new IdentityDslRegistry<>(applicationContext);
-        SecurityMode securityMode = ContexaOperatingProfile.resolve(environment).mode();
-        SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
-            http
+        OperatingBehaviour behaviour = OperatingBehaviour.of(ContexaOperatingProfile.resolve(environment));
+        // FULL: Contexa's main chain signs the application's users in and authorizes every request by policy. SANDBOX builds
+        // no main chain: the application's own chain stays the main one, and Contexa enforces behind it.
+        if (behaviour.buildsMainChain()) {
+            SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> http
                     .authorizeHttpRequests(authReq -> authReq
                             .requestMatchers("/contexa/css/**", "/contexa/js/**", "/contexa/img/**", "/images/**", "/favicon.ico",
                                     ContexaConsolePaths.PASSWORD_CHANGE).permitAll()
-                            .anyRequest().access(contexaCustomDynamicAuthorizationManager)
-                    )
-            ;
-        };
-
-        if (securityMode == SecurityMode.SANDBOX) {
-            return registry
-                    .global(http -> {
-                        http.csrf(AbstractHttpConfigurer::disable);
-                        http.cors(AbstractHttpConfigurer::disable);
-                        http.headers(AbstractHttpConfigurer::disable);
-                        // The admin area is for administrators; a signed-in user keeps the self-service paths
-                        // (asking for the release of a block, following a pending analysis), as the seed policies do.
-                        http.authorizeHttpRequests(authReq -> authReq
-                                .requestMatchers("/contexa/admin/login").permitAll()
-                                .requestMatchers("/contexa/admin/api/aiam/zero-trust/**",
-                                        "/contexa/admin/api/aiam/sse/zero-trust/**").authenticated()
-                                .requestMatchers("/contexa/admin/**").hasAuthority("ROLE_ADMIN")
-                                .anyRequest().permitAll());
-
-                    })
+                            .anyRequest().access(contexaCustomDynamicAuthorizationManager));
+            registry.global(globalHttpCustomizer)
                     .mfa(mfa -> mfa.requiredFactors(1)
                             .primaryAuthentication(auth -> auth
-                                    .formLogin(form -> form
-                                            .loginProcessingUrl("/" + UUID.randomUUID())
-                                            .defaultSuccessUrl("/")))
+                                    .formLogin(form -> form.defaultSuccessUrl("/")))
                             .passkey(Customizer.withDefaults())
                             .ott(Customizer.withDefaults())
                             .order(100))
-                    .session(Customizer.withDefaults())
-                    .build();
+                    .session(Customizer.withDefaults());
         }
+        if (behaviour.adminRealmOnItsOwnChain()) {
+            ContexaAdminFlow.declare(registry);
+        }
+        return registry.build();
+    }
 
-        return registry
-                .global(globalHttpCustomizer)
-                .mfa(mfa -> mfa.requiredFactors(1)
-                        .primaryAuthentication(auth -> auth
-                                .formLogin(form -> form.defaultSuccessUrl("/")))
-                        .passkey(Customizer.withDefaults())
-                        .ott(Customizer.withDefaults())
-                        .order(100))
-                .session(Customizer.withDefaults())
-                .build();
+    /**
+     * The flow of Contexa's administrators for a {@link PlatformConfig} the application declares itself, which takes the
+     * place of the default one above (R-13): see {@link ContexaAdminFlow}. Static, as a post-processor is made before the
+     * configuration classes.
+     */
+    @Bean(name = "contexaAdminFlowPostProcessor")
+    public static ContexaAdminFlow.PostProcessor contexaAdminFlowPostProcessor() {
+        return new ContexaAdminFlow.PostProcessor();
     }
 
     @Bean(name = "contexaSessionSecurityContextRepositoryConfigurer")
     @ConditionalOnMissingBean
     public SessionSecurityContextRepositoryConfigurer sessionSecurityContextRepositoryConfigurer(
-            @Qualifier(IamSecurityCoreAutoConfiguration.SESSION_CONTEXT_REPOSITORY)
-            ObjectProvider<AISessionSecurityContextRepository> aiSessionSecurityContextRepositoryProvider) {
+            ConfigurableListableBeanFactory beanFactory) {
         return new SessionSecurityContextRepositoryConfigurer(
-                aiSessionSecurityContextRepositoryProvider.getIfAvailable());
+                ContexaOwnBeans.ownIfPresent(beanFactory, IamSecurityCoreAutoConfiguration.SESSION_CONTEXT_REPOSITORY,
+                        AISessionSecurityContextRepository.class),
+                ContexaOwnBeans.ownIfPresent(beanFactory, IamSecurityCoreAutoConfiguration.ADMIN_SESSION_CONTEXT_REPOSITORY,
+                        AISessionSecurityContextRepository.class));
+    }
+
+    /** The rules of the chain of Contexa's administrators (R-13): its requests, its keys, its sign-out. */
+    @Bean(name = "contexaAdminRealmConfigurer")
+    @ConditionalOnMissingBean
+    public AdminRealmConfigurer adminRealmConfigurer() {
+        return new AdminRealmConfigurer();
     }
 
     @Bean(name = "contexaBridgeResolutionConfigurer")

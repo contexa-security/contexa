@@ -272,6 +272,29 @@ class SessionManagementServiceTest {
         }
     }
 
+    /** bridge v2 B5-2, ContexaBridge.signedOut: the row goes, so no expired mark forces a kept session out later. */
+    @Nested
+    @DisplayName("endTracking")
+    class EndTracking {
+
+        @Test
+        @DisplayName("로그아웃한 세션의 추적 행을 강제 종료 표시 없이 지운다")
+        void theTrackedRowGoesWithoutAnExpiredMark() {
+            service.endTracking("sess-1");
+
+            verify(activeSessionRepository).deleteById(ref("sess-1"));
+            verify(activeSessionRepository, never()).expireSession(any());
+        }
+
+        @Test
+        @DisplayName("세션 ID가 비어 있으면 아무것도 지우지 않는다")
+        void aBlankSessionIdEndsNothing() {
+            service.endTracking(" ");
+
+            verifyNoInteractions(activeSessionRepository);
+        }
+    }
+
     @Nested
     @DisplayName("cleanupExpiredSessions")
     class CleanupExpiredSessions {

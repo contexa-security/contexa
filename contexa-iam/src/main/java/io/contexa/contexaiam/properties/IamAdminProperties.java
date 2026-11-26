@@ -19,6 +19,9 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @ConfigurationProperties(prefix = "contexa.iam.admin")
 public class IamAdminProperties {
@@ -28,6 +31,9 @@ public class IamAdminProperties {
     @NestedConfigurationProperty
     private ConditionTemplates conditionTemplates = new ConditionTemplates();
 
+    @NestedConfigurationProperty
+    private IpAccess ipAccess = new IpAccess();
+
     @Data
     public static class ConditionTemplates {
 
@@ -35,5 +41,16 @@ public class IamAdminProperties {
         // triggered on application startup is skipped. Manual admin endpoints remain
         // unaffected.
         private boolean enabled = false;
+    }
+
+    /** The address control whose rules the console keeps (contexa.iam.admin.ip-access.*). */
+    @Data
+    public static class IpAccess {
+
+        /**
+         * The paths the address rules apply to, as servlet URL patterns; every path by default, whatever the mode and the
+         * ownership. An empty list is every path, as for any servlet filter registration.
+         */
+        private List<String> urlPatterns = new ArrayList<>(List.of("/*"));
     }
 }

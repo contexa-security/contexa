@@ -20,6 +20,7 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.security.HeldBean;
+import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
@@ -29,7 +30,7 @@ import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableLlmSuppressionWriter;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
-import io.contexa.autoconfigure.ai.HostOwnedEnforcementOrder;
+import io.contexa.autoconfigure.ai.ContexaServletFilterOrder;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableRefusalFilter;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableResourceCertificationGate;
@@ -63,11 +64,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Slf4j
 @AutoConfiguration
-@Import(IamInfrastructureContexaOwnedConfiguration.class)
+@Import(IamFullModeInfrastructureConfiguration.class)
 public class IamInfrastructureAutoConfiguration {
 
-    @Bean(name = "contexaJpaQueryFactory")
-    @ConditionalOnMissingBean
+    /**
+     * Contexa's query factory over Contexa's own database, in every way of running Contexa and beside a query factory of the
+     * application's, which it never replaces: it is no autowire candidate, and Contexa's repositories take it by its name (F-02).
+     */
+    @Bean(name = "contexaJpaQueryFactory", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaJpaQueryFactory")
     public JPAQueryFactory jpaQueryFactory(
             @Qualifier("contexaEntityManagerFactory") EntityManagerFactory entityManagerFactory) {
         EntityManager entityManager = SharedEntityManagerCreator.createSharedEntityManager(entityManagerFactory);
@@ -99,7 +104,8 @@ public class IamInfrastructureAutoConfiguration {
      * so this advisor takes its collaborators as providers and resolves them once every singleton exists (or at its
      * first call): resolving them at its creation made their whole graph (the decision service, the language models,
      * the data sources) miss the post-processors not yet registered, and left @Protectable methods among them
-     * unprotected. It is an infrastructure bean, as Spring Security's method advisors are.
+     * unprotected. It is an infrastructure bean, as Spring Security's method advisors are. The bridge's resolution of the
+     * request resolves, at the decision, a user the application made known after Contexa's request filters (R-10).
      */
     @Bean(name = "contexaProtectableAuthorizationAdvisor")
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
@@ -114,7 +120,8 @@ public class IamInfrastructureAutoConfiguration {
             ObjectProvider<AuthorizationDenialRecorder> authorizationDenialRecorderProvider,
             ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties,
             ObjectProvider<DelegatorAuthority> delegatorAuthorityProvider,
-            ObjectProvider<ZeroTrustCoverageCounter> coverageCounterProvider) {
+            ObjectProvider<ZeroTrustCoverageCounter> coverageCounterProvider,
+            ObjectProvider<BridgeResolutionFilter> bridgeResolutionFilterProvider) {
 
         Pointcut pointcut = new ComposablePointcut(classOrMethod());
         AtomicReference<AuthorizationManagerMethodInterceptor> advisor = new AtomicReference<>();
@@ -130,6 +137,7 @@ public class IamInfrastructureAutoConfiguration {
             resolving.setSecurityZeroTrustProperties(securityZeroTrustProperties.getObject());
             delegatorAuthorityProvider.ifAvailable(resolving::setDelegatorAuthority);
             coverageCounterProvider.ifAvailable(resolving::setCoverageCounter);
+            bridgeResolutionFilterProvider.ifAvailable(bridge -> resolving.setIdentityResolution(bridge::resolveAtDecision));
         });
         advisor.set(interceptor);
         return interceptor;
@@ -138,7 +146,7 @@ public class IamInfrastructureAutoConfiguration {
     /**
      * Answers a refusal of the advisor that no Spring Security chain answered, on a path no chain of the application covers
      * (the servlet container answered 500 there). It runs right ahead of the Spring Security filter, so on a path a chain
-     * covers that chain's exception translation answers first, as it did. Under both ownerships: Contexa's own chain
+     * covers that chain's exception translation answers first, as it did. In every way of running Contexa: Contexa's own chain
      * covers every path only while its sign-in flow has no URL prefix.
      */
     @Bean(name = "contexaProtectableRefusalFilterRegistration")
@@ -148,7 +156,7 @@ public class IamInfrastructureAutoConfiguration {
         FilterRegistrationBean<ProtectableRefusalFilter> registration =
                 new FilterRegistrationBean<>(new ProtectableRefusalFilter());
         registration.setName("contexaProtectableRefusalFilter");
-        registration.setOrder(HostOwnedEnforcementOrder.securityFilterOrder(securityProperties) - 1);
+        registration.setOrder(ContexaServletFilterOrder.securityFilterOrder(securityProperties) - 1);
         registration.addUrlPatterns("/*");
         return registration;
     }

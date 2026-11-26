@@ -19,10 +19,13 @@ import org.springframework.security.web.webauthn.management.PublicKeyCredentialU
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 
 /**
- * The passkeys of Contexa's step-up where the application owns sign-in.
+ * The passkeys of Contexa's own sign-in and step-up, in every way of running Contexa.
  * <p>
  * Held in a bean of no shared type on purpose: Spring Security's {@code webAuthn()} takes these repositories as the only
  * beans of their types, so as beans they would have stored the application's own passkeys in Contexa's tables.
  */
 public record ContexaPasskeyStores(PublicKeyCredentialUserEntityRepository userEntities, UserCredentialRepository userCredentials) {
+
+    /** The bean of Contexa's passkeys; Contexa's code takes it by this name. */
+    public static final String BEAN_NAME = "contexaPasskeyStores";
 }

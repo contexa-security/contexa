@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.aiam.web;
 
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexaiam.aiam.web.dto.UnblockRequest;
 
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
@@ -25,6 +26,7 @@ import io.contexa.contexaiam.aiam.web.dto.ZeroTrustDtos.ZeroTrustActionResponse;
 import io.contexa.contexaiam.aiam.web.dto.ZeroTrustDtos.ZeroTrustInitiateSuccessResponse;
 import io.contexa.contexaiam.aiam.web.dto.ZeroTrustDtos.ZeroTrustMessageResponse;
 import io.contexa.contexaiam.aiam.web.dto.ZeroTrustDtos.ZeroTrustUnblockSuccessResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -46,9 +48,12 @@ public class ZeroTrustUnblockController {
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
     @PostMapping("/initiate-block-mfa")
-    public ResponseEntity<ZeroTrustActionResponse> initiateBlockMfa(Principal principal) {
+    public ResponseEntity<ZeroTrustActionResponse> initiateBlockMfa(Principal principal,
+                                                                    HttpServletRequest servletRequest) {
 
-        String userId = principal != null ? ZeroTrustUserKey.person(principal.getName()) : null;
+        String userId = principal != null
+                ? ZeroTrustUserKey.person(ContexaIdentity.userId(servletRequest, principal))
+                : null;
         if (userId == null) {
             return ResponseEntity.status(401)
                     .body(new ZeroTrustMessageResponse(false, "Authentication required"));
@@ -75,9 +80,12 @@ public class ZeroTrustUnblockController {
     @PostMapping("/unblock-request")
     public ResponseEntity<ZeroTrustActionResponse> requestUnblock(
             Principal principal,
-            @RequestBody(required = false) UnblockRequest request) {
+            @RequestBody(required = false) UnblockRequest request,
+            HttpServletRequest servletRequest) {
 
-        String userId = principal != null ? ZeroTrustUserKey.person(principal.getName()) : null;
+        String userId = principal != null
+                ? ZeroTrustUserKey.person(ContexaIdentity.userId(servletRequest, principal))
+                : null;
         if (userId == null) {
             return ResponseEntity.status(401)
                     .body(new ZeroTrustMessageResponse(false, "Authentication required"));

@@ -223,8 +223,13 @@ public class SecurityFilterChainRegistrar {
                 configuredFactorFilterProvider.registerFilter(registrationKey, actualFilterInstance);
             }
 
+            // A flow that takes every request stands last (R-14): the chains narrowed to their own paths, the application's
+            // and Contexa's, come before it. Spring Security runs no chain after one that takes every request.
+            int order = builtChain.getRequestMatcher() instanceof AnyRequestMatcher
+                    ? Ordered.LOWEST_PRECEDENCE
+                    : Ordered.HIGHEST_PRECEDENCE + flowConfig.getOrder();
             return new OrderedSecurityFilterChain(
-                    Ordered.HIGHEST_PRECEDENCE + flowConfig.getOrder(),
+                    order,
                     builtChain.getRequestMatcher(),
                     ContexaWorkFilters.around(builtChain.getFilters())
             );

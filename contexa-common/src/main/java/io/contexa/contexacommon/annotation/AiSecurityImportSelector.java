@@ -3,8 +3,6 @@ package io.contexa.contexacommon.annotation;
 
 import io.contexa.contexacommon.operating.ContexaOperatingProfile;
 import io.contexa.contexacommon.operating.ContexaOperatingProfileException;
-import io.contexa.contexacommon.security.bridge.AuthObjectLocation;
-import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringBootVersion;
@@ -32,9 +30,6 @@ public class AiSecurityImportSelector implements DeferredImportSelector, Ordered
 
     public static final String PROP_ENABLED = "contexa.enabled";
     public static final String PROP_MODE = ContexaOperatingProfile.PROP_MODE;
-    public static final String PROP_AUTH_OBJECT_LOCATION = "contexa.ai.security.auth-object.location";
-    public static final String PROP_AUTH_OBJECT_ATTRIBUTE = "contexa.ai.security.auth-object.attribute";
-    public static final String PROP_AUTH_OBJECT_TYPE = "contexa.ai.security.auth-object.type";
     public static final String PROP_BRIDGE_OWNERSHIP = ContexaOperatingProfile.PROP_OWNERSHIP;
     public static final String PROP_CONTEXA_OWNED_APPLICATION =
             ContexaOperatingProfile.PROP_APPLICATION_DATA;
@@ -76,22 +71,8 @@ public class AiSecurityImportSelector implements DeferredImportSelector, Ordered
         Map<String, Object> attributes = importingClassMetadata
                 .getAnnotationAttributes(EnableAISecurity.class.getName(), false);
         SecurityMode mode = SecurityMode.SANDBOX;
-        AuthObjectLocation location = AuthObjectLocation.AUTO;
-        String attribute = "";
-        String type = Object.class.getName();
-        if (attributes != null) {
-            if (attributes.get("mode") instanceof SecurityMode declaredMode) {
-                mode = declaredMode;
-            }
-            if (attributes.get("authObjectLocation") instanceof AuthObjectLocation declaredLocation) {
-                location = declaredLocation;
-            }
-            if (attributes.get("authObjectAttribute") instanceof String declaredAttribute) {
-                attribute = declaredAttribute;
-            }
-            if (attributes.get("authObjectType") instanceof Class<?> declaredType) {
-                type = declaredType.getName();
-            }
+        if (attributes != null && attributes.get("mode") instanceof SecurityMode declaredMode) {
+            mode = declaredMode;
         }
 
         if (environment == null) {
@@ -108,9 +89,6 @@ public class AiSecurityImportSelector implements DeferredImportSelector, Ordered
 
         Map<String, Object> activation = new LinkedHashMap<>();
         activation.put(PROP_MODE, profile.mode().name());
-        activation.put(PROP_AUTH_OBJECT_LOCATION, environment.getProperty(PROP_AUTH_OBJECT_LOCATION, location.name()));
-        activation.put(PROP_AUTH_OBJECT_ATTRIBUTE, environment.getProperty(PROP_AUTH_OBJECT_ATTRIBUTE, attribute != null ? attribute : ""));
-        activation.put(PROP_AUTH_OBJECT_TYPE, environment.getProperty(PROP_AUTH_OBJECT_TYPE, type != null ? type : Object.class.getName()));
         // what is published is the one spelling, so whatever reads these settings later reads the same value
         activation.put(PROP_BRIDGE_OWNERSHIP, profile.ownership().name());
         activation.put(PROP_CONTEXA_OWNED_APPLICATION, profile.contexaOwnsApplicationData());
@@ -121,18 +99,18 @@ public class AiSecurityImportSelector implements DeferredImportSelector, Ordered
 
     /**
      * The engine cannot be left out of a running Contexa: its console, its filters and its method security all read the
-     * decisions the engine stores. An application that keeps its own sign-in then runs without Contexa, as with its database
-     * down. Where Contexa owns the sign-in nobody could sign in, so the start is refused with the reason. The setting is read
-     * as the conditions of the engine read it: anything but true switches it off.
+     * decisions the engine stores. An application Contexa is kept apart from (SANDBOX) then runs without Contexa, as with its
+     * database down. Where Contexa is the main security configuration (FULL) nobody could sign in, so the start is refused
+     * with the reason. The setting is read as the conditions of the engine read it: anything but true switches it off.
      */
     private boolean staysOffWithoutItsEngine(ContexaOperatingProfile profile) {
         String enabled = environment.getProperty(PROP_ENGINE_ENABLED);
         if (enabled == null || "true".equalsIgnoreCase(enabled)) {
             return false;
         }
-        if (profile.ownership() != SecurityOwnershipMode.HOST_OWNED) {
+        if (profile.mode() == SecurityMode.FULL) {
             throw new ContexaOperatingProfileException(
-                    PROP_ENGINE_ENABLED + "=" + enabled + " switches off the decision engine, and Contexa owns the sign-in of this"
+                    PROP_ENGINE_ENABLED + "=" + enabled + " switches off the decision engine, and Contexa is the main security configuration (mode FULL) of this"
                             + " application: nobody could sign in without it.",
                     "Remove " + PROP_ENGINE_ENABLED + ". To run without decisions, set " + DECISIONS_OFF + ".");
         }
@@ -144,12 +122,12 @@ public class AiSecurityImportSelector implements DeferredImportSelector, Ordered
     }
 
     /**
-     * An application that keeps its own sign-in runs without Contexa rather than not at all: with Contexa's database down it
-     * starts exactly as it does with Contexa off. Where Contexa owns the sign-in nobody could sign in without it, so that
-     * application fails to start, as it always did.
+     * An application Contexa is kept apart from (SANDBOX) runs without Contexa rather than not at all: with Contexa's
+     * database down it starts exactly as it does with Contexa off. Where Contexa is the main security configuration (FULL)
+     * nobody could sign in without it, so that application fails to start, as it always did.
      */
     private boolean staysOffWithoutItsDatabase(ContexaOperatingProfile profile) {
-        if (profile.ownership() != SecurityOwnershipMode.HOST_OWNED) {
+        if (profile.mode() == SecurityMode.FULL) {
             return false;
         }
         String redis = redisProblem.apply(environment);

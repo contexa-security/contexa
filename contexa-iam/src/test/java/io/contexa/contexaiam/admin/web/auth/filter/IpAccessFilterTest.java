@@ -18,12 +18,16 @@ package io.contexa.contexaiam.admin.web.auth.filter;
 import io.contexa.contexacommon.store.RequestPathScope;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
+import io.contexa.contexaiam.domain.entity.IpAccessRule;
+import io.contexa.contexaiam.repository.IpAccessRuleRepository;
 import jakarta.servlet.FilterChain;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -190,6 +194,39 @@ class IpAccessFilterTest {
             MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
             assertThat(filter.shouldNotFilter(request)).as(path).isTrue();
         }
+    }
+
+    /**
+     * M4 of docs/agent/운영모드-정상화-구현계획.md: the address control covers every path of the application unless the
+     * operator narrows it, so without rules it must leave the application's request exactly as it came: the same request
+     * and response go on once, and nothing is written, set or committed on the response.
+     */
+    @Test
+    @DisplayName("주소 규칙이 없으면 고객 요청은 그대로 고객에게 간다")
+    void withoutRulesTheApplicationsRequestGoesOnUntouched() throws Exception {
+        IpAccessRuleRepository repository = mock(IpAccessRuleRepository.class);
+        when(repository.findByRuleTypeAndEnabledTrueOrderByCreatedAtDesc(IpAccessRule.RuleType.DENY)).thenReturn(List.of());
+        when(repository.findByRuleTypeAndEnabledTrueOrderByCreatedAtDesc(IpAccessRule.RuleType.ALLOW)).thenReturn(List.of());
+        IpAccessFilter filter = new IpAccessFilter(new IpAccessRuleService(repository), new TieredStrategyProperties.Security());
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/orders/42");
+        request.setRemoteAddr("203.0.113.10");
+        request.addHeader("X-Forwarded-For", "198.51.100.7");
+        request.setContentType("application/json");
+        request.setContent("{\"quantity\":3}".getBytes(StandardCharsets.UTF_8));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        List<Object[]> passedOn = new ArrayList<>();
+        FilterChain chain = (passedRequest, passedResponse) -> passedOn.add(new Object[]{passedRequest, passedResponse});
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(passedOn).hasSize(1);
+        assertThat(passedOn.get(0)[0]).isSameAs(request);
+        assertThat(passedOn.get(0)[1]).isSameAs(response);
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.isCommitted()).isFalse();
+        assertThat(response.getHeaderNames()).isEmpty();
+        assertThat(response.getContentAsByteArray()).isEmpty();
+        assertThat(new String(request.getContentAsByteArray(), StandardCharsets.UTF_8)).isEqualTo("{\"quantity\":3}");
     }
 
     /** PR-196: the rules are read as Contexa's own work; the application's part of the request is not. */

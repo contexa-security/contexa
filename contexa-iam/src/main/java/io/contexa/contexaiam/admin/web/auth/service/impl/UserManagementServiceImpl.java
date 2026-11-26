@@ -135,7 +135,8 @@ public class UserManagementServiceImpl implements UserManagementService {
         if (userRepository.findByUsername(userDto.getUsername()).isPresent()) {
             throw new IllegalArgumentException(msg("msg.user.username.exists", userDto.getUsername()));
         }
-        if (userDto.getEmail() != null && userRepository.existsByEmail(userDto.getEmail())) {
+        if (userDto.getEmail() != null
+                && userRepository.existsByEmailIgnoreCaseAndBridgeManagedFalse(userDto.getEmail())) {
             throw new IllegalArgumentException(msg("msg.user.email.exists", userDto.getEmail()));
         }
 
@@ -225,7 +226,8 @@ public class UserManagementServiceImpl implements UserManagementService {
                 .orElseThrow(() -> new IllegalArgumentException(
                         msg("msg.user.not.found.id", String.valueOf(userDto.getId()))));
         checkProfile(userDto);
-        if (userDto.getEmail() != null && userRepository.existsByEmailAndIdNot(userDto.getEmail(), users.getId())) {
+        if (userDto.getEmail() != null && !users.isBridgeManaged()
+                && userRepository.existsByEmailIgnoreCaseAndBridgeManagedFalseAndIdNot(userDto.getEmail(), users.getId())) {
             throw new IllegalArgumentException(msg("msg.user.email.exists", userDto.getEmail()));
         }
 
@@ -456,7 +458,20 @@ public class UserManagementServiceImpl implements UserManagementService {
             bridgeUserProfileRepository.deleteById(id);
         }
         userRepository.deleteById(id);
-        target.map(Users::getUsername)
-                .ifPresent(username -> eventPublisher.publishEvent(new UserAccountDeletedEvent(id, username)));
+        target.map(UserManagementServiceImpl::engineStateKey)
+                .ifPresent(key -> eventPublisher.publishEvent(new UserAccountDeletedEvent(id, key)));
+    }
+
+    /**
+     * The key the engine keeps the deleted account's state under, which {@link UserAccountDeletedEvent} names. A copy of
+     * an application's user is named by a hash of its bridge key, while the engine keeps the person's state under the
+     * application's user id, the copy's external subject id (docs/agent/bridge-v2-B5-2-B5-3-설계안.md R-4). Any other
+     * account is the key itself.
+     */
+    private static String engineStateKey(Users user) {
+        if (user.isBridgeManaged() && StringUtils.hasText(user.getExternalSubjectId())) {
+            return user.getExternalSubjectId();
+        }
+        return user.getUsername();
     }
 }

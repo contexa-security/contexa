@@ -22,11 +22,13 @@ import io.contexa.contexacommon.security.context.OfficialContextRequestAttribute
 import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
 import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes.Field;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageReport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.bridge.subject.ContexaSubject;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
 import io.contexa.contexacommon.security.network.ClientIpResolver;
@@ -34,6 +36,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Builder;
 import lombok.Getter;
+import org.springframework.lang.Nullable;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -75,10 +78,13 @@ public final class RequestInfoExtractor {
         String untrustedAnomalySignalClaim = extractHeader(request, "X-Contexa-Anomaly-Signal");
         Map<String, Object> officialContextFields = OfficialContextRequestAttributes.extractSnapshot(request);
         String authenticationType = castToText(officialContextFields.get("authenticationType"));
+        ContexaIdentity identity = ContexaIdentity.current(request);
+        ContexaSubject subject = resolvedSubject(identity);
         String tenantId = extractTenantId(request);
         String organizationId = firstNonBlankText(
                 castToText(officialContextFields.get("organizationId")),
                 castToText(officialContextFields.get("orgId")),
+                subject != null ? subject.getOrganizationId() : null,
                 authenticationStampAttribute(request, "organizationId", "orgId"));
         String decisionBoundaryMode = deriveDecisionBoundaryMode(
                 request,
@@ -206,7 +212,14 @@ public final class RequestInfoExtractor {
                         extractAttributeText(request, "authMethod")))
                 .officialContextFields(Map.copyOf(officialContextFields))
                 .bridgeResolutionResult(extractBridgeResolutionResult(request, security, requestId))
+                .identity(identity)
                 .build();
+    }
+
+    /** bridge v2: the user of a resolved identity, whose tenant and organization come before those of the stamp. */
+    @Nullable
+    private static ContexaSubject resolvedSubject(@Nullable ContexaIdentity identity) {
+        return identity != null && identity.isResolved() ? identity.getSubject() : null;
     }
 
     private static BridgeResolutionResult extractBridgeResolutionResult(
@@ -273,11 +286,16 @@ public final class RequestInfoExtractor {
         }
     }
 
-    /** The tenant the request belongs to: the official context's, else the authentication stamp's. */
+    /**
+     * The tenant the request belongs to: the official context's, else the one the user of the request's resolved
+     * identity states (bridge v2, {@link ContexaSubject#getTenantId()}), else the authentication stamp's.
+     */
     public static String extractTenantId(HttpServletRequest request) {
         Map<String, Object> officialContextFields = OfficialContextRequestAttributes.extractSnapshot(request);
+        ContexaSubject subject = resolvedSubject(ContexaIdentity.current(request));
         return firstNonBlankText(
                 castToText(officialContextFields.get("tenantId")),
+                subject != null ? subject.getTenantId() : null,
                 authenticationStampAttribute(request, "tenantId", "tenant_id"));
     }
 
@@ -702,6 +720,8 @@ public final class RequestInfoExtractor {
         private final Long lastRequestIntervalMs;
         private final String userRoles;
         private final BridgeResolutionResult bridgeResolutionResult;
+        /** bridge v2: the identity the bridge resolved for the request; null when the bridge has not seen it. */
+        private final ContexaIdentity identity;
 
         private final String geoCountry;
         private final String geoCity;

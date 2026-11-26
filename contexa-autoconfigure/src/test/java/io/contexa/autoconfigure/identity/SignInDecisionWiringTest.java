@@ -22,7 +22,7 @@ import io.contexa.contexaidentity.security.handler.OAuth2SingleAuthSuccessHandle
 import io.contexa.contexaidentity.security.handler.SessionSingleAuthSuccessHandler;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
-import io.contexa.contexaidentity.security.zerotrust.ContexaOwnedSignInListener;
+import io.contexa.contexaidentity.security.zerotrust.MainChainSignInListener;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
@@ -48,7 +48,9 @@ class SignInDecisionWiringTest {
 
         SessionSingleAuthSuccessHandler session = configuration.sessionSingleAuthSuccessHandler(
                 mock(AuthResponseWriter.class), new AuthContextProperties(), null, thePublisher());
-        OAuth2SingleAuthSuccessHandler token = configuration.oauth2SingleAuthSuccessHandler(mock(TokenService.class),
+        DefaultListableBeanFactory tokens = new DefaultListableBeanFactory();
+        tokens.registerSingleton("contexaOauth2TokenService", mock(TokenService.class));
+        OAuth2SingleAuthSuccessHandler token = configuration.oauth2SingleAuthSuccessHandler(tokens.getBeanProvider(TokenService.class),
                 mock(AuthResponseWriter.class), new AuthContextProperties(), null, thePublisher());
 
         assertThat(ReflectionTestUtils.getField(session, "zeroTrustEventPublisher")).isSameAs(publisher);
@@ -57,8 +59,8 @@ class SignInDecisionWiringTest {
 
     @Test
     void theSignInOfSpringSecuritysOwnFiltersIsHeard() {
-        ContexaOwnedSignInListener listener = new IdentitySecurityCoreContexaOwnedConfiguration()
-                .contexaOwnedSignInListener(publisher, mock(MfaStateMachineIntegrator.class));
+        MainChainSignInListener listener = new IdentitySignInConfiguration()
+                .contexaMainChainSignInListener(publisher, mock(MfaStateMachineIntegrator.class));
 
         assertThat(ReflectionTestUtils.getField(listener, "publisher")).isSameAs(publisher);
     }

@@ -17,10 +17,11 @@ package io.contexa.contexaidentity.security.zerotrust;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import io.contexa.contexacommon.security.ConsoleSession;
-import io.contexa.contexacommon.security.HostOwnedIdentityNotice;
+import io.contexa.contexacommon.security.SandboxIdentityNotice;
 import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -48,7 +49,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -93,9 +93,12 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
     private BooleanSupplier enforcing = () -> true;
-    private HostOwnedStepUp hostOwnedStepUp;
+    private SandboxStepUp sandboxStepUp;
     private AgentConfirmationGate agentConfirmationGate;
-    private volatile boolean challengeProcedureAvailable = true;
+    /** Whether the application's users have an MFA flow to step up in; set when the chains are built. */
+    private volatile boolean applicationProcedureAvailable = true;
+    /** Whether the console's administrators have one: the flow of Contexa's administrators; set when the chains are built. */
+    private volatile boolean consoleProcedureAvailable = true;
 
     public ZeroTrustChallengeFilter(
             ChallengeMfaInitializer challengeMfaInitializer,
@@ -131,7 +134,6 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         this.securityZeroTrustProperties = securityZeroTrustProperties;
     }
 
-    /** Whether the host has an MFA flow in which a challenged user can step up; set when the chains are built. */
     /** Keeps a request this filter stops under the decision in force in its session (N-SES-1). */
     public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
         this.unanalysedRequestRecorder = unanalysedRequestRecorder;
@@ -143,11 +145,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     }
 
     /**
-     * Ownership HOST_OWNED: the application owns sign-in, so a CHALLENGE is answered by Contexa's verification-only
-     * step-up and no Contexa MFA flow (flow state, session) is started. Null under CONTEXA_OWNED.
+     * Mode SANDBOX: the application signs its users in itself, so a CHALLENGE is answered by Contexa's verification-only
+     * step-up and no Contexa MFA flow (flow state, session) is started. Null in mode FULL.
      */
-    public void setHostOwnedStepUp(HostOwnedStepUp hostOwnedStepUp) {
-        this.hostOwnedStepUp = hostOwnedStepUp;
+    public void setSandboxStepUp(SandboxStepUp sandboxStepUp) {
+        this.sandboxStepUp = sandboxStepUp;
     }
 
     /** Whether decisions are enforced (the zero-trust mode is ENFORCE); see {@link #doFilterInternal}. */
@@ -155,13 +157,27 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         this.enforcing = enforcing != null ? enforcing : () -> true;
     }
 
+    /** One answer for both realms: whether there is an MFA flow in which a challenged user can step up. */
     public void setChallengeProcedureAvailable(boolean challengeProcedureAvailable) {
-        this.challengeProcedureAvailable = challengeProcedureAvailable;
+        setChallengeProcedures(challengeProcedureAvailable, challengeProcedureAvailable);
     }
 
-    /** Whether the host has an MFA flow in which a user can step up. */
-    public boolean challengeProcedureAvailable() {
-        return challengeProcedureAvailable;
+    /**
+     * Whether each realm has an MFA flow to step up in (R-13 of docs/agent/운영모드-정상화-구현계획.md): the application's
+     * users in a flow of the application's, the console's administrators in the flow of Contexa's administrators, which
+     * joins the application's own flows and is no procedure for the application's users.
+     */
+    public void setChallengeProcedures(boolean applicationUsers, boolean console) {
+        this.applicationProcedureAvailable = applicationUsers;
+        this.consoleProcedureAvailable = console;
+    }
+
+    /**
+     * Whether the realm of the request has an MFA flow to step up in: the console's, whose chain marks its requests, or
+     * the application's.
+     */
+    public boolean challengeProcedureAvailable(HttpServletRequest request) {
+        return ConsoleSession.of(request) ? consoleProcedureAvailable : applicationProcedureAvailable;
     }
 
     @Override
@@ -172,7 +188,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             return true;
         }
 
-        if (hostOwnedStepUp == null && isContexaSignInPath(path)) {
+        if (sandboxStepUp == null && isContexaSignInPath(path)) {
             return true;
         }
 
@@ -180,7 +196,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             return true;
         }
 
-        if (RequestPaths.isWithin(path, DECISION_SCREENS) || RequestPaths.isWithin(path, HostOwnedStepUp.STEP_UP_PATH)) {
+        if (RequestPaths.isWithin(path, DECISION_SCREENS) || RequestPaths.isWithin(path, SandboxStepUp.STEP_UP_PATH)) {
             return true;
         }
 
@@ -198,8 +214,8 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     }
 
     /**
-     * The paths of Contexa's own sign-in, which runs only where Contexa owns it. Under HOST_OWNED nothing of Contexa
-     * answers there (its step-up lives under {@link HostOwnedStepUp#STEP_UP_PATH}): they are the application's paths, and
+     * The paths of the sign-in of Contexa's main chain, which runs only in mode FULL. In mode SANDBOX nothing of Contexa
+     * answers there (its step-up lives under {@link SandboxStepUp#STEP_UP_PATH}): they are the application's paths, and
      * a stored decision applies to them as to any other. They are the paths the running flows name: the folders those
      * paths usually sit in are shared with the application.
      */
@@ -229,10 +245,10 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (hostOwnedStepUp != null) {
+        Authentication auth = ContexaIdentity.of(request);
+        if (sandboxStepUp != null) {
             // Ownership design S-7: an application that signs the user in after these filters is reported once.
-            HostOwnedIdentityNotice.markWhenNoUser(request, auth);
+            SandboxIdentityNotice.markWhenNoUser(request, auth);
         }
 
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
@@ -240,7 +256,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             return;
         }
 
-        String userId = extractUserId(auth);
+        String userId = extractUserId(request);
         String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
         // docs/agent A5-1: an agent acting for the user reads its own decision, not the user's.
         ZeroTrustSubject subject = ZeroTrustSubject.of(userId, delegationStamp(request),
@@ -265,10 +281,10 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             return;
         }
 
-        // HOST_OWNED: a re-authentication the application made after the CHALLENGE answers it; the request goes on.
+        // Mode SANDBOX: a re-authentication the application made after the CHALLENGE answers it; the request goes on.
         String decisionKey = subject != null ? subject.storageKey() : userId;
-        if (hostOwnedStepUp != null && !isAgentRequest(request)
-                && hostOwnedStepUp.resolvedByHostReauthentication(request, auth, decisionKey)) {
+        if (sandboxStepUp != null && !isAgentRequest(request)
+                && sandboxStepUp.resolvedByHostReauthentication(request, auth, decisionKey)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -283,12 +299,12 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             return;
         }
 
-        if (hostOwnedStepUp != null) {
-            writeHostOwnedStepUp(request, response);
+        if (sandboxStepUp != null) {
+            writeSandboxStepUp(request, response);
             return;
         }
 
-        if (!challengeProcedureAvailable) {
+        if (!challengeProcedureAvailable(request)) {
             writeChallengeWithoutProcedure(response, request);
             return;
         }
@@ -333,11 +349,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
      */
     @Override
     public boolean answerAgentChallenge(HttpServletRequest request, HttpServletResponse response) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Authentication auth = ContexaIdentity.of(request);
         if (agentConfirmationGate == null || auth == null || !auth.isAuthenticated() || !isAgentRequest(request)) {
             return false;
         }
-        ZeroTrustSubject subject = ZeroTrustSubject.of(extractUserId(auth), delegationStamp(request),
+        ZeroTrustSubject subject = ZeroTrustSubject.of(extractUserId(request), delegationStamp(request),
                 RequestInfoExtractor.extractTenantId(request));
         try {
             return agentConfirmationGate.answerDecidedChallenge(request, response, subject);
@@ -355,22 +371,22 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
      */
     @Override
     public Optional<String> start(HttpServletRequest request, HttpServletResponse response) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Authentication auth = ContexaIdentity.of(request);
         if (auth == null || !auth.isAuthenticated() || isAgentRequest(request)) {
             return Optional.empty();
         }
-        if (hostOwnedStepUp != null) {
-            // HOST_OWNED: no flow is started (no flow state, no session); the answer names the step-up.
-            return Optional.of(hostOwnedStepUp.stepUpUrl(request));
+        if (sandboxStepUp != null) {
+            // Mode SANDBOX: no flow is started (no flow state, no session); the answer names the step-up.
+            return Optional.of(sandboxStepUp.stepUpUrl(request));
         }
-        if (!challengeProcedureAvailable) {
+        if (!challengeProcedureAvailable(request)) {
             return Optional.empty();
         }
         FactorContext started = startedChallengeContext(request);
         if (started != null) {
             return Optional.of(buildMfaPageUrl(started, request));
         }
-        String lockKey = LOCK_KEY_PREFIX + extractUserId(auth);
+        String lockKey = LOCK_KEY_PREFIX + extractUserId(request);
         String lockOwner = Thread.currentThread().getName() + ":" + UUID.randomUUID();
         if (!tryAcquireChallengeLock(lockKey, lockOwner, resolveLockLeaseTime(), resolveLockWaitTime())) {
             return Optional.empty();
@@ -556,11 +572,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     }
 
     /**
-     * HOST_OWNED: a browser goes to the notice that leads to Contexa's step-up; an API client gets 401 with the same
-     * code and links as under CONTEXA_OWNED, without the flow fields (no flow is started).
+     * Mode SANDBOX: a browser goes to the notice that leads to Contexa's step-up; an API client gets 401 with the same
+     * code and links as in mode FULL, without the flow fields (no flow is started).
      */
-    private void writeHostOwnedStepUp(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        String stepUpUrl = hostOwnedStepUp.stepUpUrl(request);
+    private void writeSandboxStepUp(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String stepUpUrl = sandboxStepUp.stepUpUrl(request);
         String challengeNoticeUrl = ZeroTrustScreens.challengeRequired(request, stepUpUrl);
         if (!WebUtil.isApiOrAjaxRequest(request)) {
             response.sendRedirect(challengeNoticeUrl);
@@ -701,11 +717,14 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
                 .anyMatch(ZeroTrustAction.CHALLENGE.getGrantedAuthority()::equals);
     }
 
-    private String extractUserId(Authentication auth) {
-        if (auth == null || auth.getName() == null) {
-            return "unknown";
-        }
-        return auth.getName();
+    /**
+     * The subject the decision is keyed by: the user Contexa names the request for (bridge v2,
+     * {@link ContexaIdentity#userId}), so a user the application's {@code ContexaSubjectMapper} or resolver named is the
+     * one keyed, never the text of the application's own principal object.
+     */
+    private String extractUserId(HttpServletRequest request) {
+        String subject = ContexaIdentity.userId(request);
+        return subject != null ? subject : "unknown";
     }
 
 }

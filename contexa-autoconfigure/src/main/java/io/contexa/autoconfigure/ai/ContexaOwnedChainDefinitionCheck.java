@@ -15,7 +15,7 @@
  */
 package io.contexa.autoconfigure.ai;
 
-import io.contexa.autoconfigure.identity.IdentitySecurityCoreContexaOwnedConfiguration;
+import io.contexa.autoconfigure.identity.IdentitySignInConfiguration;
 import io.contexa.contexacommon.operating.ContexaOperatingProfile;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import org.springframework.asm.ClassReader;
@@ -226,7 +226,7 @@ public final class ContexaOwnedChainDefinitionCheck implements BeanFactoryPostPr
 
     /** A bean method of the application whose every return is what an {@link HttpSecurity} of Spring Security builds. */
     private static boolean certainChain(ConfigurableListableBeanFactory beans, String name) throws IOException {
-        if (IdentitySecurityCoreContexaOwnedConfiguration.PLACEHOLDER_CHAIN.equals(name) || !beans.containsBeanDefinition(name)) {
+        if (IdentitySignInConfiguration.PLACEHOLDER_CHAIN.equals(name) || !beans.containsBeanDefinition(name)) {
             return false;
         }
         BeanDefinition definition = beans.getBeanDefinition(name);

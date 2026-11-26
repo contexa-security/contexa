@@ -49,6 +49,17 @@ public interface LoginPolicyHandler {
         onLoginFailure(username);
     }
 
+    /**
+     * Records a failed sign-in of the application's own users, whose accounts are not Contexa's (the fourth solution of
+     * docs/agent/운영모드-정상화-구현계획.md): it is kept for the decisions and counted against the address it came from, and no
+     * account of Contexa's is counted or locked, whatever its name. A lock for such a user is a decision of Contexa's, never
+     * a change to an account. The default records nothing.
+     * @param failureType the simple class name of the AuthenticationException (or "UNKNOWN")
+     * @param sourceTag short identifier of the caller (e.g., "EVENT") for diagnostics
+     */
+    default void onHostSignInFailure(String username, String ip, String failureType, String sourceTag) {
+    }
+
     boolean checkAndUnlockIfExpired(String username);
 
     boolean isCredentialsExpired(String username);

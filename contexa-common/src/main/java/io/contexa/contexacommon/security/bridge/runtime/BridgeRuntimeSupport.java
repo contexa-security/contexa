@@ -15,10 +15,12 @@
  */
 package io.contexa.contexacommon.security.bridge.runtime;
 
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.ContexaAccountAuthentication;
+import io.contexa.contexacommon.security.bridge.ContexaIdentity;
 import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationDetails;
 import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationToken;
 import io.contexa.contexacommon.security.bridge.authentication.BridgePrincipal;
@@ -50,6 +52,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
+import java.util.function.UnaryOperator;
 
 @Slf4j
 public class BridgeRuntimeSupport implements DisposableBean {
@@ -60,6 +63,7 @@ public class BridgeRuntimeSupport implements DisposableBean {
     private final RequestPathDatabaseGuard requestPathDatabaseGuard;
     private final BooleanSupplier contexaAccountsSignIn;
     private final UserCopyMemory userCopies;
+    private volatile UnaryOperator<String> userKey = UnaryOperator.identity();
 
     public BridgeRuntimeSupport(
             BridgeProperties properties,
@@ -75,8 +79,9 @@ public class BridgeRuntimeSupport implements DisposableBean {
     }
 
     /**
-     * @param contexaAccountsSignIn whether Contexa's user store is the one that signs the users in, where Contexa owns the
-     *                              sign-in: an access token naming a user is then one of Contexa's accounts
+     * @param contexaAccountsSignIn whether Contexa's user store is the one that signs the users in, where Contexa's main
+     *                              chain signs them in (mode FULL): an access token naming a user is then one of Contexa's
+     *                              accounts
      */
     public BridgeRuntimeSupport(
             BridgeProperties properties,
@@ -89,6 +94,27 @@ public class BridgeRuntimeSupport implements DisposableBean {
         this.contexaAccountsSignIn = contexaAccountsSignIn != null ? contexaAccountsSignIn : () -> false;
         this.userCopies = new UserCopyMemory(Duration.ofSeconds(Math.max(0L,
                 this.properties.getSync().getMinRefreshIntervalSeconds())));
+    }
+
+    /**
+     * bridge v2 decision 7: the rule user ids are compared by, the one the decision keys and the copies use. The
+     * auto-configuration sets the decision key's rule; without it ids are compared as given.
+     */
+    public void setUserKey(UnaryOperator<String> userKey) {
+        this.userKey = userKey != null ? userKey : UnaryOperator.identity();
+    }
+
+    /**
+     * bridge v2 B5-2, ContexaUsers.delete: what the request path keeps of the user's copy goes, under every spelling of the
+     * user id that the rule of {@link #setUserKey} makes the same user. The requests after it ask the database again.
+     */
+    public void forget(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        UnaryOperator<String> rule = userKey;
+        String deleted = rule.apply(userId.strip());
+        userCopies.forget(kept -> deleted.equals(rule.apply(kept)));
     }
 
     public Optional<AuthorizationStamp> deriveAuthorizationStamp(
@@ -151,11 +177,11 @@ public class BridgeRuntimeSupport implements DisposableBean {
     }
 
     /**
-     * The copy of the application's user for a request. One of Contexa's own accounts, where Contexa owns the sign-in, is
-     * the account itself and has no copy: nothing is looked up for it. Otherwise the copy kept for the very same facts is
-     * given back without asking the database. When nothing is kept, a sign-in waits for the synchronisation as it always
-     * did (within the guard's bound); any other request is never held by it: the synchronisation runs away from the
-     * request, and the request goes on without the copy.
+     * The copy of the application's user for a request. One of Contexa's own accounts (one Contexa's main chain signs in,
+     * or the administrator of a console request) is the account itself and has no copy: nothing is looked up for it. A
+     * sign-in waits for the synchronisation (within the guard's bound), which writes when and from where the user signed
+     * in. Any other request is given the copy kept for the very same facts without asking the database, and is never held
+     * by the synchronisation: when nothing is kept it runs away from the request, and the request goes on without the copy.
      *
      * @param authentication       the authentication of the request, which tells one of Contexa's own accounts
      * @param waitForTheDatabase   whether this request may wait for Contexa's database (a sign-in, an explicit handoff)
@@ -174,19 +200,21 @@ public class BridgeRuntimeSupport implements DisposableBean {
         if (isContexaAccount(authentication, authenticationStamp)) {
             return null;
         }
-        UserCopyMemory.Facts facts = UserCopyMemory.Facts.of(authenticationStamp, authorizationStamp, requestContext);
+        UserCopyMemory.Facts facts = UserCopyMemory.Facts.of(authenticationStamp);
         if (facts == null) {
             return null;
         }
         UserCopyMemory.Kept kept = userCopies.recall(facts);
-        if (kept != null) {
+        if (kept != null && !waitForTheDatabase) {
             return kept.result();
         }
         if (!waitForTheDatabase) {
-            userCopies.synchroniseAway(facts, () -> synchronise(authenticationStamp, authorizationStamp, requestContext));
+            userCopies.synchroniseAway(facts,
+                    () -> synchronise(authenticationStamp, authorizationStamp, requestContext, false));
             return null;
         }
-        Optional<BridgeUserMirrorSyncResult> answer = synchronise(authenticationStamp, authorizationStamp, requestContext);
+        Optional<BridgeUserMirrorSyncResult> answer = synchronise(authenticationStamp, authorizationStamp, requestContext,
+                true);
         if (answer == null) {
             return null;
         }
@@ -194,8 +222,15 @@ public class BridgeRuntimeSupport implements DisposableBean {
         return answer.orElse(null);
     }
 
-    /** One of Contexa's own accounts, the very subject the stamp names. */
+    /**
+     * One of Contexa's own accounts, the very subject the stamp names: an account Contexa's main chain signs in, or the
+     * administrator of a request of the console, whose chain signs in with Contexa's own accounts wherever the console is
+     * apart from the application (R-13).
+     */
     private boolean isContexaAccount(@Nullable Authentication authentication, AuthenticationStamp authenticationStamp) {
+        if (ConsoleSession.current()) {
+            return true;
+        }
         String account = ContexaAccountAuthentication.accountName(authentication, properties, contexaAccountsSignIn);
         return account != null && authenticationStamp.principalId() != null
                 && account.equals(authenticationStamp.principalId().trim());
@@ -209,10 +244,12 @@ public class BridgeRuntimeSupport implements DisposableBean {
     private Optional<BridgeUserMirrorSyncResult> synchronise(
             AuthenticationStamp authenticationStamp,
             AuthorizationStamp authorizationStamp,
-            RequestContextSnapshot requestContext) {
+            RequestContextSnapshot requestContext,
+            boolean signIn) {
         try {
             return requestPathDatabaseGuard.call(() -> Optional.ofNullable(
-                    bridgeUserMirrorSyncService.sync(authenticationStamp, authorizationStamp, requestContext)), null);
+                    bridgeUserMirrorSyncService.sync(authenticationStamp, authorizationStamp, requestContext, signIn)),
+                    null);
         } catch (Exception ex) {
             String principalId = authenticationStamp.principalId() != null ? authenticationStamp.principalId() : "unknown";
             log.error("[Bridge] Failed to synchronize bridge user mirror for principalId: {}", principalId, ex);
@@ -225,6 +262,13 @@ public class BridgeRuntimeSupport implements DisposableBean {
         userCopies.close();
     }
 
+    /**
+     * What the bridge resolved for the request, under Contexa's own names ({@link BridgeRequestAttributes}, all of them
+     * {@code ctxa.bridge.*}). The names the application puts its own facts in for the bridge ({@code ctxa.auth.*},
+     * {@code ctxa.authz.*}, {@code ctxa.delegation.*}) are its input and are never written: written back, they replaced
+     * the application's values, removed the ones the stamp had none for, and a later resolution of the same request read
+     * Contexa's own output as the application's evidence.
+     */
     public void writeResolutionAttributes(
             HttpServletRequest request,
             BridgeResolutionResult result,
@@ -239,56 +283,13 @@ public class BridgeRuntimeSupport implements DisposableBean {
         request.setAttribute(BridgeRequestAttributes.DELEGATION_STAMP, result.delegationStamp());
         request.setAttribute(BridgeRequestAttributes.COVERAGE_REPORT, result.coverageReport());
         request.setAttribute(BridgeRequestAttributes.USER_SYNC_RESULT, userSyncResult);
-
-        BridgeProperties.RequestAttributes requestAttributes = properties.getAuthentication().getRequestAttributes();
-        AuthenticationStamp authenticationStamp = result.authenticationStamp();
-        AuthorizationStamp authorizationStamp = result.authorizationStamp();
-        DelegationStamp delegationStamp = result.delegationStamp();
-
-        if (authenticationStamp != null) {
-            request.setAttribute(requestAttributes.getFlatPrincipalId(), authenticationStamp.principalId());
-            request.setAttribute(requestAttributes.getFlatDisplayName(), authenticationStamp.displayName());
-            request.setAttribute(requestAttributes.getFlatAuthenticated(), authenticationStamp.authenticated());
-            request.setAttribute(requestAttributes.getFlatAuthorities(), String.join(",", authenticationStamp.authorities()));
-            setAttributeIfPresent(request, requestAttributes.getFlatTenantId(), authenticationStamp.attributes().get("tenantId"));
-            setAttributeIfPresent(request, requestAttributes.getFlatOrganizationId(), authenticationStamp.attributes().get("organizationId"));
-            setAttributeIfPresent(request, requestAttributes.getFlatOrgId(), authenticationStamp.attributes().get("orgId"));
-            request.setAttribute(requestAttributes.getFlatAuthenticationType(), authenticationStamp.authenticationType());
-            request.setAttribute(requestAttributes.getFlatAuthenticationAssurance(), authenticationStamp.authenticationAssurance());
-            request.setAttribute(requestAttributes.getFlatMfaCompleted(), authenticationStamp.mfaCompleted());
-            request.setAttribute(requestAttributes.getFlatAuthenticationTime(), authenticationStamp.authenticationTime());
-        }
-
-        if (authorizationStamp != null) {
-            request.setAttribute(requestAttributes.getAuthorizationEffect(), authorizationStamp.effect().name());
-            request.setAttribute(requestAttributes.getPrivileged(), authorizationStamp.privileged());
-            request.setAttribute(requestAttributes.getPolicyId(), authorizationStamp.policyId());
-            request.setAttribute(requestAttributes.getPolicyVersion(), authorizationStamp.policyVersion());
-            request.setAttribute(requestAttributes.getScopeTags(), authorizationStamp.scopeTags());
-            request.setAttribute(requestAttributes.getEffectiveRoles(), authorizationStamp.effectiveRoles());
-            request.setAttribute(requestAttributes.getEffectiveAuthorities(), authorizationStamp.effectiveAuthorities());
-        }
-
-        if (delegationStamp != null) {
-            request.setAttribute(requestAttributes.getDelegated(), delegationStamp.delegated());
-            request.setAttribute(requestAttributes.getAgentId(), delegationStamp.agentId());
-            request.setAttribute(requestAttributes.getObjectiveId(), delegationStamp.objectiveId());
-            request.setAttribute(requestAttributes.getObjectiveFamily(), delegationStamp.objectiveFamily());
-            request.setAttribute(requestAttributes.getObjectiveSummary(), delegationStamp.objectiveSummary());
-            request.setAttribute(requestAttributes.getAllowedOperations(), delegationStamp.allowedOperations());
-            request.setAttribute(requestAttributes.getAllowedResources(), delegationStamp.allowedResources());
-            request.setAttribute(requestAttributes.getApprovalRequired(), delegationStamp.approvalRequired());
-            request.setAttribute(requestAttributes.getPrivilegedExportAllowed(), delegationStamp.privilegedExportAllowed());
-            request.setAttribute(requestAttributes.getContainmentOnly(), delegationStamp.containmentOnly());
-            request.setAttribute(requestAttributes.getExpiresAt(), delegationStamp.expiresAt());
-        }
     }
 
     public void persistSecurityContext(
             @Nullable SecurityContextRepository securityContextRepository,
             @Nullable HttpServletRequest request,
             @Nullable HttpServletResponse response) {
-        if (!properties.ownershipBehaviour().writesSecurityContext()) {
+        if (!properties.operatingBehaviour().writesSecurityContext()) {
             return;
         }
         if (securityContextRepository == null || request == null || response == null) {
@@ -308,7 +309,7 @@ public class BridgeRuntimeSupport implements DisposableBean {
             BridgeResolutionResult result,
             @Nullable BridgeUserMirrorSyncResult userSyncResult,
             boolean allowOverride) {
-        if (!properties.ownershipBehaviour().writesSecurityContext() || !properties.isPopulateSecurityContext()) {
+        if (!properties.operatingBehaviour().writesSecurityContext() || !properties.isPopulateSecurityContext()) {
             return null;
         }
         if (authenticationStamp == null || !authenticationStamp.authenticated()) {
@@ -319,6 +320,50 @@ public class BridgeRuntimeSupport implements DisposableBean {
             return null;
         }
 
+        String internalUsername = userSyncResult != null && text(userSyncResult.internalUsername()) != null
+                ? text(userSyncResult.internalUsername())
+                : authenticationStamp.principalId();
+        BridgeAuthenticationToken authenticationToken = authenticationOf(authenticationStamp, result, userSyncResult,
+                internalUsername);
+        SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+        return authenticationToken;
+    }
+
+    /**
+     * R-10: the user the bridge resolved, as Contexa's own identity of the request, where Contexa does not write the
+     * application's security context (SANDBOX) and the application's Spring Security signed nobody in to the request.
+     * It is kept in the request ({@link BridgeRequestAttributes#IDENTITY}), never in the security context, and is named by
+     * the application's subject the stamp names, the key Contexa's decisions are made under; the copy of the user it
+     * found stays in its details. Nothing is kept under FULL, whose chain signs the users in.
+     *
+     * @return the identity kept, or {@code null} when none is
+     */
+    @Nullable
+    public BridgeAuthenticationToken bindRequestIdentity(
+            @Nullable HttpServletRequest request,
+            @Nullable BridgeResolutionResult result,
+            @Nullable BridgeUserMirrorSyncResult userSyncResult) {
+        if (request == null || result == null || properties.operatingBehaviour().writesSecurityContext()) {
+            return null;
+        }
+        AuthenticationStamp authenticationStamp = result.authenticationStamp();
+        String subject = authenticationStamp != null ? text(authenticationStamp.principalId()) : null;
+        if (subject == null || !authenticationStamp.authenticated()) {
+            return null;
+        }
+        if (ContexaIdentity.signedIn(SecurityContextHolder.getContext().getAuthentication())) {
+            return null;
+        }
+        BridgeAuthenticationToken identity = authenticationOf(authenticationStamp, result, userSyncResult, subject);
+        request.setAttribute(BridgeRequestAttributes.IDENTITY, identity);
+        return identity;
+    }
+
+    private BridgeAuthenticationToken authenticationOf(
+            AuthenticationStamp authenticationStamp,
+            BridgeResolutionResult result,
+            @Nullable BridgeUserMirrorSyncResult userSyncResult,
+            String name) {
         String internalUsername = userSyncResult != null && text(userSyncResult.internalUsername()) != null
                 ? text(userSyncResult.internalUsername())
                 : authenticationStamp.principalId();
@@ -390,7 +435,7 @@ public class BridgeRuntimeSupport implements DisposableBean {
                 userSyncResult != null ? userSyncResult.externalAuthOnly() : null
         );
         BridgePrincipal principal = new BridgePrincipal(
-                internalUsername,
+                name,
                 externalSubjectId,
                 authenticationStamp.displayName(),
                 authenticationStamp.principalType(),
@@ -403,13 +448,11 @@ public class BridgeRuntimeSupport implements DisposableBean {
                 userSyncResult != null && userSyncResult.bridgeManaged(),
                 userSyncResult != null && userSyncResult.externalAuthOnly()
         );
-        BridgeAuthenticationToken authenticationToken = new BridgeAuthenticationToken(
+        return new BridgeAuthenticationToken(
                 principal,
                 authenticationStamp.authorities().stream().map(SimpleGrantedAuthority::new).toList(),
                 details
         );
-        SecurityContextHolder.getContext().setAuthentication(authenticationToken);
-        return authenticationToken;
     }
     /**
      * A1-3: the same decision the event publisher and the canonical context make. A principal type the bridge only
@@ -442,12 +485,6 @@ public class BridgeRuntimeSupport implements DisposableBean {
             }
         }
         return null;
-    }
-
-    private void setAttributeIfPresent(HttpServletRequest request, String attributeName, Object value) {
-        if (request != null && attributeName != null && !attributeName.isBlank() && value != null) {
-            request.setAttribute(attributeName, value);
-        }
     }
 
     @Nullable

@@ -17,8 +17,6 @@ package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.security.ConsoleSession;
-import io.contexa.contexacommon.security.bridge.AgentSessionKey;
-import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
 import io.contexa.contexacommon.security.network.ClientIpResolver;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
@@ -146,7 +144,7 @@ public class SessionFingerprintUtil {
             return cached;
         }
         String hash = generateContextBindingHash(
-                sessionOf(authentication, request.getRequestedSessionId()),
+                sessionOf(request, authentication, request.getRequestedSessionId()),
                 extractClientIp(request),
                 request.getHeader("User-Agent")
         );
@@ -180,30 +178,35 @@ public class SessionFingerprintUtil {
         return generateContextBindingHash(tokenSessionId.trim(), extractClientIp(request), request.getHeader("User-Agent"));
     }
 
+    /**
+     * The binding of the client's next request after a sign-in, by the rule of {@link #sessionOf}. The publisher of a
+     * sign-in has the bridge read the request again for the signed-in authentication before it asks for this, so the
+     * session key of that identity names the next request's session; an identity the request met before the sign-in, or
+     * none yet, names no session of the signed-in authentication, and the session the sign-in left stands.
+     */
     public static String generateNextRequestContextBindingHash(HttpServletRequest request) {
         if (request == null) {
             return null;
         }
         HttpSession session = request.getSession(false);
         String sessionId = session != null ? session.getId() : request.getRequestedSessionId();
-        return generateContextBindingHash(sessionOf(currentAuthentication(request), sessionId),
+        return generateContextBindingHash(sessionOf(request, currentAuthentication(request), sessionId),
                 extractClientIp(request), request.getHeader("User-Agent"));
     }
 
     /**
-     * The session the binding names: an agent's or a client's own token request is bound to the agent's session
-     * (A1-11), so agents on one network and one user agent do not share a binding; a person's token request to the login
-     * its token carries, as {@link RequestIdentity#sessionId} names it, whether or not the request also holds a servlet
-     * session; any other request to the given servlet session.
+     * The session the binding names, in the order {@link RequestIdentity#sessionId} names a request's session: an agent's
+     * or a client's own token request is bound to the agent's session (A1-11), so agents on one network and one user
+     * agent do not share a binding; a person's token request to the login its token carries, whether or not the request
+     * also holds a servlet session; a request whose identity names its sign-in (bridge v2, the session key of an
+     * application without sessions) to that sign-in, so two logins from one network and one user agent are two
+     * contexts; any other request to the given servlet session. Only the request's attributes are read, never the
+     * security context.
      */
-    private static String sessionOf(@Nullable Authentication authentication, String servletSession) {
-        String agentSession = AgentSessionKey.of(authentication);
-        if (agentSession != null) {
-            return agentSession;
-        }
-        String tokenSession = OAuth2AuthenticationSupport.tokenAttribute(
-                authentication, OAuth2AuthenticationSupport.SESSION_ID_CLAIM);
-        return tokenSession != null ? tokenSession : servletSession;
+    private static String sessionOf(HttpServletRequest request, @Nullable Authentication authentication,
+                                    String servletSession) {
+        String signIn = RequestIdentity.signInSession(request, authentication);
+        return signIn != null ? signIn : servletSession;
     }
 
     /**

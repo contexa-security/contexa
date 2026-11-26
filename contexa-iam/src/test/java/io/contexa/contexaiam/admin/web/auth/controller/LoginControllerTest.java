@@ -55,12 +55,12 @@ class LoginControllerTest {
     @Test
     @DisplayName("keeps its own form when no other sign-in provides the way in")
     void keepsItsOwnFormWhenNoOtherSignInProvidesTheWayIn() throws Exception {
-        LoginController controller = new LoginController(LoginController.HOST_OWNED_LOGIN_PROCESSING_URL, () -> null);
+        LoginController controller = new LoginController(LoginController.ADMIN_FLOW_LOGIN_PROCESSING_URL, () -> null);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         mockMvc.perform(get("/contexa/admin/login"))
                 .andExpect(status().isOk())
-                .andExpect(model().attribute("adminLoginProcessingUrl", LoginController.HOST_OWNED_LOGIN_PROCESSING_URL));
+                .andExpect(model().attribute("adminLoginProcessingUrl", LoginController.ADMIN_FLOW_LOGIN_PROCESSING_URL));
     }
 
     /** A flash attribute is spent on the redirects in between, so the change is said by a flag that goes along. */
@@ -81,7 +81,7 @@ class LoginControllerTest {
     @DisplayName("a changed password is said on the console's own form")
     void aChangedPasswordIsSaidOnTheOwnForm() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                new LoginController(LoginController.HOST_OWNED_LOGIN_PROCESSING_URL, () -> null)).build();
+                new LoginController(LoginController.ADMIN_FLOW_LOGIN_PROCESSING_URL, () -> null)).build();
 
         mockMvc.perform(get("/contexa/admin/login").param(LoginController.PASSWORD_CHANGED_PARAMETER, ""))
                 .andExpect(status().isOk())

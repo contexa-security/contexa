@@ -29,7 +29,8 @@ import java.util.function.BooleanSupplier;
 /**
  * How many users could not answer a CHALLENGE (Q-1): neither a passkey nor an address a code can reach. An operator
  * sees it before a user meets it, at the start and on the console's user list. The bridge's copies exist from a user's
- * first sign-in, so under HOST_OWNED the number counts the users seen so far.
+ * first sign-in, so wherever the application's users are not Contexa's own accounts the number counts the users seen so
+ * far.
  */
 @Slf4j
 public class VerificationCoverageService implements ApplicationListener<ApplicationReadyEvent> {

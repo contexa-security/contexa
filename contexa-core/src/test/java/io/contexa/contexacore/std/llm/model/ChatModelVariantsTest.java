@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.llm.model;
 
+import io.contexa.contexacore.std.llm.client.ContexaChatModelInstances;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.anthropic.AnthropicChatModel;
@@ -105,5 +106,23 @@ class ChatModelVariantsTest {
     void nothingToCopyGivesNone() {
         assertThat(ChatModelVariants.withModel(null, "gpt-6.1-sol")).isEmpty();
         assertThat(ChatModelVariants.withModel(openAi("gpt-6-luna"), " ")).isEmpty();
+    }
+
+    /**
+     * R-9: a copy and a variant are Contexa's own instances, whose defaults Contexa sets for its calls; the model they
+     * were made from is not.
+     */
+    @Test
+    @DisplayName("복사본과 모델 변형은 Contexa 인스턴스로 기록되고 원본 모델은 기록되지 않는다")
+    void copiesAndVariantsAreContexasOwnInstances() {
+        OpenAiChatModel application = openAi("gpt-6-luna");
+
+        ChatModel copy = ChatModelVariants.copyOf(application).orElseThrow();
+        ChatModel variant = ChatModelVariants.withModel(application, "gpt-6.1-sol").orElseThrow();
+
+        assertThat(ContexaChatModelInstances.isContexas(copy)).isTrue();
+        assertThat(ContexaChatModelInstances.isContexas(variant)).isTrue();
+        assertThat(ContexaChatModelInstances.isContexas(application)).isFalse();
+        assertThat(ContexaChatModelInstances.isContexas(null)).isFalse();
     }
 }

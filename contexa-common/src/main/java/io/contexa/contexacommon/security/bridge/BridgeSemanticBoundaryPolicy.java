@@ -48,6 +48,8 @@ public final class BridgeSemanticBoundaryPolicy {
     public static final String SIGNED_TOKEN_CLAIM = "SIGNED_TOKEN_CLAIM";
     /** A fact the agent registry holds for an agent an operator registered and approved (A1-13). */
     public static final String AGENT_REGISTRY_RECORD = "AGENT_REGISTRY_RECORD";
+    /** The attribute of a structural selection that says whether the application named the attribute the user came from. */
+    public static final String SELECTION_NAMED = "bridgeStructuralSelectionNamed";
 
     private BridgeSemanticBoundaryPolicy() {
     }
@@ -67,6 +69,44 @@ public final class BridgeSemanticBoundaryPolicy {
         attributes.put(selectedAttributeKey, selectedAttributeValue);
         attributes.put("bridgeStructuralMatchScore", structuralMatchScore);
         attributes.put("bridgeStructuralMatchPurpose", STRUCTURAL_DISCOVERY_ONLY);
+    }
+
+    /**
+     * The same, with whether the attribute is one the application named for the bridge (the attribute it set, or one of the
+     * usual names the bridge looks under), as opposed to one found by scanning every attribute.
+     */
+    public static void putStructuralSelectionMetadata(
+            Map<String, Object> attributes,
+            String selectedAttributeKey,
+            String selectedAttributeValue,
+            int structuralMatchScore,
+            boolean named) {
+        putStructuralSelectionMetadata(attributes, selectedAttributeKey, selectedAttributeValue, structuralMatchScore);
+        if (attributes != null) {
+            attributes.put(SELECTION_NAMED, named);
+        }
+    }
+
+    /** Whether the selected attribute is the one the application set, or one of the usual names. */
+    public static boolean namedSelection(@Nullable String selected, @Nullable String attribute, @Nullable List<String> candidates) {
+        if (selected == null) {
+            return false;
+        }
+        String name = selected.trim();
+        if (attribute != null && name.equals(attribute.trim())) {
+            return true;
+        }
+        return candidates != null && candidates.stream().anyMatch(candidate -> candidate != null && name.equals(candidate.trim()));
+    }
+
+    /**
+     * Whether a user was found only by scanning attributes the application did not name: no reader of Contexa's takes it
+     * for the request's user, so another way the application named one is looked at first.
+     */
+    public static boolean unnamedStructuralSelection(@Nullable Map<String, Object> attributes) {
+        return attributes != null
+                && STRUCTURAL_DISCOVERY_ONLY.equals(attributes.get("bridgeStructuralMatchPurpose"))
+                && Boolean.FALSE.equals(attributes.get(SELECTION_NAMED));
     }
 
     public static List<String> privilegedAuthoritySignals(Collection<String> authorities) {

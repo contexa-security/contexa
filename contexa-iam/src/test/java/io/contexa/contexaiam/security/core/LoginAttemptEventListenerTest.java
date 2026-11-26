@@ -127,4 +127,43 @@ class LoginAttemptEventListenerTest {
 
         verify(handler).onLoginFailure(eq("admin"), any(), eq("BadCredentialsException"), eq("EVENT"));
     }
+
+    @Test
+    @DisplayName("고객 로그인 실패는 판정 기록과 주소 집계로만 넘기고 같은 이름의 Contexa 계정은 건드리지 않는다")
+    void aFailedSignInOfTheApplicationsOwnUserTouchesNoAccountOfContexas() {
+        LoginAttemptEventListener hostSignIns = new LoginAttemptEventListener(handler, () -> false);
+
+        hostSignIns.onFailure(new AuthenticationFailureBadCredentialsEvent(
+                UsernamePasswordAuthenticationToken.unauthenticated("admin", "wrong"),
+                new BadCredentialsException("Bad credentials")));
+
+        verify(handler).onHostSignInFailure(eq("admin"), any(), eq("BadCredentialsException"), eq("EVENT"));
+        verify(handler, never()).onLoginFailure(any(), any(), any(), any());
+        verify(handler, never()).onLoginFailure(any());
+    }
+
+    @Test
+    @DisplayName("고객 로그인 성공은 같은 이름의 Contexa 계정에 아무것도 기록하지 않는다")
+    void aSuccessfulSignInOfTheApplicationsOwnUserRecordsNothing() {
+        LoginAttemptEventListener hostSignIns = new LoginAttemptEventListener(handler, () -> false);
+
+        hostSignIns.onSuccess(new AuthenticationSuccessEvent(
+                UsernamePasswordAuthenticationToken.authenticated("admin", null, List.of())));
+
+        verify(handler, never()).onLoginSuccess(anyString(), any(), anyString());
+        verify(handler, never()).onLoginSuccess(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("Contexa 계정 로그인은 지금처럼 계정 정책으로 넘긴다")
+    void aSignInOfAnAccountOfContexasGoesToTheAccountPolicy() {
+        LoginAttemptEventListener contexaSignIns = new LoginAttemptEventListener(handler, () -> true);
+
+        contexaSignIns.onFailure(new AuthenticationFailureBadCredentialsEvent(
+                UsernamePasswordAuthenticationToken.unauthenticated("admin", "wrong"),
+                new BadCredentialsException("Bad credentials")));
+
+        verify(handler).onLoginFailure(eq("admin"), any(), eq("BadCredentialsException"), eq("EVENT"));
+        verify(handler, never()).onHostSignInFailure(any(), any(), any(), any());
+    }
 }

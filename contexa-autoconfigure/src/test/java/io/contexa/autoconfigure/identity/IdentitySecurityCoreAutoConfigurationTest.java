@@ -15,7 +15,8 @@
  */
 package io.contexa.autoconfigure.identity;
 
-import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.contexacommon.security.bridge.SecurityMode;
+import io.contexa.contexacommon.operating.ConditionalOnMode;
 import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -27,6 +28,7 @@ import io.contexa.contexaidentity.security.filter.MfaPendingAccessControlFilter;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
@@ -42,6 +44,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockFilterChain;
@@ -50,7 +53,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextImpl;
-
+
 /**
  * Tests the conditional activation gates of IdentitySecurityCoreAutoConfiguration.
  * Full bean creation tests are omitted due to deep dependency chains.
@@ -85,28 +88,45 @@ class IdentitySecurityCoreAutoConfigurationTest {
                     });
         }
 
+        /**
+         * Contexa's administrators sign in on a flow of Contexa's wherever they sign in (R-13), so the handlers of its sign-in
+         * are there in every way of running Contexa: neither the mode nor the ownership gates them. Only what stands for the
+         * main chain that signs the application's users in (the placeholder chain that keeps Boot's default chain away, and the
+         * listener of the sign-ins of Spring Security's own filters) is FULL's.
+         */
         @Test
-        @DisplayName("Should limit Contexa-owned authentication handlers to CONTEXA_OWNED mode")
-        void shouldLimitAuthenticationHandlersToContexaOwnedMode() {
-            assertContexaOwnedCondition(IdentitySecurityCoreContexaOwnedConfiguration.class,
-                    "primaryAuthenticationSuccessHandler");
-            assertContexaOwnedCondition(IdentitySecurityCoreContexaOwnedConfiguration.class,
-                    "unifiedAuthenticationFailureHandler");
-            assertContexaOwnedCondition(IdentitySecurityCoreContexaOwnedConfiguration.class,
-                    "mfaFactorProcessingSuccessHandler");
+        @DisplayName("Contexa 인증 처리기는 네 조합 모두에 있고, 자리표시 체인과 로그인 리스너만 FULL에 있다")
+        void authenticationHandlersAreThereInEveryCombinationAndOnlyThePlaceholderChainIsFulls() {
+            assertThat(IdentitySecurityCoreAutoConfiguration.class.getAnnotation(Import.class).value())
+                    .contains(IdentitySignInConfiguration.class);
+            assertUngated(IdentitySignInConfiguration.class);
+            assertUngated(method(IdentitySignInConfiguration.class, "primaryAuthenticationSuccessHandler"));
+            assertUngated(method(IdentitySignInConfiguration.class, "unifiedAuthenticationFailureHandler"));
+            assertUngated(method(IdentitySignInConfiguration.class, "mfaFactorProcessingSuccessHandler"));
+            assertUngated(IdentityHandlerAutoConfiguration.class);
 
-            assertContexaOwnedCondition(IdentityHandlerAutoConfiguration.class.getAnnotation(ConditionalOnOwnership.class));
+            assertFullOnly(method(IdentitySignInConfiguration.class, "securityFilterChain"));
+            assertFullOnly(method(IdentitySignInConfiguration.class, "contexaMainChainSignInListener"));
         }
 
-        private void assertContexaOwnedCondition(Class<?> plane, String methodName) {
-            assertThat(Arrays.stream(plane.getDeclaredMethods()).map(Method::getName)).contains(methodName);
-            assertContexaOwnedCondition(plane.getAnnotation(ConditionalOnOwnership.class));
+        private Method method(Class<?> plane, String methodName) {
+            return Arrays.stream(plane.getDeclaredMethods())
+                    .filter(candidate -> candidate.getName().equals(methodName))
+                    .findFirst()
+                    .orElseThrow();
         }
 
-        private void assertContexaOwnedCondition(ConditionalOnOwnership condition) {
-            assertThat(condition).isNotNull();
-            assertThat(condition.value()).isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED);
+        private void assertUngated(AnnotatedElement element) {
+            assertThat(element.getAnnotation(ConditionalOnOwnership.class)).as("ownership condition on %s", element).isNull();
+            assertThat(element.getAnnotation(ConditionalOnMode.class)).as("mode condition on %s", element).isNull();
+        }
+
+        private void assertFullOnly(Method method) {
+            ConditionalOnMode condition = method.getAnnotation(ConditionalOnMode.class);
+            assertThat(condition).as("mode condition on %s", method.getName()).isNotNull();
+            assertThat(condition.value()).isEqualTo(SecurityMode.FULL);
             assertThat(condition.matchIfUndeclared()).isFalse();
+            assertThat(method.getAnnotation(ConditionalOnOwnership.class)).as("ownership condition on %s", method.getName()).isNull();
         }
     }
 
@@ -188,11 +208,11 @@ class IdentitySecurityCoreAutoConfigurationTest {
         @Test
         @DisplayName("Should bind WebAuthn repositories to contexaJdbcTemplate")
         void shouldBindWebAuthnRepositoriesToContexaJdbcTemplate() throws Exception {
-            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.ContexaOwnedPasskeys.class,
+            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.OfferedPasskeys.class,
                     "publicKeyCredentialUserEntityRepository");
-            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.ContexaOwnedPasskeys.class,
+            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.OfferedPasskeys.class,
                     "userCredentialRepository");
-            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.HostOwnedPasskeys.class,
+            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.HeldPasskeys.class,
                     "contexaPasskeyStores");
         }
 

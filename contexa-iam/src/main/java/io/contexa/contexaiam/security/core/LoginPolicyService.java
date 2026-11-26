@@ -148,6 +148,23 @@ public class LoginPolicyService implements LoginPolicyHandler {
         }
     }
 
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager")
+    public void onHostSignInFailure(String username, String ip, String failureType, String sourceTag) {
+        if (username == null || username.isBlank()) {
+            recordLoginFailureContext(null, ip);
+            applyIpThrottle(ip, null, "MISSING_USERNAME");
+            return;
+        }
+        if (!firstHandle("F:" + username)) return;
+        recordLoginFailureContext(username, ip);
+        try {
+            applyIpThrottle(ip, username, failureType);
+        } catch (Exception e) {
+            log.error("[login-policy] onHostSignInFailure failed for {}", username, e);
+        }
+    }
+
     private void recordLoginFailureContext(String username, String ip) {
         try {
             SecurityContextDataStore dataStore = securityContextDataStoreProvider == null

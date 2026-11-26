@@ -19,7 +19,10 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2State
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.BeanFactory;
+import io.contexa.contexacommon.operating.ConditionalOnMode;
+import io.contexa.contexacommon.security.HeldBean;
+import io.contexa.contexacommon.security.bridge.SecurityMode;
 import java.util.Arrays;
 import java.lang.reflect.Method;
 import org.springframework.beans.factory.ObjectProvider;
@@ -931,22 +934,29 @@ class IdentityOAuth2AutoConfigurationTest {
         return mock(ObjectProvider.class);
     }
 
-    /** P-8: an application's decoders, one or several, neither check what Contexa issues nor stop the start. */
+    /**
+     * P-8 with R-17 of docs/agent/운영모드-정상화-구현계획.md: an application's decoders, one or several, neither check what Contexa
+     * issues nor stop the start. Contexa's decoder is a decoder bean only in mode FULL beside no decoder of the application;
+     * elsewhere it is held under its name, and Contexa's validator takes it by that name.
+     */
     @Test
+    @DisplayName("Contexa 토큰은 이름으로 받은 Contexa 해독기로 확인하고, 해독기 타입 빈은 FULL에서 앱에 해독기가 없을 때만 낸다")
     void whatContexaIssuesIsCheckedWithItsOwnDecoder() throws Exception {
-        Method beside = Arrays.stream(IdentityOAuth2AutoConfiguration.class.getDeclaredMethods())
-                .filter(method -> method.getName().equals("standbyJwtDecoder")).findFirst().orElseThrow();
-        Bean bean = beside.getAnnotation(Bean.class);
-        assertThat(bean.name()).containsExactly(OAuth2StateAdapter.CONTEXA_JWT_DECODER);
-        assertThat(bean.defaultCandidate()).isFalse();
-        assertThat(beside.getAnnotation(ConditionalOnMissingBean.class).name()).containsExactly(OAuth2StateAdapter.CONTEXA_JWT_DECODER);
+        Method held = Arrays.stream(IdentityOAuth2AutoConfiguration.class.getDeclaredMethods())
+                .filter(method -> method.getName().equals("heldJwtDecoder")).findFirst().orElseThrow();
+        assertThat(held.getReturnType()).isEqualTo(HeldBean.class);
+        assertThat(held.getAnnotation(Bean.class).name()).containsExactly(OAuth2StateAdapter.CONTEXA_JWT_DECODER);
+        assertThat(held.getAnnotation(ConditionalOnMissingBean.class).name()).containsExactly(OAuth2StateAdapter.CONTEXA_JWT_DECODER);
 
-        Method alone = Arrays.stream(IdentityOAuth2AutoConfiguration.class.getDeclaredMethods())
-                .filter(method -> method.isAnnotationPresent(Bean.class) && method.getName().equals("jwtDecoder")).findFirst().orElseThrow();
-        assertThat(alone.getAnnotation(Bean.class).defaultCandidate()).as("a new application that asks for a JwtDecoder still gets one").isTrue();
+        Method offered = Arrays.stream(IdentityOAuth2AutoConfiguration.class.getDeclaredMethods())
+                .filter(method -> method.getName().equals("offeredJwtDecoder")).findFirst().orElseThrow();
+        assertThat(offered.getAnnotation(Bean.class).name()).containsExactly(OAuth2StateAdapter.CONTEXA_JWT_DECODER);
+        assertThat(offered.getAnnotation(ConditionalOnMode.class).value()).isEqualTo(SecurityMode.FULL);
+        assertThat(offered.getAnnotation(ConditionalOnMissingBean.class).value()).containsExactly(JwtDecoder.class);
 
         Method validator = Arrays.stream(IdentityOAuth2AutoConfiguration.class.getDeclaredMethods())
                 .filter(method -> method.getName().equals("oauth2TokenValidator")).findFirst().orElseThrow();
-        assertThat(validator.getParameters()[0].getAnnotation(Qualifier.class).value()).isEqualTo(OAuth2StateAdapter.CONTEXA_JWT_DECODER);
+        assertThat(validator.getParameterTypes()).as("a qualifier does not unwrap a held bean: the validator takes it by name")
+                .containsExactly(BeanFactory.class);
     }
 }

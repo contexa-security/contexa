@@ -16,22 +16,21 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexaiam.admin.web.i18n.SeedTextDialect;
 import io.contexa.contexaiam.admin.web.i18n.SeedTextResponseAdvice;
 import io.contexa.contexaiam.admin.web.i18n.SeedTexts;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.io.support.ResourcePatternUtils;
 
 /**
  * The seed texts of the console in the language of the page (IAM-D31): the pages the server writes, through a
- * Thymeleaf post-processor, and the lists the access center and the policy center draw from their answers.
+ * Thymeleaf post-processor, and the lists the access center and the policy center draw from their answers. The
+ * post-processor's dialect belongs to the template engine of Contexa's screens ({@code IamScreenTemplatesAutoConfiguration});
+ * as a bean it was added to the application's own Thymeleaf (R-9).
  */
 @AutoConfiguration
 public class IamAdminSeedTextAutoConfiguration {
@@ -48,16 +47,5 @@ public class IamAdminSeedTextAutoConfiguration {
             @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
         return new SeedTextResponseAdvice(contexaSeedTexts,
                 objectMapper.getIfAvailable(() -> new ObjectMapper().findAndRegisterModules()));
-    }
-
-    @Configuration(proxyBeanMethods = false)
-    @ConditionalOnClass(name = "org.thymeleaf.spring6.SpringTemplateEngine")
-    static class SeedTextTemplates {
-
-        @Bean(name = "contexaSeedTextDialect")
-        @ConditionalOnMissingBean
-        SeedTextDialect contexaSeedTextDialect() {
-            return new SeedTextDialect();
-        }
     }
 }

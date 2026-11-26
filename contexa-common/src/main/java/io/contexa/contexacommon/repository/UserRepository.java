@@ -40,6 +40,24 @@ public interface UserRepository extends JpaRepository<Users, Long> {
     /** docs/agent A5-8: the account a risk signal names by its e-mail address. */
     Optional<Users> findFirstByEmailIgnoreCase(String email);
 
+    /**
+     * Bridge v2 B5-1 (DB-1): the account of Contexa's own that has this address, whatever its case. Contexa's accounts
+     * are told apart by their address (a partial unique index); copies of applications' users may share one.
+     */
+    Optional<Users> findFirstByEmailIgnoreCaseAndBridgeManagedFalse(String email);
+
+    /** Whether one of Contexa's own accounts has this address, whatever its case. */
+    boolean existsByEmailIgnoreCaseAndBridgeManagedFalse(String email);
+
+    /** Whether one of Contexa's own accounts other than the one named has this address, whatever its case. */
+    boolean existsByEmailIgnoreCaseAndBridgeManagedFalseAndIdNot(String email, Long id);
+
+    /** How many users, accounts and copies alike, have this address, whatever its case (decision 5: a shared address). */
+    long countByEmailIgnoreCase(String email);
+
+    /** The users, accounts and copies alike, that have this address, whatever its case. */
+    List<Users> findByEmailIgnoreCase(String email);
+
     List<Users> findByUsernameIn(Collection<String> usernames);
 
     Optional<Users> findByBridgeSubjectKey(String bridgeSubjectKey);
@@ -50,6 +68,26 @@ public interface UserRepository extends JpaRepository<Users, Long> {
 
     /** Bridge mirror users of one authenticated principal, across authentication sources and organizations. */
     List<Users> findByExternalSubjectIdAndBridgeManagedTrue(String externalSubjectId);
+
+    /**
+     * bridge v2 B5-3: the people whose copy is still kept in two rows or more under one id and organization, the most
+     * rows first. The synchronisation merges them at the person's next request unless a contributor keeps them apart.
+     */
+    @Query("SELECT u.externalSubjectId AS subject, u.organizationId AS organization, COUNT(u) AS copies FROM Users u "
+            + "WHERE u.bridgeManaged = true AND u.externalSubjectId IS NOT NULL "
+            + "GROUP BY u.externalSubjectId, u.organizationId HAVING COUNT(u) > 1 "
+            + "ORDER BY COUNT(u) DESC, u.externalSubjectId")
+    List<SplitCopies> findSplitCopies(Pageable pageable);
+
+    /** One person whose copy is kept in more than one row. */
+    interface SplitCopies {
+
+        String getSubject();
+
+        String getOrganization();
+
+        long getCopies();
+    }
 
     Optional<Users> findByExternalSubjectIdAndAuthenticationSourceAndOrganizationId(
             String externalSubjectId,
@@ -184,14 +222,20 @@ public interface UserRepository extends JpaRepository<Users, Long> {
                                                 @Param("syntheticMail") String syntheticMail,
                                                 @Param("agentMail") String agentMail, Pageable pageable);
 
-    /** The accounts that could not answer a CHALLENGE, as the count and the list of them read them. */
+    /**
+     * The accounts that could not answer a CHALLENGE, as the count and the list of them read them. A user without an
+     * address (bridge v2 B5-1: none is made up any more), with one made up by an older version, or with one another user
+     * shares (decision 5: no code goes to a shared address) has no address a code can reach.
+     */
     String WITHOUT_VERIFICATION_FACTOR = """
             from ctxa_users u
             where u.enabled = true
-              and lower(u.email) not like :agentMail
+              and lower(coalesce(u.email, '')) not like :agentMail
               and (:mailDelivers = false
+                   or u.email is null
                    or position('@' in u.email) = 0
-                   or lower(u.email) like :syntheticMail)
+                   or lower(u.email) like :syntheticMail
+                   or exists (select 1 from ctxa_users o where o.id <> u.id and lower(o.email) = lower(u.email)))
               and (:passkeysWork = false
                    or not exists (select 1 from ctxa_user_entities e
                                   join ctxa_user_credentials c on c.user_entity_user_id = e.id

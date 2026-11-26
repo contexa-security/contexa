@@ -669,12 +669,12 @@ class OAuth2TokenChainIntegrationTest {
             return new IdentityOAuth2AutoConfiguration(transactionTemplate, properties);
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_JWK_SOURCE)
         JWKSource<SecurityContext> jwkSource(IdentityOAuth2AutoConfiguration contexaOAuth2) {
             return contexaOAuth2.jwkSource();
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_JWT_ENCODER)
         JwtEncoder jwtEncoder(IdentityOAuth2AutoConfiguration contexaOAuth2, JWKSource<SecurityContext> keys) {
             return contexaOAuth2.jwtEncoder(keys);
         }
@@ -714,7 +714,7 @@ class OAuth2TokenChainIntegrationTest {
             return IdentityOAuth2AutoConfiguration.tokenCustomizerComposition();
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_SERVER_SETTINGS)
         AuthorizationServerSettings authorizationServerSettings(IdentityOAuth2AutoConfiguration contexaOAuth2) {
             return contexaOAuth2.authorizationServerSettings();
         }
@@ -724,7 +724,7 @@ class OAuth2TokenChainIntegrationTest {
             return transactionTemplate;
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_REGISTERED_CLIENTS)
         RegisteredClientRepository registeredClientRepository() {
             RegisteredClient internal = RegisteredClient.withId("internal")
                     .clientId(INTERNAL_CLIENT)
@@ -749,7 +749,7 @@ class OAuth2TokenChainIntegrationTest {
             return new InMemoryRegisteredClientRepository(internal, agent);
         }
 
-        @Bean
+        @Bean(name = OAuth2StateAdapter.CONTEXA_AUTHORIZATION_SERVICE)
         OAuth2AuthorizationService authorizationService() {
             return new InMemoryOAuth2AuthorizationService();
         }

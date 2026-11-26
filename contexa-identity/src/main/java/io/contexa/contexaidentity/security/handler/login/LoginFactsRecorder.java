@@ -16,7 +16,7 @@
 package io.contexa.contexaidentity.security.handler.login;
 
 import io.contexa.contexacommon.security.bridge.AuthenticationMethodReferences;
-import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
+import io.contexa.contexacommon.security.bridge.identity.BridgeObjectExtractor;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustAuthenticationToken;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;

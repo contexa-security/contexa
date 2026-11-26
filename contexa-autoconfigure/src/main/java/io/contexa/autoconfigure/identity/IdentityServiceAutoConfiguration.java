@@ -15,13 +15,13 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.autoconfigure.core.ContexaAccountRequests;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.boot.ssl.SslBundles;
 import org.springframework.core.env.Environment;
-import io.contexa.contexacommon.operating.ContexaOperatingProfile;
 import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.monitoring.zerotrust.ZeroTrustDecisionOutcomes;
 import io.contexa.contexacore.security.ContexaUserStore;
@@ -50,7 +50,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @AutoConfiguration
 @ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnProperty(prefix = "contexa.identity.service", name = "enabled", havingValue = "true", matchIfMissing = true)
-@Import(IdentityServiceContexaOwnedConfiguration.class)
+@Import(IdentityMfaServiceConfiguration.class)
 public class IdentityServiceAutoConfiguration {
 
     public IdentityServiceAutoConfiguration() {
@@ -71,18 +71,29 @@ public class IdentityServiceAutoConfiguration {
     @ConditionalOnMissingBean
     public EmailService emailService(ObjectProvider<JavaMailSender> mailSender, Environment environment,
                                      ObjectProvider<SslBundles> sslBundles, AuthContextProperties mailLimits) {
-        // the application's one sender; none, or several of them where the application signs its users in: Contexa then does
-        // not send mail with the application's sender
+        // the application's one sender; with none or several of them Contexa does not send mail with the application's sender
         JavaMailSender sender = mailSender.getIfUnique();
-        if (sender == null && ContexaOperatingProfile.resolve(environment).ownership() == SecurityOwnershipMode.CONTEXA_OWNED) {
-            // Contexa signs the users in, and the administrator reaches the console by the code it mails: that must not depend on how
-            // many senders the application keeps. None or several of them, and Contexa builds a sender of its own from spring.mail.*,
-            // which only the service holds; the application's beans are not touched.
+        if (sender == null) {
+            // Contexa's administrators reach the console by the code it mails, in every way of running Contexa: that must not depend
+            // on how many senders the application keeps. None or several of them, and Contexa builds a sender of its own from
+            // spring.mail.*, which only the service holds; the application's beans are not touched.
             sender = ContexaMailSenders.fromSettings(environment, sslBundles);
         }
         AuthContextProperties.OttSettings ott = mailLimits.getOtt();
         return new EmailService(sender, ott.getEmailMaxConcurrentSends(), ott.getEmailSendWaitSeconds(),
                 ott.getEmailSmtpTimeoutSeconds());
+    }
+
+    /**
+     * The store that names whom a code is mailed to, read at the request: the service serves every flow. A request of the
+     * chain of Contexa's administrators (marked as the console's), and any request where Contexa's main chain signs the
+     * application's users in with Contexa's own store (FULL with CONTEXA_OWNED), is one of Contexa's accounts
+     * ({@link ContexaAccountRequests}); any other is a user of the application, read from the store that names the
+     * application's users: kept apart (SANDBOX), the application signs its users in itself, whatever the ownership.
+     */
+    static UserDetailsService codeRecipientStore(BeanFactory beanFactory, Environment environment) {
+        return ContexaAccountRequests.of(environment).getAsBoolean()
+                ? ContexaUserStore.forSignIn(beanFactory) : ContexaUserStore.of(beanFactory);
     }
 
     // Held in a bean that is not a OneTimeTokenService, and not stood aside for the application's own service: the one-time token login of
@@ -108,7 +119,7 @@ public class IdentityServiceAutoConfiguration {
                 authContextProperties,
                 authContextProperties.getOtt().isFailOnEmailError(),
                 stepUpOptionsStore.getIfAvailable(InMemoryStepUpOptionsStore::new));
-        service.setUserStore(() -> ContexaUserStore.forSignIn(beanFactory));
+        service.setUserStore(() -> codeRecipientStore(beanFactory, environment));
         // Console design 6.2: a code mailed to a challenged user is the funnel's "code requested" of the challenge.
         service.setCodeMailed(new ChallengeCodeRequests(actionRepository::getIfAvailable, decisionOutcomes::getIfAvailable));
         boolean toConsole = codeToConsole(authContextProperties, environment, contexaEmailService.isMailSenderConfigured());

@@ -17,13 +17,10 @@ package io.contexa.autoconfigure.ai;
 
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
 import io.contexa.contexacommon.repository.UserRepository;
-import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridge;
-import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridgeHandler;
 import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.sync.DefaultBridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -37,11 +34,6 @@ class AiBridgeUserMirrorSyncAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(AiBridgeConfiguration.class)
             .withConfiguration(AutoConfigurations.of(AiBridgeUserMirrorSyncAutoConfiguration.class));
-
-    @AfterEach
-    void tearDown() {
-        ContexaAuthBridge.clearHandler();
-    }
 
     @Test
     void bridgeConsumersReceiveAutoConfiguredMirrorSyncService() {
@@ -57,9 +49,6 @@ class AiBridgeUserMirrorSyncAutoConfigurationTest {
                             .isSameAs(syncService);
                     BridgeResolutionFilter filter = context.getBean(BridgeResolutionFilter.class);
                     assertThat(ReflectionTestUtils.getField(filter, "bridgeRuntimeSupport"))
-                            .isSameAs(runtimeSupport);
-                    ContexaAuthBridgeHandler handler = context.getBean(ContexaAuthBridgeHandler.class);
-                    assertThat(ReflectionTestUtils.getField(handler, "bridgeRuntimeSupport"))
                             .isSameAs(runtimeSupport);
                 });
     }

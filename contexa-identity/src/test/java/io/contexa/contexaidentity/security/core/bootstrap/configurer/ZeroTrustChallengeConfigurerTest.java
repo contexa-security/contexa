@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 
 import io.contexa.contexacommon.enums.StateType;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaSignInRealm;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.config.StateConfig;
@@ -127,11 +128,34 @@ class ZeroTrustChallengeConfigurerTest {
 
         new ZeroTrustChallengeConfigurer(filter).init(mock(PlatformContext.class),
                 PlatformConfig.builder().addFlow(rest).build());
-        verify(filter).setChallengeProcedureAvailable(false);
+        verify(filter).setChallengeProcedures(false, false);
 
         new ZeroTrustChallengeConfigurer(filter).init(mock(PlatformContext.class),
                 PlatformConfig.builder().addFlow(rest).addFlow(mfa).build());
-        verify(filter).setChallengeProcedureAvailable(true);
+        verify(filter).setChallengeProcedures(true, false);
+    }
+
+    /**
+     * R-13 of docs/agent/운영모드-정상화-구현계획.md: the flow of Contexa's administrators joins an application's own flows. It
+     * is the console's procedure, and no procedure for the application's users.
+     */
+    @Test
+    @DisplayName("관리 흐름은 콘솔의 추가 인증 절차로만 세고, 앱 사용자의 절차로는 세지 않는다(R-13)")
+    void theAdministratorsFlowIsTheConsolesProcedureOnly() {
+        AuthenticationFlowConfig form = mock(AuthenticationFlowConfig.class);
+        when(form.getTypeName()).thenReturn("form_flow");
+        AuthenticationFlowConfig admin = mock(AuthenticationFlowConfig.class);
+        when(admin.getTypeName()).thenReturn(ContexaSignInRealm.adminFlowTypeName());
+        ZeroTrustChallengeFilter withoutTheApplicationsMfa = mock(ZeroTrustChallengeFilter.class);
+        ZeroTrustChallengeFilter adminFlowAlone = mock(ZeroTrustChallengeFilter.class);
+
+        new ZeroTrustChallengeConfigurer(withoutTheApplicationsMfa).init(mock(PlatformContext.class),
+                PlatformConfig.builder().addFlow(form).addFlow(admin).build());
+        new ZeroTrustChallengeConfigurer(adminFlowAlone).init(mock(PlatformContext.class),
+                PlatformConfig.builder().addFlow(admin).build());
+
+        verify(withoutTheApplicationsMfa).setChallengeProcedures(false, true);
+        verify(adminFlowAlone).setChallengeProcedures(false, true);
     }
 
     private FlowContext flowContext(HttpSecurity http, StateType stateType) {

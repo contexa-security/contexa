@@ -19,8 +19,10 @@ import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.core.adapter.auth.ContexaSignInRealm;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
+import io.contexa.contexaidentity.security.zerotrust.stepup.ContexaPasskeyStores;
 import io.contexa.contexaidentity.security.filter.ContexaWebAuthnRegistrationPageFilter;
 import io.contexa.contexaidentity.security.filter.ContexaWebAuthnResourceFilter;
 import io.contexa.contexaidentity.security.handler.*;
@@ -212,17 +214,21 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
     }
 
     /**
-     * Replace DefaultWebAuthnRegistrationPageGeneratingFilter with Contexa version.
+     * Replace DefaultWebAuthnRegistrationPageGeneratingFilter with Contexa version, reading the passkeys the flow's
+     * {@code webAuthn()} was given: Contexa's held ones on a flow of Contexa's accounts, else the only beans of their types.
+     * Without either, Spring Security's page stays, on the repositories its configurer made.
      */
-    public void replaceRegistrationPage(DefaultSecurityFilterChain builtChain, ApplicationContext appContext) {
+    public void replaceRegistrationPage(DefaultSecurityFilterChain builtChain, AuthenticationFlowConfig flowConfig,
+                                        ApplicationContext appContext) {
         try {
-            PublicKeyCredentialUserEntityRepository userEntities =
-                    appContext.getBean(PublicKeyCredentialUserEntityRepository.class);
-            UserCredentialRepository userCredentials =
-                    appContext.getBean(UserCredentialRepository.class);
-
+            ContexaPasskeyStores stores = passkeyStoresOf(flowConfig, appContext);
+            if (stores == null) {
+                log.error("No passkey repositories for the registration page of flow {}; Spring Security's page is kept",
+                        flowConfig.getTypeName());
+                return;
+            }
             ContexaWebAuthnRegistrationPageFilter contexaFilter =
-                    new ContexaWebAuthnRegistrationPageFilter(userEntities, userCredentials);
+                    new ContexaWebAuthnRegistrationPageFilter(stores.userEntities(), stores.userCredentials());
             contexaFilter.setMessageSource(appContext);
 
             List<Filter> filters = builtChain.getFilters();
@@ -235,6 +241,20 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
         } catch (Exception e) {
             log.error("Failed to replace DefaultWebAuthnRegistrationPageGeneratingFilter with Contexa version", e);
         }
+    }
+
+    /** The rule {@code BasePasskeyAuthenticationAdapter} hands the flow's {@code webAuthn()} its passkeys by. */
+    @Nullable
+    private static ContexaPasskeyStores passkeyStoresOf(AuthenticationFlowConfig flowConfig, ApplicationContext appContext) {
+        if (ContexaSignInRealm.signsInContexaAccounts(flowConfig, appContext)
+                && appContext.containsBean(ContexaPasskeyStores.BEAN_NAME)
+                && appContext.getBean(ContexaPasskeyStores.BEAN_NAME) instanceof ContexaPasskeyStores held) {
+            return held;
+        }
+        PublicKeyCredentialUserEntityRepository userEntities =
+                appContext.getBeanProvider(PublicKeyCredentialUserEntityRepository.class).getIfUnique();
+        UserCredentialRepository userCredentials = appContext.getBeanProvider(UserCredentialRepository.class).getIfUnique();
+        return userEntities != null && userCredentials != null ? new ContexaPasskeyStores(userEntities, userCredentials) : null;
     }
 
     @Nullable

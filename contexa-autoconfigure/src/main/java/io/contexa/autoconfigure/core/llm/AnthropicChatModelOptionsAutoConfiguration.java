@@ -34,7 +34,8 @@ import org.springframework.core.env.Environment;
  * The Anthropic chat model options for the Claude models Contexa runs. Its post-processors take nothing and read the
  * environment through EnvironmentAware: a post-processor bean method that takes a bean by type makes Spring create
  * FactoryBeans and what they need while post-processors are being registered, and those beans then miss the
- * post-processors (the chat model among them).
+ * post-processors (the chat model among them). R-9: the default options of the chat models are set on Contexa's own
+ * instances ({@link ContexaChatModelCopies}), not on the application's beans.
  */
 @AutoConfiguration(beforeName = "org.springframework.ai.model.anthropic.autoconfigure.AnthropicChatAutoConfiguration")
 @ConditionalOnClass(name = "org.springframework.ai.anthropic.AnthropicChatModel")
@@ -43,11 +44,6 @@ public class AnthropicChatModelOptionsAutoConfiguration {
     @Bean(name = "contexaAnthropicModelCapabilitiesEnvironmentBridge")
     public static CapabilitiesBridge anthropicModelCapabilitiesEnvironmentBridge() {
         return new CapabilitiesBridge();
-    }
-
-    @Bean(name = "contexaAnthropicChatModelPostProcessor")
-    public static AnthropicChatModelPostProcessor anthropicChatModelPostProcessor() {
-        return new AnthropicChatModelPostProcessor();
     }
 
     /** Design 4.5-A: the start refuses the Anthropic thinking settings a layer model or Spring AI 1.1 contradicts. */

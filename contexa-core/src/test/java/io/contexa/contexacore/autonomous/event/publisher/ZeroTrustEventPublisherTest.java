@@ -1068,9 +1068,12 @@ class ZeroTrustEventPublisherTest {
         ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
         ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(invocation, authentication, true, null);
 
+        assertThat(event.getPayload().get("authMethod"))
+                .as("the login method comes from the request's authenticationType, not from an authority's name")
+                .isEqualTo("mfa");
+        assertThat(event.getPayload().get("mfaVerified"))
+                .as("bridge v2 B6: an authority whose name holds MFA states no completed MFA").isNotEqualTo(Boolean.TRUE);
         assertThat(event.getPayload())
-                .containsEntry("authMethod", "mfa")
-                .containsEntry("mfaVerified", true)
                 .containsEntry("resourceSensitivity", "HIGH")
                 .containsEntry("previousPath", "/admin/api/security-test/sensitive/resource-000")
                 .containsEntry("lastRequestIntervalMs", 4_200L)
@@ -1231,9 +1234,13 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("methodExecutionFailure", "IllegalArgumentException");
     }
 
+    /**
+     * bridge v2 B6 (plan 2, the guess of an MFA from an authority's name is removed): without the bridge's evidence an
+     * authority named like an MFA states neither the login method nor a completed MFA; the authority itself is kept.
+     */
     @Test
-    @DisplayName("authority-derived auth method should remain the fallback without bridge evidence")
-    void shouldSynthesizeAuthMethodFromAuthoritiesWithoutBridgeEvidence() throws Exception {
+    @DisplayName("bridge 근거가 없을 때 이름에 MFA가 든 권한으로 로그인 방식이나 MFA 완료를 추측하지 않는다")
+    void shouldNotGuessAnMfaFromAnAuthoritysNameWithoutBridgeEvidence() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/profile");
         request.setRequestedSessionId("session-oauth");
         request.addHeader("User-Agent", "JUnit");
@@ -1242,10 +1249,10 @@ class ZeroTrustEventPublisherTest {
 
         ZeroTrustSpringEvent event = buildEventWithMfaAuthority();
 
-        assertThat(event.getPayload())
-                .containsEntry("authMethod", "mfa")
-                .containsEntry("mfaVerified", true)
-                .doesNotContainKeys("authenticationType", "bridgeAuthenticationSource");
+        assertThat(event.getPayload().get("authMethod")).isNull();
+        assertThat(event.getPayload().get("mfaVerified")).isNotEqualTo(Boolean.TRUE);
+        assertThat(event.getPayload()).doesNotContainKeys("authenticationType", "bridgeAuthenticationSource");
+        assertThat((List<String>) event.getPayload().get("authorities")).contains("MFA_VERIFIED");
     }
 
     private ZeroTrustSpringEvent buildEventWithMfaAuthority() throws Exception {

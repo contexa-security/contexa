@@ -17,6 +17,7 @@ package io.contexa.contexacommon.security.bridge.resolver;
 
 import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.security.bridge.AgentTokenClaims;
+import io.contexa.contexacommon.security.bridge.BridgeInstants;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
@@ -28,7 +29,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -260,27 +260,9 @@ public class TokenDelegationStampResolver implements DelegationStampResolver {
         return null;
     }
 
-    /** An instant claim: an instant, seconds since the epoch (JWT NumericDate) or ISO-8601 text. */
+    /** An instant claim: an instant, seconds since the epoch (JWT NumericDate) or ISO-8601 text, as the bridge reads times. */
     private static Instant instant(Object value) {
-        if (value instanceof Instant instant) {
-            return instant;
-        }
-        if (value instanceof Number number) {
-            return Instant.ofEpochSecond(number.longValue());
-        }
-        String text = AgentTokenClaims.text(value);
-        if (text == null) {
-            return null;
-        }
-        try {
-            return Instant.parse(text);
-        } catch (DateTimeParseException ignored) {
-            try {
-                return Instant.ofEpochSecond(Long.parseLong(text));
-            } catch (NumberFormatException notANumber) {
-                return null;
-            }
-        }
+        return BridgeInstants.parse(value);
     }
 
     private static void putIfPresent(Map<String, Object> attributes, String key, String value) {

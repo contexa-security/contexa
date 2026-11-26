@@ -28,6 +28,7 @@ import io.contexa.contexacore.security.UnifiedUserDetailsService;
 import io.contexa.contexaidentity.security.core.context.OrderedSecurityFilterChain;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.Ordered;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
@@ -59,22 +61,40 @@ class OwnershipStartupDiagnosticsTest {
                 .doesNotContain("@Primary", "unless");
     }
 
+    /**
+     * R-14 (F-2): with mode FULL Contexa's main chain takes every request it is left, and Spring Security runs no chain after
+     * one that takes every request, so an application chain that takes every request as well cannot run beside it.
+     */
     @Test
-    @DisplayName("Q-2: a chain of the application under CONTEXA_OWNED stops the start, and the refusal names it and says what to change")
-    void anApplicationChainIsRefused() {
-        SecurityFilterChain contexa = new OrderedSecurityFilterChain(100, AnyRequestMatcher.INSTANCE, List.of());
-        SecurityFilterChain application = new DefaultSecurityFilterChain(api, List.of(mock(Filter.class)));
+    @DisplayName("R-14: FULL에서 모든 요청을 받는 앱 체인은 기동을 멈추고, 거부는 그 체인을 이름하고 securityMatcher로 좁히거나 SANDBOX를 쓰라고 알린다")
+    void anApplicationChainForEveryRequestIsRefused() {
+        SecurityFilterChain contexa = new OrderedSecurityFilterChain(Ordered.LOWEST_PRECEDENCE, AnyRequestMatcher.INSTANCE, List.of());
+        SecurityFilterChain application = new DefaultSecurityFilterChain(AnyRequestMatcher.INSTANCE, List.of(mock(Filter.class)));
 
-        assertThatThrownBy(() -> OwnershipStartupDiagnostics.refuseApplicationChains(List.of(contexa, application), null))
+        assertThatThrownBy(() -> OwnershipStartupDiagnostics.refuseApplicationChains(List.of(application, contexa), null))
                 .isInstanceOfSatisfying(ContexaOperatingProfileException.class, refused -> {
-                    assertThat(refused.getMessage()).contains("would be open");
-                    assertThat(refused.action()).contains("without mode = FULL");
+                    assertThat(refused.getMessage()).contains(AnyRequestMatcher.INSTANCE.toString(), "would never run");
+                    assertThat(refused.action()).contains("securityMatcher", "without mode = FULL");
                 });
     }
 
+    /** R-14: a chain of the application's narrowed to its own paths runs ahead of Contexa's main chain, which takes the rest. */
     @Test
-    @DisplayName("Q-2: a chain the application put in front of Contexa's is refused as well: it keeps a sign-in of its own")
-    void aChainInFrontOfContexasIsRefusedToo() {
+    @DisplayName("R-14: FULL에서 securityMatcher로 좁힌 앱 체인은 거부하지 않는다: Contexa 주 체인 앞에서 자기 경로를 맡는다")
+    void aNarrowedApplicationChainIsNotRefused() {
+        SecurityFilterChain application = new DefaultSecurityFilterChain(api, List.of(mock(Filter.class)));
+        SecurityFilterChain contexa = new OrderedSecurityFilterChain(Ordered.LOWEST_PRECEDENCE, AnyRequestMatcher.INSTANCE, List.of());
+
+        assertThatCode(() -> OwnershipStartupDiagnostics.refuseApplicationChains(List.of(application, contexa), null))
+                .doesNotThrowAnyException();
+        assertThat(OwnershipStartupDiagnostics.applicationChains(List.of(application, contexa), null))
+                .as("it is still the application's chain").hasSize(1);
+    }
+
+    /** Whether such a chain is refused is decided by the requests it takes (R-14), not by its being the application's. */
+    @Test
+    @DisplayName("Q-2: 앱이 Contexa 체인 앞에 둔 체인도 앱의 체인으로 센다")
+    void aChainInFrontOfContexasIsTheApplications() {
         SecurityFilterChain application = new DefaultSecurityFilterChain(api, List.of(mock(Filter.class)));
         SecurityFilterChain contexa = new OrderedSecurityFilterChain(100, AnyRequestMatcher.INSTANCE, List.of());
 
@@ -134,7 +154,7 @@ class OwnershipStartupDiagnosticsTest {
         ContexaOperatingProfile sandbox = new ContexaOperatingProfile(SecurityMode.SANDBOX, SecurityOwnershipMode.HOST_OWNED, false, false);
 
         assertThat(OwnershipStartupDiagnostics.openUnnamedPathsNotice(full, "PERMIT"))
-                .startsWith("[Contexa] CONTEXA_OWNED: the stored decision for URLs no policy names is PERMIT")
+                .startsWith("[Contexa] FULL: the stored decision for URLs no policy names is PERMIT")
                 .contains("an upgrade does not change it", "Decision when no URL policy applies");
         assertThat(OwnershipStartupDiagnostics.openUnnamedPathsNotice(full, " PERMIT ")).isNotNull();
         assertThat(OwnershipStartupDiagnostics.openUnnamedPathsNotice(sandbox, "PERMIT"))
@@ -152,46 +172,28 @@ class OwnershipStartupDiagnosticsTest {
     }
 
     @Test
-    @DisplayName("an application whose several mail senders Contexa does not choose between is told so, with the names and what to do (SANDBOX)")
-    void severalSendersAreNamedWhereTheApplicationSignsIn() {
-        String message = OwnershipStartupDiagnostics.undeliverableCodeMessage(SecurityOwnershipMode.HOST_OWNED, List.of("mailA", "mailB"), true);
+    @DisplayName("several senders and no spring.mail.host, Contexa is told it has none of its own to build, and how to give it one")
+    void severalSendersAndNoHostAreExplainedWhereContexaSignsIn() {
+        String message = OwnershipStartupDiagnostics.undeliverableCodeMessage(List.of("mailA", "mailB"), false);
 
         assertThat(message).contains("the application has several JavaMailSender beans [mailA, mailB]", "does not choose one of them",
-                "@Primary", "passkey").doesNotContain("no mail sender is configured");
-    }
-
-    @Test
-    @DisplayName("FULL: several senders and no spring.mail.host, Contexa is told it has none of its own to build, and how to give it one")
-    void severalSendersAndNoHostAreExplainedWhereContexaSignsIn() {
-        String message = OwnershipStartupDiagnostics.undeliverableCodeMessage(SecurityOwnershipMode.CONTEXA_OWNED, List.of("mailA", "mailB"), false);
-
-        assertThat(message).contains("the application has several JavaMailSender beans [mailA, mailB]", "spring.mail.host is not set",
-                "Set spring.mail.host", "@Primary", "passkey");
+                "spring.mail.host is not set", "Set spring.mail.host", "@Primary", "passkey").doesNotContain("no mail sender is configured");
     }
 
     @Test
     @DisplayName("no sender of the application and no spring.mail.host: the reason is that neither exists")
     void noSenderAndNoHostAreExplained() {
-        for (SecurityOwnershipMode ownership : SecurityOwnershipMode.values()) {
-            assertThat(OwnershipStartupDiagnostics.undeliverableCodeMessage(ownership, List.of(), false))
-                    .contains("the application has no JavaMailSender and spring.mail.host is not set", "Set spring.mail.*", "passkey");
-        }
+        assertThat(OwnershipStartupDiagnostics.undeliverableCodeMessage(List.of(), false))
+                .contains("the application has no JavaMailSender and spring.mail.host is not set", "Set spring.mail.*", "passkey");
     }
 
     @Test
-    @DisplayName("FULL, spring.mail.host set and still no sender: the sender built from spring.mail.* could not be created")
+    @DisplayName("spring.mail.host set and still no sender, in every way of running: the sender built from spring.mail.* could not be created")
     void aSenderThatCouldNotBeBuiltIsSaid() {
-        assertThat(OwnershipStartupDiagnostics.undeliverableCodeMessage(SecurityOwnershipMode.CONTEXA_OWNED, List.of("mailA", "mailB"), true))
+        assertThat(OwnershipStartupDiagnostics.undeliverableCodeMessage(List.of("mailA", "mailB"), true))
                 .contains("could not be created", "spring.mail.*").doesNotContain("does not choose");
-        assertThat(OwnershipStartupDiagnostics.undeliverableCodeMessage(SecurityOwnershipMode.CONTEXA_OWNED, List.of(), true))
-                .contains("could not be created");
-    }
-
-    @Test
-    @DisplayName("SANDBOX, spring.mail.host set and no JavaMailSender bean: the sender that Spring Boot would make is missing")
-    void aHostWithoutASenderBeanIsSaid() {
-        assertThat(OwnershipStartupDiagnostics.undeliverableCodeMessage(SecurityOwnershipMode.HOST_OWNED, List.of(), true))
-                .contains("spring.mail.host is set but the application has no JavaMailSender bean");
+        assertThat(OwnershipStartupDiagnostics.undeliverableCodeMessage(List.of(), true))
+                .contains("could not be created").doesNotContain("Spring Boot's mail configuration");
     }
 
     @Test

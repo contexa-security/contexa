@@ -16,8 +16,9 @@
 package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
-import io.contexa.contexacommon.operating.ConditionalOnOwnership;
-import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.contexacommon.operating.ConditionalOnMode;
+import io.contexa.contexacommon.security.bridge.SecurityMode;
+import io.contexa.contexaidentity.security.service.PasskeyUserCopyMergeContributor;
 import io.contexa.contexaidentity.security.service.PasskeyUserStatePurgeContributor;
 import io.contexa.contexaidentity.security.zerotrust.stepup.ContexaPasskeyStores;
 import io.contexa.contexaidentity.security.webauthn.codec.DefaultPasskeyCreationOptionsCodec;
@@ -45,10 +46,14 @@ import org.springframework.security.web.webauthn.registration.PublicKeyCredentia
 @ConditionalOnBean(PlatformConfig.class)
 public class IdentityWebAuthnAutoConfiguration {
 
-    /** Spring Security's {@code webAuthn()} of Contexa's chain finds its repositories as beans; no chain of an application is there. */
+    /**
+     * Where Contexa's main chain signs the application's users in and the application has no passkey repositories of its own,
+     * Contexa's are offered by type as well, for a {@code webAuthn()} of the application's that has none (R-17 of
+     * docs/agent/운영모드-정상화-구현계획.md).
+     */
     @Configuration(proxyBeanMethods = false)
-    @ConditionalOnOwnership(SecurityOwnershipMode.CONTEXA_OWNED)
-    static class ContexaOwnedPasskeys {
+    @ConditionalOnMode(SecurityMode.FULL)
+    static class OfferedPasskeys {
 
         @Bean(name = "contexaPublicKeyCredentialUserEntityRepository")
         @ConditionalOnMissingBean(PublicKeyCredentialUserEntityRepository.class)
@@ -69,10 +74,12 @@ public class IdentityWebAuthnAutoConfiguration {
         }
     }
 
-    /** The application's {@code webAuthn()} must not find Contexa's repositories, so that they are held instead of being beans. */
+    /**
+     * Contexa's passkeys, in every way of running Contexa, held so that the application's {@code webAuthn()} never finds them.
+     * Contexa's flows that sign Contexa's accounts in are handed them on their own chain.
+     */
     @Configuration(proxyBeanMethods = false)
-    @ConditionalOnOwnership(SecurityOwnershipMode.HOST_OWNED)
-    static class HostOwnedPasskeys {
+    static class HeldPasskeys {
 
         @Bean(name = "contexaPasskeyStores")
         @ConditionalOnMissingBean
@@ -91,6 +98,18 @@ public class IdentityWebAuthnAutoConfiguration {
             ObjectProvider<PublicKeyCredentialUserEntityRepository> userEntities,
             ObjectProvider<UserCredentialRepository> userCredentials) {
         return new PasskeyUserStatePurgeContributor(
+                () -> held.getIfAvailable() != null ? held.getObject().userEntities() : userEntities.getIfAvailable(),
+                () -> held.getIfAvailable() != null ? held.getObject().userCredentials() : userCredentials.getIfAvailable());
+    }
+
+    /** bridge v2 B5-3: the passkeys of two copies of one person when the synchronisation merges the copies. */
+    @Bean(name = "contexaPasskeyUserCopyMergeContributor")
+    @ConditionalOnMissingBean
+    public PasskeyUserCopyMergeContributor passkeyUserCopyMergeContributor(
+            ObjectProvider<ContexaPasskeyStores> held,
+            ObjectProvider<PublicKeyCredentialUserEntityRepository> userEntities,
+            ObjectProvider<UserCredentialRepository> userCredentials) {
+        return new PasskeyUserCopyMergeContributor(
                 () -> held.getIfAvailable() != null ? held.getObject().userEntities() : userEntities.getIfAvailable(),
                 () -> held.getIfAvailable() != null ? held.getObject().userCredentials() : userCredentials.getIfAvailable());
     }

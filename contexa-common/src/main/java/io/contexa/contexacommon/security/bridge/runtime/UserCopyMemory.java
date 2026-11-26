@@ -19,17 +19,13 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Ticker;
 import io.contexa.contexacommon.cache.ContexaCaffeine;
-import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
-import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserCopyFacts;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
 import org.springframework.lang.Nullable;
 
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,6 +34,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -45,15 +42,13 @@ import java.util.function.Supplier;
  * facts needs nothing of Contexa's database; and the synchronisation of facts nothing is kept for, which runs away from
  * the request.
  * <p>
- * The facts are everything the synchronisation compares before it writes the copy: the subject and where it signed in, its
- * display name and type, its authorities and attributes (address, organisation, department and the rest come from these),
- * the authorization's roles, authorities, attributes, effect and policy, and the request's address. When one of them
- * changes the copy has to change, so what is kept is not used and the synchronisation runs again. The rest of what it
- * writes (how and when the user signed in, the session) it writes only with the periodic refresh of an unchanged copy,
- * and so does this. What is kept is only ever given back for the very facts it was kept for, so one user's copy never
- * answers for another. It is kept for the time the synchronisation leaves an unchanged copy unwritten, so the copy is
- * refreshed about as often as before; a copy changed elsewhere (an administrator, a deletion, an address the
- * application's provider starts to tell) shows once what is kept expires.
+ * The facts are the values the copy keeps ({@link BridgeUserCopyFacts}): the subject and where it signed in, its display
+ * name and type, how it signed in, its authorities, and the attributes the copy takes (address, organisation, department
+ * and the rest). When one of them changes the copy has to change, so what is kept is not used and the synchronisation
+ * runs again. The request's address, a refreshed token and the request's authorization are not facts: they never write
+ * the copy, and when and from where the user signed in is written by a sign-in only. What is kept is only ever given
+ * back for the very facts it was kept for, so one user's copy never answers for another. A copy changed elsewhere (an
+ * administrator, a deletion, an address the application's provider starts to tell) shows once what is kept expires.
  * <p>
  * One synchronisation at a time for a subject, on daemon threads that exist only while there is work; it waits on Contexa's
  * database through the request path's guard, as the request did, so an outage of the database costs nothing more than
@@ -142,6 +137,16 @@ final class UserCopyMemory {
         }
     }
 
+    /**
+     * Lets go of what is kept for the subjects the test names, in every organization: a deleted user's copy must not be
+     * given to the requests that come before the memory would have expired (bridge v2 B5-2, ContexaUsers.delete).
+     */
+    void forget(Predicate<String> subject) {
+        if (kept != null) {
+            kept.asMap().keySet().removeIf(whom -> subject.test(whom.externalSubjectId()));
+        }
+    }
+
     void close() {
         workers.shutdownNow();
     }
@@ -170,68 +175,29 @@ final class UserCopyMemory {
     record Kept(List<Object> values, @Nullable BridgeUserMirrorSyncResult result) {
     }
 
-    /** Whom a copy is of: the subject and where it signed in, as the synchronisation tells its copies apart. */
-    record Subject(String externalSubjectId, String authenticationSource, @Nullable String organizationId) {
+    /**
+     * Whom a copy is of: the subject within its organization, as the synchronisation tells its copies apart. The way the
+     * bridge read the subject is one of the facts, not part of whom: one synchronisation at a time for one copy.
+     */
+    record Subject(String externalSubjectId, @Nullable String organizationId) {
     }
 
-    /** The subject and every fact that decides whether its copy has to be written. */
+    /**
+     * The subject and every value its copy keeps ({@link BridgeUserCopyFacts}), the same values the synchronisation decides
+     * by: the request's address, a refreshed token and the authorization of the request are not among them, so they find
+     * what is kept (bridge v2, B5-1, DB-4).
+     */
     record Facts(Subject subject, List<Object> values) {
 
         /** The facts of a signed-in subject, or {@code null} for an authentication that names none. */
         @Nullable
-        static Facts of(AuthenticationStamp authentication, @Nullable AuthorizationStamp authorization,
-                        @Nullable RequestContextSnapshot request) {
+        static Facts of(AuthenticationStamp authentication) {
             String subject = text(authentication.principalId());
             if (subject == null) {
                 return null;
             }
-            Map<String, Object> attributes = authentication.attributes();
-            String source = firstText(authentication.authenticationSource(),
-                    attribute(attributes, "authenticationSource", "authSource", "sourceSystem"), "BRIDGE");
-            String organization = attribute(attributes, "organizationId", "orgId");
-            // DefaultBridgeUserMirrorSyncService: what shouldSkipSync compares (the sync hash of buildSyncSnapshot and
-            // hasUserFieldChanges), and what names the copy
-            List<Object> values = Collections.unmodifiableList(Arrays.asList(
-                    authentication.principalId(),
-                    authentication.authenticationSource(),
-                    authentication.displayName(),
-                    authentication.principalType(),
-                    authentication.authorities(),
-                    attributes,
-                    authorization != null ? authorization.effectiveRoles() : null,
-                    authorization != null ? authorization.effectiveAuthorities() : null,
-                    authorization != null ? authorization.attributes() : null,
-                    authorization != null ? authorization.effect() : null,
-                    authorization != null ? authorization.policyId() : null,
-                    authorization != null ? authorization.policyVersion() : null,
-                    request != null ? request.clientIp() : null));
-            return new Facts(new Subject(subject, source, organization), values);
-        }
-
-        @Nullable
-        private static String attribute(@Nullable Map<String, Object> attributes, String... keys) {
-            if (attributes == null || attributes.isEmpty()) {
-                return null;
-            }
-            for (String key : keys) {
-                Object value = attributes.get(key);
-                String text = value != null ? text(value.toString()) : null;
-                if (text != null) {
-                    return text;
-                }
-            }
-            return null;
-        }
-
-        @Nullable
-        private static String firstText(String... values) {
-            for (String value : values) {
-                String text = text(value);
-                if (text != null) {
-                    return text;
-                }
-            }
-            return null;
+            String organization = BridgeUserCopyFacts.attribute(authentication.attributes(), "organizationId", "orgId");
+            return new Facts(new Subject(subject, organization), BridgeUserCopyFacts.of(authentication));
         }
 
         @Nullable
