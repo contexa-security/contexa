@@ -4,7 +4,7 @@ All notable changes to the open-source CONTEXA core are documented in this file.
 
 The format is based on Keep a Changelog and the project follows semantic versioning in principle.
 
-## [Unreleased]
+## [0.2.0] - 2026-11-27
 
 ### Upgrade notes: how the application names its user
 
@@ -1650,6 +1650,9 @@ These notes describe how Contexa now runs beside the application.
 
 ### Changed
 
+- **The Java style check runs inside the Gradle build.** `checkJavaStyle`, which every compilation depends on, is defined in
+  `gradle/java-style.gradle` with the same rule `check-java-style.js` applied, so building the modules or publishing them
+  no longer needs Node.js, and the Docker build image no longer installs it.
 - **The starter no longer brings Spring Security: an application that turns Contexa on declares it.** The starter carried
   `spring-boot-starter-security`, and Spring Boot secures an application once Spring Security's configuration support is
   on its class path, so adding the dependency alone changed the application. It now carries the OAuth2 libraries without

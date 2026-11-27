@@ -1,5 +1,15 @@
 # Release Notes
 
+## v0.2.0
+
+Release date: 2026-11-27
+Release stage: update of the initial public open-source release, with breaking changes listed in the upgrade notes of `CHANGELOG.md`
+
+- the security mode (SANDBOX, FULL) and the ownership (HOST_OWNED, CONTEXA_OWNED) are two settings, and every pair starts with all of CONTEXA's features
+- in SANDBOX the decision runs in a servlet filter slot after all of the application's filters
+- the application names its user with one contract, `ContexaSubject`: the Spring Security `Authentication`, a `ContexaSubjectResolver` bean or the request attribute `ctxa.subject`; the session, request-attribute and header bridges and the handoff are removed
+- the Java style check that runs before every compilation is part of the Gradle build and no longer needs Node.js
+
 ## v0.1.1
 
 Release date: 2026-11-02

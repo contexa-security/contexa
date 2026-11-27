@@ -14,7 +14,7 @@ repositories {
 
 allprojects {
     group = 'ai.ctxa'
-    version = '0.1.1'
+    version = '0.2.0'
     description = 'contexa'
 }
 
@@ -26,11 +26,7 @@ tasks.withType(Javadoc) {
     options.addStringOption('Xdoclint:none', '-quiet')
 }
 
-tasks.register('checkJavaStyle', Exec) {
-    group = 'verification'
-    description = 'Check Java style requirements'
-    commandLine 'node', "${rootDir}/check-java-style.js", '--all'
-}
+apply from: "${rootDir}/gradle/java-style.gradle"
 
 subprojects {
     apply plugin: 'java'

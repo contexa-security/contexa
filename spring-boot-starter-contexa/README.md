@@ -10,7 +10,7 @@ It brings the OSS modules onto the classpath and activates the auto-configuratio
 Gradle:
 ```gradle
 dependencies {
-    implementation "ai.ctxa:spring-boot-starter-contexa:0.1.1"
+    implementation "ai.ctxa:spring-boot-starter-contexa:0.2.0"
 }
 ```
 
@@ -19,7 +19,7 @@ Maven:
 <dependency>
     <groupId>ai.ctxa</groupId>
     <artifactId>spring-boot-starter-contexa</artifactId>
-    <version>0.1.1</version>
+    <version>0.2.0</version>
 </dependency>
 ```
 

@@ -7,16 +7,12 @@
 # JDK 17 matches the Gradle toolchain (java.toolchain.languageVersion = 17), so no toolchain download is needed.
 FROM eclipse-temurin:17-jdk-jammy AS builder
 
-# Every JavaCompile task depends on :checkJavaStyle, which runs check-java-style.js with Node.js.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /build
 
-# Copy Gradle wrapper, build config and the Java style checker first (layer cache optimization)
+# Copy Gradle wrapper and build config first (layer cache optimization).
+# Every JavaCompile task depends on :checkJavaStyle, which gradle/java-style.gradle defines inside the Gradle build.
 COPY gradle/ gradle/
-COPY gradlew settings.gradle build.gradle gradle.properties check-java-style.js ./
+COPY gradlew settings.gradle build.gradle gradle.properties ./
 
 # Copy module build files
 COPY contexa-common/build.gradle contexa-common/build.gradle

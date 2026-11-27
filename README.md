@@ -85,7 +85,7 @@ contexa init
 
 ```gradle
 dependencies {
-    implementation 'ai.ctxa:spring-boot-starter-contexa:0.1.1'
+    implementation 'ai.ctxa:spring-boot-starter-contexa:0.2.0'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation platform('org.springframework.ai:spring-ai-bom:1.1.8')
     implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
@@ -112,7 +112,7 @@ dependencies {
     <dependency>
         <groupId>ai.ctxa</groupId>
         <artifactId>spring-boot-starter-contexa</artifactId>
-        <version>0.1.1</version>
+        <version>0.2.0</version>
     </dependency>
     <dependency>
         <groupId>org.springframework.boot</groupId>
